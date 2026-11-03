@@ -112,6 +112,7 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   branch `feat/git-policy-cli-index-lock-and-service-waits` from the 0.5.28 base `5299b6d102`,
   worktree `.claude/worktrees/index-lock-and-service-waits`.
 - Not agents:
+  the 0.5.27 `native:release:wait`;
   the second cross-vendor review of cargo-shadow (`pi`,
   output `~/temp/agent/reviews/cargo-shadow-sol-2.txt`,
   diff `cargo-shadow-src-2.diff` from `504a82aa3f` to `09bb7820ea`;
@@ -122,16 +123,12 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   `file-enforcer write` from source reproduces the generated line,
   and about 4300 comment lines,
   partly from a regex tool,
-  which the review checks for false statements);
-  the sixth cross-vendor design review (`pi`,
-  output `~/temp/agent/reviews/commits-never-fail-sol-6.txt`);
-  the gate of 0.5.27 (named under its branch below).
+  which the review checks for false statements).
 Queued,
 in this order:
-nothing;
-next after these:
-gate the 0.5.28 base with each finished branch,
-then the design build in the reviewer's order once the sixth review allows it.
+design revision 7 (resume the design agent with the sixth review's findings),
+then the step 1 models and crash fixtures (see "Commits, merges and pushes that never fail");
+then gate the 0.5.28 base with each finished branch.
 
 0.5.27 ships without the in-process index work
 (coordinator's pick under the delegation,
@@ -496,10 +493,88 @@ picked under the delegation in `75cf58f345`
 Sixth cross-vendor review started 2026-11-03T09:50-05:00
 (`~/temp/agent/reviews/commits-never-fail-sol-6.txt`,
 prompt `commits-never-fail-prompt-6.txt` beside it).
-Remaining:
-the sixth review and its revision,
-then build in the reviewer's order (models and crash fixtures first),
-with the exit inventory as a gate.
+Sixth review returned 2026-11-03T10:33:37-05:00 (`~/temp/agent/reviews/commits-never-fail-sol-6.txt`):
+"Ready to build step 1:
+executable models and disposable crash fixtures only.
+Not ready to build the live protocol."
+Its findings (P1 unless marked):
+- F1 (P2):
+  an intact reflog anchor does not prove the entries after it are complete;
+  treat missing evidence as ambiguous ("Land it" with the notice),
+  never as "not published".
+- F2:
+  a dead inline owner's descendant can hold the lane lock,
+  and the next owner may stop that scope only after acquiring it,
+  so cleanup can deadlock;
+  a closed-description descendant can still mutate after a new owner acquires;
+  needs a lifecycle authority that reaps a proven-dead owner's scope without the lock.
+- F3:
+  restarting a quiet owner (question 2,
+  A) races a hook's dispatch,
+  and a delayed restart can hit a replacement owner;
+  restart must be serialized with hook admission and the owner's incarnation.
+- F4:
+  stopping `update-ref`,
+  or restarting its owner,
+  leaves a branch lock the wrapper caused and recovery refuses to sweep;
+  "stop and redo" and "never reclaim" do not compose.
+- F5 (P2):
+  the HEAD bracket is a guard,
+  not a fence;
+  reflog growth is neither a complete switch detector nor proof of a switch.
+- F6:
+  reading the same state version twice allows a mixed snapshot
+  (a materializer pausing before it advances the version makes a plain commit capture `x=1` and revert `R2`);
+  needs a seqlock-style in-progress marker before every relevant mutation.
+- F7:
+  renaming a temporary request over `inbox/<id>` lets a second client replace an accepted request with the same id;
+  bind each id to its content without overwrite across inbox,
+  queue and ledger.
+- F8:
+  maintenance records per worktree miss the shared object store
+  (a prune started from worktree A deletes objects of B's request);
+  needs an object-store-wide,
+  crash-safe registry.
+- F9 (P2):
+  hooks held while others land need an explicit ordering exception,
+  including the held request later refusing or succeeding.
+- On question 1:
+  keep A;
+  the coordinator's "record restaged paths" is not adopted as a closed solution;
+  versioned restaging events (resulting entry,
+  operation,
+  consumed or not) are an optional later improvement,
+  with its listed cases (`git add` of unchanged content,
+  `add -p`,
+  `restore --staged`,
+  `stash`,
+  `commit -a`,
+  aliases,
+  bypassing writers fall back to A).
+- Questions 2 to 4:
+  no conflict with the owner's rules,
+  given F3 and F4 for question 2.
+- P3:
+  several operative sections still describe superseded behavior;
+  one authoritative rule each for cancellation,
+  inline-owner lifetime,
+  optional index locking,
+  background re-signing and attachment generations.
+Remaining,
+queued first for the next free slots:
+revision 7 (resume the design agent with these findings);
+and step 1,
+failing models for F2 to F8 with the review's schedules as red controls,
+the hook-bypass ordering model,
+immutable request,
+spool and permanent ledger components with no reclamation,
+pure tree comparison and replay with no live mutation.
+Not enabled until the models pass:
+automatic restart,
+production pending publication,
+live carry-forward,
+retention deletion.
+The exit inventory stays a gate.
 Interim code in 0.5.26 (index-lock wait and a bounded moved-head loop) stays until the by-construction design replaces
 it
 (owner:
