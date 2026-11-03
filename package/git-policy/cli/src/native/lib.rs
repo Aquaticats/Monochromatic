@@ -901,6 +901,9 @@ pub mod stale_ref_lock_judge;
 /// Removal of a proven stale lock with its companions.
 pub mod stale_ref_lock_retire;
 
+/// What the wrapper prints about reference locks, and the quoted command that clears one it will not remove.
+pub mod stale_ref_lock_message;
+
 /// Real Git processes killed with `SIGKILL` while they hold reference locks, for the controls.
 #[cfg(test)]
 mod stale_ref_lock_killed_git;
