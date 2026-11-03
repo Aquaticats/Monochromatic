@@ -349,3 +349,85 @@ fn a_check_that_may_use_the_network_does_not_pass_offline() {
 
     assert_eq!(*cargo.commands.borrow(), vec!["one :: update --workspace --locked".to_string()]);
 }
+
+/// A registry that, like a second process, rewrites the lockfile while the policy check runs.
+struct InterferingRegistry {
+    lock: PathBuf,
+    histories: BTreeMap<String, Vec<VersionRecord>>,
+}
+
+impl Registry for InterferingRegistry {
+    fn pubtimes(&self, _name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+        return Ok(BTreeMap::new());
+    }
+    fn yanked(&self, _name: &str) -> Result<std::collections::BTreeSet<String>, RegistryError> {
+        return Ok(std::collections::BTreeSet::new());
+    }
+    fn history(&self, name: &str, _versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+        fs::write(&self.lock, "# written by another process\nversion = 4\n").expect("the other writer");
+        return Ok(self.histories.get(name).cloned().unwrap_or_default());
+    }
+    fn owners(&self, _name: &str) -> Result<std::collections::BTreeSet<String>, RegistryError> {
+        return Ok(std::collections::BTreeSet::new());
+    }
+}
+
+#[test]
+fn a_lockfile_another_process_wrote_during_the_checks_is_not_discarded_by_a_refusal() {
+    let (root, dirs) = repository(&[("package/a/stale", STALE)]);
+    let cargo: FakeCargo = cargo_that_writes(&lock_with("dep", "1.0.1"));
+    let registry: InterferingRegistry = InterferingRegistry {
+        lock: root.path().join("package/a/stale/Cargo.lock"),
+        histories: BTreeMap::from([(
+            "dep".to_string(),
+            vec![record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")],
+        )]),
+    };
+    let catalog_settings: Settings = settings();
+
+    let report = install_rust_lockfiles(&InstallRequest {
+        root: root.path(),
+        crate_dirs: &dirs,
+        frozen: false,
+        offline: true,
+        dry_run: false,
+        now: 0,
+        settings: &catalog_settings,
+        runner: &cargo,
+        registry: &registry,
+    })
+    .expect("reports");
+
+    assert!(!report.written);
+    assert_eq!(report.problems.len(), 1);
+    assert_eq!(lock_text(root.path(), "package/a/stale"), "# written by another process\nversion = 4\n");
+    assert!(report.warnings.iter().any(|warning| { return warning.contains("another process"); }), "{:?}", report.warnings);
+}
+
+#[test]
+fn a_run_killed_after_cargo_wrote_is_finished_by_the_next_install() {
+    let (root, dirs) = repository(&[("package/a/one", &lock_with("dep", "1.0.1"))]);
+    crate::journal::begin(
+        root.path(),
+        &[crate::crates::LockSnapshot { crate_dir: "package/a/one".to_string(), source: SATISFIED.to_string() }],
+    )
+    .expect("journal");
+    let ours = root.path().join(crate::journal::JOURNAL_DIR).join(std::process::id().to_string());
+    fs::rename(&ours, root.path().join(crate::journal::JOURNAL_DIR).join("4194305")).expect("pose as a killed process");
+    let cargo: FakeCargo = cargo_that_writes(SATISFIED);
+    let registry: FakeRegistry = FakeRegistry {
+        histories: BTreeMap::from([(
+            "dep".to_string(),
+            vec![record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")],
+        )]),
+    };
+
+    let report = run_install(root.path(), &dirs, &cargo, &registry, false, false).expect("recovers");
+
+    assert_eq!(lock_text(root.path(), "package/a/one"), SATISFIED);
+    assert_eq!(
+        fs::read_to_string(root.path().join("package/a/one/Cargo.lock.refused")).expect("saved"),
+        lock_with("dep", "1.0.1")
+    );
+    assert!(report.warnings.iter().any(|warning| { return warning.contains("killed"); }), "{:?}", report.warnings);
+}

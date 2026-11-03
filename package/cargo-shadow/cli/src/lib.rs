@@ -38,6 +38,9 @@ pub mod http;
 /// Runs the repository-wide catalog commands for the CLI.
 pub mod commands;
 
+/// Compare-before-replace for lockfile restores, and the journal that recovers a killed run.
+pub mod journal;
+
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `cargo`.
 pub mod guard;
 
@@ -143,6 +146,9 @@ mod install_step_tests;
 
 #[cfg(test)]
 mod install_tests;
+
+#[cfg(test)]
+mod journal_tests;
 
 #[cfg(test)]
 mod lockfile_tests;
