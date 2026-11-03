@@ -315,10 +315,10 @@ fn a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait(
 
 /// Runs the claim of the two controls: a wrapped commit starts `stall` after the foreign commit took the lock, and the foreign
 ///  commit lets go `HOLD_SECONDS` after the wrapped commit's first notice that it waits for it.
-fn attributes_the_wait_for_a_foreign_index_holder(name: &str, stall: Duration) {
-    let fixture: Fixture = fixture(name);
+fn attributes_the_wait_for_a_foreign_index_holder(control: &str, stall: Duration) {
+    let fixture: Fixture = fixture(control);
     let repo: PathBuf = base_repository(&fixture);
-    let name: String = format!("{name}-{}", std::process::id());
+    let name: String = format!("{control}-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
     let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
