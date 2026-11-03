@@ -432,3 +432,13 @@ fn unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage() {
     std::fs::set_permissions(source.join("cache/hidden"), std::fs::Permissions::from_mode(0o600)).expect("restore");
     remove(root.as_path());
 }
+
+/// A copy of few entries uses one thread; a large one takes the host's budget up to the ceiling, with the margin left free.
+#[test]
+fn the_copy_workers_follow_the_hosts_budget_up_to_the_ceiling() {
+    let small_host: HostResources = HostResources { parallelism: PARALLEL_COPY_MAX_WORKERS, memory_available: None };
+    let large_host: HostResources = HostResources { parallelism: PARALLEL_COPY_MAX_WORKERS * 8, memory_available: None };
+    assert_eq!(copy_worker_count_on(&large_host, PARALLEL_COPY_MIN_ENTRIES - 1), 1);
+    assert_eq!(copy_worker_count_on(&large_host, PARALLEL_COPY_MIN_ENTRIES), PARALLEL_COPY_MAX_WORKERS);
+    assert_eq!(copy_worker_count_on(&small_host, PARALLEL_COPY_MIN_ENTRIES), PARALLEL_COPY_MAX_WORKERS - crate::parallel_budget::cpu_margin(PARALLEL_COPY_MAX_WORKERS));
+}

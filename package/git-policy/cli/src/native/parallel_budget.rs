@@ -166,6 +166,25 @@ pub fn worker_budget(request: &BudgetRequest<'_>) -> usize {
         .max(1);
 }
 
+/// The bytes one slice of a file-copy or file-removal job holds at its peak: a batch of entries and the handles it opens, estimated
+///  at sixteen mebibytes.
+pub const SLICE_MEMORY: u64 = 16 << 20;
+
+/// What:
+///  The workers for file-tree jobs that split their entries into slices: the host's budget up to a ceiling the filesystem was
+///  measured or chosen to use.
+/// Why:
+///   The copy, install and removal of a worktree's files share the filesystem's metadata locks, so a ceiling stays, but the CPUs
+///  left free for other sessions and the memory of the control group bound them too, which a bare `min(available, 8)` ignored.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const workers = slicedWorkers({ items, ceiling: 8, host });
+/// ```
+pub fn sliced_workers(items: usize, ceiling: usize, host: &HostResources) -> usize {
+    return worker_budget(&BudgetRequest { items, per_item_memory: SLICE_MEMORY, ceiling: Some(ceiling), cap: None, host });
+}
+
 /// Budget controls stay out of the release executable.
 #[cfg(test)]
 #[path = "parallel_budget_tests.rs"]

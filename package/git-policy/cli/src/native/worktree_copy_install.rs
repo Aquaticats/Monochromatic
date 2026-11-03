@@ -14,6 +14,8 @@
 
 use super::worktree_copy_compare::{entry_matches, lstat_or_absent};
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
+use super::parallel_budget::{HostResources, sliced_workers};
+use super::worktree_copy_stage::PARALLEL_COPY_MAX_WORKERS;
 use super::worktree_copy_install_entry::{
     InstalledPath, capture_installed_path, create_selected_entry, ensure_parents_remembering,
 };
@@ -240,7 +242,7 @@ fn install_leaves(
     let workers: usize = if leaves.len() < PARALLEL_INSTALL_MIN_LEAVES {
         1
     } else {
-        std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get).min(8)
+        sliced_workers(leaves.len(), PARALLEL_COPY_MAX_WORKERS, &HostResources::read())
     };
     let slice_length: usize = leaves.len().div_ceil(workers).max(1);
     let results: Vec<(Vec<InstalledPath>, Option<WorktreeCopyError>)> = std::thread::scope(|scope| {

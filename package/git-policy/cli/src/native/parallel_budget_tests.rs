@@ -113,3 +113,16 @@ fn the_least_headroom_up_the_hierarchy_wins() {
 fn this_host_has_a_thread() {
     assert!(HostResources::read().parallelism >= 1);
 }
+
+/// File-tree jobs take the host's budget up to their ceiling: the margin and the memory bound them on a small host, the ceiling on a
+///  large one.
+#[test]
+fn sliced_jobs_take_the_budget_up_to_their_ceiling() {
+    let ceiling: usize = 8;
+    let large: HostResources = host(CPU_MARGIN_DIVISOR * 8, None);
+    assert_eq!(sliced_workers(usize::MAX, ceiling, &large), ceiling);
+    let small: HostResources = host(ceiling, None);
+    assert_eq!(sliced_workers(usize::MAX, ceiling, &small), ceiling - cpu_margin(ceiling));
+    let tight: HostResources = host(large.parallelism, Some(SLICE_MEMORY * MEMORY_SHARE_DIVISOR * 3));
+    assert_eq!(sliced_workers(usize::MAX, ceiling, &tight), 3);
+}
