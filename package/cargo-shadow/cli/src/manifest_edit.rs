@@ -342,7 +342,7 @@ pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> i
                     "{} was changed by another process while it was being restored; it was left as that process wrote it",
                     edit.path.display()
                 )),
-                ReplaceOutcome::Preserved(kept) => warnings.push(format!(
+                ReplaceOutcome::Preserved(kept) | ReplaceOutcome::Displaced(kept) | ReplaceOutcome::Undone(kept) => warnings.push(format!(
                     "{} was changed twice by other processes while it was being restored; the file displaced is kept as {}",
                     edit.path.display(),
                     kept.display()

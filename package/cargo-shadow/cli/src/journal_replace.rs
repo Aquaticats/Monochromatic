@@ -128,6 +128,17 @@ pub enum ReplaceOutcome {
     /// or held it only for a moment and was put back:
     /// another writer's file is where it was.
     LeftAlone,
+    /// The snapshot is live and the file it displaced is kept at this path
+    /// (it was not exactly the expected one, or could only be kept under its temporary name).
+    Displaced(
+        /// Where the displaced file is kept.
+        PathBuf,
+    ),
+    /// The exchange was undone: another writer's file is live and the replacement inode is kept at this path.
+    Undone(
+        /// Where the replacement is kept.
+        PathBuf,
+    ),
     /// Another writer published twice in the gap,
     /// so a file was displaced and could not be put back;
     /// it was kept under this name.
@@ -209,6 +220,11 @@ impl KeepAs {
 /// ```ts
 /// function exchange(first: string, second: string): void  // no Node API; the kernel call is renameat2(RENAME_EXCHANGE)
 /// ```
+pub fn exchange_paths(first: &Path, second: &Path) -> io::Result<()> {
+    return exchange(first, second);
+}
+
+/// The exchange primitive, private to the protocol.
 fn exchange(first: &Path, second: &Path) -> io::Result<()> {
     // `match`: picks the arm whose pattern fits the value.
     return match renameat_with(CWD, first, CWD, second, RenameFlags::EXCHANGE) {
@@ -376,7 +392,7 @@ fn create_temporary(target: &Path, text: &str, mode: u32) -> io::Result<(PathBuf
 /// ```ts
 /// function preserve(displaced: string, target: string, keep: KeepAs): string  // linkSync(displaced, name) per candidate name
 /// ```
-fn preserve(displaced: &Path, target: &Path, keep: &KeepAs) -> io::Result<PathBuf> {
+fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, link: &dyn Fn(&Path, &Path) -> io::Result<()>) -> io::Result<PathBuf> {
     // Typed binding: `base: String`.
     // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
     // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
@@ -448,7 +464,7 @@ fn preserve(displaced: &Path, target: &Path, keep: &KeepAs) -> io::Result<PathBu
             let candidate: PathBuf = directory.join(name);
             // `match`: picks the arm whose pattern fits the value.
             // Borrow `&candidate`: lends the value without copying or giving it away.
-            match fs::hard_link(displaced, &candidate) {
+            match link(displaced, &candidate) {
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 Ok(()) => {
                     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -513,7 +529,7 @@ pub fn file_name_text(path: &Path) -> String {
 /// ```
 pub fn replace_if_holds(path: &Path, expected: &str, new_text: &str, between: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
     // Borrow `&KeepAs`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, &KeepAs::next_to_target(".displaced"), between, &no_hook, &exchange);
+    return replace_core(path, expected, new_text, &KeepAs::next_to_target(".displaced"), between, &no_hook, &exchange, &real_link);
 }
 
 /// What:
@@ -530,7 +546,7 @@ pub fn replace_if_holds(path: &Path, expected: &str, new_text: &str, between: &d
 /// ```
 pub fn replace_if_holds_with_hooks(path: &Path, expected: &str, new_text: &str, between: &dyn Fn(&Path), after_exchange: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
     // Borrow `&KeepAs`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, &KeepAs::next_to_target(".displaced"), between, after_exchange, &exchange);
+    return replace_core(path, expected, new_text, &KeepAs::next_to_target(".displaced"), between, after_exchange, &exchange, &real_link);
 }
 
 /// What:
@@ -546,7 +562,7 @@ pub fn replace_if_holds_with_hooks(path: &Path, expected: &str, new_text: &str, 
 /// ```
 pub fn replace_keeping(path: &Path, expected: &str, new_text: &str, keep: &KeepAs) -> io::Result<ReplaceOutcome> {
     // Borrow `&no_hook`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, keep, &no_hook, &no_hook, &exchange);
+    return replace_core(path, expected, new_text, keep, &no_hook, &no_hook, &exchange, &real_link);
 }
 
 /// What:
@@ -560,7 +576,7 @@ pub fn replace_keeping(path: &Path, expected: &str, new_text: &str, keep: &KeepA
 /// ```
 pub fn replace_keeping_with_hook(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, between: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
     // Borrow `&no_hook`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, keep, between, &no_hook, &exchange);
+    return replace_core(path, expected, new_text, keep, between, &no_hook, &exchange, &real_link);
 }
 
 /// What:
@@ -576,7 +592,46 @@ pub fn replace_keeping_with_hook(path: &Path, expected: &str, new_text: &str, ke
 /// ```
 pub fn replace_with_swap(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, swap: &dyn Fn(&Path, &Path) -> io::Result<()>) -> io::Result<ReplaceOutcome> {
     // Borrow `&no_hook`: lends the value without copying or giving it away.
-    return replace_core(path, expected, new_text, keep, &no_hook, &no_hook, swap);
+    return replace_core(path, expected, new_text, keep, &no_hook, &no_hook, swap, &real_link);
+}
+
+/// What:
+/// `fn real_link(existing: &Path, new: &Path) -> io::Result<()>` is the hard link the protocol keeps displaced files with.
+/// Why:
+/// It is a named function so tests can swap in a failing one through `Seams`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const realLink = (existing: string, name: string): void => linkSync(existing, name);
+/// ```
+fn real_link(existing: &Path, new: &Path) -> io::Result<()> {
+    return fs::hard_link(existing, new);
+}
+
+/// The points of the protocol where a test can intervene or inject a failure.
+pub struct Seams<'a> {
+    /// Runs after the first comparison and before the temporary file is created.
+    pub between: &'a dyn Fn(&Path),
+    /// Runs right after the first exchange, with the live path.
+    pub after_exchange: &'a dyn Fn(&Path),
+    /// The exchange itself.
+    pub swap: &'a dyn Fn(&Path, &Path) -> io::Result<()>,
+    /// The hard link that gives a displaced file a surviving name.
+    pub link: &'a dyn Fn(&Path, &Path) -> io::Result<()>,
+}
+
+/// What:
+/// `pub fn replace_with_seams(path, expected, new_text, keep, seams) -> io::Result<ReplaceOutcome>` is the protocol with every
+/// seam given.
+/// Why:
+/// Tests drive the schedules the reviews describe (a failing link, an exchange that fails) deterministically.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function replaceWithSeams(path: string, expected: string, newText: string, keep: KeepAs, seams: Seams): ReplaceOutcome
+/// ```
+pub fn replace_with_seams(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, seams: &Seams) -> io::Result<ReplaceOutcome> {
+    return replace_core(path, expected, new_text, keep, seams.between, seams.after_exchange, seams.swap, seams.link);
 }
 
 /// What:
@@ -594,7 +649,7 @@ pub fn replace_with_swap(path: &Path, expected: &str, new_text: &str, keep: &Kee
 /// ```ts
 /// function replaceCore(path, expected, newText, keep, between, afterExchange): ReplaceOutcome
 /// ```
-fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, between: &dyn Fn(&Path), after_exchange: &dyn Fn(&Path), swap: &dyn Fn(&Path, &Path) -> io::Result<()>) -> io::Result<ReplaceOutcome> {
+fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, between: &dyn Fn(&Path), after_exchange: &dyn Fn(&Path), swap: &dyn Fn(&Path, &Path) -> io::Result<()>, link: &dyn Fn(&Path, &Path) -> io::Result<()>) -> io::Result<ReplaceOutcome> {
     // An unreadable file is an error, never an empty one.
     let first = match observe(path)? {
         // `Some`: the present or the absent value of an `Option`.
@@ -655,7 +710,7 @@ fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, betw
     if displaced_expected {
         // `match`: picks the arm whose pattern fits the value.
         // Borrow `&temporary`: lends the value without copying or giving it away.
-        return match preserve(&temporary, path, keep) {
+        return match preserve(&temporary, path, keep, link) {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(kept) => {
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -676,7 +731,7 @@ fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, betw
     if swap(&temporary, path).is_err() {
         // `match`: picks the arm whose pattern fits the value.
         // Borrow `&temporary`: lends the value without copying or giving it away.
-        return match preserve(&temporary, path, keep) {
+        return match preserve(&temporary, path, keep, link) {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(kept) => {
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -708,7 +763,7 @@ fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, betw
     }
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&temporary`: lends the value without copying or giving it away.
-    return match preserve(&temporary, path, keep) {
+    return match preserve(&temporary, path, keep, link) {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(kept) => {
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.

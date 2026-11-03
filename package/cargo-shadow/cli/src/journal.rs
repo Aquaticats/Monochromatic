@@ -375,7 +375,7 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
                 "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
                 snapshot.crate_dir
             )),
-            ReplaceOutcome::Preserved(copy) => warnings.push(format!(
+            ReplaceOutcome::Preserved(copy) | ReplaceOutcome::Displaced(copy) | ReplaceOutcome::Undone(copy) => warnings.push(format!(
                 "{}/{LOCKFILE_NAME} was changed twice by other processes while the step ran; the file displaced is kept as {}",
                 snapshot.crate_dir,
                 copy.display()
