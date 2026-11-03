@@ -9888,3 +9888,6 @@ by the coordinator at merge.
   refused by the layout reader (pinned with tests), findings 2 to 4 fixed with red controls; host 3163 and 532 pass.
   Sent back: the same option-value scan in `restores_index_only` (`command_discard.rs`), `conflict_sides.rs` over 300
   lines, and the pathspec note.
+- Owner decision, verbatim: "I'm widening the pnpm spawning exemption during worktree copy ops to all pkg managers."
+  So during worktree copy operations the wrapper may launch any package manager the repository uses (pnpm, Cargo,
+  uv, Bun, npm, Gradle, Zig, mise), not only pnpm. Relayed to the package-manager agent.
