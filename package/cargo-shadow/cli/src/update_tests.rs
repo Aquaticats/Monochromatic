@@ -1240,3 +1240,104 @@ fn a_sync_failure_after_the_catalog_write_restores_the_catalog_the_manifests_and
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }
+
+/// Review finding (2c 3): `cargo update -p foo --precise 1.0.1` leaves the lockfile unchanged when `foo@1.0.1` is already locked.
+/// The requested release is still held to the policy; the old check looked only at what the command added.
+#[test]
+fn an_unchanged_precise_target_that_the_policy_refuses_is_still_refused() {
+    let world = world(&lock_with("1.0.1"), "");
+    let cargo: FakeCargo = cargo_resolving("");
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    let args: Vec<String> = ["update", "--package", "dep@1.0.1", "--precise", "1.0.1"].iter().map(|argument| { return argument.to_string(); }).collect();
+
+    let report = run(&world, &settings(), &cargo, &registry, false, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
+
+    assert!(!report.written, "an unchanged but refused release was accepted");
+    assert_eq!(report.problems.len(), 1, "{:?}", report.problems);
+}
+
+/// A syncer that edits the catalog behind the transaction's back and then fails.
+struct ConcurrentCatalogSyncer {
+    catalog: PathBuf,
+}
+
+impl Syncer for ConcurrentCatalogSyncer {
+    fn sync(&self, _root: &Path) -> Result<String, String> {
+        fs::write(&self.catalog, "# edited by a person while the sync ran\n").map_err(|error| { return error.to_string(); })?;
+        return Err("could not start file-enforcer".to_string());
+    }
+}
+
+/// Review finding (2c 6): the rollback of a failed sync must not write the old catalog over an edit made meanwhile.
+#[test]
+fn a_catalog_edited_during_a_failing_sync_keeps_the_edit() {
+    let world = world(&lock_with("0.9.0"), "[catalog]\ndep = \">=0.9.0\"\n");
+    let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
+    let cargo = cargo_that_edits_the_manifest(directory);
+    let trusted: Vec<VersionRecord> = vec![trusted_publish("0.9.0", "2026-01-01T00:00:00Z"), trusted_publish("1.0.1", "2026-02-01T00:00:00Z")];
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), trusted)]) };
+    let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    let syncer: ConcurrentCatalogSyncer = ConcurrentCatalogSyncer { catalog: world.catalog.clone() };
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &syncer,
+        prune_catalog: false,
+    };
+
+    let report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
+
+    assert!(!report.written);
+    assert_eq!(fs::read_to_string(&world.catalog).expect("catalog"), "# edited by a person while the sync ran\n");
+}
+
+/// A syncer that rewrites a manifest and then fails, the way a partial `file-enforcer write` can.
+struct PartialSyncer {
+    manifest: PathBuf,
+}
+
+impl Syncer for PartialSyncer {
+    fn sync(&self, _root: &Path) -> Result<String, String> {
+        fs::write(&self.manifest, "# rendered by a sync that then failed\n").map_err(|error| { return error.to_string(); })?;
+        return Err("file-enforcer write failed halfway".to_string());
+    }
+}
+
+/// Review finding (2c 11): what a failing sync wrote to the manifests is part of the transaction and goes back with it.
+#[test]
+fn a_manifest_a_failing_sync_rewrote_goes_back_with_the_transaction() {
+    let world = world(&lock_with("0.9.0"), "[catalog]\ndep = \">=0.9.0\"\n");
+    let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
+    let cargo = cargo_that_edits_the_manifest(directory.clone());
+    let trusted: Vec<VersionRecord> = vec![trusted_publish("0.9.0", "2026-01-01T00:00:00Z"), trusted_publish("1.0.1", "2026-02-01T00:00:00Z")];
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), trusted)]) };
+    let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    let syncer: PartialSyncer = PartialSyncer { manifest: directory.join("Cargo.toml") };
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &syncer,
+        prune_catalog: false,
+    };
+
+    let report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
+
+    assert!(!report.written);
+    assert_eq!(manifest_of(&world), OLD_REQUIREMENT_MANIFEST, "the manifest kept what the failed sync wrote");
+}

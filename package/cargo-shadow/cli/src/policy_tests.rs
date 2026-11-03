@@ -310,3 +310,18 @@ fn a_trust_downgrade_names_the_earlier_and_the_new_publisher() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(problems[0].contains("o/trusted-ci") && problems[0].contains("1.0.0"), "the earlier publisher is not named: {problems:?}");
 }
+
+/// Review finding (2c 7): a historical record with an unreadable publish time is sorted first and made to look like earlier history
+/// of its publisher. It must not establish publisher reputation.
+#[test]
+fn an_unreadable_historical_timestamp_cannot_give_a_new_publisher_an_earlier_history() {
+    let history: Vec<VersionRecord> = vec![
+        record("1.0.0", "2026-01-01T00:00:00Z", "A", "", REPO),
+        record("1.0.1", "2026-02-01T00:00:00Z", "B", "", REPO),
+        record("1.0.2", "malformed", "B", "", REPO),
+    ];
+
+    let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &settings(), now(), &owners(&["A"]));
+
+    assert_eq!(problems.len(), 1, "publisher B has no earlier history and A is an owner: {problems:?}");
+}

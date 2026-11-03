@@ -671,3 +671,82 @@ fn a_second_install_does_not_take_the_first_ones_unapproved_lockfile_for_approve
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_text(root.path()), lock_with("1.0.0"));
 }
+
+/// A registry that serves the canned histories but fails the owner lookup, the way a rate-limited or offline registry does.
+struct RegistryWithoutOwners {
+    inner: FakeRegistry,
+}
+
+impl Registry for RegistryWithoutOwners {
+    fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+        return self.inner.pubtimes(name);
+    }
+    fn yanked(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        return self.inner.yanked(name);
+    }
+    fn history(&self, name: &str, versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+        return self.inner.history(name, versions);
+    }
+    fn owners(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        return Err(RegistryError { message: "the owners request failed".to_string(), status: None, retry_after_seconds: 0 });
+    }
+}
+
+/// Review finding (2c 2): the release-age refusal is already known when the owners request fails. The failure must not erase it
+/// and turn a refusal into an operational problem that the shim answers with a build.
+#[test]
+fn a_lookup_failure_after_a_release_age_refusal_keeps_the_refusal() {
+    let (root, dirs) = repository(&lock_with("1.0.1"));
+    let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
+    let young_downgrade: Vec<VersionRecord> = vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "9", "")];
+    let registry: RegistryWithoutOwners = RegistryWithoutOwners { inner: registry_of(young_downgrade) };
+    let catalog_settings: Settings = settings();
+
+    let report = install_rust_lockfiles(&InstallRequest {
+        root: root.path(),
+        crate_dirs: &dirs,
+        frozen: true,
+        offline: true,
+        dry_run: false,
+        now: now(),
+        settings: &catalog_settings,
+        runner: &runner,
+        registry: &registry,
+        lock_base: None,
+        trust_base: "HEAD",
+        known_consistent: false,
+    })
+    .expect("a known refusal is a report, not an operational error");
+
+    assert!(report.problems.iter().any(|problem| { return problem.contains("minimumReleaseAge"); }), "{:?}", report.problems);
+}
+
+/// Review finding (2c 8): a young release that is allowed because the release age is not strict still gets its warning, on the
+/// frozen path as on the local one, and a pass with a warning is not remembered.
+#[test]
+fn the_non_strict_release_age_warning_is_reported_on_the_frozen_path() {
+    let (root, dirs) = repository(&lock_with("1.0.1"));
+    let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
+    let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]);
+    let mut relaxed: Settings = settings();
+    relaxed.minimum_release_age_strict = false;
+
+    let report = install_rust_lockfiles(&InstallRequest {
+        root: root.path(),
+        crate_dirs: &dirs,
+        frozen: true,
+        offline: true,
+        dry_run: false,
+        now: now(),
+        settings: &relaxed,
+        runner: &runner,
+        registry: &registry,
+        lock_base: None,
+        trust_base: "HEAD",
+        known_consistent: false,
+    })
+    .expect("passes");
+
+    assert!(report.problems.is_empty(), "{:?}", report.problems);
+    assert!(report.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the warning was dropped: {:?}", report.warnings);
+}

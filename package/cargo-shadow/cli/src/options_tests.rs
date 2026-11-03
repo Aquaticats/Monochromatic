@@ -88,3 +88,9 @@ fn the_short_manifest_path_of_update_selects_the_workspace() {
     // ```
     assert_eq!(manifest_path(&arguments(&["update", "-m", "../b/Cargo.toml"])), Some(PathBuf::from("../b/Cargo.toml")));
 }
+
+/// Review finding (2c 9): the attached short form `-m<path>` selects the workspace of `cargo update`.
+#[test]
+fn the_attached_short_manifest_path_of_update_selects_the_workspace() {
+    assert_eq!(manifest_path(&arguments(&["update", "-m../b/Cargo.toml"])), Some(PathBuf::from("../b/Cargo.toml")));
+}

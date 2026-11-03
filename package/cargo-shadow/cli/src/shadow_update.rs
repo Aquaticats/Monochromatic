@@ -551,6 +551,20 @@ fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, fo
 /// export function runWithPlaceholderLock(lockPath: string, dryRun: boolean, body: () => number): number
 /// ```
 pub fn run_with_placeholder_lock(lock_path: &Path, dry_run: bool, body: &mut dyn FnMut() -> i32) -> i32 {
+    return run_with_placeholder_lock_hooked(lock_path, dry_run, body, &|_path| {});
+}
+
+/// What:
+/// `pub fn run_with_placeholder_lock_hooked(lock_path, dry_run, body, before_cleanup) -> i32` is `run_with_placeholder_lock` with a
+/// hook that runs after the cleanup decided what to do and before it does it.
+/// Why:
+/// That gap is where another writer can publish a real lockfile; the hook lets a test publish one exactly there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function runWithPlaceholderLockHooked(lockPath: string, dryRun: boolean, body: () => number, beforeCleanup: (path: string) => void): number
+/// ```
+pub fn run_with_placeholder_lock_hooked(lock_path: &Path, dry_run: bool, body: &mut dyn FnMut() -> i32, before_cleanup: &dyn Fn(&Path)) -> i32 {
     // `create_new(true)` fails with `AlreadyExists` instead of truncating (the exclusive-create flag `wx` of Node), so the
     // check and the creation are one step another writer cannot slip into.
     let created_placeholder: bool = match std::fs::OpenOptions::new().write(true).create_new(true).open(lock_path) {
@@ -576,6 +590,7 @@ pub fn run_with_placeholder_lock(lock_path: &Path, dry_run: bool, body: &mut dyn
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(_) => false,
         };
+        before_cleanup(lock_path);
         if still_placeholder {
             // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
             // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.

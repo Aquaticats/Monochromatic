@@ -226,3 +226,28 @@ fn every_option_of_cargo_update_help_is_still_accepted() {
         assert!(plan(&words).is_ok(), "{words:?}");
     }
 }
+
+/// Review finding (2c 9): an option that needs a value and has none is cargo's argument error. The wrapper must not turn it into a
+/// full update of the current workspace.
+#[test]
+fn an_option_without_its_value_is_refused_and_not_dropped() {
+    assert!(plan(&["update", "-m"]).is_err());
+    assert!(plan(&["update", "--manifest-path"]).is_err());
+    assert!(plan(&["update", "--precise"]).is_err());
+    assert!(plan(&["-C"]).is_err());
+}
+
+/// The attached short form of the manifest path selects a workspace like the separate one.
+#[test]
+fn the_attached_short_manifest_path_is_understood() {
+    assert_eq!(plan(&["update", "-m../b/Cargo.toml"]).expect("plans").plan, UpdatePlan::Full { dry_run: false });
+}
+
+/// Review finding (2c 10): an option value that equals the command word is not the command word.
+#[test]
+fn an_option_value_equal_to_the_verb_is_not_the_verb() {
+    let planned = plan(&["--config", "update", "update"]).expect("plans");
+
+    assert_eq!(planned.plan, UpdatePlan::Full { dry_run: false });
+    assert_eq!(planned.forward, vec!["--config".to_string(), "update".to_string()]);
+}

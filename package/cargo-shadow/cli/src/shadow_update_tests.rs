@@ -167,3 +167,18 @@ fn an_existing_lockfile_is_never_touched() {
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(&lock).expect("read"), REAL_LOCK);
 }
+
+/// Review finding (2c 5): the cleanup reads the stand-in and then removes the path. A real lockfile published between the two must
+/// survive.
+#[test]
+fn a_lockfile_published_between_the_cleanup_decision_and_the_removal_survives() {
+    use crate::shadow_update::run_with_placeholder_lock_hooked;
+    let root = scratch();
+    let lock = root.path().join("Cargo.lock");
+    let publish = |path: &std::path::Path| { fs::write(path, REAL_LOCK).expect("another writer publishes a real lockfile"); };
+
+    let code: i32 = run_with_placeholder_lock_hooked(&lock, false, &mut || { return 1; }, &publish);
+
+    assert_eq!(code, 1);
+    assert_eq!(fs::read_to_string(&lock).expect("the real lockfile must survive"), REAL_LOCK);
+}

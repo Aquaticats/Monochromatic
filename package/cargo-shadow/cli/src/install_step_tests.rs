@@ -531,3 +531,72 @@ fn a_frozen_policy_refusal_stops_the_command_and_a_frozen_stale_lock_does_not() 
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(step(&start, true, &runner, &downgrading_registry()), StepOutcome::Failed(_)));
 }
+
+/// Review finding (2c 1): a cargo that wrote a lockfile and then failed leaves the lockfile behind. The rollback must put the
+/// original back; when it cannot, the step must stop the command, because `--locked` would build the unapproved output.
+#[test]
+fn a_restore_that_cannot_complete_stops_the_command_instead_of_building_the_unrestored_lockfile() {
+    use std::os::unix::fs::PermissionsExt;
+    let young: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let directory = start.clone();
+    let written = young.clone();
+    // A cargo that writes the new lockfile, makes the directory unwritable (so no restore can be made) and exits with an error.
+    let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+        }
+        if arguments[0] == "update" {
+            fs::write(cwd.join("Cargo.lock"), &written).map_err(|error| { return error.to_string(); })?;
+            fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).map_err(|error| { return error.to_string(); })?;
+            return Ok(CargoOutcome { ok: false, output: "failed after writing".to_string(), stdout: String::new() });
+        }
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    };
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+    fs::set_permissions(&start, fs::Permissions::from_mode(0o755)).expect("make the directory writable again");
+
+    assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the unrestored lockfile: {outcome:?}");
+}
+
+/// Review finding (2c 1, the restorable case): the original is back and the failure is operational.
+#[test]
+fn a_cargo_that_wrote_a_lockfile_and_failed_has_its_output_rolled_back() {
+    let young: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+        }
+        if arguments[0] == "update" {
+            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
+            return Ok(CargoOutcome { ok: false, output: "failed after writing".to_string(), stdout: String::new() });
+        }
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    };
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+
+    assert!(matches!(outcome, StepOutcome::Failed(_)), "{outcome:?}");
+    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), STALE);
+}
+
+/// Review finding (2c 2, end to end): a lockfile from a registry other than crates.io is a refusal that stops the command,
+/// not a parse problem that the shim answers with a build.
+#[test]
+fn a_package_from_an_unsupported_registry_stops_the_command() {
+    let other: String = "# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.0\"\nsource = \"registry+https://registry.example.invalid/index\"\n".to_string();
+    let root = repository(&other);
+    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    let runner: FakeCargo = cargo(&other);
+    let start = root.path().join(CRATE_DIR);
+
+    let local = step(&start, false, &runner, &registry());
+    let frozen = step(&start, true, &runner, &registry());
+
+    assert!(matches!(local, StepOutcome::Refused(_)), "local: {local:?}");
+    assert!(matches!(frozen, StepOutcome::Refused(_)), "frozen: {frozen:?}");
+}
