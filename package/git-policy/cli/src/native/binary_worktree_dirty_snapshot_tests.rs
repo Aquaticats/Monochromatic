@@ -318,3 +318,34 @@ fn the_journal_records_that_changes_were_left_out_even_when_quiet() {
     assert!(entry.get("MESSAGE").is_some_and(|message: &String| { return message.contains(LEFT_OUT_MARK); }), "{entry:?}");
     remove(&fixture);
 }
+
+/// What:
+///  What a snapshot add of a dirty main checkout prints on standard output.
+/// Why:
+///   The restore of the stage runs `git clean` without `--quiet` (the owner's rule), and Git then says "Removing <path>" for each
+///  untracked file of the stage, a stage the person's command never names and native `git worktree add` has no such lines for.
+///  Those words are kept in the journal, so the person sees only what native Git's add prints: the line of the checkout, and
+///  nothing under `--quiet`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await add(['-b', 'topic', '../topic']).stdout).toMatch(/^HEAD is now at \w+ third\n$/); expect(await add(['--quiet', ...]).stdout).toBe('');
+/// ```
+#[test]
+fn a_snapshot_add_does_not_print_what_its_clean_removes() {
+    let fixture: Fixture = fixture("dirty-clean-words");
+    if !on_btrfs_or_acknowledged(&fixture, "dirty-clean-words") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = dirty_repository(&fixture);
+    let plain: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "-b", "topic", "../topic"]);
+    assert_eq!(plain.code, Some(0), "{}", stderr_of(&plain));
+    let shown: String = String::from_utf8_lossy(&plain.stdout).into_owned();
+    assert!(!shown.contains("Removing"), "the clean of the stage is not the person's business: {shown}");
+    assert!(shown.starts_with("HEAD is now at "), "{shown}");
+    let quiet: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic2", "../topic2"]);
+    assert_eq!(quiet.code, Some(0), "{}", stderr_of(&quiet));
+    assert!(quiet.stdout.is_empty(), "--quiet stays silent: {}", String::from_utf8_lossy(&quiet.stdout));
+    remove(&fixture);
+}

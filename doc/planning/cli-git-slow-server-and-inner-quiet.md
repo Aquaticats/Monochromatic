@@ -23,6 +23,8 @@ installed Git 2.56.0 documentation (`/usr/share/doc/git`).
 
 ### Dropped: the documented effect is hiding messages or progress
 
+Each is read in the Git 2.56.0 source (tag `v2.56.0`), not only the manual: the option gates only printing.
+
 - `maintenance run --auto --quiet` (`maintenance_decision.rs`): "Do not report progress or other information over
   `stderr`" (`git-maintenance.adoc`).
 - `fetch --quiet` of the auto-push (`auto_push_reconcile.rs`): "silence any other internally used git commands.
@@ -37,11 +39,18 @@ installed Git 2.56.0 documentation (`/usr/share/doc/git`).
 - `init --bare --quiet` of the reftable shadow (`shadow_create.rs`): "Only print error and warning messages; all other
   output will be suppressed" (`git-init.adoc`).
 - `checkout-index --force --quiet` of the merge recovery (`merge_isolation_recovery.rs`): "be quiet if files exist or
-  are not in the index" (`git-checkout-index.adoc`). Measured on 2026-11-03 against Git 2.56.0: a path that is not
+  are not in the index" (`git-checkout-index.adoc`); `builtin/checkout-index.c:121` gates only the message. Measured on 2026-11-03 against Git 2.56.0: a path that is not
   in the index exits 1 with and without it, so only the message differs.
-- `fast-import --quiet` of the landing (`service_land.rs`, a one-token edit in a file others are changing): "Disable the
-  output shown by --stats, making fast-import usually be silent when it is successful" (`git-fast-import.adoc`).
-- `check-ignore --quiet` (`worktree_trash.rs`, `worktree_copy_selection.rs`): "Don't output anything, just set exit
+- `fast-import --quiet` of the landing (`service_land.rs`, a file others are changing): "Disable the output shown by
+  --stats, making fast-import usually be silent when it is successful" (`git-fast-import.adoc`); Git 2.56.0
+  `builtin/fast-import.c:1670` gates only the report on `quiet`. The edit there is not one token: `checked(...)`
+  discarded standard error, so the call became `run(...)`, the existing `classify` on failure, and one `record_words`.
+- `rev-list --objects --quiet` (`service_land.rs`, the connectivity check of a commit Git built): the manual says it
+  is meant for testing the exit status, but `builtin/rev-list.c` (`REV_LIST_QUIET`, in `show_object`) returns only
+  after `finish_object` has made its missing-object check, so the status is the same without it and only the printing
+  of object names goes. The captured standard output is a list of object IDs, not words, so it is not recorded.
+- `check-ignore --quiet` (`worktree_trash.rs`, `worktree_copy_selection.rs`): Git 2.56.0 `builtin/check-ignore.c:83,118`
+  gates only the output on `quiet`; "Don't output anything, just set exit
   status" (`git-check-ignore.adoc`). Measured: exit 0 for an ignored path and 1 for a path that is not, with and without
   the option; the only difference is the path on standard output, which both callers ignore.
 
@@ -49,15 +58,14 @@ installed Git 2.56.0 documentation (`/usr/share/doc/git`).
 
 - `rev-parse --verify --quiet` (eight call sites): measured on 2026-11-03, an unknown name exits 128 with
   "fatal: Needed a single revision" without the option and 1 with it, and every caller reads that difference as
-  "absent" against "broken".
+  "absent" against "broken". Git 2.56.0 `builtin/rev-parse.c:581-587` (`die_no_single_rev`): `exit(1)` when quiet, `die`
+  otherwise.
 - `symbolic-ref --quiet HEAD` (seven call sites): "Do not issue an error message if the <name> is not a symbolic ref
   but a detached HEAD; instead exit with non-zero status silently" (`git-symbolic-ref.adoc`); callers read exit 1 as
-  detached and any other failure as an error.
+  detached and any other failure as an error (`builtin/symbolic-ref.c:28-31`: returns 1 when quiet, `die` otherwise).
 - `diff-index --cached --quiet` and `diff-files --quiet` (three call sites): "Disable all output of the program.
-  Implies `--exit-code`" (`diff-options.adoc`); the exit status is the whole answer.
-- `rev-list --objects --quiet` (`service_land.rs`, the connectivity check of a commit Git built): its documented purpose
-  is to test the exit status of whether a range of objects is fully connected, and without it Git formats and prints
-  every object name of the range. Kept as a judgement call, reported to the coordinator.
+  Implies `--exit-code`" (`diff-options.adoc`); the exit status is the whole answer, and `diff.c:5327-5332` also turns
+  rename detection off, and `diff.c:7541` (`diff_can_quit_early`) lets the walk stop at the first change.
 
 ### Not the wrapper's own run: unchanged
 
@@ -78,10 +86,20 @@ Dropping the option makes Git say what it says. Every run is captured (`run_git`
   service's log, which the service manager keeps in the journal of its unit (README, "The service writes to its
   standard error"), through `service_timing::log_entry` at priority `info`, with the userinfo of URLs masked as every
   entry is. This is how the service already records Git's words for a failed push (the `pushed ... outcome=failed` entry).
-- Runs the person's command waits for (the worktree restore's `clean`, the isolated merge's fast-forward, the merge
-  recovery, a stacked push's fetch and merge): the words go to the person's own standard output and standard error,
-  streams kept apart as Git wrote them. No protocol channel is involved: hook standard output and RPC are never the
-  destination of an inner run.
+- Runs the wrapper makes while it carries out a person's command (the worktree restore's `clean`, the isolated merge's
+  fast-forward, the merge recovery, a stacked push's fetch and merge): the words go to the wrapper's own entry in the
+  journal (`client_journal`, `journalctl --identifier=cli-git`), through `inner_git_words.rs`, and not to the person's
+  streams. The person's command prints what native Git's command prints: the isolated merge is compared with native
+  Git's output byte for byte by `the_merge_equals_what_native_git_writes_on_a_clean_checkout`, and the `clean` of the
+  restore says "Removing <path>" for untracked files of a stage that native `git worktree add` has no lines for
+  (measured on 2026-11-03: three such lines on standard output, also under `--quiet`, before they were routed). What
+  Git writes to standard error in the isolated merge's fast-forward (a warning) still reaches the person. No protocol
+  channel is involved: hook standard output and RPC are never the destination of an inner run.
+- The consequence for the journal: `git reset` without `-q` lists, as "Unstaged changes after reset:", every tracked path
+  of the worktree whose file differs from the index (measured on 2026-11-03: `M a.txt` and `M b.txt` for two edited files
+  after `git reset HEAD -- c.txt`; `builtin/reset.c:494` passes `REFRESH_IN_PORCELAIN` instead of `REFRESH_QUIET`). The
+  landing's index update runs it for every commit, so the service's journal now names the paths of other uncommitted work.
+  This follows from "Drop it everywhere" and is reported to the coordinator for the owner.
 - No other output-hiding option replaces `--quiet`: no `--no-progress`, no redirect to `/dev/null`.
 
 ### Detached maintenance: what Git does with the output
@@ -96,9 +114,10 @@ the fork, of the `--no-detach` form, and of the pre-2.47 retry. Cited from the t
 
 The isolated merge builds the merge commit itself, then fast-forwards the checkout to it and prints the wrapper's own
 "Merge made by the 'ort' strategy." and diffstat. Without `--quiet`, Git's fast-forward also prints
-"Updating a..b", "Fast-forward" and its own diffstat. The recorded decision is "drop it everywhere", so the fast-forward
-is no longer quiet; the choice of how the person reads it (Git's words next to the wrapper's, or the wrapper's own
-lines dropped where Git's diffstat appears) is the coordinator's to confirm.
+"Updating a..b", "Fast-forward" and its own diffstat on standard output. Implemented: those words go to the journal and
+the person sees native Git's output. The alternative, the words on the person's terminal, breaks the byte-for-byte
+comparison with native Git's merge and shows a fast-forward the person did not ask for; it is the coordinator's to
+confirm or reverse.
 
 ## Decision 2: a push waiting for the server's checks
 

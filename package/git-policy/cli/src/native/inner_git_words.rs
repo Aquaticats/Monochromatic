@@ -38,14 +38,20 @@ pub const COMMAND_FIELD: &str = "CLI_GIT_INNER_COMMAND";
 /// [stdout, stderr].map((text) => text.trim()).filter(Boolean).join('\n') || undefined
 /// ```
 pub fn words_of(stdout: &[u8], stderr: &[u8]) -> Option<String> {
-    let parts: Vec<String> = [stdout, stderr]
-        .iter()
-        .map(|bytes| { return String::from_utf8_lossy(bytes).trim().to_owned(); })
-        .filter(|text| { return !text.is_empty(); })
-        .collect();
+    // The two streams in the order they are shown: standard output, then standard error.
+    let mut parts: Vec<String> = Vec::new();
+    for bytes in [stdout, stderr] {
+        // Bytes that are not UTF-8 become the replacement character, so a word is never lost to an encoding.
+        let text: String = String::from_utf8_lossy(bytes).trim().to_owned();
+        if !text.is_empty() {
+            parts.push(text);
+        }
+    }
     if parts.is_empty() {
+        // `None` is "this run said nothing", which makes no entry.
         return None;
     }
+    // `Some(...)` wraps the joined words: "there is something to record".
     return Some(parts.join("\n"));
 }
 
@@ -65,7 +71,12 @@ pub fn record_text<S: AsRef<str>>(arguments: &[S], text: &str) {
     if trimmed.is_empty() {
         return;
     }
-    let command: String = arguments.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(" ");
+    // The command line as it reads in a terminal, so the entry names what ran.
+    let mut words: Vec<&str> = Vec::new();
+    for argument in arguments {
+        words.push(argument.as_ref());
+    }
+    let command: String = words.join(" ");
     let message: String = mask_userinfo_text(format!("git {command} said: {trimmed}").as_str());
     let fields: [(&str, String); 1] = [(COMMAND_FIELD, mask_userinfo_text(command.as_str()))];
     if in_service() {
