@@ -319,27 +319,35 @@ fn compiled(fixture: &Fixture, root: &Path) -> Vec<String> {
     return names;
 }
 
-/// With real Cargo, in each layout and in a worktree under the source and one outside it: the worktree's crates rebuild with
-///  the worktree's own paths, a second build compiles nothing, an edit in the worktree rebuilds, and the source is untouched.
-fn cargo_control(name: &str, external: bool) {
-    let fixture: Fixture = fixture(name);
+/// Link the person's Rust toolchain into the fixture's PATH directory and share only the registry of their Cargo home, or say
+///  loudly why the controls cannot run.
+fn prepare_cargo(fixture: &Fixture, name: &str) -> bool {
     let compiler: Option<PathBuf> = on_path("rustc");
     if !available_or_acknowledged(compiler.as_deref(), "cargo", name) {
-        remove(&fixture);
-        return;
+        return false;
     }
     let sysroot: String = String::from_utf8_lossy(&Command::new("rustc").arg("--print").arg("sysroot").output().expect("rustc").stdout).trim().to_owned();
     for tool in ["cargo", "rustc", "rustdoc"] {
-        link_real(&fixture, tool, Path::new(sysroot.as_str()).join("bin").join(tool).as_path());
+        link_real(fixture, tool, Path::new(sysroot.as_str()).join("bin").join(tool).as_path());
     }
     // The registry crate comes from the person's offline cache, reached through the fixture's home.
-    let registry_home: Option<PathBuf> = cargo_home_with_registry_crate();
-    if let Some(home) = registry_home.as_ref() {
+    if let Some(home) = cargo_home_with_registry_crate() {
         // Only the registry is shared: the person's Cargo configuration (which keys the build directory) must not apply.
         std::fs::create_dir_all(fixture.root.join("home/.cargo")).expect("fixture cargo home");
         std::os::unix::fs::symlink(home.join("registry"), fixture.root.join("home/.cargo/registry")).expect("link the registry");
     } else {
         eprintln!("REGISTRY REUSE NOT EXERCISED: {name} (no {REGISTRY_CRATE} in the offline Cargo cache)");
+    }
+    return true;
+}
+
+/// With real Cargo, in each layout and in a worktree under the source and one outside it: the worktree's crates rebuild with
+///  the worktree's own paths, a second build compiles nothing, an edit in the worktree rebuilds, and the source is untouched.
+fn cargo_control(name: &str, external: bool) {
+    let fixture: Fixture = fixture(name);
+    if !prepare_cargo(&fixture, name) {
+        remove(&fixture);
+        return;
     }
     let repo: PathBuf = cargo_repository(&fixture, external);
     let source_output: String = run_tool(&fixture, "cargo", repo.as_path(), &["run", "--offline", "--quiet"]);
@@ -375,4 +383,36 @@ fn real_cargo_rebuilds_own_crates_with_an_external_build_directory() {
 #[test]
 fn real_cargo_rebuilds_own_crates_with_the_default_layout() {
     cargo_control("repair-real-cargo-default", false);
+}
+
+/// With real Cargo and a committed `Cargo.lock` that no longer matches a manifest (the state of several workspaces of this
+///  repository), the clean needs Cargo to resolve and Cargo would rewrite the lock; the add must leave the tracked file as
+///  checked out, so `git status` of the new worktree stays clean, and must not report a failure.
+#[test]
+fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
+    let fixture: Fixture = fixture("repair-real-cargo-stale-lock");
+    if !prepare_cargo(&fixture, "real_cargo_leaves_a_stale_lockfile_as_checked_out") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = cargo_repository(&fixture, false);
+    // A new member that `app` now depends on, committed without regenerating the lock.
+    std::fs::create_dir_all(repo.join("extra/src")).expect("extra");
+    std::fs::write(repo.join("extra/Cargo.toml"), b"[package]\nname = \"extra\"\nversion = \"0.1.0\"\nedition = \"2024\"\n").expect("extra manifest");
+    std::fs::write(repo.join("extra/src/lib.rs"), b"pub const EXTRA: u8 = 1;\n").expect("extra source");
+    std::fs::write(repo.join("Cargo.toml"), b"[workspace]\nmembers = [\"app\", \"lib\", \"extra\"]\nresolver = \"3\"\n").expect("workspace");
+    let app: String = std::fs::read_to_string(repo.join("app/Cargo.toml")).expect("app manifest");
+    std::fs::write(repo.join("app/Cargo.toml"), format!("{app}extra = {{ path = \"../extra\" }}\n")).expect("app manifest with extra");
+    git(&fixture, repo.as_path(), &["add", "--", "Cargo.toml", "app/Cargo.toml", "extra"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=a member the lock lacks"]);
+    let before: Vec<u8> = std::fs::read(repo.join("Cargo.lock")).expect("lock");
+    std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
+    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "stale", "../deeper/stale");
+    let worktree: PathBuf = fixture.root.join("deeper/stale");
+    assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
+    assert_eq!(std::fs::read(worktree.join("Cargo.lock")).expect("worktree lock"), before, "the worktree's lock was rewritten");
+    let status = git(&fixture, worktree.as_path(), &["status", "--porcelain"]);
+    assert!(status.stdout.is_empty(), "the new worktree is dirty: {}", String::from_utf8_lossy(&status.stdout));
+    assert_eq!(std::fs::read(repo.join("Cargo.lock")).expect("source lock"), before, "the source's lock changed");
+    remove(&fixture);
 }
