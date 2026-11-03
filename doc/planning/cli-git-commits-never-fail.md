@@ -620,53 +620,60 @@ Materialization and retirement
   which G1 reads the release intents after publishing its reservation and defers only on an intent whose lane has a live owner, T1 withdraws on
   seeing a reservation, and a dead lane's intent is not waited on (its L4 repeats T1 from step (2) and sees the reservation), is the owner
   choice G below.
-Merges (a merge is a request of the same lane, in the same order as commits and pushes; revision 10 rewrites MG1 to MG6 for R9-4 and R9-5; the
-order is checkout first, swap second, owner choice M-A of revision 9, with the alternative swap-first listed as a choice)
-- MG1 compute. Pre: adopted, the merge request. Do: compute the merge commit `M` from the logical tail and the other side with `merge-tree`
-  (an object write; no ref, index or worktree change; X1 may cancel it). Record in one S1 replacement `merge-ready <id> <M> <base>` with the
-  path set `P`: for each path the merge changes, the tip's index entry `E_tip` and `M`'s entry. If `merge-tree` reports a conflict that no
-  resolver settles, the outcome is `conflicted` (nonzero, the merge stops with the conflict recorded, as any merge does; nothing in the index or
-  the worktree is changed by this record, and the spool is kept). Then a pre-scan with one snapshot read of the real index (no lock): if the
-  index entry of any path in `P` differs from `E_tip` (the person staged something at a path the merge changes), nothing is changed, the request is
-  `pending` with `resume = MG1` and the notice names the paths (choice P: P-wait, the default); Q1 repeats MG1 when the index entry or the tip changes.
-  Crash: repeated.
-- MG2 take the index lock and plan. Pre: MG1 done with the pre-scan clear. Do: create `index.lock` with `O_CREAT|O_EXCL` (a single try; rule N
-  applies: it is never removed); `EEXIST` makes the request `pending` with `resume = MG2` and the exit 0 notice. With the lock held, read `HEAD`,
-  the real index and `HEAD` again. Attachment authority (every worktree or index mutation of a merge, in MG3, MG5 and MG6, requires it): `HEAD` is
-  attached to the request's target ref in both reads, or, for a detached target, is detached and `M`'s base is an ancestor of its value; otherwise
-  the merge is not checked out (nothing is written; the lock is released) and goes straight to MG4: the merge lands on the target ref only, and the
-  notice says that the worktree was not touched because `HEAD` no longer names that ref. Then compute the plan from the index read under the lock:
-  for each path in `P`, if its entry is not `E_tip` the person staged after the pre-scan: release the lock and set `pending`, `resume = MG1` (nothing
-  written). The new index is the index read under the lock with only the entries of `P` replaced; every other entry, with its stat data, is carried
-  unchanged, so unrelated staging survives (R9-4). Crash: `index.lock` may be left behind by a kill; it is reported and never removed (rule N).
-- MG3 check out. Pre: MG2 holds `index.lock` with a plan. Do: S1 replacement setting the marker `materializing`; for each path in `P`,
-  by the carry-forward protocol of the narrative (journaled in `lane/carry/<path-id>`, temporaries in `lane/tmp/`, a displaced inode is pinned
-  under `saved/` by a link the lane owns), install `M`'s content in the worktree, merging the person's unsaved edit when the worktree file
-  differs from the tip's content; write the new index into the lock file, fsync, rename it over the index (the lock is released by the rename).
-  The closing S1 replacement is one document replacement that clears the marker, sets the request `checked-out`, adds `M` to the logical tail
-  and records for each path the consumption entry `install` with `E_tip`, the pins (`N` the displaced pre-merge file, `R` the installed file
-  and its digest); so the checkout is capture-visible in the same atomic step in which it exists (R9-5): a capture between `checked-out` and the
-  swap sees `M` in the logical tail and the merged index entries equal to it, and captures nothing of the merge. Post-check: read `HEAD` again;
-  if it no longer names the target (a `git switch` finished between the guard and the end of the install), go to MG6 at once and then to
-  MG4 without a checkout. The lock is not held across MG4. Crash: L4 completes or rolls back each path from its journal by the identity rule of
-  rule N (the pinned names are the identity); the request stays `merge-ready` until the closing replacement.
-- MG4 swap. Pre: `checked-out`, or the no-checkout disposition of MG2. Do: P2 with `old = base` and `new = M` (P1 finds `M` already in the logical
-  tail and does not add it again), P3, E1. Published: M3 (c) drops the entries, the request is `materialized` (or `published` for the no-checkout
-  case). Refused by a hook: MG6. Held lock or old-value mismatch: P4 with `resume = MG4`.
-- MG5 retarget. Pre: `pending` with `resume = MG4` and the tip moved. Do: MG1 on the new tip (`M'`, new `P'`); MG2 (a single lock try, the
-  attachment authority, the index read under the lock; an entry of a path of `P'` that equals neither `M`'s entry nor `E_tip` is the person's
-  staging after the checkout and is left, `preserved`, and reported); MG3 with `M`'s content as the old side, so edits made since the checkout
-  are merged by the same protocol; the closing replacement replaces `M` by `M'` in the logical tail and keeps `resume = MG4`. A merge whose new
-  tip makes the merge a no-op is `published`-equivalent: the request ends `already`.
-- MG6 restore. Pre: MG4 ended `refused`, or the post-check of MG3 failed, or the merge is abandoned. Do: under the marker and `index.lock` (the
-  attachment authority again), for each path restore from the saved pre-state, not by a reverse three-way merge, which is not an inverse: if the
-  path still holds the installed file `R` (the same inode as the pinned `R`, its digest unchanged, so no one wrote it), exchange it back with the
-  pinned `N` (the person's own pre-merge file, bytes exactly as before), and set an index entry that equals `M`'s back to `E_tip`; if the path was
-  written since (an editor saved it), leave the person's current file and report the path with the saved files (the concurrent-edit residue
-  is stated: the operation then does not claim to change nothing for that path, and no content is lost). The closing replacement removes `M`
-  from the logical tail, drops the entries and ends the request `refused` with the hook's message. A request captured while `M` was in the tail is
-  relative to `M`; it is replayed on the new logical head as for any moved head (a three-way merge), and a conflict on a path the merge changed is
-  the `conflicted` outcome, never a silent publication of the merge's content. Crash: as MG3.
+Merges (a merge is a request of the same lane, in the same order as commits and pushes; MG1 to MG6 keep their names, revision 11 repairs their bodies
+for R10-3 and R10-9; the order is checkout first, swap second, owner choice M-A). Two authorities are kept apart. Authority to do: with `index.lock` held, `HEAD`
+is attached to the request's target ref in both reads around the index read, or, for a detached target, is detached and `M`'s base is an ancestor of its
+value. Authority to undo: the lane may reverse its own recorded effects on a path whose current file is still the installed file it recorded (same
+inode as the pinned `R`, digest unchanged) and on index entries still equal to `M`'s, whatever `HEAD` names now; it needs only the single try of
+`index.lock` and never needs authority to do. Every waiting state of a merge records a `resume` value from the Q1 table: `MG1`, `MG2`, `MG4`, `MG5`, `MG6`,
+`MG4n`. A merge that waits (a foreign `index.lock`, staged paths, a held swap) is a FOREGROUND wait; at its bound it is W1 (withdrawn: nothing is
+written, or MG6 restores what was).
+- MG1 compute. Pre: adopted, the merge request. Do: compute the merge commit `M` from the logical tail and the other side with `merge-tree` (an object
+  write; no ref, index or worktree change; X1 may cancel it). Record in one S1 replacement `merge-ready <id> <M> <base>` with the path set `P`: for each path
+  the merge changes, the tip's index entry `E_tip` and `M`'s entry. If `merge-tree` reports a conflict that no resolver settles, the outcome is `conflicted`
+  (non-zero, the merge stops with the conflict recorded; nothing in the index or the worktree is changed by this record, and the spool is kept). Then the
+  pre-scan, for a first computation only (a retarget uses MG5's own plan): one snapshot read of the real index (no lock); if the index entry of any path
+  in `P` differs from `E_tip` (the person staged something at a path the merge changes), nothing is changed, the request waits with `resume = MG1` and the
+  message names the paths (choice P). Ordering: a waiting merge of this kind does not block later requests, and a request that commits or unstages
+  exactly the blocking paths proceeds ahead of it and is what resolves the wait (Q1 repeats MG1 when the index entry or the tip changes). Crash: repeated.
+- MG2 take the index lock and plan. Pre: MG1 done with the pre-scan clear. Do: create `index.lock` with `O_CREAT|O_EXCL` (a single try); `EEXIST` makes the
+  request wait with `resume = MG2`. With the lock held, read `HEAD`, the real index and `HEAD` again. If authority to do fails, release the lock by the normal
+  abort of rule N; nothing is written; the merge is not checked out and goes to MG4 (it lands on the target ref only) with the message that the worktree was not
+  touched because `HEAD` no longer names that ref. Else compute the plan: for each path in `P`, if its entry is not `E_tip` the person staged after the
+  pre-scan: release the lock by the normal abort and wait with `resume = MG1` (nothing written). The new index is the index read under the lock with only
+  the entries of `P` replaced; every other entry, with its stat data, is carried unchanged, so unrelated staging survives. Crash: `index.lock` may be left by a
+  kill; it is reported and never removed.
+- MG3 check out. Pre: MG2 holds `index.lock` with a plan. Do: S1 replacement setting the marker `materializing` and recording the plan; for each path in `P`, by
+  the carry-forward protocol (journaled in `lane/carry/<path-id>`, temporaries in `lane/tmp/`, a displaced inode pinned under `saved/` by a link the lane owns),
+  install `M`'s content in the worktree, merging the person's unsaved edit when the worktree file differs from the tip's content; write the new index into the lock
+  file, fsync, rename it over the index. The closing S1 replacement clears the marker, sets `checked-out`, adds `M` to the logical tail and records for each path the
+  consumption entry `install` with `E_tip` and the pins (`N` the displaced pre-merge file, `R` the installed file and its digest), so a capture between `checked-out`
+  and the swap sees `M` in the logical tail and takes nothing of the merge. Post-check: read `HEAD`; if authority to do no longer holds, go to MG6 with reason
+  `switched`. Crash: L4 re-evaluates every path from the journal and the pins by the rule of the previous M1 (observable file and index contents, not inference).
+- MG4 swap. Pre: `checked-out` (or the no-checkout disposition of MG2/MG6) and the same check of authority to do repeated, because a switch can complete
+  after the post-check; this check is also made at every lane event while the merge is `checked-out`. Failed: MG6 with reason `switched`. Do: P2 with `old = base`
+  and `new = M` (P1 finds `M` already in the logical tail), P3, E1. Published: M3 (c) drops the entries, the request is `materialized` (`published` for the
+  no-checkout case). Refused by a hook: MG6 with reason `refused`. Held lock or old-value mismatch: P4 with `resume = MG4`.
+- MG5 retarget. Pre: waiting with `resume = MG4` and the tip moved. Do: the affected set is the union of the old set `P` and the new set `P'`, so a path
+  that stopped being a merge change is still reconciled. Compute `M'` on the new tip (MG1 without its pre-scan). For each path in the union the target is `M'`'s
+  tree entry for it. The lock and authority to do are taken as in MG2. The planned starting state of a path is the lane's own checkout (the index entry equals
+  `M`'s entry and the file is the pinned `R` unchanged), or, for a path only in `P'`, the new tip's entry; any other entry is the person's staging after the
+  checkout, left, reported, and the request waits with `resume = MG5`. A path is moved to its target by the carry-forward protocol with `M`'s content as the
+  old side, so edits made since are merged. If `M'` equals the new tip, the paths of `P` are still returned to the new tip's content (the lane's checkout is
+  reversed) and the request ends `already` only afterwards. The closing replacement replaces `M` by `M'` in the logical tail, replaces the entries by those
+  keyed to `M'`, and sets `resume = MG4`.
+- MG6 restore. Pre: reason `refused`, `switched`, `withdrawn` (W2) or `abandoned`. Do: the single try of `index.lock` (`EEXIST`: the request waits with `resume = MG6`
+  and the reason recorded; the FOREGROUND bound applies); with authority to undo, for each path restore from the saved pre-state, not by a reverse three-way
+  merge, which is not an inverse: if the path still holds the installed file `R` (the same inode as the pinned `R`, its digest unchanged), exchange it back
+  with the pinned `N` (the person's own pre-merge file, bytes exactly as before) and set an index entry that equals `M`'s back to `E_tip`; if the path was written
+  since, leave the person's current file and report it with the saved files (the concurrent-edit residue: the operation then does not claim to change nothing for
+  that path, and no content is lost). The closing replacement removes `M` from the logical tail and drops the entries. Then by reason: `refused` ends the request
+  `refused` with the hook's message; `withdrawn` ends it `withdrawn`; `switched` leaves the request live with `resume = MG4n` (publish the merge to the target ref
+  without a checkout); `abandoned` ends it. A request captured while `M` was in the tail is relative to `M`; it is replayed on the new logical head (a three-way
+  merge), and a conflict on a path the merge changed is `conflicted`, never a silent publication of the merge's content. Crash: as MG3.
+- MG4n publish without a checkout. Pre: `resume = MG4n`. Do: P1 to P3 for `M` on the target ref only; the worktree is not touched; the notice says so.
+  Residue of W-detect, stated: a switch that finishes after the last check leaves the merge's files in the new branch's worktree until the next check at a lane
+  event or MG4, and then MG6 restores them (reason `switched`); until then they are visible there as local modifications. Nothing is lost.
 
 Cancellation
 - X1 cancel a stalled child. Pre: the child makes no progress for the measured interval, and its exact invocation (the subcommand, its options and the
@@ -2110,42 +2117,33 @@ R. A stranded `index.lock` made by the lane's own dead incarnation (new in revis
      step in a rare window.
    - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): R-never, for the ranking's reason; it matches the shipped
      wait on an unproven `index.lock` owner, which names the file and waits.
-P. A merge that touches a path the person has staged (new in revision 10; for the coordinator to pick).
-   Case: `x` and `y` are staged, the merge changes `x`; Git itself would refuse (local changes would be overwritten).
-   - Option P-wait, the merge changes nothing and stays `pending` (exit 0, the notice names `x`) until `x` is committed or unstaged or the tip
-     moves; unrelated staged `y` is never involved. Pros: nothing of the person's staging is merged blindly; no data can be lost. Cons: a
-     merge waits on the person (a bounded wait on a decision only they can make).
-   - Option P-carry, treat the staged content of `x` like an unsaved edit: three-way merge it onto the merged result and leave it
-     unstaged. Pros: the merge never waits. Cons: the person's staging of `x` is turned into an unstaged edit they did not ask for, and the
-     three-way merge is run on an index entry, which needs its own differential controls.
-   - Ranking: P-wait > P-carry. P-wait beats P-carry because the owner decided to carry unsaved edits (a decision about the worktree) and said
-     nothing about reshaping staging, and a pause cannot lose content while a reshaped index can surprise.
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): P-wait, because of "never discard user data"; the wait is
-     on a decision only the person can make, and Git itself refuses this merge.
-W. The attachment concession for merge file writes (a residue to confirm; for the coordinator to pick).
-   Case: `git switch topic` finishes its index write and has not yet updated `HEAD` (builtin/checkout.c:927 commits the index, :1261 updates the refs
-   after); the lane's merge for `main` takes `index.lock` in that instant, reads `HEAD` as `main` and installs files.
-   - Option W-detect, accept the instant as owner question 4 accepted it for the index, add the post-check in MG3 and the restore from pinned
-     files (MG6). Pros: the merge never waits for the person's switch and a wrong write is undone from the saved files. Cons: the worktree
-     is wrong for the moment between the install and the restore.
-   - Option W-stop, never write worktree files for a merge unless the person asks (the merge is computed and saved, the notice gives the
-     finishing command). Pros: no concurrent-switch residue. Cons: "Auto merging should never fail" is met by saving, but the merge does not complete by itself.
-   - Ranking: W-detect > W-stop. W-detect beats W-stop because it completes the merge as the owner asked and loses nothing, while W-stop moves
-     the work back to the person.
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): W-detect, because of "Auto merging should never fail."
-G. Retention against late maintenance (new in revision 10; for the coordinator to pick).
-   Case: T1 sees no open maintenance run; a run is admitted and takes its reachability view while the branch is temporarily elsewhere; the
-   branch moves back; T1 releases the recovery copy; the run deletes by its earlier view.
-   - Option G-root, the closure is rooted in the object store by a hold ref from import until the last step of T1 (default in the machine).
-     Pros: no coordination between lanes and maintenance, no waiting; the invariant is local and testable. Cons: it relies on a prune view
-     including the lane's own refs (a backend experiment), and a request whose root cannot be written keeps its spool until disposal.
-   - Option G-handshake, G1 reads release intents after its reservation and defers on an intent whose lane has a live owner; T1 withdraws on
-     seeing a reservation. Pros: no reliance on how a prune reads refs. Cons: a maintenance run waits (a few fsyncs) on a live lane, a wedged
-     live owner blocks maintenance, and the dead-lane exemption needs its own model.
-   - Ranking: G-root > G-handshake. G-root beats G-handshake because it adds no wait to maintenance and no lane-to-lane dependence, at the
-     price of one verified Git behaviour; the handshake's wedged-owner case makes a person's `git gc` wait on an internal fault.
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): G-root, the machine's default, because of "You should
-     (almost) never be waiting."; the prune view including `refs/cli-git/*` is a step-1 backend experiment that must pass first.
+P. A merge that touches a path the person has staged (restated in revision 11 under the owner's bound rule; for the coordinator to pick).
+   Case: `x` and `y` are staged, the merge changes `x`; Git itself would refuse (local changes would be overwritten). Under the owner's answers a merge
+   that waits ends with an error at its bound and nothing lands later by itself.
+   - Option P-carry, treat the staged content of `x` like an unsaved edit: three-way merge it onto the merged result and leave it unstaged. Pros: the
+     merge never waits and never fails ("Manual merge should never fail too."), nothing is lost. Cons: the person's staging of `x` becomes an unstaged
+     edit they did not ask for, and the three-way merge on an index entry needs its own differential controls.
+   - Option P-refuse, withdraw at once: the merge changes nothing, exits non-zero naming `x` and the command to run again after `x` is committed or
+     unstaged. Pros: nothing reshaped. Cons: the merge fails on the person's staging although only they can resolve it, which is against the
+     never-fail rules the owner has not waived for this case.
+   - Option P-wait, wait up to FOREGROUND, then withdraw as in P-refuse. Pros: a commit of `x` made in another terminal resolves it. Cons: the same
+     failure as P-refuse after a pointless wait, because the person is at the blocked terminal.
+   - Ranking: P-carry > P-refuse > P-wait. P-carry beats P-refuse because it is the only option that neither fails nor waits, at the price of reshaping
+     staging without loss; P-refuse beats P-wait because it reaches the same end without the wait the owner wants gone. The coordinator picked P-wait
+     before the bound rule; the machine keeps P-wait as written in MG1 until the pick is re-made.
+W. The attachment concession for merge file writes (restated in revision 11; for the coordinator to pick).
+   Case: `git switch topic` finishes its index write and has not yet updated `HEAD` (`builtin/checkout.c:927` commits the index, `:1261` updates the refs
+   after); the lane's merge for `main` takes `index.lock` in that instant, reads `HEAD` as `main` and installs files; or the switch resumes after
+   every check the lane made.
+   - Option W-detect, authority to do before the writes, a check again before the swap and at every lane event, and restoration by authority to undo
+     (MG6) from pinned files. Pros: the merge never waits for the person's switch; nothing is lost. Cons: it is not a fence; a switch finishing after the
+     last check leaves the merge's files visible as local modifications in the new branch's worktree until the next check, which is a persistent wrong-attachment
+     effect and not a momentary write; it needs the owner's explicit approval of that residue.
+   - Option W-stop, never write worktree files for a merge unless the person asks (the merge is computed and kept, the error gives the finishing command).
+     Pros: no wrong-attachment residue at all. Cons: "Auto merging should never fail." is met by saving, but the merge does not complete by itself, and it is an
+     error exit under the bound answers.
+   - Ranking: W-detect > W-stop. W-detect beats W-stop because it completes the merge as the owner asked and loses nothing, while W-stop returns the work to the
+     person; the residue of W-detect is why this is an approval question and not a technical one.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
