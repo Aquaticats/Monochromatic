@@ -1585,6 +1585,12 @@ RBK:
  `doc/handover/<topic>.md`;
  package-specific ones stay beside code.
 
+H0P:
+ A handover holds only open work and current state:
+ when an item lands or is superseded,
+ move its durable facts to their canonical doc,
+ then delete it from the handover.
+
 ### Handling external changes
 
 EC1:
