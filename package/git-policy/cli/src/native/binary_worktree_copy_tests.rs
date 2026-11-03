@@ -96,11 +96,11 @@ fn assert_scanner_failed_closed(observed: &Observed, worktree: &Path) {
     );
 }
 
-/// A worktree added from the main checkout receives the rules file and nothing else the checkout ignores,
-/// and the scanner there finds its rules;
+/// A worktree added from the main checkout receives everything the checkout ignores (the rules file, its sibling and the
+/// heavy tree), and the scanner there finds its rules;
 ///  the same add with the opt-out leaves the scanner without rules.
 #[test]
-fn worktree_added_from_the_main_checkout_receives_the_rules_file() {
+fn worktree_added_from_the_main_checkout_receives_its_ignored_state() {
     let fixture: Fixture = fixture("copy-main");
     let repo: PathBuf = repository_with_rules(&fixture, true);
     let created: Observed = run_wrapped(
@@ -109,20 +109,19 @@ fn worktree_added_from_the_main_checkout_receives_the_rules_file() {
         &["worktree", "add", "--quiet", "-b", "one", "../one"],
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
-    assert_eq!(
-        stderr_of(&created),
-        format!(
-            "cli-git: copied 1 ignored filesystem entry from \"{}\" into 1 new worktree.\n",
-            repo.display()
-        )
+    let summary: String = stderr_of(&created);
+    assert!(
+        summary.starts_with("cli-git: copied ")
+            && summary.contains(format!(" ignored filesystem entries from \"{}\" into 1 new worktree.\n", repo.display()).as_str()),
+        "{summary}"
     );
     let one: PathBuf = fixture.root.join("one");
     assert_eq!(
         std::fs::read(one.join(RULES_FILE)).expect("copied rules"),
         format!("{}\n", needle()).into_bytes()
     );
-    assert!(!one.join(".cache/other.txt").exists(), "siblings stay behind");
-    assert!(!one.join("heavy").exists(), "other ignored trees stay behind");
+    assert_eq!(std::fs::read(one.join(".cache/other.txt")).expect("sibling"), b"other\n", "the whole ignored state arrives");
+    assert_eq!(std::fs::read(one.join("heavy/data")).expect("heavy tree"), b"payload\n");
     assert_scanner_has_rules(&check_all(&fixture, one.as_path()));
     // Control: the opt-out copies nothing, and then the scanner has no rules and fails closed.
     let opted_out: Observed = run_wrapped(
@@ -204,10 +203,12 @@ fn worktree_added_from_a_linked_worktree_receives_all_ignored_state() {
         &["worktree", "add", "--quiet", "-b", "two", "../two"],
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    // The main checkout's `.cache` (directory, rules file, sibling) and `heavy` (directory, data) arrived in `one`, which
+    // `two` copies in turn.
     assert_eq!(
         stderr_of(&created),
         format!(
-            "cli-git: copied 4 ignored filesystem entries from \"{}\" into 1 new worktree.\n",
+            "cli-git: copied 5 ignored filesystem entries from \"{}\" into 1 new worktree.\n",
             one.display()
         )
     );
@@ -238,9 +239,9 @@ fn a_source_without_the_rules_file_copies_nothing_and_the_scanner_fails_closed()
     remove(&fixture);
 }
 
-/// A main checkout whose configuration names no rules file stays a bypass: nothing is copied and nothing is printed.
+/// A main checkout whose configuration names no rules file still hands over its ignored state: the copy reads no configuration.
 #[test]
-fn a_main_checkout_without_a_configured_rules_file_is_forwarded_plainly() {
+fn a_main_checkout_without_a_configured_rules_file_still_copies_its_ignored_state() {
     let fixture: Fixture = fixture("copy-unconfigured");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join(".gitignore"), b".cache/\n").expect("gitignore");
@@ -252,8 +253,8 @@ fn a_main_checkout_without_a_configured_rules_file_is_forwarded_plainly() {
         &["worktree", "add", "--quiet", "-b", "one", "../one"],
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
-    assert!(created.stderr.is_empty(), "{}", stderr_of(&created));
-    assert!(!fixture.root.join("one/.cache").exists());
+    assert!(stderr_of(&created).starts_with("cli-git: copied "), "{}", stderr_of(&created));
+    assert_eq!(std::fs::read(fixture.root.join("one").join(RULES_FILE)).expect("copied"), b"rules\n");
     remove(&fixture);
 }
 
@@ -308,7 +309,7 @@ fn an_interrupted_copy_is_recovered_by_the_next_command() {
         std::fs::canonicalize(repo.as_path()).expect("canonical source").as_path(),
         new_stage_container(one.as_path()).expect("container").as_path(),
         &[],
-        &CopySelection::Paths(vec![String::from(RULES_FILE)]),
+        &CopySelection::MainCheckout,
     )
     .expect("staged");
     create_journal(common.as_path(), one.as_path(), &snapshot).expect("journal");
@@ -460,7 +461,7 @@ fn an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation() {
         std::fs::canonicalize(repo.as_path()).expect("canonical source").as_path(),
         new_stage_container(one.as_path()).expect("container").as_path(),
         &[],
-        &CopySelection::Paths(vec![String::from(RULES_FILE)]),
+        &CopySelection::MainCheckout,
     )
     .expect("staged");
     create_journal(common.as_path(), one.as_path(), &snapshot).expect("journal");
@@ -476,7 +477,9 @@ fn an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation() {
         stderr_of(&next)
     );
     assert!(one.join(RULES_FILE).exists());
+    assert!(one.join("heavy/data").exists(), "the recovered copy carries the whole ignored state of the main checkout");
     assert!(fixture.root.join("two").join(RULES_FILE).exists());
+    assert!(fixture.root.join("two").join("heavy/data").exists());
     assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
     remove(&fixture);
 }
@@ -515,11 +518,11 @@ fn moving_a_worktree_is_forwarded_and_prints_no_summary() {
 fn a_failed_copy_ends_with_status_two_and_its_message() {
     let fixture: Fixture = fixture("copy-failure");
     let repo: PathBuf = repository_with_rules(&fixture, false);
-    // A file the caller cannot read cannot be copied, and Git still lists it as an ignored file of the checkout.
+    // A named pipe cannot be copied, and its ignored directory is a root of the copy; an unreadable file is left out instead.
     std::fs::create_dir_all(repo.join(".cache")).expect("cache directory");
-    std::fs::write(repo.join(RULES_FILE), b"rules\n").expect("rules");
-    std::fs::set_permissions(repo.join(RULES_FILE), std::fs::Permissions::from_mode(0o000))
-        .expect("unreadable");
+    let pipe = std::ffi::CString::new(repo.join(RULES_FILE).as_os_str().as_encoded_bytes()).expect("pipe path");
+    // SAFETY: `pipe` is a NUL-terminated path that outlives the call.
+    assert_eq!(unsafe { libc::mkfifo(pipe.as_ptr(), 0o600) }, 0, "mkfifo");
     let created: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
@@ -527,7 +530,8 @@ fn a_failed_copy_ends_with_status_two_and_its_message() {
     );
     assert_eq!(created.code, Some(2), "{}", stderr_of(&created));
     assert!(
-        stderr_of(&created).starts_with("cli-git: could not stage ignored state from "),
+        stderr_of(&created).starts_with("cli-git: ignored path ")
+            && stderr_of(&created).contains("has unsupported filesystem type."),
         "{}",
         stderr_of(&created)
     );
@@ -536,8 +540,6 @@ fn a_failed_copy_ends_with_status_two_and_its_message() {
     assert!(!fixture.root.join("one").join(RULES_FILE).exists());
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
-    std::fs::set_permissions(repo.join(RULES_FILE), std::fs::Permissions::from_mode(0o600))
-        .expect("readable again");
     // The failed copy released the lock, so the next creation is not held up.
     let next: Observed = run_wrapped(
         &fixture,

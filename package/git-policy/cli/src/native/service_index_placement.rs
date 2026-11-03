@@ -33,7 +33,8 @@ use std::path::Path;
 /// the process's own birth identity,
 /// the setting of a watch on the lock's directory,
 /// the flush of the staged marker to storage,
-/// and the question whether a lock is still the holder's.
+/// the question whether a lock is still the holder's,
+/// and the removal of a lock the holder owns.
 /// Why:
 ///   A filesystem with neither atomic placement,
 /// a stale lock that cannot be unlinked,
@@ -65,6 +66,9 @@ pub struct Platform<'a> {
     pub sync: &'a dyn Fn(&std::fs::File) -> std::io::Result<()>,
     /// Whether the lock at a path is still the file the holder placed.
     pub inspect: fn(&Path, &std::fs::File, &str) -> Ownership,
+    /// The removal of the lock the holder owns,
+    /// at its release or when it goes out of scope.
+    pub release: fn(&Path) -> std::io::Result<()>,
 }
 
 /// The operating system's own calls.
@@ -76,6 +80,7 @@ pub const SYSTEM: Platform<'static> = Platform {
     watch: &Watch::on,
     sync: &sync_file,
     inspect: inspect_ownership,
+    release: unlink_file,
 };
 
 fn sync_file(file: &std::fs::File) -> std::io::Result<()> {

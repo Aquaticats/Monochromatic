@@ -411,6 +411,73 @@ await describe({
           },
         }),
         it({
+          name: 'gives no proof for argument lists whose effective limits cannot be established, whatever their form',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            // Each list is something a runner never writes: a repeated bound, a split or attached short option, a
+            // cluster with a value, an option whose value looks like a bound, a trailing bare override, an extra option.
+            const unreadable = [
+              ['--rm', '--memory=1g', '--memory', '4g', '--pids-limit=512'],
+              ['--rm', '--memory=1g', '-m4g', '--pids-limit=512'],
+              ['--rm', '--memory=1g', '-im4g', '--pids-limit=512'],
+              ['--rm', '--memory=4g', '--label', '-m1g', '--pids-limit=512'],
+              ['--rm', '--memory=4g', '--pids-limit=512', '--memory'],
+              ['--rm', '--memory=2g', '--pids-limit=128', '--pids-limit=512'],
+              ['--rm', '--memory=2g', '--pids-limit=512', '--memory-swap=9g'],
+            ];
+            await Promise.all(unreadable.map(function writeRun(
+              limits,
+              index
+            ) {
+              return writeGateDirectory({
+                root: root.path,
+                name: `native-unreadable-${String(index)}`,
+                files: {
+                  'manifest.json': manifestOf(image, limits),
+                  'passed.json': JSON.stringify(gatePassedRecord(image)),
+                },
+              });
+            }));
+            expect(await passingGateEvidence({
+              evidenceRoot: root.path,
+              image,
+              limits: { memory: '64g', pidsLimit: 100_000 },
+            })).toEqual([]);
+          },
+        }),
+        it({
+          name: 'gives no proof when the gate ran with unlimited or zero processes or memory',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            const runs = [
+              ['--memory=2g', '--pids-limit=-1'],
+              ['--memory=2g', '--pids-limit=0'],
+              ['--memory=0', '--pids-limit=512'],
+            ];
+            await Promise.all(runs.map(function writeRun(
+              limits,
+              index
+            ) {
+              return writeGateDirectory({
+                root: root.path,
+                name: `native-run-${String(index)}`,
+                files: {
+                  'manifest.json': manifestOf(image, limits),
+                  'passed.json': JSON.stringify(gatePassedRecord(image)),
+                },
+              });
+            }));
+            expect(await passingGateEvidence({
+              evidenceRoot: root.path,
+              image,
+              limits: {
+                memory: '1g',
+                pidsLimit: 64,
+              },
+            })).toEqual([]);
+          },
+        }),
+        it({
           name: 'finds nothing for a campaign with a lower process limit than the gate, which is how the fork failures came back',
           fn: async () => {
             await using root = await evidenceRoot();

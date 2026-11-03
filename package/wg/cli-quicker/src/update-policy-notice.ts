@@ -278,7 +278,7 @@ export type StartNoticeInput = {
 export function startNotices(input: StartNoticeInput,): readonly string[] {
   if (input.exemptMark === undefined)
     return [
-      `Config for ${input.target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox Nightly, ChatGPT, Interpreter, and Qure will use the tunnel. `
+      `Config for ${input.target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox Nightly, ChatGPT, Interpreter, Qure, and OdyTTY will use the tunnel. `
         + `So will toolchain sync and update runs. ${policiesNotInForceWithoutMark()} `
         + `Add \`ExemptMark = ${String(input.recommendedMark,)}\` under \`[Interface]\`, then bring this interface down and up again so application exemptions attach.`,
     ];

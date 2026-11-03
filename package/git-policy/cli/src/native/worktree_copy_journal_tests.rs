@@ -517,3 +517,22 @@ fn only_a_journals_own_temporaries_are_removed() {
     }
     remove(root.as_path());
 }
+
+/// A stage with several subtrees below the split depth is removed whole, by workers sharing the subtrees.
+#[test]
+fn a_stage_with_many_subtrees_is_removed_whole() {
+    let root: PathBuf = fixture("journal-split-removal");
+    let stage: PathBuf = root.join("stage");
+    for subtree in 0..9 {
+        let directory: PathBuf = stage.join(format!("payload/root/group/subtree{subtree}/deeper"));
+        std::fs::create_dir_all(directory.as_path()).expect("directories");
+        std::fs::write(directory.join("file"), b"x").expect("file");
+        std::fs::write(stage.join(format!("payload/root/group/subtree{subtree}/near")), b"y").expect("near file");
+    }
+    std::fs::write(stage.join("payload/top"), b"z").expect("shallow file");
+    remove_tree_if_present(stage.as_path()).expect("removed");
+    assert!(!stage.exists());
+    // An absent tree is the normal answer for a retried removal.
+    remove_tree_if_present(stage.as_path()).expect("absent");
+    remove(root.as_path());
+}

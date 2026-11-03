@@ -37,7 +37,6 @@ use super::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordi
 use super::index_writer_commands::is_index_writer;
 use super::forwarded_command::{ResolvedCommand, Route, creates_or_moves_worktrees, resolve_forwarded_command};
 use super::invocation_config::{config_invalid_event, load_identity_config};
-use super::config_file::LoadedConfig;
 use super::repository_location::RepositoryLocation;
 use super::transaction_git::GitContext;
 use super::worktree_identity::WorktreeIdentity;
@@ -614,45 +613,25 @@ fn forward_action(
             stderr,
         };
     }
-    let loaded: Option<LoadedConfig> = match configuration_needed(&location.identity, &command, writes_index) {
-        false => None,
-        true => match load_identity_config(&location.identity) {
-            Ok(found) => Some(found),
-            Err(error) => {
-                return Action::Exit {
-                    code: ENGINE_FAILURE_EXIT_CODE,
-                    stdout: String::new(),
-                    stderr: config_invalid_event(&error),
-                };
-            }
-        },
-    };
+    // An invalid configuration refuses an index writer; a main checkout's worktree copy reads none.
+    if configuration_needed(writes_index)
+        && let Err(error) = load_identity_config(&location.identity)
+    {
+        return Action::Exit {
+            code: ENGINE_FAILURE_EXIT_CODE,
+            stdout: String::new(),
+            stderr: config_invalid_event(&error),
+        };
+    }
     let creates_or_moves: bool = creates_or_moves_worktrees(&command);
-    // Only a main checkout hands over the configured rules files; `copy_applies` limits it to a creating command.
-    let main_checkout_paths: Vec<String> = match (&location.identity, &loaded) {
-        // Every configured file, required or optional: the copier skips a file Git does not ignore or that is absent.
-        (WorktreeIdentity::MainWorktree { .. }, Some(found)) => found
-            .config
-            .policies
-            .forbidden_strings
-            .rules_files
-            .iter()
-            .flatten()
-            .map(|file| return file.path.clone())
-            .collect(),
-        _ => Vec::new(),
-    };
     let add_plan: Option<AddPlan> = if creates_or_moves { plan_worktree_add(&command) } else { None };
     let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" { plan_worktree_remove(&command) } else { None };
     let serves_ladder: bool = add_plan.is_some() || remove_plan.is_some();
     let copy: Option<CopyFacts> =
-        if !copy_bypassed
-            && copy_applies_with(&location.identity, creates_or_moves, main_checkout_paths.as_slice(), serves_ladder)
-        {
+        if !copy_bypassed && copy_applies_with(&location.identity, creates_or_moves, serves_ladder) {
             Some(CopyFacts {
                 identity: location.identity.clone(),
                 creates_or_moves,
-                main_checkout_paths,
                 global_prefix: checks.facts.transaction_context().global_prefix,
                 environment: environment.to_vec(),
                 add_plan,
@@ -862,17 +841,15 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
 /// What:
 ///  Whether the forwarded command needs the repository configuration.
 /// Why:
-///   An index writer reads its patience from it, and a main checkout reads the rules file name from it;
-///  linked worktrees and bare repositories need no configuration for the copy, so their commands load nothing new.
+///   An index writer reads its patience from it; the copy of a main checkout's ignored state reads none,
+///  so a command that only creates a worktree loads nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isIndexWriter(command) || (identity.kind === 'main-worktree' && createsOrMovesWorktrees(command))
+/// isIndexWriter(command)
 /// ```
-fn configuration_needed(identity: &WorktreeIdentity, command: &ResolvedCommand, writes_index: bool) -> bool {
-    return writes_index
-        || (matches!(identity, WorktreeIdentity::MainWorktree { .. })
-            && creates_or_moves_worktrees(command));
+fn configuration_needed(writes_index: bool) -> bool {
+    return writes_index;
 }
 
 /// What:

@@ -32,6 +32,14 @@ export const scoredBeforeKill = 2;
 export const fixtureImageUser = '2000:2001';
 
 /**
+ Campaign scripts a test file starts at once. Each script is a Node process that starts a Node process for every stand-in
+ Podman call, and the whole unit-test run starts every test file in parallel, so the default width of sixteen cases per file
+ oversubscribes a host or a capped scope (a quarter of the cases timed out, or died on a failed start, in an eight-CPU
+ scope that also ran other work). A few at once finish sooner than many that starve one another.
+ */
+export const campaignScriptConcurrency = 4;
+
+/**
  Environment that gives the stand-in the mutants to score.
  */
 export const mutantEnvironment: Readonly<Record<string, string>> = { FAKE_MUTANTS: mutants.join(',') };

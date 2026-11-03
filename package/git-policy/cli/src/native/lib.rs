@@ -902,6 +902,9 @@ pub mod worktree_copy_registry;
 /// The ignored source paths a linked-worktree copy selects, and the path validation every selection passes.
 pub mod worktree_copy_selection;
 
+/// What a copy from a main checkout leaves out: caches, optionally run records, and other checkouts.
+pub mod worktree_copy_prune;
+
 /// The deterministic parent-first manifest of a copy, and the mode application to a staged copy.
 pub mod worktree_copy_manifest;
 
@@ -1080,6 +1083,9 @@ pub mod service_index_attempts;
 
 /// The marker the service writes into the index lock and the questions asked of a marker.
 pub mod service_index_marker;
+
+/// Who a marker's holder is: the identity a process writes, and the answers a reader gives (gone, running, unknown).
+pub mod service_index_identity;
 
 /// The service's hold on a placed index lock: the check that it is still the holder's, the release and the removal.
 pub mod service_index_hold;

@@ -207,8 +207,8 @@ fn a_hold_whose_process_runs_is_not_stale_by_age() {
     assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut out), Waited::Released);
     releaser.join().expect("releaser");
     assert!(!String::from_utf8_lossy(&out).contains("does not wait for it"), "{}", String::from_utf8_lossy(&out));
-    let (birth, _) = identity.rsplit_once('#').expect("boot");
-    std::fs::write(&lock, format!("{LOCK_MARKER}8 {} {birth}#{}\n", std::process::id(), "0".repeat(32))).expect("lock of another boot");
+    let parts: Vec<&str> = identity.split('#').collect();
+    std::fs::write(&lock, format!("{LOCK_MARKER}8 {} {}#{}#{}\n", std::process::id(), parts[0], "0".repeat(32), parts[2])).expect("lock of another boot");
     std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
     assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut out), Waited::Stale);
     remove(root.as_path());
@@ -269,5 +269,31 @@ fn a_mark_whose_holder_is_gone_is_not_waited_for() {
     assert!(said.contains("no longer runs"), "{said}");
     assert!(said.contains("next commit"), "{said}");
     assert!(lock.exists(), "the leftover is not the command's to remove");
+    remove(root.as_path());
+}
+
+/// A hold whose marker names a PID namespace this reader is not in says nothing about the holder:
+/// the number may be a process of the reader's own namespace or none.
+/// The wrapper neither calls the live service gone nor waits for it as a proven holder;
+/// it falls back to the age of the lock,
+/// as for a mark that names no holder.
+#[test]
+fn a_hold_of_another_pid_namespace_is_neither_gone_nor_proven() {
+    let root: PathBuf = fixture("index-wait-foreign-namespace");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    let parts: Vec<&str> = identity.split('#').collect();
+    // A process number nothing runs under here, in a namespace this process is not in.
+    std::fs::write(&lock, format!("{LOCK_MARKER}9 2147483646 {}#{}#1\n", parts[0], parts[1])).expect("lock");
+    let mut out: Vec<u8> = Vec::new();
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_millis(150), QUICK, &mut out), Waited::GaveUp);
+    let said: String = String::from_utf8_lossy(out.as_slice()).into_owned();
+    assert!(!said.contains("no longer runs"), "{said}");
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - HOLD_LIMIT - Duration::from_secs(60);
+    std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
+    let mut old: Vec<u8> = Vec::new();
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut old), Waited::Stale);
+    assert!(String::from_utf8_lossy(old.as_slice()).contains("does not wait for it"), "{}", String::from_utf8_lossy(old.as_slice()));
     remove(root.as_path());
 }

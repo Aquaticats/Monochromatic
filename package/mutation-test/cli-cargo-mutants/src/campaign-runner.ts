@@ -114,6 +114,7 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     evidencePrefix: definition.evidencePrefix,
     baseImage,
     command: definition.command,
+    ...(definition.keyParts === undefined ? {} : { keyParts: definition.keyParts }),
   });
   /**
    Outcome of the campaign run, whose nonzero exit can mean missed mutants rather than a failure.

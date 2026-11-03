@@ -406,8 +406,9 @@ settlement locking,
 and synchronization,
 even when real Git creates a linked worktree,
 with one exception:
-a command that creates or moves a worktree copies the configured `rulesFile` files of the `security/forbidden-strings`
-policy (each entry of an array) from the main checkout into the new worktree, under the settlement lock and the journal.
+a command that creates or moves a worktree copies the main checkout's ignored state, under the leave-out rule below,
+into the new worktree, under the settlement lock and the journal.
+The main checkout is an applicable source for that command only; its other commands cost no filesystem reads.
 After real Git and its hooks return for an applicable source,
 cli-git compares the administrative set again.
 Every new identity is a synchronization destination,
@@ -417,7 +418,8 @@ or real Git returned nonzero after retaining registration.
 A missing or stale pre-existing worktree root does not hide a newly created identity.
 
 For an applicable non-bare invocation,
-the source is the invoking linked worktree root after Git and `post-checkout` settle.
+the source is the invoking linked worktree root, or the main checkout root for the exception above,
+after Git and `post-checkout` settle.
 Git's standard exclusion stack selects the source paths:
 per-directory `.gitignore`,
 repository exclude state,
@@ -429,7 +431,7 @@ Ignored sockets,
 FIFOs,
 and device nodes are selected only to produce a copy failure without opening them.
 A bare repository has no source root and synchronizes an empty set.
-The only repository configuration that touches this behavior is the `rulesFile` path or paths.
+No repository configuration touches this behavior.
 The wrapper-only flag `--no-worktree-copy` skips synchronization for one invocation.
 It is recognized in flag position after the subcommand and before Git's `--` pathspec separator,
 and, like the other wrapper controls, among Git's global options before the subcommand,
@@ -509,11 +511,27 @@ Every other case, and a refusal by the kernel, is Git's own removal.
 
 Before staging,
 exclude every registered worktree root strictly nested under the source.
+A main-checkout source also applies a leave-out rule of directory names, the same everywhere below the source root,
+implemented in `src/native/worktree_copy_prune.rs`:
+a directory that holds a `.git` file or directory is another checkout and is left out whole;
+a cache is left out (`.pnpm-store`, `.gradle`, `.kotlin`, `.cache` anywhere but the repository root,
+and `incremental` and `zig-global-cache` below a `target` directory);
+and a run record is left out while `COPY_RUN_RECORDS` is false, which it is
+(`.monochromatic` below a `node_modules` directory, `verification` directly under `target`, `mutants.out`,
+`mutants.out.old`, `playwright-report`, `test-results`, and `cache` directly under `.serena`).
+The repository root's own `.cache` is kept, because tasks read the tools and generated inputs it holds.
+Dependencies, builds and local files are copied.
+A linked or bare source copies everything it ignores except its nested registered worktrees.
+A file or directory the running user cannot read is left out of every source's copy instead of failing the copy,
+and one stderr line names the count and the first three paths:
+`cli-git: left out <n> unreadable ignored entries from <source>: <paths>`.
 Private stage names are reserved and excluded at every path component.
 Stage each destination separately in a mode-`0700` sibling directory so file cloning stays
  on the destination filesystem.
 Copy regular files into the stage with an exclusive copy-on-write request whose unsupported-filesystem behavior falls
 back to a full copy.
+A manifest of at least 4096 entries is copied by up to 8 threads, bounded by the CPUs the process may use,
+over contiguous slices after every directory exists; the first failure stops the others.
 Preserve directory and regular-file permission bits plus exact symbolic-link target text.
 Never follow a symbolic link while classifying source or destination entries.
 
@@ -523,8 +541,14 @@ rebuild the source and staged manifests and require exact final equality of sele
 entry paths,
 types,
 modes,
-regular-file bytes,
+regular-file content,
 and symbolic-link targets.
+A regular file that a copy-on-write request cloned holds the source's data blocks as of the clone,
+so its content is proved by the source's stamp (size, modification time, change time and inode) instead of by reading
+both files: the stamp is read before and after the clone, must be equal, and must be at least 20 ms older than the clock,
+and the final comparison requires the source's stamp to be unchanged.
+No write can leave the change time unchanged, so a writer to the source during the copy fails the comparison.
+A file copied byte by byte, or whose stamp was too recent to prove anything, is compared byte for byte.
 Transient source mutations that revert before final comparison are outside the guarantee.
 Any remaining difference is source instability and blocks destination mutation.
 
@@ -1702,26 +1726,95 @@ A directory renamed aside (`IN_MOVE_SELF`) ends the watch too.
 
 The identity a new marker carries is the process's start tick,
 then `#`,
-then the boot ID (`/proc/sys/kernel/random/boot_id`).
-A marker an earlier release wrote has no boot ID and is judged by the process alone.
-A marker whose boot is not the current one names a process that is gone,
-because every process died with that boot,
-and a PID and start tick can recur after a reboot.
-A process takes no lock when its `/proc` numbers it differently from the operating system
+then the boot ID (`/proc/sys/kernel/random/boot_id`),
+then `#`,
+then the PID namespace (the number in `/proc/self/ns/pid`).
+A marker an earlier release wrote has no boot ID or no namespace and is judged by the parts it has.
+On Linux a process that cannot read its boot ID or its PID namespace takes no lock,
+and says so in the log,
+because a marker without them cannot be told from a reboot's collision or from a number of another namespace.
+A process also takes no lock when its `/proc` numbers it differently from the operating system
 (a service that is PID 1 of a new PID namespace with an ancestor's `/proc` would read the ancestor's init):
 the PID in `/proc/self/stat` must equal `getpid()`.
+That record is read as bytes,
+because the name of a process may hold any byte.
+
+A reader answers one of three things about the holder a marker names:
+
+- Gone:
+  the boot is not the current one (every process died with that boot,
+  whatever the reader's numbering),
+  or no process runs under that number,
+  or the process under it was born at another tick,
+  or the marker names no holder (an earlier release's).
+- Running:
+  the same boot,
+  the same namespace,
+  and the process there is the one born then.
+- Unknown:
+  the marker's PID namespace is not the reader's,
+  the reader's `/proc` does not agree with its own PID,
+  the reader has no boot ID to compare with a marker that names one,
+  or the process record cannot be read.
+  Unknown keeps the lock and proves nothing.
+  A wrapped command then falls back to the age of the file,
+  and the service's acquisition waits for the lock like any other holder's until its limit.
+  A service that was killed in one PID namespace and restarted in another leaves a lock no reader there can reclaim:
+  remove it by hand,
+  or restart the service in the namespace it ran in.
 
 The wrapped commands judge a hold by its holder,
 not by the age of the lock file:
 
-- A mark that names a holder that runs now (this boot,
-  the same start tick) is waited for however old the file is.
+- A mark that names a holder that runs now is waited for however old the file is.
 - A mark that names a holder that is gone is not waited for.
   The command returns at once and says the service that held the index no longer runs and that the next commit made through the service removes the lock.
-- A mark that names no holder (an earlier release's) or a holder that cannot be asked about falls back to the age of the file,
+- A mark that names no holder (an earlier release's) or a holder the reader cannot ask about falls back to the age of the file,
   and the lock file's time is set to the time of the placement,
   not of the staging,
   so a hold placed after a long wait is not old.
+
+#### Removing the lock and what is made durable
+
+A lock the holder owns is removed by the release after the index is installed,
+or when the holder goes out of scope.
+A removal that fails for any reason other than the lock being gone is said in the log and counted as unsettled,
+like a check that cannot be made:
+the lock names this live process,
+so no later acquisition would reclaim it,
+and the service ends after that batch so that the restart does.
+The count is kept for the thread that holds locks (the serve loop and the recovery before it);
+a lock held and dropped on another thread would not be seen by it,
+and none is.
+
+The release does not sync the directory after the unlink.
+Measured (btrfs,
+host,
+300 alternating cycles twice,
+100% of one CPU):
+the removal takes 0.012 ms,
+and with a directory sync 2.1 ms at the median (95th percentile 2.4 to 2.9 ms,
+one cycle of 81 ms);
+on the gate image's overlayfs the sync was not measurable.
+Native Git syncs no directory when it releases its own lock,
+and the loss it would prevent is bounded:
+after a power loss the lock can come back with the marker of the boot that ended,
+which every reader reads as gone,
+so the next acquisition reclaims it and a wrapped command says the service no longer runs.
+
+The built index is written by Git's own `reset` under the private index file (`service_land_follow.rs`,
+`build_index`),
+so Git's `core.fsync` governs it,
+and the rename that installs it has the durability native Git's has,
+by default and when the user opts in.
+The index can be rebuilt from `HEAD`,
+and the service syncs the commits and refs.
+
+The watch on the lock's directory ends when the directory itself is renamed or removed.
+A rename of an ancestor directory is not seen:
+the watch stays on the old tree and the wait notices at its next timer.
+That is a bounded delay and not a hang;
+the wait requires the Git directory's ancestry to stay in place while it lasts.
 
 ### Machines with no way to reach the service
 

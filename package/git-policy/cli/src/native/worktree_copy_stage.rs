@@ -14,12 +14,15 @@
 use super::private_storage::create_private_directory;
 use super::random_id::random_uuid;
 use super::transaction_git::GitContext;
-use super::worktree_copy_compare::assert_final_source_equivalence;
+use super::diagnostic_log::debug;
+use super::worktree_copy_compare::{FinalCheck, assert_final_source_equivalence_pruned};
 use super::worktree_copy_error::{WorktreeCopyError, raw_failure, wrap_raw};
 use super::worktree_copy_manifest::{
-    EntryKind, WorktreeCopyEntry, apply_entry_modes, collect_entry_manifest,
+    EntryKind, FileStamp, WorktreeCopyEntry, apply_entry_modes, collect_pruned_manifest, stamp_of,
 };
+use super::worktree_copy_prune::Prune;
 use super::worktree_copy_selection::{CopySelection, STAGE_PREFIX, filesystem_path, select_roots};
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::json_record::quote;
 use std::path::{Path, PathBuf};
 
@@ -55,6 +58,9 @@ pub struct StagedSnapshot {
     pub stage_container: PathBuf,
     /// Payload root mirroring the source's repository paths.
     pub stage_root: PathBuf,
+    /// Repository paths the user could not read, left out of the stage;
+    ///  empty for a stage rebuilt from a journal.
+    pub unreadable: Vec<String>,
 }
 
 /// What:
@@ -132,25 +138,56 @@ fn try_clone(_source: &std::fs::File, _destination: &std::fs::File) -> bool {
 /// await copyFile(sourcePath, stagePath, COPYFILE_EXCL | COPYFILE_FICLONE);
 /// ```
 pub fn copy_file_exclusive(source: &Path, destination: &Path) -> Result<(), WorktreeCopyError> {
-    return copy_file_exclusive_with(source, destination, try_clone);
+    return copy_file_exclusive_with(source, destination, try_clone).map(drop);
+}
+
+/// What:
+///  How recent a change time may be and still be too close to the clock to prove "unchanged".
+/// Why:
+///   Filesystem timestamps have a granularity; a write that lands in the same tick as the stamp would leave it equal,
+///  so a file changed this recently is compared byte for byte instead of trusted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const RECENT_CHANGE_NANOS = 20_000_000n;
+/// ```
+const RECENT_CHANGE_NANOS: i128 = 20_000_000;
+
+/// What:
+///  Whether a stamp is old enough, against the clock now, to prove that no write follows it unseen.
+/// Why:
+///   A change time in the future or within the timestamp granularity of now proves nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// now - ctime >= RECENT_CHANGE_NANOS
+/// ```
+fn stamp_is_settled(stamp: &FileStamp) -> bool {
+    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+        return false;
+    };
+    let now_nanos: i128 = i128::from(now.as_secs()) * 1_000_000_000 + i128::from(now.subsec_nanos());
+    let changed_nanos: i128 = i128::from(stamp.changed.0) * 1_000_000_000 + i128::from(stamp.changed.1);
+    return now_nanos - changed_nanos >= RECENT_CHANGE_NANOS;
 }
 
 /// What:
 ///  Creates a destination file exclusively and fills it with the source's bytes,
-///  using the clone request the caller supplies.
+///  using the clone request the caller supplies, and returns the source's stamp when a clone proved the bytes.
 /// Why:
 ///   Whether the filesystem clones is the machine's choice, so a test supplies a clone that accepts or refuses
-///  and sees each path taken on every machine.
+///  and sees each path taken on every machine. A clone shares the source's blocks as of one instant; a source stamp that is
+///  equal before and after it and old enough to be settled proves no write interleaved, and the final check compares it again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await copyFileWith({ sourcePath, stagePath, clone });
+/// const stamp = await copyFileWith({ sourcePath, stagePath, clone }); // undefined when bytes were copied
 /// ```
 fn copy_file_exclusive_with(
     source: &Path,
     destination: &Path,
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
-) -> Result<(), WorktreeCopyError> {
+) -> Result<Option<FileStamp>, WorktreeCopyError> {
     let mut input: std::fs::File =
         std::fs::File::open(source).map_err(|error| return raw_failure(&error))?;
     let mut output: std::fs::File = std::fs::OpenOptions::new()
@@ -158,41 +195,97 @@ fn copy_file_exclusive_with(
         .create_new(true)
         .open(destination)
         .map_err(|error| return raw_failure(&error))?;
+    let before: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
     // A successful clone already holds every byte, so only a refused clone copies them.
     if !clone(&input, &output) {
         std::io::copy(&mut input, &mut output).map_err(|error| return raw_failure(&error))?;
+        return Ok(None);
     }
-    return Ok(());
+    let after: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
+    return Ok(match (before, after) {
+        (Some(first), Some(second)) if first == second && stamp_is_settled(&second) => Some(second),
+        _ => None,
+    });
 }
 
 /// What:
-///  Copies one manifest's entries into the stage, parent first.
+///  The entries per worker below which a copy stays on one thread.
 /// Why:
-///   Each entry is recreated from the source's no-follow view, so no symbolic link is ever followed.
+///   Starting threads costs more than a small copy; a main checkout's hundreds of thousands of entries are what need them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function copyManifestEntries({ sourceRoot, stageRoot, entries }): Promise<void>;
+/// const PARALLEL_COPY_MIN_ENTRIES = 4096;
 /// ```
-fn copy_manifest_entries(
+const PARALLEL_COPY_MIN_ENTRIES: usize = 4096;
+
+/// What:
+///  The most threads one copy starts.
+/// Why:
+///   Cloning is a metadata operation bound by the filesystem's locks more than by CPU, and other sessions share this host.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const PARALLEL_COPY_MAX_WORKERS = 8;
+/// ```
+const PARALLEL_COPY_MAX_WORKERS: usize = 8;
+
+/// What:
+///  How many threads a copy of this many entries uses: one below the threshold, else the CPUs the process may use, capped.
+/// Why:
+///   The bound follows the CPUs the process is allowed (a container's quota included), never the whole host.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// entries < MIN ? 1 : Math.min(availableParallelism(), MAX)
+/// ```
+fn copy_worker_count(entries: usize) -> usize {
+    if entries < PARALLEL_COPY_MIN_ENTRIES {
+        return 1;
+    }
+    let available: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    return available.min(PARALLEL_COPY_MAX_WORKERS);
+}
+
+/// What:
+///  Copies the files and links of one slice of a manifest into the stage, recording each cloned file's stamp.
+/// Why:
+///   Each entry is recreated from the source's no-follow view, so no symbolic link is ever followed;
+///  directories exist already, and a parent is created only when the entry's parent changes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function copyLeaves({ sourceRoot, stageRoot, entries, stamps, failed }): Promise<void>;
+/// ```
+fn copy_leaves(
     source_root: &Path,
     stage_root: &Path,
     entries: &[WorktreeCopyEntry],
+    stamps: &mut [Option<FileStamp>],
+    failed: &AtomicBool,
 ) -> Result<(), WorktreeCopyError> {
-    for entry in entries {
+    let mut last_parent: Option<PathBuf> = None;
+    for (entry, slot) in entries.iter().zip(stamps.iter_mut()) {
+        if failed.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        if entry.kind == EntryKind::Directory {
+            continue;
+        }
         let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_str())?;
         let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_str())?;
-        // `match` on the kind: directories are created, files copied, and links recreated with their exact target.
+        let parent: PathBuf = parent_of(stage_path.as_path());
+        if last_parent.as_ref() != Some(&parent) {
+            create_private_tree(parent.as_path())?;
+            last_parent = Some(parent);
+        }
+        // `match` on the kind: files are cloned or copied and links recreated with their exact target.
         match entry.kind {
-            EntryKind::Directory => {
-                create_private_tree(stage_path.as_path())?;
-            }
+            EntryKind::Directory => {}
             EntryKind::File => {
-                create_private_tree(parent_of(stage_path.as_path()).as_path())?;
-                copy_file_exclusive(source_path.as_path(), stage_path.as_path())?;
+                *slot = copy_file_exclusive_with(source_path.as_path(), stage_path.as_path(), try_clone)?;
             }
             EntryKind::Symlink => {
-                create_private_tree(parent_of(stage_path.as_path()).as_path())?;
                 let target: PathBuf = std::fs::read_link(source_path.as_path())
                     .map_err(|error| return raw_failure(&error))?;
                 symlink_at(target.as_path(), stage_path.as_path())?;
@@ -200,6 +293,63 @@ fn copy_manifest_entries(
         }
     }
     return Ok(());
+}
+
+/// What:
+///  Copies one manifest's entries into the stage: directories first, then files and links in parallel slices.
+/// Why:
+///   The manifest is parent first, so every directory exists before a worker needs it; the slices are contiguous so
+///  neighbouring files share a directory, and the first failure stops the other workers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function copyManifestEntries({ sourceRoot, stageRoot, entries }): Promise<(FileStamp | undefined)[]>;
+/// ```
+fn copy_manifest_entries(
+    source_root: &Path,
+    stage_root: &Path,
+    entries: &[WorktreeCopyEntry],
+) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
+    for entry in entries.iter().filter(|entry| return entry.kind == EntryKind::Directory) {
+        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_str())?;
+        create_private_tree(stage_path.as_path())?;
+    }
+    let mut stamps: Vec<Option<FileStamp>> = vec![None; entries.len()];
+    let workers: usize = copy_worker_count(entries.len());
+    let failed: AtomicBool = AtomicBool::new(false);
+    if workers <= 1 {
+        copy_leaves(source_root, stage_root, entries, stamps.as_mut_slice(), &failed)?;
+        return Ok(stamps);
+    }
+    let slice_length: usize = entries.len().div_ceil(workers);
+    let outcomes: Vec<Result<(), WorktreeCopyError>> = std::thread::scope(|scope| {
+        let handles: Vec<_> = entries
+            .chunks(slice_length)
+            .zip(stamps.chunks_mut(slice_length))
+            .map(|(slice, slots)| {
+                let failed_ref: &AtomicBool = &failed;
+                return scope.spawn(move || {
+                    let outcome = copy_leaves(source_root, stage_root, slice, slots, failed_ref);
+                    if outcome.is_err() {
+                        failed_ref.store(true, Ordering::Relaxed);
+                    }
+                    return outcome;
+                });
+            })
+            .collect();
+        return handles
+            .into_iter()
+            .map(|handle| {
+                return handle.join().unwrap_or_else(|_panic| {
+                    return Err(raw_failure(&std::io::Error::other("a copy worker panicked")));
+                });
+            })
+            .collect();
+    });
+    for outcome in outcomes {
+        outcome?;
+    }
+    return Ok(stamps);
 }
 
 /// What:
@@ -330,8 +480,13 @@ pub fn stage_ignored_snapshot(
     registered_roots: &[PathBuf],
     selection: &CopySelection,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
+    let selecting: std::time::Instant = std::time::Instant::now();
     let nested: Vec<PathBuf> = nested_under(source_root, registered_roots);
     let git_selected: Vec<String> = select_roots(context, source_root, nested.as_slice(), selection)?;
+    debug(
+        "worktreeCopyStage",
+        format!("selected {} ignored roots in {} ms", git_selected.len(), selecting.elapsed().as_millis()).as_str(),
+    );
     create_private_directory(stage_container).map_err(|error| return raw_failure(&error))?;
     let stage_root: PathBuf = stage_container.join(PAYLOAD_NAME);
     create_private_tree(stage_root.as_path())?;
@@ -341,6 +496,7 @@ pub fn stage_ignored_snapshot(
         stage_container,
         stage_root.as_path(),
         git_selected,
+        selection.prune(),
     );
     // Any failure removes the whole container, so no partial stage survives the attempt.
     match staged {
@@ -386,12 +542,14 @@ fn stage_into(
     stage_container: &Path,
     stage_root: &Path,
     git_selected: Vec<String>,
+    prune: Prune,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let excluded_source_roots: Vec<PathBuf> =
         source_exclusions(source_root, registered_roots, stage_container);
-    let selected_roots: Vec<String> = git_selected
+    let candidate_roots: Vec<String> = git_selected
         .into_iter()
         .filter(|repository_path| return !names_private_stage(repository_path.as_str()))
+        .filter(|repository_path| return !prune.skips_path(repository_path.as_str()))
         .filter(|repository_path| {
             let source_path: PathBuf = match filesystem_path(source_root, repository_path.as_str())
             {
@@ -403,26 +561,72 @@ fn stage_into(
                 .any(|excluded| return source_path.starts_with(excluded.as_path()));
         })
         .collect();
-    let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(
+    let started: std::time::Instant = std::time::Instant::now();
+    let mut unreadable: Vec<String> = Vec::new();
+    let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
         source_root,
-        selected_roots.as_slice(),
+        candidate_roots.as_slice(),
         excluded_source_roots.as_slice(),
+        prune,
+        &mut unreadable,
     )?;
-    copy_manifest_entries(source_root, stage_root, entries.as_slice())?;
+    // A root the walk left out whole (another checkout, an unreadable directory) has no entry and is no root of the stage.
+    let staged_paths: std::collections::HashSet<&str> =
+        entries.iter().map(|entry| return entry.relative_path.as_str()).collect();
+    let selected_roots: Vec<String> = candidate_roots
+        .into_iter()
+        .filter(|repository_path| return staged_paths.contains(repository_path.as_str()))
+        .collect();
+    drop(staged_paths);
+    if !unreadable.is_empty() {
+        // The person gets the count and the first paths in one notice line; the verbose log keeps the whole list.
+        debug(
+            "worktreeCopyStage",
+            format!(
+                "{} unreadable ignored entries are left out of the copy from {}: {}",
+                unreadable.len(),
+                source_root.display(),
+                unreadable.join(", ")
+            )
+            .as_str(),
+        );
+    }
+    let walked: std::time::Duration = started.elapsed();
+    let stamps: Vec<Option<FileStamp>> =
+        copy_manifest_entries(source_root, stage_root, entries.as_slice())?;
+    let copied: std::time::Duration = started.elapsed();
     apply_entry_modes(stage_root, entries.as_slice())?;
-    assert_final_source_equivalence(
+    let moded: std::time::Duration = started.elapsed();
+    assert_final_source_equivalence_pruned(
         source_root,
         stage_root,
         selected_roots.as_slice(),
         excluded_source_roots.as_slice(),
         entries.as_slice(),
+        &FinalCheck { prune, stamps: stamps.as_slice() },
     )?;
+    debug(
+        "worktreeCopyStage",
+        format!(
+            "staged {} entries ({} cloned under a stamp) in {} ms: walk {} ms, copy by {} workers {} ms, modes {} ms, final check {} ms",
+            entries.len(),
+            stamps.iter().flatten().count(),
+            started.elapsed().as_millis(),
+            walked.as_millis(),
+            copy_worker_count(entries.len()),
+            (copied - walked).as_millis(),
+            (moded - copied).as_millis(),
+            (started.elapsed() - moded).as_millis()
+        )
+        .as_str(),
+    );
     return Ok(StagedSnapshot {
         entries,
         selected_roots,
         source_root: source_root.to_path_buf(),
         stage_container: stage_container.to_path_buf(),
         stage_root: stage_root.to_path_buf(),
+        unreadable,
     });
 }
 

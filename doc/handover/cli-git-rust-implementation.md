@@ -8605,6 +8605,80 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   sync the directory after unlink; OPEN, possibly P1: whether the built index is synced before rename and the directory
   before lock removal (index producer not reviewed). P3: stale docs in `service_index_wait.rs`; the PID-reuse test fix
   not in the reviewed diff. Queued for the index-lock agent after the merge-trigger fix.
+- Index durability question from the fourth review ANSWERED from code and Git's docs: `build_index`
+  (`service_land_follow.rs:170-182`) copies the index to `index.cli-git-<seq>` and writes it with Git's own `reset` under
+  that index file (so `core.fsync` applies); `release_with` renames it into place (`service_index_hold.rs:129`) without a
+  sync. `git help config` (core.fsync): "The default on most platforms is equivalent to
+  core.fsync=committed,-loose-object", and `index` is hardened only when enabled. So the service matches native Git's
+  index durability, by default and when opted in; not a P1. Told the index-lock agent.
+- Conflict sides (owner decision D) BUILT (task 76 agent; `merge-sides` `5a7608fd46`): copies go to
+  `<common-git-dir>/cli-git/discarded/<UTC time>/<path>` beside `cli-git-audit.jsonl` (that log stores no files, so the
+  preview's path was adapted; same-second runs get `-1`, `-2`); notice names the absolute path. Covers `checkout [<rev>]
+  -- <path>` with `--ours/--theirs/-2/-3/-m/--merge/--conflict`, and `restore` with
+  `--ours/--theirs/-m/--merge/--conflict/--source` and `-W` (`-S` only beside `-W`); in-progress state from `MERGE_HEAD`,
+  `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge/`, `rebase-apply/rebasing` (not `git am`); conflicted paths from the
+  in-process index reader. Still refused: split, sparse or `GIT_INDEX_FILE` indexes, `-f`, `-p`, pathspec files, magic or
+  directory pathspecs, mixed lines. 13 binary and 11 unit tests, guard plants red; host runs only. Gaps: a copy made
+  before another policy refuses the line stays without a notice; nothing prunes `cli-git/discarded`. `integrate-068`
+  (main + this branch, clean); gate 42 running (log `~/temp/agent/gate/integrate-gate42.log`). Cross-vendor review
+  running (`~/temp/agent/review-merge-sides/sol-review.txt`).
+- Planted-control review round 4 (`~/temp/agent/review-planted-controls-4/sol-review.txt`): lookup, limits, harness and
+  late-publish race closed. P1: a resumed `proved` decision under another controls key erases an unpaid obligation; a
+  missing manifest reads as nothing deferred. P2: pass-2 local pass leaves pass-1 debt; invocation captured too late;
+  inspection environment differs from the units'; nonpositive `pidsLimit` accepted in an obligation. Sent back.
+- Merge trigger defect FIXED (index-lock agent; `merge-trigger-fix` `59b27fcef3`, from main `d32519033c`): cause,
+  shown read-only on the real repository: `watch_tip` returned nothing before the merge because `read_layout_in`
+  declined at its typed-value proof, on the user's own `~/.gitconfig` `core.fsmonitor = true` (`Kind::FalseOnly`: a
+  true value starts a daemon). The repository shape was not the cause. Fix: `read_layout_after_success` (structure
+  checks kept, typed proof dropped since Git already accepted the values) for the trigger; every decline and hand-over
+  is a line in `<common-git-dir>/cli-git-push-trigger.jsonl` (`push_trigger_log.rs`) plus a debug line. Tests: lib
+  `a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger`, `every_decline_names_its_reason`, ...;
+  binary `push_trigger::` with a real merge, bare remote and fixture service (stand-in key `diff.dirstat`); seven guard
+  plants red. Commit `800a981a1e` is labelled `test` but also changes comments and docs: corrective commit comment due
+  once it is on GitHub. FOLLOW-UP queued: `capture_invocation.rs`, `lfs_bounded_push.rs` and `management.rs` also call
+  `read_layout_in` and decline for this user (falling back to Git processes), against the owner's "Invoke real git as
+  rarely as possible"; decide per caller whether `core.fsmonitor = true` changes its answer.
+  `integrate-069` = `integrate-068` + this branch; gate 43 next (covers conflict sides and the trigger fix together);
+  on a pass merge into main and release 0.5.13.
+- Survivors DONE (agent; `survivors-service`, 10 commits from main `19144296b6`; record
+  `doc/handover/cli-git-native-service-survivors.md`): every assigned survivor killed by a test shown red with the
+  mutant applied, or equivalent with reasoning (`service_client.rs:94` twice: a zero-byte read already decodes to no
+  message; `service_server.rs:129`: only a race no test can force, traced through `unix_bind_bsd`). Extra kills:
+  `service_server.rs:44` (`IDLE_EXIT` pinned to the documented three hours), `service_land.rs:132` and more grouping
+  mutants. `ensure_socket_passed_in` and `place_in_groups` extracted to make them testable. Claim review fixed
+  (`2d17d36c07`, `4e00a86130`): stamp failures fail the claim or renewal; filename/record mismatch quarantined on claim
+  and recovery; old malformed claims failed in one pass; claim staged in `recovering/` so a failed publish keeps the
+  pending age; notes through `service_timing::log`; SPEC narrowed. Recovery moved to `work_item_recovery.rs` (the file
+  was over `max-lines`). Commit `b53a877a01` has two type/scope pairs and a clippy fix in a docs commit: corrective
+  comment due. Merged into `integrate-069` cleanly.
+- `integrate-069` = `integrate-068` (main + conflict sides) + `merge-trigger-fix` + `survivors-service`; gate 43 running
+  (log `~/temp/agent/gate/integrate-gate43.log`). On a pass with gate 42: merge into main, release 0.5.13, then check a
+  clean merge pushes itself and its `cli-git-push-trigger.jsonl` line.
+- Reader follow-up assigned to the survivors agent (branch `reader-fsmonitor`): `capture_invocation.rs`,
+  `lfs_bounded_push.rs`, `management.rs` decline on the user's `core.fsmonitor = true`; measure the Git-process cost,
+  decide per caller, test.
+- Planted-control round 4 FIXED (`b1d2fd4a09`, +680 net lines: carried obligation list, satisfaction rule, pass-1
+  supersede, expected-obligation cross-check, invocation handoff from the launcher, exact inspection environment,
+  `pidsLimit >= 1`). Its agent flagged the growth and offered a smaller design, ADOPTED (my choice under the owner's
+  quality preference, within option D): add the controls key and harness identity to the campaign directory key in the
+  shared package, so a resume under other controls starts fresh; drop the carry list, satisfaction rule and pass-1
+  supersede; keep the missing-manifest check, expected-obligation check, invocation handoff, inspection environment
+  and pids check. Being built.
+- Gate 42 on `integrate-068` (conflict sides) PASSED: `3232 tests run: 3232 passed (1 slow), 5 skipped`.
+- 0.5.12 PUBLISHED (crates.io 2026-11-02T19:22:27Z; bump `89d02559c4`); install and sample commit running
+  (`~/temp/agent/upgrade-0.5.12.log`).
+- Ladder 5-second bound CAUSE (ladder agent; `279f60c929`, troubleshooting section in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`): a harness wave, not a product wait.
+  On a fresh `CLI_GIT_TEST_ROOT` on another volume than the build, every concurrent test copied the 190 MB wrapper into
+  the store; the write-back stalled later `fsync`s (one traced at 4.74 s). Now one caller writes and fsyncs the copy and
+  the others wait for it (no lock; 10 s no-progress and 120 s caps). Second cause in one test fixed (a clean source is
+  cloned and Git runs no smudge filter; the control keeps an untracked file). 48 of 48 on btrfs, one run, load 14. Not
+  done: the bound itself, which other sessions' write-back can still break; assigned to the same agent as a supervisor
+  that judges progress (CPU and I/O counters) with a long wall backstop (branch `bound-supervisor`).
+- `integrate-070` = `integrate-069` + `btrfs-worktree-ladder` (handover conflict: both kept); gate 44 running (log
+  `~/temp/agent/gate/integrate-gate44.log`). Release plan: 0.5.13 from `integrate-069` once gate 43 passes; the ladder
+  waits for its cross-vendor review (`~/temp/agent/review-btrfs-ladder/sol-review.txt`) because it can destroy
+  subvolumes, then ships from `integrate-070` after gate 44.
 - Merge trigger fix (branch `merge-trigger-fix`,
   from main `d32519033c`+):
   a clean `git merge` did not push for the owner
@@ -8791,3 +8865,221 @@ Controls were shown red with the fix removed (28 textual mutants plus one correc
 publication). Not covered: the arm of `finish_snapshot` that skips the stage cleanup is exercised through the primitives and
 the error mapping; `RESOLVE_NO_XDEV` against a bind mount cannot be exercised without privilege; a process that replaces the
 destination between Git's exit and the binding is not detected.
+- Gate 43 on `integrate-069` (conflict sides, merge-trigger fix, survivors) PASSED: `3264 tests run: 3264 passed (1
+  slow), 5 skipped`; image `9b67fdaf4d4f`. Merged into main (`7d43d976d0`; crate source equals the gated tree; on
+  origin). Release 0.5.13 dispatched (https://github.com/Aquaticats/Monochromatic/actions/runs/41510722259). After
+  install: a clean `git merge` in the main worktree must push by itself and leave a `handed-over` line in
+  `.git/cli-git-push-trigger.jsonl`. Corrective comments posted on `800a981a1e` and `b53a877a01`.
+- 0.5.12 installed (lock `755316986d`): 0.5.11 retired and logged `exiting reason=retire`; commit 921 ms
+  (`provisionMs 438` for the update, `prepareMs 124`, answered in 96 ms).
+- Index-lock round 4 DONE (index-lock agent; `index-lock-review-4` `d5810122ce`): failed unlink of an owned lock is
+  unsettled (`remove_owned`); markers `<tick>#<boot>#<PID namespace>` with readers answering gone, running or unknown
+  (another namespace or an unaskable view is unknown, never gone; another boot is gone); no lock without a boot ID and
+  namespace; `/proc/self/stat` read as bytes; ancestor moves documented (stable ancestry required). Directory sync after
+  unlink NOT added, my decision: measured 2.1 ms median per release on btrfs, native Git does not sync there either,
+  and a lock that returns after power loss carries the ended boot's ID so the next acquisition reclaims it (test
+  `a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisition`). Container lib 106/106, binary
+  36/36. Needs a gate.
+- Planted-control directory-key design BUILT (`078a7f3ed4`, net 127 lines removed against round 4): `keyParts` hook in
+  the shared package (no parts: key unchanged for other products); git-policy keys by controls digest and harness
+  identity, so a changed control table or runner rescores in a fresh directory; carry-forward and supersede removed.
+  Its agent found `golden/git-policy-two-pass.json` stale since `c86d9fa408` (the shared package's tests had been
+  failing; I had run only git-policy's `test:unit`), regenerated. Every existing native campaign directory changes key:
+  the first campaign after merge rescores. Fifth cross-vendor review running
+  (`~/temp/agent/review-planted-controls-5/sol-review.txt`).
+- Index lock review 4 (branch `index-lock-review-4`,
+  from main `a4869a8e1e`;
+  review
+  `~/temp/agent/review-index-lock-4/sol-review.txt`).
+  Each fix has a test and a plant shown red
+  (`~/temp/agent/ilr3/guards-r4.ts`,
+  8 plants):
+  an owned lock whose removal fails is logged and counted unsettled (release
+  and drop share `remove_owned`;
+  `Platform.release` makes it testable);
+  the marker identity is
+  `<tick>#<boot>#<PID namespace>`,
+  a reader answers gone,
+  running or unknown (`HolderState`,
+  `service_index_identity.rs`),
+  and another namespace,
+  a `/proc` that disagrees with the reader's PID,
+  or no boot ID to compare is unknown (keeps the
+  lock;
+  the wrapper falls back to the file's age);
+  on Linux a process without a boot ID or a namespace takes no lock;
+  `/proc/self/stat` is read as bytes;
+  the two wait docs are current.
+  The PID-reuse test fix (recreate the dead lock before
+  `try_acquire`) was already on main from round 3 (`a_recycled_process_number_does_not_reopen_a_dead_holders_alias`).
+  Decided not to add:
+  a directory sync after the unlink (measured 2.1 ms median on btrfs,
+  2.4 to 2.9 ms at the 95th
+  percentile,
+  one 81 ms cycle;
+  parity with native Git;
+  a lock that comes back after a power loss carries the ended boot's
+  ID and is reclaimed,
+  test `a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisition`).
+  Documented,
+  not fixed:
+  a rename of an ancestor of the watched directory (bounded by the timer);
+  a lock written in
+  another PID namespace is not reclaimed automatically;
+  the unsettled count is per thread (the serve loop's).
+  Index
+  durability:
+  the coordinator answered it (`build_index` writes through Git's `reset`,
+  so `core.fsync` governs).
+- Gate 44 on `integrate-070` (everything plus the ladder) FAILED one of 3343:
+  `wrapper_store_guard::the_wait_for_a_copy_that_never_finishes_ends_at_the_cap` ("the wait should end at the cap, not
+  at the end of the writes: 3.201608421s", `binary_wrapper_store_tests.rs:706`): a wall-clock assertion in the ladder
+  agent's new harness test, under load. Not rerun; sent back to make the decision testable without timing (inject the
+  clock, or assert the end reason). The ladder does not merge until it passes and its review is back.
+- `integrate-071` (main `7d43d976d0` + `index-lock-review-4`, handover conflict, both kept); gate 45 running (log
+  `~/temp/agent/gate/integrate-gate45.log`).
+- Ladder wait-cap test FIXED (`7cd4841b9d`): the wait returns how it ended (`Published`, `NobodyCopying`,
+  `CapReached`) on an injected clock that moves only when the wait pauses; no wall-clock assertion left in
+  `binary_wrapper_store_tests.rs`; nine mutants red. Merged into `integrate-070` (`a39b451d50`); gate 46 running (log
+  `~/temp/agent/gate/integrate-gate46.log`). Another wall-clock assertion (`worktree_copy_lock_tests.rs:472`) and a
+  crate-wide sweep for `elapsed() <` added to the bound-supervisor task.
+- Ladder cross-vendor review timed out at 3600 s with no output; relaunched as two smaller reviews on the branch's
+  current code: add path (`~/temp/agent/review-btrfs-ladder-add/sol-review.txt`) and remove plus recovery path
+  (`~/temp/agent/review-btrfs-ladder-remove/sol-review.txt`). Timing-logs review timed out a third time (high
+  thinking); relaunched with the documented xhigh (`~/temp/agent/review-timing-logs-2/sol-review-4.txt`).
+- Planted-control round 5 review (`~/temp/agent/review-planted-controls-5/sol-review.txt`): directory key closed the
+  resume finding absent collisions. P1: limits outside the key; `keyParts` absent from the `campaign.json` collision
+  guard; an interrupted scored campaign without `exit.json` loses debt when its manifest goes. P2: the two-pass root
+  fails when pass 2 never ran; pass-2 local pass leaves pass-1 debt when publication fails; start-to-capture race on
+  deterministic unit names. P3: stale schema text. Sent back with by-construction fixes: limits into `keyParts`,
+  `keyParts` into the identity file, scored-artifact detection, strict publication when an earlier pass depends on it,
+  launch-unique unit names; plus an audit of `runCaptured` callers.
+
+## 2026-11-02: merge trigger verified live, 0.5.14 dispatched, logging work started
+
+- Owner instruction (2026-11-02, verbatim): "If we're logging badly, improve how we log."
+  Task 93; a logging agent works on branch `logging-quality` (worktree `.claude/worktrees/logging-quality`, from main `745dcfc22f`),
+  inventory and decisions in `doc/handover/cli-git-logging.md`.
+  Ownership split: the logging agent owns journal transport and every log line's format;
+  the index-lock agent keeps holder logging and the 5.6 s wait diagnosis (it was told to drop the journal-time part).
+- Why journal times are wrong, from systemd source (main, copies in `~/temp/agent/systemd-src/`):
+  stdout and stderr lines reach journald over a stream socket with no sender time (`journald-stream.c:309`, `tv=NULL`)
+  and are stamped with journald's event-loop clock when read (`journald-manager.c:1217`);
+  only native-socket datagrams carry the kernel receive time (`journald-native.c:564` `SO_TIMESTAMP`, recorded at
+  `journald-manager.c:1178` as `_SOURCE_REALTIME_TIMESTAMP`).
+  On the 0.5.13 upgrade four lines of two service processes read 14:46:40.897 though the old service ended at 14:46:34.887.
+- Other logging defects handed to the logging agent: the timing line has no request ID to join the service's `answered` line;
+  push-trigger lines name no worktree or branch (the declined `command-failed` line of the `integrate-071` merge of main).
+- `integrate-071` (index lock round 4, gate 45 passed 3272 of 3272) took main first (`62c7de2271`, handover conflict kept both
+  sides), then merged into main as `745dcfc22f`; the crate tree differs from the gated `0057378348` only by the 0.5.13 version bump.
+  The merge pushed itself: `.git/cli-git-push-trigger.jsonl` has `"outcome":"handed-over","reason":"ahead-of-upstream",
+  "detail":"pushed 745dcfc22f..."` and `git ls-remote` shows origin main at `745dcfc22f`. Task 91 is verified live on 0.5.13.
+- 0.5.14 (index lock round 4) dispatched: run https://github.com/Aquaticats/Monochromatic/actions/runs/41514420240,
+  `native:release:wait` running (log `~/temp/agent/release-0.5.14-wait.log`). Next: `upgrade-wrapper.ts 0.5.14`.
+- Gate 46 on `integrate-070` (everything plus the ladder) passed: 3346 of 3346.
+  The ladder still stays out of main: its add-path review (`~/temp/agent/review-btrfs-ladder-add/sol-review.txt`) found
+  4 P1 (nested stub removal follows a symlinked parent into a real worktree's `.git`; clone verification checks the path,
+  not the cloned inode; source and target filter configuration never compared; clone fallback deletes files it never created),
+  4 P2 (stale clean-check index, final-component destination symlink, no durable pending-add record, index written before its lock),
+  1 P3 (design doc reads as a proposal). Sent to the ladder agent, P1 first. The remove-path review is still running.
+- Planted-control round 5 fixes are `b63c0f09d8` on `planted-control-cache` (limits in `keyParts`, identity comparison,
+  interrupted-campaign rule, `earlierPassOwes`, launch-unique unit names). Round-6 cross-vendor review running:
+  `~/temp/agent/review-planted-controls-6/sol-review.txt`. Next: merge it into an integration branch, run both packages'
+  `test:unit`, then a real parallel campaign; reviews are async.
+- 0.5.14 published (crates.io 2026-11-02T20:03:51Z, publish run 41515432390) and installed (lock commit `ff7e734daf`).
+  Sample commit: wall 1016 ms, client `totalMs` 1007, service `answered` `lock_wait_ms=1`, `landing_ms=162`; the 0.5.13
+  service retired cleanly (`exiting reason=retire uptime_ms=1377724`). Log `~/temp/agent/upgrade-0.5.14.log`.
+- Index-lock agent DONE on `index-lock-wait-log` (head `7204e1172b`, from `index-lock-review-4`):
+  `462b07f637` stamps every service line with ` at_ms=` (one writer, `service_log!`);
+  `1269b4401a` splits `lock_wait_ms` into `lock_stage_ms` (marker create, write, flush) and `lock_place_ms`, adds
+  `lock_looks`, `lock_found`, `lock_last`, `open_by=[pid (command)]`, a `waited for the index lock` line, and the client's
+  `lockHolderKind`; `7204e1172b` adds the upgrade-path control (strace: the client and its children never touch
+  `.git/index.lock` across an upgrade; the new service found the lock free). So the 5.6 s of the 0.5.13 upgrade was a
+  foreign holder or the marker flush under I/O pressure (`lock_stage_ms=1618` seen in a test run under load).
+  Next on that branch (my decision, from the owner's speed aims): pre-stage the next batch's marker while idle.
+  The logging agent was told to build on `7204e1172b`.
+- Measurement B DONE (`--passes 2`, service_review.rs, gate 33's image, same limits as A): pass 1 (tests of 19 of 369
+  modules) scored 16 mutants in 9 min (2 missed, 11 caught, 3 unviable); pass 2 rescored the 2 survivors with the whole
+  suite in 3 min, both still missed (`service_review.rs:121:5` `wall_clock_millis` to 0 and to 1, the same 2 A missed).
+  About 12 min of mutant time against A's 18 min, one run each under different load, so the size of the saving is
+  not established; the scored result is identical. Both A and B are owner-accepted, so later campaigns use `--passes 2`.
+- `reader-fsmonitor` (survivors agent DONE, head `64857e04bf`): with the owner's `core.fsmonitor = true` the typed proof
+  declined every in-process reader, costing 13 extra Git starts per wrapped commit; `Kind::OffOrBuiltinDaemon` now accepts
+  false spellings and true, yes, on; LFS push paths and `git cli-git service status` read after Git accepted the config.
+  Details `doc/handover/cli-git-native-reader-fsmonitor.md`. `integrate-073` = main `d5d0e2a269` + `reader-fsmonitor`
+  (handover conflict: our appends against blank theirs, markers removed, no branch line lost); gate 47 running
+  (`gpc-integrate-gate47`, log `~/temp/agent/gate/integrate-gate47.log`); cross-vendor review running
+  (`~/temp/agent/review-reader-fsmonitor/sol-review.txt`).
+- Gap found: a worktree added from the main checkout gets no `node_modules` (SPEC "Linked-worktree ignored-state
+  synchronization": main-sourced adds copy only the `rulesFile` files), so `test:unit` and the gate launcher fail with
+  ERR_MODULE_NOT_FOUND until `pnpm install --frozen-lockfile` runs (3 s online; `--offline` fails, the store lacks
+  packages). The owner expects ignored files like node_modules carried (2026-11-01), and the ladder's snapshot of a
+  subvolume main carries them (owner decision 2026-11-01), but main is not a subvolume yet. Task 96: a research agent
+  writes `doc/planning/cli-git-main-worktree-ignored-copy.md` (branch `main-ignored-copy-research`); then the owner picks.
+- Planted-control round 6 (`~/temp/agent/review-planted-controls-6/sol-review.txt`): 1 P1 (identity creation race on a
+  colliding key), 2 P2 (seeded-but-unstarted pass 2 read as executed, and a container failing before its report ignored;
+  32-bit launch token); sent back. After main was merged into `planted-control-cache`, git-policy `test:unit` passed
+  (70) but the shared package failed two tests (`campaign-passes.unit.test.ts:458` 3 entries for 6, and a 60 s timeout);
+  sent to the same agent. `integrate-072` (made for this) is unused.
+- Planted-control round 6 FIXED (`cf2c233b95` on `planted-control-cache`, over my main merge `414aa674fc`): lock taken
+  before `campaign.json` is read or written and released on refusal; `acquireCampaignLock` creates the lock exclusively
+  (private staging file, then a hard link); `container-started.json` written before a container starts, `executed` true
+  on it or a non-aggregate `exit.json`; launch token a UUID; campaign-script suites run four cases at once
+  (`campaignScriptConcurrency`), the two-pass test asserts the script's status. The earlier shared-package failure was
+  load (the main merge touched only `native-perf*`). Rerun under the same caps as the failure (8 CPUs, 8 GiB, 512 tasks,
+  beside campaigns): shared package 78 PASS, git-policy 70 PASS, both exit 0. Merged into main as `8029963230` (no crate
+  source change), which pushed itself (`handed-over`, 0.5.14). Round-7 review running:
+  `~/temp/agent/review-planted-controls-7/sol-review.txt`.
+- `reader-fsmonitor` review (`~/temp/agent/review-reader-fsmonitor/sol-review.txt`): P1 `fsmonitor.allowRemote` is not
+  typed by the proof though Git reads it once the monitor is on; P2 with the monitor on Git's index reads contact the
+  daemon, whose failures can show in stderr or status (reviewer's repro: a directory at `.git/fsmonitor--daemon.ipc`);
+  P1 (existing) `git -C <B> cli-git service status` reports the current directory's repository; P3 docs. Sent back to
+  the survivors agent; the branch stays out of main until fixed. Gate 47 keeps running for the rest of the evidence.
+- Gate 47 on `integrate-073` (main + `reader-fsmonitor`) FAILED 1 of 3283:
+  `auto_push_trigger::tests::a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger`
+  (`auto_push_trigger_tests.rs:153`, "the premise: the reader that checks every value declines this user's
+  configuration"). Stale premise, not a product defect: the test makes its unprovable setting with
+  `overlay_with_fsmonitor`, which the branch now proves. Sent to the survivors agent with the review findings, plus a
+  request to run the crate's full library and binary sets (it had run 160 targeted tests). Gate 47 is otherwise green.
+- Conflict-side cross-vendor review (shipped in 0.5.13) hit its 3600 s limit with no output (kept as
+  `~/temp/agent/review-merge-sides/sol-review-timeout-1.txt`). Relaunched on the current main sources with the same scope
+  plus pathspec magic, index races, copy durability and log-path escape:
+  `~/temp/agent/review-merge-sides/sol-review.txt`.
+- Planted-control round 7 (`~/temp/agent/review-planted-controls-7/sol-review.txt`), on code already in main: P1 stale-lock
+  takeover is not atomic (two contenders that both judged the old lock stale can both own the campaign, and one deletes
+  the other's live lock; no hash collision needed); P2 evidence from before `container-started.json` no longer counts as
+  executed; P2 a failed staging removal after a successful link leaves a published lock the caller never receives.
+  Round-6 items otherwise confirmed fixed (UUID token, seeded-pass rule, `requirePublished`). Sent to the planted-control
+  agent for a branch `planted-control-r7` from main.
+- Ladder add-path fixes DONE (`btrfs-worktree-ladder` `dc81164cd8`, `d99875d70a`, `0e432cd0b3`; all nine findings, none
+  rejected; new `fs_beneath.rs` handle-relative no-link primitives, `worktree_add_rollback.rs`, clone rung claims the
+  add, completion marker before the checkout line, recovery removes an unfinished add only when the repository confirms
+  the pair, failed fallback removes the worktree, `CleanSource.index_bytes`, one extra Git run per add for the target's
+  config; the swap-back after the exchange has no guard). `integrate-075` = main `4119927566` + ladder (handover
+  conflict, both sides kept, no line lost), head `987dc1be35`; gate 48 running (`gpc-integrate-gate48`). Round-2 add
+  review running (`~/temp/agent/review-btrfs-ladder-add-2/sol-review.txt`); the remove-path review is still out.
+  Still due before release: a btrfs host run (the gate's overlayfs skips btrfs-only tests). Bound supervisor is on
+  `bound-supervisor` (`a4a46158f1`, `a0ba0575d9`).
+- `index-lock-wait-log` pre-staged marker DONE (`ab6921c7f3`): measured on btrfs under load, lock path p50 0.27 ms made
+  ahead vs 2.31 ms cold, none over 20 ms in 300 made-ahead rounds vs 4 of 600 cold. Merging it into main conflicts in
+  `commit_timing_tests.rs` and `work_item.rs`; the index-lock agent is merging main into its branch. My aborted attempt
+  in `integrate-074` is saved as `~/temp/agent/integrate-074-aborted-merge.patch` (the wrapper refused `merge --abort`
+  on the dirty merge; used `git merge --no-enforce-worktree --abort` after saving the patch). Cross-vendor review running
+  (`~/temp/agent/review-index-prestage/sol-review.txt`).
+- DECIDED BY THE OWNER (2026-11-02, verbatim): "node_modules must be copied." Applied to the gap in task 96: a worktree
+  added from the main checkout must receive the main checkout's `node_modules` trees (root and per-package), as a worktree
+  added from a linked worktree already does. Narrow reading taken: node_modules only; copying other ignored state from
+  main (build outputs, caches) is not decided. Nested registered worktrees are never copied. The research agent
+  (`main-ignored-copy-research`) now measures mechanisms and implements the copy on a branch from main.
+- DECIDED BY THE OWNER (2026-11-02, verbatim, widening the node_modules decision): "Builds must be copied. Other ignored
+  files must be copied." So a worktree added from the main checkout receives the main checkout's whole ignored state
+  (node_modules, `target/` and other build outputs, caches, local files), like an add from a linked worktree. One
+  exception kept as a correctness constraint, stated to the owner and open to veto: registered worktrees nested under
+  `.claude/worktrees/` are not copied, because each holds a `.git` pointer to its own administrative directory and a copy
+  would be a second checkout claiming it (the ladder's snapshot already strips them). Cost must stay light by using btrfs
+  (owner, 2026-11-01); the research agent measures mechanisms and implements on `main-node-modules-copy`.
+- DECIDED BY THE OWNER (2026-11-02, verbatim): "Skip nested worktrees and caches. The point is to make new worktrees
+  immediately functional." So a worktree added from the main checkout gets main's ignored state minus registered nested
+  worktrees and minus caches; the test for every ignored path is whether the new worktree needs it to work at once
+  (node_modules and builds stay in, by the earlier decisions). The exact cache rule is derived by the research agent from
+  main's measured ignored set and recorded in `doc/planning/cli-git-main-worktree-ignored-copy.md`.

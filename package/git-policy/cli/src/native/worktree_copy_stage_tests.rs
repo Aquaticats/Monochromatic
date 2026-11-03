@@ -330,3 +330,105 @@ fn only_strictly_nested_roots_are_nested() {
         vec![PathBuf::from("/work/source/inner")]
     );
 }
+
+/// A clone request that the filesystem accepts and that fills the file, so the stamp logic sees a real clone.
+fn clone_accepts_and_copies(source: &std::fs::File, destination: &std::fs::File) -> bool {
+    use std::io::{Seek, SeekFrom};
+    let mut from: &std::fs::File = source;
+    let mut to: &std::fs::File = destination;
+    from.seek(SeekFrom::Start(0)).expect("rewind");
+    std::io::copy(&mut from, &mut to).expect("fill");
+    return true;
+}
+
+/// A refused clone proves nothing and leaves no stamp; an accepted clone of a settled file returns the source's stamp;
+///  an accepted clone of a file changed within the timestamp granularity returns none, so its bytes are compared later.
+#[cfg(unix)]
+#[test]
+fn a_stamp_comes_only_from_a_clone_of_a_settled_file() {
+    let root: PathBuf = fixture("stage-stamp");
+    std::fs::write(root.join("source"), b"payload").expect("source");
+    let recent: Option<FileStamp> =
+        copy_file_exclusive_with(root.join("source").as_path(), root.join("recent").as_path(), clone_accepts_and_copies)
+            .expect("recent");
+    assert_eq!(recent, None, "a file changed this instant is within the timestamp granularity");
+    std::thread::sleep(std::time::Duration::from_millis(2 * 20));
+    let settled: Option<FileStamp> =
+        copy_file_exclusive_with(root.join("source").as_path(), root.join("settled").as_path(), clone_accepts_and_copies)
+            .expect("settled");
+    let source_stamp: Option<FileStamp> = stamp_of(&std::fs::symlink_metadata(root.join("source")).expect("metadata"));
+    assert!(settled.is_some());
+    assert_eq!(settled, source_stamp);
+    let refused: Option<FileStamp> =
+        copy_file_exclusive_with(root.join("source").as_path(), root.join("refused").as_path(), clone_refuses).expect("refused");
+    assert_eq!(refused, None);
+    assert_eq!(std::fs::read(root.join("refused")).expect("bytes"), b"payload");
+    remove(root.as_path());
+}
+
+/// A manifest past the threshold is copied by several slices and arrives whole: every file, in every directory.
+#[cfg(unix)]
+#[test]
+fn a_large_manifest_is_copied_in_slices_and_arrives_whole() {
+    let root: PathBuf = fixture("stage-parallel");
+    let source: PathBuf = repository(root.as_path(), "source");
+    std::fs::write(source.join(".gitignore"), b"bulk/\n").expect("gitignore");
+    let files: usize = PARALLEL_COPY_MIN_ENTRIES + 25;
+    for index in 0..files {
+        let directory: PathBuf = source.join(format!("bulk/d{}", index % 7));
+        std::fs::create_dir_all(directory.as_path()).expect("directory");
+        std::fs::write(directory.join(format!("f{index}")), format!("content {index}")).expect("file");
+    }
+    assert!(copy_worker_count(files) >= 1);
+    let staged: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        source.as_path(),
+        new_stage_container(root.join("destination").as_path()).expect("container").as_path(),
+        &[],
+        &CopySelection::MainCheckout,
+    )
+    .expect("staged");
+    let staged_files: usize = staged.entries.iter().filter(|entry| return entry.kind == EntryKind::File).count();
+    assert_eq!(staged_files, files);
+    for index in [0, 1, files / 2, files - 1] {
+        let path: PathBuf = staged.stage_root.join(format!("bulk/d{}/f{index}", index % 7));
+        assert_eq!(std::fs::read_to_string(path).expect("staged file"), format!("content {index}"));
+    }
+    remove(root.as_path());
+}
+
+/// The stage records the unreadable entries it left out, and a root that is another checkout is no root of the stage.
+#[cfg(unix)]
+#[test]
+fn unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("stage-left-out");
+    let source: PathBuf = repository(root.as_path(), "source");
+    std::fs::write(source.join(".gitignore"), b"cache/\nclone/\n").expect("gitignore");
+    std::fs::create_dir_all(source.join("cache")).expect("cache");
+    std::fs::write(source.join("cache/kept"), b"kept").expect("kept");
+    std::fs::write(source.join("cache/hidden"), b"hidden").expect("hidden");
+    std::fs::set_permissions(source.join("cache/hidden"), std::fs::Permissions::from_mode(0o000)).expect("mode");
+    std::fs::create_dir_all(source.join("clone/.git")).expect("clone");
+    std::fs::write(source.join("clone/file"), b"another checkout").expect("clone file");
+    // A process allowed to read anything cannot show the case.
+    if std::fs::File::open(source.join("cache/hidden")).is_ok() {
+        remove(root.as_path());
+        return;
+    }
+    let staged: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        source.as_path(),
+        new_stage_container(root.join("destination").as_path()).expect("container").as_path(),
+        &[],
+        &CopySelection::MainCheckout,
+    )
+    .expect("staged");
+    assert_eq!(staged.unreadable, vec![String::from("cache/hidden")]);
+    assert_eq!(staged.selected_roots, vec![String::from("cache")], "the clone is no root of the stage");
+    assert!(staged.stage_root.join("cache/kept").is_file());
+    assert!(!staged.stage_root.join("cache/hidden").exists());
+    assert!(!staged.stage_root.join("clone").exists());
+    std::fs::set_permissions(source.join("cache/hidden"), std::fs::Permissions::from_mode(0o600)).expect("restore");
+    remove(root.as_path());
+}

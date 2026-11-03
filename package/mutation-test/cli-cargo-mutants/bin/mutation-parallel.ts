@@ -7,14 +7,10 @@ import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
-import { systemdRunProgram } from '../src/constants.ts';
 import { parseLauncherOptions } from '../src/options.ts';
 import { planUnits } from '../src/plan.ts';
-import {
-  formatStartLine,
-  formatWaitHint,
-} from '../src/report.ts';
-import { runProgram } from '../src/run-program.ts';
+import { formatWaitHint } from '../src/report.ts';
+import { startUnit } from '../src/start-units.ts';
 
 /**
  Options of this launch, validated before anything starts.
@@ -44,21 +40,15 @@ await mkdir(
 /**
  Start lines of every unit, in argument order; the units start together and the lines print once all have started.
  */
-const startLines = await Promise.all(plans.map(async function startUnit(plan) {
-  /**
-   Outcome of starting this unit.
-   */
-  const started = await runProgram({
-    program: systemdRunProgram,
-    args: plan.systemdRunArguments,
-    inheritStdio: false,
-  });
-  return formatStartLine({
+const startLines = (await Promise.all(plans.map(function startPlan(plan) {
+  return startUnit({
     unit: plan.unit,
-    status: started.status,
-    stderr: started.stderr,
+    systemdRunArguments: plan.systemdRunArguments,
   });
-}));
+})))
+  .map(function lineOf(started) {
+    return started.line;
+  });
 for (const line of startLines)
   console.log(line);
 console.log(

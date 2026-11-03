@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::worktree_copy_prune::Prune;
 
 /// A bare repository with no worktree.
 fn bare(parent: &Path, name: &str) -> PathBuf {
@@ -85,10 +86,10 @@ fn outside_and_main_worktrees_are_not_applicable() {
     remove(root.as_path());
 }
 
-/// A main worktree is observed only for named paths: it has the main root as source and selects just those paths.
+/// A main worktree is observed through `observe_copy_source` only: it has the main root as source and the main-checkout selection.
 #[test]
-fn main_worktree_is_observed_for_named_paths_only() {
-    let root: PathBuf = fixture("registry-observe-main-paths");
+fn main_worktree_is_observed_with_the_main_checkout_selection() {
+    let root: PathBuf = fixture("registry-observe-main");
     let main: PathBuf = repository(root.as_path(), "main");
     let common: PathBuf = common_dir_of(main.as_path());
     let main_identity: WorktreeIdentity = WorktreeIdentity::MainWorktree {
@@ -96,25 +97,20 @@ fn main_worktree_is_observed_for_named_paths_only() {
         git_dir: common.clone(),
         worktree_root: main.clone(),
     };
-    assert_eq!(
-        observe_copy_source(&main_identity, main.as_path(), &[]),
-        Ok(None)
-    );
-    let named: Vec<String> = vec![String::from(".cache/rules.txt")];
-    let observation: WorktreeCopyObservation =
-        observe_copy_source(&main_identity, main.as_path(), named.as_slice())
-            .expect("observation")
-            .expect("applicable");
+    let observation: WorktreeCopyObservation = observe_copy_source(&main_identity, main.as_path())
+        .expect("observation")
+        .expect("applicable");
     assert_eq!(observation.source_root, Some(main.clone()));
     assert_eq!(observation.common_dir, common);
-    assert_eq!(observation.selection, CopySelection::Paths(named));
+    assert_eq!(observation.selection, CopySelection::MainCheckout);
+    assert_eq!(observation.selection.prune(), Prune::main_checkout());
     remove(root.as_path());
 }
 
-/// Linked and bare repositories keep the standard selection, and the named paths never narrow them.
+/// Linked and bare repositories keep the standard selection, which leaves nothing out.
 #[test]
-fn linked_and_bare_observations_ignore_named_paths() {
-    let root: PathBuf = fixture("registry-observe-paths-ignored");
+fn linked_and_bare_observations_keep_the_standard_selection() {
+    let root: PathBuf = fixture("registry-observe-standard");
     let main: PathBuf = repository(root.as_path(), "main");
     let common: PathBuf = common_dir_of(main.as_path());
     let topic: PathBuf = root.join("topic");
@@ -123,15 +119,14 @@ fn linked_and_bare_observations_ignore_named_paths() {
         &["worktree", "add", "--quiet", "-b", "topic", topic.to_str().expect("utf8")],
     );
     let topic_root: PathBuf = std::fs::canonicalize(topic.as_path()).expect("canonical topic");
-    let named: Vec<String> = vec![String::from(".cache/rules.txt")];
     let linked_observation: WorktreeCopyObservation = observe_copy_source(
         &linked(common.as_path(), topic_root.as_path()),
         topic_root.as_path(),
-        named.as_slice(),
     )
     .expect("observation")
     .expect("applicable");
     assert_eq!(linked_observation.selection, CopySelection::Ignored);
+    assert_eq!(linked_observation.selection.prune(), Prune::Never);
     let bare_root: PathBuf = bare(root.as_path(), "shared.git");
     let bare_observation: WorktreeCopyObservation = observe_copy_source(
         &WorktreeIdentity::BareRepository {
@@ -139,7 +134,6 @@ fn linked_and_bare_observations_ignore_named_paths() {
             git_dir: bare_root.clone(),
         },
         bare_root.as_path(),
-        named.as_slice(),
     )
     .expect("observation")
     .expect("applicable");

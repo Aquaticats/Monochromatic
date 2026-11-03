@@ -15,6 +15,7 @@
 
 use super::worktree_copy_error::raw_failure;
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
+use super::worktree_copy_prune::Prune;
 use super::worktree_copy_selection::{filesystem_path, js_order};
 use crate::json_record::quote;
 use std::path::{Path, PathBuf};
@@ -146,6 +147,45 @@ pub fn retained_mode(_metadata: &std::fs::Metadata) -> u32 {
 }
 
 /// What:
+///  Whether the running user can read an entry that the walk found, as a file or as a directory to list.
+/// Why:
+///   A file or directory the user cannot read (a root-owned log in a dependency tree) cannot be part of a copy a user
+///  makes, so the walk leaves it out and says so instead of failing the whole copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await access(path, directory ? R_OK | X_OK : R_OK).then(() => true, () => false)
+/// ```
+#[cfg(unix)]
+fn readable_by_user(path: &Path, kind: EntryKind) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    if kind == EntryKind::Symlink {
+        return true;
+    }
+    let Ok(name) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
+        return false;
+    };
+    let mode: libc::c_int = if kind == EntryKind::Directory { libc::R_OK | libc::X_OK } else { libc::R_OK };
+    // SAFETY: `name` is a NUL-terminated string that outlives the call, and `access` only reads it.
+    return unsafe { libc::access(name.as_ptr(), mode) } == 0;
+}
+
+/// What:
+///  Every entry is readable on a platform without Unix permission checks in this lane.
+/// Why:
+///   Keeps the walk identical on every platform; a refused open then fails the copy as before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// true
+/// ```
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(unix))]
+fn readable_by_user(_path: &Path, _kind: EntryKind) -> bool {
+    return true;
+}
+
+/// What:
 ///  The complete manifest of a set of selected roots, parent before child, in JavaScript sort order.
 /// Why:
 ///   A deterministic order makes the stage, the comparison and the journal reproducible.
@@ -159,11 +199,32 @@ pub fn collect_entry_manifest(
     selected_roots: &[String],
     excluded_roots: &[PathBuf],
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+    let mut skipped: Vec<String> = Vec::new();
+    return collect_pruned_manifest(root, selected_roots, excluded_roots, Prune::Never, &mut skipped);
+}
+
+/// What:
+///  The manifest of a set of selected roots under a leave-out rule, with the unreadable entries it left out.
+/// Why:
+///   A copy from a main checkout leaves out caches and other checkouts, and never fails over an entry the user cannot
+///  read; the caller reports those so the person sees what the new worktree lacks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function collectPrunedManifest({ root, selectedRoots, excludedRoots, prune, skipped }): Promise<readonly WorktreeCopyEntry[]>;
+/// ```
+pub fn collect_pruned_manifest(
+    root: &Path,
+    selected_roots: &[String],
+    excluded_roots: &[PathBuf],
+    prune: Prune,
+    unreadable: &mut Vec<String>,
+) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     // The stack is filled in reverse so the lexically first root is popped first.
     let mut pending: Vec<WalkItem> = Vec::new();
     for relative_path in selected_roots.iter().rev() {
         pending.push(WalkItem {
-            filesystem_path: filesystem_path(root, relative_path.as_str())?,
+            filesystem_path: filesystem_path(root, relative_path)?,
             relative_path: relative_path.clone(),
         });
     }
@@ -172,18 +233,23 @@ pub fn collect_entry_manifest(
         if excluded_roots
             .iter()
             .any(|excluded| return item.filesystem_path.starts_with(excluded.as_path()))
+            || prune.skips_path(item.relative_path.as_str())
         {
             continue;
         }
         let metadata: std::fs::Metadata = std::fs::symlink_metadata(item.filesystem_path.as_path())
             .map_err(|error| return raw_failure(&error))?;
         let kind: EntryKind = entry_kind(metadata.file_type(), item.filesystem_path.as_path())?;
-        entries.push(WorktreeCopyEntry {
-            kind,
-            mode: retained_mode(&metadata),
-            relative_path: item.relative_path.clone(),
-        });
+        if !readable_by_user(item.filesystem_path.as_path(), kind) {
+            unreadable.push(item.relative_path.clone());
+            continue;
+        }
         if kind != EntryKind::Directory {
+            entries.push(WorktreeCopyEntry {
+                kind,
+                mode: retained_mode(&metadata),
+                relative_path: item.relative_path.clone(),
+            });
             continue;
         }
         let mut names: Vec<String> = Vec::new();
@@ -193,6 +259,15 @@ pub fn collect_entry_manifest(
             let child: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
             names.push(child.file_name().to_string_lossy().into_owned());
         }
+        // A directory that is a checkout of its own is left out whole, with no entry of its own.
+        if prune.skips_checkout(names.as_slice()) {
+            continue;
+        }
+        entries.push(WorktreeCopyEntry {
+            kind,
+            mode: retained_mode(&metadata),
+            relative_path: item.relative_path.clone(),
+        });
         names.sort_by(|left, right| return js_order(left, right));
         for name in names.iter().rev() {
             let child_relative: String = format!("{}/{name}", item.relative_path);
@@ -203,6 +278,63 @@ pub fn collect_entry_manifest(
         }
     }
     return Ok(entries);
+}
+
+/// What:
+///  The identity of a regular file's content as the filesystem reports it: size, modification time, change time and inode.
+/// Why:
+///   A cloned file shares its data blocks with the source, so equal stamps before and after the clone and again at the
+///  end of the copy prove the source did not change in between without reading a byte.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FileStamp = { size: number; mtimeNs: bigint; ctimeNs: bigint; inode: bigint };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FileStamp {
+    /// Size in bytes.
+    pub size: u64,
+    /// Modification time, seconds and nanoseconds.
+    pub modified: (i64, i64),
+    /// Change time, seconds and nanoseconds; no program can set it, so a write always moves it.
+    pub changed: (i64, i64),
+    /// Inode number, so a replacement by rename is a difference.
+    pub inode: u64,
+}
+
+/// What:
+///  The stamp of one no-follow entry, or nothing on a platform that reports no change time.
+/// Why:
+///   Without a stamp the caller compares bytes, which is always correct.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stampOf(await lstat(path))
+/// ```
+#[cfg(unix)]
+pub fn stamp_of(metadata: &std::fs::Metadata) -> Option<FileStamp> {
+    use std::os::unix::fs::MetadataExt;
+    return Some(FileStamp {
+        size: metadata.len(),
+        modified: (metadata.mtime(), metadata.mtime_nsec()),
+        changed: (metadata.ctime(), metadata.ctime_nsec()),
+        inode: metadata.ino(),
+    });
+}
+
+/// What:
+///  No stamp on a platform without a change time, so every cloned file is compared byte for byte.
+/// Why:
+///   Keeps the call sites identical on every platform.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// undefined
+/// ```
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(unix))]
+pub fn stamp_of(_metadata: &std::fs::Metadata) -> Option<FileStamp> {
+    return None;
 }
 
 /// What:
