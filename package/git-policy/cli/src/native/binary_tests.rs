@@ -143,6 +143,10 @@ mod word_merge;
 #[path = "binary_word_merge_finish_tests.rs"]
 mod word_merge_finish;
 
+/// A `git pull` that merges: completed in isolation like `git merge`, and every other pull left to native Git.
+#[path = "binary_pull_isolation_tests.rs"]
+mod pull_isolation;
+
 /// A merge that waits for a held `index.lock` and lands on a branch that moved underneath it.
 #[path = "binary_merge_never_fails_tests.rs"]
 mod merge_never_fails;
