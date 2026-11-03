@@ -13,6 +13,7 @@
 //! ```
 
 use super::repo_read_layout::dot_git_target;
+use super::service_land_start::{StartEntry, decode, encode};
 use super::service_protocol::Cleanup;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -230,6 +231,53 @@ pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
     return File::open(dir)?.sync_all();
 }
 
+/// The extension of the record of the index entries a batch started from.
+pub const START_EXTENSION: &str = "start";
+
+/// What:
+///  Records durably the entries of the batch's index paths as the landing found them under the index lock.
+/// Why:
+///   A replay of the batch resets only the paths still at these entries, so what another session staged since is not
+///  overwritten. It is written after the lock is held and before the branch moves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeStart(dir, seq, entries)
+/// ```
+pub fn write_start(dir: &Path, seq: u64, entries: &[StartEntry]) -> std::io::Result<()> {
+    let temporary: PathBuf = batch_path(dir, seq, TEMPORARY_EXTENSION);
+    let mut file: File = File::create(&temporary)?;
+    file.write_all(format!("{}\n", encode(entries)).as_bytes())?;
+    file.sync_all()?;
+    fs::rename(&temporary, batch_path(dir, seq, START_EXTENSION))?;
+    return File::open(dir)?.sync_all();
+}
+
+/// What a batch's start record says.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Started {
+    /// No record: an older batch, or one whose entries could not be read.
+    Absent,
+    /// The entries the landing started from.
+    Recorded(Vec<StartEntry>),
+    /// A record exists and cannot be read.
+    Unreadable,
+}
+
+/// The start record of the batch `seq`; only a missing file is no record.
+pub fn read_start(dir: &Path, seq: u64) -> Started {
+    return match fs::read_to_string(batch_path(dir, seq, START_EXTENSION)) {
+        Ok(text) => decode(text.trim_end_matches('\n')).map_or(Started::Unreadable, Started::Recorded),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Started::Absent,
+        Err(_) => Started::Unreadable,
+    };
+}
+
+/// Drops the start record of a batch that is finished or forgotten.
+pub fn remove_start(dir: &Path, seq: u64) {
+    let _removed = fs::remove_file(batch_path(dir, seq, START_EXTENSION));
+}
+
 /// What a batch's completion record says about its index update.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Indexed {
@@ -276,6 +324,7 @@ pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
     crate::service_fault::note("sync-journal-dir");
     crate::service_fault::note("remove-indexed");
     let _record_removed = fs::remove_file(batch_path(dir, seq, INDEXED_EXTENSION));
+    remove_start(dir, seq);
     return Ok(());
 }
 

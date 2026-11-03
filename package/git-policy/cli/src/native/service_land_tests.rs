@@ -1123,7 +1123,13 @@ fn a_replay_leaves_a_path_staged_since_the_landing_started() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let mut batch: Vec<CommitRequest> = vec![request(&world, "kept", "kept.txt", "kept\n"), request(&world, "other", "other.txt", "other\n")];
     batch[1].base = base.clone();
+    // The landing records the entries it starts from before the branch moves; the batch that finishes drops the record, so the
+    //  test keeps the text to put back what a batch that never finished would have left.
+    let kept: std::rc::Rc<std::cell::RefCell<String>> = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
+    let (journal, sink) = (world.context.journal.clone(), std::rc::Rc::clone(&kept));
+    crate::service_fault::hooks::set("after-ref", std::rc::Rc::new(move || { *sink.borrow_mut() = std::fs::read_to_string(journal.join("1.start")).expect("the start record exists once the branch has moved"); }));
     land_batch(&world.context, 1, &batch).expect("landed");
+    std::fs::write(world.context.journal.join("1.start"), kept.borrow().as_str()).expect("the record of a batch that did not finish");
     // The index update did not install: the paths are back at the entries the landing started from, which had none.
     git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "kept.txt", "other.txt"]);
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
@@ -1152,5 +1158,30 @@ fn a_panic_after_the_installation_leaves_the_lock() {
     let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { let _ = lock.release_with_record(built.as_path(), &|| { panic!("the record failed in an unusual way"); }); }));
     assert!(unwound.is_err(), "the panic went through");
     assert!(world.repo.join(".git/index.lock").exists(), "the lock stays for the restart to reclaim");
+    remove(world.root.as_path());
+}
+
+/// A start record that cannot be read leaves the batch open and the index alone; a batch with no record (an older one) replays
+/// every path as before.
+#[test]
+fn a_replay_reads_the_start_record_or_stops_and_an_older_batch_has_none() {
+    let world: World = world("service-land-start-record");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    std::fs::rename(&done, &open).expect("reopen");
+    let _record_removed = std::fs::remove_file(world.context.journal.join(format!("1.{}", crate::service_journal::INDEXED_EXTENSION)));
+    std::fs::write(world.context.journal.join("1.start"), "not a record\n").expect("a damaged record");
+    let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
+    recover(&world.context);
+    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), before, "the index was left alone");
+    assert!(open.exists(), "the batch stays open");
+    std::fs::remove_file(world.context.journal.join("1.start")).expect("an older batch has no record");
+    recover(&world.context);
+    assert_eq!(git_text(world.repo.as_path(), &["show", ":landed.txt"]), "landed", "every path is replayed without a record");
+    assert!(done.exists() && !open.exists());
     remove(world.root.as_path());
 }

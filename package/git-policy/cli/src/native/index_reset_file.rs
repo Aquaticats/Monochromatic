@@ -24,10 +24,11 @@ use super::repo_read_config_list::list_config;
 use super::repo_read_config_scan::ScopeEnvironment;
 use super::repo_read_hook::{enabled, guarded};
 use super::repo_read_layout::{ObjectFormat, RepoLayout, read_layout_with};
-use super::repo_read_object::name_length;
+use super::repo_read_object::{name_length, to_hex};
 use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_tree::FlatEntry;
 use super::service_land_follow::{IndexPaths, PrivateCopy};
+use super::service_land_start::StartEntry;
 use super::service_protocol::is_zero_object;
 use super::subvolume_sha::{sha1, sha256};
 use super::transaction_git::GitContext;
@@ -120,6 +121,40 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     let format: ObjectFormat = around.layout.object_format;
     let bytes: Vec<u8> = write_full_index(&index, &|data: &[u8]| { return checksum(format, data); })?;
     return publish(built, bytes.as_slice(), around.settings.shared_repository).ok();
+}
+
+/// What:
+///  The index entries of `names` in the index file `file`, as a replay compares them; nothing when the file is not a form this
+///  reads, an empty list when there is no file.
+/// Why:
+///   The landing records them under its lock, and a replay reads them under the same lock again, so a path another session staged
+///  in between is found without a Git process. The object format is told by the length of a commit name of the repository.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readEntries(file, hexLength, names) // undefined when the file is an unreadable form
+/// ```
+pub fn read_entries(file: &Path, hex_length: usize, names: &[Vec<u8>]) -> Option<Vec<StartEntry>> {
+    if matches!(file.try_exists(), Ok(false)) {
+        return Some(Vec::new());
+    }
+    let format: ObjectFormat = match hex_length {
+        40 => ObjectFormat::Sha1,
+        64 => ObjectFormat::Sha256,
+        _ => return None,
+    };
+    return guarded(|| {
+        let (index, _modified) = read_index(file, format)?;
+        let wanted: std::collections::HashSet<&[u8]> = names.iter().map(Vec::as_slice).collect();
+        return Some(
+            index
+                .entries
+                .iter()
+                .filter(|entry| { return wanted.contains(entry.path.as_slice()); })
+                .map(|entry| { return StartEntry { path: entry.path.clone(), stage: entry.stage(), mode: entry.mode, id: to_hex(entry.id.as_slice()), extended: entry.extended }; })
+                .collect(),
+        );
+    });
 }
 
 /// What:
