@@ -1151,6 +1151,9 @@ order, and pending commits push only after they land); a failing hook or require
 (Recommended)", the commit ends with its own message and changes nothing); a merge that would overwrite unsaved edits carries them forward
 ("Carry edits forward (Recommended)", a three-way merge of each edit onto the merged result, conflict markers holding both sides, a line
 naming the files, and `merge-isolation/paths-in-use` is no longer a refusal).
+Decided by the owner (question tool, 2026-11-03) for a live foreign `index.lock`: "Same as the ref lock (Recommended)": a commit lands on the branch
+and exits 0 and says the index will catch up when the lock is free; a merge saves its result on a side ref, exits 0, and finishes the checkout when
+the lock frees, carrying forward any edits made meanwhile.
 When the owner decides how an amend, a conclusion or a revert behaves on a head that other commits moved, the result is stacked
 on the new head (owner, 2026-11-03: "Stack on the new head (Recommended)").
 
