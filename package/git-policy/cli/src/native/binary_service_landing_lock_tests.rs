@@ -219,7 +219,7 @@ fn the_service_sends_heartbeats_to_a_request_that_waits_behind_a_long_foreign_ho
         index: git_dir.join("index"),
         captured: 0,
     };
-    let config: ClientConfig = ClientConfig { address: Bind::Path(socket), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: CLIENT_SILENCE, start_watch: None };
+    let config: ClientConfig = ClientConfig { address: Bind::Path(socket), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: CLIENT_SILENCE, start_watch: None, keep_fresh: None };
     let (told, hearing) = std::sync::mpsc::channel::<()>();
     let letting_go = std::thread::spawn(move || {
         hearing.recv_timeout(PATIENCE).expect("the client was told the request waits");

@@ -104,7 +104,7 @@ fn config(runtime: &Path, git_dir: &Path) -> ClientConfig {
         address: Bind::Path(socket_for(runtime, git_dir)),
         activation: Activation::Managed,
         start_wait: PATIENCE,
-        heartbeat_silence: PATIENCE, start_watch: None,
+        heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None,
     };
 }
 

@@ -101,7 +101,7 @@ fn ended_at_fault(service: &mut Service, point: &str) -> std::process::ExitStatu
 }
 
 fn config(name: &str) -> ClientConfig {
-    return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None };
+    return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None };
 }
 
 /// A request that sets `path` to `content`, prepared against the branch as it is now.

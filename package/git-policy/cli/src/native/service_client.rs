@@ -67,6 +67,26 @@ pub struct ClientConfig {
     pub heartbeat_silence: Duration,
     /// How to ask the service manager whether the service failed to start; absent where the client cannot ask.
     pub start_watch: Option<ManagerWatch>,
+    /// A scratch directory of this command to keep from being swept as stale while the command waits.
+    pub keep_fresh: Option<FreshScratch>,
+}
+
+/// What:
+///  A scratch directory a waiting command keeps fresh, and how often.
+/// Why:
+///   The scratch sweep removes entries by age, and a wait with no bound can outlast any age; a waiter that is alive says so by
+///  touching its directory, one that died stops and the sweep collects the directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FreshScratch = { path: string; every: number };
+/// ```
+#[derive(Clone, Debug)]
+pub struct FreshScratch {
+    /// The directory.
+    pub path: std::path::PathBuf,
+    /// How often its modification time is renewed while the command waits.
+    pub every: Duration,
 }
 
 /// What:

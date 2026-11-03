@@ -53,7 +53,7 @@ fn start(fixture: &Fixture, name: &str) -> Held {
 }
 
 fn config(name: &str) -> ClientConfig {
-    return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None };
+    return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None };
 }
 
 /// A repository's Git directory with a scratch directory in it, holding a file.

@@ -11,7 +11,8 @@
 //! const outcome = await submit(config, request); // while the fake service sends beats, however long
 //! ```
 
-use git_policy_cli::service_client::{Activation, ClientConfig, ManagerWatch, Submitted, submit};
+use git_policy_cli::scratch_location::{SCRATCH_STALE_AFTER, sweep_stale};
+use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit};
 use git_policy_cli::service_messages::{ClientFailure, SILENT_NOTICE};
 use git_policy_cli::service_protocol::{
     ALLOWED_MODES, Change, CommitRequest, PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_service,
@@ -94,7 +95,7 @@ fn config(name: &str) -> ClientConfig {
         activation: Activation::Managed,
         start_wait: PATIENCE,
         heartbeat_silence: QUICK_SILENCE,
-        start_watch: None,
+        start_watch: None, keep_fresh: None,
     };
 }
 
@@ -289,4 +290,45 @@ fn a_manager_that_cannot_be_asked_leaves_the_wait_to_the_start_wait() {
     assert_eq!(answered, Err(ClientFailure::DidNotStart));
     drop(UnixStream::connect_addr(&SocketAddr::from_abstract_name(name.as_bytes()).expect("name")));
     drop(held);
+}
+
+/// A command that waits on the service keeps its scratch directory from aging out: the sweep that removes entries older than
+/// `SCRATCH_STALE_AFTER` finds a waiter's directory fresh however long the wait lasts, and removes the same directory of a
+/// command that is no longer waiting (the positive control).
+#[test]
+fn a_waiting_command_keeps_its_scratch_directory_from_being_swept() {
+    let name: String = address("keeps-scratch");
+    let fixture: super::support::Fixture = super::support::fixture("heartbeat-keeps-scratch");
+    let root: PathBuf = fixture.root.join("scratch-root");
+    let waiting_dir: PathBuf = root.join("waiting");
+    let left_behind: PathBuf = root.join("left-behind");
+    std::fs::create_dir_all(&waiting_dir).expect("waiting directory");
+    std::fs::create_dir_all(&left_behind).expect("left-behind directory");
+    // Both directories are two stale ages old, as a wait of more than a day would make them.
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - SCRATCH_STALE_AFTER * 2;
+    for directory in [&waiting_dir, &left_behind] {
+        std::fs::File::open(directory).expect("open").set_modified(long_ago).expect("age");
+    }
+    let service: UnixListener = listen(name.as_str());
+    let mut fresh_config: ClientConfig = config(name.as_str());
+    fresh_config.keep_fresh = Some(FreshScratch { path: waiting_dir.clone(), every: FAKE_BEAT });
+    let waiting = client(fresh_config);
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let began: Instant = Instant::now();
+    while began.elapsed() < FAKE_BEAT * 8 {
+        (&stream).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    // The sweep runs while the command still waits.
+    let removed: usize = sweep_stale(root.as_path(), std::time::SystemTime::now(), SCRATCH_STALE_AFTER);
+    let commit: String = "f".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    let (answered, _notices) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
+    assert!(waiting_dir.exists(), "the waiting command's directory was swept");
+    assert!(!left_behind.exists(), "the positive control: a directory nobody keeps fresh is swept");
+    assert_eq!(removed, 1);
+    super::commit::remove_settled(&fixture);
 }

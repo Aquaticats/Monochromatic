@@ -156,6 +156,7 @@ fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &Tra
         start_wait: reach.start_wait,
         heartbeat_silence: HEARTBEAT_SILENCE,
         start_watch: host.as_ref().map(manager_watch_for),
+        keep_fresh: None,
     };
     return match wake(&config, git_dir, None, notices) {
         Ok(()) => Handed::Service,

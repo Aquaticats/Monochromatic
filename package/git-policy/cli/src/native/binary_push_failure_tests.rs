@@ -241,7 +241,7 @@ fn wake_service(setup: &Setup) {
         address: Bind::Path(socket_for(setup.service.runtime.as_path(), setup.repo.join(".git").as_path())),
         activation: Activation::Managed,
         start_wait: PATIENCE,
-        heartbeat_silence: PATIENCE, start_watch: None,
+        heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None,
     };
     wake(&config, common_dir(setup).as_path(), None, &mut std::io::sink()).expect("the service takes the wake");
 }
