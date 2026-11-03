@@ -24,7 +24,7 @@ use super::candidate_object::ObjectId;
 /// Import the shared child-command builder.
 use super::forwarding::git_command;
 /// The watch that announces a request that takes long and stops the process at the bound.
-use super::child_watch::{ChildWatch, WatchTerms, reader_subject, watched_timeout_text};
+use super::child_watch::{ChildWatch, WatchTerms, reader_subject};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table (siblings:
 ///  `BTreeMap`,
@@ -87,6 +87,9 @@ use std::rc::Rc;
 /// ```
 pub const OBJECT_MISSING_PREFIX: &str = "cli-git could not read candidate content: Git has no object ";
 
+/// The most doublings of the window the reader applies after stalls, which keeps the product far below the largest duration.
+const RESTART_DOUBLINGS: u32 = 20;
+
 /// What:
 ///  The request and reply pipes of a running reader.
 /// Why:
@@ -130,8 +133,23 @@ pub struct ObjectReader {
     /// Blob bytes already read,
     ///  by object name.
     blobs: HashMap<ObjectId, Rc<[u8]>>,
-    /// Announces a request that takes long and stops the process when one crosses the bound.
+    /// Announces a request that takes long and stops the process when it shows no sign of work for the window.
     watch: ChildWatch,
+    /// What starts the reader again after a stall: the Git program, the arguments before the subcommand and the added
+    ///  environment the first start used.
+    start: ReaderStart,
+    /// How many times the reader was started again after a stall; each start gets a window twice as long as the one before.
+    restarts: u32,
+}
+
+/// What a reader needs to be started again: the Git program, the global options before the subcommand and the overlay.
+struct ReaderStart {
+    /// The Git program.
+    real_git: std::path::PathBuf,
+    /// The arguments before the subcommand.
+    prefix: Vec<OsString>,
+    /// The environment pairs added to the reader's.
+    overlay: Vec<(OsString, OsString)>,
 }
 
 /// What:
@@ -197,6 +215,33 @@ pub fn start_object_reader_with(
     overlay: &[(OsString, OsString)],
     terms: WatchTerms,
 ) -> Result<ObjectReader, CandidateError> {
+    let (child, pipes, watch): (Child, ReaderPipes, ChildWatch) = spawn_reader(real_git, global_prefix, overlay, terms)?;
+    // `Ok(...)` is the success variant; `Some(...)` is the "present" variant.
+    return Ok(ObjectReader {
+        child,
+        pipes: Some(pipes),
+        blobs: HashMap::new(),
+        watch,
+        start: ReaderStart { real_git: real_git.to_path_buf(), prefix: global_prefix.to_vec(), overlay: overlay.to_vec() },
+        restarts: 0,
+    });
+}
+
+/// What:
+///  Start one `git cat-file --batch` process with its pipes and the watch of its requests.
+/// Why:
+///   The first start and every start after a stall are the same work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { child, pipes, watch } = spawnReader(realGit, globalPrefix, overlay, terms);
+/// ```
+fn spawn_reader(
+    real_git: &Path,
+    global_prefix: &[OsString],
+    overlay: &[(OsString, OsString)],
+    terms: WatchTerms,
+) -> Result<(Child, ReaderPipes, ChildWatch), CandidateError> {
     // `.to_vec()` copies the borrowed prefix into an owned, growable argument list.
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
     arguments.push(OsString::from("cat-file"));
@@ -243,17 +288,8 @@ pub fn start_object_reader_with(
         let _ = child.wait();
         return Err(reader_ended("started without its request and reply pipes"));
     };
-    // `Ok(...)` is the success variant; `Some(...)` is the "present" variant.
     let watch: ChildWatch = ChildWatch::start(reader_subject().as_str(), child.id(), terms);
-    return Ok(ObjectReader {
-        child,
-        pipes: Some(ReaderPipes {
-            input,
-            output: BufReader::new(output),
-        }),
-        blobs: HashMap::new(),
-        watch,
-    });
+    return Ok((child, ReaderPipes { input, output: BufReader::new(output) }, watch));
 }
 
 /// What:
@@ -287,22 +323,53 @@ impl ObjectReader {
     /// async #request(name: Buffer): Promise<BatchReply>
     /// ```
     fn request(&mut self, name: &[u8]) -> Result<BatchReply, CandidateError> {
-        // The watch announces a request that takes long and stops the process when one crosses the bound.
-        self.watch.begin();
-        let reply: Result<BatchReply, CandidateError> = self.exchange(name);
-        self.watch.end();
-        if reply.is_err() && self.watch.expired() {
-            self.pipes = None;
-            return Err(CandidateError::new(
-                CandidateFailure::ReaderEnded,
-                format!(
-                    "cli-git could not read a Git object: {}",
-                    watched_timeout_text(reader_subject().as_str(), self.watch.limit())
-                )
-                .as_str(),
-            ));
+        loop {
+            // The watch announces a request that takes long and stops the process when it shows no sign of work.
+            self.watch.begin();
+            let reply: Result<BatchReply, CandidateError> = self.exchange(name);
+            self.watch.end();
+            if reply.is_err() && self.watch.expired() {
+                // The process showed no sign of work for its window and was stopped. A reader only reads, so a new one is
+                // started with a window twice as long and the same request is sent to it.
+                self.restart_after_stall()?;
+                continue;
+            }
+            return reply;
         }
-        return reply;
+    }
+
+    /// What:
+    ///  Start the reader's process again after it was stopped for showing no sign of work.
+    /// Why:
+    ///   A commit never fails for a stalled read: the new process gets a window twice as long as the one before, and the
+    ///  objects already read stay in the table.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// #restartAfterStall(): void // throws only when Git cannot start
+    /// ```
+    fn restart_after_stall(&mut self) -> Result<(), CandidateError> {
+        self.pipes = None;
+        // The watcher stopped the process; collecting it here keeps no stopped process behind.
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        self.restarts = self.restarts.saturating_add(1);
+        let mut terms: WatchTerms = WatchTerms::from_environment();
+        terms.limit = terms.limit.saturating_mul(1_u32 << self.restarts.min(RESTART_DOUBLINGS));
+        let window: std::time::Duration = terms.limit;
+        // Terminal output error: a notice is advisory; a failed write must not stop the commit.
+        let _written = writeln!(
+            std::io::stderr(),
+            "cli-git: {} showed no sign of work and was stopped; starting it again and waiting up to {} seconds for a sign of work",
+            reader_subject(),
+            window.as_secs()
+        );
+        let (child, pipes, watch): (Child, ReaderPipes, ChildWatch) =
+            spawn_reader(self.start.real_git.as_path(), self.start.prefix.as_slice(), self.start.overlay.as_slice(), terms)?;
+        self.child = child;
+        self.pipes = Some(pipes);
+        self.watch = watch;
+        return Ok(());
     }
 
     /// What:

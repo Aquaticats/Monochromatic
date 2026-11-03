@@ -110,7 +110,7 @@ fn run(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
 #[test]
 fn only_wait_notice_lines_are_left_out_of_the_diagnostics() {
     let notice: String = format!(
-        "{}git commit-tree (process 7) after 10 seconds; stopping it after 300 seconds.\n",
+        "{}git commit-tree (process 7) after 10 seconds; it is stopped and started again if it shows no sign of work for 300 seconds.\n",
         String::from_utf8_lossy(WAIT_NOTICE_PREFIX)
     );
     let other: &str = "cli-git: copied 1 ignored filesystem entry\nHint: still waiting for nothing\n";

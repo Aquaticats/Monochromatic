@@ -198,7 +198,7 @@ fn assert_push_failure_is_contained(fixture: &Fixture, repo: &Path, landed: &Obs
     next.env("CLI_GIT_PUSH_DEADLINE_SECONDS", "1");
     let again: Observed = observe(&mut next, b"");
     assert_eq!(again.code, Some(0), "the next commit lands: {}", stderr_of(&again));
-    // Every lock wait ends its notice with "giving up after"; the notice for a slow child says "stopping it after",
+    // Every lock wait ends its notice with "giving up after"; the notice for a slow child says "it is stopped and started again",
     //  which a loaded host prints for any child that takes over a second and says nothing about a lock.
     assert!(!stderr_of(&again).contains("giving up after"), "the next commit waited for a lock: {}", stderr_of(&again));
 }

@@ -326,8 +326,8 @@ fn quick_terms(limit: Duration, notices: Box<dyn std::io::Write + Send>) -> Watc
 fn the_terms_of_a_request_follow_its_subcommand() {
     let query: GitRequest = GitRequest::new(Path::new("."), &["rev-parse", "HEAD"]);
     let bulk: GitRequest = GitRequest::new(Path::new("."), &["pack-objects", "--stdout"]);
-    assert_eq!(terms_for_request(&query).limit, ChildClass::Plumbing.limit());
-    assert_eq!(terms_for_request(&bulk).limit, ChildClass::Object.limit());
+    assert_eq!(terms_for_request_round(&query, 0).limit, ChildClass::Plumbing.limit());
+    assert_eq!(terms_for_request_round(&bulk, 0).limit, ChildClass::Object.limit());
 }
 
 /// A Git step that runs long is announced by name while it lasts, and its output still comes back.
@@ -356,25 +356,118 @@ fn a_git_step_that_runs_long_is_announced_by_name() {
     remove(root.as_path());
 }
 
-/// A Git step that outlasts its bound is stopped, and the checked run reports the bound and the command,
+/// A program that starts and then does nothing at all: no bytes, no processor time, no task able to run.
+const IDLE_GIT: &[u8] = b"#!/bin/sh\nexec sleep 3600\n";
+
+/// A Git step that shows no sign of work for its window is stopped, and the checked run reports the window and the command,
 ///  not a failure to start.
 #[test]
-fn a_git_step_past_its_bound_is_stopped_and_reported_as_such() {
+fn a_git_step_with_no_sign_of_work_is_stopped_and_reported_as_such() {
     let root: PathBuf = fixture("transaction-git-stuck");
-    let never: PathBuf = root.join("never-made");
-    let (context, request) = slow_run(root.as_path(), never.as_path());
+    let program: PathBuf = root.join("idle-git");
+    executable(program.as_path(), IDLE_GIT);
+    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let request: GitRequest = GitRequest::new(root.as_path(), &["rev-parse", "HEAD"]);
     let sink: SharedSink = SharedSink::default();
     let failure: std::io::Error = run_git_once_with(&context, &request, &|| {
         return quick_terms(Duration::from_millis(400), Box::new(sink.clone()));
     })
-    .expect_err("stopped at the bound");
+    .expect_err("stopped for no sign of work");
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
     assert!(
-        failure.to_string().starts_with(format!("git add -- a.md, {} did not finish within 0 seconds and was stopped", class_of(request.arguments.as_slice()).label()).as_str()),
+        failure.to_string().starts_with(format!("git rev-parse HEAD, {} showed no sign of work for 0 seconds and was stopped", class_of(request.arguments.as_slice()).label()).as_str()),
         "{failure}"
     );
-    // The notice that is due goes out before the bound is checked, so a stopped step was announced at least once.
+    // The notice that is due goes out before the stall is checked, so a stopped step was announced at least once.
     assert!(sink.text().lines().count() >= 1, "{}", sink.text());
+    assert!(sink.text().contains("started again"), "{}", sink.text());
+    remove(root.as_path());
+}
+
+/// The window of the control of a step that keeps working: the push meter looks every half second, so a window shorter than
+///  that cannot tell a working step from a quiet one.
+const WORKING_WINDOW: Duration = Duration::from_secs(1);
+
+/// The notice interval `quick_terms` sets.
+const QUICK_NOTICE: Duration = Duration::from_millis(20);
+
+/// A step that polls for a file shows a sign of work at every look (it starts a process each time and uses processor time), so
+///  a window shorter than its run does not stop it; it ends by itself when the file appears.
+#[test]
+fn a_git_step_that_keeps_working_is_not_stopped_past_its_window() {
+    let root: PathBuf = fixture("transaction-git-working");
+    let release: PathBuf = root.join("release");
+    let program: PathBuf = root.join("slow-git");
+    executable(program.as_path(), SLOW_GIT);
+    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let mut request: GitRequest = GitRequest::new(root.as_path(), &["rev-parse", "HEAD"]);
+    request.environment = vec![(OsString::from("FAKE_RELEASE"), release.as_os_str().to_os_string())];
+    let sink: SharedSink = SharedSink::default();
+    let releasing: PathBuf = release.clone();
+    let after_notices: usize = usize::try_from((WORKING_WINDOW * 2).as_millis() / QUICK_NOTICE.as_millis()).expect("a count");
+    let output: GitOutput = run_git_once_with(&context, &request, &|| {
+        let release_file: PathBuf = releasing.clone();
+        // The notice that comes two windows after the start releases the step, which has run past its window by then.
+        let counted: ActionSink = ActionSink::new(&sink, after_notices, move || {
+            std::fs::write(&release_file, b"").expect("release the fake Git");
+        });
+        return quick_terms(WORKING_WINDOW, Box::new(counted));
+    })
+    .expect("a step that keeps working is not stopped");
+    assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "slow\n");
+    remove(root.as_path());
+}
+
+/// A step that is not safe to run twice is announced and waited for, never stopped, however long it shows no sign of work.
+#[test]
+fn a_writer_with_no_sign_of_work_is_waited_for_and_never_stopped() {
+    let root: PathBuf = fixture("transaction-git-writer");
+    let program: PathBuf = root.join("quiet-git");
+    let release: PathBuf = root.join("release");
+    executable(program.as_path(), b"#!/bin/sh\nread -r _ < \"$FAKE_RELEASE\"\necho written\n");
+    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let mut request: GitRequest = GitRequest::new(root.as_path(), &["update-ref", "refs/heads/main", "HEAD"]);
+    request.environment = vec![(OsString::from("FAKE_RELEASE"), release.as_os_str().to_os_string())];
+    let fifo: std::ffi::CString = std::ffi::CString::new(release.as_os_str().as_encoded_bytes()).expect("a path without NUL");
+    // SAFETY: `mkfifo` reads the NUL-terminated path it is given and touches no other memory.
+    assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0, "the fifo is made");
+    let sink: SharedSink = SharedSink::default();
+    let opening: PathBuf = release.clone();
+    let output: GitOutput = run_git_once_with(&context, &request, &|| {
+        let release_path: PathBuf = opening.clone();
+        // The third notice, long after the window, opens the fifo for writing, which lets the blocked read of the step go on.
+        let counted: ActionSink = ActionSink::new(&sink, 3, move || {
+            let _opened = std::fs::OpenOptions::new().write(true).open(&release_path).and_then(|mut fifo_end| { return std::io::Write::write_all(&mut fifo_end, b"go\n"); });
+        });
+        return quick_terms(Duration::from_millis(100), Box::new(counted));
+    })
+    .expect("a writer is not stopped");
+    assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "written\n");
+    assert!(sink.text().contains("never stopped"), "{}", sink.text());
+    remove(root.as_path());
+}
+
+/// A step that is stopped for no sign of work is started again, and the second start is given a window twice as long.
+#[test]
+fn a_stopped_step_is_started_again_with_a_window_twice_as_long() {
+    let root: PathBuf = fixture("transaction-git-again");
+    let program: PathBuf = root.join("once-idle-git");
+    executable(program.as_path(), b"#!/bin/sh\nif ( set -C; : > \"$FAKE_MARK\" ) 2>/dev/null; then exec sleep 3600; fi\necho again\n");
+    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let mut request: GitRequest = GitRequest::new(root.as_path(), &["rev-parse", "HEAD"]);
+    request.environment = vec![(OsString::from("FAKE_MARK"), root.join("started-once").into_os_string())];
+    let first_window: Duration = Duration::from_millis(300);
+    let windows: std::cell::RefCell<Vec<(u32, Duration)>> = std::cell::RefCell::new(Vec::new());
+    let output: GitOutput = run_git_resuming(&context, &request, &|round: u32| {
+        let limit: Duration = first_window * (1_u32 << round);
+        windows.borrow_mut().push((round, limit));
+        return quick_terms(limit, Box::new(std::io::sink()));
+    })
+    .expect("the second start ends by itself");
+    assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "again\n");
+    let asked: Vec<(u32, Duration)> = windows.into_inner();
+    let second: Duration = asked.iter().filter(|(round, _)| { return *round == 1; }).map(|(_, limit)| { return *limit; }).next().expect("a second round was asked for");
+    assert_eq!(second, first_window * 2, "{asked:?}");
     remove(root.as_path());
 }
 

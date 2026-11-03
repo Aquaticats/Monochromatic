@@ -204,12 +204,14 @@ pub struct ChildWaitFacts<'facts> {
     pub pid: u32,
     /// How long the wait has lasted.
     pub waited: Duration,
-    /// How long the child may run before it is stopped.
+    /// How long the child may show no sign of work before it is stopped and started again.
     pub limit: Duration,
     /// Where the person changes the limit, spelled to follow "seconds", or empty when nothing changes it.
     pub limit_note: &'facts str,
     /// Whether an earlier notice of this wait already printed the hint.
     pub repeat: bool,
+    /// Whether the child is stopped when it shows no sign of work; a step that is not safe to run twice is only waited for.
+    pub stoppable: bool,
 }
 
 /// What:
@@ -219,7 +221,7 @@ pub struct ChildWaitFacts<'facts> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: still waiting for ${waitingFor} (process ${pid}) after ${waited} seconds; stopping it after ${limit} seconds`
+/// `cli-git: still waiting for ${waitingFor} (process ${pid}) after ${waited} seconds; it is stopped and started again if it shows no sign of work for ${limit} seconds`
 /// ```
 pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
     let hint: &str = if facts.repeat {
@@ -227,8 +229,16 @@ pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
     } else {
         " Hint: it is still running; if it looks stuck, check it with `ps` and report it."
     };
+    if !facts.stoppable {
+        return format!(
+            "cli-git: still waiting for {} (process {}) after {} seconds; it writes, so it is waited for and never stopped.{hint}",
+            facts.waiting_for,
+            facts.pid,
+            facts.waited.as_secs()
+        );
+    }
     return format!(
-        "cli-git: still waiting for {} (process {}) after {} seconds; stopping it after {} seconds{}.{hint}",
+        "cli-git: still waiting for {} (process {}) after {} seconds; it is stopped and started again if it shows no sign of work for {} seconds{}.{hint}",
         facts.waiting_for,
         facts.pid,
         facts.waited.as_secs(),

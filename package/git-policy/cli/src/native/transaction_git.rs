@@ -24,7 +24,7 @@ use super::forwarding::git_command;
 use super::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
 use super::child_class::class_of;
-use super::child_watch::{WatchTerms, output_watched};
+use super::child_watch::{WatchTerms, output_watched_stopping};
 /// Private exclusive files for standard input.
 use super::private_storage::write_exclusive_scratch;
 /// The repository scratch directory the input file is made in.
@@ -39,6 +39,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 /// `Command` builds a child process;
 ///  `Stdio` configures its streams.
+use std::io::Write;
 use std::process::{Command, Stdio};
 /// A span of time, for the bounded rerun.
 use std::time::Duration;
@@ -415,6 +416,31 @@ fn may_be_rerun(request: &GitRequest) -> bool {
     }
 }
 
+/// Subcommands beside the rerun list that are harmless to start a second time: they only read, or they write
+///  content-addressed objects (a commit whose first run was stopped is never used).
+const STOPPABLE_EXTRA: [&str; 7] = ["rev-list", "ls-tree", "merge-base", "fast-import", "commit-tree", "mktree", "log"];
+
+/// What:
+///  Whether a step that shows no sign of work may be stopped and started again.
+/// Why:
+///   Stopping a writer in the middle of its write is the one choice here that could cost data, so a reference update, a
+///  commit Git builds and every other writer are announced and waited for and never stopped. The steps that read, that write
+///  content-addressed objects or that change a private index the same way twice are stopped and run again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mayBeRerun(request) || STOPPABLE_EXTRA.includes(subcommand)
+/// ```
+fn may_be_stopped(request: &GitRequest) -> bool {
+    if may_be_rerun(request) {
+        return true;
+    }
+    let Some((_, name)) = subcommand_of(request.arguments.as_slice()) else {
+        return false;
+    };
+    return STOPPABLE_EXTRA.contains(&name.as_str());
+}
+
 /// What:
 ///  Whether Git failed because the system would not give it a process or a thread.
 /// Why:
@@ -473,29 +499,83 @@ fn run_git_pausing(
 }
 
 /// What:
-///  Run one request once and capture its output, whatever its exit code.
+///  Run one request and capture its output, whatever its exit code; a step that shows no sign of work for its window is
+///  stopped and started again, each time with a window twice as long, for as long as that takes.
 /// Why:
-///   The command and its input file are built here, so every run starts from the request alone.
+///   The command and its input file are built here, so every run starts from the request alone. The owner's rule is "Stop only
+///  on no progress", and a commit never fails: a step stopped for a stall is run again when running it twice is harmless
+///  (`may_be_stopped`), and a longer window lets a Git that really needs a long quiet stretch finish on the next round.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runTransactionGitOnce({ gitPath, cwd, args })
+/// await runTransactionGitResuming({ gitPath, cwd, args }) // a stall starts the step again
 /// ```
 fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
-    return run_git_once_with(context, request, &|| { return terms_for_request(request); });
+    return run_git_resuming(context, request, &|round: u32| { return terms_for_request_round(request, round); });
+}
+
+/// The window of a round is the class's window times two to the round, so it grows until the step ends by itself; this many
+///  doublings is the most that is applied, which keeps the product far below the largest duration.
+const MOST_DOUBLINGS: u32 = 20;
+
+/// What:
+///  `run_git_once` with the terms of each round made by `terms`.
+/// Why:
+///   A control chooses short windows and reads the notices from a buffer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let round = 0; ; round++) { try { return await runOnce(terms(round)); } catch (stalled) { if (!mayBeStopped) throw stalled; } }
+/// ```
+fn run_git_resuming(context: &GitContext, request: &GitRequest, terms: &dyn Fn(u32) -> WatchTerms) -> std::io::Result<GitOutput> {
+    let mut round: u32 = 0;
+    loop {
+        let outcome: std::io::Result<GitOutput> = run_git_once_with(context, request, &|| { return terms(round); });
+        match outcome {
+            Err(error) if error.kind() == std::io::ErrorKind::TimedOut && may_be_stopped(request) => {
+                let next: u32 = round.saturating_add(1);
+                let window: Duration = terms(next).limit;
+                // Terminal output error: a notice is advisory; a failed write must not stop the commit.
+                let _written = writeln!(
+                    std::io::stderr(),
+                    "cli-git: {} showed no sign of work and was stopped; starting it again and waiting up to {} seconds for a sign of work",
+                    step_subject(request),
+                    window.as_secs()
+                );
+                round = next;
+            }
+            other => return other,
+        }
+    }
 }
 
 /// What:
-///  The watch terms of a request: those of the class its subcommand belongs to.
+///  How a request names itself in notices: the command and the kind of step.
 /// Why:
-///   A query step and a bulk step are stopped at different bounds, so the choice is one function a test can pin.
+///   The class label tells the person why the window is the length it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// termsForClass(classOf(request.args))
+/// `${commandText(args)}, ${labelOf(classOf(args))}`
 /// ```
-pub(crate) fn terms_for_request(request: &GitRequest) -> WatchTerms {
-    return WatchTerms::for_class(class_of(request.arguments.as_slice()));
+fn step_subject(request: &GitRequest) -> String {
+    return format!("{}, {}", command_text(&request.arguments), class_of(request.arguments.as_slice()).label());
+}
+
+/// What:
+///  The watch terms of a request for its `round`th start: the class's window doubled once per earlier start.
+/// Why:
+///   A step that was stopped for a stall is started again with more patience, so one that needs a long quiet stretch ends
+///  by itself on a later round instead of being stopped for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// { ...termsForClass(classOf(args)), limit: window * 2 ** round }
+/// ```
+pub(crate) fn terms_for_request_round(request: &GitRequest, round: u32) -> WatchTerms {
+    let mut terms: WatchTerms = WatchTerms::for_class(class_of(request.arguments.as_slice()));
+    terms.limit = terms.limit.saturating_mul(1_u32 << round.min(MOST_DOUBLINGS));
+    return terms;
 }
 
 /// What:
@@ -523,12 +603,8 @@ fn run_git_once_with(
         }
     }
     // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
-    let subject: String = format!(
-        "{}, {}",
-        command_text(&request.arguments),
-        class_of(request.arguments.as_slice()).label()
-    );
-    let output: std::process::Output = output_watched(&mut command, subject.as_str(), terms())?;
+    let subject: String = step_subject(request);
+    let output: std::process::Output = output_watched_stopping(&mut command, subject.as_str(), terms(), may_be_stopped(request))?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,

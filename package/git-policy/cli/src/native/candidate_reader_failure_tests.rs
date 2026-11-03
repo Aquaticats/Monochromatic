@@ -54,13 +54,22 @@ fn wait_until_exited(process: u32) {
     panic!("the stand-in did not exit within the bound");
 }
 
-/// A process that reads a request and never answers is announced while the reader waits, stopped at the bound, and the
-///  reader reports the bound and closes, so no later request waits on a dead stream.
+/// A process that reads a request and never answers shows no sign of work: it is announced while the reader waits, stopped
+///  when its window passes, and the reader starts a new process and sends the request again, which this one answers.
 #[test]
-fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
+fn a_process_that_never_answers_is_announced_stopped_and_started_again() {
     let root: PathBuf = fixture("reader-stalls");
     let program: PathBuf = root.join("git");
-    executable(program.as_path(), b"#!/bin/sh\nread -r request\nexec sleep 3600\n");
+    let started: PathBuf = root.join("started-once");
+    let name: String = "a".repeat(40);
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\nread -r request\nif ( set -C; : > '{}' ) 2>/dev/null; then exec sleep 3600; fi\nprintf '%s commit 0\\n\\n' {name}\n",
+            started.display()
+        )
+        .as_bytes(),
+    );
     let sink: SharedSink = SharedSink::default();
     let mut subject: ObjectReader = start_object_reader_with(
         program.as_path(),
@@ -73,19 +82,13 @@ fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
         },
     )
     .expect("stand-in starts");
-    let error: CandidateError = subject.head_commit().expect_err("never answers");
-    assert_eq!(error.failure, CandidateFailure::ReaderEnded);
-    assert!(
-        error.message.contains(format!("{} did not finish within 1 seconds and was stopped", reader_subject()).as_str()),
-        "{error}"
-    );
-    assert!(error.message.contains("CLI_GIT_CHILD_WAIT_SECONDS"), "{error}");
+    let head: Option<ObjectId> = subject.head_commit().expect("the second process answers");
+    assert_eq!(head.map(|found| { return found.as_str().to_string(); }), Some(name));
     let text: String = sink.text();
-    // The notice that is due goes out before the bound is checked, so a stopped process was announced at least once.
+    // The notice that is due goes out before the stall is checked, so a stopped process was announced at least once.
     assert!(text.lines().count() >= 1, "{text}");
     assert!(text.starts_with(format!("cli-git: still waiting for {} (process ", reader_subject()).as_str()), "{text}");
-    let later: CandidateError = subject.head_commit().expect_err("closed");
-    assert_eq!(later.failure, CandidateFailure::ReaderEnded);
+    assert_eq!(subject.restarts, 1);
     drop(subject);
     remove(root.as_path());
 }
