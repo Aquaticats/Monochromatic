@@ -60,8 +60,12 @@ The description connects cold mapped-page reads during ChromeOS shutdown/profile
 to main-thread shutdown hang crashes.
 It caches system-profile segment references to avoid scanning unrelated allocations.
 Its `Bug:` footer is `580929788`.
-The public [issue page][segment-issue] fetch returned only the application shell;
-the issue's contents and access policy were not established by that response.
+The public [issue page][segment-issue] fetch returned only the application shell.
+The main task's subsequent `agent-browser` inspection rendered
+"Access is denied to this issue"
+and stated that access "may be resolved by signing in".
+The issue's contents remain unavailable in that anonymous session;
+the page does not prove that a signed-in account would have access.
 This is related evidence,
 not proof that the observed live mapped-write fault has already been reported or fixed.
 
