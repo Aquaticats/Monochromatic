@@ -10158,7 +10158,7 @@ by the coordinator at merge.
   bump (`ad89623dd7`) and the handover union line (`8ecbb0b188`), and `git merge-tree` found no conflict, so the
   gate result stands without a combined rerun. Ships in 0.5.21. Owner questions still open from this lane: the
   hand-made absolute stub link into main, the stale `Cargo.lock` files, and other packages' container disk weight.
-- 2026-11-03T02:52:40-05:00, real conversion finished (unit `cli-git-convert-all-20261103T022250-0500`, exit 0):
+- 2026-11-03T02:47:44-05:00, real conversion finished (unit `cli-git-convert-all-20261103T022250-0500`, exit 0):
   172 looked at, 48 converted, 18 skipped, matching the dry run. Spot check of `.claude/worktrees/survivors-subvolume-timing`:
   inode 256 (a subvolume root), `git status` clean; a `git worktree add --detach` from it into a throwaway
   `.claude/worktrees/convert-check-snapshot-*` made a subvolume (inode 256) with a clean status, then
@@ -10170,13 +10170,13 @@ by the coordinator at merge.
   new subvolume entry forces a full btrfs transaction commit, which the snapshot ioctl has already done once. QUEUED
   (after the settlement-lock agent lands, since it changes this path): split the add's time without strace, decide
   whether the second walk and the parent fsync are needed, and measure against the 1.85 s figure.
-- 2026-11-03T02:52:40-05:00, cause of the 18 refusals found: the wrapper puts `CLI_GIT_NATIVE_FORWARD_TARGET` only
+- 2026-11-03T02:47:44-05:00, cause of the 18 refusals found: the wrapper puts `CLI_GIT_NATIVE_FORWARD_TARGET` only
   in its children's environment (`strace --no-abbrev` of `git --version`: 3 `HOME=` matches, one per process, and the
   variable only in `/usr/bin/git`'s), while `worktree_clean_content.rs` `ConversionEnvironment::from_process` and the
   `list_config` call read the wrapper's own environment, so `system_config_for` and `system_attributes_for` return
   `None` and the content check refuses. The service path already adds the variable through `with_real_git`. Fix
   delegated on a branch from the subvolume-tools branch; the 18 convert after the release that carries it.
-- 2026-11-03T02:52:40-05:00: subvolume and conversion lock pass done (agent `a0d61f5390425048f`, branch
+- 2026-11-03T02:47:44-05:00: subvolume and conversion lock pass done (agent `a0d61f5390425048f`, branch
   `fix/git-policy-cli-subvolume-tools-without-locks`): lock-free numbered claim files (`single_owner_claim.rs`)
   replace the conversion `flock`, the migration gained the single-owner guard it never had, conversion's `index.lock`
   hold now spans only proof through rewrite, migration and conversion refuse each other, and a leftover 0.5.20
