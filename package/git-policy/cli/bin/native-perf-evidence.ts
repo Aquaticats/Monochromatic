@@ -34,6 +34,11 @@ export type Evidence = {
  @param text - file content
 
  @returns the parsed records in file order
+
+ @example
+ ```ts
+ parseRecords('{"a":1}\n');
+ ```
  */
 export function parseRecords(text: string): readonly unknown[] {
   return text
@@ -45,8 +50,9 @@ export function parseRecords(text: string): readonly unknown[] {
       try {
         return [JSON.parse(line)];
       }
-      catch {
+      catch (error) {
         // A torn or foreign line is not a record; the others stay evidence.
+        console.error(`Skipping a line that is not a record: ${String(error)}`);
         return [];
       }
     });
@@ -68,7 +74,8 @@ async function readOrEmpty(path: string): Promise<string> {
   }
   catch (error) {
     // A scenario that never ran leaves no file; any other failure is worth seeing.
-    if (!(Error.isError(error) && ('code' in error) && (error.code === 'ENOENT'))) {
+    if (!(Error.isError(error) && ('code' in error)
+      && (error.code === 'ENOENT'))) {
       console.error(`Reading ${path} failed: ${String(error)}`);
     }
     return '';
@@ -99,19 +106,19 @@ export async function collectEvidence({
   /**
    Timing records per scenario.
    */
-  const entries = await Promise.all(Object.entries(repositories).map(async function read([
-    scenario,
-    directory,
-  ]) {
-    return [
-      scenario,
-      parseRecords(await readOrEmpty(join(
-        directory,
-        '.git',
-        TIMING_FILE,
-      ))),
-    ] as const;
-  }));
+  const entries = await Promise.all(Object.keys(repositories)
+    .map(async function read(scenario) {
+      return [
+        scenario,
+        parseRecords(
+          await readOrEmpty(join(
+            repositories[scenario] ?? '',
+            '.git',
+            TIMING_FILE,
+          )),
+        ),
+      ] as const;
+    }));
   /**
    The service's standard error.
    */

@@ -5,9 +5,7 @@
  that its PATH lists the scratch `bin` directory, where `git` is a symlink to the release wrapper, first.
  */
 import {
-  copyFile,
   mkdir,
-  readdir,
   writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -33,17 +31,28 @@ const NANOSECONDS_PER_MILLISECOND = 1e6;
  The `strace` arguments that record a command and every process it starts, ending at the command.
 
  The record carries a precise absolute time on every call, the time each call took, and the path behind every file
- descriptor, which is what `native-perf-trace-summary.ts` sums per call and per path.
+ descriptor, which is what a reader sums per call and per path.
 
  @param output - file that receives the record
 
  @returns the arguments to put before the traced command
+
+ @example
+ ```ts
+ spawn('strace', [...straceArguments('commit.strace'), 'git', 'status']);
+ ```
  */
 export function straceArguments(output: string): readonly string[] {
   return [
     // A narrow set (for example `execve,fsync,rename`) keeps `strace` from slowing the traced commands much, so the times of
     // the calls it does record stay close to untraced times; the full record is for counts and per-call sums only.
-    ...(process.env['NATIVE_PERF_TRACE_CALLS'] === undefined ? [] : [`--trace=${process.env['NATIVE_PERF_TRACE_CALLS']}`, '--seccomp-bpf']),
+    ...(process.env
+      .NATIVE_PERF_TRACE_CALLS
+      === undefined ? [] : [
+        `--trace=${process.env
+          .NATIVE_PERF_TRACE_CALLS}`,
+        '--seccomp-bpf'
+      ]),
     '--follow-forks',
     '--absolute-timestamps=unix,precision:us',
     '--syscall-times',
@@ -66,8 +75,13 @@ export function straceArguments(output: string): readonly string[] {
    wrapper finds no service, so only forwarded commands run that way, never the person's own runtime directory
 
  @returns the complete environment, so no host variable leaks into a sample
+
+ @example
+ ```ts
+ const env = environment({ root, wrapped: true });
+ ```
  */
-function environment({
+export function environment({
   root,
   wrapped,
   runtime,
@@ -210,8 +224,13 @@ export async function timed({
  @param arguments_ - Git arguments
 
  @throws Error when Git exits nonzero, naming the arguments, the repository and Git's stderr
+
+ @example
+ ```ts
+ await setup({ root, directory, arguments_: ['status'] });
+ ```
  */
-async function setup({
+export async function setup({
   root,
   directory,
   arguments_,
@@ -380,143 +399,4 @@ export async function enableSshSigning({
       });
     },
   );
-}
-
-/**
- Names of the hook files a main-shaped fixture takes from the repository whose hooks it imitates; the sample hooks that
- `git init` writes are never copied.
- */
-const SHAPED_HOOKS = [
-  'post-checkout',
-  'post-commit',
-  'post-merge',
-  'pre-push',
-] as const;
-
-/**
- One repository that is a reflink copy of a prepared repository, so a fixture has the shape of the person's own main
- worktree: the same tracked files, the same index size, the same object store and refs.
-
- The copy shares disk blocks with the prepared repository until a file changes, which makes four fixtures cost metadata
- only. The prepared repository is never changed.
-
- @param root - scratch root that holds `bin` and `home`
-
- @param name - directory name inside the scratch root
-
- @param shape - prepared repository to copy, a disposable clone without any remote
-
- @param hooksFrom - Git directory whose `post-checkout`, `post-commit`, `post-merge` and `pre-push` hooks the copy gets,
-   or absent for a copy without hooks
-
- @returns the repository directory
-
- @throws Error when the prepared repository has a remote, because a fixture a commit could push from is not disposable
-
- @example
- ```ts
- const directory = await shapedRepository({ root, name: 'direct-repo', shape });
- ```
- */
-export async function shapedRepository({
-  root,
-  name,
-  shape,
-  hooksFrom,
-}: {
-  readonly root: string;
-  readonly name: string;
-  readonly shape: string;
-  readonly hooksFrom?: string;
-}): Promise<string> {
-  /**
-   Directory of the new repository inside the scratch root.
-   */
-  const directory = join(
-    root,
-    name,
-  );
-  /**
-   Remotes of the prepared repository, which must be none.
-   */
-  const remotes = await runCommand({
-    command: REAL_GIT,
-    args: [
-      'remote',
-    ],
-    capture: true,
-    cwd: shape,
-    env: environment({
-      root,
-      wrapped: false,
-    }),
-  });
-  if (remotes.stdout.trim() !== '') {
-    throw new Error(`the shape repository ${shape} has remotes (${remotes.stdout.trim()}); remove them before it is copied`);
-  }
-  await runCommand({
-    command: 'cp',
-    args: [
-      '--archive',
-      '--reflink=always',
-      shape,
-      directory,
-    ],
-    capture: true,
-  });
-  await setup({
-    root,
-    directory,
-    arguments_: [
-      'config',
-      'core.untrackedcache',
-      'true',
-    ],
-  });
-  // A copy has new inodes and change times, so every index entry reads as changed until Git refreshes the index; the person's
-  // index has been refreshed by their own `git status` and editors long before a commit, and a fixture that was not would
-  // make every commit re-read all the files (measured: about four seconds of the wrapped signed commit on 20,740 files).
-  // Refreshed here, outside any timing, with the untracked cache the person's configuration keeps.
-  await setup({
-    root,
-    directory,
-    arguments_: [
-      'update-index',
-      '--refresh',
-      '--really-refresh',
-    ],
-  });
-  await setup({
-    root,
-    directory,
-    arguments_: [
-      'status',
-      '--porcelain',
-    ],
-  });
-  if (hooksFrom !== undefined) {
-    /**
-     Hook files of the imitated repository, of which only the policy hooks are copied.
-     */
-    const present = new Set(await readdir(hooksFrom));
-    await Promise.all(SHAPED_HOOKS
-      .filter(function exists(hook) {
-        return present.has(hook);
-      })
-      .map(function copyHook(hook) {
-        return copyFile(
-          join(
-            hooksFrom,
-            hook,
-          ),
-          join(
-            directory,
-            '.git',
-            'hooks',
-            hook,
-          ),
-        );
-      }));
-  }
-  return directory;
 }

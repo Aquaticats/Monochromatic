@@ -13,10 +13,10 @@ import {
   type ChildProcess,
   spawn,
 } from 'node:child_process';
-import { openSync } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
+  open,
   readFile,
   rm,
   writeFile,
@@ -258,6 +258,17 @@ export async function makeService({
       throw new Error(`the socket path is longer than ${String(SOCKET_PATH_LIMIT)} bytes, which a socket cannot bind: ${socket}`);
     }
     /**
+     The file the service's standard error goes to: its landing lines, which it writes plainly because it is no journal stream
+     here, and which the run reads back.
+     */
+    const log = await open(
+      join(
+        root,
+        SERVICE_LOG_NAME,
+      ),
+      'a',
+    );
+    /**
      The service process.
      */
     const child = spawn(
@@ -283,17 +294,10 @@ export async function makeService({
         instance,
       ],
       {
-        // The service's standard error is the file its landing lines go to (it is no journal stream here), read back by the run.
         stdio: [
           'ignore',
           'ignore',
-          openSync(
-            join(
-              root,
-              SERVICE_LOG_NAME,
-            ),
-            'a',
-          ),
+          log.fd,
         ],
         env: {
           PATH: `/usr/bin:/bin:${join(
@@ -309,6 +313,8 @@ export async function makeService({
         },
       },
     );
+    // The child holds its own copy of the descriptor.
+    await log.close();
     children.push(child);
     if (!await waitUntilListening({
       socket,

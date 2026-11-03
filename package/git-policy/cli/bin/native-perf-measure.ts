@@ -4,6 +4,7 @@
 import { join } from 'node:path';
 
 import { timed } from './native-perf-git.ts';
+import { evictRepositoryCache } from './native-perf-shape.ts';
 import {
   median,
   pairedDeltas,
@@ -82,6 +83,11 @@ export type ScenarioSetting = {
    every sample untraced. A traced sample is slower, so its counts and per-call sums are evidence, never its elapsed time.
    */
   readonly traceDirectory?: string;
+  /**
+   Whether the pack files, pack indexes and index of each repository are dropped from the page cache before each sample, on
+   both sides alike.
+   */
+  readonly cold?: boolean;
 };
 
 /**
@@ -120,16 +126,17 @@ async function runSample({
   wrappedRepository,
   runtime,
   traceDirectory,
+  cold,
   name,
   wrapped,
   sample,
 }: Pick<
   ScenarioSetting,
-  'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository' | 'runtime' | 'traceDirectory' | 'name'
-> & {
-  readonly wrapped: boolean;
-  readonly sample: number;
-}): Promise<TimedSample> {
+  'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository' | 'runtime' | 'traceDirectory' | 'cold' | 'name'
+  > & {
+    readonly wrapped: boolean;
+    readonly sample: number;
+  }): Promise<TimedSample> {
   /**
    Repository of the side that runs, so the two sides never share index state.
    */
@@ -138,6 +145,9 @@ async function runSample({
     directory,
     sample,
   });
+  if (cold === true) {
+    await evictRepositoryCache(directory);
+  }
   /**
    Timing and exit state of the sample, measured after the preparation finished.
    */
