@@ -811,9 +811,12 @@ never waited for, a foreign one stops the migration with the file named), from b
 index rewrite, because only Git's lock excludes a Git writer from the exchange; that reason is written beside the code in
 `subvolume_lock.rs`, `subvolume_index_files.rs` and `subvolume_migrate.rs`. The rewrite of the index stat fields that runs by
 itself (the worktree add's index, a rollback) takes `index.lock` for one index from the read to the rename.
-The mutation campaign's two kernel locks stay (`package/mutation-test/cli-cargo-mutants`): the per-campaign evidence-directory
-lock is taken without waiting and a second run is refused, and the host-wide slot limiter is a counting limit on CPU that one
-owner per item cannot express; each says why beside its code.
+The mutation campaign's evidence directories and the host-wide gate slots (`package/mutation-test/cli-cargo-mutants`) are owned
+by claim files: a second run on a directory is refused, and a slot is free only when its owner is proven gone, never by age.
+Each also holds the kernel lock that releases before 2026-11-03 waited on, taken once without waiting after the claim and
+released just before it, only so that a gate from an older checkout still sees the slot as taken; the reason is written in
+`gate-slot.ts`, `gate-slot-run.ts`, `legacy-flock.ts` and `campaign-lock.ts`, and the package README names the gap left by
+gates that ran the claim-only source.
 
 Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the destination in one clone domain.
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links
