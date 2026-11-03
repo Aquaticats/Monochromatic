@@ -40,6 +40,8 @@ pub struct Pack {
     data_length: u64,
     /// The cumulative fanout counts by first byte.
     fanout: Vec<u32>,
+    /// How many entries were decoded; a stand-in for the work a read costs.
+    decoded: std::cell::Cell<u64>,
 }
 
 /// Read exactly `length` bytes at `position`, or `None`.
@@ -162,7 +164,12 @@ impl Pack {
         if &pack_header[..4] != b"PACK" || !matches!(pack_header[7], 2 | 3) || pack_header[4..7] != [0, 0, 0] || u64::from(pack_count) != count {
             return None;
         }
-        return Some(Pack { index, data, hash_length, count, data_length, fanout });
+        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0) });
+    }
+
+    /// How many entries of this pack were decoded (inflated, with their delta applied) since it was opened.
+    pub fn decoded_entries(&self) -> u64 {
+        return self.decoded.get();
     }
 
     /// The pack offset of the object named `name`, or `None` when this pack does not hold it.
@@ -213,6 +220,7 @@ impl Pack {
         if depth > DELTA_DEPTH_LIMIT || offset < 12 || offset >= self.data_length {
             return None;
         }
+        self.decoded.set(self.decoded.get() + 1);
         // Room for the size and distance varints and, for a `REF_DELTA`, the base name that follows them.
         let head: Vec<u8> = read_at(&self.data, offset, (32 + self.hash_length).min((self.data_length - offset) as usize))?;
         let mut cursor: usize = 0;

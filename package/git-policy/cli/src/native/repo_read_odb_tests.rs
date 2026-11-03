@@ -162,3 +162,44 @@ fn what_cannot_be_trusted_is_declined() {
     assert!(ObjectDatabase::open(git_dir.as_path(), None, ObjectFormat::Sha1).is_none(), "a graft file");
     remove(root.as_path());
 }
+
+/// Reading every version of a file kept as one long delta chain decodes each stored entry about once: a base that one read
+/// decoded is not decoded again for the next version. Without that, n versions cost about n squared entry decodes, which is
+/// what made the in-process listing of a large repository's trees slower than starting Git.
+#[test]
+fn a_delta_chain_is_decoded_about_once_for_all_its_versions() {
+    let root = fixture("repo-read-odb-chain");
+    let repo = root.join("chain");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let lines: Vec<String> = (0..400).map(|number| { return format!("line {number} of the chained file\n"); }).collect();
+    let versions: usize = 40;
+    for step in 0..versions {
+        let mut edited = lines.clone();
+        edited[step * 3] = format!("edited in step {step}\n");
+        std::fs::write(repo.join("chain.txt"), edited.concat()).expect("edit");
+        git(repo.as_path(), &["add", "chain.txt"]);
+        git(repo.as_path(), &["commit", "--quiet", "--message", &format!("step {step}")]);
+    }
+    git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet", "--window=100", "--depth=100"]);
+    git(repo.as_path(), &["prune-packed"]);
+    let listing = git_output(repo.as_path(), &["rev-list", "--objects", "--all"]);
+    let blobs: Vec<String> = String::from_utf8(listing.stdout)
+        .expect("UTF-8")
+        .lines()
+        .filter(|line| { return line.ends_with("chain.txt"); })
+        .map(|line| { return line.split(' ').next().expect("name").to_string(); })
+        .collect();
+    assert_eq!(blobs.len(), versions);
+    let format = format_of(repo.as_path());
+    let database = ObjectDatabase::open(repo.join(".git").as_path(), None, format).expect("plain database");
+    for blob in &blobs {
+        let name = from_hex(blob.as_bytes(), format).expect("name");
+        let expected = git_output(repo.as_path(), &["cat-file", "blob", blob]).stdout;
+        assert_eq!(database.read(&name).expect("read").bytes, expected, "{blob}");
+    }
+    let decoded = database.decoded_entries();
+    // One decode per stored entry would be the versions plus a few; allow twice that for the order the versions are read in.
+    assert!(decoded <= 2 * versions as u64 + 8, "{decoded} entry decodes for {versions} versions of one chain");
+    remove(root.as_path());
+}
