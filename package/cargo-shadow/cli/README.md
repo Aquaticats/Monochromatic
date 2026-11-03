@@ -83,21 +83,21 @@ The install step:
   a merge that brings `serde 1.0.230` published three hours ago under a one day limit gives `serde 1.0.229` in `Cargo.lock`,
   and a trust downgrade gives the earlier release with the earlier trust level.
   The refused release never runs; the older copy does.
-  Under `trustLockfile = true` this fires for a lockfile change that the base revision does not hold yet
-  (an uncommitted change, or a base set behind the merge with `CARGO_SHADOW_TRUST_BASE`);
-  once a merge is committed, `HEAD` already holds it and the local install sets nothing back.
-  Whether local runs should compare with something older than `HEAD` is an open question to the owner.
-  Also open: under `trustLockfile = true` the local install applies the release age to the versions new since the base,
-  while the frozen check applies trust only (the amendment of 2026-10-29 spoke of trust).
+  Under `trustLockfile = true` this fires for the versions new since the base revision;
+  a local run's base is the upstream branch of the current branch (`@{upstream}`, else `origin/main`, else `origin/master`,
+  else `HEAD`), so a merge that is committed but not pushed is still new,
+  and CI keeps `HEAD` (or `CARGO_SHADOW_TRUST_BASE`, which wins everywhere).
+  The release age and the trust policy both apply to those versions, on the local and the frozen path.
 - If no older release passes and fits,
   the refusal stands:
   nothing is left changed and your cargo command is not run.
-  That is the only case in which the step stops the command because of the policy.
+  That is the only case in which the step stops the command because of the policy, local or frozen.
 - In CI (`CI` set to anything but empty,
   `0` or `false`),
   or when the user's own command carries `--locked` or `--frozen`,
   the install is frozen:
   a stale lockfile fails the step naming it,
+  and a release the policy refuses stops the command (pnpm's frozen install fails on a rejected lockfile entry before any fetch),
   nothing is written and nothing is set aside.
   That is `pnpm install --frozen-lockfile`.
   In CI the check also drops `--offline`,
@@ -106,7 +106,7 @@ The install step:
   a registry lookup that fails,
   a cargo error,
   an unreadable catalog),
-  or a frozen step refuses,
+  or a frozen step finds a stale lockfile,
   it prints a warning naming what failed and why,
   and then runs your cargo command with `--locked` added (before any `--`) unless you already passed `--locked` or `--frozen`;
   the warning says so.
@@ -141,9 +141,11 @@ A missing stamp,
 an unreadable file or any difference runs the authoritative check again.
 Limits:
 a change to `.cargo/config.toml` `[patch]` tables or to a manifest outside the recorded list is not noticed until a recorded file changes,
-and a base revision spelled as a moving reference (`HEAD`, `origin/main`) is keyed by its spelling,
-not by the commit it names,
-so the pass is reused after the reference moves.
+and the remembered pass is keyed by the commit the base resolves to,
+so a base that moves is a different base.
+Resolving it starts git once per call under `trustLockfile = true` (a median of 7 ms for `git rev-parse` on this machine through the
+`git` on PATH, 20 runs, no control arm, so the spread is unknown),
+which the figures below, measured before this change, do not include.
 
 Measured on 2026-11-03 in a throwaway worktree (release build,
 up-to-date workspaces,
@@ -320,7 +322,9 @@ Each flag maps to the nearest pnpm behavior:
   (it rewrites the requirements in the manifests as well as the lockfile,
   so the manifests are part of the transaction:
   a refusal or a dry run puts them back with the lockfiles,
-  while a manifest another process changed meanwhile is left alone with a warning),
+  while a manifest another process changed meanwhile is left alone with a warning;
+  the manifests are journaled, so a killed run is recovered for them too;
+  and a failure of the `file-enforcer` sync after the catalog write restores the catalog, the manifests and the lockfiles),
   then the policy decides,
   and then the same thing pnpm does with a `catalog:` dependency happens.
   In pnpm 12.16.1 the resolver collects the updated range of every catalog dependency of an update that saves
@@ -411,8 +415,9 @@ which `rust-catalog.toml` carries with pnpm's name (default false):
   for trust.
   The base is the environment variable `CARGO_SHADOW_TRUST_BASE`:
   CI sets the pushed range's previous commit or the pull request's base,
-  and without it the base is `HEAD`,
-  so a developer's uncommitted lockfile changes are the ones checked.
+  and without it the base is `HEAD` in CI.
+  A local run without it compares with the upstream branch (`@{upstream}`, else `origin/main`, else `origin/master`, else `HEAD`),
+  so the lockfile changes that are not pushed yet are the ones checked.
   A lockfile that did not exist at the base counts as new in full.
   This is the base check the former `rust:verify --base` made,
   now inside the frozen install.
@@ -503,14 +508,19 @@ and an HTTP 429 is retried after its `Retry-After`.
   after reading the lockfile again right before the replacement.
   The journal is deleted only when every root it lists was settled;
   an unreadable journal or lockfile and a failed step keep it.
-  The window between the last read and the rename is not locked.
+  The comparison and the replacement are one atomic step (`renameat2` with `RENAME_EXCHANGE`, through `rustix`):
+  the new text is exchanged with the lockfile, the file that came out is read, and when it is not the one expected the exchange
+  is undone, so no writer's file is lost and no lock is taken.
+  Where the filesystem cannot exchange, a second comparison right before an ordinary rename is the fallback.
+  A file displaced twice is kept as `Cargo.lock.displaced`.
 - Until the checks pass,
   cargo's output is in the live lockfile,
   so a plain cargo that is not the shadow can build on it.
   A second shadow call never takes that lockfile for approved:
   only a remembered pass of the exact text approves it,
   so the second call checks it itself.
-  A private lockfile that the checks approve before it is published is not possible with the pinned nightly.
+  A private lockfile that the checks approve before it is published is not possible with the pinned nightly,
+  and the window is accepted and documented here (owner rule "Use as few locks as possible"; delegated pick of 2026-11-03).
 - The step needs the network only for the policy checks of newly locked versions and for a frozen install's verification of a lockfile it has not seen;
   the lock check and the update run offline (the check drops `--offline` in CI,
   where no registry index is cached).

@@ -129,9 +129,6 @@ commit `c7b46ae`).
   An operational failure keeps warn-and-run-with-`--locked`.
   Which entries are checked follows `trustLockfile`:
   all of them when false (pnpm's default), the ones new since the base revision when true (the repository's setting).
-  Open: with the repository's setting and the default base `HEAD`, a merge that is already committed is part of the base,
-  so the local install sets nothing back; it fires for uncommitted changes or an explicit `CARGO_SHADOW_TRUST_BASE`.
-  Also open: the local install applies the release age to the versions new since the base, the frozen check applies trust only.
   The set-aside goes through the same transaction and ownership rules as the review findings below, so it never overwrites
   another writer's lockfile.
 - The crates.io database dump path is ported (`dump.rs`,
@@ -232,12 +229,30 @@ What changed, and what each rests on:
 - Set-aside candidates are bounded by what cargo accepts for the manifests, not by the caret class,
   honor the exemptions and the strictness, and are judged with the owner list.
 
-Open, asked of the owner:
+## Delegated picks of 2026-11-03
 
-- Cargo's output sits in the live lockfile until the checks pass,
-  so a plain cargo that is not the shadow can build on it in that window.
-  The pinned nightly has no `--lockfile-path`.
-- The read-then-rename window of a restore is not locked.
-- A sync failure after the catalog write of `--breaking` is a warning;
-  the transactional reading would restore the catalog.
-- A killed `--breaking` run is recovered for the lockfiles, not for the manifests (the journal holds lockfiles only).
+The owner is away for about 8 hours and delegated the open questions of the review work:
+"Pick options as if I had picked them and invite veto when I say I'm back."
+These are the coordinator's picks under that delegation, not owner answers, and the owner's veto is open when they are back.
+
+- A local run compares lockfiles with the upstream branch (`@{upstream}`, falling back to `origin/main`, `origin/master`, `HEAD`)
+  under `trustLockfile = true`, so a committed but unpushed merge is new since the base and cases 1 and 2 fire locally.
+  CI keeps its base (`HEAD`, or `CARGO_SHADOW_TRUST_BASE`, which wins everywhere).
+  A remembered pass is keyed by the resolved commit, not by how the base is spelled.
+  Cost: one git start per call under `trustLockfile = true`, a median of 7 ms measured for `git rev-parse` through the `git` on PATH.
+- The release age and the trust policy both apply to versions new since the base, on the local and the frozen path.
+- A policy refusal stops the command on the frozen path too (pnpm's frozen install fails on a rejected lockfile entry;
+  `verifyLockfileResolutions.ts` throws before any fetch). A stale lockfile and operational failures keep warn-and-`--locked`.
+- The window in which a cargo that is not the shadow builds on an unapproved live lockfile is accepted and documented
+  (owner rule "Use as few locks as possible").
+- A restore compares and replaces with `renameat2` and `RENAME_EXCHANGE` through `rustix`'s safe wrapper, and undoes the exchange
+  when the file it displaced is not the expected one. `rustix` was added to `rust-catalog.toml` (`>=1.1.6`, the version tempfile already
+  locks) and to the crate's `Cargo.toml`; the installed `file-enforcer` rejects `trustLockfile` in this catalog, so the generated
+  `[workspace.dependencies]` line was written by hand to match what it would render.
+- A strict cutoff with exemptions keeps the approach recorded above: resolve without the cutoff, enforce it on the other crates.
+- A `file-enforcer` sync failure after the catalog write of `--breaking` restores the catalog (and the update is not kept).
+- A killed `--breaking` run is recovered for the manifests, which are journaled with the lockfiles.
+- The trust-downgrade finding names the new publisher and the earlier release with its publisher (the account id, or the
+  trusted-publishing repository) next to the trust levels; the registry reports ids, not account names.
+
+Still open: nothing from the earlier list; the cost of the git start on every call is the one thing to look at again.
