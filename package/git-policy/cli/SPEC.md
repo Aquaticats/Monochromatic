@@ -511,14 +511,17 @@ source), the directories are removed in the foreground, in place, by the same he
 The leave-out writes down a manifest: the identity of the trash directory (device, inode and birth time, taken when it was
 made) and the identity of each directory moved into it.
 After the swap, the trash is handed to the commit service as a work item of kind `trash` in the new worktree's Git
-directory, carrying the manifest, and the service is woken through its socket.
+directory, carrying the manifest. A new worktree has a service instance of its own whose socket activation does not exist
+yet, so the hand-over first provisions it exactly as the worktree's first commit does, and then wakes the service through
+its socket.
 The service empties it only if all of these hold: the worktree's `.git` file, read without following a link, points at
 the item's Git directory; every directory from the worktree down to the trash is a real directory on the worktree's
 device; the trash has the recorded identity; and each entry removed is the recorded object (a replacement, a link or
 anything unrecorded is left alone and named in the failure). Nothing is found by scanning the trash parent for names, so a
 directory the main checkout carried there is never touched.
-When no route to the service exists, or the wake fails, the wrapper empties the trash itself by the same rules before the
-command returns. The work item stays until the trash is gone: it is withdrawn only after a successful removal.
+When no route to the service exists, provisioning fails, or the wake fails, the wrapper empties the trash itself by the same
+rules before the command returns, after one plain line on standard error that names the worktree and says why the service
+could not take it over. The work item stays until the trash is gone: it is withdrawn only after a successful removal.
 A destination or Git directory whose path is not valid UTF-8 cannot be spelled in a record, so no work item is written and
 the trash is emptied in the foreground by the bytes of the path.
 A trash that cannot be emptied is reported on standard error as a warning that names the path and the reason and says

@@ -784,6 +784,16 @@ prove it created or moved there) and "a loud, clear failure" over a silent wrong
 - Finding 15, errors turned into success: confirmed. The disposal returns the reason (path and cause), the ladder
   prints it as a warning (the worktree is already in place and complete, so it does not fail the add), and the pending
   record is withdrawn only after the trash is gone; on a failure it stays for the service.
+- A real add of a main snapshot spent about ten seconds waiting for the service and then 4.7 minutes emptying the trash in
+  the foreground, with nothing said (the log of that run is in `/var/home/user/temp/agent/slow-route/add.err`). Cause: each
+  worktree has a service instance of its own, and its socket is created by provisioning, which only a commit did; the
+  hand-over ignored the route's provisioning step, so the wake waited out the whole start wait for a socket that nothing
+  would create. The hand-over now provisions first, as a commit does (`the_sockets_of_a_new_worktree_are_set_up_before_the_service_is_woken`,
+  shown red by skipping the step), and a failure of the route, the provisioning or the wake is rendered with the client's
+  own words in one plain line before the foreground removal. The foreground walk itself measured 3.4 s against 3.8 s for
+  the old `remove_tree` on a generated tree of 160 thousand files (three alternating rounds, same spread); it cannot make
+  a removal of hundreds of thousands of entries short, which is why the service must take it. The end-to-end add was not
+  re-timed: it needs the real session bus, which a control may not touch.
 - Not done: a crash after the swap and before the disposal leaves a trash directory with no record. It is only disk
   under an ignored path, and nothing may find it by name.
 
