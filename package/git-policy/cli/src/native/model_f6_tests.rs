@@ -18,7 +18,7 @@
 // import { check, initial, steps, invariant, endState, Rules } from './model_f6_capture';
 // ```
 use crate::model_explore::{Report, replay};
-use crate::model_f6_capture::{Rules, check, end_state, initial, invariant, steps};
+use crate::model_f6_capture::{Rules, check, end_state, initial, initial_with, invariant, steps};
 
 /// Revision 6, the reviewer's schedule: the lane installed the index entry and paused before it advanced the version;
 /// the capture reads an unchanged version and accepts a mixed snapshot.
@@ -108,4 +108,45 @@ fn eight_resume_without_raising_the_generation_lets_a_capture_mix() {
         Some("a capture accepted a snapshot that mixes before and after of one lane mutation".to_string())
     );
     assert!(check(Rules::Eight).violation.is_some());
+}
+
+/// Revision 8 (red): the lane died with the generation odd and no service exists to start a new owner; every capture waits
+/// for ever, because nothing but an owner clears the marker.
+#[test]
+fn eight_dead_odd_generation_with_no_service_blocks_acceptance() {
+    let reached = replay(
+        initial_with(Rules::Eight, false),
+        steps,
+        &[
+            "lane: journals the mutation and fsyncs it",
+            "lane: invokes update-ref, whose reference-transaction hook waits",
+            "environment: the reference-transaction hook returns",
+            "lane: writes the generation odd",
+            "environment: the lane process dies",
+        ],
+    );
+    assert!(steps(&reached).iter().all(|entry| { return entry.0.starts_with("environment:"); }));
+    assert!(end_state(&reached).is_some());
+}
+
+/// Revision 9 (green): C0 gives the client a route into recovery, L4 writes the generation odd first, and no capture mixes;
+/// the schedule that mixed under revision 8 (resume without raising the generation) is closed.
+#[test]
+fn nine_recovers_through_c0_and_raises_the_generation_first() {
+    let reached = replay(
+        initial_with(Rules::Nine, false),
+        steps,
+        &[
+            "lane: journals the mutation and fsyncs it",
+            "environment: the lane process dies",
+            "C0 ensure the lane: the client acts as an inline owner and resumes the journaled mutation",
+        ],
+    );
+    assert!(!reached.lane_dead);
+    let report: Report = check(Rules::Nine);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F6 nine: {} states, deepest {}", report.states, report.deepest);
 }

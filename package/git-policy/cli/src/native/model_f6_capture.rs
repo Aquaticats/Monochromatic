@@ -28,7 +28,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'eight';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'nine';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -42,6 +42,9 @@ pub enum Rules {
     /// Revision 8 draft, L4: a new owner completes or rolls back any journaled mutation and writes an even generation;
     /// read literally, it does not raise the generation before the writes it repeats.
     Eight,
+    /// Revision 9, L4 and C0: a resuming owner writes the generation odd first, and a client that finds a dead odd generation
+    /// with no service acts as an inline owner for recovery (C0). Capture reads the state document once (rule S).
+    Nine,
 }
 
 /// What:
@@ -68,6 +71,8 @@ pub struct State {
     pub consumed: u8,
     /// How far the lane's one mutation got (0 idle, then one number per step, see `lane_steps`).
     pub lane: u8,
+    /// A service exists that starts a new owner after a death (otherwise only a client can).
+    pub service: bool,
     /// The lane process died in the middle of its mutation (revisions 7 and the candidate only).
     pub lane_dead: bool,
     /// How far the capture got (0 idle; 1 first generation read; 2 head read; 3 index read; 4 consumption read).
@@ -103,6 +108,7 @@ pub fn initial(rules: Rules) -> State {
         index: 0,
         consumed: 0,
         lane: 0,
+        service: true,
         lane_dead: false,
         reader: 0,
         first: 0,
@@ -160,7 +166,7 @@ fn lane_steps(state: &State) -> Vec<(String, State)> {
             after.generation += 1;
             push_step(&mut found, "lane: updates the consumption map and advances the state version", after);
         }
-        (Rules::Seven, 0) | (Rules::Candidate, 0) | (Rules::Eight, 0) => {
+        (Rules::Seven, 0) | (Rules::Candidate, 0) | (Rules::Nine, 0) | (Rules::Eight, 0) => {
             after.lane = 1;
             push_step(&mut found, "lane: journals the mutation and fsyncs it", after);
         }
@@ -169,37 +175,37 @@ fn lane_steps(state: &State) -> Vec<(String, State)> {
             after.generation += 1;
             push_step(&mut found, "lane: writes the generation odd", after);
         }
-        (Rules::Seven, 2) | (Rules::Candidate, 1) | (Rules::Eight, 1) => {
+        (Rules::Seven, 2) | (Rules::Candidate, 1) | (Rules::Nine, 1) | (Rules::Eight, 1) => {
             // `update-ref` runs; a reference-transaction hook may wait for as long as it likes.
             after.lane = if state.rules == Rules::Seven { 3 } else { 2 };
             push_step(&mut found, "lane: invokes update-ref, whose reference-transaction hook waits", after);
         }
-        (Rules::Seven, 3) | (Rules::Candidate, 2) | (Rules::Eight, 2) => {
+        (Rules::Seven, 3) | (Rules::Candidate, 2) | (Rules::Nine, 2) | (Rules::Eight, 2) => {
             // The hook returns only by the environment's choice.
             after.lane = if state.rules == Rules::Seven { 4 } else { 3 };
             push_step(&mut found, "environment: the reference-transaction hook returns", after);
         }
-        (Rules::Candidate, 3) | (Rules::Eight, 3) => {
+        (Rules::Candidate, 3) | (Rules::Nine, 3) | (Rules::Eight, 3) => {
             after.lane = 4;
             after.generation += 1;
             push_step(&mut found, "lane: writes the generation odd", after);
         }
-        (Rules::Seven, 4) | (Rules::Candidate, 4) | (Rules::Eight, 4) => {
+        (Rules::Seven, 4) | (Rules::Candidate, 4) | (Rules::Nine, 4) | (Rules::Eight, 4) => {
             after.lane = 5;
             after.tip = 1;
             push_step(&mut found, "lane: writes the logical head", after);
         }
-        (Rules::Seven, 5) | (Rules::Candidate, 5) | (Rules::Eight, 5) => {
+        (Rules::Seven, 5) | (Rules::Candidate, 5) | (Rules::Nine, 5) | (Rules::Eight, 5) => {
             after.lane = 6;
             after.index = 1;
             push_step(&mut found, "lane: installs the index entry", after);
         }
-        (Rules::Seven, 6) | (Rules::Candidate, 6) | (Rules::Eight, 6) => {
+        (Rules::Seven, 6) | (Rules::Candidate, 6) | (Rules::Nine, 6) | (Rules::Eight, 6) => {
             after.lane = 7;
             after.consumed = 1;
             push_step(&mut found, "lane: updates the consumption map", after);
         }
-        (Rules::Seven, 7) | (Rules::Candidate, 7) | (Rules::Eight, 7) => {
+        (Rules::Seven, 7) | (Rules::Candidate, 7) | (Rules::Nine, 7) | (Rules::Eight, 7) => {
             after.lane = 8;
             after.generation += 1;
             push_step(&mut found, "lane: writes the generation even", after);
@@ -319,7 +325,7 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         if state.rules == Rules::Seven && state.lane == 3 {
             after.lane = 2;
         }
-        if state.rules == Rules::Candidate && state.lane == 2 {
+        if (state.rules == Rules::Candidate || state.rules == Rules::Nine) && state.lane == 2 {
             after.lane = 1;
         }
         if state.rules == Rules::Eight && state.lane == 2 {
@@ -329,7 +335,14 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         if state.rules == Rules::Eight && state.lane <= 2 && state.generation % 2 == 0 {
             after.lane = 9;
         }
-        push_step(&mut found, "lane: a new owner resumes the journaled mutation from its script", after);
+        let label: &str = if state.service {
+            "lane: a new owner resumes the journaled mutation from its script"
+        } else if state.rules == Rules::Nine {
+            "C0 ensure the lane: the client acts as an inline owner and resumes the journaled mutation"
+        } else {
+            "environment: a new owner starts and resumes the journaled mutation from its script"
+        };
+        push_step(&mut found, label, after);
     }
     return found;
 }
@@ -372,6 +385,17 @@ pub fn limits() -> Limits {
 /// ```ts
 /// function check(rules: Rules): Report;
 /// ```
+pub fn initial_with(rules: Rules, service: bool) -> State {
+    let mut state: State = initial(rules);
+    state.service = service;
+    return state;
+}
+
+/// Explores every schedule under `rules`; revisions 8 and 9 are also explored with no service to restart the owner.
 pub fn check(rules: Rules) -> Report {
-    return explore(vec![initial(rules)], steps, invariant, end_state, limits());
+    let mut starts: Vec<State> = vec![initial(rules)];
+    if rules == Rules::Eight || rules == Rules::Nine {
+        starts.push(initial_with(rules, false));
+    }
+    return explore(starts, steps, invariant, end_state, limits());
 }
