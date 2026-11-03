@@ -302,7 +302,7 @@ pub fn update_scope(
     let commit_check = peel_commits(git, std::slice::from_ref(local))?;
     if !commit_check.contains_key(local) {
         return Err(range_error(ManualPushCause::UnsupportedObject, format!(
-            "pushed object {local} is not a commit; the manual-push scan of this object type is not ported"
+            "pushed object {local} is not a commit, and the manual-push policies read commits only"
         )));
     }
     if published.is_empty() {

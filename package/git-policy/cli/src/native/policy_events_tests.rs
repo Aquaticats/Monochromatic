@@ -427,3 +427,28 @@ fn a_fix_summary_lists_every_path_s_bytes_once_one_is_not_utf8() {
         "{last}"
     );
 }
+
+/// An engine failure that chose its own hint renders that hint instead of its code's, and one that chose none renders no hint.
+#[test]
+fn an_engine_failure_renders_the_hint_it_chose() {
+    let render = |hint: crate::policy_events::EngineFailureHint| -> String {
+        return render_policy_events(
+            0,
+            &[PolicyEvent::EngineFailure {
+                code: EngineFailureCode::ContentUnavailable,
+                hint,
+                message: String::from("the remote changed"),
+                trigger: None,
+                policy: None,
+                path: None,
+            }],
+        );
+    };
+    let of_code: String = render(crate::policy_events::EngineFailureHint::OfCode);
+    assert!(of_code.contains("\"hint\":"), "{of_code}");
+    let chosen: String = render(crate::policy_events::EngineFailureHint::Chosen(Some("Hint: run it again.")));
+    assert!(chosen.contains("\"hint\":\"Hint: run it again.\""), "{chosen}");
+    assert!(!chosen.contains("not in this clone"), "the code's hint must not follow a chosen one: {chosen}");
+    let withheld: String = render(crate::policy_events::EngineFailureHint::Chosen(None));
+    assert!(!withheld.contains("\"hint\""), "{withheld}");
+}

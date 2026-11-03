@@ -313,7 +313,8 @@ fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
         return vec![(update, Some(head_of(&repo)))];
     };
     let changed = reported(RemoteBefore::Known("1".repeat(base.len())), "refs/heads/main");
-    assert!(confirm_group(&git_for(&repo), location, "origin", changed.as_slice()).is_err());
+    let moved = confirm_group(&git_for(&repo), location, "origin", changed.as_slice()).expect_err("the remote moved");
+    assert_eq!(moved.cause, ManualPushCause::RemoteMoved, "{moved}");
     let matching = reported(RemoteBefore::Known(base.clone()), "refs/heads/main");
     let confirmed = confirm_group(&git_for(&repo), location, "origin", matching.as_slice()).expect("confirms");
     assert_eq!(confirmed[0].remote_oid.as_deref(), Some(base.as_str()));
@@ -321,6 +322,51 @@ fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
     assert!(confirm_group(&git_for(&repo), location, "origin", deleted_since.as_slice()).is_err(), "the reported tip no longer exists");
     let appeared_since = reported(RemoteBefore::Absent, "refs/heads/main");
     assert!(confirm_group(&git_for(&repo), location, "origin", appeared_since.as_slice()).is_err(), "a new ref that now exists");
+    remove(repo.parent().expect("root"));
+}
+
+/// A Git stand-in that answers `ls-remote` as an unreachable remote would, with a password in the address it names, and
+///  runs the real Git for every other query. Returns its path.
+fn git_that_cannot_list_the_remote(root: &Path) -> PathBuf {
+    let stand_in = root.join("git-stand-in");
+    let script = "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = ls-remote ]; then\n    echo \"fatal: unable to access 'https://person:hunter2@example.invalid/r.git/': could not resolve host\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n";
+    std::fs::write(&stand_in, script).expect("stand-in");
+    std::fs::set_permissions(&stand_in, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return stand_in;
+}
+
+/// A remote whose refs cannot be read is the unreachable-remote cause, and the message never carries the address's password.
+#[test]
+fn an_unreadable_remote_is_the_unreachable_cause_and_masks_the_password() {
+    let (repo, _origin, _base) = repository_with_origin("mp-cause-unreachable");
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    let mut stand_in = git_for(&repo);
+    stand_in.real_git = git_that_cannot_list_the_remote(repo.parent().expect("root"));
+    let error = probe_manual_push_updates(&stand_in, &[], &post(&["origin", "main"])).expect_err("the remote cannot be listed");
+    assert_eq!(error.cause, ManualPushCause::RemoteUnreachable, "{error}");
+    assert_eq!(error.refusal, None);
+    assert!(!error.message.contains("hunter2"), "the password must not appear: {error}");
+    assert!(error.message.contains("example.invalid"), "the address is still named: {error}");
+    remove(repo.parent().expect("root"));
+}
+
+/// A Git that cannot be started is its own cause, a silent failure and an unreadable report are theirs.
+#[test]
+fn git_that_cannot_start_or_say_why_or_be_read_has_its_own_cause() {
+    let (repo, _origin, _base) = repository_with_origin("mp-cause-git");
+    let arguments = post(&["origin", "main"]);
+    let mut absent = git_for(&repo);
+    absent.real_git = repo.parent().expect("root").join("no-such-git");
+    let error = probe_manual_push_updates(&absent, &[], &arguments).expect_err("Git cannot start");
+    assert_eq!(error.cause, ManualPushCause::GitNotStarted, "{error}");
+    let mut silent = git_for(&repo);
+    silent.real_git = PathBuf::from("/usr/bin/false");
+    let error = probe_manual_push_updates(&silent, &[], &arguments).expect_err("Git says nothing");
+    assert_eq!(error.cause, ManualPushCause::GitSilent, "{error}");
+    let mut garbled = git_for(&repo);
+    garbled.real_git = PathBuf::from("/usr/bin/echo");
+    let error = probe_manual_push_updates(&garbled, &[], &arguments).expect_err("an unreadable report");
+    assert_eq!(error.cause, ManualPushCause::UnexpectedOutput, "{error}");
     remove(repo.parent().expect("root"));
 }
 
