@@ -685,7 +685,7 @@ RXS:
  `MemoryMax`,
  `TasksMax`,
  `IOWeight`;
- never set `IOWeight` above 50.
+ never set `IOWeight` above 10.
 
 HXR:
  Commands that risk exhausting the host:
