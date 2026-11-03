@@ -1122,6 +1122,13 @@ Owner rules (2026-11-03, verbatim):
 - "Manual merge should never fail too."
 - "Commits should never fail."
 
+Owner correction (2026-11-03, verbatim): "never fail doesn't primarily mean retries!"
+A failure that can happen is a design defect to remove by construction (one owner, durable hand-over, nothing to wait for).
+A retry is at most the last resort for a cause outside the system, and then the cause is named and why it cannot be
+designed out is said (`doc/planning/cli-git-commits-never-fail.md`).
+Policy errors at error severity, a named path in conflict, an empty message and a failing signer are the person's input
+refused by Git or the policy, as native Git refuses it, and are outside this rule.
+
 The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
 for a `git merge` the person types, and for a `git commit`:
 nothing the machine or other processes do ends them with a nonzero status.

@@ -1,21 +1,33 @@
-# Commits never fail: the environmental exits of `git commit` in the git wrapper
+# Commits never fail: removing each environmental exit of `git commit` by construction
 
 Scope: `package/git-policy/cli`, the commit path of the wrapper installed as `git` (`cli-git-native`)
 and the resident commit service (`cli-git-service`).
 
 The owner's rule, recorded verbatim in `package/git-policy/cli/SPEC.md`, "Merges and commits never fail":
 "Commits should never fail."
+The owner's correction (2026-11-03, verbatim): "never fail doesn't primarily mean retries!"
 The owner's related rules, quoted: "Stop only on no progress", "You should (almost) never be waiting.",
 "never discard user data", "commits vs native git should not take 5s longer.", "Use as few locks as possible.",
 "Invoke real git as rarely as possible."
 
-The coordinator's direction (adopted from the owner's rules; revisable in how, not in whether):
+## How this record reads
 
-- A bound ends work only on no progress, never on elapsed time alone.
-  Where a bound is reached while work progresses, keep going.
-- Where something died (the service, a Git child), start it again and carry on.
-- Where the head moved, rebuild on the new head and try again, for as long as each round makes progress.
-- Every wait prints a line naming what it waits for and the holder, as the existing waits do.
+The first version of this record, and the first code written from it, answered each exit with a longer wait, a bigger count
+or a step started again.
+The owner's correction says that is the wrong default: a failure that can happen is a design defect, and the design
+removes it.
+So each item below gives the root cause (why this can fail at all), the change that removes the failure mode by
+construction, and, only where something outside the system remains, the residue: what happens then and why it cannot be
+designed out.
+Nothing here is built yet; the owner chooses first.
+
+What exists on the branch from before the correction, kept and not discarded:
+
+- The planning record's first version (commit `6c8c686b2a`).
+- A red control for item 1 (`53e40e9fc0`), a red control for item 3 (`7b7d9870f3`, written, not run).
+- A retry-based first attempt at item 1 (`26db9e54af`): a Git step with no sign of work for its window (the push
+  meter of `push_progress.rs`) is stopped and started again with a doubled window, and the object reader is restarted.
+  Under this record it is at most the residue handling of item 1 (below) and is the owner's to keep or drop.
 
 ## Scope
 
@@ -25,24 +37,30 @@ It is Git's own refusal, or the policy's, of the person's input; native Git refu
 and a failing signer too.
 `SPEC.md` says so.
 
-Items 1 to 6 are environmental and must not end a commit with a nonzero status.
-Item 4 has a part that touches "never discard user data" (a conclusion, an amend or a revert commit that cannot
-replay onto a moved head); this record lists options for it and builds none of them.
+Items 1 to 6 are environmental.
+Item 4 has a part that is a question of meaning, not of racing: a conclusion, an amend or a revert commit that cannot
+be replayed onto a head that another commit moved.
+That part lists options for the owner and builds none.
 
-## The progress meter
+## What the code shows about why these fail
 
-The package already measures progress for pushes (`src/native/push_progress.rs`, from the "No-progress push limit"
-work): bytes read and written (`rchar` plus `wchar` of `/proc/<pid>/io`), processor time, and a task able to run
-or waiting for the disk (state `R` or `D`), summed over the process and everything it started, sampled every
-half second.
-A tree that shows none of the three for the stall window is stalled.
-This record reuses `Clock` and `Meter` and writes no second meter.
+Three facts of the present design explain most of the exits.
 
-Its documented limits carry over, and are accepted here:
-
-- A child that spins for ever never stalls.
-- A child that waits in state `S` for something that will arrive (a hook that waits for a person) looks the same
-  as a dead one; only steps that are safe to run again are ever stopped on a stall (see item 1).
+- A cap is a limit, not a mechanism.
+  `START_WAIT`, `COMMIT_WAIT`, the class bounds, `LANDING_ATTEMPTS`, `REBUILD_ATTEMPTS`, the index wait of 1800 s and
+  `RECONNECTS` are numbers somebody chose to end a wait; none of them detects a fault.
+  A commit that fails on one of them fails although nothing is broken.
+- The landing holds `index.lock` across slow Git work.
+  `follow_up` in `service_land.rs` takes the lock, moves the branch, then builds the index with Git (`diff-tree`, then
+  `reset`, in `service_land_follow.rs`) while holding the lock.
+  The journal of 2026-11-03 shows that hold at 119 s (below).
+  The commit is already durable when the branch moves; the index update is derived data (`build_index` copies the index
+  beside the real one and installs it by the release of the lock) and is already finished later by recovery when it is
+  not done.
+- Work that Git does the wrapper could do in process.
+  The wrapper has in-process readers for objects, trees, refs and the index (`repo_read_*.rs`, `repo_read_diff.rs`), and the
+  commit-speed branch already compares the index with its base in process.
+  Every Git child on the commit path is a chance to be slow for reasons that are not the commit's.
 
 ## Evidence for the 120 s commit
 
@@ -86,108 +104,114 @@ been stopped, and the stop ends the commit (before the branch moves) or leaves t
 
 ## Item 1: a Git step of the commit crosses its class bound
 
-Cause: `ChildWatch` (`child_watch.rs`) ends any Git step the wrapper starts for itself when it has run for the
-class bound (60 s for the quick class, 300 s for the bulk class), whatever the step does.
-`output_watched` then returns a `TimedOut` error, and `checked_from` or `land_batch` turn it into a failed commit.
-The object reader (`candidate_reader.rs`, one long-lived `git cat-file --batch`) is ended the same way
-and reports `ReaderEnded`.
-Elapsed time alone ends the work, which the owner's rule forbids; and the observed children took about 60 s.
+Root cause: the commit path starts many Git children (the quick class, 60 s, includes `diff-tree`; the bulk class, 300 s)
+and a clock ends any child that outlasts its class, whatever it is doing.
+A child that is slow on a loaded or saturated host is killed and the commit fails.
+Two causes are stacked: the clock kills, and the steps are slow.
 
-Change:
+Change that removes it:
 
-- The class constants and `CLI_GIT_CHILD_WAIT_SECONDS` stay, and their meaning becomes the stall window:
-  how long a step may show no sign of work before it is stopped.
-  `watch_loop` stops using `waited >= limit`; it samples a `push_progress::Clock` started on the child
-  with `Patience::Progress { stall: limit, ceiling: Duration::MAX }` and stops the child only on `StopCause::Stalled`.
-- A step that is stopped for a stall is started again when running it twice is harmless
-  (`may_be_rerun`, widened to the read-only plumbing the commit path uses and to `fast-import` and `commit-tree`,
-  which write content-addressed objects).
-  Each start gets a stall window twice as long as the one before, so a Git that really needs a long quiet stretch
-  (the observed 60 s waits) is waited for on the next round, not killed again.
-- A step that is not safe to run twice (`update-ref`, a commit Git builds) is never stopped for a stall:
-  the wait goes on, announced at the usual interval with the process named.
-  Stopping a writer in the middle of its write is the one choice here that could cost data.
-- The object reader is started again after a stall stop and the request is sent again, with the same doubling.
-- Every notice names the process and says what happens at the end of the window (stopped and started again),
-  instead of "stopping it after N seconds".
+- Remove the kill.
+  The watcher keeps its notices (it names the process and what it waits for) and stops ending children.
+  A commit then has no time-based exit at all.
+- Remove the steps.
+  The slow ones in the evidence are the follow-up's `diff-tree` (old to new commit, to learn which paths changed)
+  and `reset` (to put those paths in the index), and the review's `diff-tree`.
+  The first is a tree comparison the wrapper already does in process (`repo_read_diff.rs`); the service has the
+  request's change list for every commit it builds itself, and for a commit Git built it can compare the two trees
+  with the in-process reader.
+  The second is an index entry update for known paths, which is a write of the index file the wrapper can do
+  itself (the index is copied beside the real one already), so the landing starts no Git for it.
+  The goal is a landing that starts Git only for `fast-import`, `update-ref` and, for commits Git must build
+  (signed, hooked, editor), the build itself.
+- `diff-index --cached --quiet HEAD` over 50 s on main (reported by the coordinator, not measured here): the
+  commit-speed branch replaces it by an in-process comparison of the index with its base; this record takes that over.
 
-Test (red first): through the real wrapper, `binary_child_bound_tests.rs` starts a commit whose Git children start
-slowly under `strace` and a window shorter than the delay.
-Today the commit exits 1 naming the bound; the red control asserts exit 0 and the commit on the branch.
-A fixture without `strace` uses a fake `git` that stops itself with `SIGSTOP` on its first run of a step
-(no bytes, no processor time, state `T`) and runs normally on the second.
-A second control makes a step that writes a byte every half second for longer than the window,
-and asserts it is not stopped (progress).
-Guard shown red: the stall check in `watch_loop` is replaced by the old elapsed check and the progress control fails.
+Residue: a Git child that never ends (a dead network file system under the repository, a process stopped by someone else).
+No time bound can tell it from a slow one without risking the commit, and killing a writer in the middle of its write
+can cost data, so the commit waits with a notice every interval that names the process, and the person (or the process's
+owner) ends it.
+The retry-based attempt on the branch (stop a read-only step that shows no sign of work, start it again with a doubled
+window) can serve this residue for steps that only read; the owner decides whether it stays.
 
 ## Item 2: the service does not start within `START_WAIT`
 
-Cause: `reach` (`service_client.rs`) stops trying after `START_WAIT` (10 s) and returns `DidNotStart`,
-whatever the manager is doing.
-A host under load can need longer to start a service, and a service that failed (its start counter full,
-the socket in failed state) is never asked to start again by the client that needs it.
+Root cause: the commit depends on a second process that the manager must start, and the client gives it ten seconds.
+The commit's own work is complete before the service is asked: the client has built the commit, or the change list,
+and the objects.
 
-Change:
+Change that removes it: the client does not need the service to land.
+The landing is a function of the library (`land_batch`), and it is correct without a service because its atomic steps are
+Git's own (a compare-and-swap of the ref, Git's index lock protocol) and the journal records it.
+When no service greets within the first window, the client lands the commit itself with the same function and the same
+journal, instead of failing.
+The service keeps its role as the single batcher and the owner of after-commit work; it is a speed-up, never a
+dependency.
+The client still asks the manager to start the instance (the socket is the manager's) so the next commit finds it.
 
-- `START_WAIT` becomes the first window, not a bound.
-  When a window passes with no greeting, the client asks the manager to start the instance again
-  (reset the failed state of the service and socket units, start the socket: the calls `provision` already makes,
-  through a hook on `ClientConfig` that `service_commit` fills from the route's provisioning host),
-  doubles the window, prints a line saying what it waits for ("the commit service of this worktree to start") and
-  that it asked again, and carries on.
-- What still ends the command, because no waiting helps: a platform that cannot start the service on demand
-  (`NoActivation`), a program that is missing, a unit file that something else wrote, another account's service.
-  These are the machine's setup, not the machine's load, and they stay.
+Needed for this to be safe, to settle in the build: a landing by the client and a landing by a service that starts
+a moment later must not both write the same batch number or the same request.
+The request identity already makes a resend idempotent (`already` in `Landed`), and the ref compare-and-swap decides any
+race.
 
-Test (red first): `binary_service_provision_tests.rs` or `binary_client_service_tests.rs` starts the fixture service
-behind a start that takes longer than `START_WAIT`; today the commit exits 1 with "did not start";
-the red control asserts it lands.
-A unit control of `reach` with a hook counts the restarts.
-Guard shown red: the loop's old exit on `start_wait` is restored and the late-start control fails.
+Residue: a platform with no service manager and no way to land in process.
+None exists on Linux; the in-process landing covers Windows-like hosts the crate does not build for.
+Failures about the machine's setup (another account's service, a program that is missing, a unit file in the way) stop
+being commit failures too, because the client no longer needs the service: they become notices that the service is not
+running.
 
 ## Item 3: the service does not answer within `COMMIT_WAIT`
 
-Cause: the client reads the socket with a read timeout of `COMMIT_WAIT` (10 min) and `submit_loop` returns
-`WaitedTooLong` when the elapsed time passes it.
-A queue behind slow commits is progress made by others, and a read timeout is not a dead service
-(a dead service closes the socket, which is the existing reconnect path).
+Root cause: the client treats silence as a fault and a read timeout of ten minutes decides.
+A service that is landing a slow commit says nothing, and a queue behind slow commits is progress made by others.
+Liveness is not observable from the client, so the client guessed with a clock.
 
-Change: the client waits for as long as the connection stays open.
-The read timeout becomes the notice interval; on a timeout the client prints "still waiting for the commit service
-(process N, position P of Q)", naming the service process read from the socket's peer credentials, and reads again.
-A closed connection is the existing reconnect path and sends the same identity again.
-`WaitedTooLong` and `COMMIT_WAIT` as a bound are removed; the constant stays as the notice-independent default of
-`ClientConfig.commit_wait` only if a caller still reads it (the trash disposal and auto-push callers pass it today).
+Change that removes it: make liveness observable and drop the clock.
+The service sends a heartbeat line at a fixed short interval while it holds a request (it already sends `Position` and
+`Waiting` lines), and the client reads with a timeout of a few heartbeats.
+Heartbeats arriving means alive and working: the client waits, prints a notice naming the service process and the queue
+position, and no cap applies.
+A closed connection means the service died: the client resends the same request (identity makes it idempotent) or,
+with item 2, lands it itself.
+Heartbeats stopping while the connection stays open means a wedged service: the client lands it itself as in item 2,
+the ref compare-and-swap keeping a late service from doing it twice.
+`WaitedTooLong` and `RECONNECTS` leave the commit path because a dead or wedged service is never a reason to fail
+when the client can land.
 
-Test (red first): a unit control in `binary_service_tests.rs` runs `submit` against a stand-in service that greets,
-sends a queue position every tenth of `commit_wait`, and lands after a multiple of `commit_wait`.
-Today the client returns `WaitedTooLong` or `MayNotHaveLanded`; the red control asserts `Landed`.
-Guard shown red: the elapsed check is restored.
+Residue: none that ends a commit.
+A service that is alive and slow makes the commit slow, and the notice says why.
 
 ## Item 4: the branch keeps changing; a commit cannot replay onto a moved head
 
-Cause: `LANDING_ATTEMPTS` (3) in `land_batch` and `REBUILD_ATTEMPTS` (5) and `LANDING_ATTEMPTS` in `service_commit`
-count rounds, not progress.
-A busy branch (the auto-push's own reconcile merge, other worktrees, a script) can take more than three or five
-landings in a row from one commit, and then the commit fails although every lost round was another commit landing.
+Root cause: the landing reads the tip, builds on it, then moves the ref only if it is still the tip
+(`update-ref` with the old value), and counts failed rounds (`LANDING_ATTEMPTS` 3 in the service, 5 builds and 3 prepares
+in the client).
+A failed compare-and-swap means another writer moved the ref, which means the system as a whole made progress: the
+compare-and-swap is lock-free, so some writer always succeeds.
+A count turns that guarantee into a failure for the writer that happened to lose three times.
+For a commit Git builds elsewhere (signed, hooked) the moved head also invalidates the work, because a signature covers
+the parents.
 
-Change:
+Change that removes it:
 
-- The landing loop and the client's prepare loop continue for as long as each round sees a new tip.
-  Progress is `old` (the branch tip) differing from the tip of the previous round.
-  A round that loses its compare-and-swap with the same tip as before is not progress by the branch:
-  something else holds the ref (a ref lock); the loop pauses with a doubling pause from 50 ms to 2 s,
-  prints a line naming the ref, and goes on.
-- Every round after the first prints one line: "the branch <name> moved to <short oid>; making the commit again".
-- A rebuilt commit that Git builds (a signed commit with no editor, or an editor commit whose message is saved
-  in a file) is built again on the new tip, as today, without the count.
-- A conclusion, an amend or a revert commit that cannot replay onto a moved head (`concurrent-commit/head-moved`)
-  is not built here; see "Options for a commit that cannot replay" below.
+- Remove the counts.
+  A commit built by the service from a change list is rebuilt on the new tip inside the serialized step with no cost to
+  the person (`fast-import` from the current tip; only a path that changed on the branch goes back to be prepared again, as
+  now), and the rounds end because each lost round is another commit landing.
+- Make the moves rare.
+  The service of a worktree is the one writer of that worktree's branch: the commits, the push's reconcile merge and the
+  merges the wrapper completes all become items of the same lane (the wrapper already hands them over), so the head moves
+  under a landing only for a foreign program that writes the ref with real Git directly.
+- For a commit Git must build (signed, hooked, editor) the client asks the service for the branch's turn first
+  (a reservation: while it is held, the service lands nothing else on that branch), builds, and lands in that turn.
+  A reservation held while a person types in an editor would make everyone wait, so it is taken after the message is
+  fixed and held only for the build and the landing; a build that was begun before the turn is built again in the turn.
+- A conclusion, an amend or a revert whose head moved while the person worked (their editor was open, other commits
+  landed) is a question of meaning: see the options below.
 
-Test (red first): `service_land_tests.rs` moves the branch under the batch more times than `LANDING_ATTEMPTS`
-(the seam that exists today) and asserts `Landed`; today it returns `BranchKeepsChanging`.
-`binary_service_native_tests.rs` makes a signed commit race more times than `REBUILD_ATTEMPTS` and asserts success.
-Guards shown red: the counter in `land_batch`, and the counter in `service_commit`.
+Residue: a foreign program that writes the branch with real Git directly, faster than a commit can be built.
+Real Git offers only the compare-and-swap for a ref, so that program's progress cannot be excluded; each lost round
+is that program's commit, and the commit is built again on it with a notice.
 
 ### Options for a commit that cannot replay
 
@@ -257,64 +281,81 @@ and says so on standard error.
 
 ## Item 5: `index.lock` is refused after the service's wait
 
-Cause: `acquire_placing` (`service_index_attempts.rs`) returns `IndexInUse` when the wait passes
-`CLI_GIT_LOCK_WAIT_SECONDS` (1800 s), or at once when the inotify watch cannot be set.
-A holder that is alive and working (a person's long `git commit` with an editor, a large `git add`) is not a failure,
-and an exhausted watch is a machine limit, not an index in use.
+Root cause: the landing needs the real index lock to install the updated index, and a foreign program (a person's
+`git add`, an editor commit, a script) can hold it for as long as it likes; after 1800 s, or at once when no inotify
+watch can be set, the commit fails although the commit itself did not need the index at all.
+The commit is durable when the ref moves.
 
-Change:
+Change that removes it: move the ref without the lock, and finish the index afterwards.
+The landing does not take `index.lock` before the move.
+It writes the intent to the journal, moves the ref by compare-and-swap, answers `Landed`, and then reconciles the index
+as a separate step: it builds the new index beside the real one (no lock), takes the lock when it is free (watching
+for its release, not polling), checks that the real index is the one it copied, installs, and marks the intent done.
+A foreign holder delays the reconciliation, never the commit.
+The wrapper's own index commands already wait for an open intent before they run (`service_hold_retry.rs`, the index writers
+wait for the service), so a person using the wrapper sees a consistent index; recovery before each batch and at start
+already finishes open intents.
+This also removes the 119 s hold: Git work no longer runs under the lock.
 
-- The wait ends only when the lock is placed.
-  While a holder is proven alive, the notice names it (the existing proven-holder lines) and the wait goes on;
-  the variable now sets when the notice changes from "waiting for process N" to the longer line that also says
-  how to free the index, and no longer ends the wait.
-- A lock the wrapper cannot attribute (no process, no marker) is waited for the same way, with the line
-  that names the file, as the existing lines do; nothing foreign is ever removed, because the lock may hold a
-  person's partial index.
-- Without an inotify watch the wait polls every 50 ms instead of ending.
-- The alternative, landing the branch without the lock and finishing the index later from the journal, is not built:
-  it leaves `git status` showing the commit's paths reversed until the next commit or restart.
-  If the owner prefers it, the journal and `recover_instance` already support it.
-
-Test (red first): `binary_service_landing_lock_tests.rs` holds `index.lock` with a live helper process (a
-`spawn_owned` guard) for longer than the wait limit the suite sets, then releases it, and asserts the commit lands;
-today it exits 1 with "is using this repository's index".
-Guard shown red: the `exhausted` check is restored.
+Residue: while a foreign program holds the lock, the index lags the branch for the paths of the commit (a raw
+`git status` shows them as staged changes against the new head).
+That is the same state Git leaves between its own ref update and index write, extended in time; it ends when the foreign
+holder releases the lock, and the service finishes the intent at once.
+If the foreign holder is dead and left a stale lock, the index never catches up until the person removes the lock, which
+Git itself requires for every index write; the commit is on the branch and nothing is lost.
+Nothing foreign is ever removed.
+The alternative the owner may prefer, writing a new index and renaming it over the old one with no lock, can lose a
+foreign writer's update, which Git's lock exists to prevent, so it is not proposed.
 
 ## Item 6: `ContentPruned`
 
-Cause: the service, or the client, finds that an object the commit captured was removed from the object store before
-the branch moved (`git gc --prune=now` deletes unreferenced objects at once), and the commit ends with
-`ClientFailure::ContentPruned`.
-The failure was chosen so that the worktree is not read again, because reading it again commits whatever it holds
-by then.
+Root cause: the objects a commit captured are unreferenced until the branch moves, and `git gc --prune=now` deletes every
+unreferenced object at once (the Git manual says this risks failures when another process writes at the same moment).
+The commit holds nothing that keeps them.
 
-Change: nothing is lost by preparing again, because the worktree still holds the person's files.
-On content that was removed the client prepares the commit again from the worktree as the command line named it
-(a fresh capture, with a line saying what happened and what the second capture reads),
-and sends it with the same identity; a repeated removal prepares again, with a doubling pause from 100 ms to 2 s.
-A removal that keeps happening for every round is the cleanup's loop, not the commit's.
-The content of a path the person changed between the two captures is the content the commit takes; native Git has
-the same window between reading the worktree and writing the commit.
+Change that removes it: keep them reachable from the moment they exist.
+The preparation writes the captured blobs and trees, and the same step makes a hold ref, `refs/worktree/cli-git-hold/<id>`,
+that points at a commit whose tree contains every captured blob.
+The ref is per worktree, so it is not pushed, and it is removed when the landing is done or the command ends; the service
+also removes holds whose client is gone, as it does with scratch directories (the connection is the signal).
+`gc`, `prune` and `repack -A` keep what a ref reaches, `--prune=now` included.
+The existing checks stay as assertions that now cannot fire.
 
-Test (red first): `binary_service_pruned_tests.rs` removes the blob while the wrapper is paused at the named phase,
-as today; the red control asserts the commit lands with the worktree's content; today it exits 1 with the
-`ContentPruned` text.
-Guard shown red: the prepare-again arm is replaced by the old failure.
+Residue: the interval between a blob being written and the hold ref being created.
+Writing the blobs through one `fast-import` stream that ends by updating the hold ref makes that interval the stream's
+last instant, and nothing can be designed tighter, because Git creates objects before it can reference them;
+Git's own manual calls `--prune=now` unsafe for exactly this window.
+If a prune lands in it anyway, the commit is prepared again from the worktree (nothing is lost, the person's files are
+untouched), with a notice naming the cleanup.
+
+## Merges, by the same lens (design only)
+
+The merge-fixes branch waits for any `index.lock` holder before the merge, and computes the merge again on a moved head up to
+twenty rounds (`merge_isolation_moved.rs`).
+
+- The wait for `index.lock`.
+  The merge tree is computed with `merge-tree --write-tree` and the commit with `commit-tree`, none of which uses the
+  index; only the checkout (`merge --ff-only`) does.
+  By construction there is nothing to wait for if the merge, like the commit, is durable when the ref moves: move the ref
+  by compare-and-swap first, and let the service bring the worktree and index to the new head afterwards
+  (the files to change are known: the diff between the old and new head).
+  The paths the person has unsaved changes in stay in the existing refusal (`merge-isolation/paths-in-use`): that one is
+  never data loss, because the merge is not applied there and the person's files stay as they are; it is a question of
+  meaning, not of racing.
+- The twenty rounds.
+  A lost compare-and-swap is another writer making progress, so the count is as artificial as the landing count of item 4.
+  Run the merge as an item in the worktree's lane (the same serialized owner as commits and the push), so the head moves
+  under it only for a foreign real-Git writer, and remove the count.
+- The residue is the same as for commits: a foreign writer of the ref or of the index lock, both delaying and never failing.
 
 ## Exits that stay nonzero
 
 - Item 7: policy findings at error severity, a named path in conflict, an empty message, a failing signer.
-- A platform with no user service manager, a missing service program, another account's service, a unit file in the way.
-- The service died while handling this commit more than the reconnect count in a row (`RECONNECTS`).
-  The request identity makes each send safe, so the bound only keeps a service that dies on this very request from
-  looping for ever; it is a defect of the service, not of the machine.
-- An amend, a conclusion or a revert on a moved head, pending the owner's choice above.
-- A repository that is full, read-only or unreadable, a malformed request, and an object format or protocol this
-  release cannot speak.
+- An amend, a conclusion or a revert on a head that other commits moved while the person worked, pending the owner's choice.
+- A repository that is full, read-only or unreadable, a malformed request, an object format this release cannot read.
+  These are the repository's state, not a race or a wait.
 
-## Verification
+## Verification plan
 
-Each item has a red control committed first, its fix, and a guard shown red once (the guard removed, the control run,
-the guard restored; the guard is committed before it is removed).
-The suites named in the task run once at the end: `native:clippy`, `native:test:host`, `native:test:binary:host`.
+Each item keeps its red control, then the change, then a guard shown red once.
+Nothing past the red controls is built until the owner chooses.
