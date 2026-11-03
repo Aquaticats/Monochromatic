@@ -520,12 +520,11 @@ Root cause: silence is read as a fault, and a read timeout decides.
 Change: the commit waits on the record, not on a connection or a clock.
 The client reads the request's state (the service pushes it on the open connection and the client re-reads the record if
 the connection closes).
-The service's progress counter (written by the landing task after each phase, never by a timer thread) feeds the unit's watchdog:
-a heartbeat shows that the sender runs, not that the request moves.
-A closed connection is a resend with the same id, answered from the record or the ledger.
-A wedged owner is not taken over by another process (no live takeover): the manager ends the unit's whole control group when the
-counter stops, which releases the lane lock, and the next owner (a restarted service, or a client) takes it.
-In the meantime the command's answer is `handed over`, exit 0, with a message that the lane will finish it.
+The lane writes a phase counter into its state file after each phase, for notices only: a heartbeat shows that the sender runs, not
+that the request moves, and nothing acts on the counter (no watchdog, no takeover; the unit sets no limits).
+A closed connection is a resend with the same id, answered from the record or the permanent ledger.
+A command whose request sits with an owner that makes no progress waits with a notice that names the phase and says how to
+restart the unit; the person can interrupt it at no cost, because the request is durable and the next owner finishes it.
 `WaitedTooLong` and `RECONNECTS` leave the commit path.
 
 May wait: a service that is alive and slow makes the commit slow, and the notice names the phase and the process.
@@ -654,24 +653,31 @@ The order stays: compute the merge commit (no index), materialize the worktree a
   1. open the path with `O_NOFOLLOW`, read its bytes `E`, keep the descriptor (inode `N`); a symlink, a directory or a special file is
      not merged as text (below);
   2. compute `R`, Git's three-way text merge of the old head's content `O`, `E` and the merged result `M` (`git merge-file`
-     semantics, the repository's conflict style, labels naming the person's edit and the merge), and write it to a temporary file
-     beside the path (journal: `temp`);
+     semantics, the repository's conflict style, labels naming the person's edit and the merge); create the temporary file beside
+     the path, write `R`, fsync it, and journal `R = (device, inode)` of that temporary file (fsync);
   3. pin `N` with a hard link to the inode itself under `saved/<path-id>.1` (`linkat` via `/proc/self/fd/<n>`, same file system)
-     (journal: `saved.1 = N`);
-  4. exchange the temporary file and the path in one `renameat2(RENAME_EXCHANGE)`: the path holds `R` and was never absent; the
-     temporary name holds whatever inode was at the path at that instant (journal: `exchanged`);
-  5. rename the temporary name to `saved/<path-id>.2` at once, so the displaced inode is a named, retained saved file (if it is `N`
-     it is the same inode as `saved/<path-id>.1`); read it: if its bytes are `E` the merge is complete; if they differ, or it is
-     another inode (an editor saved a new file between the read and the exchange), merge once more with those bytes as the person's
-     file, write `R2`, pin the inode as above and exchange again; the inode that `R` was (now displaced) is renamed to
-     `saved/<path-id>.3`. Two exchanges at most. Every inode involved is named under `saved/`; none is a disposable temporary;
+     and journal it;
+  4. journal the intent `exchange temp <-> path` first (fsync), then do the `renameat2(RENAME_EXCHANGE)`: the path holds `R` and was
+     never absent; the temporary name holds whatever inode was at the path at that instant;
+  5. rename the temporary name to the next `saved/<path-id>.<n>` at once, so the displaced inode is a named, retained saved file
+     (if it is `N` it is the same inode as `saved/<path-id>.1`); journal it; read it: if its bytes are `E` the merge is complete; if
+     they differ, or it is another inode (an editor saved a new file between the read and the exchange), merge once more with those
+     bytes as the person's file, write `R2` with the same journaling, pin and exchange again; the inode that `R` was is renamed to
+     the next saved name. Two exchanges at most. Every inode involved is named under `saved/`; none is a disposable temporary;
   6. the index receives `M` for the path, so the person's edits are ordinary unstaged changes on the merged result; a conflict
      leaves markers with both sides, and a line names the file and every saved file.
   A bounded protocol cannot incorporate every concurrent write; by design it leaves additional versions in named saved files rather
   than lose one, and the line says so. Saved artifacts belong to the person's record, independent of request cleanup, and are
   removed only by the existing saved-copies age rule (`discarded_store.rs`), never by retirement.
-  Recovery after a crash reads the journal: a `temp` without `exchanged` is removed (the path is untouched); an `exchanged` without
-  the saved rename completes the rename of the temporary name; a recorded step is never repeated.
+  Recovery after a crash follows one rule: **a file is deleted only if its identity is an inode the lane created and journaled**
+  (`R` or `R2`, by device and inode number), and never on the strength of a missing journal step.
+  For an `exchange` intent without a recorded result, recovery looks at both names:
+  - the temporary name holds the journaled `R` inode: the exchange did not happen; remove that temporary file (our own);
+  - the temporary name holds any other inode: the exchange happened (an editor's newer inode `Q` is there); rename it to the next
+    saved name, never delete it, and treat the path as holding `R` for the rest of the protocol;
+  - the temporary name is absent and the path holds `R`: record it and report; remove nothing.
+  This closes the reviewer's execution (the editor replaces the path with `Q`, the exchange happens, the process crashes before the
+  result is recorded): recovery finds `Q` at the temporary name, which is not `R`, and keeps it.
   Where a hard link is not possible (another file system) or the exchange is not supported, the person's file stays at its path and
   the merged version is written beside it under a name the line gives; nothing is overwritten.
   A file that is not text, a mode or type change, a symlink, a directory in the way, or an untracked file colliding with a file the
@@ -762,6 +768,10 @@ are withdrawn and "Answers to the third review" gives the current answer.
 
 ## Answers to the third review
 
+This section is kept as history. Where it names a watchdog, the kill of a recorded process group, the `ledger-open` lock sweep, the
+ledger horizon, the conditional push exclusion, checksum or entry-equality provenance or the accepted ABA residue, the fourth
+review's answers supersede it.
+
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol-3.txt`, with a decision and a closure line. Closure is one of
 closed (the design answers it, to be tested), narrowed (the feature was reduced and the owner decision it still meets is named), or
 open (with the reason).
@@ -832,6 +842,80 @@ open (with the reason).
 - Review's verdict: not ready to build as the live protocol. This revision removes live takeover, receipt refs, the ref fence, the
   numbered queue and checksum provenance, and does not build; "What can safely be built first" is adopted as the build order below.
 
+## Answers to the fourth review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-4.txt`, with a closure line: closed (answered by the design, to be
+tested), narrowed (reduced, with the owner decision it still meets), or open (with the reason).
+
+Critical.
+- Carry-forward crash recovery deletes the newest user version: accepted. The recovery rule is replaced by "a file is deleted only if
+  its identity is an inode the lane created and journaled", the `R` inode is journaled before the exchange, the exchange intent is
+  journaled before the exchange, and a temporary name holding any other inode is renamed to a saved name (Merges). Closure: closed
+  in the model; to test: a crash between the exchange and its journal completion with an atomic-save editor inserting `Q`, at every
+  journaled step.
+
+Third-round findings that were open.
+1. Publication evidence: accepted. A durable `published` record wins; only a reflog line whose old value is the commit proves it was
+   rewritten away (that line is written by the update that moved the branch from it); a line whose new value is the commit does
+   not; the lane creates the branch's reflog file before its first publication so the evidence exists; with no reflog the outcome is
+   `saved-ambiguous`; anything promised as saved is retained permanently; no once-only promise is made. Closure: narrowed; the
+   residue (no reflog) is an owner decision (below).
+2. Retirement deduplication beyond the horizon: accepted. The ledger is append-only with no horizon and no rotation (about a hundred
+   and thirty bytes an entry, under five megabytes a year at a hundred commits a day, so there is no bound to justify); an
+   identity is never treated as new once recorded. Closure: closed. The assumption "clients live seconds" is withdrawn.
+3. Obsolete workers: accepted that inheritance is not a lifetime proof; the descriptor retention across exec, hooks, descendants,
+   cancellation and inline ownership are named obligations with controls, and children carry the parent-death signal from a thread
+   that lives as long as the owner. Closure: narrowed to a single owner, controls pending.
+4. Staging provenance: accepted. The accepted residue is replaced by conservative preservation: an entry is replaced only if it equals
+   the oldest pre-entry in every field, cached stat data included (entries made afterwards by `git add`, `reset`,
+   `update-index --cacheinfo` or a path restore carry other stat data and are left); the only case undetectable is a byte-exact
+   restore of an earlier index file, which is the same state as no change. Closure: closed to the extent the format allows; no owner
+   decision needed.
+5. Displaced inodes and the journal: closed by the critical item above.
+6. Acceptance blocked by ref writes, interrupted-transaction cleanup: accepted. Acceptance stays ref-free. Lock sweeping by
+   contents is withdrawn: the wrapper never removes a ref lock file after an owner crash; a left lock is treated as a foreign lock
+   (see new 3). Closure: closed.
+7. Worktree branch switch: accepted. The request records the worktree's attachment and a materialization generation; publication is
+   to the branch the commit was made on; materialization is voided when the worktree is no longer attached to it (switched,
+   detached, branch deleted, worktree removed) and a line says so. Closure: closed.
+8. Adopt-log recovery: accepted. `lane/order` is authoritative; after a durable `adopt` the request is adopted wherever its record
+   lies; recovery completes the move and never appends twice; lines are framed with a checksum and a torn last line is ignored.
+   Closure: closed.
+9. Logical index, amendments, signed: accepted. The claim is replaced by the consumption map (the real-index entry already consumed
+   by an adopted request, per path), which fixes the reviewer's `x=1`, `x=2`, `y` sequence; an amendment whose target is no longer
+   the tip is stacked as a new commit relative to the target commit and never amends a successor; signed commits are an owner
+   decision (below). Closure: closed except signed.
+10. Extensions: accepted; carrying the resolve-undo data and the untracked cache needs a differential control on Git's later
+    behavior, not only that Git accepts the file; otherwise they are dropped or the index is ineligible. Closure: narrowed to a
+    verification obligation.
+11. Prune boundary: accepted that "prunes starting after handover" is inaccurate; the boundary is whether a destructive operation can
+    outlive the retained recovery copy (above). Closure: narrowed; an owner decision (below).
+12. Push, hooks, hangs, inventory: accepted. The negative refspec is unconditional and the lane pauses best-effort ref creation
+    under a marker for any form where the control shows the refspec is not honored; avoiding restart of `update-ref` also holds
+    because the owner is no longer killed by a watchdog; deterministic hangs are an owner decision (below); the exit inventory is
+    still an unperformed gate. Closure: closed for push and hooks, open for the inventory.
+
+New findings.
+1. Kill before acquire and unsupervised inline owners: accepted. Nothing is signalled before the lock is held; acquisition blocks
+   with a notice; children die with the owner by the parent-death signal; an inline owner lives only as long as its own foreground
+   command, drains requests adopted before its own, and leaves later ones to the service. Closure: closed.
+2. The watchdog is a time bound and can repeat a hook: accepted. The watchdog is removed, with the progress-counter takeover; the
+   unit sets no limits (owner decision, recorded in `SPEC.md`), and no value is shipped without a measurement or owner decision
+   beside it. `update-ref` is never stopped by the wrapper. A wedged owner of our own making is handled by the person restarting
+   the unit, with the request durable meanwhile. Closure: narrowed; the cost is that a wedged owner has no automatic recovery, a
+   consequence of the owner's decision that the unit has no limits.
+3. Lock contents do not prove ownership: accepted; the sweep is withdrawn (see 6 above). Closure: closed.
+4. Dry-run expansion is not the real push's: accepted; unconditional exclusion plus the marker (above). Closure: closed pending the
+   per-form control.
+5. Reachability does not make an old index intent current: accepted. Per-path supersession composes unapplied intents: the oldest
+   pre-entry is the expected state and the newest committed entry is the target, so the reviewer's `R1`, `R2` sequence stages nothing.
+   Closure: closed.
+
+Judgment on the five questions put to the owner before: kernel lock versus service-only lane is an implementation choice, so it
+is not asked; re-signing is necessary only under "single replayed commit, changed parent, no delegated signing"; the deterministic
+Git bug narrowing is optional if a path avoiding the child is built; the prune boundary as worded was inaccurate; the no-reflog
+ambiguity is inherent. The list below keeps only what the review says is the owner's.
+
 ## Exits that stay nonzero
 
 - Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
@@ -843,25 +927,48 @@ open (with the reason).
   (committed with a warning); a live foreign ref lock or `index.lock` (the commit lands or is saved, exit 0); a merge that would
   overwrite unsaved edits (the edits are carried forward).
 
-## Questions for the owner that this revision raises
+## Questions for the owner
 
-The earlier three were answered on 2026-11-03 (question tool): a branch a foreign program keeps moving, "Save on the side ref
-(Recommended)"; a `--mirror` push, "Leave out wrapper refs (Recommended)"; an amend while commits are pending, "Amend the pending
-commit (Recommended)". These are new, each because a narrowing touches something the owner decided; none is decided here.
+Four decisions the fourth review says are the owner's. None is decided here. Each shows a concrete case and what the person sees
+under each option. (Earlier answers, 2026-11-03: a branch a foreign program keeps moving, "Save on the side ref (Recommended)"; a
+`--mirror` push, "Leave out wrapper refs (Recommended)"; an amend while commits are pending, "Amend the pending commit
+(Recommended)".)
 
-1. One kernel lock per worktree for the lane, or a service-only lane with no client fallback. The lock keeps the client's ability to
-   land when the service does not start ("never fail") at the cost of one lock ("Use as few locks as possible", with the reason
-   written). The alternative removes the lock and makes the commit depend on the manager starting the service, answering `handed
-   over` when it has not.
-2. A signed commit whose parent moved while it was pending: it stays pending until the person signs again, instead of landing in
-   order by itself. This narrows "the service lands it in order when the branch lets it" for signed commits only.
-3. A Git bug that hangs the same input every time: the request becomes pending with a message and exit 0, and the commit is not on
-   the branch until the cause changes. This narrows "Git crashes or bugs are designed out".
-4. A prune that overlaps a request and deletes objects after the lane checked them: treated as a corrupt repository caused by
-   another tool. This narrows "ContentPruned is designed out" to prunes that start after handover.
-5. A commit published, removed by a non-descendant branch rewrite and then recovered after a crash, on a repository with no branch
-   reflog: it reappears once, with a message. The alternative is to keep it saved and not republish, which leaves a crash before the
-   swap (the common case) without a landed commit.
+1. A signed commit whose parent moved while it was pending.
+   Case: the person ran `git commit -S -m "fix parser" -- parser.rs` on `main` at `B`; another program held `main`'s ref lock, so the
+   signed commit `D` (parent `B`) is pending. When the lock frees, `main` is at `C` (another session's commit).
+   - Option A, wait for the person to sign again: `D` stays pending with a line saying it needs signing again; the next wrapper
+     command asks for the signature and lands `D'` (parent `C`). Visible: `git log` shows `C` only until the person runs a command.
+   - Option B, delegated signing: the service signs `D'` itself with a key or agent the person has authorized for the service.
+     Visible: `D'` lands without a prompt, signed by the service's use of the key; this adds a standing authorization to the signer.
+   - Option C, preserve the signed commit: the service lands `D` unchanged as a side branch and adds a merge commit with parents `C`
+     and `D`. Visible: history gains a merge commit the person did not make and `main` shows `D`'s signature inside it.
+2. A Git bug that hangs on the same input every time.
+   Case: `git update-ref` (or another retained child) hangs on one input on this Git version; restarting it hangs again.
+   - Option A, contain: the request stays pending with a message naming the child and the input, the command exits 0, nothing is
+     lost, and the commit is not on the branch until Git changes. Visible: "saved, not landed", plus a message.
+   - Option B, build a second path for the operations that matter (an in-process writer for the files backend): the commit lands
+     despite the Git bug for the operations it covers; reftable and anything not covered still fall to A. Visible: the commit
+     lands; the cost is another implementation to keep equal to Git.
+3. A destructive prune that overlaps a request.
+   Case: `git prune` (no expiry) starts, takes its view, a request is then imported and published, the spool is released, and the prune
+   deletes the commit's blobs.
+   - Option A, accept as a corrupt repository caused by another tool (the owner's outside list): the wrapper reports a missing object
+     when it next reads it. Visible: after the prune the commit has missing blobs and the person must recover them from elsewhere.
+   - Option B, retain the recovery closure independently for a longer, owner-chosen period before releasing the spool: the lane
+     repairs a late loss from the spool. Visible: a disk cost per published commit for the period, and a repaired repository after such
+     a prune; the period is an owner decision to be recorded beside its value.
+   - Option C, coordinate maintenance the wrapper runs: `git gc` and `git prune` forwarded through the wrapper wait for the lane to
+     be idle and for the spool of every published request to be released. Visible: a person's `git gc` waits with a notice; a
+     prune run by a tool that bypasses the wrapper is still not coordinated.
+4. A published commit that may have been removed by a rewrite, with no reflog to tell.
+   Case: the service crashes right after the swap `B` to `D`, before it writes `published`; the branch's reflog was deleted by a
+   `git reflog expire --expire=now --all`; before the next owner starts, a script resets `main` to `B`.
+   - Option A, `saved-ambiguous` (never publish without proof): `D` is kept saved and named, `main` stays at `B`, and the person is
+     told. Visible: if instead the crash came before the swap (the common case) the commit is also not on `main`, and the person must
+     publish it by an explicit command.
+   - Option B, republish: `D` is replayed on `main` and lands again. Visible: in the rare case the script's reset was deliberate, the
+     commit reappears once, with a message.
 
 ## Verification plan and build order
 
@@ -877,8 +984,13 @@ The order is the reviewer's, adopted:
 4. A narrowly eligible index writer with the extension policy above, under-lock delta only, no checksum provenance.
 5. Backend-specific publication experiments on disposable repositories: files and reftable, packed refs and `pack-refs`,
    `reference-transaction` hooks, linked worktrees, interruption at real persistence boundaries, the branch and `HEAD` reflogs.
-Not built from this revision: automatic retention deletion, pending amendments and concurrent carry-forward, until their models
-pass.
+Models to add from the fourth review: a healthy inline owner met by a starting service; a long phase and a hook-bearing owner restart
+(no watchdog exists); forgotten ledger identities (there are none); adoption-before-move crashes; the mixed plain and named-path
+pending sequence; an amendment whose target is no longer the tip; ref creation between a push's expansion and its execution; a worktree
+attachment change with a request pending; composed deferred index intents; the carry-forward crash between the exchange and its journal
+completion with an editor-created displaced inode, before any filesystem mutation code exists.
+Not built from this revision: live carry-forward from the current journal, automatic retention deletion, the production pending and
+materialization coordinator, until their models pass.
 Also before building: the prune controls (starting before, during and after each phase, with and without `--expire=now`); the push
 controls (`refs/*:refs/*`, `--mirror`, configured refspecs, the auto-push); the exit inventory from the 2.56.0 source; measured times
 of each step with `strace`.
