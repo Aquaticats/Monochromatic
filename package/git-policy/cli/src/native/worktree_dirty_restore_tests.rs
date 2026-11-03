@@ -45,7 +45,7 @@ fn the_proof_accepts_what_gits_checkout_leaves_and_names_what_it_does_not() {
     remove(root.as_path());
 }
 
-/// The two Git runs are `read-tree --reset -u <commit>` and `clean --force -d --quiet`, in that order, each in the stage under
+/// The two Git runs are `read-tree --reset -u <commit>` and `clean --force -d`, in that order, each in the stage under
 ///  the new worktree's Git directory; nothing else is run through the lifecycle's runner.
 #[test]
 fn the_restore_runs_exactly_the_two_steps_in_the_stage() {
@@ -76,7 +76,7 @@ fn the_restore_runs_exactly_the_two_steps_in_the_stage() {
     let words = |step: &Vec<String>| -> Vec<String> { return step[LEADING_WORDS..].to_vec(); };
     let expected: Vec<Vec<String>> = vec![
         ["read-tree", "--reset", "-u", target.commit.as_str()].map(String::from).to_vec(),
-        ["clean", "--force", "-d", "--quiet"].map(String::from).to_vec(),
+        ["clean", "--force", "-d"].map(String::from).to_vec(),
     ];
     assert_eq!(seen.iter().map(words).collect::<Vec<Vec<String>>>(), expected, "exactly these two steps, in this order");
     for (arguments, environment) in seen.iter().zip(&environments) {

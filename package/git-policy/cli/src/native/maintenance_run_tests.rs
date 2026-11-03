@@ -75,7 +75,7 @@ fn unset_configuration_runs_detached_maintenance_with_the_global_prefix() {
     let logged: Vec<String> = calls(log.as_path());
     assert_eq!(logged.len(), 2);
     assert!(logged[0].starts_with("-c x.y=z config --type=bool-or-int --null --get-regexp "));
-    assert_eq!(logged[1], "-c x.y=z maintenance run --auto --quiet --detach");
+    assert_eq!(logged[1], "-c x.y=z maintenance run --auto --detach");
     remove(root.as_path());
 }
 
@@ -95,8 +95,8 @@ fn rejected_detach_retries_without_the_flag() {
     assert_eq!(
         calls(log.as_path()).into_iter().skip(1).collect::<Vec<String>>(),
         vec![
-            String::from("maintenance run --auto --quiet --detach"),
-            String::from("maintenance run --auto --quiet"),
+            String::from("maintenance run --auto --detach"),
+            String::from("maintenance run --auto"),
         ]
     );
     remove(root.as_path());
@@ -117,7 +117,7 @@ fn detach_false_runs_the_foreground_form() {
     assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
     assert_eq!(
         calls(log.as_path()).last().map(String::as_str),
-        Some("maintenance run --auto --quiet --no-detach")
+        Some("maintenance run --auto --no-detach")
     );
     remove(root.as_path());
 }
@@ -255,7 +255,7 @@ fn a_snapshot_decides_without_starting_the_config_read() {
         run_auto_maintenance_with(&stand_context(path.clone(), &[]), root.as_path(), Some(&foreground))
             .expect("maintenance ran");
     assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
-    assert_eq!(calls(log.as_path()), vec![String::from("maintenance run --auto --quiet --no-detach")]);
+    assert_eq!(calls(log.as_path()), vec![String::from("maintenance run --auto --no-detach")]);
     let disabled: ConfigSnapshot = listing_snapshot(&[("global", "gc.auto\n0")], true);
     assert_eq!(
         run_auto_maintenance_with(&stand_context(path, &[]), root.as_path(), Some(&disabled)).expect("decided"),

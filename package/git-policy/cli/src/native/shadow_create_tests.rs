@@ -293,3 +293,34 @@ fn concurrent_creators_of_the_shared_parents_all_succeed() {
     assert!(root.join("cli-git/shadow").is_dir());
     remove(root.as_path());
 }
+
+/// What:
+///  The `git init` that makes a reftable shadow, as the wrapper starts it.
+/// Why:
+///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`; the reftable shadow is the
+///  one whose tables only Git writes, so it is made by a start of `init`, which is looked at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await createShadowRepository(recordingGit, reftableRepo, ...); expect(startsOf('init')).toHaveLength(1); expect(quietStarts()).toEqual([]);
+/// ```
+#[test]
+fn the_reftable_shadow_is_made_by_an_init_without_quiet() {
+    let root: PathBuf = fixture("shadow-create-init-no-quiet");
+    let reftable: PathBuf = root.join("reftable");
+    std::fs::create_dir(&reftable).expect("reftable directory");
+    git(reftable.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(reftable.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let capture: InvocationCapture = capture_of(reftable.as_path());
+    assert_eq!(capture.layout.ref_format, RefFormat::Reftable);
+    let (mut context, log) = crate::recording_git::recording_context(root.as_path());
+    // The shadow's ref writes hand their paths on standard input, which a request makes in the common directory.
+    context.common_dir = Some(reftable.join(".git"));
+    let transaction: PathBuf = root.join("transaction-init-no-quiet");
+    std::fs::create_dir_all(&transaction).expect("transaction directory");
+    create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path()).expect("shadow");
+    let inits: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("init "); }).collect();
+    assert_eq!(inits.len(), 1, "the shadow is made by one start of init: {inits:?}");
+    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(root.as_path());
+}

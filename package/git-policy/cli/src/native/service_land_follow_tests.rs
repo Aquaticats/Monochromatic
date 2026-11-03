@@ -72,3 +72,32 @@ fn a_cleanup_without_its_scratch_directory_is_done() {
     assert!(remove_conclusion_state(&git_context(), repo.as_path(), &cleanup));
     remove(root.as_path());
 }
+
+/// What:
+///  Every start of the index update, in each form it takes, as the service makes it.
+/// Why:
+///   The owner's rule is that no Git start of the service gets `--quiet` or `-q`: the three forms of the update (a listed
+///  path, a named path as bytes, a path derived from the old branch) each start `reset`, and each is looked at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const paths of [listed, named, derived]) await updateIndex(recordingGit, repo, second, paths); expect(quietStarts()).toEqual([]);
+/// ```
+#[test]
+fn the_index_update_starts_reset_without_quiet_in_every_form() {
+    let (root, repo, first, second) = index_behind("service-follow-no-quiet", &[b"new.txt".to_vec()]);
+    let (mut context, log) = crate::recording_git::recording_context(root.as_path());
+    // The named form hands its paths on standard input, which a request makes in the common directory.
+    context.common_dir = Some(repo.join(".git"));
+    let listed: Vec<String> = vec![String::from("new.txt")];
+    let named: Vec<Vec<u8>> = vec![b"new.txt".to_vec()];
+    for paths in [IndexPaths::Listed(listed.as_slice()), IndexPaths::Named(named.as_slice()), IndexPaths::Derived { old: first.as_str() }] {
+        git(repo.as_path(), &["read-tree", first.as_str()]);
+        update_index(&context, repo.as_path(), second.as_str(), paths).expect("updated");
+        assert!(!differs(repo.as_path(), second.as_str()), "{paths:?} brings the index to the commit");
+    }
+    let resets: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("reset "); }).collect();
+    assert_eq!(resets.len(), 3, "one reset for each of the three forms: {resets:?}");
+    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(root.as_path());
+}

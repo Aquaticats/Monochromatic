@@ -1444,3 +1444,33 @@ fn an_explicit_push_whose_merge_push_is_refused_as_stale_is_retried() {
     assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
     assert!(delivered, "the landed commit was published");
 }
+
+/// What:
+///  The starts of a reconcile that fetches the moved remote, publishes a merge and fast-forwards the clean worktree.
+/// Why:
+///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`; the fetch and the
+///  fast-forward are the two that carried it (Git 2.56.0: `builtin/merge.c` and the fetch verbosity gate only messages and
+///  progress on it). The control looks at both starts, so an empty answer is not an absent run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await pushOnce(recordingGit, 'refs/heads/main', landed); expect(startsOf('fetch')).toHaveLength(1); expect(startsOf('merge')).toHaveLength(1); expect(quietStarts()).toEqual([]);
+/// ```
+#[test]
+fn the_fetch_and_the_fast_forward_of_a_reconcile_start_without_quiet() {
+    let s = scenario("ar-no-quiet");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let (context, log) = crate::recording_git::recording_context(s.root.as_path());
+    let mut git = push_git(&s.local);
+    git.real_git = context.real_git.clone();
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&git, "refs/heads/main", &landed, &mut err).expect("auto-push");
+    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{}", String::from_utf8_lossy(&err));
+    let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
+    let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
+    assert_eq!(named("fetch"), 1, "one fetch: {starts:?}");
+    assert_eq!(named("--ff-only"), 1, "one fast-forward: {starts:?}");
+    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(&s.root);
+}

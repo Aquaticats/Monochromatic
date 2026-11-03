@@ -1007,3 +1007,39 @@ fn the_editor_opens_only_when_input_and_output_are_one_terminal() {
         remove_settled(&fixture);
     }
 }
+
+/// What:
+///  The Git starts of a wrapped true merge over staged work, recorded by a stand-in that runs the real Git.
+/// Why:
+///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`. The merge the wrapper completes ends in a
+///  fast-forward of the checkout to the merge commit it built (Git 2.56.0 `builtin/merge.c` reads the option as less
+///  output and nothing else), and that start is looked at. The stand-in stands where the wrapper looks for the real Git, ahead
+///  of the conventional locations, so every start the wrapper makes passes through it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await wrapped(['merge', 'feature'], dirty, { realGit: recordingGit }); expect(startsWith('--ff-only')).toHaveLength(1); expect(quietAmong(startsWith('--ff-only'))).toEqual([]);
+/// ```
+#[test]
+fn the_fast_forward_to_the_merge_commit_starts_without_quiet() {
+    let fixture: Fixture = fixture("merge-no-quiet");
+    let dirty: PathBuf = diverged(&fixture, "dirty");
+    stage_unrelated_work(&fixture, dirty.as_path());
+    let log: PathBuf = fixture.root.join("git-starts.log");
+    let spy_directory: PathBuf = fixture.root.join("spy");
+    std::fs::create_dir(&spy_directory).expect("stand-in directory");
+    let script: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexec {} \"$@\"\n", log.display(), super::support::REAL_GIT);
+    executable(spy_directory.join("git").as_path(), script.as_bytes());
+    let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
+    path.push(":");
+    path.push(spy_directory.as_os_str());
+    let observed: Observed = observe(wrapped_in(&fixture, dirty.as_path(), &["merge", "feature"]).env("PATH", path), b"");
+    assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
+    let starts: Vec<String> = std::fs::read_to_string(&log).expect("the stand-in saw the starts").lines().map(String::from).collect();
+    let forwards: Vec<&String> = starts.iter().filter(|start| { return start.split(' ').any(|word| { return word == "--ff-only"; }); }).collect();
+    assert_eq!(forwards.len(), 1, "one fast-forward of the checkout: {starts:?}");
+    for start in forwards {
+        assert!(!start.split(' ').any(|word| { return word == "--quiet" || word == "-q"; }), "the fast-forward carries neither --quiet nor -q: {start}");
+    }
+    remove_settled(&fixture);
+}

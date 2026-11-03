@@ -268,3 +268,32 @@ fn a_failed_merge_settles_without_a_liveness_check() {
     assert!(!record.exists());
     remove(world.parent.as_path());
 }
+
+/// What:
+///  The starts a recovery makes while it completes a merge that wrote only some of its files.
+/// Why:
+///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`. The recovery's `checkout-index` is the one
+///  that carried it (Git 2.56.0 `builtin/checkout-index.c` gates only the message on it, and the exit status is 1 for a
+///  path that is not in the index with or without it); the control looks at the start that checks out the files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recoverInterruptedMerges(place(recordingGit)); expect(startsOf('checkout-index')).toHaveLength(1); expect(quietStarts()).toEqual([]);
+/// ```
+#[test]
+fn the_recovery_checks_files_out_without_quiet() {
+    let world: World = world("merge-recovery-no-quiet");
+    std::fs::write(world.repo.join("f.txt"), b"f.txt feature\n").expect("the file Git wrote");
+    std::fs::remove_file(world.repo.join("gone.txt")).expect("the file Git removed");
+    let _record: PathBuf = record_of(&world, dead_owner("88888888-0000-4000-8000-000000000008"), Some("refs/heads/main"));
+    let (mut recording, log) = crate::recording_git::recording_context(world.parent.as_path());
+    // The checkout and the index update hand their paths on standard input, which a request makes in the common directory.
+    recording.common_dir = Some(world.git_dir.clone());
+    let recording_place: RecoveryPlace = RecoveryPlace { git: recording, cwd: world.repo.clone(), common_dir: world.git_dir.clone() };
+    let outcomes = recover_interrupted_merges(&recording_place, world.git_dir.as_path()).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
+    let checkouts: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.contains("checkout-index"); }).collect();
+    assert_eq!(checkouts.len(), 1, "one start checks the files out: {checkouts:?}");
+    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(world.parent.as_path());
+}
