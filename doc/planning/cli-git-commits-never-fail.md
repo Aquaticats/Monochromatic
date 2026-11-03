@@ -732,43 +732,116 @@ Materialization and retirement
   execution tree is empty (L6). Release: T1-nocommit for `id` (ledger line exists, execution tree empty, no entry remains), spool released then.
   C3 lookup: the terminal route for `id` follows `superseded by` to `id2` and answers `id2`'s state, so "a terminal line exists for this
   identity" is not enough and a resend of `id` is answered as superseded by `id2`. Crash: repeated; the ledger line is idempotent per `id`.
-- T0 publish a terminal outcome (revision 11; R10-7). Pre: a request reaches a final client-visible outcome: `published` (P3), `refused`, `conflicted`, `withdrawn`,
-  `rewritten-away`, `superseded by` (B3). Do, in this order: append `outcome <id> <kind> <detail>` to this lane's ledger and fsync it; then the S1 replacement
-  that records the outcome and removes the request from `lane/state` (a published request stays in the document until M1 or M2 has finished with its consumption
-  entries, but its outcome line is already in the ledger). The outcome line is the lookup route of C3: reporting an outcome does not depend on being
-  eligible to release the recovery data, which is T1's separate and later operation (`retired <id>`). Crash: the ledger line without the replacement is completed by L4; a replacement
-  without the ledger line cannot occur because the line comes first.
-- T1 retire. Pre: the request has a terminal outcome already published to the ledger (T0 below) and every entry of the maintenance registry that overlaps the request's
-  lifetime is `terminal` by G3 (an entry that is not `terminal` blocks, whatever its scope: an entry with an empty or absent scope and a live launcher is not
-  terminal, because that launcher may still launch). Two kinds. T1-commit, for a request whose commit is in the object store and published (materialized
-  or voided). T1-nocommit, for a request that has no commit to publish (`superseded`, `refused`, `withdrawn`, `conflicted`, a held version): the hook execution tree of
-  the version is empty and no consumption entry remains for it; it needs no connectivity check. A request that is saved (`pending`, `landing`,
-  `rewritten-away`, a `withdrawn` or `conflicted` request whose inputs the person has not disposed of) never loses its spool. Do, in this order: (1) write
-  `releases/<instance>/<id>` (the release intent) by the link method of C3 and fsync; (2) for T1-commit, run the connectivity check from the tip; (3) re-read the
-  maintenance registry after the check (revision 11: the order is the proof, see below) and if any entry that overlaps the request's lifetime or was created since
-  the Pre is not `terminal`, withdraw the intent and keep everything (a later T1 repeats from the Pre); (4) append `retired <id>` to this lane's ledger; (5) release
-  the spool; (6) remove the hold ref `refs/cli-git/<instance>/hold/<id>` if there is one; (7) remove the intent. Crash: the intent names an unfinished release;
-  L4 repeats from step (2); the ledger line exists before any release, so retention is never released first. Retirement is retention, not a wait: nothing blocks
-  on it, and it may be deferred for as long as a run is open (the cost is disk).
-  Why a late maintenance admission cannot take the closure (revision 11; R10-4). The argument is an order, not a root. A run is admitted by a durable reservation
-  (G1) before any destructive process exists and so before its first reachability view; a run is `terminal` only when no view or deletion can follow (G3).
-  T1 re-reads the registry after the connectivity check and before any release. A run admitted before that read is non-terminal in it (T1 withdraws) or terminal
-  (all its views and deletions are over, so the check, which ran after them, found the closure complete or failed and T1 kept everything). A run admitted after that
-  read takes every view after the check found the commit reachable from the tip, so it can lose the closure only if a person rewrites the branch after the
-  check (the stated residue; the reflog keeps the object for the person's own expiry). No ref in the object store is load-bearing, so a person deleting
-  `refs/cli-git/*` removes protection only from a run already open, which the order has already blocked. The mixed-time view of a run that reads the branch while
-  it is away and reads other refs afterwards is covered because that run began before the second registry read. The hold ref is extra protection
-  where the ref store allows it, created at C5 and advanced to cover each built commit best effort; its absence changes nothing in this argument. Obligations
-  for step 1 and for the backend: G1 is durable and visible before G2 for every wrapper-started run; a run takes no reachability view before it is launched; a
+- T0 publish a terminal outcome (revision 12; R10-7, R11-10). Pre: a request reaches a final client-visible outcome: `published` (P3), `refused`,
+  `conflicted`, `withdrawn` (W2), `already` (a merge that a foreign successor made a no-op), `rewritten-away`, `superseded by` (B3). Every transition
+  that ends a request this way uses T0 and no other order. Do, in this order: (1) append `outcome <id> <kind> <detail>` to this lane's ledger unless
+  the ledger already holds an `outcome` line for the identity; the first line for an identity is the outcome and any later line is ignored by every
+  reader, so outcomes are absorbing and idempotent; (2) the S1 replacement that records the outcome and removes the request from `lane/state` (a
+  published request stays in the document until M1 or M2 has finished with its consumption entries, and a published merge until its `attach-watch`
+  entry settles, but its outcome line is already in the ledger). The outcome line is the lookup route of C3: reporting an outcome does not depend on
+  being eligible to release the recovery data, which is T1's separate and later operation (`retired <id>`). Crash: the ledger line without the
+  replacement is completed by L4; a replacement without the ledger line cannot occur because the line comes first. The ledger append needs no
+  rescan: the owner keeps the end offset and the last valid line of its own ledger from L4's single read (revision 12, performance).
+- T1 retire (revision 12; R11-3). Pre: the request has a terminal outcome already published to the ledger (T0), and the maintenance registry, listed
+  once as `L0` (the names in `maintenance/`), has every entry `terminal` by G3 (an entry that is not `terminal` blocks, whatever its scope: an entry
+  with an empty or absent scope and a live launcher is not terminal, because that launcher may still launch). Two kinds. T1-commit, for a request
+  whose commit is in the object store and published (materialized or voided). T1-nocommit, for a request that has no commit to publish
+  (`superseded`, `refused`, `withdrawn`, `conflicted`, a held version): the hook execution tree of the version is empty and no consumption entry remains
+  for it; it needs no connectivity check. A request that is saved (`pending`, `landing`, `rewritten-away`, a `withdrawn` or `conflicted` request whose
+  inputs the person has not disposed of) never loses its spool. Do, in this order: (1) write `releases/<instance>/<id>` (the release intent) by the link
+  method of C3, V; (2) for T1-commit, run the connectivity check from the tip; (3) list the registry again as `L1`, after the check has ended, and
+  require that `L1` has the same names as `L0` and that every entry read in `L1` is `terminal`; any other result (a name in `L1` that is not in `L0`,
+  whether or not it is terminal, or an entry not `terminal`) withdraws the intent and keeps everything, and a later T1 repeats from its Pre with a
+  new `L0`; (4) append `retired <id>` to this lane's ledger; (5) release the spool; (6) remove the hold ref if there is one; (7) remove the intent.
+  Crash: the intent names an unfinished release; L4 repeats from step (2); the ledger line exists before any release, so retention is never released
+  first. Retirement is retention, not a wait: nothing blocks on it, and it may be deferred for as long as a run keeps appearing (the cost is disk).
+  Why a late maintenance admission cannot take the closure (revision 12; R11-3). Revision 11's proof read "terminal at the final registry read" as
+  "finished before the connectivity check", and it is not: a run admitted after T1's Pre can take its view while the branch is elsewhere, delete
+  after the check has passed, and be `terminal` at the reread. The argument is now a comparison of two listings around the check. Let `X` be any
+  destructive execution of a wrapper-started run. (a) `X` is in `L0`: it is `terminal` there, so all its deletions precede its `terminal` record
+  (G3), which precedes `L0`, which precedes the check; the check ran after every deletion of `X`. (b) `X` is not in `L0` and is in `L1`: the sets
+  differ, T1 withdraws, whatever the state of `X`; this is the eleventh review's schedule, a run that was admitted after the Pre and became terminal
+  before the reread. (c) `X` is in neither: its reservation (durable and visible before G2 and before its first view, G1) became visible after `L1`
+  began listing, which is after the check ended, so every view of `X` comes after the check found the commit reachable from the tip; `X` can lose
+  the closure only if a person rewrites the branch after the check (the stated residue; the reflog keeps the object for the person's own expiry).
+  Implementable observation boundary: registry names are created once by `link` and are never removed while any release intent that predates the
+  entry's `terminal` record exists (a compaction of old terminal entries is later work and must keep that condition); a `readdir` of a directory
+  returns every name that was present for its whole duration, which is all the argument uses: it needs no atomic snapshot, only that a name
+  created before the listing began is listed. The hold ref is extra protection where the ref store allows it, advanced best effort; its absence
+  changes nothing in this argument. Obligations for step 1 and for the backend: G1 is visible before G2 for every wrapper-started run; a run takes no
+  reachability view before it is launched; a deletion by a run precedes its `terminal` record.
   deletion by a run precedes its `terminal` record.
-Merges (a merge is a request of the same lane, in the same order as commits and pushes; MG1 to MG6 keep their names, revision 11 repairs their bodies
-for R10-3 and R10-9; the order is checkout first, swap second, owner choice M-A). Two authorities are kept apart. Authority to do: with `index.lock` held, `HEAD`
-is attached to the request's target ref in both reads around the index read, or, for a detached target, is detached and `M`'s base is an ancestor of its
-value. Authority to undo: the lane may reverse its own recorded effects on a path whose current file is still the installed file it recorded (same
-inode as the pinned `R`, digest unchanged) and on index entries still equal to `M`'s, whatever `HEAD` names now; it needs only the single try of
-`index.lock` and never needs authority to do. Every waiting state of a merge records a `resume` value from the Q1 table: `MG1`, `MG2`, `MG4`, `MG5`, `MG6`,
-`MG4n`. A merge that waits (a foreign `index.lock`, staged paths, a held swap) is a FOREGROUND wait; at its bound it is W1 (withdrawn: nothing is
-written, or MG6 restores what was).
+Merges (revision 12: publish first; owner question 2 decides whether this order stays, and "MG-A" below is the text for the other order). A merge is a
+request of the same lane, with the same adoption order, withdrawal, publication and terminal transitions as a commit. What differs is its content `M`
+and its derived follow-up: the install of `M` into the index and the worktree, which is derived data after a published commit, like M1 (it is not a
+commit landing later, and nothing waits for it). The order was checkout first (owner choice M-A, delegated); the owner's bound answers make it costly,
+because a command that is withdrawn at its bound after the files were written must restore them through an `index.lock` that a foreign program may
+hold for as long as it likes (R11-2). Publishing first makes rule B's claim true by construction: before the branch is written, nothing of the person's
+index or worktree has changed, so W1 at any point before P2 changes nothing and needs no restoration. Two authorities are kept apart. Authority to do:
+with `index.lock` held, `HEAD` is attached to the request's target ref in both reads around the index read, or, for a detached target, is detached
+and `M`'s base is an ancestor of its value. Authority to undo: the lane may reverse its own recorded installs on a path whose current file is still
+the installed file it recorded (same inode as the pinned `R`, digest unchanged) and on index entries still equal to `M`'s, whatever `HEAD` names now;
+it needs only the single try of `index.lock` and never needs authority to do. A merge that waits before publication (a held swap, a moved tip) is a
+FOREGROUND wait with `resume = MG1`; at its bound it is W1, which changes nothing.
+- MG1 compute. Pre: adopted, the merge request, no withdrawal mark. Do: compute the merge commit `M` from the logical tail and the other side with
+  `merge-tree` (an object write; no ref, index or worktree change; X1 may cancel it). Record in one S1 replacement `merge-ready <id> <M> <base>` with
+  the path set `P`: for each path the merge changes, `M`'s entry and the tip's entry `O`. If `merge-tree` reports a conflict that no resolver settles,
+  the outcome is `conflicted` (non-zero, the merge stops with the conflict recorded; nothing in the index or the worktree is changed; the spool is
+  kept). There is no pre-scan of the index and no wait for staging to change: the owner's decision P, "Merge anyway, unstage x", is applied by MG3.
+  A waiting merge does not block later requests. Crash: repeated.
+- MG2 publish. Pre: MG1 done. Do: P1 to P3 for `M` with `old = base` (`M` enters the logical tail in P1's replacement as for a commit). The P1
+  replacement also records, for every path in `P`, a consumption entry of kind `merge-install` (E is the index entry read without the lock, a hint; the
+  stat data and digest of the pre-merge worktree file are recorded lazily, only when C1 needs them), so a capture between the publication and the
+  install treats the lane's own pending install as neither staging nor edit: C1 ignores, for such a path, an index entry equal to `E` and a worktree
+  file whose stat data equal `E`'s (or whose content equals the pre-merge blob when the stat data differ), and a plain commit cannot capture the
+  reversal of the merge. A lost swap or a held ref lock: P4 with `resume = MG1` (the merge is computed again on the new tip; nothing was written, so no
+  checkout state needs reconciling). Refused by a hook: `refused`, nothing changed. The window between the publication and the install is stated: the
+  branch holds `M`, and the index and worktree still hold the old tip until MG3 runs. A native `/usr/bin/git commit -a` outside the wrapper in that
+  window commits the reversal of the merge on top of it (the history keeps both; owner question 2 shows this to the owner).
+- MG3 install (derived data after a published merge). Pre: `published` (P3, or the evidence R1 or R2) and an outstanding `merge-install` entry. Do: a
+  single try of `index.lock` (`EEXIST`: `resume = MG3`, tried again by Q1 on a trigger; the command has returned or returns `published` and says the
+  files follow when the lock is free). With the lock held read `HEAD`, the real index and `HEAD`; if authority to do fails, release the lock by the
+  normal abort of rule N, write nothing, turn the entries into `suppress`, and tell the person the merge is on `<ref>` only and the worktree was not
+  touched. Else plan every path of `P` from the versions read under the lock, the target being the entry of the path in the current tip's tree (the
+  rule of M1, so a foreign successor is respected): `O` the pre-merge tip's blob, `S` the real index entry (all fields, stage included), `W` the
+  worktree file, `M` the target.
+  - `S` equals `O` and `W` equals `O`: write `M`'s content, the index entry is `M`'s.
+  - `W` differs from `O` (an unsaved edit), whatever `S` is: the worktree takes the three-way merge of `O`, `W` and `M` (the carry-forward protocol,
+    including its handling of a write through an open descriptor); the index entry is `M`'s, so the edit is an ordinary unstaged edit.
+  - `S` differs from `O` (staged; owner decision P-carry): the index entry becomes `M`'s, the staging is dropped from the index, and the worktree
+    is as in the previous case. When `S`'s content is not `W`'s content (a staged-only version, for example `O = A`, `S = B`, `W = A`, `M = C`),
+    the blob `S` names is written to `saved/<path-id>.staged` with its mode and journaled before the index entry is replaced, and a line names
+    it, so the last copy of a version the person staged is never discarded. When `S`'s content is `W`'s content, it is already the worktree's.
+  - Not carried, with the person's version staying at its path and the merged version written beside it (the earlier owner decision "Carry edits
+    forward" and its fallback, adopted here for the cases below; veto open): a mode or type change, a staged deletion, a symlink, a non-text file,
+    an unmerged entry (any stage) at the path, a directory in the way.
+  Then one S1 replacement sets the marker `materializing` and records the plan (`S`, `W` digests, the pins `N` for the displaced pre-merge file and
+  `R` for the installed file), the paths are written by the carry-forward protocol, the new index (only the entries of `P` replaced, every other entry
+  carried with its stat data, so unrelated staging survives) is written into the lock file and renamed over the index (a sync of it only as
+  `core.fsync` makes native Git do), and a closing replacement clears the marker, records each path's outcome (`installed`, `carried`,
+  `saved-staged`, `kept`, `declined`) and changes the entries to `attach-watch`. Post-check: read `HEAD`; if authority to do no longer holds, MG6c.
+  Crash: L4 re-evaluates every path from the journal and the pins by the rule of M1 (observable file and index contents, not inference).
+- MG6c cleanup after a switch (revision 12; R11-7). Pre: an `attach-watch` entry whose install is recorded, and `HEAD` no longer names the target.
+  It never publishes: the merge is already on its ref. Do: the single try of `index.lock` (`EEXIST`: `resume = MG6c`); with authority to undo, for each
+  path restore from the saved pre-state, not by a reverse three-way merge: if the path still holds the installed file `R`, exchange it back with the
+  pinned `N` and set an index entry equal to `M`'s back to what the switch left; a path written since keeps the person's file and is reported with the
+  saved files. The closing replacement drops the entries and records `restored`. Triggers (revision 12): every lane event, a watch on the
+  worktree's `HEAD` file while any `attach-watch` entry exists (the service), and one re-check `ATTACH_RECHECK` after the install (the service; a
+  shipped constant, unmeasured, from the duration of a `git switch` on the owner's hosts). Settling: an `attach-watch` entry is dropped at the first
+  check made at least `ATTACH_RECHECK` after the install that finds `HEAD` attached to the target. Conditional liveness, stated: the restoration is
+  guaranteed at the next lane event or while the service runs; no guarantee is made when neither happens. Residue of W-detect (approved by the owner,
+  "Allow the rare leftover"): a switch that finishes after the last check leaves the merge's files visible in the new branch's worktree as local
+  modifications until that check; a `git commit -a` in that window could commit them to the wrong branch; nothing is lost.
+- MG-A, the other order (if owner question 2 keeps checkout first). The revision 11 transitions MG1 to MG6 and MG4n apply with these amendments, each
+  closing one gap of the eleventh review: (i) W1 and MG3's writes are made exclusive by an `flock` on `lane/decision/<id>.lock` that MG3 holds shared
+  from its first write to its closing replacement and W1 takes exclusively with one try; a failed try means W1 waits for MG3 to finish, within
+  FOREGROUND; (ii) a withdrawal whose MG6 meets a foreign `index.lock` cannot restore at the bound, so the command exits non-zero saying the merge's
+  files and index remain until the lock frees, and `resume = MG6` finishes the restoration later: this weakens "staging as it was" and needs the
+  owner's answer to question 2; (iii) the no-checkout continuation is its own transition (MG4n reached from MG2 with no pins), and Q1 resumes
+  it without MG5; (iv) MG5 accepts its own checkout when the index equals `M`'s entry whatever the worktree holds (an edit is carried, not rejected),
+  and every retarget keeps the first install's pins `N` and `R` and the pre-merge index entry `S` as the one undo root; (v) the staged-only version of
+  MG3 above is saved before the first index replacement, and MG6 restores `S`, not `O`, when the merge is refused after a P-carry install.
+  The revision 11 text of the transitions that the amendments modify, kept verbatim for option M-A (it names `MG1` to `MG6` and `MG4n` as in revision 11):
 - MG1 compute. Pre: adopted, the merge request. Do: compute the merge commit `M` from the logical tail and the other side with `merge-tree` (an object
   write; no ref, index or worktree change; X1 may cancel it). Record in one S1 replacement `merge-ready <id> <M> <base>` with the path set `P`: for each path
   the merge changes, the tip's index entry `E_tip` and `M`'s entry. If `merge-tree` reports a conflict that no resolver settles, the outcome is `conflicted`
@@ -860,93 +933,9 @@ ended. L1 can wait for a child between fork and exec, within ACQUIRE and REAP. G
 behind a person's `reference-transaction` hook is the person's, and the command's share of it ends at FOREGROUND with a refusal, never with a landing
 later. The owner's choice that a command may end with an error at a bound touches "Commits should never fail." and is recorded as the owner's.
 
-### Revision 9 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
+### Revision 9 and revision 10 changelogs
 
-Naming. Transition names are stable where the meaning holds. New names: B3, M3, Q1, E1, MG1 to MG6 and the unnamed rule S and the
-"Publication target" rule. Owner-question options are now A-keep, A-kill, B-hand and B-restart (they were A1, A2, B1 and B2) so that no
-option can be read as the transitions B1 and B2; C-class and H and M are new questions with their own letters. The models below use F1
-to F9 of the verification plan; "new" is a model to add. Each schedule goes red under revision 8 and green under revision 9.
-- L7 and L6 (R8-1; model F3). Schedule: the restarter samples a quiet owner with no person's program, the owner then dispatches a
-  `reference-transaction` hook, the restarter ends the owner. Red under 8 (restart without the gate ends a hook); green under 9 (L7
-  needs the exclusive gate, so it aborts while the hook holds the shared gate). Also L7 step (5): an owner that ignores the terminate
-  signal; red under 8 (survives), green under 9 (pidfd SIGKILL). Option B-restart is withdrawn in favour of B-hand.
-- Named entities, L4 (R8-2 and the L4 model finding; model new "two lanes, one repairer" and F6). Schedule: lane X appends to a shared
-  ledger while lane Y repairs the torn tail. Red under 8 (Y truncates X's append in progress); green under 9 (one ledger per lane,
-  repair of the own ledger only). Schedule for F6: kill L4 after it released one mutation and before the generation was even; red under
-  8 (even generation shows half a mutation); green under 9 (odd first).
-- C2, C3, C4 (R8-3 and the F7 model finding; model F7 and new "visible but not durable"). Schedules: two writers, same identity, same
-  content; resend after adoption and after retirement; a resend that reads a record visible in `inbox/` that power loss then removes.
-  Red under 8 (a shared candidate directory is written by two writers; an answer from a non-durable record); green under 9 (private
-  candidate directories, routing by identity state, the C4 fsyncs redone before the answer).
-- Rule S, C0, C1, C5, P1, M1 marker (R8-4; model F6 extended). Schedule: the reviewer's `x=0`, `x=1`, `x=2` with a logical-head and
-  consumption-map mutation between two reads; a dead odd generation with no owner; a branch that keeps moving during capture. Red under
-  8 (mixed state; capture invalid for ever; starvation); green under 9 (one atomic document, C0 recovery route, tip not re-read).
-- X1 (R8-5; models F4 and F3). Schedule: a stalled `update-ref`, a `reference-transaction` hook installed after classification and
-  before Git's dispatch. Red under 8 (a spawn-time classification calls it unprotected and cancels it, ending the hook); green under 9
-  (classified by command kind, `update-ref` exempt). The shipped-lock input (S-1, S-2) is a stated dependency; no transition removes a lock.
-- M2, M3 (new), B3 (new), C1 (R8-6; models F9, F6 and new "superseded version"). Schedules: the foreign-successor schedule followed by a
-  plain commit of `y` (red under 8: `x=A` returns as staging; green under 9: suppression holds); a held version superseded by an
-  amendment whose hook completes later (red under 8: no terminal outcome, entries and spool undefined; green under 9: `superseded` in the
-  ledger, entries re-keyed).
-- T1 and G1 (R8-7; model F8 extended). Schedule: T1 observes no open run, G1 publishes a reservation, G2 starts a prune, T1 releases.
-  Red under 8 (scope-based predicate; no boundary); green under 9 (G3 terminal predicate, release intent, reachability: a closure released by
-  T1 is reachable from the tip, so the late prune cannot take it).
-- L2, L3 (fresh lane), B1 (`ready`, `hook-ok`), B2 (success without a second hook), P2 (wording), P4 (one foreground try), Q1 (new), E1
-  (new), M1 (crash recovery by journaled identity, per-path outcomes), Publication target (new), Client result (new), MG1 to MG6 (new)
-  (R8-8; models new "M1 crash boundaries" and "merge refusal"). Schedules: kill M1 at each of the six boundaries including after the rename and
-  before the release (red under 8: a stranded `index.lock` or an unreleased entry; green under 9: identity-based L4); a merge whose
-  hook refuses after the checkout while an editor saves a merged file (red under 8: no restoration; green under 9: MG6); a lost swap after a
-  checkout (green under 9: MG5); a held hook that succeeds and the tip moves (red under 8: held, success, replay, held; green: `hook-ok`).
-- R4 (model finding on F1). Schedule: the post-anchor reflog lines erased after a `swap-failed`. Red under 8 (silent replay); green under 9
-  (R4 requires an intact reflog, otherwise class R5, which lands with a notice). Revision 10 note (R9-7): this closure is withdrawn; there is no
-  observable intact-reflog predicate, and absence of evidence is class R5.
-
-### Revision 10 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
-
-Naming. Transition names are stable where the meaning holds: C0, C1 to C5, L4, M1, M2, B1, B2, P1 to P4, E1, Q1, T1, X1, MG1 to MG6 keep their
-names with changed bodies. New names: rule D, rule N, M3 stays from revision 9, B3 is rewritten under its name, and the outcomes `conflicted`,
-`sign-pending`, `unrooted`, `superseded by`. Owner-question letters added: R, P, W, G (and M restated); the options are named so that none reads as a
-transition. Each schedule goes red under revision 9 and green under revision 10; a model marked "new" is added to step 1.
-- Rule S (R9-11; model F6 and new "revision counter versus marker"). Schedule: an even, marker-free state, one ordinary C5 replacement, a capture
-  that reads before and after. Red under 9 (`g` becomes odd with no marker, so the arithmetic contradicts itself); green under 10 (`g` counts
-  replacements, the marker alone says an effect is in progress). The performance bound: the document holds non-terminal work only (model new
-  "state document size independent of history").
-- C0 and L1 to L4 (R9-1; models F2 and new "recovery helper"). Schedule: client A finds a dead marker, recovers, releases the lock and stays alive,
-  service B acquires the lock and runs L2. Red under 9 (B ends A's scope); green under 10 (A starts a helper whose death ends its ownership; A is
-  never an owner and is never in the scope L2 ends). Also "journal open" is defined; a publication attempt with a hook that never returns does not make
-  C0 wait (model: disjoint acceptance during a hanging hook).
-- Rule D, C3, C4 (R9-2; models F7 and new "visible but not durable at every boundary", `NineFsyncOnExists` is the inbox instance). Schedule: A links the
-  binding and pauses before fsyncing `ids/<xx>/`; same-content resend B routes by it, completes C4 and answers; power fails. Red under 9 (the inbox
-  entry survives and the binding does not, so another lane can bind the identity again); green under 10 (B fsyncs the binding's directory, the
-  candidate and `incoming/` before answering).
-- Rule N, M1 (R9-3; models new "inode reuse after an unnamed file dies" and "recovery racing pathname replacement"). Schedule: M1 creates an unnamed
-  inode, the owner dies before linking, a foreign program creates `index.lock` and the filesystem reuses the inode number; or L4 compares, a cleaner
-  removes our lock, a foreign program creates a new one, L4 unlinks. Red under 9 (the foreign lock is removed as ours); green under 10 (no removal of
-  a shared name; the lock is reported). Rename-to-private (R9-S) is a control for the shipped branch (model new "namespace gap").
-- MG1 to MG6 (R9-4, R9-5; models new "merge with unrelated staging", "switch before merge resumes", "capture between checked-out and swap",
-  "restore without an editor", F5). Schedules: staged `y=1` while the merge changes `x` (red under 9: the whole-index install erases `y`; green: only
-  `P`'s entries are replaced); a completed `git switch` then the lock frees (red: the main merge lands in the topic worktree; green: the attachment
-  authority sends the merge to MG4 without a checkout); a capture after `checked-out` then a hook refusal (red: the capture holds the merge as
-  staging and republishes it; green: `M` is in the logical tail with the checkout in one replacement); a refusal with no editor (red: reverse three-way
-  can leave conflict markers; green: the pinned `N` is exchanged back and the bytes equal the pre-merge file).
-- T1 and C5 (R9-6; model F8 extended). Schedule: T1 steps 1 to 3 pass, a run is admitted and views while the branch is elsewhere, the branch returns,
-  T1 releases, the run deletes. Red under 9 (no root protects R); green under 10 (the hold root exists until step 6, so the earlier view includes
-  it). A control with the root absent (`unrooted`) must keep the spool.
-- Recovery classes R3 to R5 (R9-7; model F1 with new "erased suffix"). Schedule: the post-anchor entries removed so the log equals its anchor after a
-  `swap-failed`. Red under 9 (the model's `reflog_intact` boolean decides); green under 10 (no oracle: R5 with its notice, except a live-observed
-  `lock-held`).
-- E1 (R9-8; model new "refusal then foreign move"). Schedule: the hook refuses, a foreign writer advances the branch before E1, E1 runs. Red under 9
-  (`tip == old` fails, E1(d) calls crash recovery and the hook runs again); green under 10 (the class comes from the invocation's exit status and last
-  line before any state read). R1 and R2 give `published`; R3 gives `rewritten-away`.
-- B3 and T1-nocommit (R9-9; models new "held amendment adding and dropping paths", F9). Schedule: held `x=1`, amendment drops `x` and changes `y`.
-  Red under 9 (the entry for `x` stays and suppresses staged `x=1` for ever); green under 10 (paths in the old set and not the new release; paths in
-  the new set and not the old acquire). Identity routing: the amendment is a fresh identity; a resend of the superseded identity answers
-  "superseded by".
-- B1, Q1, P4, M1, publication target (R9-10; models new "every resume point", "hook-completion crash boundary", "conflict after acceptance",
-  "signer and filter outcomes", "detached materialization"). Schedules: kill after each recorded `resume` value (red: Q1 re-enters the wrong
-  transition for a checked-out merge; green: dispatch on `resume`); the hook finishes before `hook-ok` is durable and the owner dies (red: undefined;
-  green: result file honoured, otherwise re-run once with a notice); a detached `HEAD` after the wrapper's own successful update (red: declined by
-  comparing with the captured value; green: `new` or a descendant).
+Moved to `doc/planning/cli-git-commits-never-fail-review-history.md` (the step-1 models for them exist; the changelog of revision 11 stays here).
 
 ### Revision 11 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
 
@@ -1679,68 +1668,9 @@ The order stays: compute the merge commit (no index), materialize the worktree a
 Moved to `doc/planning/cli-git-commits-never-fail-review-history.md` (history only; the normative state machine governs,
 and a mechanism that file names as withdrawn stays withdrawn).
 
-## Answers to the ninth review
+## Answers to the ninth and tenth reviews
 
-Each finding of `~/temp/agent/reviews/commits-never-fail-sol-9.txt`, with a closure line (closed in the model means closed in the revision 10 state
-machine and owed an executable model in step 1; nothing is built). The verdict is accepted: continued model work and disposable backend experiments only.
-
-- R9-1 (P1), C0 unlocks: accepted. Recovery is a helper process whose own death ends its ownership; the client is never an owner; nothing unlocks
-  `lane/owner`. Closure: closed in the model; red control: C0 relinquishing while the client lives.
-- R9-2 (P1), unflushed binding: accepted. Rule D for every link-before-directory-fsync boundary, with the dependency chain of a request. Closure:
-  closed in the model; red control: the observation at each boundary, `NineFsyncOnExists` as the inbox instance.
-- R9-3 (P1), inode identity is not deletion authority: accepted. Linux has no conditional unlink by identity, so rule N removes only names no foreign
-  program creates, and M1 never removes `index.lock` (choice R). Closure: closed in the model for the lane; the shipped sweeper is separate.
-- R9-4 (P1), whole-index install and attachment: accepted. MG2 replaces only `P`'s entries in the index read under the lock and every merge mutation
-  has attachment authority (choices P and W). Closure: closed in the model; W leaves a stated micro-window.
-- R9-5 (P2), capture window and reverse carry: accepted. `M` enters the logical tail in the closing replacement of MG3; MG6 restores from pinned
-  pre-merge files and states the concurrent-edit residue. Revision 9's "never apart" is withdrawn. Closure: closed in the model.
-- R9-6 (P1), late maintenance: accepted. An object-store root until T1's last step (choice G). Closure: closed in the model for the stated residue (a
-  person rewriting the branch after the check); backend obligation: a prune view includes `refs/cli-git/*`.
-- R9-7 (P2), R4: accepted. R4 is only a live-observed held lock; the F1 closure is withdrawn in place. Closure: not claimed closed at the observation
-  level; the residue is stated as R5 with its notice.
-- R9-8 (P2), E1: accepted. E1 classifies from the invocation's own result before reading any state; R1 and R2 give `published`, R3 gives
-  `rewritten-away`. Closure: closed in the model; the diagnostic forms are a backend obligation.
-- R9-9 (P2), B3: accepted. Fresh identity per amendment, path-set replacement, `superseded by` lookup, T1-nocommit. Closure: closed in the model.
-- R9-10 (P2), execution gaps: accepted in full. `resume` points with Q1 dispatch, the hook result file and its stated crash exception to H-version,
-  `conflicted`, `refused`, `sign-pending`, detached materialization, and the definition of an open journal. Closure: closed in the model.
-- R9-11 (P3), generation arithmetic: accepted. The revision counter is separate from the marker.
-- Section 5: all fourteen controls and the "must not assume" list are in step 1, with two added (state size against history; counter versus marker).
-- Performance: the state document holds only non-terminal work and the unresolved suppressions, so a replacement is bounded by work in flight and not
-  by history; the gate is the measurement "commit cost flat against ledger length".
-- R9-S (production, handled separately): the design keeps X1 and states what it needs from the shipped rule (non-removal of ref locks until a primitive
-  that cannot revoke a replacement lock is shown; rename-to-private is not one).
-- Coordinator choices: C-kind accepted subject to the exact-invocation inventory (X1 text now says so); H-version accepted with the stated crash
-  exception and without claiming it judges every published tree; M-A kept and repaired; B-restart withdrawal accepted and the internal-wait limit of
-  B-hand stays stated.
-- Not a defect: none. One refinement: the review's "unnamed inode can die" is answered by removing the reliance, not by pinning it, because the pin
-  fixes inode reuse and leaves the pathname race.
-
-## Answers to the tenth review
-
-Each finding of `~/temp/agent/reviews/commits-never-fail-sol-10.txt`, with a closure line (closed in the model means closed in the revision 11 state machine and
-owed an executable model; nothing is built). The verdict is accepted: continued model work, pure components without reclamation, and disposable backend experiments only.
-
-- Owner rule and answers (not a review finding): "nothing should ever wait forever or indefinitely"; at a bound "Return with an error"; "No, keep it for a retry (Recommended)"; pushes "Bound it, keep retrying (Recommended)".
-  Applied as rule B, the register, W1 and W2, P2 in three steps, and the removal of every command-attached design that lands after the command returned.
-- R10-1 (P1), M1 inference: accepted. Recovery re-reads the index and re-evaluates the recorded plan; lock presence or absence and a journaled intent prove nothing. Closure: closed in the model.
-- R10-2 (P2), normal abort: accepted. A live creator releases its own lock by identity-checked unlink, with the premise stated; an abandoned lock is never removed. Closure: closed in the model; the premise is a modelled residue.
-- R10-3 (P1), W-detect and MG6: accepted. Authority to undo is separate from authority to do; the check is repeated at MG4 and at every lane event; MG6 has reasons and resume points. Closure: closed in the model
-  for the detected switch; the missed-check residue is stated and needs the owner's approval (choice W).
-- R10-4 (P1), the hold root: accepted. The root is demoted to extra protection and the proof is the order connectivity check then registry re-read; `unrooted` is removed; publication never depends on the root. Closure: closed in
-  the model for the stated residue; backend obligations: G1 durable before G2, no view before launch, deletion before `terminal`. Choice G is restated.
-- R10-5 (P2), helper wait: accepted. One non-blocking try; the client re-evaluates; the wait on a live owner is tied to the marker and ends at MARKER. Closure: closed in the model.
-- R10-6 (P2), candidate after retirement: accepted. The terminal route reads the ledger only; C5 applies rule D to the inbox record. Closure: closed in the model.
-- R10-7 (P2), terminal outcome lookup: accepted. T0 appends the `outcome` line before the request leaves `lane/state`; T1 appends `retired` later and separately. Closure: closed in the model.
-- R10-8 (P2), R4: accepted. R4 is withdrawn as a recovery class; after an owner's death a `swap-failed` is R5; the live retry is choice N (a concession to confirm). Closure: closed in the model for recovery; N is open.
-- R10-9 (P2), MG5 and resume: accepted. MG5 plans over the union of old and new paths with its own starting-state rule; the table has `MG4n`, `MG5`, `MG6`; the pending merge does not block the commit that resolves it. Closure: closed in the model.
-- R10-10 (P2), stderr provenance: accepted. Classification uses the report lines, Git's trace2 events and the exit status; standard-error text is shown and never parsed; an unclassifiable result withdraws a request that has a client.
-  Closure: closed in the model; backend obligation: those channels exist in the assumed shapes and descendants cannot alter them.
-- R10-11 (P2), hook reruns: accepted. The text says one new invocation per recovery episode; choice H2 offers a total bound. Closure: closed in the model; the runner lifecycle is a backend experiment.
-- R10-12 (P2), detached type check: accepted. `--no-deref` is never used; the update follows `HEAD` as a native commit does. Closure: closed in the model; backend obligation: the old-value check through `HEAD`.
-- R10-13 (P3), property and heading: accepted. L2 and L7 properties are separate; the heading says revision 11; "odd generation" narrative is updated or marked historical.
-- Assessment of the five picks: R-never stands (normal abort is now defined separately); P-wait and W-detect are re-opened as choices under the owner's rule; G-root is demoted to extra protection with G-order carried; M-A stands as an
-  ordering choice whose correctness now rests on MG5 and MG6 as repaired.
-- Not a defect: none of the thirteen findings was rejected. One refinement: the review's "a person can delete the root" is answered by removing the reliance on the root, not by contract or coordination.
+Moved to `doc/planning/cli-git-commits-never-fail-review-history.md` with the revision 9 and 10 changelogs.
 
 ## Exits that stay nonzero
 
