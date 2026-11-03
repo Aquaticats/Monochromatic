@@ -114,17 +114,37 @@ commit `c7b46ae`).
    true unless `saveSpec` is false (`--no-save`).
   The project manifest keeps `catalog:`;
   the catalog file gets the range.
-- Every locked entry is verified on a frozen install,
-  and there is no `verify` command:
-  `pnpm11/installing/deps-installer/src/install/mutateModules.ts:314-343` (`startLockfileVerification`) re-validates every entry of
-   the lockfile against the resolver policies on install,
+- A frozen install verifies per `trustLockfile`,
+  and there is no `verify` command (correction of the first reading,
+  which verified
+   every locked entry and contradicted the owner's decision of 2026-10-29 in `doc/decision/rust-dependency-catalog.md`:
+  "the CI
+   check covers only registry versions that no `Cargo.lock` held at a base revision ... the counterpart of pnpm's
+   `trustLockfile: true`").
+  pnpm:
+  `pnpm11/installing/deps-installer/src/install/mutateModules.ts:314-343` (`startLockfileVerification`) re-validates every entry
+   of the lockfile against the resolver policies on install,
   skipped only when `opts.trustLockfile` is set;
-   `verifyLockfileResolutionsCache.ts` caches a passing lockfile by hash.
-  `pnpm11/installing/deps-installer/test/install/trustLockfile.ts:21-52` shows both:
-  a frozen install rejects a lockfile a verifier
-   refuses,
-  and `trustLockfile: true` skips it.
-  The default of `trustLockfile` is false (`pnpm11/workspace/state/src/validation.ts:428`).
+   `verifyLockfileResolutionsCache.ts` caches a passing lockfile by hash;
+  `pnpm11/workspace/state/src/validation.ts:428` has
+   `trustLockfile: false` as the default;
+  `pnpm11/installing/deps-installer/test/install/trustLockfile.ts:21-52` shows a frozen
+   install rejecting a refused entry and `trustLockfile: true` skipping it.
+  Here `trustLockfile` is a catalog setting (`package/dependency-catalog/core-native`,
+  0.2.0,
+  and the TypeScript reader
+   `core-rust`),
+  true in `rust-catalog.toml`.
+  True:
+  only versions new since the base revision (`CARGO_SHADOW_TRUST_BASE`,
+  `HEAD` by default;
+  CI sets the pushed range's previous
+   commit or the pull request's base),
+  checked for trust.
+  False:
+  every locked entry,
+  remembered by lockfile digest.
+  A non-frozen install and `cargo update` check what they newly resolve in both cases.
 - The bin name stays `cargo-shadow`,
   matching `pnpm-shadow` and `mpm-shadow`;
   cargo also runs it as `cargo shadow`.

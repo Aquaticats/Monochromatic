@@ -359,14 +359,33 @@ frozen or not,
 and remembers a passing lockfile by its hash
  (`pnpm11/installing/deps-installer/src/install/mutateModules.ts:314-343`,
 `verifyLockfileResolutionsCache.ts`;
-[pnpm dependency resolution settings][pnpm-resolution]).
-`cargo-shadow install --frozen-lockfile` does the same:
-after the stale check it verifies every registry version of every lockfile,
- and remembers a passing lockfile under `.cache/cargo-shadow/verified/` by a SHA-256 of its text and the policy settings.
-The crates.io histories for that come from the database dump when more than a hundred crates are uncached (one streaming pass),
+ [pnpm dependency resolution settings][pnpm-resolution]).
+`cargo-shadow install --frozen-lockfile` follows both settings of `trustLockfile`,
+which `rust-catalog.toml` carries with pnpm's name (default false):
+
+- `trustLockfile = true`,
+  the repository's setting by the owner's decision of 2026-10-29 (`doc/decision/rust-dependency-catalog.md`:
+  the owner never accepts pull requests that change a lockfile,
+  so committed lockfiles are part of the trusted base):
+  only the registry versions that no `Cargo.lock` held at the base revision are checked,
+  for trust.
+  The base is the environment variable `CARGO_SHADOW_TRUST_BASE`:
+  CI sets the pushed range's previous commit or the pull request's base,
+  and without it the base is `HEAD`,
+  so a developer's uncommitted lockfile changes are the ones checked.
+  A lockfile that did not exist at the base counts as new in full.
+  This is the base check the former `rust:verify --base` made,
+  now inside the frozen install.
+- `trustLockfile = false`,
+  pnpm's default:
+  every registry version of every lockfile is verified against the release age and the trust policy,
+  and a lockfile that passed is remembered under `.cache/cargo-shadow/verified/` by a SHA-256 of its text and the policy settings.
+
+A non-frozen install and `cargo update` check every version they newly resolve while choosing it,
+whatever `trustLockfile` says,
+as pnpm's resolver does.
+The crates.io histories come from the database dump when more than a hundred crates are uncached (one streaming pass),
 and from the API otherwise.
-There is no `trustLockfile` setting here,
-because the catalog's settings library has no such key.
 After a floor raise the order is the pnpm one:
 edit the catalog (`cargo-shadow update` and `mise run catalog:tighten`),
  render the manifests (`mise run sync:files`),
