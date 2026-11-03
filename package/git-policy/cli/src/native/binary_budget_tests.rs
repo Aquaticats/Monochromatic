@@ -168,7 +168,7 @@ const WARM: Budget = Budget {
         ("maintenance run", 0),
         ("multi-pack-index write", 0),
         ("pack-objects", 0),
-        ("read-tree", 1),
+        ("read-tree", 0),
         ("remote", 0),
         ("repack", 0),
         ("reset", 0),
