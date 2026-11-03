@@ -229,11 +229,10 @@ VHI:
 
 PX1:
  Take authorized steps unasked,
- including recovery.
-While verification runs,
- advance independent queued work without changing its inputs.
-Don't poll;
- stop only at completion or a genuine blocker.
+ including recovery and missing reproductions/checks.
+While verifying,
+ advance independent work without changing inputs.
+Stop only at completion or an external blocker.
 
 MWK:
  Monitors,
@@ -491,16 +490,14 @@ Suppressions with rationale are healthy;
 ### Before claiming inability
 
 CB1:
- Before refusing or handing off,
- bridge:
- shell utils;
- web via `agent-browser`;
- GUI via nested compositor,
- HTTP/IPC;
- auth via `expect`/tokens;
- hardware via CLI.
-Refuse only after;
- state bridges tried.
+ Before handing off,
+ try shell,
+ `agent-browser`,
+ nested GUI,
+ HTTP/IPC,
+ auth and hardware CLI bridges.
+A failed tool is not a failed capability;
+ report each attempted bridge and its exact failure.
 
 RXH:
  Research:
