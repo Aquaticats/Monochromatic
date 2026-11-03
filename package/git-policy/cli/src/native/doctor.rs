@@ -11,6 +11,8 @@
 //!  A hook file that is byte for byte the shim `git lfs` writes for its own name is expected and harmless, because the
 //!  wrapper does the Git LFS upload itself and starts Git with traditional hooks off; it is explained apart from the
 //!  other hooks and does not make the exit status 1.
+//!  It also says on standard error whether Git's own fsmonitor is off (one line) or which file and scope turn it on
+//!  (a finding with the command); that never changes the exit status (`doctor_fsmonitor.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
