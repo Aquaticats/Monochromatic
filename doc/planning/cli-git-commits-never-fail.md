@@ -2130,6 +2130,8 @@ P. A merge that touches a path the person has staged (restated in revision 11 un
    - Ranking: P-carry > P-refuse > P-wait. P-carry beats P-refuse because it is the only option that neither fails nor waits, at the price of reshaping
      staging without loss; P-refuse beats P-wait because it reaches the same end without the wait the owner wants gone. The coordinator picked P-wait
      before the bound rule; the machine keeps P-wait as written in MG1 until the pick is re-made.
+   - Earlier pick (coordinator, 2026-11-03, before the bound rule, veto open): P-wait, because of "never discard user data"; the wait was on a decision only the
+     person can make, and Git itself refuses this merge. Re-opened by the bound rule.
 W. The attachment concession for merge file writes (restated in revision 11; for the coordinator to pick).
    Case: `git switch topic` finishes its index write and has not yet updated `HEAD` (`builtin/checkout.c:927` commits the index, `:1261` updates the refs
    after); the lane's merge for `main` takes `index.lock` in that instant, reads `HEAD` as `main` and installs files; or the switch resumes after
@@ -2143,6 +2145,25 @@ W. The attachment concession for merge file writes (restated in revision 11; for
      error exit under the bound answers.
    - Ranking: W-detect > W-stop. W-detect beats W-stop because it completes the merge as the owner asked and loses nothing, while W-stop returns the work to the
      person; the residue of W-detect is why this is an approval question and not a technical one.
+   - Earlier pick (coordinator, 2026-11-03, before the tenth review, veto open): W-detect, because of "Auto merging should never fail." The tenth review does not
+     approve W-detect as specified in revision 10; revision 11 repairs it and the residue above needs the owner's explicit approval.
+G. Retention against late maintenance (restated in revision 11; for the coordinator to pick).
+   Case: T1 sees no open maintenance run; a run is admitted and takes its reachability view while the branch is temporarily elsewhere; the branch moves
+   back; T1 releases the recovery copy; the run deletes by its earlier view. The tenth review showed that a hold root created at adoption does not cover
+   later builds, that a root can be deleted by a person, and that a mixed-time view is possible, so a root cannot be the proof.
+   - Option G-order, T1 re-reads the maintenance registry after the connectivity check and before any release; the hold ref stays as extra protection. Pros: no
+     wrapper-owned ref is load-bearing, no deletion contract, no reliance on how a prune reads refs; the proof is an order of two durable facts. Cons: a
+     retirement can be deferred for as long as a run is open (disk, not a wait); the residue (a person rewriting the branch after the check) remains.
+   - Option G-root, keep the root as the invariant and maintain it through every build, replay and retarget, with a contract that deleting a recovery ref
+     revokes the guarantee. Pros: protects a view taken at any time while the root exists. Cons: the invariant must be maintained at every transition and
+     a person's deletion is undetectable after the fact; a root that cannot be written constrains retirement; it relies on a verified prune behaviour.
+   - Option G-handshake, G1 reads release intents after its reservation and defers on an intent whose lane has a live owner. Pros: no reliance on refs.
+     Cons: a maintenance run waits on a live lane, which the owner's bound rule makes a registered wait with an error at the bound, and a wedged owner blocks a
+     person's `git gc`.
+   - Ranking: G-order > G-root > G-handshake. G-order beats G-root because it needs no invariant over wrapper-owned refs and no contract with the
+     person; G-root beats G-handshake because it adds no wait to maintenance.
+   - Earlier pick (coordinator, 2026-11-03, before the tenth review, veto open): G-root, because of "You should (almost) never be waiting."; the machine now
+     carries G-order with the root as extra protection, and the pick is for the coordinator to re-make.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
