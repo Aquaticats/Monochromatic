@@ -360,3 +360,54 @@ fn a_command_that_finishes_at_once_prints_nothing() {
     assert!(output.status.success());
     assert_eq!(sink.text(), "");
 }
+
+/// The quiet window of the controls below: past the sampling interval of the meter, so a child that works shows its work
+///  at a sample before the window runs out.
+const WORKING_WINDOW: Duration = Duration::from_millis(1200);
+
+/// How often the working fixture shows a sign of work: well inside the window.
+const WORKING_PAUSE_SECONDS: &str = "0.2";
+
+/// How many times the working fixture works, so that it runs for a multiple of the window.
+const WORKING_ROUNDS: u32 = 15;
+
+/// A shell command that writes a byte and pauses, `WORKING_ROUNDS` times: a slow child that keeps making progress, with no busy loop.
+fn working_command() -> Command {
+    let mut command: Command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg(format!("n=0; while [ $n -lt {WORKING_ROUNDS} ]; do printf x; sleep {WORKING_PAUSE_SECONDS}; n=$((n + 1)); done"))
+        .stdin(Stdio::null());
+    return command;
+}
+
+/// A child that keeps making progress is never ended however long it runs: the window judges quiet time, not wall time.
+///  The fixture runs for a multiple of the window and shows a sign of work every pause.
+#[test]
+fn a_child_that_keeps_working_is_never_ended_however_long_it_runs() {
+    let sink: SharedSink = SharedSink::default();
+    let started: Instant = Instant::now();
+    let output: Output = output_watched(&mut working_command(), "a working step", terms(WORKING_WINDOW, &sink))
+        .expect("a step that keeps working is never ended");
+    assert!(started.elapsed() > WORKING_WINDOW * 2, "the fixture ran only {:?}", started.elapsed());
+    assert_eq!(output.stdout.len(), usize::try_from(WORKING_ROUNDS).expect("rounds fit"));
+    assert!(output.status.success());
+}
+
+/// A silent child is ended once it has shown no sign of work for the window, and the processes beside it are left alone:
+///  the stop reaches the child and what it started, never a sibling.
+#[test]
+fn a_silent_child_is_ended_after_the_quiet_window_and_a_sibling_is_left_alone() {
+    let sink: SharedSink = SharedSink::default();
+    let mut sibling: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("31").stdin(Stdio::null())).expect("sibling");
+    let mut command: Command = Command::new("sleep");
+    command.arg("30").stdin(Stdio::null());
+    let failure: std::io::Error = output_watched(&mut command, "a silent step", terms(WORKING_WINDOW, &sink))
+        .expect_err("a silent step is ended");
+    let sibling_ended: bool = sibling.try_wait().expect("look at the sibling").is_some();
+    sibling.kill().expect("kill the sibling");
+    sibling.wait().expect("collect the sibling");
+    assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
+    assert!(failure.to_string().contains("showed no sign of work for 1 seconds"), "{failure}");
+    assert!(!sibling_ended, "the stop reached a process beside the step");
+}

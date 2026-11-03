@@ -285,3 +285,31 @@ fn the_linked_linter_meets_the_contract() {
     );
     remove(root.as_path());
 }
+
+/// The quiet window of the control below: longer than the sampling interval of the progress meter.
+const WORKING_WINDOW: Duration = Duration::from_millis(1200);
+
+/// How many times the working fix writes a file, a pause after each: a multiple of the window in all.
+const WORKING_ROUNDS: u32 = 15;
+
+/// A fix that keeps working (it writes a file a round, with a pause between) and then answers, with no busy loop.
+fn works_then_answers(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+    let scratch: PathBuf = request.top_level.join("linter-progress");
+    for round in 0..WORKING_ROUNDS {
+        std::fs::write(&scratch, round.to_string()).expect("the fixture writes its progress");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    return echoes(request);
+}
+
+/// A linter that keeps making progress is never abandoned however long it runs: the window judges quiet time, not wall time.
+#[test]
+fn a_linter_that_keeps_working_is_never_abandoned_however_long_it_runs() {
+    let root: PathBuf = fixture("linter-working");
+    let mut linter: EmbeddedLinter = embedded_linter_with(works_then_answers, WORKING_WINDOW);
+    let started: std::time::Instant = std::time::Instant::now();
+    let run: Result<LintRun, String> = lint(&mut linter, root.as_path(), b"a.md", b"a\n");
+    assert!(run.is_ok(), "{run:?}");
+    assert!(started.elapsed() > WORKING_WINDOW * 2, "the fixture ran only {:?}", started.elapsed());
+    remove(root.as_path());
+}

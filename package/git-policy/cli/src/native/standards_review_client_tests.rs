@@ -102,3 +102,19 @@ fn an_unreadable_authority_is_refused() {
     bad.trusted_pem = Some(b"not a certificate");
     assert!(post_decision(&bad, "{}").expect_err("authority").starts_with("the trusted authority is unreadable"));
 }
+
+/// A reply that keeps arriving is never cut off however long it takes: the window judges quiet time, not wall time.
+///  The mock sends one byte a pause for a multiple of the window, so it is never silent for the window.
+#[test]
+fn a_reply_that_keeps_arriving_is_never_cut_off() {
+    let window: Duration = Duration::from_millis(1200);
+    let pause: Duration = Duration::from_millis(200);
+    let bytes: usize = 15;
+    let mock: Mock = Mock::start(Answer::Trickle { bytes, pause });
+    let url: String = mock.url.clone();
+    let started: Instant = Instant::now();
+    let reply: Reply = post_decision(&gateway(url.as_str(), window), "{}").expect("a reply that keeps arriving is read whole");
+    assert_eq!(reply.body.len(), bytes);
+    assert!(started.elapsed() > window * 2, "the reply took only {:?}", started.elapsed());
+    mock.finish();
+}

@@ -143,3 +143,22 @@ fn a_program_that_cannot_start_is_a_start_failure() {
     .expect_err("no such program");
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");
 }
+
+/// A query that keeps writing is never stopped however long it runs: the window judges quiet time, not wall time.
+///  The fixture writes a line every pause for a multiple of the window, with no busy loop.
+#[cfg(unix)]
+#[test]
+fn a_query_that_keeps_working_is_never_stopped_however_long_it_runs() {
+    let window: Duration = Duration::from_millis(1200);
+    let started = std::time::Instant::now();
+    let output: QueryOutput = run_bounded_query(
+        shell("n=0; while [ $n -lt 15 ]; do echo line; sleep 0.2; n=$((n + 1)); done"),
+        "log",
+        window,
+        Duration::from_secs(5),
+        scratch_environment().as_slice(),
+    )
+    .expect("a query that keeps working is never stopped");
+    assert_eq!(output.code, Some(0));
+    assert!(started.elapsed() > window * 2, "the fixture ran only {:?}", started.elapsed());
+}

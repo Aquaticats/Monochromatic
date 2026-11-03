@@ -106,3 +106,24 @@ fn a_failure_text_drops_wait_notices() {
     let text: String = tail_of(b"Blocking waiting for file lock on package cache\nerror: the real reason\n");
     assert_eq!(text, "error: the real reason");
 }
+
+/// The quiet window of the control below: longer than the sampling interval of the progress meter.
+const WORKING_WINDOW: Duration = Duration::from_millis(1200);
+
+/// A tool that keeps printing is never stopped however long it runs: the limit judges quiet time, not wall time.
+///  The fixture prints a line every pause for a multiple of the window, with no busy loop.
+#[test]
+fn a_program_that_keeps_working_is_never_stopped_however_long_it_runs() {
+    let root: PathBuf = fixture("runs-working");
+    let program: PathBuf = root.join("tool");
+    let rounds: u32 = 15;
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\nn=0\nwhile [ $n -lt {rounds} ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n").as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let run: ToolRun = run_tool(program.as_path(), &command, WORKING_WINDOW);
+    assert_eq!(run.end, ToolEnd::Succeeded);
+    assert!(run.millis > WORKING_WINDOW.as_millis() * 2, "the fixture ran only {} ms", run.millis);
+    remove(&root);
+}
