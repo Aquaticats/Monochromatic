@@ -281,6 +281,10 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             mark_complete(claim);
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
             let _written = out.write_all(line.as_bytes());
+            // A snapshot of the main checkout prints no copy summary, so it says what it did, on standard error; `--quiet` stays silent.
+            if source.git_dir == source.common_dir && !plan.quiet {
+                let _noted = std::io::stderr().write_all(super::worktree_trash::MAIN_SNAPSHOT_NOTE.as_bytes());
+            }
             LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()) }
         }
         Err(ended) if ended.stage_is_ours => {

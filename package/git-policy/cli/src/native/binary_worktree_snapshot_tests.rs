@@ -109,7 +109,11 @@ fn a_clean_main_checkout_is_snapshotted_and_equals_gits_own_checkout() {
     let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "-b", "topic", "../topic"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "-b", "control", "../control"]);
-    assert_eq!(stderr_of(&created).replace("topic", "NAME"), stderr_of(&control).replace("control", "NAME"));
+    // Git's own words, then the one line that says a snapshot of the main checkout made the worktree.
+    let wrapped: String = stderr_of(&created).replace("topic", "NAME");
+    let git_words: String = stderr_of(&control).replace("control", "NAME");
+    assert!(wrapped.starts_with(git_words.as_str()), "Git's own words come first: {wrapped}");
+    assert_eq!(&wrapped[git_words.len()..], git_policy_cli::worktree_trash::MAIN_SNAPSHOT_NOTE, "{wrapped}");
     assert_eq!(String::from_utf8_lossy(&created.stdout), String::from_utf8_lossy(&control.stdout), "Git's checkout line");
     let topic: PathBuf = fixture.root.join("topic");
     assert!(is_subvolume_root(topic.as_path()).expect("probe"));
@@ -327,6 +331,7 @@ fn a_snapshot_of_main_sets_aside_what_the_rule_leaves_out() {
     git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "ordinary", ".claude/worktrees/ordinary"]);
     let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    assert!(created.stderr.is_empty(), "--quiet stays silent: {}", stderr_of(&created));
     let topic: PathBuf = fixture.root.join("topic");
     assert!(is_subvolume_root(topic.as_path()).expect("probe"));
     assert_eq!(std::fs::read(topic.join("node_modules/pkg/index.js")).expect("dependency"), b"module\n");

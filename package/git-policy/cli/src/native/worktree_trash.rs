@@ -38,6 +38,10 @@ const TAG: &str = "worktreeTrash";
 /// It sits below `.claude/`, which the repository ignores, so a trash that has not been emptied yet is no untracked file.
 pub const TRASH_PARENT: &str = ".claude/cli-git-trash";
 
+/// The line a snapshot of the main checkout adds to what Git prints, unless `--quiet` was given.
+/// Why: a snapshot carries the whole ignored state itself, so no copy summary appears; this says what happened instead.
+pub const MAIN_SNAPSHOT_NOTE: &str = "cli-git: made the worktree as a snapshot of the main checkout; nested worktrees, caches and run records were left out.\n";
+
 /// The reference every trash work item carries; the service accepts only a reference under `refs/`.
 const TRASH_REFERENCE: &str = "refs/cli-git/trash";
 
