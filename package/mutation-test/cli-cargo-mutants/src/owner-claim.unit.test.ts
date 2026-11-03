@@ -21,16 +21,20 @@ import {
 import { CargoMutantsToolingError } from './error.ts';
 import {
   ageOutlivesPatience,
+  foreignOwnerPatienceMs,
+  noLiveOwner,
+} from './claim-liveness.ts';
+import {
   claimPath,
   decodeClaimRecord,
   encodeClaimRecord,
-  foreignOwnerPatienceMs,
   listGenerations,
-  liveOwnerOf,
-  noLiveOwner,
   notAClaim,
+} from './claim-record.ts';
+import {
   type BusyOwner,
   type ClaimOutcome,
+  liveOwnerOf,
   type OwnerClaim,
   takeClaim,
 } from './owner-claim.ts';
@@ -296,7 +300,7 @@ await describe({
           name: 'reads only the numbered files of its own series as generations',
           fn: async () => {
             await using directory = await scratchDirectory('claim-names-');
-            for (const name of ['item.owner', 'item.owner.', 'item.owner.x', 'item.owner.1.x', 'item.owner.-1', 'other.owner.9', 'xitem.owner.5'])
+            await Promise.all(['item.owner', 'item.owner.', 'item.owner.x', 'item.owner.1.x', 'item.owner.-1', 'other.owner.9', 'xitem.owner.5'].map(async function plantUnrelated(name) {
               await writeFile(
                 join(
                   directory.path,
@@ -304,6 +308,7 @@ await describe({
                 ),
                 'unrelated',
               );
+            }));
             expect(held(await takeClaim({
               directory: directory.path,
               prefix,
@@ -436,7 +441,7 @@ await describe({
               birth: noSuchBirth,
               namespace: 'pid:[not-this-namespace]',
             });
-            const almost = new Date(Date.now() - foreignOwnerPatienceMs + 60_000);
+            const almost = new Date((Date.now() - foreignOwnerPatienceMs) + 60_000);
             await utimes(
               path,
               almost,
@@ -542,7 +547,9 @@ await describe({
                 namespace: 'pid:[1]',
               },
             ])
-              expect(decodeClaimRecord(encodeClaimRecord(record))).toEqual(record);
+              expect(
+                decodeClaimRecord(encodeClaimRecord(record)),
+              ).toEqual(record);
           },
         }),
         ...[
@@ -551,11 +558,13 @@ await describe({
           ['a process id of zero', 'cargo-mutants owner-claim v1\npid=0\nbirth=x\nnamespace=-\n'],
           ['an empty birth', 'cargo-mutants owner-claim v1\npid=1\nbirth=\nnamespace=-\n'],
           ['a missing namespace line', 'cargo-mutants owner-claim v1\npid=1\nbirth=x\n'],
-        ].map(function notAClaim([name, text]) {
+        ].map(function rejectedText([name, text]) {
           return it({
             name: `reads ${String(name)} as no claim`,
             fn: async () => {
-              expect(decodeClaimRecord(String(text))).toBe(notAClaim);
+              expect(
+                decodeClaimRecord(String(text)),
+              ).toBe(notAClaim);
             },
           });
         }),

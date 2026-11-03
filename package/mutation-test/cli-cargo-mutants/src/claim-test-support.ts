@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import {
   claimPath,
   encodeClaimRecord,
-} from './owner-claim.ts';
+} from './claim-record.ts';
 
 /**
  Longest a holder child lives when a test forgets to kill it, in milliseconds.
@@ -143,7 +143,7 @@ export type Child = AsyncDisposable & {
   /**
    Kill the child with `SIGKILL` and wait until it has ended and been reaped.
    */
-  kill(): Promise<void>;
+  readonly kill: () => Promise<void>;
 };
 
 /**
