@@ -64,11 +64,16 @@ terminal-exec [options] [--] [command [args...]]
 
 ### Options
 
-- `--app-id=VALUE`: set the terminal window app ID / class
-- `--title=VALUE`: set the terminal window title
-- `--dir=VALUE`: set the working directory
-- `--hold`: keep the terminal open after the command finishes
-- `--` or `-e`: delimiter between options and the command
+- `--app-id=VALUE`:
+  set the terminal window app ID / class
+- `--title=VALUE`:
+  set the terminal window title
+- `--dir=VALUE`:
+  set the working directory
+- `--hold`:
+  keep the terminal open after the command finishes
+- `--` or `-e`:
+  delimiter between options and the command
 
 ### Examples
 

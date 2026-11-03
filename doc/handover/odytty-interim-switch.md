@@ -3,7 +3,10 @@
 ## Authorized scope
 
 On 2026-11-02 the user requested:
-"Ghostty is currently bad. For the meantime we want to use Odytty. Do all the changes needed. Ask me whenever unsure."
+"Ghostty is currently bad.
+For the meantime we want to use Odytty.
+Do all the changes needed.
+Ask me whenever unsure."
 The user subsequently chose to retain existing OdyTTY settings and also change the development VM image.
 
 This is implementation of the user's terminal choice,
@@ -55,7 +58,8 @@ it now names `package/config/dotfiles/` so the new seeds reach the image.
 An `image:build` task builds only the OS image,
 without converting disks or replacing a libvirt VM.
 Its first run is in progress;
-log: `${HOME}/temp/agent/odytty-switch-20261102/image-build.log`.
+log:
+`${HOME}/temp/agent/odytty-switch-20261102/image-build.log`.
 
 ## Initial inventory
 
