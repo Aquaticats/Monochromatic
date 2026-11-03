@@ -240,7 +240,13 @@ fn assert_snapshotted_without_changes(fixture: &Fixture, repo: &Path) {
     let text: String = stderr_of(&created);
     assert!(!text.contains(SLOW_MARK), "no slow-route line: {text}");
     assert!(!text.contains("could not list"), "{text}");
-    assert_equals_gits_checkout(fixture, &created, fixture.root.join("topic").as_path(), fixture.root.join("control").as_path(), repo);
+    let (topic, control): (PathBuf, PathBuf) = (fixture.root.join("topic"), fixture.root.join("control"));
+    assert_eq!(created.code, Some(0), "{text}");
+    assert_eq!(tracked_content(fixture, topic.as_path()), tracked_content(fixture, control.as_path()), "tracked files equal Git's checkout");
+    assert_eq!(git(fixture, topic.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]).stdout, b"", "clean on the first status");
+    assert_eq!(git(fixture, topic.as_path(), &["write-tree"]).stdout, git(fixture, control.as_path(), &["write-tree"]).stdout, "the same tree in the index");
+    assert!(carries_ignored_state(topic.as_path()), "a snapshot served the command: {text}");
+    assert_eq!(std::fs::read(topic.join("ignored/pkg/index.js")).expect("ignored state carried"), b"module.exports = 1;\n");
     assert!(text.contains(git_policy_cli::worktree_trash::MAIN_SNAPSHOT_NOTE), "{text}");
     assert!(!says_changes_were_left_out(text.as_str()), "there were no changes to leave out: {text}");
     assert_eq!(state_of(repo), before, "the main checkout is untouched");

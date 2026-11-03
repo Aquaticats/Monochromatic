@@ -533,6 +533,10 @@ Snapshot of a main checkout with uncommitted changes:
 a main checkout whose only trouble is an ordinary change (a staged change, an edited, deleted, renamed or mode-changed
 tracked file, an untracked file that no ignore rule covers, a tracked file the stat data cannot vouch for) is snapshotted
 all the same, and the new worktree is restored to what `git worktree add` makes from a clean checkout.
+Git's status listing nothing is an answer, not a failure: a main checkout whose index was written in the same second as its
+files (a merge, a pull or a landed commit just did that) or whose tracked file was touched without a change is snapshotted
+and restored like any other, and says nothing about left-out changes because there are none.
+Only a status run that ends with a nonzero exit code or cannot start refuses, and the line names the run, its exit code and what Git said.
 Every other refusal stays: an operation in progress or a held `index.lock`; any unmerged, intent-to-add, skip-worktree or
 assume-unchanged entry, or a submodule, found anywhere in the index (not only at the first refusal); a `.gitattributes`
 file among the changes or untracked anywhere; a sparse checkout; a source that is a linked worktree, whose index lies outside
@@ -640,8 +644,10 @@ lists, and the first of them, with control characters shown as `?`; the remedy i
 a running Git command in the source (its `index.lock` exists; the remedy is to add again when it has finished);
 an unfinished operation (a merge, cherry-pick, revert, bisect or rebase mark exists; the remedy is to finish or abort it);
 an index entry no reset can undo (skip-worktree, assume-unchanged, intent-to-add, unmerged or a submodule);
-an index that cannot yet vouch for its files although Git lists no change (a file as new as the index, or a size, time or
-inode that differs; the remedy is `git status` once);
+an index that cannot yet vouch for its files although Git lists no change, in a source that is not restored by a snapshot
+(a file as new as the index, or a size, time or inode that differs; the remedy is `git status` once);
+a Git status that failed (the run, its exit code and what Git said; the remedies are to run `git -C <source> status`
+and fix what it names, or to wait for a Git command that is running there);
 a btrfs source that is no subvolume (the remedy is `git cli-git migrate-to-subvolume` for the main checkout and
 `git cli-git convert-worktree-to-subvolume` for a linked worktree);
 a destination on another btrfs filesystem than the source;
@@ -652,7 +658,7 @@ A source or destination that is not on btrfs gets no line, because nothing the p
 A failed add gets no line either; Git's refusal is the thing to read.
 The same words go to the journal as one entry of priority `warning` under the `SYSLOG_IDENTIFIER` `cli-git`, with the
 fields `CLI_GIT_WORKTREE` (the destination), `CLI_GIT_SLOW_CAUSE` (`uncommitted-changes`, `git-running`,
-`operation-unfinished`, `not-restorable`, `stale-index`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
+`operation-unfinished`, `not-restorable`, `stale-index`, `status-failed`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
 and `CLI_GIT_SLOW_DETAIL` (the check's reason as the debug log prints it), also under `--quiet`.
 The entry is one datagram on the journal's native socket, sent without waiting; a journal that is absent or full costs the
 command nothing, and `journalctl --identifier=cli-git` lists the entries.

@@ -31,7 +31,7 @@ use super::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirt
 use super::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
 use super::worktree_slow_route::{SlowRoute, explain_failure};
 use super::worktree_snapshot::{PlaceError, put_in_place, settle_displaced, take_snapshot};
-use super::worktree_snapshot_source::SnapshotSource;
+use super::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
 use super::worktree_subvolume::settle_subvolume_destination;
 use super::worktree_trash::{TrashManifest, dispose_pending_trash};
 use std::ffi::OsString;
@@ -304,11 +304,11 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             // A snapshot of the main checkout prints no copy summary, so it says what it did, on standard error; `--quiet` stays silent.
             if source.git_dir == source.common_dir && !plan.quiet {
                 let _noted = std::io::stderr().write_all(super::worktree_trash::MAIN_SNAPSHOT_NOTE.as_bytes());
-                if let Some(changed) = source.dirty.as_ref() {
+                if let Some(changed) = source.dirty.as_ref().filter(|found: &&ChangedPaths| { return found.has_changes(); }) {
                     let _left_out = std::io::stderr().write_all(left_out_note(changed).as_bytes());
                 }
             }
-            if let Some(changed) = source.dirty.as_ref() {
+            if let Some(changed) = source.dirty.as_ref().filter(|found: &&ChangedPaths| { return found.has_changes(); }) {
                 record_left_out(plan.destination.as_path(), changed);
             }
             LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()) }

@@ -55,7 +55,7 @@ pub fn record_left_out(destination: &Path, changed: &ChangedPaths) {
     let fields: [(&str, String); 3] = [
         ("CLI_GIT_WORKTREE", destination.to_string_lossy().into_owned()),
         ("CLI_GIT_DIRTY_PATHS", changed.count.to_string()),
-        ("CLI_GIT_DIRTY_FIRST", changed.first.clone()),
+        ("CLI_GIT_DIRTY_FIRST", changed.first.clone().unwrap_or_default()),
     ];
     super::client_journal::record_entry(super::journald_native::Priority::Info, note.trim_end(), &fields);
 }
