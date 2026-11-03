@@ -473,13 +473,19 @@ Materialization and retirement
   for this; C1 alone tests an index entry against `E`, so a person's staging of the path (any entry unequal to `E`) is captured and the
   entry has no further effect. The one case this cannot tell apart is the owner-approved concession of decision 2: a deliberate restage to
   exactly `E`. Crash: repeated.
-- B3 supersede a held version. Pre: a request `R` is `held` at version `v` and a newer version `v+1` of `R` (an amendment, or a resend with
-  the changed delta that the binding rule accepts as a new version) is adopted. Do: in the S1 replacement that adopts `v+1`, record `v` as
-  `superseded`, re-key the consumption entries of `R` from `v` to `v+1` (the `E` values do not change, so no entry is released and none is
-  invented), append `superseded <id> <v>` to this lane's own ledger, and mark the hook execution of `v` as discarded: its completion,
-  success or refusal, is read and thrown away (the invocation is the person's program and is not ended; the gate is released when its
-  execution tree is empty, as in L6). The spool of `v` is released by the T1 rule after the ledger line and after that execution tree is
-  empty. Crash: repeated; a second ledger line for the same (id, version) is a no-op.
+- B3 supersede a held version (revision 10: identities, path sets, retirement). Version identity: an amendment of a held request is a new request
+  with a fresh identity `id2` whose record names the superseded `(id, version)`; `id` keeps its immutable content, so C3's rule (a different hash
+  under an existing identity is rejected) stands and a resend of `id` with changed content is never a "new version". The consumption entries and
+  `hook-ok` are keyed by request identity. Pre: `id` is `held` and `id2`, naming it, is adopted (C5). Do: in the S1 replacement that adopts
+  `id2`: record `id` as `superseded by id2`; replace the consumption entries of `id` by the entries computed from `id2`'s own capture, by path:
+  a path in `id`'s set and not in `id2`'s releases its entry (that staging was consumed by an abandoned version and returns to the person as
+  ordinary staging, which C1 captures in a later commit); a path in `id2`'s set and not in `id`'s acquires an entry from `id2`'s capture; a path
+  in both takes `id2`'s pre-entry (C1 of an amendment treats the entries of the request it supersedes as its own staging and not as suppressed,
+  so `id2` can capture the paths it re-includes). Append `superseded <id> by <id2>` to this lane's own ledger. The hook execution of `id`
+  is the person's program and is not ended: its completion, success or refusal, is read and thrown away, and the gate is held until its
+  execution tree is empty (L6). Release: T1-nocommit for `id` (ledger line exists, execution tree empty, no entry remains), spool released then.
+  C3 lookup: the terminal route for `id` follows `superseded by` to `id2` and answers `id2`'s state, so "a terminal line exists for this
+  identity" is not enough and a resend of `id` is answered as superseded by `id2`. Crash: repeated; the ledger line is idempotent per `id`.
 - T1 retire. Pre: the request has a terminal outcome and every entry of the maintenance registry that overlaps the request's lifetime is `terminal`
   by G3 (an entry that is not `terminal` blocks, whatever its scope: an entry with an empty or absent scope and a live launcher is not terminal,
   because that launcher may still launch). Two kinds. T1-commit, for a request whose commit is in the object store and published (materialized
