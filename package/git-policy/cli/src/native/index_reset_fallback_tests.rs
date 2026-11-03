@@ -157,3 +157,16 @@ fn another_runs_temporary_file_is_left_alone() {
     assert!(crate::index_full::parse_full_index(index_bytes(scene.repo.as_path()).as_slice(), 20).is_some());
     finish(scene);
 }
+
+/// The names the update declines for the protection settings are names real Git 2.56.0 refuses to put in an index with those
+/// settings on (the default for NTFS), so declining them leaves Git to say so.
+#[test]
+fn git_refuses_the_protected_names_the_update_declines() {
+    let scene: Scene = changed_a("index-fallback-protected-names");
+    let blob: String = String::from_utf8(git_with(scene.repo.as_path(), &[], &["hash-object", "-w", "--stdin"], Some(b"target")).stdout).expect("UTF-8").trim().to_string();
+    for (name, mode) in [(".gitmodules::$DATA", "120000"), (".gitmodules ", "120000"), ("GITMOD~1", "120000"), (".git::$INDEX_ALLOCATION", "100644"), ("dir/.git ", "100644"), ("dir\\.git\\config", "100644"), ("GIT~1", "100644")] {
+        let output = git_with(scene.repo.as_path(), &[], &["-c", "core.protectNTFS=true", "update-index", "--add", "--cacheinfo", format!("{mode},{blob},{name}").as_str()], None);
+        assert!(!output.status.success(), "Git accepted {name:?}");
+    }
+    finish(scene);
+}
