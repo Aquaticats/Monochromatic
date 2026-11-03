@@ -103,8 +103,6 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
 - Shipped-limits picks 4 and 9,
   branch `feat/git-policy-cli-steps-end-only-on-no-progress` from the 0.5.28 base `f58510c538`,
   worktree `.claude/worktrees/steps-end-only-on-no-progress`.
-- The second round on the in-process index writer,
-  its original agent on `perf/git-policy-cli-follow-up-index-in-process`.
 - Done and merged into the 0.5.28 base:
   the wrapper never runs itself as Git,
   `fix/git-policy-cli-never-runs-itself-as-git` `7ed8e9abe5`.
@@ -243,7 +241,14 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   the intent-to-add finding does not reproduce on Git 2.56.0 (a byte-for-byte differential pins it).
 Queued,
 in this order:
-- (Running now.) Second round on the in-process index writer,
+- Done (`cb2b9fe766`,
+  merged into the 0.5.28 base with the no-`--quiet` test conflict resolved by keeping both sides),
+  third re-review running (`~/temp/agent/reviews/follow-up-index-sol-3.txt`,
+  with `service_land.rs`,
+  `service_index_hold.rs`,
+  `service_index_lock.rs`,
+  `service_land_follow.rs` and `index_reset_publish.rs` attached whole):
+  second round on the in-process index writer,
   from its re-review (2026-11-03T10:51:00-05:00,
   `~/temp/agent/reviews/follow-up-index-sol-2.txt`:
   "safe after fixing the remaining NTFS alias,
