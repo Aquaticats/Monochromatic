@@ -169,12 +169,15 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     }
     // A pull that merges runs its fetch here and goes on as the `git merge FETCH_HEAD` it ends with; any other pull is native Git's.
     let merge_of_pull: CoordinatedForward;
+    // A merge that cannot create a commit (a fast-forward, or nothing to merge) is native Git's without the isolated attempt.
+    let mut isolate: bool = true;
     let forward: &CoordinatedForward = if typed.command.word() == b"pull" {
         match pull_step(typed, location.real_index_path.as_path()) {
             PullStep::Native => typed,
             PullStep::Ended(run) => return run,
-            PullStep::Merge(merge) => {
+            PullStep::Merge { forward: merge, makes_commit } => {
                 merge_of_pull = *merge;
+                isolate = makes_commit;
                 &merge_of_pull
             }
         }
@@ -186,7 +189,10 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     //  it, before Git starts. A lock that is not the service's is a foreign program's and keeps the behavior of native Git.
     wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
     // A merge that native Git would refuse only because the index holds staged changes is completed in isolation.
-    if forward.command.word() == b"merge" {
+    if forward.command.word() == b"merge" && !isolate {
+        // Native Git never waits for the index lock; the fast-forward it is handed waits for the holder first.
+        wait_for_index_release_here(location.real_index_path.as_path(), name.as_str());
+    } else if forward.command.word() == b"merge" {
         let merge_input: IsolatedMergeInput<'_> = IsolatedMergeInput {
             real_git: forward.real_git.as_path(),
             overlay: forward.overlay.as_slice(),

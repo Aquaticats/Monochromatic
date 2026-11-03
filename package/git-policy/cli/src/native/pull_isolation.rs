@@ -250,7 +250,7 @@ fn line_of(output: Option<GitOutput>) -> Option<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PullStep = { kind: 'native' } | { kind: 'ended'; run: CoordinatedRun } | { kind: 'merge'; forward: CoordinatedForward };
+/// type PullStep = { kind: 'native' } | { kind: 'ended'; run: CoordinatedRun } | { kind: 'merge'; forward: CoordinatedForward; makesCommit: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PullStep {
@@ -259,7 +259,12 @@ pub enum PullStep {
     /// The pull ended here (its fetch failed, or the working tree could not follow the fetch).
     Ended(CoordinatedRun),
     /// The fetch is done and this merge forward finishes the pull; boxed because a forward is large.
-    Merge(Box<CoordinatedForward>),
+    Merge {
+        /// The `git merge FETCH_HEAD` that ends the pull.
+        forward: Box<CoordinatedForward>,
+        /// Whether the merge creates a commit, and so is worth the isolated attempt; a fast-forward or a merge of nothing is not.
+        makes_commit: bool,
+    },
 }
 
 /// What:
@@ -382,11 +387,19 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
         }
     }
     let fetched: String = std::fs::read_to_string(git_dir.join("FETCH_HEAD")).unwrap_or_default();
-    if fetch_head_merge_heads(fetched.as_str()).len() != 1 {
+    let heads: Vec<String> = fetch_head_merge_heads(fetched.as_str());
+    if heads.len() != 1 {
         debug(TAG, "native Git runs the whole pull again: FETCH_HEAD does not list exactly one head to merge");
         return PullStep::Native;
     }
-    return PullStep::Merge(Box::new(merge_forward(forward, &plan, overlay)));
+    // One start tells a merge that makes a commit from a fast-forward (the merge base is `HEAD`) and from nothing to merge (the
+    // merge base is the head); only the first is worth the isolated attempt, whose queries the other two would only waste.
+    let bases: Option<GitOutput> = ask(&context, &["merge-base", "--all", "HEAD", heads[0].as_str()]);
+    let makes_commit: bool = bases.is_none_or(|found| {
+        let listed: String = String::from_utf8_lossy(&found.stdout).trim().to_owned();
+        return found.code != Some(0) || (listed != curr_head && listed != heads[0]);
+    });
+    return PullStep::Merge { forward: Box::new(merge_forward(forward, &plan, overlay)), makes_commit };
 }
 
 /// Controls for the pull's reading stay out of the release executable.

@@ -170,3 +170,55 @@ fn a_pull_whose_fetch_moved_the_branch_waits_for_a_held_index_lock() {
     assert_eq!(git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1"]), "", "nothing is left modified");
     remove_settled(&fixture);
 }
+
+/// The elapsed times of one arm, in milliseconds, sorted.
+fn sorted_milliseconds(times: &[std::time::Duration]) -> Vec<u128> {
+    let mut milliseconds: Vec<u128> = times.iter().map(std::time::Duration::as_millis).collect();
+    milliseconds.sort_unstable();
+    return milliseconds;
+}
+
+/// A measurement for the handover, not a control: the same pull timed with native Git (twice, so the spread of one arm shows),
+///  with the wrapper's split pull, with a pull the wrapper leaves to native Git (`--autostash`) and with the typed merge of the
+///  fetched branch, run in turns on fresh copies of one repository, each with a remote of its own, under the load the host has.
+///  Once for a pull that merges and once for a pull that fast-forwards. It prints the sorted times; nothing is asserted.
+#[test]
+#[ignore = "a measurement for the handover, not a control"]
+fn measure_the_split_pull_against_native_git() {
+    const ROUNDS: usize = 9;
+    const ARMS: [&str; 5] = ["native first", "wrapper split", "wrapper leaves it to native", "native second", "wrapper typed merge"];
+    for scenario in ["merging", "fast-forwarding"] {
+        let fixture: Fixture = fixture(format!("pull-measure-{scenario}").as_str());
+        let template: PathBuf = diverged_with_remote(&fixture);
+        if scenario == "fast-forwarding" {
+            git(&fixture, template.as_path(), &["reset", "--quiet", "--hard", "feature~1"]);
+        }
+        git(&fixture, template.as_path(), &["fetch", "--quiet", "origin"]);
+        let mut times: Vec<Vec<std::time::Duration>> = vec![Vec::new(); ARMS.len()];
+        for round in 0..ROUNDS {
+            for arm in 0..ARMS.len() {
+                let copy: PathBuf = copy_of(&fixture, template.as_path(), format!("copy-{scenario}-{round}-{arm}").as_str());
+                // Each copy pulls from a remote of its own, because a merge the wrapper completes is pushed and would turn the
+                // next copy's pull into a fast-forward.
+                let own_remote: PathBuf = copy_of(&fixture, fixture.root.join("remote.git").as_path(), format!("remote-{scenario}-{round}-{arm}.git").as_str());
+                git(&fixture, copy.as_path(), &["remote", "set-url", "origin", own_remote.to_str().expect("UTF-8")]);
+                let started = std::time::Instant::now();
+                let observed: Observed = match arm {
+                    0 | 3 => native(&fixture, copy.as_path(), &["pull", "--no-rebase", "--no-edit"]),
+                    1 => observe(&mut wrapped_commit(&fixture, copy.as_path(), &["pull", "--no-rebase", "--no-edit"]), b""),
+                    2 => observe(&mut wrapped_commit(&fixture, copy.as_path(), &["pull", "--no-rebase", "--autostash", "--no-edit"]), b""),
+                    _ => observe(&mut wrapped_commit(&fixture, copy.as_path(), &["merge", "--no-edit", "origin/main"]), b""),
+                };
+                times[arm].push(started.elapsed());
+                assert_eq!(observed.code, Some(0), "{scenario} arm {arm}: {}", String::from_utf8_lossy(&observed.stderr));
+                if round == 0 {
+                    eprintln!("MEASURE {scenario} {} reflog: {}", ARMS[arm], git_text(&fixture, copy.as_path(), &["reflog", "-1", "--format=%gs"]));
+                }
+            }
+        }
+        for arm in 0..ARMS.len() {
+            eprintln!("MEASURE {scenario} {} {:?}", ARMS[arm], sorted_milliseconds(times[arm].as_slice()));
+        }
+        remove_settled(&fixture);
+    }
+}
