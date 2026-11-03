@@ -76,13 +76,50 @@ and removing them is open (see "Housekeeping").
 
 ### Agents and gates running
 
-No `gpc-*`,
-`release-*` or `cli-git-*` systemd unit and no cargo-mutants or nextest process was running at
-2026-11-03T08:16:08-05:00.
-The delegate agents are the ones whose branches show commits at 08:14 to 08:15;
-the list of running delegates is not stored in any file,
-so the coordinator session holds it.
-The owner's cap is five delegate agents at once.
+At 2026-11-03T09:53:24-05:00 (the owner's cap is five delegate agents at once):
+- The follow-up index written in process (task 140),
+  branch `perf/git-policy-cli-follow-up-index-in-process`.
+- The fsmonitor troubleshooting doc,
+  `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+- cargo-shadow follow-ups on `feat/cargo-shadow-cli` (tip `679ccce734` before them):
+  resolve the trust base in process instead of one `git` start per cargo call (measured 7 ms median),
+  full comment blocks,
+  a test for the double-publish restore branch,
+  and `file-enforcer write` output instead of the hand-written `Cargo.toml` line.
+- Shipped-limits picks 5 and 12,
+  branch `feat/git-policy-cli-pushes-wait-while-connected-lfs-5xx`,
+  worktree `.claude/worktrees/pushes-wait-lfs-5xx`.
+- Shipped-limits picks 10 and 11,
+  branch `feat/git-policy-cli-saved-copies-and-audit-generations-measured`,
+  worktree `.claude/worktrees/saved-copies-audit-generations`.
+- Not an agent:
+  the sixth cross-vendor design review (`pi`,
+  output `~/temp/agent/reviews/commits-never-fail-sol-6.txt`).
+Queued,
+in this order:
+the cargo-shadow second cross-vendor review once its follow-ups land;
+shipped-limits pick 1's classing with the measured citations 7,
+8,
+13,
+14 and 15 (off the commit path,
+first free slot);
+picks 4 and 9,
+then 2 and 6,
+after the follow-up index branch lands,
+because both change the commit path it is changing.
+
+The 0.5.27 candidate is `integrate/git-policy-cli-plain-commit-no-quiet-index-in-process` (tip `00259fff5e`,
+worktree `.claude/worktrees/integrate-plain-commit-no-quiet-index`):
+plain commit over unmerged files,
+no inner `--quiet`,
+the service unit without limits,
+the audit rotation fix,
+the flaky-test fixes,
+the doctor fsmonitor line (`072ac84868`)
+and main up to `a9e81617a1`.
+It waits for the follow-up index branch,
+then the gate,
+the release and a measurement on main against native Git.
 
 ## Open work
 
