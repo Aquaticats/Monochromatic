@@ -14,6 +14,8 @@
 //! ```
 
 use super::command_conflict_side::{SideRequest, conflict_side_request};
+use super::conflict_side_decision::magic_on_conflicted;
+use super::conflict_side_modes::{MODE_OPTIONS, MODE_VARIABLES, magic_note, mode_note, modes_in_effect};
 use super::conflict_sides::{
     FailureKind, Operation, SAVED_DIRECTORY, SaveFailure, SavedCopy, SideDecision, clean_paths_note, conflicted_paths, decide_sides, operation_in_progress,
     save_copies, saved_notice,
@@ -23,7 +25,7 @@ use super::discarded_prune::{Limits, Problem, directory_name_of, prune};
 use super::global_arguments::command_tokens;
 use super::private_storage::read_regular_file;
 use super::repo_read_index::{IndexEntry, parse_index};
-use super::repo_read_layout::{RepoLayout, read_layout};
+use super::repo_read_layout::{RepoLayout, read_layout, read_layout_without};
 use super::transaction_git::GitContext;
 use std::ffi::OsString;
 
@@ -116,6 +118,40 @@ fn prune_after_save(layout: &RepoLayout, copies: &[SavedCopy], milliseconds: i64
 }
 
 /// What:
+///  The verdict for a conflict-side line whose layout the reader declined: nothing, unless a pathspec mode is the only reason
+///  and the same line without it would be allowed, when it is the sentence that says so.
+/// Why:
+///   The rejection stays either way. The reader is asked again without the mode only here, only for a line that qualifies,
+///  and the line must name only conflicted files under an operation in progress, so the sentence never promises what the
+///  carve-out would refuse.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function verdictForDeclinedLayout(context: GitContext, request: SideRequest): SideVerdict;
+/// ```
+fn verdict_for_declined_layout(context: &GitContext, request: &SideRequest) -> SideVerdict {
+    let modes: Vec<String> = modes_in_effect(context.global_prefix.as_slice(), context.overlay.as_slice());
+    if modes.is_empty() {
+        return SideVerdict::NotApplicable;
+    }
+    let Some(layout) = read_layout_without(context.global_prefix.as_slice(), context.overlay.as_slice(), &MODE_OPTIONS, &MODE_VARIABLES) else {
+        debug(TAG, &format!("not applicable: the layout reader declines this invocation even without {modes:?}"));
+        return SideVerdict::NotApplicable;
+    };
+    let Some(operation): Option<Operation> = operation_in_progress(layout.git_dir.as_path()) else {
+        return SideVerdict::NotApplicable;
+    };
+    let Ok(conflicted) = read_conflicts(&layout) else {
+        return SideVerdict::NotApplicable;
+    };
+    if let SideDecision::Allow(_) = decide_sides(request.paths.as_slice(), layout.prefix.as_slice(), layout.worktree_root.as_path(), &conflicted) {
+        debug(TAG, &format!("refused during {operation:?}: only {modes:?} stands between this line and the carve-out"));
+        return SideVerdict::Refused(mode_note(modes.as_slice(), operation));
+    }
+    return SideVerdict::NotApplicable;
+}
+
+/// What:
 ///  Judge a command line against the operation in progress, saving the copies when it is allowed.
 /// Why:
 ///   The order is the owner's: the form must qualify, an operation must be in progress, every named path must be
@@ -135,8 +171,8 @@ pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], millis
     let Some(layout) = read_layout(context.global_prefix.as_slice(), context.overlay.as_slice()) else {
         // A global option other than `-C` (a pathspec mode such as `--icase-pathspecs` among them) or a `GIT_` variable the
         // layout reader does not tolerate (such as `GIT_ICASE_PATHSPECS`) lands here: what a pathspec names is then not known.
-        debug(TAG, "not applicable: the layout reader declined this invocation (a global option other than -C, a GIT_ variable it does not tolerate, or a layout it does not read), so the usual rejection stands");
-        return SideVerdict::NotApplicable;
+        debug(TAG, "the layout reader declined this invocation (a global option other than -C, a GIT_ variable it does not tolerate, or a layout it does not read), so the usual rejection stands");
+        return verdict_for_declined_layout(context, &request);
     };
     let Some(operation): Option<Operation> = operation_in_progress(layout.git_dir.as_path()) else {
         return SideVerdict::NotApplicable;
@@ -151,6 +187,11 @@ pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], millis
     match decide_sides(request.paths.as_slice(), layout.prefix.as_slice(), layout.worktree_root.as_path(), &conflicted) {
         SideDecision::Refuse(others) => {
             debug(TAG, &format!("refused during {operation:?}: {others:?} are not conflicted files among {} conflicted", conflicted.len()));
+            let magic = magic_on_conflicted(others.as_slice(), layout.prefix.as_slice(), layout.worktree_root.as_path(), &conflicted);
+            if let Some(names) = magic {
+                debug(TAG, &format!("the only reason is pathspec magic on conflicted files: {names:?}"));
+                return SideVerdict::Refused(magic_note(names.as_slice(), operation));
+            }
             return SideVerdict::Refused(clean_paths_note(others.as_slice(), operation));
         }
         SideDecision::Allow(paths) => {

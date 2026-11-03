@@ -2792,6 +2792,17 @@ A global pathspec mode changes which files a pathspec names (`--icase-pathspecs`
 for `a.rs`; the glob, noglob and literal forms change the reading of the characters), so a line under one keeps the
 rejection: the layout reader declines every global option except `-C` and every `GIT_` variable it does not tolerate,
 and `core.ignorecase` does not widen a pathspec.
+The rejection of such a line stays, and when the line qualifies, an operation is in progress, the index is readable and
+every path it names is a conflicted file, the message gains one sentence:
+it names the mode (`--icase-pathspecs`, `--glob-pathspecs`, `--noglob-pathspecs`, `--literal-pathspecs`,
+`--no-literal-pathspecs`, `GIT_ICASE_PATHSPECS`, `GIT_GLOB_PATHSPECS`, `GIT_NOGLOB_PATHSPECS`, `GIT_LITERAL_PATHSPECS`)
+and says the same command without it would be saved first and then allowed.
+The layout reader is asked a second time, without the mode, only for such a line.
+Pathspec magic on a conflicted file's name (`:(icase)a.rs`, `:(glob)a.rs`, `:(literal)a.rs`, `:(top)a.rs`, `:(exclude)a.rs`,
+`:!a.rs`, `:^a.rs`, `:/a.rs`) is rejected the same way, and when every token that is not a plain conflicted file is such magic
+the message names the magic and the file and says that naming the file itself is saved first and then allowed.
+Other magic (`:(attr:...)`, `:(prefix:...)`), a wildcard, a clean file, a mix, a form the carve-out does not cover and a
+repository with no operation in progress get no such sentence, because the carve-out would refuse those anyway.
 A line that names a path that is not conflicted is rejected whole, with the rejection text of the form
 followed by a sentence that names every such path.
 A path that Git resolves in the index as the command runs (`checkout <tree-ish> -- <path>` stages it) stops being conflicted,

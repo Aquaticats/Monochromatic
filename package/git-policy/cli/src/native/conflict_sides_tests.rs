@@ -14,6 +14,7 @@ use super::{
     Operation, SaveFailure, SavedCopy, SideDecision, clean_paths_note, conflicted_paths, decide_sides, literal_path, operation_in_progress,
     save_copies, saved_notice, stamp,
 };
+use crate::conflict_side_decision::{magic_name, magic_on_conflicted};
 use crate::repo_read_index::IndexEntry;
 use crate::test_support::{fixture, remove};
 use std::collections::BTreeSet;
@@ -191,4 +192,43 @@ fn the_rejection_names_the_paths_that_are_not_conflicted() {
     let note: String = clean_paths_note(tokens(&["b.rs", "dir"]).as_slice(), Operation::CherryPick);
     assert!(note.contains("This cherry-pick is in progress"), "{note}");
     assert!(note.contains("`b.rs`, `dir`"), "{note}");
+}
+
+/// Magic that leaves the named file the same resolves to that file and its spelling; any other magic, a wildcard under it, or
+///  a clean file under it does not become a note.
+#[test]
+fn magic_on_a_plain_name_resolves_and_other_magic_does_not() {
+    let root: &Path = Path::new("/work/tree");
+    for (prefix, token, expected) in [
+        ("", ":(icase)a.rs", Some((":(icase)", "a.rs"))),
+        ("sub/", ":(glob)b.rs", Some((":(glob)", "sub/b.rs"))),
+        ("sub/", ":(top)a.rs", Some((":(top)", "a.rs"))),
+        ("sub/", ":/a.rs", Some((":/", "a.rs"))),
+        ("", ":!a.rs", Some((":!", "a.rs"))),
+        ("", ":^a.rs", Some((":^", "a.rs"))),
+        ("", ":!:a.rs", Some((":!:", "a.rs"))),
+        ("", ":(icase,literal)a.rs", Some((":(icase,literal)", "a.rs"))),
+        ("", ":(exclude)a.rs", Some((":(exclude)", "a.rs"))),
+        ("", ":(attr:text)a.rs", None),
+        ("", ":(prefix:1)a.rs", None),
+        ("", ":(icase)*.rs", None),
+        ("", ":a.rs", None),
+        ("", "a.rs", None),
+        ("", ":(icase)", None),
+        ("", ":(icase", None),
+    ] {
+        assert_eq!(
+            magic_name(prefix.as_bytes(), root, OsString::from(token).as_os_str()),
+            expected.map(|(magic, path)| { return (String::from(magic), path.as_bytes().to_vec()); }),
+            "{prefix:?} {token:?}"
+        );
+    }
+    let conflicted: BTreeSet<Vec<u8>> = set(&["a.rs"]);
+    assert_eq!(
+        magic_on_conflicted(tokens(&[":(icase)a.rs", ":!a.rs"]).as_slice(), b"", root, &conflicted),
+        Some(vec![(String::from(":(icase)"), String::from("a.rs")), (String::from(":!"), String::from("a.rs"))])
+    );
+    assert_eq!(magic_on_conflicted(tokens(&[":(icase)a.rs", ":(icase)c.rs"]).as_slice(), b"", root, &conflicted), None);
+    assert_eq!(magic_on_conflicted(tokens(&[":(icase)a.rs", "c.rs"]).as_slice(), b"", root, &conflicted), None);
+    assert_eq!(magic_on_conflicted(&[], b"", root, &conflicted), None);
 }

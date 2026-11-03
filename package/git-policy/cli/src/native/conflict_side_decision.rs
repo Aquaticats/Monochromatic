@@ -52,6 +52,74 @@ pub fn literal_path(prefix: &[u8], root: &Path, token: &OsStr) -> Option<Vec<u8>
     return Some(kept.join(&b'/'));
 }
 
+/// What:
+///  The magic of a pathspec token and the repository-relative path it names, when the token is a plain file name under
+///  magic that does not change which file is named (`:(icase)`, `:(glob)`, `:(literal)`, `:(top)`, `:(exclude)`, `:!`, `:^`,
+///  `:/`).
+/// Why:
+///   Such a token is not a conflicted file as typed, so the line is rejected; naming the file itself is allowed, and the
+///  rejection can say so. Any other magic (`:(attr:...)`, `:(prefix:...)`, an unknown word) and any wildcard stay unreadable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function magicName(prefix: string, root: string, token: string): { magic: string; path: string } | undefined;
+/// ```
+pub fn magic_name(prefix: &[u8], root: &Path, token: &OsStr) -> Option<(String, Vec<u8>)> {
+    let bytes: &[u8] = token.as_bytes();
+    if bytes.first() != Some(&b':') {
+        return None;
+    }
+    let mut top: bool = false;
+    let length: usize = if bytes.get(1) == Some(&b'(') {
+        let close: usize = bytes.iter().position(|byte| { return *byte == b')'; })?;
+        for word in bytes[2..close].split(|byte| { return *byte == b','; }) {
+            match word {
+                b"top" => top = true,
+                b"literal" | b"icase" | b"glob" | b"exclude" => {}
+                _ => return None,
+            }
+        }
+        close + 1
+    } else {
+        let mut at: usize = 1;
+        while at < bytes.len() && matches!(bytes[at], b'!' | b'^' | b'/') {
+            top |= bytes[at] == b'/';
+            at += 1;
+        }
+        if at == 1 {
+            return None;
+        }
+        if bytes.get(at) == Some(&b':') {
+            at += 1;
+        }
+        at
+    };
+    let path: Vec<u8> = literal_path(if top { b"" } else { prefix }, root, OsStr::from_bytes(&bytes[length..]))?;
+    return Some((String::from_utf8_lossy(&bytes[..length]).into_owned(), path));
+}
+
+/// What:
+///  The magic and the file name of each token, when every one of `others` is pathspec magic on a conflicted file's name.
+/// Why:
+///   Only then is magic the single reason a line was refused; a clean path, a wildcard or other magic beside it means the
+///  carve-out would refuse the line anyway, and no sentence promises otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function magicOnConflicted(others: string[], prefix: string, root: string, conflicted: Set<string>): [string, string][] | undefined;
+/// ```
+pub fn magic_on_conflicted(others: &[OsString], prefix: &[u8], root: &Path, conflicted: &BTreeSet<Vec<u8>>) -> Option<Vec<(String, String)>> {
+    let mut found: Vec<(String, String)> = Vec::new();
+    for token in others {
+        let (magic, path) = magic_name(prefix, root, token.as_os_str())?;
+        if !conflicted.contains(&path) {
+            return None;
+        }
+        found.push((magic, String::from_utf8_lossy(&path).into_owned()));
+    }
+    return if found.is_empty() { None } else { Some(found) };
+}
+
 /// What a command line that names paths came to, against the conflicted set.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SideDecision {

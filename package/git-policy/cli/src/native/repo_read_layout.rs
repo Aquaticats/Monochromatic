@@ -467,6 +467,33 @@ pub fn read_layout(global_prefix: &[OsString], overlay: &[(OsString, OsString)])
 }
 
 /// What:
+///  The layout `read_layout` would find if the global options in `options` and the variables in `variables` were absent.
+/// Why:
+///   A conflict-side line under a pathspec mode is rejected because the reader declines every global option but `-C` and
+///  every variable it does not know; to tell a person that the same line without the mode would be allowed, the reader
+///  must be asked the question with the mode left out, and only then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const layout = readLayoutWithout(globalPrefix, overlay, ['--icase-pathspecs'], ['GIT_ICASE_PATHSPECS']);
+/// ```
+pub fn read_layout_without(global_prefix: &[OsString], overlay: &[(OsString, OsString)], options: &[&str], variables: &[&str]) -> Option<RepoLayout> {
+    if !enabled(overlay) {
+        return None;
+    }
+    let prefix: Vec<OsString> = global_prefix.iter().filter(|each| { return !options.iter().any(|option| { return each.as_encoded_bytes() == option.as_bytes(); }); }).cloned().collect();
+    let kept: Vec<(OsString, OsString)> = effective_environment(overlay)
+        .into_iter()
+        .filter(|(name, _)| { return !variables.iter().any(|variable| { return name.as_encoded_bytes() == variable.as_bytes(); }); })
+        .collect();
+    if !environment_is_plain(kept.as_slice()) || !environment_is_accepted(kept.as_slice()) {
+        return None;
+    }
+    let start: PathBuf = start_directory(prefix.as_slice())?;
+    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(kept.as_slice()), true);
+}
+
+/// What:
 ///  The read with its environment injected: the variables Git would see and the configuration scope facts.
 /// Why:
 ///   The controls run in a process whose own environment and home they must not depend on.

@@ -219,6 +219,9 @@ pub mod conflict_side_state;
 /// Whether every token of a command line names a conflicted file.
 pub mod conflict_side_decision;
 
+/// The pathspec modes and magic that make a conflict-side line unreadable, and the sentences that name them.
+pub mod conflict_side_modes;
+
 /// The notices of a conflict-side command: the saved copies and the clean paths of a refused line.
 pub mod conflict_side_notice;
 
