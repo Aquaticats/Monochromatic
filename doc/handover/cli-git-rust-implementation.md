@@ -9989,3 +9989,10 @@ by the coordinator at merge.
   the same shapes. A research agent is writing `~/temp/agent/research/merge-auto-resolution.md` (mergiraf: licence,
   languages, library use; whether merge-tree honours merge drivers; the `union` driver; other tools; documented
   wrong auto-merges). Next: a proposal in `doc/planning/` and a ranked question to the owner. Not decided.
+- Owner request 2026-11-03, verbatim: "Update AGENTS.md to make IOWeight cap at 10 instead of 50." Done in
+  `309ab62095`: AGENTS.md RXS reads "never set `IOWeight` above 10", and the CLAUDE.md preamble source
+  `.config/file-enforcer/claude-preamble.md` now gives the range `<1-10>` and "never above 10" (systemd accepts 1 to
+  10000, default 100, per systemd.resource-control). The two running gates were lowered in place to 10
+  (`systemctl --user set-property --runtime`), `~/temp/agent/gate/launch-gate.ts` now sets 10, and every running
+  agent was told. Older scratch scripts under `~/temp/agent` still set 25 to 100; they are past runs and get the new
+  value if reused. The podman `--blkio-weight` in HXR was not part of the request and is unchanged.
