@@ -18,7 +18,7 @@ use super::service_head::still_checked_out;
 use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
 use super::service_journal::{INDEXED_EXTENSION, Intent, Recovery, OPEN_EXTENSION, is_indexed, list_intents, mark_done, mark_indexed, recovery_for, write_intent};
-use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait, remove_stale, try_acquire};
+use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within, remove_stale, try_acquire};
 use super::service_timing::{LandTiming, wait_line};
 use super::autostash_carry::carry_stages;
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
@@ -39,6 +39,8 @@ pub struct LandContext {
     pub journal: PathBuf,
     /// Test seam: called after the batch's objects exist and before the branch moves.
     pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
+    /// How long a landing waits for a foreign program's `index.lock` before it is withdrawn (`wait_ceilings.rs`).
+    pub lock_ceiling: std::time::Duration,
 }
 
 /// What became of one request of a batch.
@@ -373,7 +375,7 @@ pub fn land_batch_timed(
         //  the index stays as it was.
         let waiting_since: Instant = Instant::now();
         let mut notes: WaitNotes = WaitNotes::default();
-        let taken = acquire_noting_wait(first.index.as_path(), seq, announce, &mut notes);
+        let taken = acquire_noting_wait_within(first.index.as_path(), seq, context.lock_ceiling, announce, &mut notes);
         let waited: std::time::Duration = waiting_since.elapsed();
         timing.lock_wait += waited;
         // A pass over the batch that found the lock free has nothing to add to what an earlier pass found held.

@@ -1270,6 +1270,9 @@ pub mod service_protocol;
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 
+/// The longest the wrapper waits for each thing it waits for, with the measurement beside each number.
+pub mod wait_ceilings;
+
 /// The connection of one waiting client, answered by the landing thread and kept alive by a beat from the reading thread.
 pub mod service_reply;
 

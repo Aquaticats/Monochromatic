@@ -128,12 +128,14 @@ pub(super) struct Placing<'a> {
     pub(super) lock: &'a Path,
     pub(super) lock_name: &'a std::ffi::OsStr,
     pub(super) index: &'a Path,
+    /// How long a holder is waited for.
+    pub(super) ceiling: Duration,
 }
 
 /// The attempts and the wait of `acquire`,
 /// with the staging file already written.
 pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<(), LockFailure> {
-    let Placing { staged, held, lock, lock_name, index } = *placing;
+    let Placing { staged, held, lock, lock_name, index, ceiling: _ } = *placing;
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let began: Instant = Instant::now();
     let mut first: bool = true;
