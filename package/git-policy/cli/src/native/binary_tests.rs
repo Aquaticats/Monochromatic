@@ -196,6 +196,14 @@ mod lfs_parent;
 #[path = "binary_push_probe_tests.rs"]
 mod push_probe;
 
+/// A push that Git itself refuses (an absent branch to delete, a refspec naming nothing, no such remote) ends as Git ends it.
+#[path = "binary_push_refusal_tests.rs"]
+mod push_refusal;
+
+/// A push the wrapper cannot scope fails with the hint of its cause, not the one hint of its code.
+#[path = "binary_push_scope_tests.rs"]
+mod push_scope;
+
 /// The same upload with the real `git-lfs` against an LFS server written inline.
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;

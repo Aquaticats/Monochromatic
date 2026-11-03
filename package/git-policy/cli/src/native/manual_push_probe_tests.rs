@@ -195,6 +195,49 @@ fn an_unreachable_destination_fails_the_probe() {
     remove(repo.parent().expect("root"));
 }
 
+/// A push Git refuses before it reports any destination carries Git's own status and words, taken from a plain run.
+#[test]
+fn a_push_git_refuses_carries_gits_status_and_words() {
+    let (repo, _origin, _base) = repository_with_origin("mp-probe-refusal");
+    for arguments in [
+        vec!["origin", "--delete", "no-such-branch"],
+        vec!["origin", "no-such-source:main"],
+        vec!["no-such-remote", "main"],
+        vec!["--no-such-option", "origin"],
+    ] {
+        let plain = std::process::Command::new("/usr/bin/git")
+            .current_dir(&repo)
+            .env_clear()
+            .envs(fixture_environment())
+            .env("HOME", home_beside(&repo))
+            .arg("push")
+            .args(&arguments)
+            .output()
+            .expect("plain push");
+        let error = probe_manual_push_updates(&git_for(&repo), &[], &post(&arguments)).expect_err("Git refuses this push");
+        let refusal = error.refusal.expect("Git's refusal is carried");
+        assert_eq!(Some(refusal.code), plain.status.code(), "{arguments:?}");
+        assert_eq!(refusal.stderr, String::from_utf8_lossy(&plain.stderr), "{arguments:?}");
+    }
+    remove(repo.parent().expect("root"));
+}
+
+/// A failure of the probe's own reading is no refusal by Git: a Git that fails without a word, and a report the probe
+///  cannot parse, stay failures of the wrapper.
+#[test]
+fn a_failure_without_gits_words_stays_a_failure_of_the_probe() {
+    let (repo, _origin, _base) = repository_with_origin("mp-probe-no-refusal");
+    let mut silent = git_for(&repo);
+    silent.real_git = PathBuf::from("/usr/bin/false");
+    let silent_error = probe_manual_push_updates(&silent, &[], &post(&["origin", "main"])).expect_err("a silent failure");
+    assert_eq!(silent_error.refusal, None, "{silent_error}");
+    let mut garbled = git_for(&repo);
+    garbled.real_git = PathBuf::from("/usr/bin/echo");
+    let error = probe_manual_push_updates(&garbled, &[], &post(&["origin", "main"])).expect_err("an unreadable report");
+    assert_eq!(error.refusal, None, "{error}");
+    remove(repo.parent().expect("root"));
+}
+
 /// The probe's arguments keep Git's options before the terminator, switch every hook off and ask for full names.
 #[test]
 fn probe_arguments_keep_git_options_before_the_terminator() {
@@ -270,7 +313,8 @@ fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
         return vec![(update, Some(head_of(&repo)))];
     };
     let changed = reported(RemoteBefore::Known("1".repeat(base.len())), "refs/heads/main");
-    assert!(confirm_group(&git_for(&repo), location, "origin", changed.as_slice()).is_err());
+    let moved = confirm_group(&git_for(&repo), location, "origin", changed.as_slice()).expect_err("the remote moved");
+    assert_eq!(moved.cause, ManualPushCause::RemoteMoved, "{moved}");
     let matching = reported(RemoteBefore::Known(base.clone()), "refs/heads/main");
     let confirmed = confirm_group(&git_for(&repo), location, "origin", matching.as_slice()).expect("confirms");
     assert_eq!(confirmed[0].remote_oid.as_deref(), Some(base.as_str()));
@@ -281,10 +325,55 @@ fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
     remove(repo.parent().expect("root"));
 }
 
+/// A Git stand-in that answers `ls-remote` as an unreachable remote would, with a password in the address it names, and
+///  runs the real Git for every other query. Returns its path.
+fn git_that_cannot_list_the_remote(root: &Path) -> PathBuf {
+    let stand_in = root.join("git-stand-in");
+    let script = "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = ls-remote ]; then\n    echo \"fatal: unable to access 'https://person:hunter2@example.invalid/r.git/': could not resolve host\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n";
+    std::fs::write(&stand_in, script).expect("stand-in");
+    std::fs::set_permissions(&stand_in, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return stand_in;
+}
+
+/// A remote whose refs cannot be read is the unreachable-remote cause, and the message never carries the address's password.
+#[test]
+fn an_unreadable_remote_is_the_unreachable_cause_and_masks_the_password() {
+    let (repo, _origin, _base) = repository_with_origin("mp-cause-unreachable");
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    let mut stand_in = git_for(&repo);
+    stand_in.real_git = git_that_cannot_list_the_remote(repo.parent().expect("root"));
+    let error = probe_manual_push_updates(&stand_in, &[], &post(&["origin", "main"])).expect_err("the remote cannot be listed");
+    assert_eq!(error.cause, ManualPushCause::RemoteUnreachable, "{error}");
+    assert_eq!(error.refusal, None);
+    assert!(!error.message.contains("hunter2"), "the password must not appear: {error}");
+    assert!(error.message.contains("example.invalid"), "the address is still named: {error}");
+    remove(repo.parent().expect("root"));
+}
+
+/// A Git that cannot be started is its own cause, a silent failure and an unreadable report are theirs.
+#[test]
+fn git_that_cannot_start_or_say_why_or_be_read_has_its_own_cause() {
+    let (repo, _origin, _base) = repository_with_origin("mp-cause-git");
+    let arguments = post(&["origin", "main"]);
+    let mut absent = git_for(&repo);
+    absent.real_git = repo.parent().expect("root").join("no-such-git");
+    let not_started = probe_manual_push_updates(&absent, &[], &arguments).expect_err("Git cannot start");
+    assert_eq!(not_started.cause, ManualPushCause::GitNotStarted, "{not_started}");
+    let mut silent = git_for(&repo);
+    silent.real_git = PathBuf::from("/usr/bin/false");
+    let not_said = probe_manual_push_updates(&silent, &[], &arguments).expect_err("Git says nothing");
+    assert_eq!(not_said.cause, ManualPushCause::GitSilent, "{not_said}");
+    let mut garbled = git_for(&repo);
+    garbled.real_git = PathBuf::from("/usr/bin/echo");
+    let unreadable = probe_manual_push_updates(&garbled, &[], &arguments).expect_err("an unreadable report");
+    assert_eq!(unreadable.cause, ManualPushCause::UnexpectedOutput, "{unreadable}");
+    remove(repo.parent().expect("root"));
+}
+
 /// The probe error displays its message.
 #[test]
 fn the_probe_error_displays_its_message() {
-    assert_eq!(probe_error(String::from("why")).to_string(), "why");
+    assert_eq!(probe_error(ManualPushCause::SelfExplained, String::from("why")).to_string(), "why");
 }
 
 /// `-u`, `--set-upstream` and `push.autoSetupRemote` add a line to Git's own report; the probe still reads the update

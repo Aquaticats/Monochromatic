@@ -181,7 +181,8 @@ fn a_non_commit_target_fails_closed() {
     let tree = String::from_utf8_lossy(&git(&repo, &["rev-parse", "HEAD^{tree}"]).stdout)
         .trim()
         .to_owned();
-    assert!(update_scope(&git_for(&repo), &update(Some(&tree), None), &[]).is_err());
+    let error = update_scope(&git_for(&repo), &update(Some(&tree), None), &[]).expect_err("a tree is not a commit");
+    assert_eq!(error.cause, ManualPushCause::UnsupportedObject, "{error}");
     remove(repo.parent().expect("root"));
 }
 
@@ -252,6 +253,7 @@ fn the_pushed_scope_lists_commit_deltas_and_tree_blobs() {
 fn the_range_error_displays_its_message() {
     let error = ManualPushRangeError {
         message: String::from("the range query failed"),
+        cause: ManualPushCause::SelfExplained,
     };
     assert_eq!(error.to_string(), "the range query failed");
 }

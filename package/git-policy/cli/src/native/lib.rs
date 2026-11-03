@@ -885,6 +885,9 @@ pub mod post_commit;
 /// Authoritative manual-push updates discovered by a private dry-run push and confirmed with ls-remote.
 pub mod manual_push_porcelain;
 
+/// Why a manual push's scope could not be established, as the cause its hint is chosen by.
+pub mod manual_push_cause;
+
 /// The updates a manual `git push` would send, learned from Git's own dry-run report and confirmed against the remote.
 pub mod manual_push_probe;
 

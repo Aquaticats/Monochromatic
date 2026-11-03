@@ -516,6 +516,7 @@ fn failed_check_ends_the_pass_with_an_engine_failure() {
                 ),
                 PolicyEvent::EngineFailure {
                     code,
+                    hint: crate::policy_events::EngineFailureHint::OfCode,
                     message: String::from("git could not be asked"),
                     trigger: Some(Trigger::PreForward),
                     policy: Some(PolicyId::LinkedWorktreeOnly),

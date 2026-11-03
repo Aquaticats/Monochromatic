@@ -112,6 +112,7 @@ pub fn run_post_commit_gate(request: &PostCommitRequest) -> PostCommitGate {
             None => (
                 vec![PolicyEvent::EngineFailure {
                     code: EngineFailureCode::ContentUnavailable,
+                    hint: crate::policy_events::EngineFailureHint::OfCode,
                     message: format!("landed commit {} is not an object name", request.landed_oid),
                     trigger: Some(Trigger::PostCommit),
                     policy: None,

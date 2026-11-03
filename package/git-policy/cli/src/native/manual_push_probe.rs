@@ -15,9 +15,12 @@
 //! ```
 
 /// The probe's Git runner, its bounded queries and its environment.
-use super::auto_push_single_flight::{PushGit, run_query};
+use super::auto_push_single_flight::{PushGit, SingleFlightError, run_query};
 /// The destination Git would pick for a bare push, and the porcelain report's parser.
 use super::lfs_upload_plan::resolve_push_remote;
+/// Removes userinfo from text that may name a remote, and the cause a failure carries.
+use super::lfs_output_mask::mask_userinfo_text;
+use super::manual_push_cause::ManualPushCause;
 use super::manual_push_porcelain::{PorcelainUpdate, RemoteBefore, parse_porcelain};
 /// The push's own reading of its destination.
 use super::command_push::push_shape;
@@ -25,18 +28,43 @@ use super::command_push::push_shape;
 use std::ffi::OsString;
 
 /// What:
-///  Why the probe could not establish the updates Git would push.
+///  Git's own refusal of a push: the exit status and the standard error it ended with.
 /// Why:
-///   Every variant stops the policy lifecycle with a content-unavailable failure; none guesses an update.
+///   When the dry run exits with a failure before it reports any destination, Git has refused the push itself (a ref to
+///  delete that the remote lacks, a refspec naming nothing, a remote that does not exist, an option it does not know).
+///  Nothing could be published, so Git's words and status are the answer, and the wrapper adds none of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class ManualPushProbeError extends Error {}
+/// type GitRefusal = { code: number; stderr: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GitRefusal {
+    /// The exit status Git ended with; never zero.
+    pub code: i32,
+    /// What Git wrote to standard error, as Git wrote it.
+    pub stderr: String,
+}
+
+/// What:
+///  Why the probe could not establish the updates Git would push.
+/// Why:
+///   Every variant stops the policy lifecycle; none guesses an update. A failure of the wrapper's own reading is a
+///  content-unavailable engine failure, and a refusal by Git carries Git's own report instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ManualPushProbeError extends Error { refusal?: GitRefusal }
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ManualPushProbeError {
     /// Diagnostic naming what could not be established.
     pub message: String,
+    /// Git's refusal when Git itself ended the dry run before it reported any destination; `None` for a failure of the
+    ///  wrapper's own reading.
+    pub refusal: Option<GitRefusal>,
+    /// What the person can do about it, which the hint is chosen by.
+    pub cause: ManualPushCause,
 }
 
 impl std::fmt::Display for ManualPushProbeError {
@@ -52,10 +80,28 @@ impl std::error::Error for ManualPushProbeError {}
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// new ManualPushProbeError(message)
+/// new ManualPushProbeError(cause, message)
 /// ```
-fn probe_error(message: String) -> ManualPushProbeError {
-    return ManualPushProbeError { message };
+fn probe_error(cause: ManualPushCause, message: String) -> ManualPushProbeError {
+    return ManualPushProbeError { message, refusal: None, cause };
+}
+
+/// What:
+///  The cause of a Git query that could not produce an exit status.
+/// Why:
+///   A query that never started means the Git the wrapper runs is missing; one stopped at its deadline already says in its
+///  message which setting changes the deadline; anything else Git did not explain.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// error instanceof StartError ? 'git-not-started' : error instanceof TimedOut ? 'self-explained' : 'git-silent'
+/// ```
+fn cause_of_query(error: &SingleFlightError) -> ManualPushCause {
+    return match error {
+        SingleFlightError::Start(_) => ManualPushCause::GitNotStarted,
+        SingleFlightError::TimedOut { .. } => ManualPushCause::SelfExplained,
+        SingleFlightError::Git { .. } | SingleFlightError::Io(_) => ManualPushCause::GitSilent,
+    };
 }
 
 /// What:
@@ -165,11 +211,11 @@ fn local_objects(git: &PushGit, global_prefix: &[OsString], names: &[&str]) -> R
     arguments.extend(names.iter().map(OsString::from));
     let listing: String = answer(git, arguments.as_slice())
         .ok_or_else(|| {
-            return probe_error(format!("the local objects of {names:?} could not be read"));
+            return probe_error(ManualPushCause::ContentMissing, format!("the local objects of {names:?} could not be read"));
         })?;
     let objects: Vec<String> = listing.lines().map(str::to_owned).collect();
     if objects.len() != names.len() {
-        return Err(probe_error(format!("rev-parse answered {} names for {}", objects.len(), names.len())));
+        return Err(probe_error(ManualPushCause::UnexpectedOutput, format!("rev-parse answered {} names for {}", objects.len(), names.len())));
     }
     return Ok(objects);
 }
@@ -201,13 +247,15 @@ pub fn confirm_group(
     }));
     let output = run_query(git, arguments.as_slice())
         .map_err(|error| {
-            return probe_error(format!("ls-remote of {remote_location} failed: {error}"));
+            return probe_error(cause_of_query(&error), mask_userinfo_text(format!("ls-remote of {remote_location} failed: {error}").as_str()));
         })?;
     if output.code != Some(0) {
-        return Err(probe_error(format!(
-            "ls-remote of {remote_location} failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim_end()
-        )));
+        return Err(probe_error(
+            ManualPushCause::RemoteUnreachable,
+            mask_userinfo_text(
+                format!("ls-remote of {remote_location} failed: {}", String::from_utf8_lossy(&output.stderr).trim_end()).as_str(),
+            ),
+        ));
     }
     let listing: String = String::from_utf8_lossy(&output.stdout).into_owned();
     let mut confirmed: Vec<PushUpdate> = Vec::new();
@@ -225,7 +273,7 @@ pub fn confirm_group(
             RemoteBefore::Unknown => false,
         };
         if changed {
-            return Err(probe_error(format!("Remote ref changed during manual-push discovery: {}", update.to)));
+            return Err(probe_error(ManualPushCause::RemoteMoved, format!("Remote ref changed during manual-push discovery: {}", update.to)));
         }
         confirmed.push(PushUpdate {
             local_oid: local.clone(),
@@ -253,18 +301,27 @@ pub fn probe_manual_push_updates(
 ) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
     let arguments: Vec<OsString> = probe_arguments(global_prefix, post_subcommand);
     let output = run_query(git, arguments.as_slice()).map_err(|error| {
-        return probe_error(format!("probe push could not run: {error}"));
+        return probe_error(cause_of_query(&error), format!("probe push could not run: {error}"));
     })?;
     let report: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    let blocks = parse_porcelain(report.as_str()).map_err(probe_error)?;
+    let blocks = parse_porcelain(report.as_str()).map_err(|message| {
+        return probe_error(ManualPushCause::UnexpectedOutput, message);
+    })?;
     if blocks.is_empty() {
         if output.code == Some(0) {
             return Ok(Vec::new());
         }
-        return Err(probe_error(format!(
-            "Git could not determine push updates: {}",
-            String::from_utf8_lossy(&output.stderr).trim_end()
-        )));
+        let said: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        let message: String = mask_userinfo_text(format!("Git could not determine push updates: {}", said.trim_end()).as_str());
+        // Git ends `push --dry-run --porcelain` before any destination is reported only when it refuses the push itself
+        //  (`transport_push` returns before it prints a block, and `die` and usage errors end the process); a status
+        //  from a signal, or a refusal without a word, is not Git saying no.
+        return Err(match output.code {
+            Some(code) if !said.trim().is_empty() => {
+                ManualPushProbeError { message, refusal: Some(GitRefusal { code, stderr: said }), cause: ManualPushCause::SelfExplained }
+            }
+            Some(_) | None => probe_error(ManualPushCause::GitSilent, message),
+        });
     }
     let named = push_shape(post_subcommand).and_then(|shape| {
         return shape.repository;
@@ -287,7 +344,7 @@ pub fn probe_manual_push_updates(
     };
     let remote_name: String = resolve_push_remote(named, &mut asking)
         .map_err(|error| {
-            return probe_error(error.0);
+            return probe_error(ManualPushCause::SelfExplained, format!("Git could not tell which remote this push goes to: {}", error.0));
         })?
         .to_string_lossy()
         .into_owned();
@@ -298,11 +355,12 @@ pub fn probe_manual_push_updates(
         _ => locations_of(git, global_prefix, remote_name.as_str()),
     };
     if locations.len() != blocks.len() {
-        return Err(probe_error(format!(
-            "Git reported {} destinations but {remote_name} has {} push locations",
-            blocks.len(),
-            locations.len()
-        )));
+        return Err(probe_error(
+            ManualPushCause::SelfExplained,
+            mask_userinfo_text(
+                format!("Git reported {} destinations but {remote_name} has {} push locations", blocks.len(), locations.len()).as_str(),
+            ),
+        ));
     }
     let mut confirmed: Vec<PushUpdate> = Vec::new();
     for (block, location) in blocks.iter().zip(locations.iter()) {

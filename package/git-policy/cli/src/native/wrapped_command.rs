@@ -49,6 +49,7 @@ use super::diagnostics::EngineFailureCode;
 use super::discard_audit::{AuditOutcome, record_audit};
 use super::global_arguments::GlobalOutcome;
 use super::invocation_config::{config_invalid_event, load_identity_config};
+use super::manual_push_cause::ManualPushCause;
 use super::manual_push_lifecycle::manual_push_scope;
 use super::policy_checks::ShippedChecks;
 /// What the command offers its content policies.
@@ -56,7 +57,8 @@ use super::policy_content::LifecycleContent;
 use super::policy_engine::{
     StageEnd, StageRequest, StageResult, any_policy_applies, pass_exit_code, run_policy_stage,
 };
-use super::policy_events::{PolicyEvent, render_policy_events};
+use super::event_hints::manual_push_failure_hint;
+use super::policy_events::{EngineFailureHint, PolicyEvent, render_policy_events};
 use super::policy_pass::{PassResult, policies_of_kind, run_policy_pass};
 use super::policy_registry::PolicyId;
 use super::landed_summary::short_name;
@@ -583,8 +585,16 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
         if any_policy_applies(&gate_request, gated.as_slice()) {
             // The push's scope is discovered before any policy reads content; a discovery failure refuses the push.
             if let Err(failure) = prepare_manual_push(checks, environment, command_region(stripped)) {
+                // Git refused the push itself: nothing could be published, and Git's own words and status are the answer.
+                if let Some(refusal) = failure.refusal {
+                    return WrappedOutcome::Exit {
+                        code: refusal.code,
+                        stderr: refusal.stderr,
+                    };
+                }
                 events.push(PolicyEvent::EngineFailure {
                     code: EngineFailureCode::ContentUnavailable,
+                    hint: EngineFailureHint::Chosen(manual_push_failure_hint(failure.cause)),
                     message: failure.message,
                     trigger: Some(Trigger::ManualPush),
                     policy: None,
@@ -629,15 +639,15 @@ fn prepare_manual_push<F: RepositoryFacts>(
 ) -> Result<(), super::manual_push_lifecycle::ManualPushFailure> {
     let worktree: Option<PathBuf> = match checks.facts.location() {
         Ok(location) => worktree_root(&location.identity).map(Path::to_path_buf),
-        Err(message) => return Err(super::manual_push_lifecycle::ManualPushFailure { message }),
+        Err(message) => return Err(super::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, message)),
     };
     let context = checks.facts.transaction_context();
     let cwd = match worktree {
         Some(root) => root,
         None => std::env::current_dir().map_err(|error| {
-            return super::manual_push_lifecycle::ManualPushFailure {
-                message: format!("the working directory could not be read: {error}"),
-            };
+            return super::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, format!(
+                "the working directory could not be read: {error}"
+            ));
         })?,
     };
     let git = PushGit {

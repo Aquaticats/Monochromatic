@@ -13,6 +13,7 @@
 //! ```
 
 use super::json_record::quote;
+use super::manual_push_cause::ManualPushCause;
 
 /// The policy codes whose messages already carry their own intent guess and next step.
 pub const SELF_HINTED: &[(&str, &str)] = &[
@@ -129,6 +130,47 @@ pub fn finding_hint(policy: &str, code: &str, fix_available: bool) -> Option<&'s
         }
         _ => return None,
     }
+}
+
+/// What:
+///  The hint for a manual push whose scope could not be established, by the cause the failure carries.
+/// Why:
+///   One engine-failure code covers causes the person answers differently, so the hint names the cause and the move for it:
+///  the existing missing-content hint stays where content is what is missing, and a message that already says what to do
+///  (a deadline with its setting, a repository that cannot be located) gets none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function manualPushFailureHint(cause: ManualPushCause): string | undefined;
+/// ```
+pub fn manual_push_failure_hint(cause: ManualPushCause) -> Option<&'static str> {
+    return match cause {
+        ManualPushCause::ContentMissing => engine_failure_hint("content-unavailable"),
+        ManualPushCause::RemoteMoved => Some(
+            "Hint: the remote changed while the wrapper was reading it, so nothing was pushed; run the same push again.",
+        ),
+        ManualPushCause::RemoteUnreachable => Some(
+            "Hint: the wrapper could not read the remote's branches before pushing, so nothing was pushed; check the \
+             network connection, the remote's address and your credentials (`git ls-remote <remote>` shows Git's own \
+             answer), then run the push again.",
+        ),
+        ManualPushCause::GitNotStarted => Some(
+            "Hint: the wrapper could not start Git to check this push, so nothing was pushed; check that the Git \
+             installation the wrapper runs exists and can be executed, then run the push again.",
+        ),
+        ManualPushCause::GitSilent => Some(
+            "Hint: Git ended the wrapper's check of this push without a message, so nothing was pushed; run the same \
+             command with `--dry-run` to see Git's own answer, and run the push again.",
+        ),
+        ManualPushCause::UnexpectedOutput => Some(
+            "Hint: Git answered in a form the wrapper does not read, so nothing was pushed; this is a defect of the \
+             wrapper, not of the repository. Report it with this message and the output of `git --version`.",
+        ),
+        ManualPushCause::UnsupportedObject => Some(
+            "Hint: the manual-push policies read commits only; push a branch, or a tag that points at a commit.",
+        ),
+        ManualPushCause::SelfExplained => None,
+    };
 }
 
 /// What:

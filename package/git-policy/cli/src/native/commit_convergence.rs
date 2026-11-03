@@ -197,6 +197,7 @@ fn patch_conflict_pass(arguments: &[OsString], path: &[u8], message: String) -> 
         arguments: arguments.to_vec(),
         events: vec![PolicyEvent::EngineFailure {
             code: EngineFailureCode::PatchConflict,
+            hint: crate::policy_events::EngineFailureHint::OfCode,
             message: format!("Policy patch for {shown} does not apply to the private index: {message}"),
             trigger: Some(Trigger::PreForward),
             policy: None,
@@ -220,6 +221,7 @@ fn engine_failure_pass(arguments: &[OsString], code: EngineFailureCode, message:
         arguments: arguments.to_vec(),
         events: vec![PolicyEvent::EngineFailure {
             code,
+            hint: crate::policy_events::EngineFailureHint::OfCode,
             message: String::from(message),
             trigger: Some(Trigger::PreForward),
             policy: None,

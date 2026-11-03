@@ -125,6 +125,7 @@ fn not_at_root(root: &str, severity: Severity) -> PolicyEvent {
 fn unprepared_final_newline() -> PolicyEvent {
     return PolicyEvent::EngineFailure {
         code: EngineFailureCode::ContentUnavailable,
+        hint: crate::policy_events::EngineFailureHint::OfCode,
         message: String::from("the scripted facts prepare no candidates"),
         trigger: Some(Trigger::PreForward),
         policy: Some(PolicyId::FinalNewline),
@@ -260,6 +261,7 @@ fn read_only_commands_skip_configuration_and_refusals() {
                     0,
                     &[PolicyEvent::EngineFailure {
                         code: EngineFailureCode::ContentUnavailable,
+                        hint: crate::policy_events::EngineFailureHint::OfCode,
                         message: String::from("no location answer"),
                         trigger: Some(Trigger::PreForward),
                         policy: Some(PolicyId::RequireRoot),
@@ -475,6 +477,7 @@ fn configuration_selects_the_policies_of_a_guarded_command() {
                     0,
                     &[PolicyEvent::EngineFailure {
                         code: EngineFailureCode::ContentUnavailable,
+                        hint: crate::policy_events::EngineFailureHint::OfCode,
                         message: String::from("the scripted facts prepare no candidates"),
                         trigger: Some(Trigger::PreForward),
                         policy: Some(PolicyId::MarkdownAutofix),

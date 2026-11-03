@@ -14,7 +14,8 @@
 use super::auto_push_single_flight::PushGit;
 use super::candidate_object::parse_object_id;
 use super::candidate_prediction::PushedScope;
-use super::manual_push_probe::{PushUpdate, probe_manual_push_updates};
+use super::manual_push_cause::ManualPushCause;
+use super::manual_push_probe::{GitRefusal, PushUpdate, probe_manual_push_updates};
 use super::manual_push_range::{
     ManualPushRangeError, UpdateScope, peel_commits, published_tips, tracking_commits, update_scope,
 };
@@ -36,6 +37,17 @@ use std::ffi::OsString;
 pub struct ManualPushFailure {
     /// Diagnostic naming the failed step.
     pub message: String,
+    /// Git's refusal when Git itself ended the dry run: the push then ends as Git ends it.
+    pub refusal: Option<GitRefusal>,
+    /// What the person can do about it, which the engine failure's hint is chosen by.
+    pub cause: ManualPushCause,
+}
+
+impl ManualPushFailure {
+    /// A failure of the wrapper's own step, which is no refusal by Git.
+    pub fn step(cause: ManualPushCause, message: String) -> Self {
+        return Self { message, refusal: None, cause };
+    }
 }
 
 impl std::fmt::Display for ManualPushFailure {
@@ -56,6 +68,8 @@ impl std::error::Error for ManualPushFailure {}
 fn from_probe(error: &super::manual_push_probe::ManualPushProbeError) -> ManualPushFailure {
     return ManualPushFailure {
         message: error.message.clone(),
+        refusal: error.refusal.clone(),
+        cause: error.cause,
     };
 }
 
@@ -66,9 +80,7 @@ fn from_probe(error: &super::manual_push_probe::ManualPushProbeError) -> ManualP
 /// caughtValueText(error)
 /// ```
 fn from_range(error: &ManualPushRangeError) -> ManualPushFailure {
-    return ManualPushFailure {
-        message: error.message.clone(),
-    };
+    return ManualPushFailure::step(error.cause, error.message.clone());
 }
 
 /// What:
@@ -132,11 +144,9 @@ pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFai
             UpdateScope::Commits(names) => {
                 for name in names {
                     let oid = parse_object_id(name.as_bytes()).ok_or_else(|| {
-                        return ManualPushFailure {
-                            message: format!(
-                                "Git named a commit that is not an object name: {name}"
-                            ),
-                        };
+                        return ManualPushFailure::step(ManualPushCause::UnexpectedOutput, format!(
+                            "Git named a commit that is not an object name: {name}"
+                        ));
                     })?;
                     if !commits.contains(&oid) {
                         commits.push(oid);
@@ -145,9 +155,7 @@ pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFai
             }
             UpdateScope::FinalTree(tip) => {
                 let oid = parse_object_id(tip.as_bytes()).ok_or_else(|| {
-                    return ManualPushFailure {
-                        message: format!("Git named a commit that is not an object name: {tip}"),
-                    };
+                    return ManualPushFailure::step(ManualPushCause::UnexpectedOutput, format!("Git named a commit that is not an object name: {tip}"));
                 })?;
                 if !trees.contains(&oid) {
                     trees.push(oid);

@@ -121,6 +121,7 @@ fn incomplete(arguments: &[OsString], message: String) -> TransformResult {
         // `vec![...]` is a macro building an owned list from literal items.
         events: vec![PolicyEvent::EngineFailure {
             code: EngineFailureCode::CoreIncomplete,
+            hint: crate::policy_events::EngineFailureHint::OfCode,
             message,
             // `None` is the "absent" case of `Option`.
             trigger: None,

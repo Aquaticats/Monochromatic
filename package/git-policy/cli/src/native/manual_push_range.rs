@@ -12,6 +12,7 @@
 
 /// The Git runner, the probe's update type, and the object name helpers.
 use super::auto_push_single_flight::{PushGit, git_command};
+use super::manual_push_cause::ManualPushCause;
 use super::manual_push_probe::PushUpdate;
 /// Starts that ride out a short shortage of processes.
 use super::start_retry::RetryStart;
@@ -39,6 +40,8 @@ const TRACKING_NAMESPACE: &str = "refs/remotes/";
 pub struct ManualPushRangeError {
     /// Diagnostic naming the failed query.
     pub message: String,
+    /// What the person can do about it, which the hint is chosen by.
+    pub cause: ManualPushCause,
 }
 
 impl std::fmt::Display for ManualPushRangeError {
@@ -56,8 +59,8 @@ impl std::error::Error for ManualPushRangeError {}
 /// ```ts
 /// new ManualPushProbeError(message)
 /// ```
-fn range_error(message: String) -> ManualPushRangeError {
-    return ManualPushRangeError { message };
+fn range_error(cause: ManualPushCause, message: String) -> ManualPushRangeError {
+    return ManualPushRangeError { message, cause };
 }
 
 /// What:
@@ -85,17 +88,17 @@ pub fn run_git_bytes(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = command.spawn_retrying().map_err(|error| {
-        return range_error(format!("git could not be started: {error}"));
+        return range_error(ManualPushCause::GitNotStarted, format!("git could not be started: {error}"));
     })?;
     if let (Some(text), Some(mut stdin)) = (input, child.stdin.take()) {
         // A Git exit before reading the whole input surfaces through its status, so the write error is ignored here.
         let _written = stdin.write_all(text.as_bytes());
     }
     let output = child.wait_with_output().map_err(|error| {
-        return range_error(format!("git did not finish: {error}"));
+        return range_error(ManualPushCause::GitSilent, format!("git did not finish: {error}"));
     })?;
     if !output.status.success() {
-        return Err(range_error(format!(
+        return Err(range_error(ManualPushCause::ContentMissing, format!(
             "git {} failed: {}",
             arguments
                 .iter()
@@ -160,6 +163,7 @@ pub fn peel_commits(
     let records = lines_of(&output);
     if records.len() != unique.len() {
         return Err(range_error(
+            ManualPushCause::UnexpectedOutput,
             "Git object batch-check returned an unexpected record count.".to_owned(),
         ));
     }
@@ -170,7 +174,7 @@ pub fn peel_commits(
         }
         let fields: Vec<&str> = record.split(' ').collect();
         if fields.len() != 2 {
-            return Err(range_error(format!(
+            return Err(range_error(ManualPushCause::UnexpectedOutput, format!(
                 "Git object batch-check returned malformed record: {record}"
             )));
         }
@@ -213,7 +217,7 @@ pub fn tracking_commits(
         for record in &refs {
             let fields: Vec<&str> = record.split(' ').collect();
             if fields.len() != 3 {
-                return Err(range_error(format!(
+                return Err(range_error(ManualPushCause::UnexpectedOutput, format!(
                     "Git for-each-ref returned malformed record: {record}"
                 )));
             }
@@ -297,8 +301,8 @@ pub fn update_scope(
     };
     let commit_check = peel_commits(git, std::slice::from_ref(local))?;
     if !commit_check.contains_key(local) {
-        return Err(range_error(format!(
-            "pushed object {local} is not a commit; the manual-push scan of this object type is not ported"
+        return Err(range_error(ManualPushCause::UnsupportedObject, format!(
+            "pushed object {local} is not a commit, and the manual-push policies read commits only"
         )));
     }
     if published.is_empty() {
