@@ -1,15 +1,14 @@
 //! What:
 //!  Directory-relative file operations that never follow a symbolic link or cross a mount: open a directory, a file or a
 //!  link below a held directory handle one plain name at a time (`openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS`,
-//!  `RESOLVE_NO_XDEV` and `RESOLVE_NO_MAGICLINKS`), create entries there, set times on them, rename them, and remove only
-//!  an object whose identity is the one that was recorded when it was made.
+//!  `RESOLVE_NO_XDEV` and `RESOLVE_NO_MAGICLINKS`), create entries there, set times on them, rename them, publish an open
+//!  file under a new name without replacing anything, and remove a lock file whose identity is the one that was recorded.
 //! Why:
 //!  A path string is resolved again by every call that takes it, so a directory swapped for a link between two calls
-//!  redirects the second one, and a name that was validated may name another object when it is deleted. The clone rung, the
-//!  snapshot's stub removal and the rollback of an incomplete add work on trees other processes can rename into; holding
-//!  the handle of each directory, naming one component at a time, and deleting through a quarantine name whose object is
-//!  compared with the recorded identity keeps every call on the object that was looked at, and a replacement is kept, not
-//!  deleted.
+//!  redirects the second one. A name that was checked may also name another object when it is unlinked, and nothing in the
+//!  kernel makes the two one step, so no tree is deleted through this module: what the ladder made is kept and reported.
+//!  The clone rung and the snapshot's stub removal work on trees other processes can rename into; holding the handle of each
+//!  directory and naming one component at a time keeps every call on the object that was looked at.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,7 +22,6 @@ use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
 /// `RESOLVE_NO_XDEV`: no mount point, bind mounts included, is crossed.
 const RESOLVE_NO_XDEV: u64 = 0x01;
@@ -301,88 +299,65 @@ pub fn identity_at(dir: &File, name: &OsStr) -> std::io::Result<ObjectId> {
     return identity_statx(dir, Some(name));
 }
 
-/// A counter for quarantine names.
-static QUARANTINE: AtomicU64 = AtomicU64::new(0);
-
-/// What a request to remove an owned object did.
+/// What a request to remove an entry that the caller made did.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Owned {
-    /// The object was removed.
+    /// The entry was removed.
     Removed,
     /// Nothing was at the name.
     Absent,
-    /// The name held another object, or a directory still held entries it was not to remove; it was put back and kept.
+    /// The name held another object and was left alone, for this reason.
     Kept(String),
 }
 
 /// What:
-///  Remove the object `name` of `dir` only if it is the one with identity `expected`.
+///  Remove the entry `name` of `dir` if, at the moment of the look, it is the object with identity `expected`.
 /// Why:
-///   The object is first moved into a private directory made for this call, whose name nothing else knows, so the name
-///  being checked is one no other process can have replaced; there its identity is compared (a directory by the handle it is
-///  opened on) and only then is it deleted. A replacement that stood at the name is put back untouched. This is for
-///  objects the calling process made itself, and a directory only when it is empty; nothing recorded earlier authorizes the
-///  removal of anything else, and no tree is ever removed through it.
+///   This is the one removal by name the ladder keeps, for the lock file it created and still holds open: it is what Git
+///  itself does with its own lock. A name can be taken between the look and the unlink, and nothing in the kernel makes the
+///  two one step, so the function is used only for a lock that no other writer can have replaced without breaking the lock
+///  protocol, and never to remove a tree: a directory is refused. Everything else the ladder made stays and is reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await removeOwnedAt(dir, 'file', expected); // a directory only when empty
+/// await removeIfIdentical(dir, 'index.lock', expected);
 /// ```
-pub fn remove_owned_at(dir: &File, name: &OsStr, expected: ObjectId) -> std::io::Result<Owned> {
-    let box_name: OsString = OsString::from(format!(".cli-git-trash-{}-{}", std::process::id(), QUARANTINE.fetch_add(1, Ordering::SeqCst)));
-    let held: &OsStr = OsStr::new("held");
-    let c_box = name_of(box_name.as_os_str())?;
-    // SAFETY: `c_box` outlives the call and `dir` is an open descriptor.
-    checked(unsafe { libc::mkdirat(dir.as_raw_fd(), c_box.as_ptr(), 0o700) })?;
-    let boxed: File = match open_directory_at(dir, box_name.as_os_str()) {
-        Ok(opened) => opened,
-        Err(error) => {
-            let _removed = remove_at(dir, box_name.as_os_str(), true);
-            return Err(error);
-        }
-    };
-    let finish = |outcome: std::io::Result<Owned>| -> std::io::Result<Owned> {
-        // The box is empty after a removal or a put back; when the object could not be put back it stays in the box.
-        let _removed = remove_at(dir, box_name.as_os_str(), true);
-        return outcome;
-    };
-    match rename_at(dir, name, &boxed, held, false) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return finish(Ok(Owned::Absent)),
-        Err(error) => return finish(Err(error)),
-    }
-    let put_back = |reason: String| -> std::io::Result<Owned> {
-        return finish(match rename_at(&boxed, held, dir, name, false) {
-            Ok(()) => Ok(Owned::Kept(reason)),
-            Err(error) => Ok(Owned::Kept(format!("{reason}; it could not be put back and stays as {}/held ({error})", box_name.to_string_lossy()))),
-        });
-    };
-    let found: ObjectId = match identity_at(&boxed, held) {
+pub fn remove_if_identical(dir: &File, name: &OsStr, expected: ObjectId) -> std::io::Result<Owned> {
+    let found: ObjectId = match identity_at(dir, name) {
         Ok(known) => known,
-        Err(error) => return put_back(format!("{} cannot be examined ({error})", name.to_string_lossy())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Owned::Absent),
+        Err(error) => return Err(error),
     };
     if found != expected {
-        return put_back(format!("{} is not the object that was made ({} against {})", name.to_string_lossy(), found.encode(), expected.encode()));
+        return Ok(Owned::Kept(format!("{} is not the object that was made ({} against {})", name.to_string_lossy(), found.encode(), expected.encode())));
     }
-    let is_directory: bool = entry_metadata_at(&boxed, held).is_ok_and(|metadata: std::fs::Metadata| { return metadata.is_dir(); });
-    if !is_directory {
-        return match remove_at(&boxed, held, false) {
-            Ok(()) => finish(Ok(Owned::Removed)),
-            Err(error) => put_back(format!("{} cannot be removed ({error})", name.to_string_lossy())),
-        };
+    if entry_metadata_at(dir, name)?.is_dir() {
+        return Ok(Owned::Kept(format!("{} is a directory and is not removed", name.to_string_lossy())));
     }
-    // A directory is compared again on the handle it is opened on, which is the object itself and not a name.
-    let opened: File = match open_directory_at(&boxed, held) {
-        Ok(handle) => handle,
-        Err(error) => return put_back(format!("{} cannot be opened ({error})", name.to_string_lossy())),
+    return match remove_at(dir, name, false) {
+        Ok(()) => Ok(Owned::Removed),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Owned::Absent),
+        Err(error) => Err(error),
     };
-    if identity_of(&opened).ok() != Some(expected) {
-        return put_back(format!("{} is not the object that was made (the opened directory differs)", name.to_string_lossy()));
-    }
-    return match remove_at(&boxed, held, true) {
-        Ok(()) => finish(Ok(Owned::Removed)),
-        Err(error) => put_back(format!("{} still holds entries or cannot be removed ({error})", name.to_string_lossy())),
-    };
+}
+
+/// What:
+///  Make the open file `source` another name `name` of `dir`, failing if the name exists.
+/// Why:
+///   The object published is the one the descriptor holds, not whatever a separately checked name refers to at the moment of a
+///  rename, and an existing entry is never replaced (`linkat` fails with `EEXIST`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await linkOpenFileAt(file, dir, 'index');
+/// ```
+pub fn link_open_file_at(source: &File, dir: &File, name: &OsStr) -> std::io::Result<()> {
+    let c_name = name_of(name)?;
+    let through = CString::new(handle_path(source).as_os_str().as_bytes()).map_err(|_error| { return std::io::Error::new(std::io::ErrorKind::InvalidInput, "a path holds a NUL byte"); })?;
+    // SAFETY: both strings outlive the call, `dir` is an open descriptor, and `AT_SYMLINK_FOLLOW` makes the link to the file
+    // the descriptor's magic link names.
+    checked(unsafe { libc::linkat(libc::AT_FDCWD, through.as_ptr(), dir.as_raw_fd(), c_name.as_ptr(), libc::AT_SYMLINK_FOLLOW) })?;
+    return Ok(());
 }
 
 /// Controls stay out of the release executable.

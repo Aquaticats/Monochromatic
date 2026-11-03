@@ -173,58 +173,53 @@ fn an_identity_round_trips_and_tells_two_objects_apart() {
     remove(root.as_path());
 }
 
-/// An object is removed only while it has the identity that was recorded; a replacement at the name is put back untouched.
+/// A lock file is removed only while the name still holds the file that was made; a replacement stays, a directory is never
+///  removed, and a name that is gone is nothing.
 #[test]
-fn only_the_recorded_object_is_removed() {
-    let root: PathBuf = fixture("beneath-owned");
+fn only_the_recorded_file_is_removed() {
+    let root: PathBuf = fixture("beneath-identical");
     let held: File = open_directory(root.as_path()).expect("root");
     std::fs::write(root.join("made"), b"mine").expect("made");
     let made: ObjectId = identity_at(&held, OsStr::new("made")).expect("identity");
     // Another process replaces the name with its own file of the same name.
     std::fs::rename(root.join("made"), root.join("moved-away")).expect("moved");
     std::fs::write(root.join("made"), b"theirs").expect("a replacement");
-    let outcome: Owned = remove_owned_at(&held, OsStr::new("made"), made).expect("outcome");
+    let outcome: Owned = remove_if_identical(&held, OsStr::new("made"), made).expect("outcome");
     assert!(matches!(outcome, Owned::Kept(ref reason) if reason.contains("is not the object that was made")), "{outcome:?}");
     assert_eq!(std::fs::read(root.join("made")).expect("the replacement stays"), b"theirs");
-    assert!(std::fs::read_dir(&root).expect("listing").flatten().all(|entry| { return !entry.file_name().to_string_lossy().starts_with(".cli-git-trash"); }), "no quarantine name is left");
-    // The recorded object itself goes, and a second request finds nothing.
     let moved: ObjectId = identity_at(&held, OsStr::new("moved-away")).expect("identity");
-    assert_eq!(remove_owned_at(&held, OsStr::new("moved-away"), moved).expect("removed"), Owned::Removed);
+    assert_eq!(remove_if_identical(&held, OsStr::new("moved-away"), moved).expect("removed"), Owned::Removed);
     assert!(!root.join("moved-away").exists());
-    assert_eq!(remove_owned_at(&held, OsStr::new("moved-away"), moved).expect("absent"), Owned::Absent);
+    assert_eq!(remove_if_identical(&held, OsStr::new("moved-away"), moved).expect("absent"), Owned::Absent);
+    std::fs::create_dir(root.join("directory")).expect("directory");
+    let directory: ObjectId = identity_at(&held, OsStr::new("directory")).expect("identity");
+    let refused: Owned = remove_if_identical(&held, OsStr::new("directory"), directory).expect("outcome");
+    assert!(matches!(refused, Owned::Kept(ref reason) if reason.contains("is a directory")), "{refused:?}");
+    assert!(root.join("directory").is_dir());
     remove(root.as_path());
 }
 
-/// A directory is removed only when it is empty: one that holds anything is put back whole, and no call empties a tree.
+/// An open file is published under a new name without replacing anything: the file published is the one the descriptor holds,
+///  whatever a name that was checked earlier refers to now.
 #[test]
-fn a_directory_is_removed_only_when_it_is_empty() {
-    let root: PathBuf = fixture("beneath-owned-directory");
+fn an_open_file_is_linked_under_a_new_name_and_never_over_an_existing_one() {
+    let root: PathBuf = fixture("beneath-link-open");
     let held: File = open_directory(root.as_path()).expect("root");
-    std::fs::create_dir_all(root.join("tree/deep/er")).expect("tree");
-    std::fs::write(root.join("tree/deep/er/file"), b"x").expect("file");
-    let tree: ObjectId = identity_at(&held, OsStr::new("tree")).expect("identity");
-    let kept: Owned = remove_owned_at(&held, OsStr::new("tree"), tree).expect("outcome");
-    assert!(matches!(kept, Owned::Kept(ref reason) if reason.contains("still holds entries")), "{kept:?}");
-    assert!(root.join("tree/deep/er/file").exists(), "put back whole");
-    std::fs::remove_dir_all(root.join("tree/deep")).expect("emptied by its owner");
-    assert_eq!(remove_owned_at(&held, OsStr::new("tree"), tree).expect("removed"), Owned::Removed);
-    assert!(!root.join("tree").exists());
-    remove(root.as_path());
-}
-
-/// The private directory a removal works in is gone afterwards, whether the object was removed, put back or absent.
-#[test]
-fn no_quarantine_directory_is_left_behind() {
-    let root: PathBuf = fixture("beneath-no-quarantine");
-    let held: File = open_directory(root.as_path()).expect("root");
-    std::fs::write(root.join("file"), b"x").expect("file");
-    let id: ObjectId = identity_at(&held, OsStr::new("file")).expect("identity");
-    let other: ObjectId = ObjectId { device: id.device, inode: id.inode + 1_000_000, birth: id.birth };
-    assert!(matches!(remove_owned_at(&held, OsStr::new("file"), other).expect("put back"), Owned::Kept(_)));
-    assert_eq!(remove_owned_at(&held, OsStr::new("file"), id).expect("removed"), Owned::Removed);
-    assert_eq!(remove_owned_at(&held, OsStr::new("file"), id).expect("absent"), Owned::Absent);
-    let left: Vec<String> = std::fs::read_dir(root.as_path()).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
-    assert_eq!(left, Vec::<String>::new());
+    let written: File = create_file_at(&held, OsStr::new("lock"), 0o600).expect("lock");
+    std::io::Write::write_all(&mut &written, b"the index we wrote").expect("content");
+    // Another process takes the lock name for its own file; the descriptor still holds ours.
+    std::fs::rename(root.join("lock"), root.join("lock.moved")).expect("lock moved away");
+    std::fs::write(root.join("lock"), b"theirs").expect("their lock");
+    link_open_file_at(&written, &held, OsStr::new("index")).expect("published");
+    assert_eq!(std::fs::read(root.join("index")).expect("index"), b"the index we wrote");
+    assert_eq!(std::fs::read(root.join("lock")).expect("lock"), b"theirs");
+    assert!(link_open_file_at(&written, &held, OsStr::new("index")).is_err(), "an existing name is not replaced");
+    std::fs::remove_file(root.join("lock.moved")).expect("the last name of the file goes");
+    std::fs::remove_file(root.join("index")).expect("and the published one");
+    assert!(link_open_file_at(&written, &held, OsStr::new("again")).is_err(), "a file with no name left cannot be linked: the publication fails closed");
+    std::fs::write(root.join("other"), b"x").expect("other");
+    assert!(link_open_file_at(&written, &held, OsStr::new("other")).is_err());
+    assert_eq!(std::fs::read(root.join("other")).expect("kept"), b"x");
     remove(root.as_path());
 }
 

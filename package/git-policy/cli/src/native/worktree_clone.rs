@@ -7,8 +7,8 @@
 //!  on btrfs (`doc/planning/cli-git-btrfs-worktree.md`, option B), so it saves disk, not time, and it is the accelerated
 //!  rung where a snapshot is impossible. The wrapper's own index writer is `rewrite_index_stat_with`: with each file's
 //!  size and modification time kept, only the inode, change time and device of every entry change. The first failure ends
-//!  the rung with its reason after the entries this run created are removed (and nothing else), and Git's own checkout
-//!  completes the worktree.
+//!  the rung with its reason, the entries this run created stay (a name cannot be checked and unlinked in one step), and
+//!  Git's own checkout completes the worktree and overwrites the tracked ones.
 //!  Every source file is opened below a held handle of the source root without following a link, and its descriptor's
 //!  metadata, not a path, is compared with the frozen index entry before and after the clone; every destination entry is
 //!  created below a held handle of the destination. A directory swapped for a link while the run goes on is an error,
@@ -19,7 +19,7 @@
 //! await cloneTrackedFiles(source, destination, admin); // throws a reason
 //! ```
 
-use super::fs_beneath::{ObjectId, Owned, create_file_at, entry_metadata_at, identity_at, identity_of, make_directory_at, open_directory_at, open_file_at, open_root, plain_components, read_link_at, remove_owned_at, set_times_at, symlink_at};
+use super::fs_beneath::{create_file_at, entry_metadata_at, make_directory_at, open_directory_at, open_file_at, open_root, plain_components, read_link_at, set_times_at, symlink_at};
 use super::fs_clone_exchange::clone_file;
 use super::subvolume_index::StatFields;
 use super::subvolume_index_files::{fields_of, install_index_in};
@@ -78,14 +78,14 @@ fn identity_of_metadata(from: &std::fs::Metadata) -> [i64; 8] {
 }
 
 /// What:
-///  An entry this run created, named by its components below the destination, with the identity it had when it was made.
+///  An entry this run created, named by its components below the destination.
 /// Why:
-///   The run removes exactly these objects, and only while they still have this identity, when it fails; a replacement
-///  that another process put at the name is not the run's to remove.
+///   Nothing is removed on a failure: a name cannot be checked and unlinked in one step, and the entry may by then be another
+///  process's, so the run keeps what it made and reports it. The list is what the report names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Created = { names: string[]; directory: boolean; id: ObjectId };
+/// type Created = { names: string[]; directory: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Created {
@@ -93,8 +93,6 @@ pub struct Created {
     pub names: Vec<OsString>,
     /// Whether the entry is a directory.
     pub directory: bool,
-    /// The identity of the entry when it was made.
-    pub id: ObjectId,
 }
 
 /// The directories this run walked, by their components below the destination (the empty list is the destination), each
@@ -102,61 +100,41 @@ pub struct Created {
 type Directories = HashMap<Vec<OsString>, File>;
 
 /// What:
-///  What a successful clone run holds: the destination and the directories walked, the entries the run created, and the
-///  stat fields of the objects it made.
+///  What a successful clone run holds: the entries it created.
 /// Why:
-///   A later step that fails (the tree difference) removes the clones through the same handles, and nothing the run did
-///  not create.
+///   A later step that fails (the tree difference) reports them; Git's own checkout then overwrites the tracked ones, and the
+///  rest stay as untracked files for the person to remove.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Cloned = { created: Created[]; remove(): string[] };
+/// type Cloned = { created: Created[] };
 /// ```
 #[derive(Debug)]
 pub struct Cloned {
-    /// The directories walked.
-    directories: Directories,
     /// The entries created, in creation order.
     created: Vec<Created>,
 }
 
 impl Cloned {
-    /// What:
-    ///  Remove the entries this run created, last first, each only if it is still the object that was made.
-    ///  The result lists what was kept and why.
-    /// Why:
-    ///   A name that is gone is fine; a replacement, and a directory that holds entries the run did not create, stay.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const kept = cloned.remove();
-    /// ```
-    pub fn remove(&self) -> Vec<String> {
-        return remove_created(&self.directories, self.created.as_slice());
-    }
-
     /// The entries the run created, in creation order.
     pub fn created(&self) -> &[Created] {
         return self.created.as_slice();
     }
 }
 
-/// Remove `created` through the held `directories`, last first; what was kept is returned with its reason.
-fn remove_created(directories: &Directories, created: &[Created]) -> Vec<String> {
-    let mut kept: Vec<String> = Vec::new();
-    for entry in created.iter().rev() {
-        let Some((name, parents)) = entry.names.split_last() else { continue };
-        let Some(parent) = directories.get(parents) else {
-            kept.push(format!("{} has no held parent", name.to_string_lossy()));
-            continue;
-        };
-        match remove_owned_at(parent, name.as_os_str(), entry.id) {
-            Ok(Owned::Removed | Owned::Absent) => {}
-            Ok(Owned::Kept(reason)) => kept.push(reason),
-            Err(error) => kept.push(format!("{} cannot be removed ({error})", name.to_string_lossy())),
-        }
-    }
-    return kept;
+/// What:
+///  The report of entries a clone run created and leaves in place.
+/// Why:
+///   The tracked ones are overwritten by the checkout that completes the worktree; any other stays as an untracked file, and
+///  the person is told where to look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = leftover_report(created, destination);
+/// ```
+pub fn leftover_report(created: &[Created], destination: &Path) -> String {
+    let shown: Vec<String> = created.iter().filter(|entry: &&Created| { return !entry.directory; }).take(3).map(|entry: &Created| { return entry.names.iter().map(|name: &OsString| { return name.to_string_lossy().into_owned(); }).collect::<Vec<String>>().join("/"); }).collect();
+    return format!("{} entries the clones created stay in {} (for example {}); the checkout that completes the worktree overwrites the tracked ones, and `git -C {} status` lists any other as untracked", created.len(), destination.display(), shown.join(", "), destination.display());
 }
 
 /// What:
@@ -185,8 +163,7 @@ fn ensure_parents(directories: &mut Directories, names: &[OsString], created: &m
             return Err(format!("{} is on another device", name.to_string_lossy()));
         }
         if made {
-            let id: ObjectId = identity_of(&next).map_err(|error| { return format!("{} cannot be examined ({error})", name.to_string_lossy()); })?;
-            created.push(Created { names: key.clone(), directory: true, id });
+            created.push(Created { names: key.clone(), directory: true });
         }
         directories.insert(key, next.try_clone().map_err(|error| { return format!("a directory handle cannot be kept ({error})"); })?);
         current = next;
@@ -249,15 +226,14 @@ fn clone_entry(source_dir: &File, destination_dir: &File, work: &Work<'_>, resul
         }
         let target: PathBuf = read_link_at(source_dir, name).map_err(|error| { return format!("{shown} is unreadable ({error})"); })?;
         symlink_at(target.as_path(), destination_dir, name).map_err(|error| { return format!("{shown} cannot be linked ({error})"); })?;
-        let id: ObjectId = identity_at(destination_dir, name).map_err(|error| { return format!("{shown} cannot be examined ({error})"); })?;
-        created.push(Created { names: all_names.to_vec(), directory: false, id });
+        created.push(Created { names: all_names.to_vec(), directory: false });
         set_times_at(destination_dir, name, times_of(&metadata)).map_err(|error| { return format!("the times of {shown} cannot be set ({error})"); })?;
         let after: std::fs::Metadata = entry_metadata_at(source_dir, name).map_err(|error| { return format!("{shown} is unreadable ({error})"); })?;
         if identity_of_metadata(&after) != identity_of_metadata(&metadata) {
             return Err(changed(format!("{shown} was replaced")));
         }
-        let made: std::fs::Metadata = entry_metadata_at(destination_dir, name).map_err(|error| { return format!("{shown} cannot be examined ({error})"); })?;
-        stats.insert(entry.path.clone(), fields_of(&made));
+        // A link cannot be held by a descriptor that reads its metadata, so the name is not asked: the entry keeps the
+        // source's stat fields, which no longer match the new link, and Git compares the link's target on first use.
         return Ok(());
     }
     if !metadata.is_file() {
@@ -270,8 +246,7 @@ fn clone_entry(source_dir: &File, destination_dir: &File, work: &Work<'_>, resul
         return Err(changed(reason));
     }
     let destination: File = create_file_at(destination_dir, name, 0o600).map_err(|error| { return format!("{shown} cannot be created ({error})"); })?;
-    let id: ObjectId = identity_of(&destination).map_err(|error| { return format!("{shown} cannot be examined ({error})"); })?;
-    created.push(Created { names: all_names.to_vec(), directory: false, id });
+    created.push(Created { names: all_names.to_vec(), directory: false });
     if held.len() > 0 {
         clone_file(&source, &destination, Path::new(name)).map_err(|error| { return format!("the clone was refused ({error})"); })?;
     }
@@ -324,8 +299,8 @@ fn debug_report(report: &str) {
 
 /// What:
 ///  Clone every tracked file of the frozen index into the held `destination`, and install that index in the held `admin`
-///  with the stat fields of the objects made. On an error the entries this run created are removed while they are still the
-///  objects that were made, and nothing else.
+///  with the stat fields of the regular files made. On an error nothing is removed: the entries this run created stay and
+///  are counted in the reason.
 /// Why:
 ///   The index bytes are the ones proven clean, so what is installed is what was proven; the destination may hold files
 ///  of other writers, and they are not this run's to remove.
@@ -339,10 +314,9 @@ pub fn clone_tracked_files(source: &SnapshotSource, destination: &File, admin: &
     directories.insert(Vec::new(), destination.try_clone().map_err(|error| { return format!("the destination handle cannot be kept ({error})"); })?);
     let mut created: Vec<Created> = Vec::new();
     if let Err(reason) = clone_all(source, &mut directories, admin, &mut created) {
-        let kept: Vec<String> = remove_created(&directories, created.as_slice());
-        return Err(if kept.is_empty() { reason } else { format!("{reason}; kept: {}", kept.join("; ")) });
+        return Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) });
     }
-    return Ok(Cloned { directories, created });
+    return Ok(Cloned { created });
 }
 
 /// Clone rung controls stay out of the release executable.

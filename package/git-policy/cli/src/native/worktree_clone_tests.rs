@@ -54,10 +54,10 @@ fn btrfs_files_links_modes_and_times_are_cloned_and_the_index_is_installed() {
     remove(root.as_path());
 }
 
-/// A source that changed after the check is refused by the comparison with its own index, and the entries the run created
-///  are gone again: the destination is down to Git's pointer.
+/// A source that changed after the check is refused by the comparison with its own index; the entries the run created stay
+///  (nothing is removed by a name), and the reason counts them.
 #[test]
-fn btrfs_a_changed_source_is_refused_and_a_partial_destination_is_cleared() {
+fn btrfs_a_changed_source_is_refused_and_the_partial_destination_is_left_for_the_checkout() {
     let Some(root) = btrfs_fixture("clone-changed") else { return };
     let (repo, destination, admin) = clone_fixture(root.as_path());
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
@@ -66,8 +66,8 @@ fn btrfs_a_changed_source_is_refused_and_a_partial_destination_is_cleared() {
     let reason: String = clone_into(&source, destination.as_path(), admin.as_path()).expect_err("refused");
     assert!(reason.contains("the source changed while it was cloned"), "{reason}");
     assert!(!admin.join("index").exists(), "no index for a refused clone");
-    let left: Vec<String> = std::fs::read_dir(destination.as_path()).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
-    assert_eq!(left, vec![String::from(".git")]);
+    assert!(reason.contains("entries it created stay"), "{reason}");
+    assert!(destination.join(".gitignore").exists() || destination.join("bin").exists(), "what was cloned stays");
     remove(root.as_path());
 }
 
@@ -131,9 +131,9 @@ fn btrfs_a_file_swapped_between_the_look_and_the_open_is_not_cloned() {
     remove(root.as_path());
 }
 
-/// A file written after its data was cloned is refused, and the entry it made is on the list of what to remove.
+/// A file written after its data was cloned is refused, and the entry it made is on the list of what stays.
 #[test]
-fn btrfs_a_file_written_during_the_clone_is_refused_and_listed_for_removal() {
+fn btrfs_a_file_written_during_the_clone_is_refused_and_listed() {
     let Some(root) = btrfs_fixture("clone-write-during") else { return };
     let (repo, destination, _admin) = clone_fixture(root.as_path());
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
@@ -173,10 +173,10 @@ fn btrfs_a_parent_directory_swapped_after_it_was_opened_is_read_through_its_hand
     remove(root.as_path());
 }
 
-/// A failed run removes the entries it created and nothing else: a file and a directory that were in the destination before
-///  stay, with the directory's own content.
+/// A failed run removes nothing: a file and a directory that were in the destination before stay, and so do the clones that
+///  were made, which the reason counts.
 #[test]
-fn btrfs_a_failed_run_removes_what_it_created_and_nothing_else() {
+fn btrfs_a_failed_run_removes_nothing_and_counts_what_stays() {
     let Some(root) = btrfs_fixture("clone-created-only") else { return };
     let (repo, destination, admin) = clone_fixture(root.as_path());
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
@@ -186,13 +186,13 @@ fn btrfs_a_failed_run_removes_what_it_created_and_nothing_else() {
     std::fs::write(repo.join("plain.txt"), b"PLAIN\n").expect("edit after the check");
     crate::test_support::age(repo.join("plain.txt").as_path());
     let reason: String = clone_into(&source, destination.as_path(), admin.as_path()).expect_err("refused");
-    assert!(reason.contains("the source changed while it was cloned"), "{reason}");
-    let mut left: Vec<String> = Vec::new();
-    for entry in walk(destination.as_path()) {
-        left.push(entry);
-    }
+    assert!(reason.contains("the source changed while it was cloned") && reason.contains("entries it created stay"), "{reason}");
+    let mut left: Vec<String> = walk(destination.as_path());
     left.sort();
-    assert_eq!(left, vec![".git", "bin", "bin/mine", "keep.txt"], "{left:?}");
+    for kept in [".git", "bin", "bin/mine", "keep.txt"] {
+        assert!(left.iter().any(|name: &String| { return name == kept; }), "{kept} stays: {left:?}");
+    }
+    assert!(left.iter().any(|name: &String| { return name == "bin/tool.sh" || name == ".gitignore"; }), "the clones that were made stay: {left:?}");
     remove(root.as_path());
 }
 
@@ -211,31 +211,6 @@ fn walk(top: &Path) -> Vec<String> {
     return found;
 }
 
-/// A destination path swapped for a link after the run is removed through the held handle: the clones go from the directory
-///  that was filled, and the directory the link points at keeps every file.
-#[test]
-fn btrfs_removal_after_a_destination_swap_touches_only_the_directory_that_was_filled() {
-    let Some(root) = btrfs_fixture("clone-remove-swapped") else { return };
-    let (repo, destination, admin) = clone_fixture(root.as_path());
-    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
-    let cloned: Cloned = clone_into(&source, destination.as_path(), admin.as_path()).expect("clones");
-    let victim: PathBuf = root.join("victim");
-    std::fs::create_dir_all(victim.join("bin")).expect("victim");
-    for name in ["plain.txt", "bin/tool.sh", "empty.txt"] {
-        std::fs::write(victim.join(name), b"not yours").expect("victim file");
-    }
-    let moved: PathBuf = root.join("topic.moved");
-    std::fs::rename(destination.as_path(), moved.as_path()).expect("moved away");
-    std::os::unix::fs::symlink(victim.as_path(), destination.as_path()).expect("link in its place");
-    cloned.remove();
-    assert_eq!(std::fs::read(victim.join("plain.txt")).expect("kept"), b"not yours");
-    assert!(victim.join("bin/tool.sh").exists() && victim.join("empty.txt").exists(), "nothing outside the run was removed");
-    let mut left: Vec<String> = walk(moved.as_path());
-    left.sort();
-    assert_eq!(left, vec![".git"], "the run's own entries went from the directory it filled");
-    remove(root.as_path());
-}
-
 /// The index that was proven clean is the one cloned from: a source that moved to another commit after the check, with its
 ///  own consistent index, is refused, never cloned as the other commit.
 #[test]
@@ -252,27 +227,17 @@ fn btrfs_the_frozen_index_is_used_not_a_second_read_of_the_file() {
     remove(root.as_path());
 }
 
-/// A child the run created and another process then replaced is not the run's to remove: the replacement of a created file and
-///  the replacement of a created directory both stay, and what the run made in the directory that moved away is removed there.
+/// The report of what a failed run left names how many entries stay, a few of their names, and the command that lists the
+///  untracked ones.
 #[test]
-fn btrfs_removal_keeps_the_replacements_of_created_entries() {
-    let Some(root) = btrfs_fixture("clone-replaced-children") else { return };
-    let (repo, destination, admin) = clone_fixture(root.as_path());
-    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
-    let cloned: Cloned = clone_into(&source, destination.as_path(), admin.as_path()).expect("clones");
-    // Another process moves `bin` away and puts its own `bin` with its own `tool.sh` in place, and replaces `empty.txt`.
-    std::fs::rename(destination.join("bin"), destination.join("bin.moved")).expect("moved");
-    std::fs::create_dir(destination.join("bin")).expect("their directory");
-    std::fs::write(destination.join("bin/tool.sh"), b"theirs").expect("their file");
-    std::fs::rename(destination.join("empty.txt"), destination.join("empty.moved")).expect("moved");
-    std::fs::write(destination.join("empty.txt"), b"theirs too").expect("their other file");
-    let kept: Vec<String> = cloned.remove();
-    assert_eq!(std::fs::read(destination.join("bin/tool.sh")).expect("their file"), b"theirs", "{kept:?}");
-    assert_eq!(std::fs::read(destination.join("empty.txt")).expect("their other file"), b"theirs too");
-    assert!(!destination.join("bin.moved/tool.sh").exists(), "what the run made in the directory that moved is removed there");
-    assert!(!destination.join("plain.txt").exists(), "an untouched created file goes");
-    assert!(!kept.is_empty(), "the replacements are reported");
-    remove(root.as_path());
+fn the_report_of_what_stays_names_the_count_the_examples_and_the_command() {
+    let created: Vec<Created> = vec![
+        Created { names: vec![OsString::from("dir")], directory: true },
+        Created { names: vec![OsString::from("dir"), OsString::from("a.txt")], directory: false },
+        Created { names: vec![OsString::from("b.txt")], directory: false },
+    ];
+    let report: String = leftover_report(created.as_slice(), Path::new("/base/topic"));
+    assert!(report.starts_with("3 entries") && report.contains("dir/a.txt, b.txt") && report.contains("git -C /base/topic status"), "{report}");
 }
 
 /// A file replaced after it was cloned, with the same size and time, is not certified: the index records the inode that was
@@ -311,5 +276,30 @@ fn btrfs_a_destination_directory_on_another_device_is_refused() {
     let reason: String = clone_into(&source, destination.as_path(), admin.as_path()).expect_err("refused");
     assert!(reason.contains("another device"), "{reason}");
     assert!(!destination.join("bin/tool.sh").exists(), "nothing was created in it");
+    remove(root.as_path());
+}
+
+/// A link replaced after it was made, by another of the same length, is not certified: the index keeps the stat fields the
+///  source's entry had, which match neither link, instead of recording those of whatever the name holds by then.
+#[test]
+fn btrfs_a_destination_link_replaced_before_the_index_is_not_certified() {
+    let Some(root) = btrfs_fixture("clone-link-replaced-before-index") else { return };
+    let (repo, destination, admin) = clone_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let mut replace = || {
+        std::fs::remove_file(destination.join("link")).expect("the clone's link goes");
+        std::os::unix::fs::symlink("plainXtxt", destination.join("link")).expect("a link of the same length");
+    };
+    let mut directories: Directories = HashMap::new();
+    let held: File = open_root(destination.as_path()).expect("destination");
+    directories.insert(Vec::new(), held.try_clone().expect("clone handle"));
+    let administrative: File = open_root(admin.as_path()).expect("admin");
+    let mut created: Vec<Created> = Vec::new();
+    clone_with(&source, &mut directories, &administrative, &mut created, &mut Seams { after_lookup: &mut || {}, after_clone: &mut || {}, before_index: &mut replace }).expect("clones");
+    let entries = stored_stats(std::fs::read(admin.join("index")).expect("index").as_slice(), source.clean.hash_length).expect("entries");
+    let seed = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("seed");
+    let recorded = entry_of(entries.as_slice(), "link").stored;
+    assert_eq!(recorded.ino, entry_of(seed.as_slice(), "link").stored.ino, "the stored fields are the source's, not the live name's");
+    assert_ne!(recorded.ino, std::fs::symlink_metadata(destination.join("link")).expect("replacement").ino() as u32);
     remove(root.as_path());
 }
