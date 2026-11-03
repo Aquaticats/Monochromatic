@@ -41,6 +41,18 @@ const NESTED_FINISH_LIMIT: usize = 64;
 /// The finishes now running in this process, outermost first.
 static NESTED_FINISHES: AtomicUsize = AtomicUsize::new(0);
 
+/// The words of a `branch.<name>.mergeoptions` value: the red-control stub, which reads nothing.
+#[allow(dead_code)]
+fn split_cmdline(_text: &str) -> Option<Vec<OsString>> {
+    return None;
+}
+
+/// How many finishes one outermost finish may nest: the red-control stub, still the old fixed limit.
+#[allow(dead_code)]
+fn finish_budget(_operation: Operation, _git_dir: &Path) -> usize {
+    return NESTED_FINISH_LIMIT;
+}
+
 /// Whether one more finish may be nested inside `running` others.
 fn nesting_allows(running: usize) -> bool {
     return running < NESTED_FINISH_LIMIT;

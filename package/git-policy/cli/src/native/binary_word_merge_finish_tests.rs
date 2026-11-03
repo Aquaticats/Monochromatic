@@ -11,7 +11,7 @@
 //! const done = await wrapped(['merge', '--no-edit', 'topic']); // status 0, a merge commit, nothing left unmerged
 //! ```
 
-use super::support::{Fixture, Observed, executable, fixture, git, observe, remove, repository, run_wrapped, stderr_of, wrapped};
+use super::support::{Fixture, Observed, executable, fixture, git, observe, remove, repository, run_direct, run_wrapped, stderr_of, wrapped};
 use super::word_merge::{ADJACENT, Stop, STOPS, arguments_of, corpus, expected_after, merge_lines, prepared, tracked, unmerged};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -296,19 +296,160 @@ fn the_ending_commit_is_judged_by_the_repositorys_policies() {
     remove(&fixture);
 }
 
-/// A `branch.<name>.mergeOptions` setting may carry `--no-commit` or `--squash`, which the finish cannot see: the merge is left
-///  stopped with the file staged, as before the finish.
+/// A tracked file with an unstaged change, committed on the branch that is checked out: the work an autostash carries.
+fn with_unstaged_work(fixture: &Fixture, repo: &Path) -> &'static str {
+    std::fs::write(repo.join("dirty.txt"), b"committed\n").expect("the file");
+    git(fixture, repo, &["add", "--", "dirty.txt"]);
+    git(fixture, repo, &["commit", "--quiet", "--message=a file that gets unstaged work"]);
+    std::fs::write(repo.join("dirty.txt"), b"unstaged work\n").expect("the change");
+    return "unstaged work\n";
+}
+
+/// Whether the stash list and the merge autostash reference are empty: the stash was applied and dropped.
+fn autostash_is_gone(fixture: &Fixture, repo: &Path) -> bool {
+    return text(fixture, repo, &["stash", "list"]).is_empty() && run_direct(fixture, repo, &["rev-parse", "--verify", "--quiet", "MERGE_AUTOSTASH"]).code == Some(1);
+}
+
+/// A merge told `--autostash`, or set to it by `merge.autoStash`, is finished by `git commit`, which applies the stash after it
+///  concludes the merge (`builtin/commit.c` line 1982); the unstaged work comes back and nothing is left in the stash.
 #[test]
-fn a_merge_options_setting_leaves_the_merge_stopped() {
-    let fixture: Fixture = fixture("finish-merge-options");
+fn a_merge_autostash_is_applied_by_the_ending_commit() {
+    for (label, arguments, setting) in [("flag", vec!["merge", "--autostash", "--no-edit", "topic"], false), ("config", vec!["merge", "--no-edit", "topic"], true)] {
+        let fixture: Fixture = fixture(format!("finish-merge-autostash-{label}").as_str());
+        let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
+        if setting {
+            git(&fixture, repo.as_path(), &["config", "merge.autoStash", "true"]);
+        }
+        let work: &str = with_unstaged_work(&fixture, repo.as_path());
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        let said: String = stderr_of(&observed);
+        assert_eq!(observed.code, Some(0), "{label}: {said}");
+        assert_eq!(std::fs::read_to_string(repo.join("dirty.txt")).expect("the file"), work, "{label}: {said}");
+        assert!(autostash_is_gone(&fixture, repo.as_path()), "{label}: the stash was applied and dropped: {said}");
+        assert_eq!(state_left(repo.as_path()), Vec::<&str>::new(), "{label}: {said}");
+        assert!(std::fs::read(repo.join(tracked(ADJACENT))).expect("the file") == corpus(ADJACENT, "word.out"), "{label}");
+        remove(&fixture);
+    }
+}
+
+/// A rebase told `--autostash`, or set to it by `rebase.autoStash`, applies the stash when `rebase --continue` ends it
+///  (`sequencer.c` lines 4980 and 5330).
+#[test]
+fn a_rebase_autostash_is_applied_when_the_rebase_ends() {
+    for (label, arguments, setting) in [("flag", vec!["rebase", "--autostash", "main"], false), ("config", vec!["rebase", "main"], true)] {
+        let fixture: Fixture = fixture(format!("finish-rebase-autostash-{label}").as_str());
+        let repo: PathBuf = prepared(&fixture, Stop::Rebase, &[ADJACENT]);
+        if setting {
+            git(&fixture, repo.as_path(), &["config", "rebase.autoStash", "true"]);
+        }
+        let work: &str = with_unstaged_work(&fixture, repo.as_path());
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        let said: String = stderr_of(&observed);
+        assert_eq!(observed.code, Some(0), "{label}: {said}");
+        assert_eq!(std::fs::read_to_string(repo.join("dirty.txt")).expect("the file"), work, "{label}: {said}");
+        assert!(autostash_is_gone(&fixture, repo.as_path()), "{label}: {said}");
+        assert_eq!(state_left(repo.as_path()), Vec::<&str>::new(), "{label}: {said}");
+        remove(&fixture);
+    }
+}
+
+/// A pull told `--autostash` hands it to its merge, and the ending commit applies the stash.
+#[test]
+fn a_pull_autostash_is_applied_by_the_ending_commit() {
+    let fixture: Fixture = fixture("finish-pull-autostash");
     let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
-    git(&fixture, repo.as_path(), &["config", "branch.main.mergeoptions", "--no-commit"]);
-    let before: String = text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
-    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-edit", "topic"]);
+    let remote: PathBuf = fixture.root.join("remote.git");
+    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "remote.git"]);
+    git(&fixture, repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
+    git(&fixture, repo.as_path(), &["push", "--quiet", "origin", "topic:main"]);
+    git(&fixture, repo.as_path(), &["fetch", "--quiet", "origin"]);
+    git(&fixture, repo.as_path(), &["branch", "--set-upstream-to=origin/main", "main"]);
+    let work: &str = with_unstaged_work(&fixture, repo.as_path());
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["pull", "--no-rebase", "--autostash", "--no-edit"]);
     let said: String = stderr_of(&observed);
-    assert_eq!(observed.code, Some(1), "{said}");
-    assert_eq!(text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "{said}");
-    assert_eq!(unmerged(&fixture, repo.as_path()), Vec::<String>::new(), "{said}");
-    assert_eq!(state_left(repo.as_path()), vec!["MERGE_HEAD"], "{said}");
+    assert_eq!(observed.code, Some(0), "{said}");
+    assert_eq!(std::fs::read_to_string(repo.join("dirty.txt")).expect("the file"), work, "{said}");
+    assert!(autostash_is_gone(&fixture, repo.as_path()), "{said}");
     remove(&fixture);
+}
+
+/// A `branch.<name>.mergeOptions` setting is applied as Git applies it, before the command line: `--no-commit` there stops the
+///  merge as a clean run stops, and a quoted `-m` there is the merge message.
+#[test]
+fn a_merge_options_setting_is_applied_to_the_finish() {
+    let first: Fixture = fixture("finish-merge-options-stop");
+    let repo: PathBuf = prepared(&first, Stop::Merge, &[ADJACENT]);
+    git(&first, repo.as_path(), &["config", "branch.main.mergeoptions", "--no-commit"]);
+    let before: String = text(&first, repo.as_path(), &["rev-parse", "HEAD"]);
+    let observed: Observed = run_wrapped(&first, repo.as_path(), &["merge", "--no-edit", "topic"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(0), "{said}");
+    assert!(said.contains("Automatic merge went well; stopped before committing as requested"), "{said}");
+    assert_eq!(text(&first, repo.as_path(), &["rev-parse", "HEAD"]), before, "{said}");
+    assert_eq!(state_left(repo.as_path()), vec!["MERGE_HEAD"], "{said}");
+    remove(&first);
+    let second: Fixture = fixture("finish-merge-options-message");
+    let again: PathBuf = prepared(&second, Stop::Merge, &[ADJACENT]);
+    git(&second, again.as_path(), &["config", "branch.main.mergeoptions", "--no-edit -m \"from the setting\""]);
+    let named: Observed = run_wrapped(&second, again.as_path(), &["merge", "topic"]);
+    assert_eq!(named.code, Some(0), "{}", stderr_of(&named));
+    assert_eq!(text(&second, again.as_path(), &["log", "-1", "--format=%B"]), "from the setting");
+    remove(&second);
+}
+
+/// The events a user's hook files and configured hooks see: a recorder for each, appending its event name to one file.
+fn record_hooks(fixture: &Fixture, repo: &Path) -> PathBuf {
+    let log: PathBuf = fixture.root.join("hooks-seen");
+    let events: [&str; 10] = ["pre-merge-commit", "prepare-commit-msg", "commit-msg", "post-merge", "pre-commit", "post-commit", "post-checkout", "post-rewrite", "pre-rebase", "reference-transaction"];
+    std::fs::create_dir_all(repo.join(".git/hooks")).expect("hooks directory");
+    for event in events {
+        let body: String = format!("#!/bin/sh\nprintf '%s\\n' '{event}' >> '{}'\nexit 0\n", log.display());
+        executable(repo.join(".git/hooks").join(event).as_path(), body.as_bytes());
+        let script: PathBuf = fixture.root.join(format!("recorder-{event}"));
+        executable(script.as_path(), body.as_bytes());
+        git(fixture, repo, &["config", format!("hook.record-{event}.event").as_str(), event]);
+        git(fixture, repo, &["config", format!("hook.record-{event}.command").as_str(), script.to_str().expect("UTF-8")]);
+    }
+    return log;
+}
+
+/// The sorted, distinct events a log holds; empty when nothing was written.
+fn events_in(log: &Path) -> Vec<String> {
+    let mut seen: Vec<String> = std::fs::read_to_string(log).unwrap_or_default().lines().map(String::from).collect();
+    seen.sort();
+    seen.dedup();
+    return seen;
+}
+
+/// A user's hooks see the same on a finished run as on a clean one. The wrapper supports no external hook program (every Git it
+///  starts has every hook event switched off), so both see nothing; the positive control is that real Git, run directly, does
+///  fire them, so the recorder can tell. If hooks were ever supported, the clean merge would run `pre-merge-commit`,
+///  `prepare-commit-msg`, `commit-msg` and `post-merge` (`builtin/merge.c` lines 931, 966, 975 and 537) and a concluding `git commit`
+///  `pre-commit`, `prepare-commit-msg`, `commit-msg` and `post-commit` (`builtin/commit.c` lines 780, 1116, 1133 and 1966).
+#[test]
+fn user_hooks_see_the_same_on_a_finished_run_as_on_a_clean_run() {
+    for stop in STOPS {
+        let finished_fixture: Fixture = fixture(format!("finish-hooks-{stop:?}").to_lowercase().as_str());
+        let finished_repo: PathBuf = prepared(&finished_fixture, stop, &[ADJACENT]);
+        let finished_log: PathBuf = record_hooks(&finished_fixture, finished_repo.as_path());
+        let finished: Observed = run_wrapped(&finished_fixture, finished_repo.as_path(), arguments_of(stop).as_slice());
+        assert_eq!(finished.code, Some(0), "{stop:?}: {}", stderr_of(&finished));
+        // The same operation without a conflict: the files of the two sides touch different lines, so Git merges cleanly.
+        let clean_fixture: Fixture = fixture(format!("finish-hooks-clean-{stop:?}").to_lowercase().as_str());
+        let clean_repo: PathBuf = prepared(&clean_fixture, stop, &["md4"]);
+        let clean_log: PathBuf = record_hooks(&clean_fixture, clean_repo.as_path());
+        let clean: Observed = run_wrapped(&clean_fixture, clean_repo.as_path(), arguments_of(stop).as_slice());
+        assert_eq!(clean.code, Some(0), "{stop:?}: {}", stderr_of(&clean));
+        assert_eq!(events_in(finished_log.as_path()), events_in(clean_log.as_path()), "{stop:?}: the finished run and the clean run show the same hooks");
+        remove(&finished_fixture);
+        remove(&clean_fixture);
+    }
+    // Positive control: the recorders fire for real Git run directly.
+    let control: Fixture = fixture("finish-hooks-control");
+    let repo: PathBuf = prepared(&control, Stop::Merge, &["md4"]);
+    let log: PathBuf = record_hooks(&control, repo.as_path());
+    let direct: Observed = run_direct(&control, repo.as_path(), &["merge", "--no-edit", "topic"]);
+    assert_eq!(direct.code, Some(0), "{}", stderr_of(&direct));
+    assert!(!events_in(log.as_path()).is_empty(), "real Git fires the recorders, so an empty log from the wrapper means something");
+    remove(&control);
 }

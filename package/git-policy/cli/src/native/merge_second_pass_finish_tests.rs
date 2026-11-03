@@ -2,7 +2,7 @@
 //!  of the editor. The finish as a whole runs through the built executable in `binary_word_merge_finish_tests.rs`.
 
 use super::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Command-line words as operating-system text.
 fn words(text: &[&str]) -> Vec<OsString> {
@@ -123,4 +123,44 @@ fn a_todo_list_asks_for_an_editor_only_where_a_message_is_edited() {
     std::fs::remove_file(root.join("rebase-merge/git-rebase-todo")).expect("remove");
     assert!(!todo_needs_editor(root.as_path()), "no todo list, no editor");
     crate::test_support::remove(root.as_path());
+}
+
+/// A todo file with `lines` in it, written under `directory`.
+fn todo_file(root: &Path, directory: &str, name: &str, lines: &[&str]) {
+    std::fs::create_dir_all(root.join(directory)).expect("directory");
+    std::fs::write(root.join(directory).join(name), lines.join("\n") + "\n").expect("the todo list");
+}
+
+/// The number of finishes one outermost finish may nest comes from the input: a rebase's remaining todo length plus one, a pick's
+///  sequencer todo length (one for a single pick), one for a merge; comments and blank lines are not commands.
+#[test]
+fn the_nesting_bound_is_derived_from_the_todo_list() {
+    let root: PathBuf = crate::test_support::fixture("finish-budget");
+    assert_eq!(finish_budget(Operation::Merge, root.as_path()), 1);
+    assert_eq!(finish_budget(Operation::Rebase, root.as_path()), 1, "no remaining todo: the finish itself");
+    assert_eq!(finish_budget(Operation::Pick, root.as_path()), 1, "a single pick has no sequencer todo");
+    todo_file(root.as_path(), "rebase-merge", "git-rebase-todo", &["pick 1a subject", "# a comment", "", "pick 2b subject", "exec true"]);
+    assert_eq!(finish_budget(Operation::Rebase, root.as_path()), 4, "three commands plus one");
+    todo_file(root.as_path(), "sequencer", "todo", &["pick 1a subject", "pick 2b subject", "# comment"]);
+    assert_eq!(finish_budget(Operation::Pick, root.as_path()), 2);
+    assert_eq!(finish_budget(Operation::Merge, root.as_path()), 1, "a merge is one finish whatever else is there");
+    crate::test_support::remove(root.as_path());
+}
+
+/// `branch.<name>.mergeoptions` is split as Git splits it: on white space, with quotes and backslashes (`split_cmdline`).
+#[test]
+fn a_merge_options_value_is_split_as_git_splits_it() {
+    assert_eq!(split_cmdline("--no-edit -m \"a message with spaces\""), Some(words(&["--no-edit", "-m", "a message with spaces"])));
+    assert_eq!(split_cmdline("  --squash   --edit "), Some(words(&["--squash", "--edit"])));
+    assert_eq!(split_cmdline("-m 'single \\ quoted' two\\ words"), Some(words(&["-m", "single \\ quoted", "two words"])));
+    assert_eq!(split_cmdline(""), Some(Vec::new()));
+    assert_eq!(split_cmdline("-m \"unclosed"), None);
+    assert_eq!(split_cmdline("ends\\"), None);
+}
+
+/// `--autostash` of a merge or pull is read; Git's own concluding commit applies the stash.
+#[test]
+fn autostash_is_a_known_option_of_merge_and_pull() {
+    assert!(merge_of(&["--autostash", "topic"]).is_some());
+    assert!(merge_stops(words(&["--autostash", "--rebase", "origin"]).as_slice(), true).is_some());
 }
