@@ -134,8 +134,17 @@ pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
     let place: String = format!("{}, {} scope", deciding.origin, deciding.scope);
     let state: Option<bool> = canonical_bool(deciding.value.as_deref());
     if state == Some(false) {
+        // The value is named as written; a spelling other than `false` also says how Git reads it.
+        let written: String = String::from_utf8_lossy(deciding.value.as_deref().unwrap_or_default()).into_owned();
+        let value: String = if written == "false" {
+            String::from("false")
+        } else if written.is_empty() {
+            String::from("empty (Git reads it as false)")
+        } else {
+            format!("{written} (Git reads it as false)")
+        };
         return format!(
-            "git cli-git doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} (core.fsmonitor is false in \
+            "git cli-git doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} (core.fsmonitor is {value} in \
 {place}). {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}.\n"
         );
     }

@@ -206,3 +206,38 @@ fn doctor_names_the_global_file_that_holds_false() {
     );
     remove(root.as_path());
 }
+
+/// `0`, `off` and an empty value are false to Git, and the line names the value as written and says how Git reads it.
+#[test]
+fn a_false_spelling_other_than_false_is_named_as_written() {
+    for (written, shown) in [("0", "0 (Git reads it as false)"), ("off", "off (Git reads it as false)"), ("", "empty (Git reads it as false)")] {
+        let entries: Vec<FsmonitorEntry> =
+            vec![FsmonitorEntry { scope: "global".into(), origin: "file:/home/a/.gitconfig".into(), value: Some(written.as_bytes().to_vec()) }];
+        assert_eq!(
+            render_fsmonitor(entries.as_slice()),
+            off_line(format!("core.fsmonitor is {shown} in file:/home/a/.gitconfig, global scope").as_str())
+        );
+    }
+}
+
+/// A Git that cannot start is said plainly in place of the line, and so is a configuration Git refuses to list.
+#[test]
+fn a_listing_that_cannot_be_read_is_said_plainly() {
+    let root: PathBuf = fixture("doctor-fsmonitor-unreadable");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let mut missing: GitContext = git_context();
+    missing.real_git = root.join("no-such-git");
+    let not_started: String = fsmonitor_report(&missing, repo.as_path());
+    assert!(
+        not_started.starts_with("git cli-git doctor: could not read Git's fsmonitor setting: git config --list could not start: ")
+            && not_started.ends_with('\n'),
+        "{not_started}"
+    );
+    std::fs::write(repo.join(".git/config"), "[core\n").expect("a broken configuration");
+    let refused: String = fsmonitor_report(&git_context(), repo.as_path());
+    assert!(
+        refused.starts_with("git cli-git doctor: could not read Git's fsmonitor setting: git config --list failed: "),
+        "{refused}"
+    );
+    remove(root.as_path());
+}
