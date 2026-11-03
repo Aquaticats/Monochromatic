@@ -10357,3 +10357,9 @@ by the coordinator at merge.
   `planted-control-cache` branch ("Not merging `planted-control-cache` to main until a round finds no P1").
   Closed now with evidence: the gate-33 campaign queue (cross-checked in `ae73ff8a8a`, survivors bundle merged)
   and the conflict-side cross-vendor review (returned; fixes merged).
+- 2026-11-03T04:13:14-05:00: second real conversion with 0.5.21 (unit `cli-git-convert-all-20261103T035840-0500`, log
+  `~/temp/agent/convert-all-20261103T035840-0500.log`, `convert-exit-status=0`): 183 looked at, 17 converted, 3
+  skipped, none for the old config-reader reason. Skips: `fast-snapshot-add` (the add-speed agent's worktree:
+  an edited file and its running test processes), `follow-ups-059` (an edited `Cargo.lock`), and my throwaway
+  `verify-0.5.21-add-*` (removed after the run listed it; skipped as "cannot be resolved"). 0.5.22 published
+  (crates.io 2026-11-03T09:07:34Z, run 41607520853); install running after the conversion finished.
