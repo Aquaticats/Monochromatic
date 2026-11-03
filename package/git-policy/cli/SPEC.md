@@ -1114,6 +1114,27 @@ so the push takes no lock.
 A failed push never fails the commit:
 the service leaves a notice that the next command in the repository shows.
 
+#### Merges and commits never fail
+
+Owner rules (2026-11-03, verbatim):
+
+- "Auto merging should never fail."
+- "Manual merge should never fail too."
+- "Commits should never fail."
+
+The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
+for a `git merge` the person types, and for a `git commit`:
+nothing the machine or other processes do ends them with a nonzero status.
+That covers a held `index.lock`, a branch that moved underneath the command (the auto-push's own reconcile merge included),
+a slow disk, a stopped child and a deadline.
+Such a command waits, bounded and naming what it waits for, retries on the new head,
+or lands as a merge on the moved head.
+It never leaves a half-applied result: the index and the worktree hold either what they held before the command
+or the whole result, and no `MERGE_HEAD` is left behind by a merge that did not finish.
+A content conflict goes through the wrapper's conflict resolution and stops, as Git stops on a conflict
+with the conflicting paths named, only where no resolution exists.
+The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
+
 #### Commands that add commits
 
 A command other than `git commit` hands the push over too (owner decision, 2026-11-02):
