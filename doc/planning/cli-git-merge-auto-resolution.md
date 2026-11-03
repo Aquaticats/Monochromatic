@@ -2088,3 +2088,21 @@ list, `M` for `UU`) and is green with its ignore removed; removing either half f
 The finish's own decline of a conflicting autostash (pick B) is kept: with carry-back it could be retired,
  and the finish would
 then end like Git's, which is the owner's choice to make.
+
+## 2026-11-03T12:28:44-05:00: option B retired, the finish applies a conflicting autostash as Git does
+
+The coordinator's pick under the owner's delegation (veto open), because of "Auto merging should never fail.": with carry-back A
+the finish needs no dry run. `autostash_blocks_finish` and its unit control are removed from `merge_second_pass_finish.rs`,
+`merge_second_pass_worktree.rs` and `merge_second_pass_finish_tests.rs`; nothing else used the dry run.
+Red first, with B in place: `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it` and
+`a_pull_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`, rewritten to compare the end state with a twin
+repository on which real Git stops, the resolution is made as the word pass makes it, and `git commit` concludes (stash list,
+status, merged file, the second file, and the commit's exit status); the wrapper had left the merge stopped (status 1, not the
+commit's 0). Green after the removal, with `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` and
+the clean-apply controls unchanged.
+The case B's dry run did not model, unsaved changes in the worktree to a file the stash touches, is compared with Git in
+`a_commit_over_unsaved_changes_to_a_stash_file_keeps_the_stash_as_git_keeps_it`: a file the stash touches is written again after
+the merge stopped, Git's apply refuses and keeps the whole stash, and the wrapper's commit ends identically. That control passed
+before the removal too, because it goes through the person's commit, which carry-back A already covered; the finish makes the same
+commit, so it is the same end. A finish cannot meet such unsaved changes unless another program writes the file in the moment
+between the pass and the commit; that interleaving is not constructed.
