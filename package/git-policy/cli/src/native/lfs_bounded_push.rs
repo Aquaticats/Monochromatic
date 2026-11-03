@@ -15,7 +15,7 @@
 /// The attempt record, the coordinator's Git and its error type.
 use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_command, run_query};
 /// The deadline, the grace, the low-speed abort and the push itself.
-use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_deadline, run_bounded_push, strip_one_line_break};
+use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_patience, run_bounded_push, strip_one_line_break};
 /// The check that the program can start.
 use super::lfs_push_precheck::lfs_refusal;
 /// Narrows the plan to the objects the push introduces.
@@ -89,5 +89,5 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
     }
     let mut command = git_command(git, arguments);
     apply_low_speed_defaults(&mut command, git.environment.as_slice());
-    return run_bounded_push(command, push_deadline(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice());
+    return run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice());
 }

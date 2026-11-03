@@ -14,6 +14,7 @@
 //! repairWorktree({ git, source, destination, switch: { quiet, noCheckout }, environment }, process.stderr);
 //! ```
 
+use super::add_timing::work;
 use super::diagnostic_log::debug;
 use super::package_repair_cargo::repair_cargo;
 use super::package_repair_pnpm::repair_pnpm;
@@ -33,9 +34,6 @@ const VALUE_OPTIONS: [&str; 3] = ["-b", "-B", "--reason"];
 
 /// The longest one tool may run before it is stopped; a hung tool must not hold an add forever.
 const TOOL_LIMIT: Duration = Duration::from_secs(600);
-
-/// The most threads the repairs use together; cloning and process starts are bound by the filesystem more than by CPU.
-const MAX_WORKERS: usize = 8;
 
 /// What:
 ///  The switches of the person's `git worktree add` that change what a repair may do.
@@ -98,6 +96,21 @@ impl RepairSwitch {
 }
 
 /// What:
+///  How many threads the repairs use together on a host that offers `available`.
+/// Why:
+///   The repair of each Cargo workspace and each tool touches state of its own, so the host's whole budget is the limit (the
+///  standard library reads it from the CPU quota of the control group, so a capped session gets its own share); a host that
+///  reports nothing still runs one worker.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// workersFor(navigator.hardwareConcurrency)
+/// ```
+pub fn workers_for(available: usize) -> usize {
+    return available.max(1);
+}
+
+/// What:
 ///  What a repair reads from the process: the search path tools are found on, how long a tool may run, and how many threads
 ///  the repairs may use.
 /// Why:
@@ -129,7 +142,7 @@ impl RepairEnvironment {
     /// ```
     pub fn from_process() -> RepairEnvironment {
         let available: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        return RepairEnvironment { search_path: std::env::var_os("PATH"), tool_limit: TOOL_LIMIT, workers: available.min(MAX_WORKERS) };
+        return RepairEnvironment { search_path: std::env::var_os("PATH"), tool_limit: TOOL_LIMIT, workers: workers_for(available) };
     }
 
     /// The search path as a borrowed value.
@@ -176,9 +189,9 @@ pub fn repair_worktree(request: &RepairRequest<'_>, notices: &mut dyn Write) -> 
     }
     let started: std::time::Instant = std::time::Instant::now();
     let (pnpm, cargo, toolchain): (Option<Finding>, Vec<Finding>, Option<Finding>) = std::thread::scope(|scope| {
-        let pnpm = scope.spawn(|| { return repair_pnpm(request.destination, request.environment); });
-        let toolchain = scope.spawn(|| { return repair_toolchain(request.destination, request.environment); });
-        let cargo: Vec<Finding> = repair_cargo(request);
+        let pnpm = scope.spawn(|| { return work("repairPnpm", || { return repair_pnpm(request.destination, request.environment); }); });
+        let toolchain = scope.spawn(|| { return work("repairToolchain", || { return repair_toolchain(request.destination, request.environment); }); });
+        let cargo: Vec<Finding> = work("repairCargo", || { return repair_cargo(request); });
         // A tool that panicked has no finding; the add goes on and the worktree stays as the copy left it.
         let settled = |joined: std::thread::Result<Option<Finding>>, tool: &str| -> Option<Finding> {
             return joined.unwrap_or_else(|_panic| {

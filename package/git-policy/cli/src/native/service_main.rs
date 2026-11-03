@@ -53,7 +53,7 @@ fn main() {
         }
     };
     let context: LandContext = LandContext {
-        git: GitContext { real_git: git, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None },
+        git: GitContext { real_git: git, overlay: git_policy_cli::child_environment::lockfile_pid_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
         on_objects_written: None,
         index_wait: git_policy_cli::wait_limit::live_wait_limit(),

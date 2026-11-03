@@ -97,6 +97,14 @@ pub mod real_git;
 /// Wrapper self-exclusion for one PATH candidate.
 pub mod real_git_candidate;
 
+/// Controls for the lock files a stopped Git child must not leave behind.
+#[cfg(test)]
+mod git_stop_lock_tests;
+
+/// Controls for stopping a push on no progress, with real Git and a local remote.
+#[cfg(test)]
+mod push_patience_tests;
+
 /// Disposable fixtures shared by unit tests;
 ///  never part of the release executable.
 #[cfg(test)]
@@ -339,6 +347,10 @@ pub mod discard_audit;
 /// The record of where one wrapped commit spent its time,
 /// appended beside the discard audit.
 pub mod commit_timing;
+
+/// The record of where one wrapped `git worktree add` spent its time, step by step,
+/// appended beside the commit timing record.
+pub mod add_timing;
 
 /// The intent-guessing hint that follows a finding, an engine failure or a notice.
 pub mod event_hints;
@@ -867,6 +879,12 @@ pub mod bounded_query;
 
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
+
+/// The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
+pub mod stopped_git_locks;
+
+/// The bytes a push and its processes move, sampled, and the clock that stops it on a stall or at its ceiling.
+pub mod push_progress;
 
 /// The processes of this host that use a directory or a file.
 pub mod process_use;

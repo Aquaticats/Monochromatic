@@ -304,7 +304,7 @@ fn generate_embedded_runtime(out_directory: &Path, package: &Path) {
     // ```
     let Some(profile) = out_directory
         .ancestors()
-        .find(|ancestor| ancestor.file_name().is_some_and(|name| name == "build"))
+        .find(|ancestor| return ancestor.file_name().is_some_and(|name| return name == "build"))
         .and_then(Path::parent)
     else {
         panic!(

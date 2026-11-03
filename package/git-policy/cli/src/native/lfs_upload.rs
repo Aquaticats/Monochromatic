@@ -18,7 +18,7 @@
 /// The attempt record, the coordinator's Git and its error type.
 use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 /// The deadline, the grace and the push runner.
-use super::bounded_push::{STOPPED_EXIT_CODE, STOP_GRACE, push_deadline, run_bounded_push};
+use super::bounded_push::{STOPPED_EXIT_CODE, STOP_GRACE, push_patience, run_bounded_push};
 /// The invocation's environment values.
 use super::child_environment::environment_value;
 /// How a child ended, as a status.
@@ -308,7 +308,7 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
                 .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
                 .args(arguments.as_slice());
             let attempt: PushAttempt =
-                match run_bounded_push(command, push_deadline(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
+                match run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
                     Ok(finished) => finished,
                     Err(SingleFlightError::Start(_)) => {
                         return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));

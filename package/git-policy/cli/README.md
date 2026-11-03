@@ -595,6 +595,9 @@ After the ladder (or Git's checkout) and the ignored-file copy,
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out, so the worktree is not dirty).
   Registry and git dependencies stay reused; the worktree's own crates rebuild with their own paths.
+  A file or directory in the source's build directory that you cannot read is left out of the clone and counted in the success line;
+   the source is never touched.
+  The workspaces are repaired side by side, on as many threads as your machine's available parallelism.
 - Toolchain: `mpm-shadow install --frozen-lockfile`.
   It also downloads the tools the worktree's lock names that are not installed yet,
    and can retire tool copies another checkout still links (both accepted by the owner),
@@ -1175,12 +1178,31 @@ fractional or non-numeric value is ignored.
    and how often the commit service repeats the line that names the holder of a foreign `index.lock`.
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
    default `30`.
-  How long the push after a landed commit may run before it is stopped.
+  How long the push after a landed commit may show no sign of work (the stall window) before it is stopped.
+  The push and every process it started are watched: one that moves bytes, uses processor time, or has a task able to run
+   or waiting for the disk (an `fsync` on a slow volume) is working and is not stopped here, however slow;
+   one that does none of these, such as a push waiting on a server that says nothing, is stopped after this many seconds.
+  A server that checks the push for longer than this before it answers looks the same as a dead one, so raise the setting
+   for such a remote.
+  The name is kept from the time when this was a fixed deadline, so an existing setting now sets the stall window.
+  Where the system cannot count bytes (no `/proc/<pid>/io`, as on macOS),
+   it is a fixed deadline for the whole push, as before.
   The commit stays saved,
    the failure is reported,
    and `git push` can be run by hand.
-  Git's own read-only queries before the push stop at this deadline or 120 seconds,
+  Git's own read-only queries before the push have no transfer to watch and stop at this many seconds or 120 seconds,
    whichever is shorter.
+- `CLI_GIT_PUSH_CEILING_SECONDS`,
+   default `1800`.
+  How long the push may run in all, even while it keeps moving data,
+   so a push that trickles for ever is stopped.
+  The report of a stopped push names `limit=stall` or `limit=ceiling`, the bytes the push moved and the seconds it ran.
+  A stopped Git process is first asked to end with `SIGTERM`, which lets Git remove its own `.lock` files,
+   and is killed only if it is still running after five seconds.
+  A process that was killed, or that could not answer in time, can leave a lock file behind;
+   once it is gone the wrapper removes the lock files it left (the rules are in the push deadline entry of `SPEC.md`),
+   so a later `git fetch` or `git commit` does not fail with "Unable to create ... File exists".
+  The same stop applies to a Git step that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
 
 A command that passes through to Git unchanged,
  and the editor of a commit,
@@ -1488,6 +1510,30 @@ cargo build --release --locked --bin cli-git-native
 The release profile keeps `panic = "unwind"` and `overflow-checks = true`.
 The linked scanner turns a matcher panic into a failing finding by catching the unwind,
 and the crate refuses to compile under `panic = "abort"`.
+
+### Git's own fsmonitor
+
+Git's file-system monitor stays exactly as the person configured it,
+in the wrapper and in all work on it (briefs, fixtures, measurements, repairs).
+The owner's words:
+
+- "\"To stop the fsmonitor program\" - we don't need to."
+- (2026-11-02) "Why are we messing with git's fsmonitor? I already told you it's fine for git to run it."
+- (2026-11-03) "Why are some of your agents still messing with fsmonitor? I've said it at least twice that we
+  shouldn't mess with git's own fsmonitor s."
+- (2026-11-03) ".git/config overriding it to false is wrong."
+
+So nothing here sets, unsets, pins or passes `core.fsmonitor` (no `-c core.fsmonitor=…`, no `git config` write in any
+real repository), starts, stops or kills `git fsmonitor--daemon` in a real repository, or treats the monitor as a
+cause to chase or a speed lever.
+The person's `~/.gitconfig` sets `core.fsmonitor = true`, so Git starts a daemon for each repository it works in,
+scratch repositories included; that is Git doing its job.
+A main checkout's `.git/config` held `core.fsmonitor=false` until 2026-11-03, written by no code in this repository;
+it was removed at the owner's word.
+Tests that reproduce the person's `core.fsmonitor = true` inside their own temporary repositories
+check that the wrapper behaves as Git does under it (`repo_read_config_typed_tests.rs`, `reader_fsmonitor_tests.rs`,
+`binary_budget_tests.rs`); they never touch a real repository's monitor.
+`SPEC.md` (search "core.fsmonitor") records the same decision for each code path.
 
 ### Container limits
 
@@ -1847,6 +1893,19 @@ durable write, and a commit that waits says how many commits go first. There is 
   which Git removes with the worktree. Each entry is written in one append, so entries of concurrent instances never interleave, and no lock is
   taken. The tracked file only switches the review on and is never written by the service. The log has no rotation.
   `SHADOW_REVIEW_LOG` points it at another file; the runbook is `doc/runbook/standards-review-gate.md`.
+
+### Splitting a slow worktree add
+
+The wrapper appends one JSON line per `git worktree add` it serves to `<common Git directory>/cli-git-worktree-add-timing.jsonl`,
+ in one append with no flush to disk, beside the commit timing file.
+`steps` gives each step's milliseconds and calls (steps do not overlap, and `otherMs` is the rest of `totalMs`),
+ `work` gives the time spent on worker threads by name (the Cargo workspaces, the tools' repairs and the source checks run side by
+ side, so a name's sum can exceed the step that waited for it), and `notes.route` names the rung that served the add.
+
+```sh
+# sh: the newest add of this repository, one line
+tail --lines=1 -- "$(git rev-parse --path-format=absolute --git-common-dir)/cli-git-worktree-add-timing.jsonl"
+```
 
 ### Splitting a slow commit
 

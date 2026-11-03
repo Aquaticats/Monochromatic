@@ -1,5 +1,53 @@
 # Codex Browser 26.930.21537 URL selection fails with no available browser
 
+## Disabled by user request at 2026-11-03T09:41:51+00:00
+
+During the Chromium upstream contribution task,
+`agent.browsers.getForUrl('https://issues.chromium.org/')` returned
+`No browser is available`,
+and the documented discovery check returned `[]`.
+This was a failure of the bundled Browser plugin's discovery path,
+not evidence that browser automation was unavailable.
+The source hash still matches the version recorded in this document.
+
+`agent-browser` successfully loaded the public Chromium tracker and its Google sign-in page.
+Its separate `--auto-connect` attempt returned
+`No running Chrome instance found. Launch Chrome with --remote-debugging-port or use --cdp.`
+That establishes only failure to find an exposed debugging endpoint.
+It does not prove absence of a normal browser or of a signed-in Google account.
+
+The user requested disabling the bundled plugin to prevent its instructions being loaded.
+The following effective user configuration was changed in `${HOME}/.codex/config.toml`:
+
+```toml
+# User Codex config.toml
+[plugins."browser@openai-bundled"]
+enabled = false
+
+[mcp_servers.node_repl]
+enabled = false
+```
+
+Other entries in both sections were retained.
+`codex mcp get node_repl --json` returned `"enabled": false`.
+`codex plugin list --marketplace openai-bundled --json` returned empty installed and available arrays;
+that CLI result does not verify the current desktop session's already-loaded skill catalog.
+No desktop restart or fresh model session was performed during this change.
+A fresh local app-server inspection at `2026-11-03T10:07:18.877Z`
+resolved both disable settings through `config/read`.
+Its uncached `skills/list` returned `40` skills,
+no Browser plugin skills,
+and zero catalog errors.
+The inspection process exited with code zero and no stderr.
+This verifies the fresh local catalog;
+it does not erase instructions already present in an existing conversation.
+The fetched official Codex configuration reference documents both enable switches.
+The user chose `agent-browser` for browser work.
+
+No new upstream plugin defect or fix was established.
+The historical filing decision in this document is not a current prohibition on authorized Codex work;
+the current `.out-of-scope/codex-harness.md` describes a maintenance commitment only.
+
 ## Symptom
 
 On 2026-10-15,

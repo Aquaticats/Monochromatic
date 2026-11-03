@@ -562,7 +562,9 @@ pub fn redacted_fingerprint(content: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content);
     let digest = hasher.finalize();
-    return format!("len={} sha256={:x}", content.len(), digest)
+    // sha2 0.11 returns a byte array without `LowerHex`, so each byte is written as two lowercase hex digits.
+    let hex: String = digest.iter().map(|byte| { return format!("{byte:02x}"); }).collect();
+    return format!("len={} sha256={hex}", content.len())
 }
 
 //endregion Redacted fingerprint

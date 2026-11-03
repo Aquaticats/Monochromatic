@@ -1062,8 +1062,14 @@ The repairs, which run side by side:
   When Cargo keeps the build directory outside the worktree and the worktree has none, the source's is cloned
   (`FICLONE` per file, modes, times and links kept) to the worktree's; under the default layout it is inside `target/`, which the
   copy already carried.
+  An entry of the source's build directory that cannot be read (a file or directory a test left without read permission) is left
+  out of the clone, never altered in the source, and counted in the success line; the workspace is then cleaned as any other, and
+  Cargo rebuilds what it needs of what is missing.
   Then `cargo clean --offline --package <member>` for every member, so registry and git dependencies are reused and
   the worktree's own crates rebuild with the worktree's own paths.
+  The workspaces are repaired side by side on as many threads as the host's available parallelism (the standard library reads the
+  CPU quota of the control group, so a capped session gets its own share), each workspace's clone and clean in order, because a
+  clean needs its own clone first and two workspaces share no build directory.
   `--locked` is not passed to the clean, because a committed `Cargo.lock` that disagrees with its manifest (ten workspaces of this
   repository do) makes Cargo refuse; the lock is read before and put back byte for byte after, so the new worktree stays as
   checked out.
@@ -1329,15 +1335,84 @@ in-process reader can) gives every value of the multi-valued keys.
   When the branch could not be fast-forwarded it stays behind the remote,
   and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
 - No step of the push waits without a bound.
-  The push runs under a deadline,
-  `CLI_GIT_PUSH_DEADLINE_SECONDS` whole seconds,
-  30 by default;
-  a zero,
-  negative,
-  fractional or non-numeric value is ignored.
-  Past the deadline the push is asked to end,
+  The push is stopped on no progress, under a ceiling.
+  A push is at work, and not stalled, when the push or any process it started shows one of three signs,
+  each read from `/proc` twice a second (`SAMPLE_INTERVAL` in `push_progress.rs`):
+  it moved bytes, which is `rchar` plus `wchar` of `/proc/<pid>/io` growing;
+  it used processor time, which is `utime` plus `stime` of `/proc/<pid>/stat` growing;
+  or a task of it is able to run (state `R`) or waiting for the disk (state `D`) at the look,
+  read per task in `/proc/<pid>/task/<tid>/stat`, because a thread waits in an `fsync` while the process itself sleeps.
+  Only a tree that shows none of them for the stall window is stalled.
+  The three were chosen by measurement on 2026-11-03:
+  a 30 MB push to a local bare remote moved 94 MB of `rchar` and 156 MB of `wchar` over its four processes,
+  while `read_bytes` was 64 KB and `write_bytes` arrived late and in bursts from the receiver's disk writes,
+  so the block-layer counters do not see the transfer;
+  `rchar` and `wchar` count `read` and `write` calls, not `send` and `recv`
+  (measured: 102 bytes for 100000 bytes sent and received, 100102 through `read` and `write`),
+  so a transfer that curl alone performs is seen through the pipe that feeds or drains it;
+  a `dd` of 64 MB with `conv=fsync` was in state `D` in six of seven looks and used no processor tick (a tick is 10 ms),
+  so a wait for the disk shows in neither bytes nor processor time;
+  a process reading a silent socket and a `sleep` stay in state `S` with a constant tick count.
+  The signs cost this:
+  bytes alone stop a push that is busy on a slow disk, as a gate saw (an `fsync` of 5 seconds after the hook, 13 seconds in all);
+  processor time makes a process that spins or polls look alive, at a resolution of one tick;
+  state `D` makes a process wedged for ever in the kernel look alive, and state `R` one that only waits for a processor;
+  the ceiling bounds all of these.
+  A server that checks the push before it answers is in state `S` with nothing moving, which cannot be told from a dead peer:
+  a check longer than the stall window is stopped, and raising `CLI_GIT_PUSH_DEADLINE_SECONDS` is the remedy.
+  The ceiling does not help there; it bounds the opposite case, a push that never stalls.
+  Two limits apply, each in whole seconds and each ignored when zero, negative, fractional or non-numeric:
+  the stall window, `CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 by default (`DEFAULT_PUSH_DEADLINE`),
+  is how long the push may show no sign of work;
+  the variable keeps its name, so a setting made for the old fixed deadline now sets the stall window,
+  and it is not an alias of anything else.
+  The ceiling, `CLI_GIT_PUSH_CEILING_SECONDS`, 1800 by default (`DEFAULT_PUSH_CEILING`),
+  is how long the push may run in all, however much it moves, so a trickle that never stalls cannot hold the service for good.
+  A stop reports the limit that was hit:
+  `limit=stall` with `made no progress for <window> seconds`,
+  or `limit=ceiling` with `was still running after <ceiling> seconds, though it kept moving data`,
+  and in both `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output, which the service journals.
+  Where `/proc/<pid>/io` cannot be read (a system without `/proc`, such as macOS, or a kernel without task I/O accounting)
+  nothing is measured: the stall window is then a fixed deadline for the whole push, as it was before,
+  the ceiling is not consulted, and the line says `limit=deadline`.
+  Read-only Git queries have no transfer to measure and keep a fixed bound.
+  Past a limit the push is asked to end with `SIGTERM` (its helpers and hooks too),
   killed after a five second grace,
-  and reported as failed with exit code 124 whose output ends with a line naming the deadline.
+  and reported as failed with exit code 124.
+  The same stop (a catchable request, five seconds, then the kill) ends every Git child the wrapper stops:
+  the push, its read-only queries, the reconcile fetch, the Git LFS upload and a Git step of a commit
+  that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
+  A stopped Git child leaves none of Git's lock files behind.
+  Git removes its own `.lock` files when it ends or is asked to end with a signal it catches,
+  so a child that answers the request cleans up after itself.
+  A child that does not answer in the grace (it sits in an uninterruptible call such as a stalled disk,
+  where the request waits and the kill wins) cannot,
+  and neither can one whose signal arrives between creating a lock and registering it for removal
+  (`tempfile.c` of Git 2.56.0, `create_tempfile_mode` and `activate_tempfile`).
+  Once the child and everything it started are gone, the wrapper removes the lock files that child left,
+  and only these:
+  a lock whose `~pid.lock` file (Git writes it beside every lock under `core.lockfilePid`, which the wrapper turns on for
+  every Git it starts, the commit service's pushes and steps included) names a process of the stopped tree that has ended,
+  together with that pid file;
+  and an empty lock with no pid file that was born after the child started and is still empty after a settle time
+  of one second, while the whole stopped tree has ended.
+  The second kind exists because a child can die between creating a lock and writing its pid file,
+  and an empty file holds nothing;
+  the settle time exists because Git makes a ref lock empty and fills it a moment later,
+  so a lock that a live process just made is not taken for a left one.
+  A lock whose pid file names any other process, a lock with content and no pid file, a lock older than the child,
+  a lock that is filled during the settle time and a lock while any process of the tree still runs are left alone.
+  The repository is the one of the child's working directory or its `GIT_DIR`; a step that names its repository with
+  `-C` or `--git-dir` arguments, or a lock outside the Git directories (a private `GIT_INDEX_FILE`), is not swept,
+  which leaves a lock where one was left and never removes a wrong one.
+  Both the Git directory and the common Git directory are searched, except `hooks` and the loose-object directories.
+  A child that the kernel does not release within the grace after the kill, or a stopped tree that has not all ended by
+  then (a loaded or stalled host has not yet run the killed processes), is waited for on a thread of its own,
+  and its locks are removed when the whole tree has ended; the push is reported at its deadline and does not wait for it.
+  The removal takes no lock of its own: it looks at files the stopped child created and removes only those.
+  The one case the rules cannot tell apart is a Git that writes no pid files (not started by the wrapper)
+  holding an empty lock for longer than the settle time while a stopped tree ends:
+  its lock is taken for a left one, and that process then fails loudly when it renames its lock.
   A push whose output grows past 4 MiB is stopped the same way, and only the first 4 MiB are kept.
   The commit stays saved.
   Git's low-speed abort is added to the push's environment
@@ -2492,6 +2567,28 @@ worktree,
 and real ref bytes unchanged.
 Do not invoke Git with a lock path as `GIT_INDEX_FILE`.
 
+#### Wrapper output and options
+
+The wrapper never appends `--quiet` or `-q` to a Git command it builds for the user's command line.
+Owner decision (2026-11-03), verbatim:
+"No the wrapper should never append --quiet. Letting native git emit whatever it wants to is expected."
+A `--quiet` or `-q` that the user typed reaches Git untouched, and Git's own standard output and standard error
+reach the user as Git emits them.
+Consequently a commit that real Git builds prints Git's own summary (`[<branch> <name>] <subject>` and the change lines)
+from the scratch repository, and the wrapper prints no summary of its own for it.
+A commit the service builds itself, with no `git commit` run, still prints the one summary line the wrapper writes
+once the branch has moved.
+A commit that Git builds again because the branch moved prints Git's summary for each build,
+so the line of a build that did not land can precede the line of the commit that did.
+
+Every option the wrapper itself adds to a command line precedes the user's `--`,
+because Git reads every token after it as a path.
+A `--` that is the value of an option (`git commit -m --`) is a value and not the separator.
+A pathspec commit during a revert or a cherry-pick, which Git accepts,
+and during a merge or a conflicted cherry-pick, which Git refuses with `cannot do a partial commit`,
+behaves as real Git does,
+including paths named like options (`--quiet`, `-o`, `-dash.txt`) and `--pathspec-from-file`.
+
 #### Scratch repository layout
 
 The scratch repository (the shadow, in the code and in this section) is made only when real Git must build the commit.
@@ -2947,6 +3044,33 @@ a sandbox that fakes the boot ID per process but shows the host's machine ID
 makes its processes see each other's claims as of an earlier boot.
 
 ### Timing logs
+
+A slow worktree add is split by step from `<common-git-dir>/cli-git-worktree-add-timing.jsonl`, written the same way as the commit
+timing file below (one append, no flush to disk, size-capped by the same appender, never changing the add's result).
+Code: `src/native/add_timing.rs`.
+Each line has `schemaVersion`, `time`, `startMillis`, `pid`, `release`, `exitCode`, `totalMs`, `steps`, `otherMs`, `work` and `notes`.
+`steps` maps a step name to `{ms, calls}`; steps are disjoint (a step inside another is taken out of the outer one) and
+`otherMs` is what no step covers, so the steps and `otherMs` add up to `totalMs`.
+The steps are, in order: `recover`, `chooseRung` (its parts `refusals`, `checkSource`, `claimStage`, and the Git runs inside, named
+`git <subcommand>`), `gitAdd`, `finishRung` (its parts `bindRegistration`, `recordBinding`, `prepareTarget`, `takeSnapshot` with
+`snapshotIoctl`, `readOwnIndex`, `prune`, `removeStubs`, `replacePointer`, `walkSnapshot`, `installIndexFile`, then `applyDifference`
+or `restoreDirty`, `exchange`, `settleDisplaced`, `disposeTrash`, `markComplete` with `markCompleteFile` and
+`markCompleteDirectory`, `releaseClaim`), `copyIgnored` and `repair`.
+`work` sums time spent on worker threads by name over all threads (`cargoRepairWorkspace`, `cargoCloneTree`, `cargoClean`,
+`cargoMetadataWorktree`, `cargoMetadataSource`, `repairPnpm`, `repairToolchain`, `repairCargo`, `readConfig`, `trashIgnored`,
+`untrackedScan`); threads overlap, so `work` is not part of the sum rule, and a name whose sum exceeds the step that waited for it
+is work that ran side by side.
+`notes` names the rung taken (`route`) and the cause when the add was not a snapshot (`slowRoute`).
+
+The completion marker (`markCompleteFile`) is written by rename without a flush to disk, by the owner's decision of
+2026-11-03 ("Drop the fsync (Recommended)").
+The rename and the subvolume swap before it land in one btrfs transaction, so a crash keeps both or neither: never a half-made
+worktree, and nothing of the user's is lost.
+A flush here made the add durable before the next periodic commit, but because the swap renamed a subvolume, btrfs turned that
+one flush into a full filesystem commit that waited on every other writer (Linux `fs/btrfs/inode.c` rename-exchange sets the
+log-full-commit flag; `fs/btrfs/file.c` then commits), measured at 1.2 to 18 seconds per add.
+A power loss within one periodic commit of an add can therefore undo that add; the next invocation finds no marker and prints a
+notice, and running the add again recreates it.
 
 A slow commit is split by phase from logs that exist without verbose mode.
 Neither log reaches the person's terminal,

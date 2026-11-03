@@ -274,7 +274,7 @@ fn a_stalled_auto_push_is_stopped_and_the_commit_stays_saved() {
     assert_eq!(landed.code, Some(0), "{stderr}");
     // With the service the push is stopped after the command returned, and the stop is the notice of the next commit.
     let report: String = super::support::push_report(world.repo.as_path(), &stderr);
-    assert!(report.contains("git push did not finish within 1 seconds and was stopped"), "{report}");
+    assert!(report.contains("git push made no progress for 1 seconds and was stopped"), "{report}");
     assert!(report.contains(super::support::push_failed_words()), "{report}");
     let head: String = git_head(&fixture, world.repo.as_path());
     assert_ne!(head, "", "the commit is saved locally: {stderr}");

@@ -1,7 +1,7 @@
 //! Tests of the stage claim and the cleanup of stages an interrupted copy left behind.
 
 use super::*;
-use crate::private_storage::create_private_directory;
+use crate::private_storage::{create_private_directory, take_directory_syncs, take_file_syncs};
 use crate::test_support::{dead_copy_owner, fixture, git_context, remove, repository};
 use crate::worktree_add_binding::{Recorded, bind_registration, decode_record};
 use crate::worktree_copy_journal::{JOURNAL_PARENT_NAME, create_journal, ensure_journal_root, journal_root};
@@ -522,5 +522,42 @@ fn a_claim_that_vanished_is_skipped_and_a_malformed_one_is_refused() {
     let container: String = format!("/parent/{STAGE_PREFIX}owned");
     crate::private_storage::write_private_file(owned.as_path(), format!("{container}\nowner=7~linux:1~\n").as_bytes()).expect("claim");
     assert_eq!(read_claim(owned.as_path()).expect("read"), Some((PathBuf::from(container), Some(String::from("7~linux:1~")))));
+    remove(root.as_path());
+}
+
+/// A marker published after a subvolume was swapped into place is atomic and flushes nothing, where the durable marker flushes
+///  its file and the directory that holds it.
+#[test]
+fn an_unsynced_marker_is_published_whole_and_flushes_nothing() {
+    let (root, common, destination) = scene("claim-unsynced-marker");
+    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    take_file_syncs();
+    take_directory_syncs();
+    claim.mark_complete().expect("durable marker");
+    assert!(!take_file_syncs().is_empty() && !take_directory_syncs().is_empty(), "the durable marker flushes (the control that the recorders see it)");
+    std::fs::remove_file(claim.path.with_extension("done")).expect("clear");
+    claim.mark_complete_unsynced().expect("unsynced marker");
+    assert_eq!(std::fs::read(claim.path.with_extension("done")).expect("marker"), b"complete");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new());
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
+    let leftovers: Vec<String> = std::fs::read_dir(claim.path.parent().expect("journal root")).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).filter(|name: &String| { return name.contains(".tmp.") || name.ends_with(".partial"); }).collect();
+    assert_eq!(leftovers, Vec::<String>::new(), "no temporary stays");
+    claim.release().expect("release");
+    remove(root.as_path());
+}
+
+/// A release after a swap removes the records and flushes nothing.
+#[test]
+fn an_unsynced_release_removes_the_records_and_flushes_nothing() {
+    let (root, common, destination) = scene("claim-unsynced-release");
+    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    claim.mark_complete_unsynced().expect("marker");
+    let (claim_file, record, marker): (PathBuf, PathBuf, PathBuf) = (claim.path.clone(), claim.path.with_extension("add"), claim.path.with_extension("done"));
+    assert!(claim_file.exists() && record.exists() && marker.exists());
+    take_file_syncs();
+    take_directory_syncs();
+    claim.release_unsynced().expect("release");
+    assert!(!claim_file.exists() && !record.exists() && !marker.exists());
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
     remove(root.as_path());
 }

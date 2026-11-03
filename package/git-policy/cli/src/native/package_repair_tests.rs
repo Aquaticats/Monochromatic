@@ -148,3 +148,12 @@ fn nothing_to_repair_prints_nothing() {
     assert!(!scene.record.exists());
     remove(&scene.root);
 }
+
+/// The repairs may use as many threads as the host offers, not a fixed few: the work is independent per workspace and per tool.
+#[test]
+fn the_workers_are_what_the_host_offers() {
+    let large_host: usize = 64;
+    assert_eq!(workers_for(large_host), large_host);
+    assert_eq!(workers_for(1), 1);
+    assert_eq!(workers_for(0), 1, "a host that reports nothing still runs one worker");
+}
