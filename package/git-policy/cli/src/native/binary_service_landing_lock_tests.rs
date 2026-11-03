@@ -118,16 +118,39 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
     remove_settled(&fixture);
 }
 
+/// The seconds the commit is stalled after the foreign commit took the lock in the control of a late commit:
+/// a loaded host delays the commit for longer than a stand-in that keeps the lock for a fixed time lasts
+///  (a failing run at a load average of 38 to 44 spent 6760 ms in one phase against a hold of 4000 ms, 2026-11-03).
+const STALL_SECONDS: u64 = 8;
+
+/// The seconds the foreign commit keeps the lock after the control has released it, so that its commit ends on its own.
+const RELEASED_HOLD_SECONDS: u32 = 0;
+
 /// The holder outlives the limit: the commit is refused with a plain message that names the holder, nothing moved, the
 ///  holder's lock stands, and the holder's commit then succeeds on its own.
+/// The holder keeps the lock until the control has seen the refusal, so the outcome does not depend on how fast the host runs
+///  the commit.
 #[test]
 fn a_foreign_holder_that_outlives_the_limit_makes_the_commit_fail_with_nothing_moved() {
-    let fixture: Fixture = fixture("landing-lock-limit");
+    refused_while_a_foreign_holder_outlives_the_limit("landing-lock-limit", Duration::ZERO);
+}
+
+/// The same claim when the host stalls the commit after the foreign commit took the lock:
+/// however late the commit reaches the lock, the holder is still there and the commit is refused.
+#[test]
+fn a_commit_that_reaches_a_foreign_holder_late_is_still_refused_at_the_limit() {
+    refused_while_a_foreign_holder_outlives_the_limit("landing-lock-late", Duration::from_secs(STALL_SECONDS));
+}
+
+/// Runs the claim of the two controls: the commit starts `stall` after the foreign commit took the lock.
+fn refused_while_a_foreign_holder_outlives_the_limit(control: &str, stall: Duration) {
+    let fixture: Fixture = fixture(control);
     let repo: PathBuf = base_repository(&fixture);
-    let name: String = format!("landing-lock-limit-{}", std::process::id());
+    let name: String = format!("{control}-{}", std::process::id());
     let _service: Held = service_with_limit(&fixture, name.as_str(), "1");
     let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
-    let holder: Child = foreign_commit(&fixture, &repo, 4);
+    let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, RELEASED_HOLD_SECONDS);
+    std::thread::sleep(stall);
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
     let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", "mine", "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()));
@@ -137,6 +160,7 @@ fn a_foreign_holder_that_outlives_the_limit_makes_the_commit_fail_with_nothing_m
     assert!(stderr.contains("is using this repository's index") && stderr.contains("was not made"), "{stderr}");
     assert!(stderr.contains("Process "), "the holder is named: {stderr}");
     assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), base, "nothing moved while the holder still held the lock");
+    std::fs::write(&release, b"").expect("the foreign commit is told to let go");
     let held = holder.wait_with_output().expect("the foreign commit ends");
     assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
     assert_eq!(git_text(&fixture, &repo, &["log", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\n", "only the holder's commit is on the branch");
