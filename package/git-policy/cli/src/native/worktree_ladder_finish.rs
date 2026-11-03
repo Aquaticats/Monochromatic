@@ -24,7 +24,6 @@ use super::worktree_add_binding::{Bound, bind_registration, verify_association};
 use super::worktree_add_plan::AddPlan;
 use super::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
 use super::worktree_copy::{GitRunner, GitStatus};
-use super::worktree_copy_error::WorktreeCopyError;
 use super::worktree_copy_stage_claim::StageClaim;
 use super::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
 use super::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirty};
@@ -191,9 +190,8 @@ fn report_incomplete(plan: &AddPlan) {
 /// ```ts
 /// await markComplete(claim);
 /// ```
-fn mark_complete(claim: &StageClaim, swapped: bool) {
-    let marked: Result<(), WorktreeCopyError> = timed("markComplete", || { return if swapped { claim.mark_complete_unsynced() } else { claim.mark_complete() }; });
-    if let Err(error) = marked {
+fn mark_complete(claim: &StageClaim) {
+    if let Err(error) = timed("markComplete", || { return claim.mark_complete(); }) {
         warn(TAG, format!("the completion of the add could not be recorded ({}); a later command may report it as interrupted although it is whole", error.0).as_str());
     }
 }
@@ -210,7 +208,7 @@ fn mark_complete(claim: &StageClaim, swapped: bool) {
 fn complete_like_git(plan: &AddPlan, claim: &StageClaim, bound: &Bound, run_git: &mut GitRunner) -> GitStatus {
     let status: GitStatus = checkout_like_git(plan, bound, run_git);
     if status.succeeded() {
-        mark_complete(claim, false);
+        mark_complete(claim);
     } else {
         report_incomplete(plan);
     }
@@ -260,7 +258,7 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
     return match serve_clones(source, plan, &bound, run_git, context) {
         Ok(line) => {
             debug(TAG, format!("clones served {}", plan.destination.display()).as_str());
-            mark_complete(claim, false);
+            mark_complete(claim);
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
             let _written = out.write_all(line.as_bytes());
             LadderResult { git, carried: None }
@@ -298,7 +296,7 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
     return match serve_snapshot(source, plan, stage, &bound, &mut made, run_git, context) {
         Ok(line) => {
             debug(TAG, format!("the snapshot served {}", plan.destination.display()).as_str());
-            mark_complete(claim, true);
+            mark_complete(claim);
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
             let _written = out.write_all(line.as_bytes());
             // A snapshot of the main checkout prints no copy summary, so it says what it did, on standard error; `--quiet` stays silent.
@@ -327,10 +325,9 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
     };
 }
 
-/// Release the claim on a stage name, saying so when that fails; flushing nothing when a subvolume was swapped into place.
-fn release_claim(claim: StageClaim, swapped: bool) {
-    let released: Result<(), WorktreeCopyError> = timed("releaseClaim", || { return if swapped { claim.release_unsynced() } else { claim.release() }; });
-    if let Err(error) = released {
+/// Release the claim on a stage name, saying so when that fails.
+fn release_claim(claim: StageClaim) {
+    if let Err(error) = timed("releaseClaim", || { return claim.release(); }) {
         warn(TAG, format!("the stage claim could not be released ({})", error.0).as_str());
     }
 }
@@ -352,17 +349,16 @@ impl Ladder {
         let result: LadderResult = match (self.rung, self.plan.as_ref()) {
             (Rung::Snapshot(source, claim), Some(plan)) => {
                 if !git.succeeded() {
-                    release_claim(claim, false);
+                    release_claim(claim);
                     return LadderResult { git, carried: None };
                 }
                 let stage: PathBuf = claim.container().to_path_buf();
                 let result: LadderResult = finish_snapshot(&source, plan, stage.as_path(), &claim, run_git, context, out, &mut slow);
-                // A snapshot that served the add carried its ignored state: only then was a subvolume swapped into place.
-                release_claim(claim, result.carried.is_some());
+                release_claim(claim);
                 result
             }
             (Rung::Snapshot(_, claim), None) => {
-                release_claim(claim, false);
+                release_claim(claim);
                 LadderResult { git, carried: None }
             }
             (Rung::Clone(source, subvolume, claim), Some(plan)) => {
@@ -370,14 +366,14 @@ impl Ladder {
                 if let Some(created) = subvolume.as_ref() {
                     settle_subvolume_destination(created);
                 }
-                release_claim(claim, false);
+                release_claim(claim);
                 result
             }
             (Rung::Clone(_, subvolume, claim), None) => {
                 if let Some(created) = subvolume.as_ref() {
                     settle_subvolume_destination(created);
                 }
-                release_claim(claim, false);
+                release_claim(claim);
                 LadderResult { git, carried: None }
             }
             (Rung::Git(subvolume), _) => {

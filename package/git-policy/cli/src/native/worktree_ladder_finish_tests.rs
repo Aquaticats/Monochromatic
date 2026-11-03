@@ -5,7 +5,6 @@
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_kind::is_subvolume_root;
-use crate::private_storage::take_file_syncs;
 use crate::test_support::{REAL_GIT, git, git_context, git_text, remove, repository};
 use crate::worktree_copy::GitStep;
 use crate::worktree_copy_error::WorktreeCopyError;
@@ -79,42 +78,6 @@ fn btrfs_a_source_at_the_target_commit_is_served_with_no_git_step() {
     assert_eq!(printed, format!("{head}\n"));
     assert!(is_subvolume_root(root.join("topic").as_path()).expect("probe"));
     assert!(root.join("topic/ignored/pkg/index.js").is_file());
-    remove(root.as_path());
-}
-
-/// The names of the files this thread flushed to disk that carry `infix` in their name, in call order.
-fn flushed_with(infix: &str) -> Vec<String> {
-    return take_file_syncs().into_iter().map(|path: PathBuf| { return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default(); }).filter(|name: &String| { return name.contains(infix); }).collect();
-}
-
-/// A snapshot swapped into place marks the add complete without flushing the marker: the swap of a subvolume makes every flush
-///  after it in the same btrfs transaction a commit of the whole filesystem, which waits for every other writer's data; the
-///  marker is published whole by a rename, and a lost marker costs a notice, never the worktree.
-#[test]
-fn btrfs_a_served_snapshot_marks_itself_complete_without_a_flush() {
-    let Some(root) = btrfs_fixture("finish-lazy-marker") else { return };
-    let repo: PathBuf = subvolume_repository(root.as_path());
-    take_file_syncs();
-    let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
-    assert!(result.carried.is_some(), "the snapshot served the add");
-    let flushed: Vec<String> = take_file_syncs().into_iter().map(|path: PathBuf| { return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default(); }).collect();
-    assert!(flushed.iter().any(|name: &String| { return name.contains(".add."); }), "the binding record before the swap is still flushed (the control that the recorder sees this add): {flushed:?}");
-    assert_eq!(flushed.iter().filter(|name: &&String| { return name.contains(".done."); }).count(), 0, "{flushed:?}");
-    assert!(std::fs::read_dir(journal_root(repo.join(".git").as_path())).map(|listing| { return listing.count(); }).unwrap_or(0) == 0, "the claim and its records were released");
-    remove(root.as_path());
-}
-
-/// An add that Git's own checkout completed after the snapshot was refused has no swap behind it, so its marker is still flushed.
-#[test]
-fn btrfs_a_checkout_completed_by_git_still_flushes_its_marker() {
-    let Some(root) = btrfs_fixture("finish-flushed-marker") else { return };
-    let repo: PathBuf = subvolume_repository(root.as_path());
-    take_file_syncs();
-    let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |destination| {
-        std::fs::write(destination.join("stray"), b"x").expect("a stray file");
-    });
-    assert_eq!(result.carried, None, "Git's checkout served the add");
-    assert_eq!(flushed_with(".done.").len(), 1);
     remove(root.as_path());
 }
 
