@@ -21,7 +21,9 @@ use super::commit_transaction::{TransactionResult, TransactionStop, failed};
 use super::path_bytes::{os_from_path_bytes, path_message_text};
 use super::policy_events::PolicyEvent;
 use super::merge_second_pass::{Conflict, ContextRunner, Merged as MergedFile};
-use super::merge_second_pass_tree::{announce, attribute_source_variables_of_process, resolve_tree};
+use super::child_environment::environment_with_overlay;
+use super::journald_native::CLIENT_IDENTIFIER;
+use super::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, resolve_tree};
 use super::replay_capture_order::CaptureOrderDecision;
 use super::replay_merge::{ReplayMerge, merge_replay_tree};
 use super::replay_shared_paths::{SharedPath, list_shared_paths};
@@ -239,7 +241,7 @@ pub fn word_merge_notice(files: &[MergedFile]) -> Option<PolicyEvent> {
     if files.is_empty() {
         return None;
     }
-    return Some(PolicyEvent::WordMerged { lines: announce("", "commit-replay", files) });
+    return Some(PolicyEvent::WordMerged { lines: announce("", (CLIENT_IDENTIFIER, "commit-replay"), files) });
 }
 
 /// What:
@@ -262,12 +264,16 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
         Ok(found) => PathBuf::from(String::from_utf8_lossy(found.stdout.as_slice()).trim()),
         Err(_) => return Merged::Conflict(paths),
     };
+    let process_environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    let variables: Vec<(OsString, OsString)> = environment_with_overlay(process_environment.as_slice(), site.context.overlay.as_slice());
+    let probing: ContextRunner<'_> = ContextRunner { context: site.context, cwd: top.as_path(), without_prefix: true, object_directory: None, environment: Vec::new() };
+    let probe: AttributeProbe<'_> = AttributeProbe { directory: top.as_path(), global_prefix: &[], variables: variables.as_slice(), runner: &probing };
     let runner: ContextRunner<'_> = ContextRunner {
         context: site.context,
         cwd: top.as_path(),
         without_prefix: true,
         object_directory: Some(site.object_directory),
-        environment: attribute_source_variables_of_process(tip, site.context.overlay.as_slice()),
+        environment: attribute_tree_variables(tip, &probe),
     };
     return match resolve_tree(&runner, site.common_dir, tree, conflicts) {
         Some(resolved) => Merged::Combined { tree: resolved.tree, files: resolved.merged },

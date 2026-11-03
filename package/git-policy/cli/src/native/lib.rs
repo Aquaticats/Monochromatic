@@ -829,6 +829,9 @@ pub mod merge_second_pass_tree;
 /// The word-level second pass after a forwarded merge, rebase, cherry-pick or revert that Git stopped with a conflict.
 pub mod merge_second_pass_worktree;
 
+/// The finish of a stopped operation, like a clean run, after the second pass resolved every conflicted file.
+pub mod merge_second_pass_finish;
+
 /// The `git merge` command lines the wrapper completes in isolation, and those it leaves to native Git.
 pub mod merge_options;
 

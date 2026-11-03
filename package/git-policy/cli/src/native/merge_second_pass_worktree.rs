@@ -20,6 +20,8 @@ use super::conflict_side_state::conflicted_paths;
 use super::diagnostic_log::{debug, warn};
 use super::index_writer_forward::CoordinatedForward;
 use super::merge_second_pass::{Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
+use super::merge_second_pass_finish::{finish, plan_finish};
+use super::journald_native::CLIENT_IDENTIFIER;
 use super::merge_second_pass_tree::announce;
 use super::path_bytes::path_message_text;
 use super::private_storage::read_regular_file;
@@ -39,8 +41,8 @@ const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 /// The line prefix of every line this module writes.
 const LINE_PREFIX: &str = "cli-git: ";
 
-/// The commands whose conflicts get the pass.
-const OPERATIONS: [&[u8]; 4] = [b"merge", b"rebase", b"cherry-pick", b"revert"];
+/// The commands whose conflicts get the pass; a pull's own merge or rebase stops in the same state the command would.
+const OPERATIONS: [&[u8]; 5] = [b"merge", b"rebase", b"cherry-pick", b"revert", b"pull"];
 
 /// The stages in the order `update-index --index-info` takes them back.
 const STAGE_NUMBERS: [u8; 3] = [1, 2, 3];
@@ -191,22 +193,22 @@ fn closing_words(operation: &str, remaining: usize) -> String {
 /// ```ts
 /// async function resolveAfter(watch: Watch | undefined, forward: CoordinatedForward, code: number, stderr: Writable): Promise<void>;
 /// ```
-pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code: i32, stderr: &mut dyn Write) {
-    let Some(watch) = watched else { return };
+pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code: i32, stderr: &mut dyn Write) -> Option<i32> {
+    let watch = watched?;
     if code == 0 {
-        return;
+        return None;
     }
     let Some(layout) = layout_of(forward) else {
         debug(TAG, "the layout cannot be read in process after the command; no second pass");
-        return;
+        return None;
     };
     let Some(entries) = index_entries(&layout) else {
         debug(TAG, "the index cannot be read in process after the command; no second pass");
-        return;
+        return None;
     };
     let created: BTreeSet<Vec<u8>> = conflicted_paths(entries.as_slice()).difference(&watch.unmerged_before).cloned().collect();
     if created.is_empty() {
-        return;
+        return None;
     }
     let conflicts: Vec<Conflict> = conflicts_of_index(entries.as_slice(), &created);
     let context: GitContext = GitContext {
@@ -221,7 +223,7 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
         Ok(found) => found,
         Err(reason) => {
             warn(TAG, format!("the second merge pass could not run, so the conflicts stay as Git left them: {reason}").as_str());
-            return;
+            return None;
         }
     };
     let mut merged: Vec<Merged> = Vec::new();
@@ -232,7 +234,7 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
         }
     }
     if merged.is_empty() {
-        return;
+        return None;
     }
     let mut oids: Vec<String> = Vec::new();
     for file in &merged {
@@ -240,34 +242,54 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
             Ok(oid) => oids.push(oid),
             Err(reason) => {
                 warn(TAG, format!("the merged blob of {} could not be written, so the conflicts stay: {reason}", path_message_text(file.path.as_slice())).as_str());
-                return;
+                return None;
             }
         }
     }
     if let Err(reason) = install(&runner, merged.as_slice(), oids.as_slice()) {
         warn(TAG, format!("the merged files could not be installed, so the conflicts stay as Git left them: {reason}").as_str());
-        return;
+        return None;
     }
     let operation: String = String::from_utf8_lossy(forward.command.word()).into_owned();
     let mut text: String = String::new();
-    for line in announce(LINE_PREFIX, operation.as_str(), merged.as_slice()) {
+    for line in announce(LINE_PREFIX, (CLIENT_IDENTIFIER, operation.as_str()), merged.as_slice()) {
         text.push_str(line.as_str());
         text.push('\n');
     }
-    let names: Vec<String> = merged.iter().map(|file| { return path_message_text(file.path.as_slice()); }).collect();
     let remaining: usize = conflicted_paths(entries.as_slice()).len().saturating_sub(merged.len());
-    text.push_str(
-        format!(
-            "{LINE_PREFIX}{}: staged as resolved by the second merge pass: {}. {}\n",
-            super::merge_second_pass::REPORT_MARK,
-            names.join(", "),
-            closing_words(operation.as_str(), remaining)
-        )
-        .as_str(),
-    );
+    // Every conflicted file resolved: end the operation the way a clean run does, if the options say how.
+    let planned = if remaining == 0 { plan_finish(&forward.command, forward.environment.as_slice(), layout.git_dir.as_path(), merge_options_set(&runner, &forward.command)) } else { None };
+    if planned.is_none() {
+        let names: Vec<String> = merged.iter().map(|file| { return path_message_text(file.path.as_slice()); }).collect();
+        text.push_str(
+            format!(
+                "{LINE_PREFIX}{}: staged as resolved by the second merge pass: {}. {}\n",
+                super::merge_second_pass::REPORT_MARK,
+                names.join(", "),
+                closing_words(operation.as_str(), remaining)
+            )
+            .as_str(),
+        );
+    }
     if let Err(error) = stderr.write_all(text.as_bytes()) {
         debug(TAG, format!("standard error did not take the list of merged files: {error}").as_str());
     }
+    let plan = planned?;
+    return Some(finish(&plan, &forward.command, forward.environment.as_slice(), stderr));
+}
+
+/// Whether the repository sets `branch.<name>.mergeOptions`, which may carry `--no-commit` or `--squash` the finish cannot see.
+fn merge_options_set(runner: &ContextRunner<'_>, command: &super::forwarded_command::ResolvedCommand) -> bool {
+    if !matches!(command.word(), b"merge" | b"pull") {
+        return false;
+    }
+    return match runner.run(&["config", "--get-regexp", "^branch\\..*\\.mergeoptions$"], None, None) {
+        Ok(reply) => reply.code != Some(1),
+        Err(reason) => {
+            debug(TAG, format!("branch.*.mergeOptions could not be read ({reason}), so the finish is not made").as_str());
+            true
+        }
+    };
 }
 
 /// Why a path stayed conflicted, in words for the diagnostic log.

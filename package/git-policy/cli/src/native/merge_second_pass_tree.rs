@@ -18,6 +18,9 @@
 use super::diagnostic_log::debug;
 use super::merge_second_pass::{Conflict, GitRunner, Left, Merged, Verdict, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
 use super::path_bytes::path_message_text;
+use super::repo_read_config_list::list_config;
+use super::repo_read_config_scan::ScopeEnvironment;
+use super::repo_read_layout::read_layout_after_success;
 use super::random_id::random_uuid;
 use super::scratch_location::prepare_repository_scratch;
 use std::ffi::OsString;
@@ -29,41 +32,89 @@ const TAG: &str = "wordMergeTree";
 /// The variable that names the tree Git reads `.gitattributes` from when there is no worktree.
 pub const ATTRIBUTE_SOURCE_VARIABLE: &str = "GIT_ATTR_SOURCE";
 
-/// What:
-///  The variable pair that makes a merge from objects read the attributes of `tip`, unless the caller's own environment
-///  already names an attribute source.
-/// Why:
-///   A person who set `GIT_ATTR_SOURCE` meant it; the wrapper adds a source only where there was none.
-///   The source is the first side's tip: the tree whose `.gitattributes` a checkout of that branch would apply.
-///   A `.gitattributes` that only the other side has is not read, as Git offers one tree only.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const variables = env.GIT_ATTR_SOURCE === undefined ? { GIT_ATTR_SOURCE: tip } : {};
-/// ```
-pub fn attribute_source_variables(tip: &str, environment: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
-    if environment.iter().any(|(name, _)| { return name == ATTRIBUTE_SOURCE_VARIABLE; }) {
-        return Vec::new();
-    }
-    return vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from(tip))];
+/// The configuration key that names that tree when neither `--attr-source` nor the variable does (`Documentation/config/attr.adoc`).
+const ATTRIBUTE_TREE_KEY: &str = "attr.tree";
+
+/// What the attribute-tree choice needs to know about where a merge runs.
+pub struct AttributeProbe<'a> {
+    /// The worktree (or a directory inside the repository) the merge belongs to.
+    pub directory: &'a Path,
+    /// The invocation's global options, among which `--attr-source` may be.
+    pub global_prefix: &'a [OsString],
+    /// The complete environment the Git children get: the process's own and the overlay.
+    pub variables: &'a [(OsString, OsString)],
+    /// How to start Git, to resolve a configured `attr.tree`.
+    pub runner: &'a dyn GitRunner,
 }
 
 /// What:
-///  The same variable pair for a process that holds the environment itself: the service's own, and the overlay its Git
-///  starts add.
+///  The value of `attr.tree`, read in process when the readers take the repository and from Git when they decline it; `None` when
+///  neither can say, and `Some(None)` when it is not configured.
 /// Why:
-///   The commit replay runs in the service, whose Git children inherit the service's environment plus the overlay; a person's
-///  `GIT_ATTR_SOURCE` that reached either is kept there too.
+///   The in-process reader declines an environment that holds a `GIT_*` variable it does not know (`GIT_EDITOR` is one many
+///  people set), and a declined repository must not silently lose the person's attribute tree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// attributeSourceVariablesOfProcess(tip, overlay) // [] when process.env or the overlay names GIT_ATTR_SOURCE
+/// function configuredAttributeTree(probe: AttributeProbe): string | null | undefined;
 /// ```
-pub fn attribute_source_variables_of_process(tip: &str, overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
-    if std::env::var_os(ATTRIBUTE_SOURCE_VARIABLE).is_some() {
+fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String>> {
+    let scope: ScopeEnvironment = ScopeEnvironment::from_variables(probe.variables);
+    let listed = read_layout_after_success(probe.directory, &[])
+        .and_then(|layout| { return list_config(layout.common_dir.as_path(), layout.git_dir.as_path(), &scope, probe.variables); });
+    if let Some(entries) = listed {
+        return Some(
+            entries
+                .iter()
+                .rev()
+                .find(|item| { return item.entry.key == ATTRIBUTE_TREE_KEY; })
+                .and_then(|item| { return item.entry.value.as_deref().and_then(|bytes| { return std::str::from_utf8(bytes).ok().map(str::to_owned); }); })
+                .filter(|value| { return !value.is_empty(); }),
+        );
+    }
+    debug(TAG, "the in-process readers decline the repository, so Git is asked for attr.tree");
+    let reply = probe.runner.run(&["config", "--get", ATTRIBUTE_TREE_KEY], None, None).ok()?;
+    return match reply.code {
+        Some(0) => Some(Some(String::from_utf8_lossy(&reply.stdout).trim().to_owned()).filter(|value| { return !value.is_empty(); })),
+        Some(1) => Some(None),
+        _ => None,
+    };
+}
+
+/// What:
+///  The variable pair that makes a merge from objects read the attributes of `tip`, only where Git itself would read no
+///  attribute tree.
+/// Why:
+///   Git takes the attribute tree from `--attr-source`, else from `GIT_ATTR_SOURCE`, else from the configuration `attr.tree`
+///  (`attr.c`, `compute_default_attr_source`, lines 1202 to 1231); a value of the configuration that does not resolve to a tree
+///  is ignored, as Git ignores it, while one of the other two that does not resolve is an error of Git's own. So the first
+///  side's tip is named only when none of the three applies: the person's choice is never overridden. A layout or a
+///  configuration the in-process readers decline counts as a person's choice that cannot be seen, and nothing is named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function attributeTreeVariables(tip: string, probe: AttributeProbe): [string, string][];
+/// ```
+pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(OsString, OsString)> {
+    if probe.variables.iter().any(|(name, _)| { return name == ATTRIBUTE_SOURCE_VARIABLE; }) {
         return Vec::new();
     }
-    return attribute_source_variables(tip, overlay);
+    if probe.global_prefix.iter().any(|token| { return token.to_str().is_some_and(|text| { return text == "--attr-source" || text.starts_with("--attr-source="); }); }) {
+        return Vec::new();
+    }
+    let Some(configured) = configured_attribute_tree(probe) else {
+        debug(TAG, "attr.tree cannot be read, so no attribute tree is named");
+        return Vec::new();
+    };
+    if let Some(value) = configured {
+        let spec: String = format!("{value}^{{tree}}");
+        let resolves: bool = probe.runner.run(&["rev-parse", "--verify", "--quiet", spec.as_str()], None, None).is_ok_and(|reply| { return reply.code == Some(0); });
+        if resolves {
+            return Vec::new();
+        }
+        debug(TAG, format!("attr.tree names {value}, which is no tree; Git ignores it, so the first side's tip is named").as_str());
+    }
+    return vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from(tip))];
 }
 
 /// A merge tree whose every conflicted file resolved.
@@ -175,11 +226,12 @@ pub fn report(prefix: &str, merged: &[Merged]) -> Vec<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function announce(prefix: string, operation: string, merged: Merged[]): string[];
+/// function announce(prefix: string, sender: [identifier: string, operation: string], merged: Merged[]): string[];
 /// ```
-pub fn announce(prefix: &str, operation: &str, merged: &[Merged]) -> Vec<String> {
+pub fn announce(prefix: &str, sender: (&str, &str), merged: &[Merged]) -> Vec<String> {
+    let (identifier, operation): (&str, &str) = sender;
     for file in merged {
-        journal_merged(operation, file);
+        journal_merged(identifier, operation, file);
     }
     return report(prefix, merged);
 }

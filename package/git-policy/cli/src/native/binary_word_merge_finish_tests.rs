@@ -93,7 +93,10 @@ fn a_part_that_does_not_resolve_keeps_the_stop_for_every_operation() {
         let said: String = stderr_of(&observed);
         assert_eq!(observed.code, Some(1), "{stop:?}: {said}");
         assert_eq!(unmerged(&fixture, repo.as_path()), vec![tracked("md2")], "{stop:?}: {said}");
-        assert_eq!(text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "{stop:?}: nothing is committed: {said}");
+        // A stopped rebase has HEAD detached at the new base, so the commit count is what shows that nothing was made.
+        if !matches!(stop, Stop::Rebase) {
+            assert_eq!(text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "{stop:?}: nothing is committed: {said}");
+        }
         assert!(!state_left(repo.as_path()).is_empty(), "{stop:?}: the operation is still in progress");
         remove(&fixture);
     }
@@ -269,18 +272,26 @@ fn a_pull_is_finished_like_a_clean_one() {
     }
 }
 
-/// The commit that ends the merge goes through the wrapper's command path: a configured commit hook runs for it.
+/// The commit that ends the merge goes through the wrapper's command path: a policy of the repository judges it, and a rejected
+///  commit leaves the merge in progress with the files staged.
 #[test]
-fn the_ending_commit_runs_the_configured_hook() {
-    let fixture: Fixture = fixture("finish-hook");
+fn the_ending_commit_is_judged_by_the_repositorys_policies() {
+    let fixture: Fixture = fixture("finish-policy");
     let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
-    let marker: PathBuf = fixture.root.join("hook-ran");
-    let hook: PathBuf = fixture.root.join("record-hook");
-    executable(hook.as_path(), format!("#!/bin/sh\nprintf ran > '{}'\n", marker.display()).as_bytes());
-    git(&fixture, repo.as_path(), &["config", "hook.record.event", "pre-commit"]);
-    git(&fixture, repo.as_path(), &["config", "hook.record.command", hook.to_str().expect("UTF-8")]);
+    // Text only the other side's insertion holds, so the merged file carries something new against the first parent.
+    std::fs::create_dir(repo.join("rules")).expect("rules directory");
+    std::fs::write(repo.join("rules/private.txt"), b"Exit code is zero on success.\n").expect("rules");
+    std::fs::write(
+        repo.join("cli-git.config.jsonc"),
+        "{ \"policies\": { \"security/forbidden-strings\": [\"error\", { \"builtinRules\": false, \"rulesFile\": \"rules/private.txt\" }] } }\n",
+    )
+    .expect("configuration");
+    let before: String = text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-edit", "topic"]);
-    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
-    assert!(marker.exists(), "the hook ran for the ending commit: {}", stderr_of(&observed));
+    let said: String = stderr_of(&observed);
+    assert_ne!(observed.code, Some(0), "the policy rejected the ending commit: {said}");
+    assert!(said.contains("forbidden-strings"), "{said}");
+    assert_eq!(text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "{said}");
+    assert_eq!(state_left(repo.as_path()), vec!["MERGE_HEAD"], "{said}");
     remove(&fixture);
 }

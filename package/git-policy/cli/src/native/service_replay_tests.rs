@@ -319,4 +319,25 @@ fn a_driver_attribute_below_a_directory_is_honoured_from_a_subdirectory() {
     assert!(matches!(merged, Merged::Conflict(_)), "{merged:?}");
     remove(driven.root.as_path());
 }
+
+/// A person's `attr.tree` is respected: a configured tree without the union line is the one Git reads, so the appends conflict
+///  although the landed tip has the line.
+#[test]
+fn a_configured_attribute_tree_is_not_overridden() {
+    let world: World = corpus_world("replay-attr-tree", "md2", "doc/handover/log.md");
+    let without_attributes: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(world.repo.join(".gitattributes"), "doc/handover/*.md merge=union\n").expect("attributes");
+    git(world.repo.as_path(), &["add", "--all"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=attributes"]);
+    let attributed: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let attributed_world: World = World { base: attributed, ..world };
+    let mine: Captured = corpus_sides(&attributed_world, "md2", "doc/handover/log.md");
+    std::fs::remove_file(attributed_world.repo.join(".gitattributes")).expect("remove the attributes file");
+    git(attributed_world.repo.as_path(), &["rm", "--quiet", "--cached", ".gitattributes"]);
+    git(attributed_world.repo.as_path(), &["config", "attr.tree", without_attributes.as_str()]);
+    assert!(matches!(merge(&attributed_world, &mine), Merged::Conflict(_)), "the person's attribute tree has no union line");
+    git(attributed_world.repo.as_path(), &["config", "--unset", "attr.tree"]);
+    assert!(matches!(merge(&attributed_world, &mine), Merged::Tree(_)), "with none configured the tip's line applies");
+    remove(attributed_world.root.as_path());
+}
 //endregion

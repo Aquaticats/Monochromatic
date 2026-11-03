@@ -237,3 +237,16 @@ fn only_the_configuration_options_of_the_prefix_are_kept() {
     assert_eq!(kept, ["-c", "core.autocrlf=true", "-c", "a.b=c"].iter().map(OsString::from).collect::<Vec<OsString>>());
     assert!(config_options(&[]).is_empty());
 }
+
+/// The journal entry names the file, the operation and the number of parts, and carries every part in its message.
+#[test]
+fn the_journal_entry_names_the_file_the_operation_and_the_parts() {
+    let span = LineSpan { first: 1, count: 1 };
+    let part = MergedPart { base: span, ours: span, theirs: span, merged: b"joined\n".to_vec() };
+    let stages = Conflict { path: b"a.md".to_vec(), base: None, ours: None, theirs: None };
+    let merged = Merged { path: b"a.md".to_vec(), mode: 0o100_644, bytes: Vec::new(), parts: vec![part.clone(), part], stages };
+    let (message, fields) = journal_entry("rebase", &merged);
+    assert!(message.contains("a.md") && message.contains("part 2 of 2"), "{message}");
+    assert_eq!(fields, vec![(FILE_FIELD, String::from("a.md")), (OPERATION_FIELD, String::from("rebase")), (PARTS_FIELD, String::from("2"))]);
+    assert!(fields.iter().all(|(name, _)| { return crate::journald_native::valid_field_name(name); }));
+}

@@ -16,7 +16,7 @@
 //! const verdicts = await secondPass(runner, conflicts); // [{ merged: { path, mode, bytes, parts } } | { left: { path, why } }]
 //! ```
 
-use super::client_journal::record_entry;
+use super::client_journal::record_entry_as;
 use super::diagnostic_log::debug;
 use super::journald_native::Priority;
 use super::path_bytes::path_message_text;
@@ -41,12 +41,22 @@ pub const OPERATION_FIELD: &str = "CLI_GIT_WORD_MERGE_OPERATION";
 /// The journal field that counts the parts of the file that were merged by word.
 pub const PARTS_FIELD: &str = "CLI_GIT_WORD_MERGE_PARTS";
 
-/// The largest blob the second pass re-merges. The diff of two unrelated large files costs time that grows with their
-/// differences, and nobody reads a part list of a file this size; a larger file stays conflicted for the person.
-const LARGEST_BLOB_BYTES: usize = 1 << 20;
-
-/// How far into a blob a NUL byte marks it as binary: the number of bytes Git itself looks at (`FIRST_FEW_BYTES`).
+/// The number of leading bytes in which Git looks for a NUL byte to call a file binary: `FIRST_FEW_BYTES` in Git 2.56.0's
+///  `xdiff-interface.c` line 197, used by `buffer_is_binary` and by the merge driver choice in `merge-ll.c` lines 120 to 122.
 const BINARY_PROBE_BYTES: usize = 8000;
+
+/// The size above which Git's own merge treats a file as binary and does not merge it by text: `MAX_XDIFF_SIZE`, 1023 MiB, in
+///  `xdiff-interface.h` line 14, tested in `merge-ll.c` lines 117 to 119.
+const GIT_MAX_XDIFF_SIZE: usize = 1024 * 1024 * 1023;
+
+/// The size above which this pass leaves a file to the person, although Git would still merge it by text. Git's value cannot
+///  bound the cost of this pass: measured on three texts that share no line, one 1 MiB of lines took 0.08 s and 45 MB, 8 MiB took
+///  0.73 s and 352 MB, 32 MiB took 4.12 s and 1320 MB (release build, Myers diff, one core), so a file at Git's limit would take
+///  minutes and tens of gigabytes. 8 MiB keeps the worst case under a second.
+const PASS_COST_LIMIT_BYTES: usize = 8 * 1024 * 1024;
+
+/// The largest blob the second pass re-merges: the smaller of Git's own limit and the one measured above.
+const LARGEST_BLOB_BYTES: usize = if PASS_COST_LIMIT_BYTES < GIT_MAX_XDIFF_SIZE { PASS_COST_LIMIT_BYTES } else { GIT_MAX_XDIFF_SIZE };
 
 /// The most characters of a merged part a report line shows.
 const EXCERPT_CHARACTERS: usize = 100;
@@ -528,24 +538,33 @@ pub fn report_lines(prefix: &str, merged: &Merged) -> Vec<String> {
 }
 
 /// What:
-///  Send one journal entry for a merged file.
+///  The message and the fields of the journal entry for a merged file.
 /// Why:
-///   The wrapper's standard error is a terminal or a capture that is gone when the command ends; the journal keeps the
-///  file and each part for later.
+///   One entry names the file, the operation and every part, so `journalctl` finds a merge by file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// recordEntry('warning', `word-level merge: ${path}: ${parts.join('; ')}`, { CLI_GIT_WORD_MERGE_FILE: path, ... });
+/// journalEntry('merge', merged) // { message, fields }
 /// ```
-pub fn journal_merged(operation: &str, merged: &Merged) {
+pub fn journal_entry(operation: &str, merged: &Merged) -> (String, Vec<(&'static str, String)>) {
     let path: String = path_message_text(merged.path.as_slice());
-    let lines: Vec<String> = report_lines("", merged);
-    let message: String = lines.join("; ");
-    let sent: bool = record_entry(
-        Priority::Warning,
-        message.as_str(),
-        &[(FILE_FIELD, path), (OPERATION_FIELD, operation.to_owned()), (PARTS_FIELD, merged.parts.len().to_string())],
-    );
+    let message: String = report_lines("", merged).join("; ");
+    return (message, vec![(FILE_FIELD, path), (OPERATION_FIELD, operation.to_owned()), (PARTS_FIELD, merged.parts.len().to_string())]);
+}
+
+/// What:
+///  Send one journal entry for a merged file under the identifier of the program that merged it.
+/// Why:
+///   The wrapper's standard error is a terminal or a capture that is gone when the command ends; the journal keeps the
+///  file and each part for later. Code that runs inside the service sends under the service's identifier.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordEntryAs(identifier, 'warning', `word-level merge: ${path}: ${parts.join('; ')}`, { CLI_GIT_WORD_MERGE_FILE: path, ... });
+/// ```
+pub fn journal_merged(identifier: &str, operation: &str, merged: &Merged) {
+    let (message, fields) = journal_entry(operation, merged);
+    let sent: bool = record_entry_as(identifier, Priority::Warning, message.as_str(), fields.as_slice());
     debug(TAG, format!("journal entry for a merged file: sent={sent}").as_str());
 }
 

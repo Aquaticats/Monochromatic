@@ -26,7 +26,8 @@ use super::lfs_bounded_push::run_push;
 use super::diagnostic_log::{debug, warn};
 /// The word-level second pass over the conflicts of the merge tree, and the attribute tree it reads.
 use super::merge_second_pass::{GitReply, GitRunner, Merged, conflicts_of_merge_tree};
-use super::merge_second_pass_tree::{announce, attribute_source_variables, report, resolve_tree};
+use super::journald_native::{CLIENT_IDENTIFIER, IDENTIFIER};
+use super::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, report, resolve_tree};
 use super::path_bytes::path_message_text;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -166,6 +167,20 @@ fn fetch_remote_tip(
     return Ok(Ok(tip?));
 }
 
+/// What:
+///  The journal identifier of the entries of a merged file: the wrapper's for a push a person typed, the service's for the
+///  auto-push, which runs inside the service.
+/// Why:
+///   An entry belongs next to the others of the program that sent it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identifier = explicit ? 'cli-git' : 'cli-git-service';
+/// ```
+pub fn journal_identifier(explicit: bool) -> &'static str {
+    return if explicit { CLIENT_IDENTIFIER } else { IDENTIFIER };
+}
+
 /// The coordinator's Git as a runner for the second pass: its commands, its environment, an optional stdin and index file.
 struct PushRunner<'a> {
     /// The coordinator's Git.
@@ -225,10 +240,11 @@ fn commit_merge(
     remote: &str,
     message: &str,
 ) -> Result<Result<CommittedMerge, Vec<String>>, SingleFlightError> {
+    let probe = AttributeProbe { directory: git.cwd.as_path(), global_prefix: &[], variables: git.environment.as_slice(), runner: &PushRunner { git } };
     let attributed = PushGit {
         real_git: git.real_git.clone(),
         cwd: git.cwd.clone(),
-        environment: git.environment.iter().cloned().chain(attribute_source_variables(local, git.environment.as_slice())).collect(),
+        environment: git.environment.iter().cloned().chain(attribute_tree_variables(local, &probe)).collect(),
         lfs: git.lfs,
     };
     let runner = PushRunner { git: &attributed };
@@ -682,7 +698,7 @@ pub fn integrate_and_push(
                     )
                 }
             };
-            let merged_parts: String = announce(&line_prefix, label, &committed.merged)
+            let merged_parts: String = announce(&line_prefix, (journal_identifier(plan.explicit), label), &committed.merged)
                 .iter()
                 .map(|line| { return format!("{line}\n"); })
                 .collect();

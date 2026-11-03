@@ -4,18 +4,9 @@
 use super::*;
 use crate::merge_second_pass::ContextRunner;
 use crate::merge_second_pass::tests::{Change, World, corpus, merge_tree_of, runner, world};
-use crate::test_support::{git_context, git_text, remove};
+use crate::test_support::{git, git_context, git_text, remove};
 use crate::transaction_git::GitContext;
-use std::path::PathBuf;
-
-/// The variable is added when the environment has none, and left alone when the person set one.
-#[test]
-fn the_attribute_source_is_added_only_where_none_is_set() {
-    let none: Vec<(OsString, OsString)> = vec![(OsString::from("HOME"), OsString::from("/home/x"))];
-    assert_eq!(attribute_source_variables("abc123", none.as_slice()), vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("abc123"))]);
-    let set: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("main"))];
-    assert!(attribute_source_variables("abc123", set.as_slice()).is_empty());
-}
+use std::path::{Path, PathBuf};
 
 /// Every conflicted file resolves: the tree holds the merged bytes, every other path is as merge-tree wrote it, and the
 /// scratch index is gone.
@@ -77,15 +68,38 @@ fn a_git_that_cannot_start_returns_nothing() {
     remove(world.root.as_path());
 }
 
-/// A process whose own environment names an attribute source keeps it, and one that names none gets the tip.
+/// A repository with one commit, for the attribute-tree precedence controls.
+fn probed_repository(name: &str) -> (PathBuf, PathBuf) {
+    let root: PathBuf = crate::test_support::fixture(name);
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    return (root, repo);
+}
+
+/// The variables Git's own precedence leaves to the tip for a repository, with `variables` as the environment and `prefix` as the
+///  global options.
+fn tip_variables(repo: &Path, prefix: &[OsString], variables: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
+    let context: GitContext = git_context();
+    let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: repo, without_prefix: false, object_directory: None, environment: Vec::new() };
+    let probe = AttributeProbe { directory: repo, global_prefix: prefix, variables, runner: &runner };
+    return attribute_tree_variables("tip123", &probe);
+}
+
+/// The tip is named where Git would read no attribute tree; `--attr-source`, `GIT_ATTR_SOURCE` and a configured `attr.tree` that
+///  resolves each keep the person's choice, and an `attr.tree` that is no tree, which Git ignores, does not.
 #[test]
-fn the_service_keeps_an_attribute_source_of_its_own_environment() {
-    // The test process names none (a developer who exports the variable to run the tests sees the other branch).
-    if std::env::var_os(ATTRIBUTE_SOURCE_VARIABLE).is_some() {
-        assert!(attribute_source_variables_of_process("abc", &[]).is_empty());
-        return;
+fn the_tip_is_named_only_where_git_would_read_no_attribute_tree() {
+    let (root, repo) = probed_repository("second-pass-attr-precedence");
+    let tip: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("tip123"))];
+    let none: Vec<(OsString, OsString)> = vec![(OsString::from("HOME"), crate::test_support::fixture_root().into_os_string())];
+    assert_eq!(tip_variables(repo.as_path(), &[], none.as_slice()), tip, "nothing names an attribute tree");
+    let named: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("main"))];
+    assert!(tip_variables(repo.as_path(), &[], named.as_slice()).is_empty(), "the variable is the person's");
+    for option in ["--attr-source=main", "--attr-source"] {
+        assert!(tip_variables(repo.as_path(), &[OsString::from(option), OsString::from("main")], none.as_slice()).is_empty(), "{option}");
     }
-    assert_eq!(attribute_source_variables_of_process("abc", &[]), vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("abc"))]);
-    let overlay: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("main"))];
-    assert!(attribute_source_variables_of_process("abc", overlay.as_slice()).is_empty());
+    git(repo.as_path(), &["config", "attr.tree", "HEAD"]);
+    assert!(tip_variables(repo.as_path(), &[], none.as_slice()).is_empty(), "a configured tree that resolves is the person's");
+    git(repo.as_path(), &["config", "attr.tree", "no-such-tree"]);
+    assert_eq!(tip_variables(repo.as_path(), &[], none.as_slice()), tip, "Git ignores an attr.tree that is no tree, so the tip is named");
+    remove(root.as_path());
 }

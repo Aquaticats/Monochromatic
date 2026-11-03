@@ -21,7 +21,7 @@
 /// Names and sets of unsaved work.
 use super::auto_push_dirty_paths::{diff_paths, overlapping_paths, status_paths};
 /// Reading an environment value.
-use super::child_environment::environment_value;
+use super::child_environment::{environment_value, environment_with_overlay};
 /// Diagnostics for the log.
 use super::diagnostic_log::debug;
 /// The failure rendering for state that cannot be read.
@@ -32,7 +32,8 @@ use super::forwarded_command::ResolvedCommand;
 use super::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source};
 /// The word-level second pass over the conflicts of the merge tree, and the attribute tree it reads.
 use super::merge_second_pass::{ContextRunner, GitReply, GitRunner, Merged, config_options, conflicts_of_merge_tree};
-use super::merge_second_pass_tree::{announce, attribute_source_variables, resolve_tree};
+use super::journald_native::CLIENT_IDENTIFIER;
+use super::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, resolve_tree};
 use super::path_bytes::path_message_text;
 /// The intent record.
 use super::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
@@ -194,7 +195,7 @@ pub fn editor_would_open(auto_edit: Option<&str>, same_terminal: bool) -> Option
 /// ```ts
 /// process.stdin.isTTY && process.stdout.isTTY && sameDevice(0, 1)
 /// ```
-fn stdin_and_stdout_are_one_terminal() -> bool {
+pub fn stdin_and_stdout_are_one_terminal() -> bool {
     use std::io::IsTerminal;
     if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
         return false;
@@ -509,7 +510,7 @@ fn with_second_pass_report(done: IsolatedMerge, merged: &[Merged]) -> IsolatedMe
     match done {
         IsolatedMerge::Finished { code: 0, stdout, stderr } if !merged.is_empty() => {
             let mut report: String = String::new();
-            for line in announce("cli-git: ", "merge", merged) {
+            for line in announce("cli-git: ", (CLIENT_IDENTIFIER, "merge"), merged) {
                 report.push_str(line.as_str());
                 report.push('\n');
             }
@@ -583,12 +584,15 @@ fn merge_tree(
     }
     arguments.push(head);
     arguments.push(target);
+    let probing: ContextRunner<'_> = ContextRunner { context: &session.context, cwd: Path::new("."), without_prefix: false, object_directory: None, environment: Vec::new() };
+    let variables: Vec<(OsString, OsString)> = environment_with_overlay(environment, session.context.overlay.as_slice());
+    let probe: AttributeProbe<'_> = AttributeProbe { directory: root, global_prefix: session.context.global_prefix.as_slice(), variables: variables.as_slice(), runner: &probing };
     let runner: ContextRunner<'_> = ContextRunner {
         context: &session.context,
         cwd: Path::new("."),
         without_prefix: false,
         object_directory: None,
-        environment: attribute_source_variables(head, environment),
+        environment: attribute_tree_variables(head, &probe),
     };
     let merged: GitReply = runner.run(arguments.as_slice(), None, None)?;
     let (tree, conflicts) = conflicts_of_merge_tree(merged.stdout.as_slice());

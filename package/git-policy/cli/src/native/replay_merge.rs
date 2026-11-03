@@ -12,7 +12,9 @@
 /// The conflicts of a merge tree, with their stages, for the word-level second pass.
 use super::merge_second_pass::{Conflict, conflicts_of_merge_tree};
 /// The attribute tree a merge from objects reads.
-use super::merge_second_pass_tree::attribute_source_variables_of_process;
+use super::child_environment::environment_with_overlay;
+use super::merge_second_pass::ContextRunner;
+use super::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables};
 /// Shadow runs and the raw runner for a merge whose exit status matters.
 use super::shadow_git::shadow_request;
 use super::transaction_git::{GitContext, GitFailure, GitRequest, run_git};
@@ -100,7 +102,11 @@ pub fn merge_replay_tree(
         ],
     );
     // No worktree is read, so the landed tip's `.gitattributes` is the one the merge applies (the `union` line included).
-    request.environment.extend(attribute_source_variables_of_process(current, context.overlay.as_slice()));
+    let process_environment: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
+    let variables = environment_with_overlay(process_environment.as_slice(), context.overlay.as_slice());
+    let probing = ContextRunner { context, cwd: worktree_root, without_prefix: true, object_directory: None, environment: Vec::new() };
+    let probe = AttributeProbe { directory: worktree_root, global_prefix: &[], variables: variables.as_slice(), runner: &probing };
+    request.environment.extend(attribute_tree_variables(current, &probe));
     let output = run_git(context, &request).map_err(|error| {
         return ReplayMergeError::Git(GitFailure(format!("git merge-tree could not start: {error}")));
     })?;
