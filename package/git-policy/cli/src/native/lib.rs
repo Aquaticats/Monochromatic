@@ -1663,3 +1663,28 @@ pub mod worktree_trash_manifest;
 /// Removal of a directory tree beneath a held parent handle, never following a link.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_remove;
+
+/// CRC-32, hexadecimal spellings, SHA-256 hex and identity checks of the commit protocol's durable records
+/// (`doc/planning/cli-git-commits-never-fail.md`, step 1; nothing here is used by the live protocol yet).
+#[cfg(target_os = "linux")]
+pub mod commit_integrity;
+
+/// The permanent append-only ledger of retired commit requests, with torn-tail repair and no deletion.
+#[cfg(target_os = "linux")]
+pub mod commit_ledger;
+
+/// The permanent binding of a request identity to the hash of its content, created complete and never overwritten.
+#[cfg(target_os = "linux")]
+pub mod commit_identity;
+
+/// The immutable commit request record, its strict codec and its no-replace publication.
+#[cfg(target_os = "linux")]
+pub mod commit_request;
+
+/// The spool of a request's captured bytes, with a manifest and a verifier and no reclamation.
+#[cfg(target_os = "linux")]
+pub mod commit_spool;
+
+/// Pure tree comparison and captured-delta replay over flattened trees.
+#[cfg(target_os = "linux")]
+pub mod commit_replay;

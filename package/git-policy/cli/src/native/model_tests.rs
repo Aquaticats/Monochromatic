@@ -91,3 +91,11 @@ mod model_f1_evidence;
 /// The controls of finding F1.
 #[path = "model_f1_tests.rs"]
 mod model_f1_tests;
+
+/// Disposable directories and a hermetic Git runner for the fixtures of steps 3 and 4.
+#[path = "model_fixture.rs"]
+mod model_fixture;
+
+/// Step 3: the immutable request, spool, identity binding and permanent ledger components, with no reclamation.
+#[path = "commit_components_tests.rs"]
+mod commit_components_tests;
