@@ -336,6 +336,57 @@ fn a_merge_autostash_is_applied_by_the_ending_commit() {
     }
 }
 
+/// Unstaged work on the very line the word pass keeps, so that applying the autostash after the merge conflicts.
+fn with_overlapping_work(fixture: &Fixture, repo: &Path) -> &'static str {
+    let edited: &str = "Flags are optional, edited by hand.\n";
+    let original: String = String::from_utf8(corpus(ADJACENT, "ours")).expect("UTF-8");
+    let changed: String = original.replace("Flags are optional, see below.\n", edited);
+    assert_ne!(changed, original, "the edit lands on the line the merge keeps");
+    std::fs::write(repo.join(tracked(ADJACENT)), changed.as_bytes()).expect("the change");
+    git(fixture, repo, &["status", "--porcelain=v1"]);
+    return edited;
+}
+
+/// What a person keeps after a merge with `--autostash` ends: the stash list, the porcelain status and the file.
+fn after_autostash(fixture: &Fixture, repo: &Path) -> (String, String, String) {
+    return (
+        text(fixture, repo, &["stash", "list"]),
+        status(fixture, repo),
+        std::fs::read_to_string(repo.join(tracked(ADJACENT))).expect("the file"),
+    );
+}
+
+/// A merge told `--autostash` whose stash conflicts with the merged file when the ending commit applies it: the person's
+///  work stays reachable exactly as with Git (in the stash, with Git's words), never dropped.
+#[test]
+fn a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it() {
+    let direct: Fixture = fixture("finish-autostash-conflict-git");
+    let repo: PathBuf = prepared(&direct, Stop::Merge, &[ADJACENT]);
+    let edited: &str = with_overlapping_work(&direct, repo.as_path());
+    let stopped: Observed = run_direct(&direct, repo.as_path(), &["merge", "--autostash", "--no-edit", "topic"]);
+    assert_eq!(stopped.code, Some(1), "Git stops the merge: {}", stderr_of(&stopped));
+    std::fs::write(repo.join(tracked(ADJACENT)), corpus(ADJACENT, "word.out")).expect("the resolution");
+    git(&direct, repo.as_path(), &["add", "--", tracked(ADJACENT).as_str()]);
+    let concluded: Observed = run_direct(&direct, repo.as_path(), &["commit", "--no-edit"]);
+    let git_said: String = stderr_of(&concluded);
+    let kept: (String, String, String) = after_autostash(&direct, repo.as_path());
+    assert!(kept.0.contains("autostash"), "Git keeps the conflicted stash: {kept:?} {git_said}");
+    let git_state: Vec<&str> = state_left(repo.as_path());
+    remove(&direct);
+    let fixture: Fixture = fixture("finish-autostash-conflict-wrapper");
+    let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
+    with_overlapping_work(&fixture, repo.as_path());
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--autostash", "--no-edit", "topic"]);
+    let said: String = stderr_of(&observed);
+    let ours: (String, String, String) = after_autostash(&fixture, repo.as_path());
+    assert_eq!(ours.0, kept.0, "the stash list is Git's: {said}");
+    assert_eq!(ours.1, kept.1, "the status is Git's: {said}");
+    assert_eq!(ours.2, kept.2, "the file is Git's: {said}");
+    assert!(ours.0.contains("autostash") || ours.2.contains(edited), "the work is kept: {said}");
+    assert_eq!(state_left(repo.as_path()), git_state, "{said}");
+    remove(&fixture);
+}
+
 /// A rebase told `--autostash`, or set to it by `rebase.autoStash`, applies the stash when `rebase --continue` ends it
 ///  (`sequencer.c` lines 4980 and 5330).
 #[test]
