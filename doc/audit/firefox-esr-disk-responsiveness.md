@@ -92,6 +92,7 @@ Evidence artifacts:
 - [Scan parameters, counts, and directory coverage](firefox-esr-disk-responsiveness.scan.json).
 - [Tracked paths and Git object identities](firefox-esr-disk-responsiveness.inventory.json.gz).
 - [Complete matching lines and ripgrep events](firefox-esr-disk-responsiveness.candidates.jsonl.gz).
+- [Pinned source selections supporting the citations](firefox-esr-disk-responsiveness.sources.json.gz).
 
 The scan searched every tracked file;
 the reachability audit followed the candidate families described in this report.
@@ -132,7 +133,8 @@ not a probe of the user's live preferences.
 
 ### Downloads perform filesystem checks while updating commands and beginning a drag
 
-Confirmed direct browser UI path, all desktop platforms.
+Confirmed direct browser UI path,
+all desktop platforms.
 
 [`browser/components/downloads/content/downloads.js:1095-1105`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/downloads/content/downloads.js#L1095-L1105)
 handles the download context menu and calls `DownloadsViewController.updateCommands()`.
@@ -144,15 +146,18 @@ and [`browser/components/downloads/content/allDownloadsView.js:827-842`](https:/
 also call `exists()` synchronously.
 Their own comment says this is synchronous because the call occurs in a DOM event.
 
-On Unix, [`xpcom/io/nsLocalFileUnix.cpp:1890-1897`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/io/nsLocalFileUnix.cpp#L1890-L1897) implements `Exists()` with `access(path, F_OK)`.
-On Windows, [`xpcom/io/nsLocalFileWin.cpp:2927-2937`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/io/nsLocalFileWin.cpp#L2927-L2937) calls `ResolveAndStat()`,
+On Unix,
+[`xpcom/io/nsLocalFileUnix.cpp:1890-1897`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/io/nsLocalFileUnix.cpp#L1890-L1897) implements `Exists()` with `access(path, F_OK)`.
+On Windows,
+[`xpcom/io/nsLocalFileWin.cpp:2927-2937`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/io/nsLocalFileWin.cpp#L2927-L2937) calls `ResolveAndStat()`,
 whose metadata path reaches `GetFileAttributesExW` at line `695`.
 These metadata operations can wait for an uncached or remote filesystem before the event returns.
 No cache-hit assumptions or latency measurements were made.
 
 ### Creating a download blocks before the background saver takes over
 
-Confirmed parent-process download setup and helper-dialog paths, all desktop platforms.
+Confirmed parent-process download setup and helper-dialog paths,
+all desktop platforms.
 
 [`uriloader/exthandler/ExternalHelperAppParent.cpp:123-130`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/uriloader/exthandler/ExternalHelperAppParent.cpp#L123-L130)
 receives the parent-side start message and calls the stream listener's `OnStartRequest()`.
@@ -174,16 +179,21 @@ at [`nsExternalHelperAppService.cpp:230-246`](https://github.com/mozilla-firefox
 The helper-dialog JS has another directly visible path:
 [`toolkit/mozapps/downloads/HelperAppDlg.sys.mjs:306`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/mozapps/downloads/HelperAppDlg.sys.mjs#L306) and `402`
 call `validateLeafName()` from automatic-save and picker-completion code.
-Its directory guard at `46-49` uses `exists()`, `isDirectory()`, and `isWritable()`.
+Its directory guard at `46-49` uses `exists()`,
+`isDirectory()`,
+and `isWritable()`.
 `validateLeafName()` at `459-479` calls `DownloadPaths.createNiceUniqueFile()`.
 [`toolkit/components/downloads/DownloadPaths.sys.mjs:66-82`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/downloads/DownloadPaths.sys.mjs#L66-L82)
 performs repeated synchronous existence probes for filename collisions,
-with loop condition `i < 10000`, then synchronously creates the file.
-The exact loop bound is source evidence, not a measured normal workload.
+with loop condition `i < 10000`,
+then synchronously creates the file.
+The exact loop bound is source evidence,
+not a measured normal workload.
 
 ### Opening a downloaded file probes executability synchronously
 
-Confirmed direct parent JS path, with Unix disk behavior established.
+Confirmed direct parent JS path,
+with Unix disk behavior established.
 
 [`browser/components/downloads/DownloadsCommon.sys.mjs:579-584`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/downloads/DownloadsCommon.sys.mjs#L579-L584)
 delegates the UI Open action to `download.launch()`.
@@ -199,7 +209,8 @@ because its platform service may hand work to another process.
 
 Confirmed direct callback paths.
 
-On GTK, the non-portal picker connects `update-preview` to `UpdateFilePreviewWidget`
+On GTK,
+the non-portal picker connects `update-preview` to `UpdateFilePreviewWidget`
 at [`widget/gtk/nsFilePicker.cpp:710-711`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/widget/gtk/nsFilePicker.cpp#L710-L711).
 The callback performs `stat()` at `111`,
 `gdk_pixbuf_get_file_info()` at `118`,
@@ -222,7 +233,8 @@ Windows picker completion explicitly runs on `GetMainThreadSerialEventTarget()`
 at [`widget/windows/nsFilePicker.cpp:783-784`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/widget/windows/nsFilePicker.cpp#L783-L784)
 and checks save-target `file->Exists()` at `804`.
 The native Windows dialog itself is implemented through asynchronous/remote helpers,
-so the finding is the completion metadata check, not the entire dialog.
+so the finding is the completion metadata check,
+not the entire dialog.
 
 macOS [`widget/cocoa/nsFilePicker.mm:604-638`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/widget/cocoa/nsFilePicker.mm#L604-L638)
 checks `NSFileManager fileExistsAtPath` in the save-panel completion block;
@@ -237,7 +249,9 @@ Confirmed parent-process transferable behavior and browser clipboard entry point
 when running in the parent process and the transfer is not private.
 `WriteCache()` calls `NS_OpenAnonymousTemporaryFile()` at `129`
 and `PR_Write()` at `138`.
-`ReadCache()` performs `PR_GetOpenFileInfo`, `PR_Seek64`, and `PR_Read`
+`ReadCache()` performs `PR_GetOpenFileInfo`,
+`PR_Seek64`,
+and `PR_Read`
 at lines `155-168` when the data is requested again.
 There is no worker dispatch in these operations.
 
@@ -256,7 +270,8 @@ It is not a claim that every clipboard operation accesses physical disk.
 
 ### Lazy handler settings can synchronously load handlers.json
 
-Confirmed browser Settings/download/protocol path, conditional on first use racing or preceding preload.
+Confirmed browser Settings/download/protocol path,
+conditional on first use racing or preceding preload.
 
 [`uriloader/exthandler/ExtHandlerService.sys.mjs:54-74`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/uriloader/exthandler/ExtHandlerService.sys.mjs#L54-L74)
 initializes a `JSONFile` for `handlers.json` and calls `ensureDataReady()`.
@@ -266,9 +281,12 @@ The comment at `64-65` explicitly preserves this synchronous fallback even if
 the finding does not assume that preload always loses.
 
 [`toolkit/modules/JSONFile.sys.mjs:300-322`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/modules/JSONFile.sys.mjs#L300-L322)
-opens a file input stream, asks for all available bytes, and reads/parses them synchronously.
+opens a file input stream,
+asks for all available bytes,
+and reads/parses them synchronously.
 Corrupt-file recovery at `346-362` creates a unique backup path,
-removes its placeholder, and moves the original.
+removes its placeholder,
+and moves the original.
 The optional backup-file recovery also calls `copyTo()` before reading the backup at `366-390`.
 
 A directly visible caller is Settings:
@@ -283,7 +301,8 @@ at [`nsExternalHelperAppService.cpp:1774`](https://github.com/mozilla-firefox/fi
 Every saved local application path deserialized through
 [`ExtHandlerService.sys.mjs:627-633`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/uriloader/exthandler/ExtHandlerService.sys.mjs#L627-L633) receives a synchronous `file.exists()` check,
 independent of whether the JSON preload already completed.
-The live implementation is `ExtHandlerService.sys.mjs`; no RDF handler-store path was found in this implementation.
+The live implementation is `ExtHandlerService.sys.mjs`;
+no RDF handler-store path was found in this implementation.
 
 ### Settings application menus check local executables on selection
 
@@ -327,7 +346,8 @@ not just add-on startup.
 
 ### Extension startup and sideload scans synchronously load and inspect add-ons
 
-Confirmed startup path, with an additional explicit rescan entry point.
+Confirmed startup path,
+with an additional explicit rescan entry point.
 
 [`toolkit/mozapps/extensions/internal/XPIProvider.sys.mjs:3344`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/mozapps/extensions/internal/XPIProvider.sys.mjs#L3344)
 calls `XPIStates.scanForChanges()` during `checkForChanges()`.
@@ -337,7 +357,8 @@ The scan at `1529-1530` loads extension state via
 reads `addonStartup.json.lz4` through `ReadFileLZ4()`;
 that helper reaches `URLPreloader::ReadFile()` at `207-210`.
 If enabled add-ons need modification checks,
-[`AddonManagerStartup.cpp:438-462`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/mozapps/extensions/AddonManagerStartup.cpp#L438-L462) performs `Exists()`, file-type tests,
+[`AddonManagerStartup.cpp:438-462`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/mozapps/extensions/AddonManagerStartup.cpp#L438-L462) performs `Exists()`,
+file-type tests,
 and `GetLastModifiedTime()` synchronously.
 
 The JS scan walks installation directories at [`XPIProvider.sys.mjs:1667`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/mozapps/extensions/internal/XPIProvider.sys.mjs#L1667),
@@ -351,7 +372,8 @@ before awaiting database work.
 
 ### Preferences and profile state retain startup and forced-save disk dependencies
 
-Confirmed startup and shutdown/explicit save paths; normal deferred preference writes are excluded.
+Confirmed startup and shutdown/explicit save paths;
+normal deferred preference writes are excluded.
 
 [`modules/libpref/Preferences.cpp:4202-4203`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libpref/Preferences.cpp#L4202-L4203)
 reads saved preferences and `user.js` during `InitializeUserPrefs()`.
@@ -366,7 +388,8 @@ explicitly falls back to synchronous reads before profile initialization.
 or does a synchronous read if cached data was forgotten.
 The file implementation reaches synchronous open at
 [`xpcom/build/FileLocation.cpp:146-149`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/build/FileLocation.cpp#L146-L149),
-metadata at `165-169`, and `PR_Read()` at `186-190`.
+metadata at `165-169`,
+and `PR_Read()` at `186-190`.
 The preloader therefore moves work ahead of demand but does not guarantee a non-blocking consumer.
 
 The default `preferences.allow.omt-write` is `true`
@@ -379,13 +402,18 @@ disabling off-main-thread saving writes directly at `4888-4898`.
 Actual write operations use safe output streams and `Finish()` at `3414-3464`.
 Shutdown/suspend force a blocking save at `4238` and `4246`.
 An already-clean forced save can instead spin the event loop while outstanding writes complete
-at `3473-3488`; this is a completion dependency, not proof of a totally unresponsive event loop.
+at `3473-3488`;
+this is a completion dependency,
+not proof of a totally unresponsive event loop.
 
 A non-test explicit-file caller is Firefox profile migration:
 [`browser/components/migration/FirefoxProfileMigrator.sys.mjs:202-207`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/migration/FirefoxProfileMigrator.sys.mjs#L202-L207).
 That migrator also copies profile data synchronously in its `migrate()` callback at `178-182`,
-with more copies at `282`, `374`, and `417`.
-These are refresh/import/startup operations, not normal page navigation.
+with more copies at `282`,
+`374`,
+and `417`.
+These are refresh/import/startup operations,
+not normal page navigation.
 
 ### Update checks and maintenance include synchronous directory writes
 
@@ -410,7 +438,8 @@ and enumerates/removes download-directory contents at `1423-1435`.
 These maintenance sinks are confirmed in the parent JS service,
 but the exact frequency and UI-state timing of every caller were not measured.
 
-File update logging is conditional, not a default behavior:
+File update logging is conditional,
+not a default behavior:
 [`toolkit/mozapps/update/UpdateLog.sys.mjs:113-126`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/mozapps/update/UpdateLog.sys.mjs#L113-L126)
 writes and flushes synchronously when `app.update.log.file` is enabled.
 That preference is read with default `false` at `60`
@@ -429,7 +458,8 @@ The module's own comment acknowledges startup I/O for this cleanup.
 - [`browser/components/backup/BackupService.sys.mjs:2609-2618`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/backup/BackupService.sys.mjs#L2609-L2618) and `2776-2785`:
   backup extraction opens and seeks the archive file synchronously,
   even though subsequent extraction is asynchronous.
-  This establishes open/seek exposure, not a synchronous whole-archive copy.
+  This establishes open/seek exposure,
+  not a synchronous whole-archive copy.
 - [`toolkit/profile/nsToolkitProfileService.cpp:1040-1100`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/profile/nsToolkitProfileService.cpp#L1040-L1100):
   profile initialization probes and reads profile/install INI files.
   Synchronous `Flush()` at `2958-2967` calls `FlushData()`;
@@ -451,91 +481,130 @@ The module's own comment acknowledges startup I/O for this cleanup.
   uses `DEFER_OPEN` and `NetUtil.asyncCopy` for extracted-file output.
   Do not report that output stream as a synchronous whole-file write.
 - `Services.prefs.savePrefFile(null)` in BrowserGlue/Sanitizer uses the normal asynchronous path
-  under the verified default; the non-null file and forced-save cases are distinct.
+  under the verified default;
+  the non-null file and forced-save cases are distinct.
 - Presence of a synchronous API establishes a blocking opportunity,
   not a measured stall duration or a claim that a particular user's filesystem was uncached.
 - Candidate searches included test files in the first pass;
   production findings were read individually.
-- No browser profile, preference, Firefox source, or repository source was modified.
-  No runtime stress, synthetic load, or user-state mutation was performed.
+- No browser profile,
+  preference,
+  Firefox source,
+  or repository source was modified.
+  No runtime stress,
+  synthetic load,
+  or user-state mutation was performed.
 
 ## Storage and security
 
 ### Places history interaction executes SQLite statements on the parent main thread
 
-- Trigger: opening/searching the classic History sidebar or opening a Places query container.
-- Thread: browser parent main thread, reached from browser chrome JS.
-- Chain: [`browser/components/places/content/historySidebar.js:118-167`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/places/content/historySidebar.js#L118-L167) creates query options and calls
-  `gHistoryTree.load(query, options)`; [`treeView.js:66-69`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/places/content/treeView.js#L66-L69) opens the root container.
+- Trigger:
+  opening/searching the classic History sidebar or opening a Places query container.
+- Thread:
+  browser parent main thread,
+  reached from browser chrome JS.
+- Chain:
+  [`browser/components/places/content/historySidebar.js:118-167`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/places/content/historySidebar.js#L118-L167) creates query options and calls
+  `gHistoryTree.load(query, options)`;
+  [`treeView.js:66-69`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/places/content/treeView.js#L66-L69) opens the root container.
   [`toolkit/components/places/nsNavHistoryQuery.cpp:882`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/places/nsNavHistoryQuery.cpp#L882) defaults `mAsyncEnabled` to false.
   [`nsNavHistoryResult.cpp:529-535`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/places/nsNavHistoryResult.cpp#L529-L535) therefore takes `OpenContainer`,
-  `:1594-1603` calls `FillChildren`, and `:1715-1727` calls `GetQueryResults`.
+  `:1594-1603` calls `FillChildren`,
+  and `:1715-1727` calls `GetQueryResults`.
   [`nsNavHistory.cpp:1590-1650`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/places/nsNavHistory.cpp#L1590-L1650) gets a synchronous `mozIStorageStatement` and calls `ResultsAsList`;
   `:2274-2287` loops over `ExecuteStep` synchronously.
-- Disk endpoint: SQLite reads of `places.sqlite` and potentially its WAL;
+- Disk endpoint:
+  SQLite reads of `places.sqlite` and potentially its WAL;
   mozStorage's `Connection::stepStatement` reaches `sqlite3_step`
   in [`storage/mozStorageConnection.cpp:1760`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/storage/mozStorageConnection.cpp#L1760).
-- Important limit: bookmark folder result nodes have a separate async path,
+- Important limit:
+  bookmark folder result nodes have a separate async path,
   and newer history UIs need their own caller trace.
   This finding is specifically the still-present synchronous Places query-container path.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/places/nsNavHistory.cpp#L1590-L1650>
 
 ### Places first connection, migrations, and corruption recovery perform main-thread disk work
 
-- Trigger: first Places use during startup or a later first consumer.
-- Thread: `Database::EnsureConnection` explicitly asserts main thread at
+- Trigger:
+  first Places use during startup or a later first consumer.
+- Thread:
+  `Database::EnsureConnection` explicitly asserts main thread at
   [`toolkit/components/places/Database.cpp:572-573`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/places/Database.cpp#L572-L573).
-- Chain: `:602-605` checks the database file;
+- Chain:
+  `:602-605` checks the database file;
   `:630-632` calls `OpenUnsharedDatabase`,
   `:665-669` calls `SetupDatabaseConnection` and `InitSchema`,
   `:1076-1184` runs synchronous pragmas and attaches favicons,
   and `:1188` starts synchronous schema initialization/migrations.
   Corruption branches invoke `BackupAndReplaceDatabaseFile` at `:656` and `:708-713`.
-- Disk endpoint: `places.sqlite`, `favicons.sqlite`, journal/WAL and recovery files.
+- Disk endpoint:
+  `places.sqlite`,
+  `favicons.sqlite`,
+  journal/WAL and recovery files.
   [`storage/mozStorageConnection.cpp:1197-1226`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/storage/mozStorageConnection.cpp#L1197-L1226) contains the SQLite open calls.
-- Limit: schema migration and corruption replacement are conditional;
+- Limit:
+  schema migration and corruption replacement are conditional;
   ordinary database opening and initialization are not dependent on corruption.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/places/Database.cpp#L561-L738>
 
 ### Cookies can wait for background loading and then reopen SQLite on the parent main thread
 
-- Trigger: first non-private cookie operation before initialization finishes.
+- Trigger:
+  first non-private cookie operation before initialization finishes.
   [`netwerk/cookie/CookieService.cpp:1738-1759`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cookie/CookieService.cpp#L1738-L1759) calls `EnsureInitialized` when picking persistent storage;
   enumeration and clearing also call it at `:692-706`.
-- Thread: `CookiePersistentStorage::EnsureInitialized` asserts main thread at `:2033`.
-- Chain: [`CookiePersistentStorage.cpp:2038-2043`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cookie/CookiePersistentStorage.cpp#L2038-L2043) monitor-waits while the Cookie thread initializes;
+- Thread:
+  `CookiePersistentStorage::EnsureInitialized` asserts main thread at `:2033`.
+- Chain:
+  [`CookiePersistentStorage.cpp:2038-2043`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cookie/CookiePersistentStorage.cpp#L2038-L2043) monitor-waits while the Cookie thread initializes;
   its background task at `:882-925` calls `TryInitDB` and notifies only after completion.
-  `TryInitDB` opens the DB at `:969`, and `Read` executes the load query at `:1869-1992`.
-  Back on main, `EnsureInitialized` calls `InitDBConn` at `:2069`;
-  `InitDBConnInternal` asserts main at `:2169`, opens another SQLite connection at `:2171-2173`,
+  `TryInitDB` opens the DB at `:969`,
+  and `Read` executes the load query at `:1869-1992`.
+  Back on main,
+  `EnsureInitialized` calls `InitDBConn` at `:2069`;
+  `InitDBConnInternal` asserts main at `:2169`,
+  opens another SQLite connection at `:2171-2173`,
   then executes synchronous setup pragmas.
-- Disk endpoint: `cookies.sqlite` and associated files.
-- Existing instrumentation: `sqlite_cookies_block_main_thread`,
-  `sqlite_cookies_time_to_block_main_thread`, and `CookiePersistentStorage::InitDBConn` profiler markers.
-- Limit: after initialization, cookie lookups use in-memory state and ordinary persistence uses async statements.
+- Disk endpoint:
+  `cookies.sqlite` and associated files.
+- Existing instrumentation:
+  `sqlite_cookies_block_main_thread`,
+  `sqlite_cookies_time_to_block_main_thread`,
+  and `CookiePersistentStorage::InitDBConn` profiler markers.
+- Limit:
+  after initialization,
+  cookie lookups use in-memory state and ordinary persistence uses async statements.
   The presence of async writes does not eliminate this initialization dependency.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cookie/CookiePersistentStorage.cpp#L2032-L2191>
 
 ### Permission queries can wait for permissions.sqlite initialization
 
-- Trigger: a permission query or update reaches the manager before its initial DB load finishes.
-- Thread: parent main thread for ordinary permission-manager callers.
-- Chain: [`extensions/permissions/PermissionManager.cpp:907-958`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/extensions/permissions/PermissionManager.cpp#L907-L958) dispatches initialization to its DB thread.
-  That task holds `mMonitor` while `TryInitDB` opens, migrates and reads `permissions.sqlite`.
+- Trigger:
+  a permission query or update reaches the manager before its initial DB load finishes.
+- Thread:
+  parent main thread for ordinary permission-manager callers.
+- Chain:
+  [`extensions/permissions/PermissionManager.cpp:907-958`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/extensions/permissions/PermissionManager.cpp#L907-L958) dispatches initialization to its DB thread.
+  That task holds `mMonitor` while `TryInitDB` opens,
+  migrates and reads `permissions.sqlite`.
   `:884-901` opens the DB off-main;
   `:3446-3512` reads persisted permission rows.
   Main-thread APIs call `EnsureReadCompleted` (for example `:1969-1974`);
   `:4009-4014` waits on the monitor while state is `eInitializing`.
   Acquiring that same monitor can itself wait behind the initializing task before reaching the explicit wait.
-- Limit: ready-state permission checks use the loaded data.
+- Limit:
+  ready-state permission checks use the loaded data.
   Do not label every permission check a disk read.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/extensions/permissions/PermissionManager.cpp#L907-L958>
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/extensions/permissions/PermissionManager.cpp#L4009-L4039>
 
 ### Bounce tracking storage can block main-thread user-activation handling on its first disk load
 
-- Trigger: recording user activation or other storage access before bounce-protection initialization completes.
-- Chain: [`toolkit/components/antitracking/bouncetrackingprotection/BounceTrackingProtection.cpp:396-435`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/antitracking/bouncetrackingprotection/BounceTrackingProtection.cpp#L396-L435)
+- Trigger:
+  recording user activation or other storage access before bounce-protection initialization completes.
+- Chain:
+  [`toolkit/components/antitracking/bouncetrackingprotection/BounceTrackingProtection.cpp:396-435`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/antitracking/bouncetrackingprotection/BounceTrackingProtection.cpp#L396-L435)
   records user activation;
   [`BounceTrackingStateGlobal.cpp:30-67`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/antitracking/bouncetrackingprotection/BounceTrackingStateGlobal.cpp#L30-L67) calls `UpdateDBEntry`.
   [`BounceTrackingProtectionStorage.cpp:173-184`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/antitracking/bouncetrackingprotection/BounceTrackingProtectionStorage.cpp#L173-L184) asserts main thread and calls `WaitForInitialization`;
@@ -543,109 +612,164 @@ The module's own comment acknowledges startup I/O for this cleanup.
   Its background task `:713-736` holds the monitor through `CreateDatabaseConnection`
   and `LoadMemoryStateFromDisk`;
   `:739-748` opens the SQLite database.
-- ESR default exposure: [`modules/libpref/init/StaticPrefList.yaml:17986-17992`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libpref/init/StaticPrefList.yaml#L17986-L17992) sets non-Nightly mode to `3`.
+- ESR default exposure:
+  [`modules/libpref/init/StaticPrefList.yaml:17986-17992`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libpref/init/StaticPrefList.yaml#L17986-L17992) sets non-Nightly mode to `3`.
   [`nsIBounceTrackingProtection.idl:12-40`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/antitracking/bouncetrackingprotection/nsIBounceTrackingProtection.idl#L12-L40) defines `3` as `MODE_ENABLED_DRY_RUN`:
-  activation collection and classification run; tracker purging is simulated.
+  activation collection and classification run;
+  tracker purging is simulated.
   It is not fully disabled and it is not standby mode.
-- Limit: private data is not persisted by `UpdateDBEntry`; fully disabling mode is a separate configuration.
+- Limit:
+  private data is not persisted by `UpdateDBEntry`;
+  fully disabling mode is a separate configuration.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/antitracking/bouncetrackingprotection/BounceTrackingProtectionStorage.cpp#L578-L591>
 
 ### HSTS and other security DataStorage reads can synchronously await their backing-file load
 
-- Concrete main-thread trigger: speculative connection.
+- Concrete main-thread trigger:
+  speculative connection.
   [`netwerk/protocol/http/nsHttpHandler.cpp:2480-2515`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/protocol/http/nsHttpHandler.cpp#L2480-L2515)
   asserts main thread and directly calls `IsSecureURI`.
-- Chain: [`security/manager/ssl/nsSiteSecurityService.cpp:722-753`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsSiteSecurityService.cpp#L722-L753) checks host HSTS state;
+- Chain:
+  [`security/manager/ssl/nsSiteSecurityService.cpp:722-753`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsSiteSecurityService.cpp#L722-L753) checks host HSTS state;
   `:833` calls `mSiteStateStorage->Get`.
   [`security/manager/ssl/data_storage/src/lib.rs:757-760`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/data_storage/src/lib.rs#L757-L760) calls `wait_for_ready`;
   `:824-829` waits on a condition variable.
   Initialization is dispatched in `:981-988`,
   holds the data mutex in `:834-840`,
   and reads `SiteSecurityServiceState.bin` or its older text format in `:294-328` and `:417-425`.
-- Additional exposure: the memory reporter at `:842-853` takes the same data mutex,
+- Additional exposure:
+  the memory reporter at `:842-853` takes the same data mutex,
   so memory reporting can wait behind initialization's disk read too.
-- Important mitigation: [`netwerk/base/nsNetUtil.cpp:3087-3139`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/base/nsNetUtil.cpp#L3087-L3139) explicitly offloads a cold-storage HSTS check
+- Important mitigation:
+  [`netwerk/base/nsNetUtil.cpp:3087-3139`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/base/nsNetUtil.cpp#L3087-L3139) explicitly offloads a cold-storage HSTS check
   when it has the socket transport service and a result callback.
   Do not claim every navigation performs this cold HSTS wait on main.
-  The speculative-connect caller is direct, and the fallback at `:3141` is also synchronous.
-- Limit: data is resident in Rust maps/vectors after initialization;
+  The speculative-connect caller is direct,
+  and the fallback at `:3141` is also synchronous.
+- Limit:
+  data is resident in Rust maps/vectors after initialization;
   steady-state writes are queued to background tasks.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/data_storage/src/lib.rs#L757-L840>
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/protocol/http/nsHttpHandler.cpp#L2480-L2515>
 
 ### Certificate-state async APIs share a lock held across disk work
 
-- Trigger: remote security settings submit certificate/revocation work while another certificate-storage task
-  owns the security-state lock, or a memory report runs during that work.
-- Main-thread entry example: [`security/manager/ssl/cert_storage/src/lib.rs:1320-1337`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/cert_storage/src/lib.rs#L1320-L1337)
-  requires main thread for `HasPriorData`, then constructs `SecurityStateTask`.
+- Trigger:
+  remote security settings submit certificate/revocation work while another certificate-storage task
+  owns the security-state lock,
+  or a memory report runs during that work.
+- Main-thread entry example:
+  [`security/manager/ssl/cert_storage/src/lib.rs:1320-1337`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/cert_storage/src/lib.rs#L1320-L1337)
+  requires main thread for `HasPriorData`,
+  then constructs `SecurityStateTask`.
   Remote settings calls that API in [`security/manager/ssl/RemoteSecuritySettings.sys.mjs:119-129`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/RemoteSecuritySettings.sys.mjs#L119-L129).
-- Chain: `SecurityStateTask::new` takes `security_state.write()` at `lib.rs:1200`.
+- Chain:
+  `SecurityStateTask::new` takes `security_state.write()` at
+  `security/manager/ssl/cert_storage/src/lib.rs:1200`.
   Worker `run` takes the same write lock at `:1216` and keeps it through `open_db` and `task_action`
   at `:1221-1229`.
   `SecurityState::open_db` at `:216-239` opens/migrates the store.
   Persisting tasks call `writer.commit()` (for example `:380-401`).
-  The selected backend is `rkv::SafeMode` at `:43`, `:74` and `:1043-1057`.
+  The selected backend is `rkv::SafeMode` at `:43`,
+  `:74` and `:1043-1057`.
   [`third_party/rust/rkv/src/backend/impl_safe/transaction.rs:184-193`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/rkv/src/backend/impl_safe/transaction.rs#L184-L193) calls `write_to_disk` on commit;
-  [`environment.rs:266-278`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/rkv/src/backend/impl_safe/environment.rs#L266-L278) performs filesystem metadata, serialized-file write and rename.
-- Memory-report variant: [`cert_storage/src/lib.rs:1698-1701`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/cert_storage/src/lib.rs#L1698-L1701) obtains a read lock;
+  [`environment.rs:266-278`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/rkv/src/backend/impl_safe/environment.rs#L266-L278) performs filesystem metadata,
+  serialized-file write and rename.
+- Memory-report variant:
+  [`cert_storage/src/lib.rs:1698-1701`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/cert_storage/src/lib.rs#L1698-L1701) obtains a read lock;
   the report is dispatched to main by [`xpcom/base/nsMemoryReporterManager.cpp:1983-2006`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/base/nsMemoryReporterManager.cpp#L1983-L2006).
-- Consequence: an async-looking API can synchronously wait on the main thread while a prior worker task
-  holds the lock over filesystem work. This can recur after startup.
-- Limit: overlap is required; no runtime contention duration was measured.
+- Consequence:
+  an async-looking API can synchronously wait on the main thread while a prior worker task
+  holds the lock over filesystem work.
+  This can recur after startup.
+- Limit:
+  overlap is required;
+  no runtime contention duration was measured.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/cert_storage/src/lib.rs#L1193-L1241>
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/rkv/src/backend/impl_safe/environment.rs#L266-L278>
 
 ### NSS profile initialization opens security databases on the parent main thread
 
-- Trigger: NSS initialization for the parent process.
-- Chain: [`security/manager/ssl/nsNSSComponent.cpp:1631-1645`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsNSSComponent.cpp#L1631-L1645) asserts both main thread and parent process,
+- Trigger:
+  NSS initialization for the parent process.
+- Chain:
+  [`security/manager/ssl/nsNSSComponent.cpp:1631-1645`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsNSSComponent.cpp#L1631-L1645) asserts both main thread and parent process,
   then calls `InitializeNSS`.
   `:1534` calls `InitializeNSSWithFallbacks`;
   `:1333-1345` attempts read/write then read-only NSS initialization for the profile.
   [`security/certverifier/NSSCertDBTrustDomain.cpp:1543-1584`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/certverifier/NSSCertDBTrustDomain.cpp#L1543-L1584) explicitly requires the parent main thread,
-  constructs a `sql:` profile path, and calls `NSS_Initialize`.
+  constructs a `sql:` profile path,
+  and calls `NSS_Initialize`.
   [`security/nss/lib/softoken/sdb.c:730`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/nss/lib/softoken/sdb.c#L730) opens SQLite;
   `:2547` and `:2564` initialize certificate and key databases.
-- Additional metadata I/O: [`nsNSSComponent.cpp:1157-1182`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsNSSComponent.cpp#L1157-L1182) invokes `statfs` on Linux profile storage;
+- Additional metadata I/O:
+  [`nsNSSComponent.cpp:1157-1182`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsNSSComponent.cpp#L1157-L1182) invokes `statfs` on Linux profile storage;
   Windows uses volume-path/drive queries in the same helper.
-- Guards: `security.nocertdb` defaults false ([`StaticPrefList.yaml:18543-18546`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libpref/init/StaticPrefList.yaml#L18543-L18546)).
+- Guards:
+  `security.nocertdb` defaults false ([`StaticPrefList.yaml:18543-18546`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libpref/init/StaticPrefList.yaml#L18543-L18546)).
   Utility-process PKCS#11 support does not remove the parent's certificate/key DB initialization;
   [`NSSCertDBTrustDomain.cpp:1568-1577`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/certverifier/NSSCertDBTrustDomain.cpp#L1568-L1577) distinguishes module DB and certificate DB flags.
-- Limit: built-in roots loading has its own background task; do not describe all certificate work as main-thread.
+- Limit:
+  built-in roots loading has its own background task;
+  do not describe all certificate work as main-thread.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/certverifier/NSSCertDBTrustDomain.cpp#L1543-L1584>
 
 ### Certificate manager import, export, and list operations can block the parent UI
 
-- Trigger: opening Certificate Manager; importing a CA/email certificate; importing or backing up a personal cert.
-- JS entry: [`security/manager/pki/resources/content/certManager.js:322`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/pki/resources/content/certManager.js#L322) calls `certdb.getCerts()`;
-  `:666` exports PKCS#12, `:757` imports PKCS#12, and `:855` imports a certificate file.
-- Direct file import: [`security/manager/ssl/nsNSSCertificateDB.cpp:760-791`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsNSSCertificateDB.cpp#L760-L791)
-  opens an NSPR file descriptor, stats it, reads the entire file via `PR_Read`, then closes it synchronously.
-- PKCS#12: `:811-851` explicitly requires main thread and calls `nsPKCS12Blob`.
+- Trigger:
+  opening Certificate Manager;
+  importing a CA/email certificate;
+  importing or backing up a personal cert.
+- JS entry:
+  [`security/manager/pki/resources/content/certManager.js:322`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/pki/resources/content/certManager.js#L322) calls `certdb.getCerts()`;
+  `:666` exports PKCS#12,
+  `:757` imports PKCS#12,
+  and `:855` imports a certificate file.
+- Direct file import:
+  [`security/manager/ssl/nsNSSCertificateDB.cpp:760-791`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsNSSCertificateDB.cpp#L760-L791)
+  opens an NSPR file descriptor,
+  stats it,
+  reads the entire file via `PR_Read`,
+  then closes it synchronously.
+- PKCS#12:
+  `:811-851` explicitly requires main thread and calls `nsPKCS12Blob`.
   [`nsPKCS12Blob.cpp:198`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsPKCS12Blob.cpp#L198) opens output synchronously;
   `:241-249` opens and reads input;
   `:330` calls `PR_Write` for output.
-- Listing: [`nsNSSCertificateDB.cpp:1173-1186`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsNSSCertificateDB.cpp#L1173-L1186) waits for loadable certs and calls `PK11_ListCerts`.
+- Listing:
+  [`nsNSSCertificateDB.cpp:1173-1186`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsNSSCertificateDB.cpp#L1173-L1186) waits for loadable certs and calls `PK11_ListCerts`.
   [`nsNSSComponent.cpp:554-566`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsNSSComponent.cpp#L554-L566) implements the loadable-cert monitor wait.
-- Limit: listing may be satisfied from loaded state; import/export have explicit filesystem endpoints.
-  This finding applies to these certificate UI operations, not ordinary TLS verification generally.
+- Limit:
+  listing may be satisfied from loaded state;
+  import/export have explicit filesystem endpoints.
+  This finding applies to these certificate UI operations,
+  not ordinary TLS verification generally.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsNSSCertificateDB.cpp#L760-L851>
 
 ### Certificate override service synchronously loads cert_override.txt
 
-- Trigger: first service initialization/profile change, potentially on first consumer.
-- Chain: [`security/manager/ssl/nsCertOverrideService.cpp:158-175`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsCertOverrideService.cpp#L158-L175)
+- Trigger:
+  first service initialization/profile change,
+  potentially on first consumer.
+- Chain:
+  [`security/manager/ssl/nsCertOverrideService.cpp:158-175`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsCertOverrideService.cpp#L158-L175)
   rejects non-main-thread initialization and invokes its profile-change observer.
   `:184-198` holds `mMutex` and calls `Read`.
   `:227-257` opens a local file input stream and loops over synchronous `ReadLine` calls.
-- Limit: writes are not the same finding: `:347-356` dispatches a `WriterRunnable` to `mWriterTaskQueue`.
+- Limit:
+  writes are not the same finding:
+  `:347-356` dispatches a `WriterRunnable` to `mWriterTaskQueue`.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsCertOverrideService.cpp#L158-L257>
 
 ### localStorage cold access blocks the content main thread on quota and SQLite work
 
-- Trigger: a page calls `localStorage.getItem`, `setItem`, `length`, or similar before its datastore is ready.
-- Chain: [`dom/localstorage/LSObject.cpp:507-609`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/dom/localstorage/LSObject.cpp#L507-L609) calls `EnsureDatabase`;
+- Trigger:
+  a page calls `localStorage.getItem`,
+  `setItem`,
+  `length`,
+  or similar before its datastore is ready.
+- Chain:
+  [`dom/localstorage/LSObject.cpp:507-609`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/dom/localstorage/LSObject.cpp#L507-L609) calls `EnsureDatabase`;
   `:908-915` sends a datastore-preparation request through `DoRequestSynchronously`.
   `:838-856` explicitly documents synchronously blocking the owning thread;
   `RequestHelper::AssertIsOnOwningThread` asserts main thread at `:170`.
@@ -653,45 +777,69 @@ The module's own comment acknowledges startup I/O for this cleanup.
   Parent [`dom/localstorage/ActorsParent.cpp:7009-7046`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/dom/localstorage/ActorsParent.cpp#L7009-L7046) sends preparation to quota IO;
   `:7043-7323` checks directories and prepares the datastore,
   then `LoadDataOp::DoDatastoreWork` at `:7822-7863` reads `SELECT ... FROM data` on the connection thread.
-- Scope: this is normally a page/content-process main-thread stall, not proof that browser chrome freezes.
-- Limits: an existing datastore is reused; private browsing skips disk preparation at `ActorsParent.cpp:7025-7028`.
-  Writes can be buffered after loading; do not claim every `setItem` waits for a physical disk flush.
+- Scope:
+  this is normally a page/content-process main-thread stall,
+  not proof that browser chrome freezes.
+- Limits:
+  an existing datastore is reused;
+  private browsing skips disk preparation at `dom/localstorage/ActorsParent.cpp:7025-7028`.
+  Writes can be buffered after loading;
+  do not claim every `setItem` waits for a physical disk flush.
   The cancellation deadline is `50000` ms ([`LSObject.cpp:65`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/dom/localstorage/LSObject.cpp#L65)),
-  but cancellation can then wait indefinitely at `:1087-1091`, so it is not a hard upper bound on a stall.
-- Default: the unsupported legacy implementation pref defaults false ([`StaticPrefList.yaml:5300-5304`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libpref/init/StaticPrefList.yaml#L5300-L5304)).
+  but cancellation can then wait indefinitely at `:1087-1091`,
+  so it is not a hard upper bound on a stall.
+- Default:
+  the unsupported legacy implementation pref defaults false ([`StaticPrefList.yaml:5300-5304`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libpref/init/StaticPrefList.yaml#L5300-L5304)).
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/dom/localstorage/LSObject.cpp#L1048-L1100>
 
 ### Cache memory reporting waits synchronously for the cache IO thread
 
-- Trigger: a memory report, including an `about:memory` report.
-- Thread: `nsMemoryReporterManager::DispatchReporter`
+- Trigger:
+  a memory report,
+  including an `about:memory` report.
+- Thread:
+  `nsMemoryReporterManager::DispatchReporter`
   dispatches `CollectReports` onto main ([`xpcom/base/nsMemoryReporterManager.cpp:1983-2006`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/base/nsMemoryReporterManager.cpp#L1983-L2006)).
-- Chain: [`netwerk/cache2/CacheStorageService.cpp:2423-2428`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cache2/CacheStorageService.cpp#L2423-L2428)
+- Chain:
+  [`netwerk/cache2/CacheStorageService.cpp:2423-2428`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cache2/CacheStorageService.cpp#L2423-L2428)
   calls `CacheFileIOManager::SizeOfIncludingThis` while holding its service lock.
   [`CacheFileIOManager.cpp:4633-4642`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cache2/CacheFileIOManager.cpp#L4633-L4642) calls `SizeOfHandlesRunnable::Get`.
   `:4580-4597` dispatches to the cache IO thread and monitor-waits for completion.
-- Disk dependency: the target is the cache IO thread, whose work includes synchronous file operations;
+- Disk dependency:
+  the target is the cache IO thread,
+  whose work includes synchronous file operations;
   `ReadInternal` calls `PR_Read` at `:2071` in non-async builds,
   and file opens/metadata operations remain on that thread.
   A report can queue behind a blocked operation even though measuring handle memory does not itself read disk.
-- Limit: queue overlap is necessary; runtime stall duration has not been measured.
+- Limit:
+  queue overlap is necessary;
+  runtime stall duration has not been measured.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cache2/CacheFileIOManager.cpp#L4568-L4600>
 
 ### Cache shutdown waits for IO and can fall back to main-thread recursive deletion
 
-- Trigger: shutdown, with additional deletion when clear-cache-on-shutdown is configured.
-- Chain: [`netwerk/cache2/CacheFileIOManager.cpp:1226-1255`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cache2/CacheFileIOManager.cpp#L1226-L1255) asserts main thread,
-  invokes `ShutdownEvent::PostAndWait`, then `CacheIOThread::Shutdown`.
+- Trigger:
+  shutdown,
+  with additional deletion when clear-cache-on-shutdown is configured.
+- Chain:
+  [`netwerk/cache2/CacheFileIOManager.cpp:1226-1255`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cache2/CacheFileIOManager.cpp#L1226-L1255) asserts main thread,
+  invokes `ShutdownEvent::PostAndWait`,
+  then `CacheIOThread::Shutdown`.
   [`CacheFileIOManager.cpp:623-648`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cache2/CacheFileIOManager.cpp#L623-L648) spins an event loop waiting for the IO thread's shutdown event;
   [`CacheIOThread.cpp:261-274`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cache2/CacheIOThread.cpp#L261-L274) calls `PR_JoinThread`.
-- Distinction: the `SpinEventLoopUntil` phase pumps events;
+- Distinction:
+  the `SpinEventLoopUntil` phase pumps events;
   it delays shutdown completion but is not equivalent to a non-pumping UI freeze.
   The later join is a thread wait.
-- Clear-on-shutdown: `SyncRemoveAllCacheFiles` at `:4378-4426` attempts background-process purge plus a
-  synchronous cache-directory rename. If background purge is disabled or the attempt fails,
+- Clear-on-shutdown:
+  `SyncRemoveAllCacheFiles` at `:4378-4426` attempts background-process purge plus a
+  synchronous cache-directory rename.
+  If background purge is disabled or the attempt fails,
   `:4429-4455` calls `SyncRemoveDir` for entries/doomed/trash;
   `SyncRemoveDir` at `:4305-4338` performs recursive removal.
-- Limit: mainly exit responsiveness. Do not generalize this to mid-session browsing.
+- Limit:
+  mainly exit responsiveness.
+  Do not generalize this to mid-session browsing.
 - Source: <https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cache2/CacheFileIOManager.cpp#L4378-L4455>
 
 ### Preference-gated candidates, excluded from default ESR findings
@@ -701,13 +849,16 @@ The module's own comment acknowledges startup I/O for this cleanup.
 [`PermissionManager.cpp:4933-4987`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/extensions/permissions/PermissionManager.cpp#L4933-L4987) asserts main thread and synchronously dispatches a full
 `moz_origin_interactions` SELECT to its worker via `SyncRunnable::DispatchToThread`.
 This runs from the idle-daily maintenance continuation (`:1707-1741`).
-However, `permissions.expireUnused.enabled` is `@IS_NIGHTLY_BUILD@`
-in [`StaticPrefList.yaml:17027-17030`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libpref/init/StaticPrefList.yaml#L17027-L17030), so it is off by default in ESR.
+However,
+`permissions.expireUnused.enabled` is `@IS_NIGHTLY_BUILD@`
+in [`StaticPrefList.yaml:17027-17030`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libpref/init/StaticPrefList.yaml#L17027-L17030),
+so it is off by default in ESR.
 
 #### Identity credential storage
 
 [`toolkit/components/credentialmanagement/IdentityCredentialStorageService.cpp:216-222`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/credentialmanagement/IdentityCredentialStorageService.cpp#L216-L222)
-waits on main-thread initialization; `:190-211` opens/loads its disk DB on a worker holding the monitor.
+waits on main-thread initialization;
+`:190-211` opens/loads its disk DB on a worker holding the monitor.
 APIs including `GetState` (`:665-674`) and `Clear` (`:841-845`) reach the wait.
 The public identity feature defaults false ([`StaticPrefList.yaml:5019-5022`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libpref/init/StaticPrefList.yaml#L5019-L5022)).
 Clear-data consumers are also guarded by that pref
@@ -725,26 +876,35 @@ This is not default-ESR disk work.
 ### Async paths that should not be promoted from grep hits alone
 
 - [`dom/indexedDB/IDBFactory.cpp:785-808`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/dom/indexedDB/IDBFactory.cpp#L785-L808) returns an `IDBOpenDBRequest`;
-  `:851` sends the background factory request. Worker SQLite I/O alone does not demonstrate a UI-thread wait.
+  `:851` sends the background factory request.
+  Worker SQLite I/O alone does not demonstrate a UI-thread wait.
 - Cookie persistence uses async statements after loading
-  ([`CookiePersistentStorage.cpp:714-774`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cookie/CookiePersistentStorage.cpp#L714-L774)), despite the initialization findings.
+  ([`CookiePersistentStorage.cpp:714-774`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/netwerk/cookie/CookiePersistentStorage.cpp#L714-L774)),
+  despite the initialization findings.
 - Certificate override writes dispatch to a writer queue ([`nsCertOverrideService.cpp:347-356`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/security/manager/ssl/nsCertOverrideService.cpp#L347-L356)).
 - The normal cold HSTS upgrade check has the callback-based mitigation described in the HSTS finding.
 - LocalStorage normal datastore reuse/private paths must remain distinct from first persistent load.
-- Cache shutdown's event-loop-spinning phase is a completion dependency, not an unconditional frozen event loop.
+- Cache shutdown's event-loop-spinning phase is a completion dependency,
+  not an unconditional frozen event loop.
 
 ## Graphics, resources, fonts, and telemetry
 
 ### Main-thread startup-cache lock held by disk writer
 
-Confirmed source dependency, parent and other processes using StartupCache.
+Confirmed source dependency,
+parent and other processes using StartupCache.
 [`startupcache/StartupCache.cpp:386`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/startupcache/StartupCache.cpp#L386) asserts that `GetBuffer` runs on the main thread;
 line 393 acquires `mTableLock` with a blocking lock.
-`MaybeWriteOffMainThread`, lines 796 to 805,
+`MaybeWriteOffMainThread`,
+lines 796 to 805,
 dispatches a worker which holds that same mutex for `WriteToDisk`.
-`WriteToDisk`, lines 525 to 620,
+`WriteToDisk`,
+lines 525 to 620,
 opens the profile startup cache with `PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE`,
-compresses and writes entries, seeks, writes the header, and closes while the caller retains the mutex.
+compresses and writes entries,
+seeks,
+writes the header,
+and closes while the caller retains the mutex.
 Thus a main-thread cache lookup can wait for disk work even though the write was dispatched to a worker.
 `HasEntry` also takes the same blocking lock at lines 375 to 378.
 
@@ -760,31 +920,44 @@ lines 470 to 476 use a try-lock and fail instead of waiting.
 
 ### Startup-cache and omnijar file-backed page faults
 
-Confirmed mappings and synchronous consumers; physical disk faults are conditional.
+Confirmed mappings and synchronous consumers;
+physical disk faults are conditional.
 [`startupcache/StartupCache.cpp:273`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/startupcache/StartupCache.cpp#L273) asserts `LoadArchive` is main-thread-only.
 It calls `mCacheData.init(mFile)` at line 277,
 then reads the mapped magic/header/index at lines 291 to 357.
 [`js/xpconnect/loader/AutoMemMap.cpp:31-86`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/js/xpconnect/loader/AutoMemMap.cpp#L31-L86) performs
-`OpenNSPRFileDesc`, `PR_GetOpenFileInfo64`, `PR_CreateFileMap`, and `PR_MemMap`.
-`GetBuffer`, [`StartupCache.cpp:415-442`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/startupcache/StartupCache.cpp#L415-L442),
+`OpenNSPRFileDesc`,
+`PR_GetOpenFileInfo64`,
+`PR_CreateFileMap`,
+and `PR_MemMap`.
+`GetBuffer`,
+[`StartupCache.cpp:415-442`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/startupcache/StartupCache.cpp#L415-L442),
 decompresses directly from mapped compressed bytes on the main thread.
 
 [`modules/libjar/nsZipArchive.cpp:187-246`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/modules/libjar/nsZipArchive.cpp#L187-L246) opens the archive,
-queries its size, and creates a read-only file mapping.
+queries its size,
+and creates a read-only file mapping.
 Unix `MADV_WILLNEED` at lines 218 to 223 requests prefetch;
 it does not make subsequent accesses independent of backing-file residency.
 [`xpcom/build/Omnijar.cpp:80`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/build/Omnijar.cpp#L80) opens the `omni.ja` archive with `nsZipArchive::OpenArchive`.
-Synchronous module, stylesheet, and localization readers consume its mapped data.
+Synchronous module,
+stylesheet,
+and localization readers consume its mapped data.
 
-These are read-only file mappings, unlike a hypothetical continuously updated disk-backed metrics mapping.
+These are read-only file mappings,
+unlike a hypothetical continuously updated disk-backed metrics mapping.
 A warm resident page does not require disk I/O on every access.
 Cold or reclaimed mapped pages can fault when the UI thread reads them.
 The source does not establish that a major fault occurred on this machine.
 
-`StartupCache::InvalidateCache`, lines 623 to 667,
-also blocks for prefetch completion, acquires the writer mutex,
-removes the cache file, and reloads it.
-`EnsureShutdownWriteComplete`, lines 693 to 715,
+`StartupCache::InvalidateCache`,
+lines 623 to 667,
+also blocks for prefetch completion,
+acquires the writer mutex,
+removes the cache file,
+and reloads it.
+`EnsureShutdownWriteComplete`,
+lines 693 to 715,
 can synchronously write the cache as a fallback.
 These are separate invalidation/shutdown triggers rather than evidence of continuous browsing writes.
 
@@ -795,48 +968,65 @@ Confirmed direct main-thread file/resource access on cache misses.
 contains the `ChromeUtils.importESModule` synchronous load path.
 The off-main-thread branch returns at lines 731 to 733;
 the remaining branch calls `GetScriptForLocation` on the main thread.
-`GetScriptForLocation`, lines 870 to 989,
+`GetScriptForLocation`,
+lines 870 to 989,
 tries the script preloader and startup cache,
 then either maps a real file or calls `ReadScript`.
-`ReadScript`, lines 830 to 856,
-uses synchronous channel `Open`, `Available`, and `Read`.
+`ReadScript`,
+lines 830 to 856,
+uses synchronous channel `Open`,
+`Available`,
+and `Read`.
 
-Trigger: first use of a chrome module, including a module lazily imported by a UI feature,
+Trigger:
+first use of a chrome module,
+including a module lazily imported by a UI feature,
 when its in-memory/bytecode cache does not satisfy the request.
 Packaged builds normally read chrome resources from `omni.ja`;
 the real-file mapping branch is especially relevant to local/unpacked builds.
 The current source intentionally skips bytecode caching for modules outside the app/gre omnijars
-to avoid stale built-in-addon bytecode, lines 903 to 907.
+to avoid stale built-in-addon bytecode,
+lines 903 to 907.
 The separately implemented `AsyncOpen` module load path is not evidence that these synchronous imports are async.
 
 ### Script-preloader startup metadata, mappings, and decode waits
 
 Confirmed startup disk work and main-thread dependency on mapped decode input.
 [`js/xpconnect/loader/ScriptPreloader.cpp:478-511`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/js/xpconnect/loader/ScriptPreloader.cpp#L478-L511)
-creates the startup-cache directory, checks the cache file,
-renames `.bin` to `-current.bin`, and maps it.
+creates the startup-cache directory,
+checks the cache file,
+renames `.bin` to `-current.bin`,
+and maps it.
 The parent initialization path calls `OpenCache` at line 538;
 the child initialization path maps the inherited file at line 590.
-`InitCacheInternal`, lines 597 to 674,
+`InitCacheInternal`,
+lines 597 to 674,
 reads the mapped header and assigns mapped XDR ranges to cached scripts.
 
-`WaitForCachedStencil`, lines 1113 to 1162,
+`WaitForCachedStencil`,
+lines 1113 to 1162,
 can either decode a small script immediately on the caller or wait on a monitor until a background decode finishes.
 The worker's required input is the file mapping,
 so a background page fault can extend this synchronous wait.
 The source explicitly calls it a blocked main thread in the notification callbacks at lines 1166 to 1190.
-This is conditional on the cache, decode state, and off-thread parsing configuration.
-It is not evidence that all waits are disk-bound; decoding CPU work is another dependency.
+This is conditional on the cache,
+decode state,
+and off-thread parsing configuration.
+It is not evidence that all waits are disk-bound;
+decoding CPU work is another dependency.
 
 ### Synchronous localization and stylesheet reads through URLPreloader
 
-Confirmed main-thread localization I/O; synchronous internal-style and Fluent paths also exist.
+Confirmed main-thread localization I/O;
+synchronous internal-style and Fluent paths also exist.
 [`intl/strres/nsStringBundle.cpp:425-475`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/intl/strres/nsStringBundle.cpp#L425-L475)
 asserts main-thread initialization of a string bundle,
-calls `URLPreloader::ReadURI`, and falls back to synchronous channel `Open`.
+calls `URLPreloader::ReadURI`,
+and falls back to synchronous channel `Open`.
 [`js/xpconnect/loader/URLPreloader.cpp:480-492`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/js/xpconnect/loader/URLPreloader.cpp#L480-L492)
 directly reads when the startup preload cache is unavailable or startup has finished.
-`URLEntry::ReadOrWait`, lines 657 to 675,
+`URLEntry::ReadOrWait`,
+lines 657 to 675,
 waits on a monitor for a pending background read,
 or synchronously reads again if the entry's data was discarded.
 
@@ -857,20 +1047,25 @@ They do not mean all web-page CSS or all Fluent loads block the browser UI on di
 
 ### WebRender shader-cache reads block the render thread
 
-Confirmed direct frame-critical disk reads; not a browser-main-thread operation.
+Confirmed direct frame-critical disk reads;
+not a browser-main-thread operation.
 [`gfx/webrender_bindings/RenderThread.cpp:1269`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/webrender_bindings/RenderThread.cpp#L1269) asserts the render thread for `InitDeviceTask`.
 At lines 1282 to 1284 it constructs `WebRenderProgramCache` when program-binary disk caching is enabled.
-The constructor, lines 1602 to 1612,
+The constructor,
+lines 1602 to 1612,
 calls `wr_program_cache_new` and `wr_try_load_startup_shaders_from_disk` synchronously.
 
 [`gfx/webrender_bindings/src/program_cache.rs:313-325`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/webrender_bindings/src/program_cache.rs#L313-L325)
 creates the `shader-cache` directory.
 Lines 222 to 254 read the `startup_shaders` file and enumerate the cache directory.
-`deserialize_program_binary`, lines 27 to 30,
+`deserialize_program_binary`,
+lines 27 to 30,
 opens a shader binary and reads the entire file.
 The load budget is `MAX_LOAD_TIME_MS = 400` at line 17,
 but lines 257 to 269 check elapsed time only after each completed shader load.
-It does not interrupt a single slow open, directory read, or file read.
+It does not interrupt a single slow open,
+directory read,
+or file read.
 
 This is also an on-demand rendering path:
 [`gfx/wr/webrender/src/device/gl.rs:2545-2553`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/wr/webrender/src/device/gl.rs#L2545-L2553)
@@ -894,13 +1089,16 @@ they are not the direct render-thread read finding.
 Confirmed synchronous file-oriented font creation during font selection/metrics/shaping.
 [`gfx/thebes/gfxFcPlatformFontList.cpp:372-384`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/thebes/gfxFcPlatformFontList.cpp#L372-L384)
 extracts `FC_FILE` and `FC_INDEX` and calls `Factory::NewSharedFTFace` with the filename.
-`GetFTFace`, lines 1080 to 1092,
+`GetFTFace`,
+lines 1080 to 1092,
 does this lazily on the first request.
 It is used from font instance creation around lines 993 to 1076,
 table detection at line 634,
 and table copying at line 1191.
 The text-run path calls `gfxFontEntry::FindOrMakeFont`
-([`gfx/thebes/gfxTextRun.cpp:2078`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/thebes/gfxTextRun.cpp#L2078), `2162`, and `4031`),
+([`gfx/thebes/gfxTextRun.cpp:2078`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/thebes/gfxTextRun.cpp#L2078),
+`2162`,
+and `4031`),
 which calls the platform `CreateFontInstance` on a cache miss
 ([`gfx/thebes/gfxFontEntry.cpp:242-250`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/thebes/gfxFontEntry.cpp#L242-L250)).
 These operations are reachable while browser chrome or content text is being laid out;
@@ -926,28 +1124,38 @@ Windows DirectWrite and macOS CoreText calls have synchronous font-creation/tabl
 ([`gfx/thebes/gfxDWriteFontList.cpp:764-790`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/thebes/gfxDWriteFontList.cpp#L764-L790),
 `gfx/thebes/CoreTextFontList.cpp`),
 but their OS-internal disk activity was not fully traced.
-Treat those as native-library candidates, not equivalent source-confirmed file reads.
+Treat those as native-library candidates,
+not equivalent source-confirmed file reads.
 
 ### Linux periodic fontconfig checks on the parent thread
 
-Confirmed Firefox synchronous native-library boundary; disk implementation verified in current upstream fontconfig.
+Confirmed Firefox synchronous native-library boundary;
+disk implementation verified in current upstream fontconfig.
 [`gfx/thebes/gfxFcPlatformFontList.cpp:1496-1508`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/thebes/gfxFcPlatformFontList.cpp#L1496-L1508)
 creates the parent's repeating font-update timer when fontconfig's rescan interval is nonzero.
-`CheckFontUpdates`, lines 2887 to `2907`,
-calls `FcInitBringUptoDate`, then can rebuild the font list and force a global reflow.
+`CheckFontUpdates`,
+lines 2887 to `2907`,
+calls `FcInitBringUptoDate`,
+then can rebuild the font list and force a global reflow.
 [`gfxPlatformFontList.cpp:730-732`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/thebes/gfxPlatformFontList.cpp#L730-L732)
 asserts that font-list reinitialization runs on the main thread.
 
 Current first-party fontconfig source:
 <https://gitlab.freedesktop.org/fontconfig/fontconfig/-/blob/b6cf4b270c42b13347a4012cdceb9bbc3d2e8f32/src/fcinit.c#L303>
-checks the rescan interval and calls `FcConfigUptoDate`, then `FcInitReinitialize` when stale.
+checks the rescan interval and calls `FcConfigUptoDate`,
+then `FcInitReinitialize` when stale.
 <https://gitlab.freedesktop.org/fontconfig/fontconfig/-/blob/b6cf4b270c42b13347a4012cdceb9bbc3d2e8f32/src/fccfg.c#L253>
-shows `FcConfigNewestFile` issuing `FcStat` across config files, config directories,
-font directories, and application fonts.
+shows `FcConfigNewestFile` issuing `FcStat` across config files,
+config directories,
+font directories,
+and application fonts.
 Thus periodic metadata work can occur even without a visible font picker.
 `rpm --query fontconfig gtk3 freetype` reports installed x86_64 and i686 packages
-`fontconfig-2.18.3-2.fc45`, `gtk3-3.24.52-6.fc45`, and `freetype-2.14.3-3.fc45`.
-This is package inventory, not proof of which library a running browser mapped.
+`fontconfig-2.18.3-2.fc45`,
+`gtk3-3.24.52-6.fc45`,
+and `freetype-2.14.3-3.fc45`.
+This is package inventory,
+not proof of which library a running browser mapped.
 The system rescan interval and distribution-specific library patches were not measured;
 do not assign a fixed timer period or claim this path executes on every installation.
 
@@ -957,7 +1165,8 @@ That mitigation does not make subsequent main-thread font-list reinitialization 
 
 ### Linux native-theme changes can synchronously load GTK files
 
-Confirmed Firefox main-thread GTK calls, conditional upstream GTK file I/O.
+Confirmed Firefox main-thread GTK calls,
+conditional upstream GTK file I/O.
 [`widget/gtk/nsLookAndFeel.cpp:1753-1784`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/widget/gtk/nsLookAndFeel.cpp#L1753-L1784)
 asserts main-thread initialization and invokes theme restoration and alternate-theme configuration.
 Lines 1413 to 1415 and 1454 to 1477
@@ -971,10 +1180,12 @@ then probes and may load per-theme `settings.ini`.
 <https://gitlab.gnome.org/GNOME/gtk/-/blob/bac4a949b151eedada8bc60a97429d2176b0b28b/gtk/gtkcssprovider.c#L2123>
 first checks built-in resources;
 the external-theme branch probes theme directories,
-loads `gtk.gresource`, and calls `gtk_css_provider_load_from_path` at lines 2153 to 2166.
+loads `gtk.gresource`,
+and calls `gtk_css_provider_load_from_path` at lines 2153 to 2166.
 Its `load_internal` calls `gtk_file_load_bytes` at line 1742.
 
-Trigger: initial native-theme setup or theme/color-scheme changes that require loading a disk-installed GTK theme.
+Trigger:
+initial native-theme setup or theme/color-scheme changes that require loading a disk-installed GTK theme.
 Built-in GTK resource themes follow a resource branch;
 cached files can already be resident.
 The precise file behavior depends on the linked GTK version and selected theme,
@@ -987,7 +1198,8 @@ each cited file was fetched again by immutable commit and compared byte-for-byte
 Confirmed conditional direct main-thread file read.
 [`gfx/thebes/gfxPlatform.cpp:808`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/thebes/gfxPlatform.cpp#L808) asserts main-thread graphics initialization;
 line 987 calls `InitializeCMS`.
-`GetPrefCMSOutputProfileData`, lines 2094 to `2112`,
+`GetPrefCMSOutputProfileData`,
+lines 2094 to `2112`,
 checks `gfx.color_management.display_profile`
 and calls `qcms_data_from_path` when it names a file.
 The GTK platform requests this override before system-profile lookup
@@ -995,7 +1207,8 @@ The GTK platform requests this override before system-profile lookup
 [`gfx/qcms/src/c_bindings.rs:201-212`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/qcms/src/c_bindings.rs#L201-L212) uses `fopen`,
 and the reader at lines 135 and 160 calls `fread`.
 
-This is a custom-profile/startup path, not an unconditional read on every paint.
+This is a custom-profile/startup path,
+not an unconditional read on every paint.
 The default empty preference returns immediately.
 System-profile retrieval differs by platform and is not all file I/O.
 
@@ -1006,7 +1219,8 @@ Ordinary Glean metric updates are dispatched:
 [`third_party/rust/glean-core/src/metrics/counter.rs:113-115`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/glean-core/src/metrics/counter.rs#L113-L115)
 calls `launch_with_glean`;
 [`glean-core/src/lib.rs:182`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/glean-core/src/lib.rs#L182) runs it on the dispatcher.
-However, the closure executes while holding the global Glean mutex
+However,
+the closure executes while holding the global Glean mutex
 ([`glean-core/src/core/mod.rs:81-87`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/glean-core/src/core/mod.rs#L81-L87)).
 Ping-lifetime persistence runs within such a closure
 ([`glean-core/src/lib.rs:774-779`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/glean-core/src/lib.rs#L774-L779)).
@@ -1019,7 +1233,9 @@ not an LMDB disk mapping.
 [`third_party/rust/rkv/src/backend/impl_safe/transaction.rs:184-193`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/rkv/src/backend/impl_safe/transaction.rs#L184-L193)
 commits via `write_to_disk`;
 [`impl_safe/environment.rs:266-277`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/rkv/src/backend/impl_safe/environment.rs#L266-L277)
-does metadata lookup, writes a temporary file, and renames it over the database.
+does metadata lookup,
+writes a temporary file,
+and renames it over the database.
 
 The UI-visible contender is a memory report:
 [`xpcom/base/nsMemoryReporterManager.cpp:1995-2005`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/base/nsMemoryReporterManager.cpp#L1995-L2005)
@@ -1032,9 +1248,13 @@ calls `with_opt_glean`,
 which blocks on the same global mutex
 ([`glean-core/src/core/mod.rs:105-112`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/glean-core/src/core/mod.rs#L105-L112)).
 
-Trigger: memory reporting, such as measuring memory, overlaps Glean persistence or other disk work
+Trigger:
+memory reporting,
+such as measuring memory,
+overlaps Glean persistence or other disk work
 inside a Glean-dispatcher closure.
-This establishes a lock chain, not a reproduced hang or a claim that each metric update writes on the UI thread.
+This establishes a lock chain,
+not a reproduced hang or a claim that each metric update writes on the UI thread.
 It is not a Chromium `BrowserMetrics` writable-mapping equivalent.
 
 ### Glean shutdown waits and final synchronous persistence
@@ -1042,7 +1262,9 @@ It is not a Chromium `BrowserMetrics` writable-mapping equivalent.
 Confirmed shutdown-only dependency.
 [`toolkit/components/glean/xpcom/FOG.cpp:99-120`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/glean/xpcom/FOG.cpp#L99-L120)
 registers the shutdown callback;
-`FOG::Shutdown`, lines 124 to `128`, calls `fog_shutdown`.
+`FOG::Shutdown`,
+lines 124 to `128`,
+calls `fog_shutdown`.
 [`toolkit/components/glean/src/lib.rs:45-46`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/components/glean/src/lib.rs#L45-L46)
 calls `glean::shutdown`.
 [`third_party/rust/glean-core/src/lib.rs:678-763`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/glean-core/src/lib.rs#L678-L763)
@@ -1051,9 +1273,11 @@ shuts down the dispatcher/uploader,
 and synchronously calls `persist_ping_lifetime_data` at lines 759 to `762`.
 
 The queue waits include a ten-second timeout and the uploader wait has a thirty-second timeout;
-these are individual source constants, not a measured total or a bound on final persistence.
+these are individual source constants,
+not a measured total or a bound on final persistence.
 The final persistence reaches the SafeMode file write/rename described in the Glean memory-report finding.
-This can delay quitting; it does not prove steady-state browsing jank.
+This can delay quitting;
+it does not prove steady-state browsing jank.
 
 ### Rejected and bounded candidates
 
@@ -1071,8 +1295,11 @@ This can delay quitting; it does not prove steady-state browsing jank.
   and dispatches only result processing back to main.
   A synchronous file call inside that worker is not itself UI blocking.
 - WebRender capture/replay file readers in `gfx/wr/webrender/src/renderer/mod.rs`
-  and `capture.rs` are debug/capture workflows, not normal rendering inputs.
-- `/proc` reads, `/dev` opens, and DMA-buf/shared-memory mappings are not automatically persistent-disk I/O.
+  and `capture.rs` are debug/capture workflows,
+  not normal rendering inputs.
+- `/proc` reads,
+  `/dev` opens,
+  and DMA-buf/shared-memory mappings are not automatically persistent-disk I/O.
   They can have other blocking dependencies but need a separately established disk link.
 - Native dynamic-library calls such as
   [`gfx/gl/GLLibraryEGL.cpp:511-564`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/gl/GLLibraryEGL.cpp#L511-L564),
@@ -1081,7 +1308,10 @@ This can delay quitting; it does not prove steady-state browsing jank.
   remain cold-library-load/page-fault candidates.
   The source proves synchronous loader boundaries;
   OS loader/cache residency and the active calling thread must be established for a specific interaction.
-- Font, GTK, shader, and startup cache prefetching reduces potential cold reads;
+- Font,
+  GTK,
+  shader,
+  and startup cache prefetching reduces potential cold reads;
   the inspected code does not prove permanent residency or a maximum disk wait.
 
 ## Saving, printing, and native maintenance
@@ -1110,7 +1340,8 @@ removes files,
 walks directories,
 and removes empty directories on this completion path.
 
-Scope: saving a complete page and its cleanup,
+Scope:
+saving a complete page and its cleanup,
 especially a destination whose metadata operations wait on storage.
 This finding does not turn every downloaded resource write into a main-thread write;
 [`nsWebBrowserPersist.cpp:979-986`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/dom/webbrowserpersist/nsWebBrowserPersist.cpp#L979-L986) explicitly describes the separate background `OnDataAvailable` path.
@@ -1149,7 +1380,8 @@ The Cairo PDF writer calls that stream's `Write` synchronously in
 The alternate Skia PDF writer likewise calls `mStream->Write` in
 [`gfx/thebes/PrintTargetSkPDF.cpp:170-180`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/gfx/thebes/PrintTargetSkPDF.cpp#L170-L180).
 
-Scope: active printing,
+Scope:
+active printing,
 including temporary-file creation and recorded-page replay.
 Actual disk involvement depends on the backing filesystem for temporary/spool/output files.
 No claim is made that print preview continuously writes to disk,
@@ -1193,10 +1425,18 @@ Release identity and complete-tree inventory were verified against the pinned ch
 Cited source selections are retained in the accompanying source evidence artifact.
 Documentation rendering and browser source-link checks are recorded in the handover.
 
-Runtime stall duration, frequency, filesystem-cache residency, active driver behavior,
+Runtime stall duration,
+frequency,
+filesystem-cache residency,
+active driver behavior,
 and contention overlap remain unmeasured.
-A follow-up runtime investigation should correlate thread stacks, file paths, major faults,
+A follow-up runtime investigation should correlate thread stacks,
+file paths,
+major faults,
 and lock ownership while exercising the named interactions with a disposable profile.
-CPU decoding, font shaping, GPU-driver work, and background disk latency need separate attribution.
+CPU decoding,
+font shaping,
+GPU-driver work,
+and background disk latency need separate attribution.
 The audit does not establish that Firefox ESR is more or less responsive than Chromium.
 No upstream issue or patch was submitted.

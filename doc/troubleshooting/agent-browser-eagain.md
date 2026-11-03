@@ -264,3 +264,74 @@ No issue is drafted.
 
 Related reading: [cli-git-tag-push-eagain.md](cli-git-tag-push-eagain.md) for the same
 task-versus-process counting mistake.
+
+## Source-link verification recovery at 2026-11-03T03:32:02-05:00
+
+### Symptom
+
+During the Firefox ESR source audit,
+`agent-browser 0.41.0` returned its daemon-read diagnostic for the owned
+`firefox-esr-source-audit` session:
+
+```text
+Failed to read: Resource temporarily unavailable (os error 11) (the command reached the daemon but no response came back; it may or may not have run, so it was not retried)
+```
+
+An `open` also returned `Operation timed out`.
+A subsequent `get url` returned `about:blank`;
+later `eval` and `close` requests received the daemon-read error.
+The session's runtime PID file identified daemon PID `1595096`.
+`ps --pid 1595096 -o pid,ppid,stat,comm` showed the daemon alive,
+while `ps --ppid 1595096 -o pid,ppid,stat,comm` showed its Chrome child,
+PID `1603112`,
+as a zombie.
+
+### Cause boundary
+
+This establishes an unusable owned browser session at inspection time.
+It does not establish why Chrome exited.
+The first launch requested `TasksMax=128`;
+the replacement requested `TasksMax=512`.
+No task-limit rejection counter or Chrome exit diagnostic was captured for the failed launch.
+Do not attribute this occurrence to the task ceiling or to the target GitHub page from those facts alone.
+The daemon-read diagnostic remains distinct from the shell `fork: retry` diagnostic
+described in this document.
+
+### Verified recovery
+
+After the normal `close` request failed,
+the audit terminated only the PID read from its own session PID file with `kill -TERM`.
+It then reopened the session under two CPUs,
+`4 GiB` memory,
+`512` tasks,
+and `IOWeight=10`,
+with an idle timeout of `5m`.
+A raw source URL opened successfully,
+then the originally requested GitHub source selection opened successfully.
+An `eval` returned the expected source line text from `LC686` and the requested `#L685-L690` fragment.
+
+The recovery loses the owned session's page state.
+It is appropriate for a disposable verification browser,
+not for an unrelated user browser.
+Reading the owned PID file and checking that process must precede termination;
+the historical PID values are not reusable commands.
+Changing the cap and recreating the browser happened together,
+so this is a verified recovery sequence rather than proof that raising the cap alone fixes the error.
+
+### Rejected approaches and filing decision
+
+Repeated navigation through the existing unusable browser did not restore page inspection.
+The first failed request was treated as outcome-unknown;
+no claim was made that its navigation had never run.
+
+No upstream filing is supported by this observation:
+
+- Fault attribution is unresolved.
+- Fixability is unresolved because no Chrome-exit cause was isolated.
+- Source-page navigation is a supported CLI operation,
+  verified by the successful replacement session.
+- Contribution policy was not re-audited because there is no attributed defect to report.
+- Maintainer intent was not inferred or used to excuse the failure.
+- No upstream patch was proposed or prototyped.
+
+There is nothing to add upstream from this bounded recovery without the missing exit evidence.
