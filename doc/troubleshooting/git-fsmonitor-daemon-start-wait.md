@@ -207,7 +207,9 @@ wait:
 	}
 ```
 
-So the `start` child, which the client waits for, spins on `waitpid` plus `lstat` for the whole wait.
+So the `start` child,
+which the client waits for,
+spins on `waitpid` plus `lstat` for the whole wait.
 The measurements in "Verification" agree:
 user plus system CPU of the whole command (the client and its waited-for `start`) is about equal to its wall time
 (1.85 s of CPU in 1.88 s of wall on the 100,000-directory tree).
