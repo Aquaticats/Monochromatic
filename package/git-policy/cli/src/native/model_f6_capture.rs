@@ -28,7 +28,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -39,6 +39,9 @@ pub enum Rules {
     /// A candidate: the odd generation brackets only the lane's local state writes; `update-ref` and its hook run
     /// outside it, and a capture reads the lane's logical head, not the raw ref.
     Candidate,
+    /// Revision 8 draft, L4: a new owner completes or rolls back any journaled mutation and writes an even generation;
+    /// read literally, it does not raise the generation before the writes it repeats.
+    Eight,
 }
 
 /// What:
@@ -157,7 +160,7 @@ fn lane_steps(state: &State) -> Vec<(String, State)> {
             after.generation += 1;
             push_step(&mut found, "lane: updates the consumption map and advances the state version", after);
         }
-        (Rules::Seven, 0) | (Rules::Candidate, 0) => {
+        (Rules::Seven, 0) | (Rules::Candidate, 0) | (Rules::Eight, 0) => {
             after.lane = 1;
             push_step(&mut found, "lane: journals the mutation and fsyncs it", after);
         }
@@ -166,40 +169,60 @@ fn lane_steps(state: &State) -> Vec<(String, State)> {
             after.generation += 1;
             push_step(&mut found, "lane: writes the generation odd", after);
         }
-        (Rules::Seven, 2) | (Rules::Candidate, 1) => {
+        (Rules::Seven, 2) | (Rules::Candidate, 1) | (Rules::Eight, 1) => {
             // `update-ref` runs; a reference-transaction hook may wait for as long as it likes.
             after.lane = if state.rules == Rules::Seven { 3 } else { 2 };
             push_step(&mut found, "lane: invokes update-ref, whose reference-transaction hook waits", after);
         }
-        (Rules::Seven, 3) | (Rules::Candidate, 2) => {
+        (Rules::Seven, 3) | (Rules::Candidate, 2) | (Rules::Eight, 2) => {
             // The hook returns only by the environment's choice.
             after.lane = if state.rules == Rules::Seven { 4 } else { 3 };
             push_step(&mut found, "environment: the reference-transaction hook returns", after);
         }
-        (Rules::Candidate, 3) => {
+        (Rules::Candidate, 3) | (Rules::Eight, 3) => {
             after.lane = 4;
             after.generation += 1;
             push_step(&mut found, "lane: writes the generation odd", after);
         }
-        (Rules::Seven, 4) | (Rules::Candidate, 4) => {
+        (Rules::Seven, 4) | (Rules::Candidate, 4) | (Rules::Eight, 4) => {
             after.lane = 5;
             after.tip = 1;
             push_step(&mut found, "lane: writes the logical head", after);
         }
-        (Rules::Seven, 5) | (Rules::Candidate, 5) => {
+        (Rules::Seven, 5) | (Rules::Candidate, 5) | (Rules::Eight, 5) => {
             after.lane = 6;
             after.index = 1;
             push_step(&mut found, "lane: installs the index entry", after);
         }
-        (Rules::Seven, 6) | (Rules::Candidate, 6) => {
+        (Rules::Seven, 6) | (Rules::Candidate, 6) | (Rules::Eight, 6) => {
             after.lane = 7;
             after.consumed = 1;
             push_step(&mut found, "lane: updates the consumption map", after);
         }
-        (Rules::Seven, 7) | (Rules::Candidate, 7) => {
+        (Rules::Seven, 7) | (Rules::Candidate, 7) | (Rules::Eight, 7) => {
             after.lane = 8;
             after.generation += 1;
             push_step(&mut found, "lane: writes the generation even", after);
+        }
+        (Rules::Eight, 9) => {
+            after.lane = 10;
+            after.tip = 1;
+            push_step(&mut found, "L4 resume: writes the logical head with the generation unchanged", after);
+        }
+        (Rules::Eight, 10) => {
+            after.lane = 11;
+            after.index = 1;
+            push_step(&mut found, "L4 resume: installs the index entry", after);
+        }
+        (Rules::Eight, 11) => {
+            after.lane = 12;
+            after.consumed = 1;
+            push_step(&mut found, "L4 resume: updates the consumption map", after);
+        }
+        (Rules::Eight, 12) => {
+            after.lane = 8;
+            after.generation += 2;
+            push_step(&mut found, "L4 resume: writes an even generation", after);
         }
         _ => {}
     }
@@ -298,6 +321,13 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         }
         if state.rules == Rules::Candidate && state.lane == 2 {
             after.lane = 1;
+        }
+        if state.rules == Rules::Eight && state.lane == 2 {
+            after.lane = 1;
+        }
+        // Read literally, L4 completes the journaled writes when the generation was never raised and then writes an even one.
+        if state.rules == Rules::Eight && state.lane <= 2 && state.generation % 2 == 0 {
+            after.lane = 9;
         }
         push_step(&mut found, "lane: a new owner resumes the journaled mutation from its script", after);
     }

@@ -28,7 +28,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -40,6 +40,9 @@ pub enum Rules {
     /// A candidate: published record, then the tip, then positive old-value evidence (saved, not published again), and
     /// everything else after an owner death, a recorded swap failure included, is landed with a message.
     Candidate,
+    /// Revision 8 draft (`~/temp/agent/reviews/commits-never-fail-design-r8.md`, recovery classes R1 to R5): published,
+    /// tip or ancestor, positive old-value evidence, then a recorded swap failure replays on the tip, then landing.
+    Eight,
 }
 
 /// What:
@@ -124,6 +127,10 @@ fn decide(state: &State) -> u8 {
         return 1;
     }
     if state.rules == Rules::Seven && state.swap_failed_record {
+        return 2;
+    }
+    // Revision 8, R4: a recorded failure, with no R1 to R3 evidence, replays on the tip.
+    if state.rules == Rules::Eight && !(state.tip == 1 || state.evidence) && state.swap_failed_record {
         return 2;
     }
     if state.tip == 1 {

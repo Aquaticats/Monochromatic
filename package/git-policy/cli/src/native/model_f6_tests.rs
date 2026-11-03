@@ -80,3 +80,32 @@ fn candidate_captures_consistently_and_never_waits_on_a_hook() {
     assert!(report.exhausted);
     println!("F6 candidate: {} states, deepest {}", report.states, report.deepest);
 }
+
+/// Revision 8 draft, L4 read literally: the lane journaled a mutation and died before it raised the generation; the new
+/// owner completes the writes with the generation even, and a capture accepts the mix. A question for the draft (does L4
+/// raise the generation first?), not a candidate; the other lane transitions match the candidate.
+#[test]
+fn eight_resume_without_raising_the_generation_lets_a_capture_mix() {
+    let reached = replay(
+        initial(Rules::Eight),
+        steps,
+        &[
+            "lane: journals the mutation and fsyncs it",
+            "environment: the lane process dies",
+            "lane: a new owner resumes the journaled mutation from its script",
+            "client: reads the generation",
+            "client: reads the logical head",
+            "L4 resume: writes the logical head with the generation unchanged",
+            "L4 resume: installs the index entry",
+            "client: reads the index entry",
+            "L4 resume: updates the consumption map",
+            "client: reads the consumption entry",
+            "client: reads the generation again, unchanged, and accepts the capture",
+        ],
+    );
+    assert_eq!(
+        invariant(&reached),
+        Some("a capture accepted a snapshot that mixes before and after of one lane mutation".to_string())
+    );
+    assert!(check(Rules::Eight).violation.is_some());
+}

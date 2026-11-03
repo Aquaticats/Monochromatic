@@ -31,7 +31,7 @@ use crate::model_explore::{Limits, Report, explore};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'candidate-no-binding-sync' | 'candidate-no-record-sync';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'candidate-no-binding-sync' | 'candidate-no-record-sync';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -45,6 +45,9 @@ pub enum Rules {
     /// (a temporary file linked without replacing), and a same-hash binding without a record continues acceptance.
     /// It is a proposal of this model, not a rule of the design.
     Candidate,
+    /// Revision 8 draft, C3 and C4: the complete binding is linked, a same-hash resend that finds no inbox record completes
+    /// acceptance, and one that finds a record answers from its state (without making it durable).
+    Eight,
     /// The candidate with the fsync of the binding left out (a mutation that must stay red).
     CandidateNoBindingSync,
     /// The candidate with the fsync of the published record left out (a mutation that must stay red).
@@ -336,7 +339,7 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
             found.push((format!("{}: finds a binding with no content", name), after));
         } else if state.binding.hash == client.hash && recorded(state) == client.hash {
             after.clients[who].phase = Phase::Resent;
-            if candidate && state.rules != Rules::CandidateNoRecordSync && state.inbox.hash == client.hash {
+            if candidate && state.rules != Rules::CandidateNoRecordSync && state.rules != Rules::Eight && state.inbox.hash == client.hash {
                 // The record found may be visible but not durable: the resend makes it durable before answering.
                 after.inbox.durable = true;
                 found.push((format!("{}: finds its own hash and record, fsyncs the record and answers from it", name), after));

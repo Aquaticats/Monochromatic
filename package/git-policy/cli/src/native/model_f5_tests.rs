@@ -93,3 +93,27 @@ fn candidate_still_reaches_the_accepted_residue() {
     assert!(reached.accepted_residue);
     assert_eq!(invariant(&reached), None);
 }
+
+/// Revision 8 draft, M1: one path, the guard bracket after the publication; no schedule stages without a guard read that
+/// saw `main`, and the accepted residue stays reachable.
+#[test]
+fn eight_has_one_guarded_path_and_keeps_the_accepted_residue() {
+    let report: Report = check(Rules::Eight);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F5 eight: {} states, deepest {}", report.states, report.deepest);
+    let reached = replay(
+        initial(Rules::Eight),
+        steps,
+        &[
+            "lane: swaps the ref without the index lock",
+            "lane: reads HEAD before reading the index",
+            "lane: reads the index and then HEAD again",
+            "person: switches the worktree to topic, carrying an edit",
+            "lane: applies the follow-up",
+        ],
+    );
+    assert!(reached.accepted_residue);
+}

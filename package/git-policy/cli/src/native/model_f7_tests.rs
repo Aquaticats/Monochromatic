@@ -128,3 +128,26 @@ fn candidate_without_the_record_sync_is_red() {
     assert_eq!(violation.message, "an acknowledged request is not the recorded content of its identity");
     assert!(violation.contains_in_order(&["power loss: unsynced files and directory entries are gone"]));
 }
+
+/// Revision 8 draft, C3 and C4: the binding is linked complete and a binding with no record continues acceptance, but a
+/// resend that finds the record answers from its state; if the record is visible and not yet durable, a power loss then
+/// removes the record the client was answered from. A finding against the draft.
+#[test]
+fn eight_answers_a_resend_from_a_record_that_is_not_durable() {
+    let reached = replay(
+        initial(Rules::Eight),
+        steps,
+        &[
+            "A: links a complete binding ids/<xx>/<id> without replacing",
+            "A: fsyncs the binding file and its directory",
+            "A: writes its record under a temporary name",
+            "A: links its record into inbox/<id> without replacing",
+            "A: the process dies",
+            "A: resends the same request",
+            "A: finds its own hash in the binding and answers from the record",
+            "power loss: unsynced files and directory entries are gone",
+        ],
+    );
+    assert_eq!(invariant(&reached), Some("a client was answered from a record that does not exist".to_string()));
+    assert!(check(Rules::Eight).violation.is_some());
+}

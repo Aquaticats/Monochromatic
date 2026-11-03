@@ -29,7 +29,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -41,6 +41,9 @@ pub enum Rules {
     /// A candidate: both paths read `HEAD` first and apply the delta only when it is attached to the request's branch;
     /// the deferred path keeps the bracket.
     Candidate,
+    /// Revision 8 draft, M1: one path for every follow-up; the lock is tried after the publication, never before it or
+    /// across the swap, and `HEAD` is read before and after the index.
+    Eight,
 }
 
 /// What:
@@ -190,7 +193,8 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         after.pre_read = read_head(state);
         push_step(&mut found, "lane: reads HEAD before its critical section", after);
     }
-    if !state.published && !state.lock_foreign && (!candidate || state.pre_read != 0) {
+    let eight: bool = state.rules == Rules::Eight;
+    if !state.published && !state.lock_foreign && !eight && (!candidate || state.pre_read != 0) {
         let mut after: State = state.clone();
         after.published = true;
         after.reflog_grew = state.head_on_main;
@@ -206,7 +210,7 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         }
     }
     // The deferred path: publication without the index while a foreign program holds the lock.
-    if !state.published && state.lock_foreign {
+    if !state.published && (state.lock_foreign || eight) {
         let mut after: State = state.clone();
         after.published = true;
         after.reflog_grew = state.head_on_main;

@@ -126,3 +126,47 @@ fn candidate_orders_the_evidence_so_nothing_is_republished_silently() {
     assert!(report.exhausted);
     println!("F1 candidate: {} states, deepest {}", report.states, report.deepest);
 }
+
+/// Revision 8 draft, R3 before R4: positive evidence beats a recorded failure (the seventh review's schedule is closed).
+#[test]
+fn eight_checks_positive_evidence_before_a_recorded_failure() {
+    let reached = replay(
+        initial(Rules::Eight),
+        steps,
+        &[
+            "lane: records publishing with the reflog anchor",
+            "foreign: takes the ref lock",
+            "lane: the swap fails because another writer holds the ref lock, and records swap-failed",
+            "foreign: releases the ref lock",
+            "foreign: installs exactly the lane's commit",
+            "foreign: resets the branch away from the commit",
+            "environment: the owner dies without a durable published record",
+            "recovery: decides from the evidence",
+        ],
+    );
+    assert_eq!(reached.outcome, 4);
+    assert_eq!(invariant(&reached), None);
+}
+
+/// Revision 8 draft, R4: when a legitimate reflog operation has deleted the lines after the anchor, a recorded swap failure
+/// replays the commit silently although the branch had held it and lost it. A finding against the draft, not a candidate.
+#[test]
+fn eight_replays_silently_when_the_evidence_was_erased() {
+    let reached = replay(
+        initial(Rules::Eight),
+        steps,
+        &[
+            "lane: records publishing with the reflog anchor",
+            "foreign: takes the ref lock",
+            "lane: the swap fails because another writer holds the ref lock, and records swap-failed",
+            "foreign: releases the ref lock",
+            "foreign: installs exactly the lane's commit",
+            "foreign: resets the branch away from the commit",
+            "reflog operation: deletes the lines after the anchor, keeping the anchor",
+            "environment: the owner dies without a durable published record",
+            "recovery: decides from the evidence",
+        ],
+    );
+    assert_eq!(invariant(&reached), Some("a commit the branch had held and lost was published again silently".to_string()));
+    assert!(check(Rules::Eight).violation.is_some());
+}
