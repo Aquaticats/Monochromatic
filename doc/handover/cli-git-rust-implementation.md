@@ -9812,3 +9812,21 @@ by the coordinator at merge.
   add-explains-slow-route (`fix/git-policy-cli-add-explains-slow-route`: measure why the two adds fell back, print the
   reason, and a `doc/planning` proposal on snapshotting a dirty main for the owner), and the trash fixes. Each comes
   back for a container gate, merge, and one combined release.
+- Owner request: "Add useGlobalVirtualStore: true in my pnpm-workspace.yaml". pnpm 12.16.1 has no such key (0 hits in
+  its binary; a throwaway install with it stayed local); `enableGlobalVirtualStore: true` and `virtualStoreType:
+  global` both link into `<store>/v11/links`, and pnpm's docs call the former the older spelling of the latter.
+  Committed `virtualStoreType: global` (`70af0c823b`). Adding it to an existing install made no command refuse;
+  the next `pnpm install` relinks. Main's `node_modules` has not been reinstalled with it yet.
+- Owner requirements, verbatim: "Our wrapper must work with pnpm w/o a storeDir set, enableGlobalVirtualStore on or
+  off. Try not to degrade the end user experience in any situation." and "Compatibility with all pnpm configurations
+  is required."
+- Measured gap: a global-virtual-store `node_modules` holds relative links that climb to `/` and back down into the
+  store; copied verbatim two levels deeper they resolve to nothing (throwaway probe: source resolves, copy BROKEN).
+  The wrapper copies link targets verbatim (`worktree_copy_stage.rs:289`, `worktree_clone.rs:227`,
+  `worktree_copy_install_entry.rs:250`), and a snapshot keeps them too. So once main is reinstalled with the global
+  store, new worktrees from every rung would get dead `node_modules` links. Matrix probe of all pnpm configurations
+  under a verbatim copy running (`~/temp/agent/pnpm-matrix-probe.ts`, log `~/temp/agent/pnpm-matrix.log`).
+- QUEUED: a pnpm-compatibility agent (all five agent slots are busy) to fix the copy, clone, snapshot and conversion
+  paths so a copied link resolves to the same thing it did in the source (links that stay inside the tree stay
+  relative; links that leave it keep their absolute target), plus whatever the matrix shows for store and metadata
+  paths, with a real-pnpm compatibility matrix as its test.
