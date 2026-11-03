@@ -73,3 +73,74 @@ fn only_a_conflict_needs_the_person() {
         assert!(!needs_the_person(output), "{output}");
     }
 }
+
+// The texts below are Git 2.56.0's own words, captured by running `git push` from that release against fixtures on
+// 2026-11-03 (a bare remote with a declining hook; a local HTTP server that answers 401 or 403; a loopback `sshd` that accepts no
+// key; a port nothing listens on), and checked against its source at tag `v2.56.0`.
+
+/// `builtin/receive-pack.c` `"pre-receive hook declined"`, shown by `transport.c` `print_ref_status` as `[remote rejected]`; the
+/// `remote:` line is the hook's own output.
+const PRE_RECEIVE_DECLINED: &str = "remote: protected: pushes to main need a review        \nTo /srv/remote.git\n ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n";
+
+/// `builtin/receive-pack.c` `ret = "hook declined"` for the update hook, with `rp_error("hook declined to update %s")`.
+const UPDATE_DECLINED: &str = "remote: update says no        \nremote: error: hook declined to update refs/heads/main        \nTo /srv/remote.git\n ! [remote rejected] main -> main (hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n";
+
+/// A hosting service's own reason in the same position, which names a hook.
+const PROTECTED_BRANCH_DECLINED: &str = " ! [remote rejected] main -> main (protected branch hook declined)\n";
+
+/// `remote-curl.c` `die(_("Authentication failed for '%s'"))`, for a 401 with a user name and no usable password.
+const AUTHENTICATION_FAILED: &str = "remote: login needed\nfatal: Authentication failed for 'http://127.0.0.1:39197/r.git/'\n";
+
+/// `prompt.c` `die("could not read %s%s", prompt, "terminal prompts disabled")`, for a 401 with no user name and prompts off.
+const PROMPTS_DISABLED: &str = "fatal: could not read Username for 'http://127.0.0.1:39197': terminal prompts disabled\n";
+
+/// `http.c` `"The requested URL returned error: %ld"`, for a 403.
+const FORBIDDEN: &str = "remote: forbidden\nfatal: unable to access 'http://127.0.0.1:39871/r.git/': The requested URL returned error: 403\n";
+
+/// OpenSSH's refusal of a key, which Git relays; real `ssh` against a loopback `sshd` that accepts no key.
+const SSH_REFUSED: &str = "user@127.0.0.1: Permission denied (publickey).\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
+
+/// `http.c` through curl, for a port nothing listens on.
+const CONNECTION_REFUSED: &str = "fatal: unable to access 'http://127.0.0.1:1/r.git/': Failed to connect to 127.0.0.1:1 after 0 ms: Could not connect to server\n";
+
+/// curl, for a name that does not resolve.
+const UNRESOLVED: &str = "fatal: unable to access 'http://nonexistent.invalid/r.git/': Could not resolve host: nonexistent.invalid\n";
+
+/// A login failure is final: the service cannot log in, and retrying only asks the remote again.
+#[test]
+fn an_authentication_failure_is_not_tried_again() {
+    for output in [AUTHENTICATION_FAILED, PROMPTS_DISABLED, FORBIDDEN, SSH_REFUSED] {
+        assert_eq!(final_failure(output), Some(FinalFailure::Login), "{output}");
+        assert!(needs_the_person(output), "{output}");
+    }
+}
+
+/// A server hook's decline is final, whichever hook declined and whoever wrote its reason.
+#[test]
+fn a_server_hook_decline_is_not_tried_again() {
+    for output in [PRE_RECEIVE_DECLINED, UPDATE_DECLINED, PROTECTED_BRANCH_DECLINED] {
+        assert_eq!(final_failure(output), Some(FinalFailure::Declined), "{output}");
+        assert_eq!(unrecognised_rejection(output), None, "a decline that is known is not reported as unknown: {output}");
+    }
+}
+
+/// Being offline is not a login failure and not a decline: it is tried again, as are a stall and the ceiling.
+#[test]
+fn an_offline_failure_is_still_tried_again() {
+    for output in [
+        CONNECTION_REFUSED,
+        UNRESOLVED,
+        "cli-git: git push made no progress for 30 seconds and was stopped (limit=stall, bytes_moved=0, elapsed_seconds=30)",
+    ] {
+        assert_eq!(final_failure(output), None, "{output}");
+    }
+}
+
+/// A rejection by the server whose reason this release does not know stays retried, and is found so the journal can name it.
+#[test]
+fn a_rejection_nobody_knows_is_retried_and_named() {
+    let output: &str = "To /srv/remote.git\n ! [remote rejected] main -> main (prohibited by the review system)\nerror: failed to push some refs\n";
+    assert_eq!(final_failure(output), None);
+    assert_eq!(unrecognised_rejection(output).as_deref(), Some("! [remote rejected] main -> main (prohibited by the review system)"));
+    assert_eq!(unrecognised_rejection(CONNECTION_REFUSED), None, "a failure that is not a rejection names nothing");
+}

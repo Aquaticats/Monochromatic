@@ -170,7 +170,9 @@ fn a_push_that_keeps_failing_is_tried_again_with_longer_pauses_until_it_lands() 
     let first: Duration = round_of(git_dir.as_path(), &handlers, &mut retries).expect("a retry is planned");
     std::thread::sleep(first);
     let second: Duration = round_of(git_dir.as_path(), &handlers, &mut retries).expect("a second retry is planned");
-    assert!(second > first + Duration::from_millis(150), "the pause grew: {first:?} then {second:?}");
+    // That each pause is twice the one before is controlled in `push_retry_tests.rs`; a wait measured here also holds the time the
+    //  round took, which a loaded host stretches, so only its growth is asked.
+    assert!(second > first, "the pause grew: {first:?} then {second:?}");
     let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
     assert!(record.contains("tries this push again by itself") && record.contains("Could not resolve host"), "{record}");
     std::thread::sleep(second);
@@ -259,5 +261,119 @@ fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
     });
     assert_eq!(notices(&stage), 0, "the record of the failure is gone once the push landed");
     assert_eq!(git_text(stage.repo.as_path(), &["rev-list", "--count", "--all"]), commits_before, "no commit was made");
+    remove(stage.root.as_path());
+}
+
+/// What a hook that declines every push says; the person is shown it.
+const DECLINE_MESSAGE: &str = "protected: pushes to main need a review";
+
+/// The variables of the controls that go with a remote the service has no login for: no prompt, and no program that asks a
+/// person (the desktop's askpass helper, which the host's own settings may name and which waits on a window), may be waited for.
+const NO_PROMPT: [(&str, &str); 2] = [("GIT_TERMINAL_PROMPT", "0"), ("GIT_ASKPASS", "/bin/true")];
+
+/// The text of every record of a failed push the person has not been shown yet.
+fn notice_text(stage: &Stage) -> String {
+    return std::fs::read_dir(notice_directory(stage.repo.join(".git").as_path()))
+        .map(|entries| { return entries.flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect::<String>(); })
+        .unwrap_or_default();
+}
+
+/// Point the stage's remote at another address.
+fn point_remote_at(stage: &Stage, url: &str) {
+    git(stage.repo.as_path(), &["remote", "set-url", "origin", url]);
+}
+
+/// One round of the service over the stage's repository with real Git, the way the work loop runs it.
+fn round_with_real_git(stage: &Stage, retries: &mut PushRetries) -> Option<Duration> {
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    return round_of(stage.repo.join(".git").as_path(), &handlers, retries);
+}
+
+/// A server that answers every request with a 401 and the request for a login, until it is dropped.
+struct LoginServer {
+    /// The address it listens on.
+    address: std::net::SocketAddr,
+    /// Set when the server is to stop.
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// The thread that answers.
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl LoginServer {
+    /// Start on a free loopback port.
+    fn start() -> LoginServer {
+        let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a free port");
+        let address: std::net::SocketAddr = listener.local_addr().expect("its address");
+        let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stopping: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&stop);
+        let thread = std::thread::spawn(move || {
+            for connection in listener.incoming().flatten() {
+                if stopping.load(Ordering::SeqCst) {
+                    return;
+                }
+                let mut stream: std::net::TcpStream = connection;
+                let mut request: [u8; 4096] = [0; 4096];
+                let _read = std::io::Read::read(&mut stream, &mut request);
+                let reply: &str = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"fixture\"\r\nContent-Length: 13\r\nConnection: close\r\n\r\nlogin needed\n";
+                let _written = std::io::Write::write_all(&mut stream, reply.as_bytes());
+            }
+        });
+        return LoginServer { address, stop, thread: Some(thread) };
+    }
+}
+
+impl Drop for LoginServer {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        let _woken = std::net::TcpStream::connect(self.address);
+        if let Some(thread) = self.thread.take() {
+            let _joined = thread.join();
+        }
+    }
+}
+
+/// A push the server's hook declines is not tried again: the person is told what the server said and that the service stops until
+///  their next commit, and the plan stays empty.
+#[test]
+fn a_push_a_server_hook_declines_is_not_tried_again() {
+    let stage: Stage = stage("push-retry-declined");
+    let hook: PathBuf = stage.remote.join("hooks").join("pre-receive");
+    std::fs::write(hook.as_path(), format!("#!/bin/sh\necho '{DECLINE_MESSAGE}' >&2\nexit 1\n")).expect("hook");
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    assert_eq!(round_with_real_git(&stage, &mut retries), None, "no wake is asked for a decline");
+    assert!(retries.directories().is_empty(), "no plan is made for a decline");
+    let record: String = notice_text(&stage);
+    assert!(record.contains(DECLINE_MESSAGE) && record.contains("hook declined"), "the person is told what the server said: {record}");
+    assert!(record.contains("until your next commit") && !record.contains("tries this push again"), "{record}");
+    remove(stage.root.as_path());
+}
+
+/// A push that needs a login the service does not have is not tried again, and the person is told to log in.
+#[test]
+fn a_push_that_needs_a_login_is_not_tried_again() {
+    let stage: Stage = stage("push-retry-login");
+    let server: LoginServer = LoginServer::start();
+    point_remote_at(&stage, format!("http://{}/r.git", server.address).as_str());
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    assert_eq!(round_with_real_git(&stage, &mut retries), None, "no wake is asked for a login failure");
+    assert!(retries.directories().is_empty(), "no plan is made for a login failure");
+    let record: String = notice_text(&stage);
+    assert!(record.contains("log in") && record.contains("until your next commit") && !record.contains("tries this push again"), "{record}");
+    remove(stage.root.as_path());
+}
+
+/// A push that cannot reach the remote at all is still tried again by the service.
+#[test]
+fn an_offline_push_is_still_tried_again() {
+    let stage: Stage = stage("push-retry-offline");
+    let closed: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a free port");
+    let address: std::net::SocketAddr = closed.local_addr().expect("its address");
+    drop(closed);
+    point_remote_at(&stage, format!("http://{address}/r.git").as_str());
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let wait: Duration = round_with_real_git(&stage, &mut retries).expect("a wake is asked for the retry");
+    assert!(wait <= PAUSE + RETRY_SLACK, "{wait:?}");
+    assert_eq!(retries.directories().len(), 1, "the push is planned again");
+    assert!(notice_text(&stage).contains("tries this push again by itself"));
     remove(stage.root.as_path());
 }

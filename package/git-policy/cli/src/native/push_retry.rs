@@ -67,9 +67,31 @@ pub fn pause_before(attempt: u32, first: Duration) -> Duration {
     return first.saturating_mul(1_u32 << doublings).min(LONGEST_PAUSE);
 }
 
-/// Whether a failed push's output says a conflict stopped it, which only the person can resolve.
+/// Why a failed push cannot pass by itself.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FinalFailure {
+    /// The reconcile reported a conflict.
+    Conflict,
+    /// The remote asked for a login the service does not have.
+    Login,
+    /// A hook on the server declined the push.
+    Declined,
+}
+
+/// The failure of a push that no retry can mend, from Git's own words; nothing for a failure that can pass.
+pub fn final_failure(output: &str) -> Option<FinalFailure> {
+    return output.contains(CONFLICT_PHRASE).then_some(FinalFailure::Conflict);
+}
+
+/// The first line in which the server rejected the push for a reason this release does not know, or nothing.
+pub fn unrecognised_rejection(output: &str) -> Option<String> {
+    let _unused = output;
+    return None;
+}
+
+/// Whether a failed push's output says something stopped it that only the person can resolve.
 pub fn needs_the_person(output: &str) -> bool {
-    return output.contains(CONFLICT_PHRASE);
+    return final_failure(output).is_some();
 }
 
 /// One branch waiting for a new try.
