@@ -83,14 +83,22 @@ The user requested the existing Ghostty `IOWeight=10` policy for all terminals.
 The host's installed `TerminalEmulator` desktop entries now have persistent drop-ins
 under `~/.config/systemd/user/`:
 
-- Ghostty: `com.mitchellh.ghostty`.
-- OdyTTY: `odytty`.
-- Konsole: `org.kde.konsole`.
-- Kitty: `kitty` and its URL launcher `kitty-open`.
-- Rio: `rio`.
-- Contour: `org.contourterminal.Contour`.
-- Monochromatic Terminal: `monochromatic.terminal`.
-- The Konsole-based VSCodium launcher: `vscodium-pod-shell`.
+- Ghostty:
+  `com.mitchellh.ghostty`.
+- OdyTTY:
+  `odytty`.
+- Konsole:
+  `org.kde.konsole`.
+- Kitty:
+  `kitty` and its URL launcher `kitty-open`.
+- Rio:
+  `rio`.
+- Contour:
+  `org.contourterminal.Contour`.
+- Monochromatic Terminal:
+  `monochromatic.terminal`.
+- The Konsole-based VSCodium launcher:
+  `vscodium-pod-shell`.
 
 For each desktop ID after `systemd-escape`,
 `app-<id>@.service.d/10-io-weight.conf` and `app-<id>-.service.d/10-io-weight.conf`
