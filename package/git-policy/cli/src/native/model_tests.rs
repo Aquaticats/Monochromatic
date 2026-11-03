@@ -43,3 +43,11 @@ mod model_f3_restart;
 /// The controls of finding F3.
 #[path = "model_f3_tests.rs"]
 mod model_f3_tests;
+
+/// Finding F4: cancelling a stalled `update-ref` and cleaning up its lock.
+#[path = "model_f4_ref_lock.rs"]
+mod model_f4_ref_lock;
+
+/// The controls of finding F4.
+#[path = "model_f4_tests.rs"]
+mod model_f4_tests;
