@@ -3,7 +3,6 @@
 use super::*;
 use crate::service_index_lock::try_acquire;
 use crate::test_support::{fixture, remove};
-use std::os::unix::fs::PermissionsExt as _;
 
 /// A directory with a live index file and the name of a private copy beside it.
 fn directory(name: &str) -> (PathBuf, PathBuf, PathBuf) {

@@ -5,7 +5,7 @@ use super::support::{Edit, Plan, Scene, finish, git_with, index_bytes, landing_r
 use super::*;
 use crate::recording_git::{recorded_starts, recording_context};
 use crate::repo_read_hook::SWITCH_VARIABLE;
-use crate::test_support::{age, git, git_context, git_output};
+use crate::test_support::{git, git_context, git_output};
 use std::path::PathBuf;
 
 /// The files of the first commit.
@@ -149,7 +149,6 @@ fn a_damaged_or_missing_index_and_the_off_switch_are_left_to_git() {
 #[test]
 fn another_runs_temporary_file_is_left_alone() {
     let scene: Scene = changed_a("index-fallback-decoy");
-    let index: PathBuf = scene.repo.join(".git").join("index");
     let decoy: PathBuf = scene.repo.join(".git").join("index.cli-git-reset");
     std::fs::write(&decoy, b"another run's partial file").expect("decoy");
     assert!(try_reset(&scene));

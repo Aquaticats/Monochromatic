@@ -93,7 +93,7 @@ fn sha1_equals_the_reference_at_every_length_to_a_few_blocks() {
 /// Random multi-block inputs of random lengths equal the reference.
 #[test]
 fn sha1_equals_the_reference_on_random_multiblock_inputs() {
-    let lengths: Vec<usize> = pseudo_random(8 * 24, 42).chunks_exact(8).map(|chunk| { return (u64::from_le_bytes(chunk.try_into().expect("eight bytes")) % 200_000) as usize; }).collect();
+    let lengths: Vec<usize> = pseudo_random(8 * 24, 42).as_chunks::<8>().0.iter().map(|chunk| { return (u64::from_le_bytes(*chunk) % 200_000) as usize; }).collect();
     for (index, length) in lengths.into_iter().enumerate() {
         let message: Vec<u8> = pseudo_random(length, index as u64 + 7);
         assert_eq!(hex(&sha1(message.as_slice())), reference_sha1(message), "input {index} of length {length}");
