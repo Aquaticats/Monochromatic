@@ -180,6 +180,10 @@ mod worktree_clone;
 #[path = "binary_worktree_slow_route_tests.rs"]
 mod worktree_slow_route;
 
+/// A main checkout with uncommitted changes is snapshotted and restored to what Git's own checkout makes.
+#[path = "binary_worktree_dirty_snapshot_tests.rs"]
+mod worktree_dirty_snapshot;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;
