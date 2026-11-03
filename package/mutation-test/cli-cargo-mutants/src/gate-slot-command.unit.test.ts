@@ -80,6 +80,30 @@ process.exitCode = await runNicedCommand({ command: ${JSON.stringify(command)} }
 }
 
 /**
+ Make a value that kills a leftover process when disposed.
+
+ @param pid - the process id
+
+ @returns the value; declare it with `using`
+
+ @example
+ ```ts
+ using reaper = killOnDispose(4242);
+ ```
+ */
+function killOnDispose(pid: number): Disposable {
+  return {
+    [Symbol.dispose](): void {
+      if (isAlive(pid))
+        process.kill(
+          pid,
+          'SIGKILL',
+        );
+    },
+  };
+}
+
+/**
  Tell whether a process with this id exists.
 
  @param pid - the process id
@@ -157,19 +181,11 @@ await describe({
       fn: async () => {
         const run = await runInChild(['sh', '-c', 'sleep 30 >/dev/null & echo $!; wait']);
         const workerPid = Number(run.line);
-        try {
-          run.child.kill('SIGTERM');
-          const [code] = await run.ended;
-          expect(code).toBe(signalStatusBase + terminationSignal);
-          expect(isAlive(workerPid)).toBe(false);
-        }
-        finally {
-          if (isAlive(workerPid))
-            process.kill(
-              workerPid,
-              'SIGKILL',
-            );
-        }
+        using reaper = killOnDispose(workerPid);
+        run.child.kill('SIGTERM');
+        const [code] = await run.ended;
+        expect(code).toBe(signalStatusBase + terminationSignal);
+        expect(isAlive(workerPid)).toBe(false);
       },
     }),
     it({
@@ -177,18 +193,10 @@ await describe({
       fn: async () => {
         const run = await runInChild(['sh', '-c', 'sleep 30 >/dev/null & echo $!; exit 0']);
         const workerPid = Number(run.line);
-        try {
-          const [code] = await run.ended;
-          expect(code).toBe(0);
-          expect(isAlive(workerPid)).toBe(true);
-        }
-        finally {
-          if (isAlive(workerPid))
-            process.kill(
-              workerPid,
-              'SIGKILL',
-            );
-        }
+        using reaper = killOnDispose(workerPid);
+        const [code] = await run.ended;
+        expect(code).toBe(0);
+        expect(isAlive(workerPid)).toBe(true);
       },
     }),
   ],

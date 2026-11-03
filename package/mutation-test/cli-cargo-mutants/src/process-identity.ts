@@ -85,7 +85,7 @@ export type ProcessIdentity = {
  errorCodeOf(new Error('x'));
  ```
  */
-function errorCodeOf(error: unknown): string {
+export function errorCodeOf(error: unknown): string {
   if (!Error.isError(error))
     return '';
   if (!('code' in error))
@@ -188,30 +188,35 @@ export type ParsedBirth = {
 };
 
 /**
+ Stands for a birth text of another spelling than this package writes, which proves nothing about the process.
+ */
+export const birthNotParsed: unique symbol = Symbol('birth.not-parsed');
+
+/**
  Take a birth text apart.
 
  @param birth - the text, `linux:<ticks>@<boot id>`
 
- @returns its parts, or undefined for a text of another spelling, which proves nothing about the process
+ @returns its parts, or {@link birthNotParsed} for a text of another spelling
 
  @example
  ```ts
  parseBirth('linux:4242@3f2a');
  ```
  */
-export function parseBirth(birth: string): ParsedBirth | undefined {
+export function parseBirth(birth: string): ParsedBirth | typeof birthNotParsed {
   /**
    The prefix every birth text starts with.
    */
   const prefix = 'linux:';
   if (!birth.startsWith(prefix))
-    return undefined;
+    return birthNotParsed;
   /**
    Where the boot id starts: the last `@`, since a boot id holds none.
    */
   const separator = birth.lastIndexOf('@');
   if (separator <= prefix.length)
-    return undefined;
+    return birthNotParsed;
   /**
    The parts.
    */
@@ -219,8 +224,11 @@ export function parseBirth(birth: string): ParsedBirth | undefined {
     prefix.length,
     separator,
   );
+  /**
+   The boot id.
+   */
   const boot = birth.slice(separator + 1);
-  return (startTicks === '' || boot === '') ? undefined : {
+  return ((startTicks === '') || (boot === '')) ? birthNotParsed : {
     startTicks,
     boot,
   };

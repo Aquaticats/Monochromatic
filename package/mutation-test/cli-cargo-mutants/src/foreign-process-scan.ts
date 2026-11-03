@@ -22,6 +22,7 @@ import { join } from 'node:path';
 import type { OwnedRecord } from './claim-record.ts';
 import { isMissing } from './fs-guards.ts';
 import {
+  birthNotParsed,
   parseBirth,
   processGone,
   startTicksFromStat,
@@ -33,53 +34,75 @@ import {
 export type ForeignStanding = 'alive' | 'gone' | 'unknown';
 
 /**
+ A process directory entry that vanished while it was read: it says nothing.
+ */
+type VanishedEntry = {
+  /**
+   Marks the entry as gone.
+   */
+  readonly kind: 'vanished';
+};
+
+/**
+ A process directory entry that could not be read, so it might be the owner.
+ */
+type UnreadableEntry = {
+  /**
+   Marks the entry as unreadable.
+   */
+  readonly kind: 'unreadable';
+};
+
+/**
+ A process that was read.
+ */
+type SeenEntry = {
+  /**
+   Marks the entry as read.
+   */
+  readonly kind: 'seen';
+  /**
+   Its PID namespace link, absent when the link cannot be read.
+   */
+  readonly namespace?: string;
+  /**
+   The id it has in its own namespace.
+   */
+  readonly innerPid: number;
+  /**
+   Its start time, read only for a process that has the owner's id; absent for a process that exited but is not yet reaped.
+   */
+  readonly startTicks?: string;
+};
+
+/**
  What one process directory entry showed.
  */
-type Observation =
-  | {
-    /**
-     The process ended while it was read: it says nothing.
-     */
-    readonly kind: 'vanished';
-  }
-  | {
-    /**
-     The entry could not be read, so it might be the owner.
-     */
-    readonly kind: 'unreadable';
-  }
-  | {
-    /**
-     A process that was read.
-     */
-    readonly kind: 'seen';
-    /**
-     Its PID namespace link, absent when the link cannot be read.
-     */
-    readonly namespace: string | undefined;
-    /**
-     The id it has in its own namespace.
-     */
-    readonly innerPid: number;
-    /**
-     Its start time, read only for a process that has the owner's id; absent for a process that exited but is not yet reaped.
-     */
-    readonly startTicks: string | undefined;
-  };
+type Observation = VanishedEntry | UnreadableEntry | SeenEntry;
+
+/**
+ Stands for a status text that does not say the id the process has in its own namespace.
+ */
+export const noInnerPid: unique symbol = Symbol('status.no-inner-pid');
+
+/**
+ Stands for a namespace link that this process may not read.
+ */
+const linkUnreadable: unique symbol = Symbol('ns-pid.unreadable');
 
 /**
  Take the id a process has in its own namespace from its `status` text.
 
  @param status - the text of the file
 
- @returns the last id of the `NSpid` line, or undefined when the line is absent or malformed
+ @returns the last id of the `NSpid` line, or {@link noInnerPid} when the line is absent or malformed
 
  @example
  ```ts
  innerPidFromStatus('NSpid:\t4242\t77\n');
  ```
  */
-export function innerPidFromStatus(status: string): number | undefined {
+export function innerPidFromStatus(status: string): number | typeof noInnerPid {
   /**
    The line, which older kernels do not write.
    */
@@ -88,18 +111,64 @@ export function innerPidFromStatus(status: string): number | undefined {
       return candidate.startsWith('NSpid:');
     });
   if (line === undefined)
-    return undefined;
+    return noInnerPid;
   /**
-   The ids on the line.
+   The ids on the line, which the kernel separates by tabs.
    */
   const ids = line.slice('NSpid:'.length)
     .trim()
-    .split(/\s+/v);
+    .split('\t');
   /**
    The last one.
    */
   const last = Number(ids.at(-1));
-  return (Number.isSafeInteger(last) && (last > 0)) ? last : undefined;
+  return (Number.isSafeInteger(last) && (last > 0)) ? last : noInnerPid;
+}
+
+/**
+ Read the PID namespace link of a process directory entry.
+
+ @param path - the link
+
+ @returns the namespace text, or {@link linkUnreadable} when this process may not read it
+
+ @throws Error when the entry is gone, so the caller can tell a vanished process from an unreadable one
+
+ @example
+ ```ts
+ await readNamespaceLink('/proc/4242/ns/pid');
+ ```
+ */
+async function readNamespaceLink(path: string): Promise<string | typeof linkUnreadable> {
+  try {
+    return await readlink(path);
+  }
+  catch (error) {
+    if (isMissing(error))
+      throw error;
+    return linkUnreadable;
+  }
+}
+
+/**
+ Tell whether a directory entry name is a process id: whole digits, no leading zero.
+
+ @param name - the entry name
+
+ @returns true for the spelling of a positive whole number
+
+ @example
+ ```ts
+ isProcessId('4242');
+ ```
+ */
+function isProcessId(name: string): boolean {
+  /**
+   The number the name spells.
+   */
+  const number = Number(name);
+  return Number.isSafeInteger(number) && (number > 0)
+    && (String(number) === name);
 }
 
 /**
@@ -139,28 +208,26 @@ async function observe({
       ),
       'utf8',
     ));
-    if (innerPid === undefined)
+    if (innerPid === noInnerPid)
       return { kind: 'unreadable' };
     /**
-     Its namespace link, when this process may read it.
+     Its namespace link, when this process may read it, as the properties it adds to what was seen.
      */
-    const namespace = await readlink(join(
+    const link = await readNamespaceLink(join(
       procRoot,
       entry,
       'ns',
       'pid',
-    ))
-      .catch(function linkUnreadable(error: unknown) {
-        if (isMissing(error))
-          throw error;
-        return undefined;
-      });
+    ));
+    /**
+     The namespace property, absent for a link that cannot be read.
+     */
+    const namespace = link === linkUnreadable ? {} : { namespace: link };
     if (innerPid !== ownerPid)
       return {
         kind: 'seen',
-        namespace,
         innerPid,
-        startTicks: undefined,
+        ...namespace,
       };
     /**
      The start time, which is read only for a process that has the owner's id.
@@ -175,9 +242,9 @@ async function observe({
     ));
     return {
       kind: 'seen',
-      namespace,
       innerPid,
-      startTicks: startTicks === processGone ? undefined : startTicks,
+      ...namespace,
+      ...(startTicks === processGone ? {} : { startTicks }),
     };
   }
   catch (error) {
@@ -276,14 +343,12 @@ export async function scanForOwner({
    The start time the record names.
    */
   const parsed = parseBirth(record.birth);
-  if (parsed === undefined)
+  if (parsed === birthNotParsed)
     return 'unknown';
   /**
    The ids of this namespace's processes.
    */
-  const entries = (await readdir(procRoot)).filter(function isProcessId(name) {
-    return /^[1-9]\d*$/v.test(name);
-  });
+  const entries = (await readdir(procRoot)).filter(isProcessId);
   return judge({
     record,
     startTicks: parsed.startTicks,

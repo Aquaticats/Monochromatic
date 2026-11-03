@@ -43,7 +43,7 @@ const ownerPid = 77;
 /**
  Process id a host assigns to the same process, outside its namespace.
  */
-const hostPid = 4242;
+const hostPid = 4_242;
 
 /**
  How old the claim files of the cases are made, so that no rule can keep an owner alive because its file is young.
@@ -51,9 +51,9 @@ const hostPid = 4242;
 const ancientMs = 100 * 3_600_000;
 
 /**
- What a planted process says about its namespace.
+ The namespace text that plants an entry whose link cannot be read.
  */
-type PlantedNamespace = string | 'unreadable';
+const unreadableLink = 'unreadable';
 
 /**
  Plant one process in a fake process directory, as the kernel shows it.
@@ -66,7 +66,7 @@ type PlantedNamespace = string | 'unreadable';
 
  @param ticks - the start time
 
- @param namespace - the namespace link, or `unreadable` for an entry whose link cannot be read
+ @param namespace - the namespace link, or {@link unreadableLink} for an entry whose link cannot be read
 
  @example
  ```ts
@@ -84,7 +84,7 @@ async function plantProcess({
   readonly directoryId: number;
   readonly innerPid: number;
   readonly ticks: string;
-  readonly namespace: PlantedNamespace;
+  readonly namespace: string;
 }): Promise<void> {
   /**
    The entry of the process.
@@ -118,24 +118,24 @@ async function plantProcess({
     )
       .join(' ')} ${ticks} 0\n`,
   );
-  if (namespace === 'unreadable')
-    await writeFile(
-      join(
-        entry,
-        'ns',
-        'pid',
-      ),
+  /**
+   Where the link goes.
+   */
+  const linkPath = join(
+    entry,
+    'ns',
+    'pid',
+  );
+  // A regular file where the link belongs reads as an error that is not "missing", as a link the reader may not read does.
+  await (namespace === unreadableLink
+    ? writeFile(
+      linkPath,
       '',
-    );
-  else
-    await symlink(
+    )
+    : symlink(
       namespace,
-      join(
-        entry,
-        'ns',
-        'pid',
-      ),
-    );
+      linkPath,
+    ));
 }
 
 /**
@@ -263,7 +263,7 @@ await describe({
               directoryId: hostPid,
               innerPid: ownerPid,
               ticks: ownerTicks,
-              namespace: 'unreadable',
+              namespace: unreadableLink,
             });
             expect(await liveOwnerPid({
               record: await ownerRecord({ namespace: thereNamespace }),
@@ -335,7 +335,7 @@ await describe({
               directoryId: hostPid + 1,
               innerPid: ownerPid + 2,
               ticks: ownerTicks,
-              namespace: 'unreadable',
+              namespace: unreadableLink,
             });
             expect(await liveOwnerPid({
               record: await ownerRecord({ namespace: thereNamespace }),

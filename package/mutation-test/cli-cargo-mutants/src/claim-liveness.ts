@@ -13,8 +13,9 @@ import type { ClaimRecord } from './claim-record.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import { scanForOwner } from './foreign-process-scan.ts';
 import {
+  birthNotParsed,
   defaultProcRoot,
-  namespaceUnknown,
+  type namespaceUnknown,
   parseBirth,
   readBootId,
   readPidNamespace,
@@ -43,7 +44,34 @@ async function beganInEarlierBoot(birth: string): Promise<boolean> {
    What the birth text says.
    */
   const parsed = parseBirth(birth);
-  return (parsed !== undefined) && (parsed.boot !== await readBootId());
+  return (parsed !== birthNotParsed) && (parsed.boot !== await readBootId());
+}
+
+/**
+ Tell whether a record and this process name the same PID namespace, which is the only case in which the record's process id
+ is an id here.
+
+ @param recorded - the namespace the record names, absent when it names none
+
+ @param here - the namespace this process counts ids in
+
+ @returns true only when both are named and equal
+
+ @example
+ ```ts
+ sameNamespace({ recorded: 'pid:[1]', here: 'pid:[1]' });
+ ```
+ */
+function sameNamespace({
+  recorded,
+  here,
+}: {
+  readonly recorded?: string;
+  readonly here: string | typeof namespaceUnknown;
+}): boolean {
+  if (recorded === undefined)
+    return false;
+  return recorded === here;
 }
 
 /**
@@ -113,7 +141,10 @@ export async function liveOwnerPid({
   });
   // An id is an id of this namespace only when both namespaces are named and equal; with either unnamed, or different, the
   // id may mean nothing here, and a lookup of it here could name an unrelated process or none.
-  if ((record.namespace === undefined) || (here === namespaceUnknown) || (record.namespace !== here))
+  if (!sameNamespace({
+    ...(record.namespace === undefined ? {} : { recorded: record.namespace }),
+    here,
+  }))
     return await foreignOwnerPid({
       record,
       procRoot,
