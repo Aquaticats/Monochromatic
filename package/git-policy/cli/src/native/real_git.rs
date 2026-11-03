@@ -101,28 +101,74 @@ pub struct ResolutionInputs {
 }
 
 /// What:
-///  The failure when no PATH candidate can act as real Git.
-///       `usize` counts items;
-///  it is the length type of every Rust list.
+///  One PATH candidate the search examined and what it found.
+///       `CandidateKind` is the verdict (real Git, wrapper, unusable).
 /// Why:
-///   The counts tell the user whether Git is missing or only wrappers were found.
+///   The failure message lists every candidate with its verdict, so the person can see which entries led back to cli-git
+///  and which were not executable files at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class RealGitNotFoundError extends Error { candidateCount: number; skippedWrapperCount: number }
+/// type SearchedCandidate = { path: string; kind: 'real-git' | 'wrapper' | 'unusable' };
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SearchedCandidate {
+    /// The candidate's absolute path as the search built it from PATH.
+    pub path: PathBuf,
+    /// The verdict about it.
+    pub kind: CandidateKind,
+}
+
+/// What:
+///  The failure when no PATH candidate can act as real Git.
+///       `usize` counts items;
+///  it is the length type of every Rust list.
+///       `Vec<SearchedCandidate>` is an owned list of owned records (siblings: `&[T]`, a borrowed view).
+/// Why:
+///   The counts tell the user whether Git is missing or only wrappers were found, and the list and the `PATH` value
+///  name what was searched.
+///  The record owns text, so it is not `Copy`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RealGitNotFoundError extends Error { candidateCount: number; skippedWrapperCount: number; searched: SearchedCandidate[]; path: string }
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RealGitNotFound {
     /// PATH-derived candidates examined before failure.
     pub candidate_count: usize,
     /// Candidates rejected because they are cli-git wrappers.
     pub skipped_wrapper_count: usize,
+    /// Every candidate examined, in the order the search took them, with its verdict.
+    pub searched: Vec<SearchedCandidate>,
+    /// The `PATH` value the search read; empty when unset.
+    pub path: OsString,
+}
+
+/// What:
+///  The words for one candidate's verdict.
+/// Why:
+///   The message says why a candidate was passed over in terms a person can act on, with no internal names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reason = { wrapper: 'leads back to cli-git ...', unusable: 'is not an executable file ...' }[kind];
+/// ```
+fn verdict_words(kind: CandidateKind) -> &'static str {
+    match kind {
+        CandidateKind::Wrapper => {
+            return "skipped, it leads back to cli-git (this executable, a link or copy of it, its toolchain launcher, or a script that starts it)";
+        }
+        CandidateKind::Unusable => return "skipped, it is missing, not an executable file, or unreadable",
+        CandidateKind::RealGit => return "usable",
+    }
 }
 
 /// What:
 ///  `impl std::fmt::Display for ...` supplies Rust's "print me" interface.
 /// Why:
-///   The executable prints the same guidance the TypeScript resolver gave.
+///   The executable prints what was searched, why nothing qualified, and every way to fix it, naming the `PATH` value as
+///  the input.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,13 +179,24 @@ impl std::fmt::Display for RealGitNotFound {
     ///  `&mut` lends the formatter for writing;
     ///  `'_` is an unnamed lifetime.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // `write!` formats into the borrowed formatter and returns its result.
-        return write!(
+        // `write!` formats into the borrowed formatter; `?` returns early if writing failed.
+        write!(
             formatter,
             "Could not find a real Git executable after examining {} PATH candidates and \
-             skipping {} cli-git wrappers. Ensure Git is installed and PATH/PATHEXT expose \
-             its executable.",
-            self.candidate_count, self.skipped_wrapper_count
+             skipping {} cli-git wrappers, so no Git command was run. PATH is {}.",
+            self.candidate_count,
+            self.skipped_wrapper_count,
+            if self.path.is_empty() { String::from("empty or unset") } else { self.path.to_string_lossy().into_owned() }
+        )?;
+        for candidate in &self.searched {
+            write!(formatter, "\n  {}: {}", candidate.path.display(), verdict_words(candidate.kind))?;
+        }
+        // The last write is the function's result.
+        return write!(
+            formatter,
+            "\ncli-git never starts itself as Git, so a candidate that leads back to cli-git is passed over on purpose. \
+             To fix it, install Git; or add the directory that holds the real Git executable (for example /usr/bin) to \
+             the PATH of the program that ran this command; or, when an entry of that PATH should not be used, remove it."
         );
     }
 }
@@ -392,6 +449,8 @@ pub fn candidate_sequence(inputs: &ResolutionInputs) -> Vec<PathBuf> {
 pub fn resolve_real_git(inputs: &ResolutionInputs) -> Result<PathBuf, RealGitNotFound> {
     let candidates: Vec<PathBuf> = candidate_sequence(inputs);
     let mut skipped_wrapper_count: usize = 0;
+    // `mut` lets the loop record each verdict for the failure message.
+    let mut searched: Vec<SearchedCandidate> = Vec::<SearchedCandidate>::new();
     for candidate in &candidates {
         let kind: CandidateKind =
             classify_candidate(candidate.as_path(), inputs.own_executable.as_path());
@@ -402,11 +461,14 @@ pub fn resolve_real_git(inputs: &ResolutionInputs) -> Result<PathBuf, RealGitNot
         if kind == CandidateKind::Wrapper {
             skipped_wrapper_count += 1;
         }
+        searched.push(SearchedCandidate { path: candidate.clone(), kind });
     }
-    // `Err(...)` is the failure variant carrying the evidence counts.
+    // `Err(...)` is the failure variant carrying the evidence: counts, every verdict and the PATH read.
     return Err(RealGitNotFound {
         candidate_count: candidates.len(),
         skipped_wrapper_count,
+        searched,
+        path: inputs.path.clone(),
     });
 }
 

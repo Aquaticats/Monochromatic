@@ -22,7 +22,6 @@ use super::support::{
     fixture, link_real_git, observe, remove,
 };
 use std::ffi::OsString;
-use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::Command;
@@ -194,17 +193,21 @@ fn only_wrappers_on_path_is_a_reported_failure() {
         .arg("--version"),
         b"",
     );
-    assert_eq!(
-        observed,
-        Observed {
-            code: Some(2),
-            stdout: Vec::<u8>::new(),
-            stderr: b"cli-git: Could not find a real Git executable after examining 5 PATH \
-                      candidates and skipping 4 cli-git wrappers. Ensure Git is installed and \
-                      PATH/PATHEXT expose its executable.\n"
-                .to_vec(),
-        }
+    let text: String = String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
+    assert_eq!(observed.code, Some(2), "{text}");
+    assert!(observed.stdout.is_empty());
+    // The head keeps the counts; every candidate follows with its verdict, and the fix names the PATH.
+    assert!(
+        text.starts_with(
+            "cli-git: Could not find a real Git executable after examining 5 PATH candidates and skipping 4 cli-git wrappers, \
+             so no Git command was run. PATH is "
+        ),
+        "{text}"
     );
+    for form in ["bin", "hard", "copy-early", "chain"] {
+        assert!(text.contains(fixture.root.join(form).join("git").to_string_lossy().as_ref()), "{form}: {text}");
+    }
+    assert!(text.contains("To fix it, install Git"), "{text}");
     remove(&fixture);
 }
 
@@ -236,7 +239,7 @@ fn typescript_wrapper_launcher_is_skipped() {
 
 /// A different wrapper build cannot be recognised by file identity or content;
 ///  the
-/// forward-target marker makes it stop on arrival instead of forwarding back.
+/// marker every real-Git start carries makes it stop on arrival instead of forwarding back.
 #[test]
 fn different_wrapper_build_stops_instead_of_looping() {
     let fixture: Fixture = fixture("other-build");
@@ -261,21 +264,13 @@ fn different_wrapper_build_stops_instead_of_looping() {
         .arg("--version"),
         b"",
     );
-    let mut expected: Vec<u8> =
-        b"cli-git: another cli-git wrapper selected this cli-git executable (".to_vec();
-    expected.extend_from_slice(other.as_os_str().as_bytes());
-    expected.extend_from_slice(
-        b") as real Git. Forwarding again would never reach Git. Remove the extra cli-git from \
-          PATH or place the real Git executable on PATH.\n",
-    );
-    assert_eq!(
-        observed,
-        Observed {
-            code: Some(2),
-            stdout: Vec::<u8>::new(),
-            stderr: expected,
-        }
-    );
+    // The other build is the Git the wrapper started, so it is started with the marker and stops on arrival.
+    let text: String = String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
+    assert_eq!(observed.code, Some(2), "{text}");
+    assert!(observed.stdout.is_empty());
+    assert!(text.contains(other.to_string_lossy().as_ref()), "{text}");
+    assert!(text.contains("was started as Git by a cli-git wrapper"), "{text}");
+    assert!(text.contains("never runs itself as Git"), "{text}");
     // Known limitation: real Git later on PATH does not rescue the command, because the
     // other build is the first candidate that is not provably this wrapper.
     link_real_git(&fixture);

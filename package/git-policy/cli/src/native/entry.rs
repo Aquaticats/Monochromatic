@@ -50,6 +50,7 @@ use super::policy_checks::{ShippedChecks, shipped_checks};
 /// A forwarded command starts with no candidate content.
 use super::policy_content::LifecycleContent;
 use super::real_git::{ResolutionInputs, process_resolution_inputs, resolve_real_git};
+use super::started_as_git::refusal_when_started_as_git;
 use super::real_git_candidate::same_file;
 use super::repository_facts::{GitFacts, RepositoryFacts, git_facts};
 use super::rule_require_root::{RequireRootDecision, decide_require_root};
@@ -291,7 +292,11 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     // From here on every real-Git start of this process runs with traditional hooks off.
     super::hooks_off::activate();
     let action: Action = match process_resolution_inputs(environment) {
-        Ok(inputs) => plan_invocation(arguments, environment, &inputs),
+        // A cli-git executable that a wrapper started as Git stops before it plans anything or starts anything.
+        Ok(inputs) => match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {
+            Some(refusal) => failure(refusal.as_str()),
+            None => plan_invocation(arguments, environment, &inputs),
+        },
         Err(error) => failure(
             format!(
                 "cannot determine this executable or the current directory, so real Git \

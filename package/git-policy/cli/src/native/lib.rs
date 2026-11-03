@@ -100,6 +100,9 @@ pub mod real_git;
 /// Wrapper self-exclusion for one PATH candidate.
 pub mod real_git_candidate;
 
+/// The marker every real-Git start carries and the check that stops a wrapper which finds it was started as Git.
+pub mod started_as_git;
+
 /// Controls for the lock files a stopped Git child must not leave behind.
 #[cfg(test)]
 mod git_stop_lock_tests;
