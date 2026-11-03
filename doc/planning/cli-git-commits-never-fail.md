@@ -230,6 +230,17 @@ Request states: `drafted` (client only) -> `bound` -> `accepted` -> `adopted` ->
 that a client abandons before `bound` is removed by the lane after the client's process identity is gone; a `bound` request is never removed
 as abandoned, because C3's recovery obligation is to complete it.
 
+State document and the generation (rule S, new in revision 9). All capture-visible lane state lives in one document, `lane/state`: the
+generation `g`, a marker (`none`, `materializing`, `recovering`), the logical head, the logical tail, the consumption map and the state of
+every request. A transition that changes any of it does so in one S1 replacement: journal the intent (fsync), write the new document to a
+temporary name, fsync, rename it over `lane/state`, fsync the directory; `g` increases by one with every replacement. Because the document
+is replaced atomically, a reader that reads it once sees a state the lane was really in, including a multi-path release of the consumption
+map. The generation is odd while the marker is set: a transition with an effect outside the document (the index replacement of M1, the
+recovery of L4) first replaces the document with the marker set (odd), performs the effect, then replaces it with the marker cleared (even).
+The capture-visible mutations, each an S1 replacement: C5 adopt, B1 build/hold/ready, B2 held completion or refusal, B3 supersede, P1
+publish-begin, P3 published, P4 swap-failed/pending, Q1 resume, M1 and M2 (with the marker), L4 (with the marker). T1 retire changes no
+capture-visible state.
+
 Lane transitions (the owner and its incarnation)
 - L1 acquire. Pre: none. Do: open `lane/owner` (a file created once and never replaced) with close-on-exec, wait for the exclusive lock.
   Crash: nothing to recover. Note: the wait ends when the previous owner and any child still between fork and exec have gone; a child
@@ -263,10 +274,18 @@ Lane transitions (the owner and its incarnation)
   ending a hook is open design work, not part of this machine.
 
 Capture and acceptance (client)
-- C1 capture. Pre: none. Do: read the branch tip `B` and the base closure from the immutable objects `B` names; read the lane generation
-  `g` (wait for the lane if it is odd); read the logical head, the consumption map, the worktree and the real index; re-read `g` and the
-  foreign inputs (the branch tip, and the index entries used); accept only an unchanged even `g` and unchanged foreign inputs, else
-  repeat. Crash: nothing durable.
+- C0 ensure the lane. Pre: C1 finds the marker set (odd), or a journal open, or no owner and a state document that does not match the
+  journal. Do: if the lane lock is acquirable, this client acts as an inline owner for recovery only (L1 to L4, which clear the marker) and
+  releases the lock; if a live owner holds it, wait for it with a notice. Crash: as L1 to L4. This is the route from a dead odd generation
+  into recovery before any request is accepted.
+- C1 capture. Pre: C0 passed. Do: read `lane/state` once (taking `g`, the marker, the logical head, the consumption map); read the branch
+  tip `B` and the base closure from the immutable objects `B` names; read the real index file once (it is replaced by rename, so one read is
+  a consistent snapshot) and the worktree files into the spool; read `lane/state` again and accept only an unchanged `g` with the marker
+  `none`, else repeat. The tip is not re-read to validate: a tip that moved during capture does not invalidate the capture, because the delta
+  is relative to the logical head and is replayed on the actual tip at adoption (so a branch that keeps moving cannot starve C1, and the
+  moved-head decision, save pending and exit 0, is reached). Foreign changes to the index or the worktree after the single reads are later
+  staging, not an inconsistency, and cause no retry. Crash: nothing durable. Starvation, stated: C1 repeats only when the lane's own state
+  changed between its two reads, so it can be delayed by a lane that never stops changing, and it never waits on a foreign program.
 - C2 spool. Pre: C1. Do: create a private candidate directory `incoming/<id>.<hash>.<nonce>/` with an exclusive `mkdir` (the nonce is
   random, so two writers of the same identity never share a directory), write the spool files and the request record into it, fsync each,
   fsync the directory. The candidate is never opened for writing again after this fsync. Crash: a candidate with no binding belongs to a
@@ -285,9 +304,9 @@ Capture and acceptance (client)
 - C4 accept. Pre: C3. Do: publish the record into `inbox/<id>` from the candidate with a no-replace hard link (the candidate stays where it is
   and remains the spool the record points to), fsync `inbox/` and its parent, answer `handed over`. Crash: repeated by C4 from the candidate;
   a request that C5 has adopted is not repeated.
-- C5 adopt (lane). Pre: accepted, no `adopt <id>` yet, L4 done. Do: journal the state change; write generation odd; append
-  `adopt <id> <crc>` to `lane/order`; move the record to `queue/`; update the logical tail and consumption map; write generation even.
-  Crash: L4 completes the move and the state update; a second `adopt` is never appended.
+- C5 adopt (lane). Pre: accepted, no `adopt <id>` yet, L4 done. Do: journal the intent; append `adopt <id> <crc>` to `lane/order` (this
+  line is the authority); link the record into `queue/`; S1 replacement adding the request to the logical tail and the map. Crash: L4
+  completes the link and the S1 replacement; a second `adopt` is never appended.
 
 Build and publication (lane)
 - B1 build. Pre: adopted. Do: build the commit by replaying the captured delta on the logical tail; where a person's hook is configured
@@ -300,7 +319,8 @@ Build and publication (lane)
   hook's message and changes nothing. A completion carries (request, version) and is accepted only for the active version; the
   completion of a superseded version is discarded. Crash: as B1.
 - P1 publish-begin. Pre: `ready`, B2 clear. Do: journal `publishing <id> <attempt> <old> <new>` with the reflog anchor and, for a
-  repository with a `reference-transaction` hook, `hook-dispatch`; the request is in the logical tail from here. No generation change.
+  repository with a `reference-transaction` hook, `hook-dispatch`; the request enters the logical tail in an S1 replacement of this same step (so a capture sees it in the tail from the moment `publishing`
+  is journaled), with no marker.
   Crash: the next owner treats the attempt by the recovery classes (R1 to R5 below).
 - P2 swap. Pre: P1 and L6 held for the ref-transaction child. Do: run `update-ref refs/heads/<branch> <new> <old>`. A person's
   `reference-transaction` hook may run inside it; nothing but L6 is held across it. Crash: recovery classes below.
@@ -317,8 +337,8 @@ Build and publication (lane)
 Materialization and retirement
 - M1 materialize (one path for every follow-up, whether the lock is free now or later). Pre: `published`, the attachment guard,
   and a single try of `index.lock` after the publication (never before it, never across P2). Do: with the lock held, read `HEAD` before
-  and after reading the current index and decline unless it is attached to the request's branch in both reads (declined: M2); write
-  generation odd; apply the per-path entry rule to the index read under the lock; write the lock file and rename it over the index;
+  and after reading the current index and decline unless it is attached to the request's branch in both reads (declined: M2); S1 replacement
+  setting the marker `materializing` (odd); apply the per-path entry rule to the index read under the lock; write the lock file and rename it over the index;
   release the consumption entries of the paths installed; write even. Crash: the lock file of this process is removed by its own exit
   handling; L4 repeats M1 from the journal.
 - M2 void. Pre: the guard declined, the branch was rewritten (the commit is not reachable from the tip), or a later foreign successor made
@@ -349,8 +369,9 @@ Maintenance (object-store-wide)
   prints that it cannot contain it, and retains the recovery copy of every request whose lifetime overlapped it until the person
   disposes of it explicitly, since an escaped descendant cannot be proved finished.
 
-Narrowed guarantees stated by the machine, plainly. Acceptance waits for the lane's short state updates (odd generations never span a
-person's program or a foreign lock) and never for a program. A quiet owner that holds the gate with no person's program running (wedged in
+Narrowed guarantees stated by the machine, plainly. Acceptance waits for the lane's state updates (the marker is set only around the index
+replacement of M1 and the recovery of L4, never across a person's program or a foreign lock) and never for a program; for an ineligible
+index, M1 runs Git on a copy under the marker, so there the capture waits on our own lane for a child that X1 can cancel. A quiet owner that holds the gate with no person's program running (wedged in
 our own code between L6 and the end of a ref transaction) is not restarted automatically (owner question B, option B-hand, picked); the command prints how to
 restart the unit and waits, and the request is durable. An owner wedged inside a person's program is never ended. L1 can wait for a child between fork and exec. G4 extends
 retention at the cost of disk. The wait of a publication behind a person's `reference-transaction` hook is the person's.
