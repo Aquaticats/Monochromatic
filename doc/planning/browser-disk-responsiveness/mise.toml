@@ -26,3 +26,10 @@ run = [
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-claude.html" ../../../CLAUDE.md',
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-helium-evidence.html" ../../troubleshooting/helium-window-freezes.md',
 ]
+
+[tasks."verify:metrics-candidate"]
+description = "Render the Chromium storage candidate and current handover"
+run = [
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-candidate.html" ../../troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-handover.html" ../../handover/chromium-live-histogram-contribution.md',
+]
