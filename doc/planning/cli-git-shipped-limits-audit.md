@@ -11,7 +11,8 @@ Rule `LQM` of `AGENTS.md` (line 1357), quoted verbatim from the owner's approval
 "Shipped resource limits (unit caps, timeouts, size bounds) cite a workload measurement or owner decision beside the
 value; agent-command cgroup rules never size shipped code."
 
-Paths below that start with `src/` or name `SPEC.md`, `README.md` or `DESIGN.md` are relative to the crate directory
+Paths in this document that start with `src/` or name `SPEC.md`, `README.md` or `DESIGN.md` are relative to the crate
+directory
 `package/git-policy/cli`.
 Paths that start with `doc/` are relative to the repository root.
 
@@ -56,7 +57,7 @@ The reader bounds that merely say they equal a Git limit are listed, because no 
 
 ### Searches that produced this list
 
-All were run over the shipped file set (446 files after the exclusions above).
+All were run over the shipped file set (446 files after the exclusions in "What counts as shipped").
 
 - Durations and sleeps: `Duration::`, `from_secs`, `from_millis`, `from_micros`, `from_nanos`, `sleep(`, `Timeout`.
 - Constants: every `const` or `static` whose type is an integer, float or `Duration`, then read by name for limit-like
@@ -156,8 +157,7 @@ the index catches up when the lock is free; a merge saves on a side ref and fini
 
 ## Summary
 
-- Limits listed: see the count in the next bullet; grouped entries (for example the three copies of an include-depth
-  bound) count once.
+- Limits listed: 73; grouped entries (for example the three copies of an include-depth bound) count once.
 - Counts by class are in the final section "Counts".
 - Cited: the conversion storage ceiling, the conversion memory estimate, the `checkout.workers=0` setting, and the
   review
@@ -205,8 +205,8 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
   off
   when it cannot start a thread, and `src/native/start_retry.rs` retries a refused process start.
 - Fails or waits: waits up to the start-retry budget, then the connection or step fails.
-- Citation: none on main; decided removal as above.
-- Conflict: same as above; decided, removal unmerged.
+- Citation: none on main; decided removal as recorded in "Unit MemoryMax".
+- Conflict: the same as in "Unit MemoryMax"; decided, removal unmerged.
 
 ### Unit CPUQuota
 
@@ -215,7 +215,7 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
 - Bounds: CPU time of the service cgroup.
 - When hit: throttling.
 - Fails or waits: waits (slower commits and slower after-commit work).
-- Citation: none on main; decided removal as above.
+- Citation: none on main; decided removal as recorded in "Unit MemoryMax".
 - Conflict: "commits vs native git should not take 5s longer" could be hit by a throttled service; decided, unmerged.
 - Side effect to carry into the question on parallelism: `src/native/service_round.rs:129` sizes a round by the CPUs
   the
@@ -228,7 +228,7 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
 - Bounds: the service's share of block I/O under contention.
 - When hit: slower I/O when other cgroups compete.
 - Fails or waits: waits.
-- Citation: none on main; decided removal as above.
+- Citation: none on main; decided removal as recorded in "Unit MemoryMax".
 - Conflict: none beyond LQM; decided, unmerged.
 
 ## Waits for locks and for the service's index hold
@@ -314,20 +314,29 @@ Read by `src/native/index_holder_wait.rs:152` (merge), `src/native/service_index
 - Citation: none.
 - Conflict: none found.
 
-### Index update tries after a landing
+### Index reconciliation tries, 5
 
-- Where: `src/native/service_land_follow.rs:24` (`INDEX_ATTEMPTS` 5) and `27` (`INDEX_PAUSE` 100 ms), loop at line
-  147.
+- Where: `src/native/service_land_follow.rs:24` (`INDEX_ATTEMPTS` 5) and `27` (`INDEX_PAUSE` 100 ms), loop at line 147
+  in `update_index`.
+The only caller is `src/native/service_prepare.rs:448`, the ending of a commit whose corrections removed every change.
 - Value: five tries, 100 ms apart.
-- Bounds: how long the service retries updating the real index while another program holds it, after the branch moved.
-- When hit: failure code `IndexInUse` (`service_land_follow.rs:59` to `60`, from Git's "index.lock" text), shown as
-  the
-  `IndexInUse` message above.
-- Fails or waits: waits half a second, then fails.
+- Bounds: how long the client retries resetting the real index entries of the corrected files to the base while
+  another
+  program holds the index.
+- When hit: failure code `IndexInUse` (`service_land_follow.rs:59` to `60`, from Git's "index.lock" text), and the
+  command
+  stops with "the index could not be reconciled with the corrected files: {word}" (`service_prepare.rs:449`).
+  That commit exits 1 in any case, because it has no change left to record.
+- Fails or waits: waits half a second, then the command ends with that message and the index is not reconciled.
 - Citation: none.
-- Conflict, yes: "Commits should never fail" and "other programs' locks ... designed out"; the owner's "Same as the
-  ref
-  lock (Recommended)" answer says the commit lands and exits 0 and the index catches up; not built.
+- Conflict: partial. The cause is another program's lock, which the owner put on the designed-out list, and this is a
+  retry; the command was already ending without a commit, so no commit fails here.
+- Not this path: the service's landing builds the new index in a file of its own (`build_index`,
+  `service_land_follow.rs:176`) and installs it by releasing the lock it holds.
+`follow_up` returns a flag rather than an error (`src/native/service_land.rs:147`), and its caller says "The branch
+  has
+  moved: the commits exist whatever happens to the index, which recovery finishes" (`service_land.rs:408` to `410`).
+  So a landing does not fail on a foreign index lock after the ref moved, and no `INDEX_ATTEMPTS` bound applies to it.
 
 ### Rerun of a forwarded index writer, 50 starts
 
@@ -382,7 +391,8 @@ Read by `src/native/index_holder_wait.rs:152` (merge), `src/native/service_index
 - Fails or waits: neither.
 - Citation: the value is the decision record's default (`doc/decision/cli-git-concurrent-commits.md:157`), but the
   behavior it stood for is gone.
-- Conflict: the decision record still prescribes behavior the code does not have (see the live-holder wait).
+- Conflict: the decision record still prescribes behavior the code does not have (see "Live-holder wait, 1800
+  seconds").
 
 ## Git child steps of a commit
 
@@ -417,8 +427,8 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 - Where: `src/native/child_class.rs:39` (`OBJECT_CHILD_WAIT`), same override.
 - Value: 300 seconds for every step not on the quick list (`pack-objects`, `index-pack`, `add`, `reset`, `read-tree`,
   `update-index`, `ls-files`, `diff`, `diff-index`, `show`, `ls-remote`, unknown subcommands, and the object reader).
-- Bounds: as above.
-- When hit: the same sentence as above, with "a bulk step" as the label.
+- Bounds: as in "Quick query step bound, 60 seconds".
+- When hit: the same sentence as in that entry, with "a bulk step" as the label.
 - Fails or waits: waits, then killed, commit fails.
 - Citation: partial.
   `doc/planning/cli-git-commit-timeouts.md:139` to `148` measured `reset` at 2.9 to 5.8 s, `update-index --refresh` at
@@ -433,7 +443,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   `src/native/child_watch.rs:101` caps the grace at the interval and at half the bound.
 - Value: 5 s and 10 s.
 - Bounds: when the first "still waiting" line appears.
-- When hit: the notice line above.
+- When hit: the "still waiting" line quoted in "Notice intervals and graces".
 - Fails or waits: neither.
 - Citation: none (`doc/planning/cli-git-commit-timeouts.md:151` and `156` state them).
 - Conflict: none found.
@@ -487,7 +497,8 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   (`service_messages.rs:169`).
 - Fails or waits: fails.
 - Citation: none (a rationale for the bound, not for 5).
-- Conflict, yes: as above; also the signer is on the "outside" list, which is the only part of this loop that the
+- Conflict, yes: as in "Landing rebuilds, 3"; also the signer is on the "outside" list, which is the only part of this
+  loop that the
   owner's
   rules allow to cost a retry.
 
@@ -656,7 +667,8 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   `src/native/worktree_removal_rescue.rs:53` (`LOOK_ROUNDS` 2).
 - Value: a claim not renewed for 120 s is taken back; the holder renews every 40 s.
 - Bounds: how long work claimed by a killed service waits before another instance runs it.
-- When hit: no message; the item runs again, or after `MAX_TRIES` is failed with the notice above.
+- When hit: no message; the item runs again, or after `MAX_TRIES` is failed with the notice quoted in "Work item
+  tries, 3".
 - Fails or waits: waits up to the lease after a kill.
 - Citation: none (`SPEC.md:3346` onward explains why a lease exists, not why 120 s).
 - Conflict: none; a kill is "outside our control".
@@ -1136,7 +1148,8 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
   generation can leave
   a saved copy with no line that names it.
   By contrast the standards-review shadow log "has no rotation" (`README.md:2010`) and is unbounded.
-- Conflict: possible with "never discard user data" (`SPEC.md:1645`); see the question on audit history.
+- Conflict: possible with "never discard user data" (`SPEC.md:1645`); see "The audit and timing logs' history" in the
+  questions.
 
 ### Clean-check content and attribute reads
 
@@ -1265,7 +1278,7 @@ the owner's practice is to cite the Git 2.56.0 file and line (handover, "Recorde
 
 ## Counts
 
-Entries above: 73 limits (a grouped entry, such as the three include-depth copies, counts once).
+The limit sections hold 73 limits (a grouped entry, such as the three include-depth copies, counts once).
 
 - cited: 4.
   The conversion storage ceiling (`src/native/worktree_convert_command.rs:76`), the conversion memory estimate
@@ -1289,7 +1302,7 @@ Each line is a limit with no citation (class none) or only a partial one.
   `service_index_hold.rs:27`,
   `index_holder_wait.rs:41`.
 - Service scan budget 250 ms, `index_lock_holders.rs:293`.
-- Index update tries 5 x 100 ms, `service_land_follow.rs:24`.
+- Index reconciliation tries 5 x 100 ms, `service_land_follow.rs:24`.
 - Forwarded index writer reruns 50, `service_hold_retry.rs:28`.
 - Foreign-owner patience 3600 s, `pid_namespace.rs:19` (marked an open value call for the owner).
 - Notice intervals and graces 10 s, 1 s, 50 ms, `wait_progress.rs:33`.
@@ -1331,7 +1344,8 @@ free space 5 GiB, `subvolume_preflight.rs:26`; changing-file copy attempts 3, `s
 ## Questions for the owner
 
 Each question groups limits that share a cause.
-I do not decide any of them; the ranking is my reading of the options against the decisions quoted above.
+I do not decide any of them; the ranking is my reading of the options against the decisions quoted in "Owner decisions
+that bear on limits".
 Options that are complements (for example an interim and its replacement) can be chosen together, in order.
 
 ### Which limits need a citation under LQM
@@ -1359,8 +1373,8 @@ under which an unmeasured cap was written and merged.
 
 Covers: `DEFAULT_LIVE_WAIT` 1800 s (`wait_limit.rs:26`) for the merge, the forwarded writers and the service's
 landing; the
-same 1800 s for an owner that cannot be proven alive; `INDEX_ATTEMPTS` 5 x 100 ms after a landing;
-`service_hold_retry::ATTEMPTS` 50.
+same 1800 s for an owner that cannot be proven alive; `service_hold_retry::ATTEMPTS` 50.
+The 5 x 100 ms index reconciliation of a no-change commit is a minor sibling and follows whichever option is chosen.
 The decision record says an owner proven alive gets "an unbounded wait with one line naming the holder" and an
 unproven
 one gets backoff up to 1000 ms; the code does neither, and the doctor says the 1000 ms key "does nothing".
