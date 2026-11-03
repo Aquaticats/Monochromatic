@@ -170,9 +170,7 @@ fn the_current_process_has_a_stable_identity() {
 #[cfg(target_os = "linux")]
 #[test]
 fn children_lose_their_identity_when_they_exit() {
-    let mut running: std::process::Child = std::process::Command::new("sleep")
-        .arg("30")
-        .spawn()
+    let mut running: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30"))
         .expect("start sleep");
     let pid: i64 = i64::from(running.id());
     let identity: String = process_birth_identity(pid)

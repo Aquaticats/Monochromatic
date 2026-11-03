@@ -535,19 +535,21 @@ fn an_idle_service_exits_with_success() {
 fn start_per_user_service(fixture: &Fixture, runtime: &Path) -> std::process::Child {
     let socket: PathBuf = runtime.join(LEGACY_SOCKET_RELATIVE);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
-    let child: std::process::Child = std::process::Command::new(SERVICE)
-        .args(["--journal", fixture.root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
-        .args(["--release", "0.5.5"])
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("HOME", fixture.root.join("home"))
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::inherit())
-        .spawn()
-        .expect("the per-user service starts");
+    // Owned: its idle exit is hours away, so a control that fails before the wrapper retires it would leave it running.
+    let child: std::process::Child = super::support::spawn_owned(
+        std::process::Command::new(SERVICE)
+            .args(["--journal", fixture.root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
+            .args(["--release", "0.5.5"])
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", fixture.root.join("home"))
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::inherit()),
+    )
+    .expect("the per-user service starts");
     let began: Instant = Instant::now();
     while std::os::unix::net::UnixStream::connect(&socket).is_err() {
         assert!(began.elapsed() < PATIENCE, "the per-user service never listened");

@@ -2,9 +2,11 @@
 //! (issue 1809).
 
 use super::support::{
-    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, remove_patiently, settle_fixture, start_fixture_service,
+    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, remove_patiently, settle_fixture, spawn_owned, start_fixture_service,
 };
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 /// A fixture whose test panics after creating it leaves nothing behind.
 #[test]
@@ -19,6 +21,50 @@ fn a_fixture_is_removed_when_its_test_panics() {
     assert!(handle.join().is_err(), "the thread panics on purpose");
     let root: PathBuf = receiver.recv().expect("the root");
     assert!(!root.exists(), "{} was left behind", root.display());
+}
+
+/// How many seconds the helper of the control below would sleep if nothing ended it: far longer than the control waits.
+const HELPER_SECONDS: &str = "600";
+
+/// How long the control below waits for the helper to be gone, so a missing guard fails it and never holds it.
+const HELPER_GONE_PATIENCE: Duration = Duration::from_secs(20);
+
+/// How often the control below looks at the helper.
+const HELPER_LOOK: Duration = Duration::from_millis(50);
+
+/// What:
+///  A helper started with `spawn_owned` by a test that then panics is gone when the test thread ends.
+/// Why:
+///   `Child` does not kill on drop, so a service or a shell loop that a failing control never reached the end of ran on after it
+///  (87 minutes, for the loop of a unit control). The thread's list of helper groups is killed when the thread ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pid = await startThatThrows(() => { const child = spawnOwned('sleep', ['600']); throw new Error('fails'); });
+/// await waitUntil(() => !isRunning(pid));
+/// ```
+#[test]
+fn a_helper_started_by_a_panicking_test_is_gone_when_the_test_ends() {
+    let (sender, receiver) = std::sync::mpsc::channel::<u32>();
+    let handle = std::thread::spawn(move || {
+        let child = spawn_owned(Command::new("sleep").arg(HELPER_SECONDS).stdin(Stdio::null())).expect("the helper starts");
+        sender.send(child.id()).expect("send the pid");
+        panic!("the test fails before it ends the helper");
+    });
+    assert!(handle.join().is_err(), "the thread panics on purpose");
+    let pid: u32 = receiver.recv().expect("the pid");
+    let number: i32 = i32::try_from(pid).expect("a process ID fits");
+    let began: Instant = Instant::now();
+    while super::fault_run::is_running(number) && began.elapsed() < HELPER_GONE_PATIENCE {
+        std::thread::sleep(HELPER_LOOK);
+    }
+    let left: bool = super::fault_run::is_running(number);
+    if left {
+        // Tidy up the leak this control exists to catch, so a red run leaves nothing behind either.
+        // SAFETY: `kill` takes two integers and touches no memory of this process.
+        unsafe { libc::kill(number, libc::SIGKILL) };
+    }
+    assert!(!left, "the helper {pid} outlived the test that started it");
 }
 
 /// A fixture removed explicitly and then dropped does not fail the drop.

@@ -127,7 +127,7 @@ fn each_refusal_leaves_the_worktree_untouched() {
     assert!(converting_path(worktree.as_path()).join("theirs").exists(), "the foreign directory is left alone");
     std::fs::remove_dir_all(converting_path(worktree.as_path())).expect("remove foreign");
     // A process with its working directory inside.
-    let mut child: std::process::Child = std::process::Command::new("sleep").arg("30").current_dir(&worktree).spawn().expect("sleep");
+    let mut child: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30").current_dir(&worktree)).expect("sleep");
     skipped_with(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0, "working directory or an open file");
     child.kill().expect("kill");
     child.wait().expect("wait");
@@ -224,7 +224,7 @@ fn a_process_inside_stops_the_swap_of_a_resumed_conversion() {
     let platform: PlainPlatform = PlainPlatform::new();
     let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0));
     assert!(killed.is_err());
-    let mut child: std::process::Child = std::process::Command::new("sleep").arg("30").current_dir(&worktree).spawn().expect("sleep");
+    let mut child: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30").current_dir(&worktree)).expect("sleep");
     skipped_with(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0, "working directory or an open file");
     assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "nothing was swapped");
     child.kill().expect("kill");

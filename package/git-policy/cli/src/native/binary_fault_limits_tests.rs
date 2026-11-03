@@ -211,7 +211,8 @@ fn start_service_under(kind: LimitKind, limit: u64, directory: &Path) -> StartOu
     unsafe {
         command.pre_exec(move || { return kind.apply(limit, hard); });
     }
-    let mut child = command.spawn().expect("the service program starts");
+    // Owned: the service's idle exit is hours away, and the loop below can end by a failed expectation before the kill.
+    let mut child = super::support::spawn_owned(&mut command).expect("the service program starts");
     let began = std::time::Instant::now();
     let greeted: bool = loop {
         if child.try_wait().expect("the service's state").is_some() {

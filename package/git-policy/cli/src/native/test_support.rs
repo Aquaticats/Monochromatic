@@ -203,9 +203,19 @@ pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<std::process
     use std::os::unix::process::CommandExt as _;
     command.process_group(0);
     let child: std::process::Child = command.spawn()?;
+    own_group(&child);
+    return Ok(child);
+}
+
+/// What:
+///  Make the process group a child leads die with the test thread, as `spawn_owned` does for the children it starts.
+/// Why:
+///   A helper that must become a session leader (a terminal helper calls `setsid` between `fork` and `exec`) cannot also be put in
+///  a group by `spawn_owned`, because a group leader cannot start a session. Such a child leads a group of its own already,
+///  so only the thread's list of groups to end needs its number.
+pub(crate) fn own_group(child: &std::process::Child) {
     let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
     THREAD_FIXTURES.with(|fixtures| { fixtures.groups.borrow_mut().push(group); });
-    return Ok(child);
 }
 
 /// This test process's own executable, for the helper processes a control starts from the test binary.
@@ -466,13 +476,15 @@ mod tests;
 /// ```
 pub(crate) fn dead_copy_owner() -> crate::worktree_copy_owner::CopyOwner {
     use std::process::Stdio;
-    let mut child: std::process::Child = Command::new("sleep")
-        .arg("60")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("sleep starts");
+    // Owned, so an assertion between the start and the kill does not leave the sleeper for a minute.
+    let mut child: std::process::Child = spawn_owned(
+        Command::new("sleep")
+            .arg("60")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null()),
+    )
+    .expect("sleep starts");
     let pid: i64 = i64::from(child.id());
     let birth: String = crate::process_identity::process_birth_identity(pid)
         .expect("identity readable")

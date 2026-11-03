@@ -122,14 +122,16 @@ fn wait_for(path: &Path) {
 /// Start this test executable as the helper for one scenario.
 fn spawn_helper(mode: &str, directory: &Path) -> Child {
     let executable_path: PathBuf = crate::test_support::this_test_binary().expect("test executable");
-    return Command::new(executable_path)
-        .args(["--exact", "signal_relay::tests::helper_entry", "--nocapture", "--test-threads=1"])
-        .env(MODE_VAR, mode)
-        .env(DIR_VAR, directory)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .expect("helper starts");
+    // Owned, so a helper that waits for a signal a failing control never sent does not outlive the control.
+    return crate::test_support::spawn_owned(
+        Command::new(executable_path)
+            .args(["--exact", "signal_relay::tests::helper_entry", "--nocapture", "--test-threads=1"])
+            .env(MODE_VAR, mode)
+            .env(DIR_VAR, directory)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null()),
+    )
+    .expect("helper starts");
 }
 
 /// Send one signal from this test process, so the kernel records it as sent by a process.
@@ -373,6 +375,8 @@ fn spawn_terminal_helper(directory: &Path) -> (std::fs::File, Child) {
         });
     }
     let helper: Child = command.spawn().expect("terminal helper starts");
+    // The `setsid` above makes the helper the leader of a group of its own; `spawn_owned` cannot start it, so only its group is owned.
+    crate::test_support::own_group(&helper);
     return (master_file, helper);
 }
 
