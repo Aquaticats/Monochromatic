@@ -9682,3 +9682,17 @@ by the coordinator at merge.
   runner; retry the push (its first auto-push timed out in git-lfs; no trigger-log line for that branch). Commit
   `1a49aa2254` is scoped `mutation-test-cli-cargo-mutants` but changes root `mise.toml`: corrective commit comment
   once it is on origin.
+- Journal and prune review fixed (`fix/git-policy-cli-journal-and-prune-review`, `363a1b67da` to `262de95829`):
+  the store is opened `O_NOFOLLOW` (a link keeps every copy and is reported); entries are matched by device, inode and
+  change time and removed through their own descriptors (a replacement is kept); one pass at a time by `flock`; real
+  calendar stamps; the floor counts from the end of the named second; `u128`/`i128` arithmetic; every failure kept and
+  reported (partial removals audited as `partial`). Journal: newline values in the length-prefixed form, the 64-byte
+  field-name cap, non-blocking delivery with dropped lines counted and reported. Declined with reasons: a leading digit
+  in field names (systemd's `journal_field_valid` refuses it, read at tag `v262`) and a durable log backlog (a lost
+  line beats a stuck command). Gate 65 running.
+- Same agent now makes `service_signal.rs::on_signal` stop falling back to a blocking `write`
+  (`fix/git-policy-cli-signal-log-never-blocks`, from the journal branch).
+- New load flakes seen in that agent's binary run: `fault_trace::a_disk_that_fills_during_a_commit_...` and
+  `fault_trace::storage_that_fails_during_a_commit_...` ("a further commit must land ... Starting the commit
+  service..."; both passed alone). Assigned (`fix/git-policy-cli-fault-trace-follow-up-commit`), with the routinely
+  SLOW `a_service_killed_at_any_call_...`.
