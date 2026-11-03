@@ -519,9 +519,25 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   removing either half turned its control red.
   134 library and 90 binary tests,
   clippy clean.
-- The index-lock and service waits follow-ups,
-  its agent resumed with the picks;
-  it merges the base `afc9a8621d` and the index round `01e4d4c610` into its branch first.
+- Done:
+  the index-lock and service waits follow-ups,
+  `feat/git-policy-cli-index-lock-and-service-waits` `82633304d0`,
+  each pick red first:
+  unproven index-lock owners waited for with no bound (`UNPROVEN_OWNER_BACKOFF` and `unproven_backoff.rs` deleted);
+  polling every 50 ms (`POLL_PAUSE`,
+  classed exempt) where no inotify watch can be set;
+  an `inactive` unit asked to start after each `START_WAIT`;
+  a waiting command renews its scratch directory once an hour so the sweep keeps it.
+  903 library and 92 binary tests,
+  clippy clean;
+  the real manager calls (`active_state`,
+  `start_unit`) were not run against a real user manager.
+  Open audit question:
+  the heartbeat proves the service and its connection,
+  not that the landing thread makes progress.
+  Its agent is resumed to merge the base `d300bb806d` into its branch and drop its handover edit
+  (the base branch's copy of this handover is stale;
+  main's copy wins when the base merges into main).
 - Passed:
   an early gate of the 0.5.28 base at its tip after the index writer's second round
   (unit `gpc-gate-candidate-0-5-28-early-20261103T111639-0500.service`,
@@ -1770,6 +1786,13 @@ each stays open to the owner's veto and is listed for the owner on return.
    an unproven owner gets 1000 ms of backoff and then a diagnostic;
    the dead constant goes),
    then B with the commits-never-fail design (the owner's "Same as the ref lock").
+   Follow-up pick (built on `feat/git-policy-cli-index-lock-and-service-waits` `82633304d0`):
+   an unproven owner is waited for with no bound like a proven one,
+   with a repeating line that says what is known and that removing the named file lets the command run
+   if no program uses the repository;
+   a dead owner (a pid file naming a gone process) still ends the wait at once.
+   Its cost:
+   a lock left by a killed program with no pid file now waits until a person removes it.
 3. Retry counts:
    C with the commits-never-fail design (stack on the new head for every moved branch);
    the interim loops stay until then ("Ship interim now").
