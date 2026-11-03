@@ -9737,3 +9737,17 @@ by the coordinator at merge.
   ended services for `Effect::Kill` and a guard requires one commit through a restarted service. Host runs: library
   3122 of 3122, binary 525 of 525, no SLOW; the three tests 20 s, 20 s, 28 s (was 87 s). Unverified: the exact
   dying-tracee timing was not reproduced without load. Gate 67 running.
+- Conversion over-refusals fixed (`fix/git-policy-cli-convert-accepts-clean-worktrees`: `9caeea0a07` red controls,
+  `952f9283a9`, `8fe8bff1c3`, `981e654548` docs; main merged in as `65805045bc`). Correction to my diagnosis: the 16
+  "HEAD is not a plain ref to a commit" worktrees were not detached; their branch was only in `packed-refs`, and the
+  in-process reader (`repo_read_refs.rs`) gave up on the whole file because of tags like
+  `refs/tags/@monochromatic-dev/module-logger@0.4.1`. A lookup of a plain name now skips such lines. The same reader
+  serves `lfs_object_plan.rs`, `worktree_clean.rs`, `repo_read_query_refs.rs` and `auto_push_trigger.rs`, which in this
+  repository could not resolve any packed ref in process before. Racy and stale-stat entries are now settled by
+  hashing content in process (`worktree_clean_content.rs`), refusing filter/ident/encoding attributes, carriage
+  returns and files over 32 MiB; the agent declined to refuse on `text`/`eol` (every path here has `text=auto eol=lf`),
+  reasoning they only strip CR on the way in. Fixed-build dry run: 160 looked at, 94 subvolumes, 65 would convert, 1
+  real difference (`package/forbidden-strings/core/Cargo.lock`). Gate 68 running.
+- QUEUED: cross-vendor review of the content decision (`~/temp/agent/review-convert-content/`, `question.txt` plus
+  `worktree_clean_content.rs`, `worktree_clean.rs`, `repo_read_refs.rs`, `branch.diff`), to start when one of the
+  three running reviews ends. The real conversion waits for this review and the conversion and trash review.
