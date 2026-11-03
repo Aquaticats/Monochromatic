@@ -473,7 +473,7 @@ index install and checkout line), which its author measured at 2.43 s for a whol
   Both must be gone before the add returns; both are renames or 4 ms unlinks, measured above.
 - A crash between the snapshot and the end of the removal leaves a trash directory and a worktree that is otherwise
   complete. This first design had the next invocation find the trash by its reserved name; that was rejected in the
-  section "Review findings on the leave-out and its disposal", because a name proves nothing about who made a
+  section "2026-11-03T00:08:39-05:00: review findings on the leave-out and its disposal", because a name proves nothing about who made a
   directory. The leftover is only disk under an ignored path.
   A crash before the swap into place leaves a stage subvolume that the ladder already deletes on recovery.
 
@@ -647,8 +647,8 @@ copy.
   partition in
   the drain loop). The place is used only if Git ignores it; otherwise, and when no route to the service exists or the
   wake
-  fails, the wrapper removes the directories itself before returning. The section "Review findings on the leave-out and
-  its disposal" changed what the work item carries and what the removal does when it fails: the item now stays until
+  fails, the wrapper removes the directories itself before returning. The section "2026-11-03T00:08:39-05:00: review findings on the leave-out
+  and its disposal" changed what the work item carries and what the removal does when it fails: the item now stays until
   the trash is gone.
 
 ### Edits inside the ladder's files (for the merge with its recovery rework)
@@ -728,7 +728,7 @@ main checkout again (two tests), and the handler following a link at the trash n
    checkout and read the skip reasons; then run it without `--dry-run`, worktree by worktree or with `--all`.
 3. Apply the shared pnpm store (section "Applying the shared pnpm store").
 
-### Merge of main, the snapshot message, and the earlier-release service
+### 2026-11-02T22:26:50-05:00: merge of main, the snapshot message, and the earlier-release service
 
 - `main` was merged into the branch with `git merge` (it holds the ladder head `3681539d6b` as `c0d7bf8bf3`, and later
   fixes). The only conflict, in `doc/handover/cli-git-rust-implementation.md`, was resolved by keeping both sides of each
@@ -750,7 +750,7 @@ main checkout again (two tests), and the handler following a link at the trash n
 - Both controls were shown red by removing the release comparison from `reach_current_untimed` (a service of the current
   protocol but another release was then accepted); restoring it turned them green.
 
-### The conversion tool refused clean worktrees (0.5.18)
+### 2026-11-02T23:10:49-05:00: the conversion tool refused clean worktrees (0.5.18)
 
 - The dry run on the real repository listed 28 worktrees as not quiet that were clean. The log of that run is
   `convert-dry-run.log` in the scratch directory.
@@ -777,7 +777,7 @@ main checkout again (two tests), and the handler following a link at the trash n
 - Dry run of the fixed build on the real repository: 160 worktrees, 94 already subvolumes, 65 would convert, 1 skipped
   (`package/forbidden-strings/core/Cargo.lock` really differs from the committed content).
 
-### The cross-vendor reviews of the content proof and the conversion
+### 2026-11-02T23:51:49-05:00: the cross-vendor reviews of the content proof and the conversion
 
 Every finding was checked against the Git source of the installed version (`attr.c` at `v2.56.0`) before it was fixed.
 
@@ -800,7 +800,7 @@ Every finding was checked against the Git source of the installed version (`attr
   update-only pass; a process that writes and exits in the window before the exchange is found only by the update-only pass; a
   system attributes file under a prefix other than the executable's is not read.
 
-### Review findings on the leave-out and its disposal
+### 2026-11-03T00:08:39-05:00: review findings on the leave-out and its disposal
 
 A cross-vendor review of `worktree_trash.rs` made seven findings. Each was checked against the code before it was
 trusted; the owner rules that decided every case were "never discard user data" (delete only what this process can
