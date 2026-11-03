@@ -113,3 +113,18 @@ fn btrfs_a_failed_git_leaves_nothing_after_settling() {
     assert!(!plan.destination.exists());
     remove(root.as_path());
 }
+
+/// A destination that was moved away and replaced by another empty subvolume is not the one this process created, and its
+///  settlement leaves the replacement alone.
+#[test]
+fn btrfs_a_replacement_subvolume_is_not_settled_away() {
+    let Some(root) = btrfs_fixture("worktree-subvolume-replaced") else { return };
+    let plan: AddPlan = plan_for(root.join("topic"));
+    let created: CreatedSubvolume = prepare_subvolume_destination(&plan).expect("created");
+    std::fs::rename(plan.destination.as_path(), root.join("topic.moved")).expect("move the created subvolume away");
+    crate::fs_btrfs_ioctl::subvolume_create_at(plan.destination.as_path()).expect("another subvolume at the same path");
+    settle_subvolume_destination(&created);
+    assert!(plan.destination.is_dir(), "the replacement is not ours to remove");
+    assert!(root.join("topic.moved").is_dir(), "neither is the moved one");
+    remove(root.as_path());
+}

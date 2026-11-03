@@ -1,6 +1,8 @@
 //! Controls for the removal of trees: files, links, ordinary trees and trees with directories the owner cannot write.
 
 use super::*;
+use crate::fs_btrfs_ioctl::subvolume_create_at;
+use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::PermissionsExt;
 
@@ -35,4 +37,27 @@ fn directories_the_owner_cannot_write_are_removed_with_their_content() {
     assert!(!tree.exists());
     assert_eq!(std::fs::read(parent.join("outside")).expect("kept"), b"keep");
     remove(parent.as_path());
+}
+
+/// A nested subvolume is another tree's data, not part of the tree being removed: the removal refuses before it deletes
+///  anything, and names the nested subvolume.
+#[test]
+fn btrfs_a_nested_subvolume_stops_the_removal_before_anything_is_deleted() {
+    let Some(root) = btrfs_fixture("remove-tree-nested") else { return };
+    let tree: PathBuf = root.join("tree");
+    std::fs::create_dir_all(tree.join("a/b")).expect("directories");
+    std::fs::write(tree.join("a/first.txt"), b"first").expect("file");
+    std::fs::write(tree.join("a/b/second.txt"), b"second").expect("file");
+    subvolume_create_at(tree.join("z-inner").as_path()).expect("nested subvolume");
+    std::fs::write(tree.join("z-inner/keep.txt"), b"independent data").expect("nested file");
+    let refused: std::io::Error = remove_tree(tree.as_path()).expect_err("a nested subvolume is a boundary");
+    assert!(refused.to_string().contains("z-inner"), "{refused}");
+    assert_eq!(std::fs::read(tree.join("z-inner/keep.txt")).expect("kept"), b"independent data");
+    assert_eq!(std::fs::read(tree.join("a/first.txt")).expect("nothing was deleted before the refusal"), b"first");
+    assert_eq!(std::fs::read(tree.join("a/b/second.txt")).expect("nothing was deleted before the refusal"), b"second");
+    // Once the nested subvolume is gone the same tree is removed whole.
+    crate::fs_btrfs_ioctl::subvolume_destroy_at(tree.join("z-inner").as_path()).or_else(|_refused| { return std::fs::remove_dir_all(tree.join("z-inner")); }).ok();
+    remove_tree(tree.as_path()).expect("removed");
+    assert!(!tree.exists());
+    remove(root.as_path());
 }

@@ -55,6 +55,19 @@ fn registered_admin_directory(target: &Path) -> Option<PathBuf> {
 }
 
 /// What:
+///  Whether the administrative directory holds a `locked` entry.
+/// Why:
+///   A lock is a promise to keep the worktree; whether it is present is read from the entry itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lockState(admin: string): boolean; // throws when the entry cannot be looked up
+/// ```
+fn lock_state(admin: &Path) -> Result<bool, String> {
+    return Ok(admin.join("locked").symlink_metadata().is_ok());
+}
+
+/// What:
 ///  How one attempt to remove a worktree with a subvolume destroy ended.
 /// Why:
 ///   Three endings need three different next steps: Git removes it (nothing changed), the work is done, or the files
@@ -111,7 +124,7 @@ pub trait RemoveOperations {
     /// Whether an unprivileged destroy is allowed on the mount holding `path`.
     fn removal_allowed(&self, path: &Path) -> bool;
     /// The proof that the worktree is clean, or the reason it is not proven.
-    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path) -> Result<(), String>;
+    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String>;
     /// Destroy the subvolume at `path`.
     fn destroy(&self, path: &Path) -> Result<(), String>;
 }
@@ -130,8 +143,8 @@ impl RemoveOperations for LinuxOperations {
         return read_mount_facts(path).ok().flatten().is_some_and(|facts| { return facts.has_option(REMOVAL_OPTION); });
     }
 
-    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path) -> Result<(), String> {
-        return check_clean(request.context, request.plan.target.as_path(), admin, request.common_dir).map(|_clean| { return (); });
+    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
+        return check_clean(request.context, request.plan.target.as_path(), admin, common_dir).map(|_clean| { return (); });
     }
 
     fn destroy(&self, path: &Path) -> Result<(), String> {
@@ -167,9 +180,16 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         debug(TAG, format!("{} is not a registered linked worktree; Git removes it", target.display()).as_str());
         return RemoveOutcome::LeftToGit;
     };
-    if admin.join("locked").symlink_metadata().is_ok() {
-        debug(TAG, format!("{} is locked; Git decides", target.display()).as_str());
-        return RemoveOutcome::LeftToGit;
+    match lock_state(admin.as_path()) {
+        Ok(false) => {}
+        Ok(true) => {
+            debug(TAG, format!("{} is locked; Git decides", target.display()).as_str());
+            return RemoveOutcome::LeftToGit;
+        }
+        Err(reason) => {
+            debug(TAG, format!("{reason}; Git decides").as_str());
+            return RemoveOutcome::LeftToGit;
+        }
     }
     if !operations.is_subvolume_root(target) {
         debug(TAG, format!("{} is not a subvolume; Git removes it file by file", target.display()).as_str());
@@ -179,7 +199,8 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         debug(TAG, format!("the mount of {} lacks {REMOVAL_OPTION}; Git removes the worktree file by file", target.display()).as_str());
         return RemoveOutcome::LeftToGit;
     }
-    if let Err(reason) = operations.check_clean(request, admin.as_path()) {
+    let Some(common_dir) = admin.parent().and_then(Path::parent) else { return RemoveOutcome::LeftToGit };
+    if let Err(reason) = operations.check_clean(request, admin.as_path(), common_dir) {
         debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());
         return RemoveOutcome::LeftToGit;
     }
@@ -198,3 +219,8 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
 #[cfg(test)]
 #[path = "worktree_remove_tests.rs"]
 mod tests;
+
+/// Controls that swap objects between the steps of a removal run on a stand-in for the kernel.
+#[cfg(test)]
+#[path = "worktree_remove_guard_tests.rs"]
+mod guard_tests;
