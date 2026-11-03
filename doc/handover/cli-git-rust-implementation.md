@@ -9902,3 +9902,22 @@ by the coordinator at merge.
   `/var/home/user/Monochromatic/toolchain.lock.json`, not the worktree's own: a branch that changes the toolchain lock
   would still run main's tool versions and guard. Sent to the package-manager agent to repair with `mpm-shadow`'s own
   install after the copy.
+- Slow-route explanation done (`fix/git-policy-cli-add-explains-slow-route`, main merged in as `692dcb9f48`, gate 70
+  running): every add that does not become a snapshot prints one line naming the cause and what makes the next add a
+  snapshot (silent with `--quiet`), and the same words go to the journal (`journalctl --identifier=cli-git`, fields
+  `CLI_GIT_WORKTREE`, `CLI_GIT_SLOW_CAUSE`, `CLI_GIT_SLOW_DETAIL`). Debug output: `MONOCHROMATIC_VERBOSE=true`.
+  Correction: my guess that the uncommitted `pnpm-lock.yaml` caused the 23:3x slow adds is refuted (it was committed
+  in `d48e67b24e` at 23:27:06, before both adds); the real cause was not captured. Candidates, inferred: a commit's
+  `index.lock`, or an index entry "as new as the index", which the agent showed refuses even an unmodified file.
+- New measured stall: a main-snapshot add at 23:35 waited about 3 minutes on the worktree-copy settlement lock (PID
+  3051228) and then spent 23:38:50 to 23:43:31 emptying the trash in the foreground after "could not be handed to the
+  service". Sent to the trash agent.
+- Rejected suggestion: pinning `core.fsmonitor=false` in new snapshots (first Git run there took 1.03 s and started a
+  daemon). The owner: "Why are we messing with git's fsmonitor? I already told you it's fine for git to run it."
+- Follow-ups queued: `worktree_slow_route.rs` classifies by matching `check_clean`'s reason text; make the reasons
+  structured in `worktree_clean.rs`. After the content-check re-review returns, let the snapshot rung settle racily
+  clean entries by content (as the conversion does) instead of falling to the slow route.
+- Proposal for the owner (`doc/planning/cli-git-main-worktree-ignored-copy.md`, "Snapshotting a dirty main checkout"):
+  ranking B (snapshot anyway, then `git read-tree --reset -u` and `git clean -f -d` from the snapshot's own index,
+  proven in the stage, falling back on doubt) > A (keep refusing, now with the explanation) > D (a clean spare kept by
+  the service) > C (hand-written restore) > E (commit or stash the person's work).
