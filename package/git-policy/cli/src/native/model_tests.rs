@@ -67,3 +67,11 @@ mod model_f6_capture;
 /// The controls of finding F6.
 #[path = "model_f6_tests.rs"]
 mod model_f6_tests;
+
+/// Finding F8: maintenance coordination across worktrees of one object store.
+#[path = "model_f8_maintenance.rs"]
+mod model_f8_maintenance;
+
+/// The controls of finding F8.
+#[path = "model_f8_tests.rs"]
+mod model_f8_tests;
