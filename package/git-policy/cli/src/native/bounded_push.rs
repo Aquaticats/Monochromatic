@@ -212,13 +212,18 @@ fn sets(environment: &[(OsString, OsString)], name: &str) -> bool {
 }
 
 /// What:
-///  Add Git's low-speed abort to a push command unless the environment sets it.
+///  Add Git's low-speed abort to a command that is not a `git push` (the auto-push's fetch) unless the environment sets it.
 /// Why:
 ///   Git ends an HTTP transfer that stays under the limit for the time,
 ///  which also ends its helper processes;
-///  the push deadline is only the backstop for transports this does not cover.
-///  Git lets these variables override `http.lowSpeedLimit` and `http.lowSpeedTime` from its configuration,
-///  so only a person's environment variables are kept, not their configuration.
+///  the stall window is only the backstop for transports this does not cover.
+///  Git sets neither value itself: `http.c` (Git 2.56.0) reads `http.lowSpeedLimit` and `http.lowSpeedTime` from the
+///  configuration (lines 453 to 460), lets `GIT_HTTP_LOW_SPEED_LIMIT` and `GIT_HTTP_LOW_SPEED_TIME` override them (1477 and
+///  1478), and gives libcurl a limit only when both are positive (1218 to 1223).
+///  So only a person's environment variables are kept here, not their configuration.
+///  A `git push` is not given these: it waits while its connection is open (owner, 2026-11-03: "Wait while connected
+///  (Recommended)"), and libcurl's speed check (`lib/speedcheck.c`) would end a silent server check after the time whatever the
+///  push meter says; a value the person set, in the environment or the configuration, still reaches Git and still applies.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
