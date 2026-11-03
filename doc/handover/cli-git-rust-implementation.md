@@ -355,10 +355,55 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   sixteen abandoned copies exhaust the names for good.
   P3:
   a long alternate index name overflows `NAME_MAX`.
-- Fourth round on the index writer,
-  its agent resumed with those findings on `perf/git-policy-cli-follow-up-index-in-process`,
-  merging the base `9e0b06ad83` first,
-  and asked which findings are also in 0.5.27.
+- Done:
+  fourth round on the index writer,
+  `perf/git-policy-cli-follow-up-index-in-process` `2dd575cfc1`,
+  all ten findings red first,
+  774 library and 70 binary tests,
+  clippy clean.
+  Recovery resets only paths whose entries still equal the `<seq>.start` record taken under the lock before the ref moves;
+  `.indexed` is three-valued and recovery stops on an unreadable one;
+  the index directory is synced before the record,
+  and the journal directory before `.indexed` goes;
+  the release disarms before syncing,
+  so an error or a panic keeps the lock;
+  an alternate index is still finished after a switch;
+  HEAD is read from the request's own worktree Git directory;
+  private copies live in an owner-only `cli-git-private-<uuid>` directory with an owner marker,
+  swept only when its pid is dead.
+  Finding 4 differs from the pick:
+  Git 2.56.0 refuses `symref-verify HEAD` beside an update of its referent ("multiple updates for 'HEAD' ...
+  are not allowed",
+  probed),
+  so HEAD is read again after the ref moved,
+  under the lock,
+  and a worktree that left the branch keeps its index;
+  accepted under the delegation,
+  veto open.
+  The gate's ACL test now sets the default ACL by the `system.posix_acl_default` xattr (passed in the existing image).
+  Present in 0.5.27 (tag `monochromatic-git-policy-cli-v0.5.27`):
+  1(A),
+  1(B),
+  1(C),
+  3,
+  4,
+  6 (worse),
+  8;
+  not 2,
+  5,
+  9,
+  10;
+  7 inverted (0.5.27 replays onto a switched worktree).
+  Not fixed:
+  the `remove_stale` check-then-unlink;
+  a batch with no start record (a commit Git built) replays every path;
+  two extra fsyncs per landing,
+  unmeasured.
+  Its agent is resumed to merge the base `14c26dbcc9` (conflicts expected in the landing files),
+  then the fifth re-review.
+- Check the container image `native:test:container` builds:
+  the index agent reports a Debian trixie base,
+  against the repository's rule of the newest CachyOS image (`doc/decision/container-base-distro.md`).
   Picked under the delegation (veto open):
   recovery resets a path only while its index entry still equals the one the landing started from,
   so a later `git add` survives however the lock handoff goes ("never discard user data");
