@@ -133,6 +133,112 @@ fn walk(
     return Some(());
 }
 
+/// What:
+///  The entries that differ between two trees, as two flat lists in path order: the old side's entries and the new side's,
+///  with every subtree both sides share left unread.
+/// Why:
+///   A listing of what a commit changed needs only the paths that differ, and the repository's trees are mostly equal from
+///  one commit to the next, so equal subtree names end the walk there instead of reading every file of a large checkout.
+///  A name that is a file on one side and a directory on the other appears as a file in one list and as paths below it in
+///  the other, which `diff_sorted` then declines.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function flattenPair(odb, oldTree, newTree, format): [FlatEntry[], FlatEntry[]] | undefined;
+/// ```
+pub fn flatten_pair(database: &ObjectDatabase, old: &[u8], new: &[u8], format: ObjectFormat) -> Option<(Vec<FlatEntry>, Vec<FlatEntry>)> {
+    let mut before: Vec<FlatEntry> = Vec::new();
+    let mut after: Vec<FlatEntry> = Vec::new();
+    walk_pair(database, (old, new), format, &mut Vec::new(), 0, (&mut before, &mut after))?;
+    return Some((before, after));
+}
+
+/// The sort key of a tree entry: a directory sorts as if its name ended in a slash.
+fn tree_order_key(entry: &TreeEntry) -> Vec<u8> {
+    let mut key: Vec<u8> = entry.name.clone();
+    if is_tree_mode(entry.mode) {
+        key.push(b'/');
+    }
+    return key;
+}
+
+/// Append one entry of one side whole: a file as itself, a directory as every file below it.
+fn push_side(database: &ObjectDatabase, entry: &TreeEntry, format: ObjectFormat, prefix: &mut Vec<u8>, depth: usize, flat: &mut Vec<FlatEntry>) -> Option<()> {
+    let length: usize = prefix.len();
+    prefix.extend_from_slice(entry.name.as_slice());
+    if is_tree_mode(entry.mode) {
+        prefix.push(b'/');
+        walk(database, entry.id.as_slice(), format, prefix, depth + 1, flat)?;
+    } else {
+        flat.push(FlatEntry { path: prefix.clone(), mode: entry.mode, id: entry.id.clone() });
+    }
+    prefix.truncate(length);
+    return Some(());
+}
+
+/// Walk two trees together below `prefix`, appending only what differs.
+fn walk_pair(
+    database: &ObjectDatabase,
+    trees: (&[u8], &[u8]),
+    format: ObjectFormat,
+    prefix: &mut Vec<u8>,
+    depth: usize,
+    flats: (&mut Vec<FlatEntry>, &mut Vec<FlatEntry>),
+) -> Option<()> {
+    if depth > TREE_DEPTH_LIMIT {
+        return None;
+    }
+    let (before, after) = flats;
+    let entries_of = |name: &[u8]| -> Option<Vec<TreeEntry>> {
+        let object = database.read(name)?;
+        if object.kind != ObjectKind::Tree {
+            return None;
+        }
+        return parse_tree(object.bytes.as_slice(), name_length(format));
+    };
+    let old_entries: Vec<TreeEntry> = entries_of(trees.0)?;
+    let new_entries: Vec<TreeEntry> = entries_of(trees.1)?;
+    let (mut left, mut right): (usize, usize) = (0, 0);
+    while left < old_entries.len() || right < new_entries.len() {
+        let order = match (old_entries.get(left), new_entries.get(right)) {
+            (Some(gone), Some(added)) => tree_order_key(gone).cmp(&tree_order_key(added)),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, _) => std::cmp::Ordering::Greater,
+        };
+        match order {
+            std::cmp::Ordering::Less => {
+                push_side(database, &old_entries[left], format, prefix, depth, before)?;
+                left += 1;
+            }
+            std::cmp::Ordering::Greater => {
+                push_side(database, &new_entries[right], format, prefix, depth, after)?;
+                right += 1;
+            }
+            std::cmp::Ordering::Equal => {
+                let (was, now): (&TreeEntry, &TreeEntry) = (&old_entries[left], &new_entries[right]);
+                if was.id != now.id || was.mode != now.mode {
+                    if is_tree_mode(was.mode) {
+                        let length: usize = prefix.len();
+                        prefix.extend_from_slice(was.name.as_slice());
+                        prefix.push(b'/');
+                        walk_pair(database, (was.id.as_slice(), now.id.as_slice()), format, prefix, depth + 1, (&mut *before, &mut *after))?;
+                        prefix.truncate(length);
+                    } else {
+                        push_side(database, was, format, prefix, depth, before)?;
+                        push_side(database, now, format, prefix, depth, after)?;
+                    }
+                }
+                left += 1;
+                right += 1;
+            }
+        }
+        if before.len() + after.len() > FLAT_ENTRY_LIMIT {
+            return None;
+        }
+    }
+    return Some(());
+}
+
 /// The fields of a commit the readers use.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommitFields {

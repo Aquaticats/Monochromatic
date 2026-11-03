@@ -24,7 +24,7 @@ use super::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
 
 use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_query_refs::{config_list, for_each_ref, remote_url, rev_parse, symbolic_ref};
-use super::repo_read_tree::{FlatEntry, flatten_tree, parse_commit, subject_of};
+use super::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_pair, flatten_tree, parse_commit, subject_of};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
@@ -285,6 +285,62 @@ fn diff_tree(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     return Some(Answer { stdout: raw_lines(changes.as_slice(), context.zero().as_str()), stderr: Vec::new(), code: 0 });
 }
 
+/// `diff-tree -r --name-only -z [--no-renames] <old> <new>` and `diff-tree --no-commit-id --name-only -r -z <commit>`: the paths
+///  that differ between two trees or commits, or between a commit with exactly one parent and that parent.
+fn diff_tree_names(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+    if !parsed.specs.is_empty() {
+        return None;
+    }
+    let database: ObjectDatabase = context.database()?;
+    let (old, new): (Vec<u8>, Vec<u8>) = match parsed.operands.as_slice() {
+        [pair_old, pair_new] => {
+            if !flags_are(&parsed.flags, &["-r", "--name-only", "-z"], &["--no-renames"]) {
+                return None;
+            }
+            (context.tree_of(&database, pair_old)?, context.tree_of(&database, pair_new)?)
+        }
+        [single] => {
+            if !flags_are(&parsed.flags, &["--no-commit-id", "--name-only", "-r", "-z"], &[]) {
+                return None;
+            }
+            let name: Vec<u8> = from_hex(single, context.layout.object_format)?;
+            let object = database.read(name.as_slice())?;
+            if object.kind != ObjectKind::Commit {
+                return None;
+            }
+            let commit = parse_commit(object.bytes.as_slice(), context.layout.object_format)?;
+            // A root commit and a merge commit print nothing or per-parent lists in Git, which the reader leaves to it.
+            let [parent] = commit.parents.as_slice() else { return None };
+            let parent_object = database.read(parent.as_slice())?;
+            if parent_object.kind != ObjectKind::Commit {
+                return None;
+            }
+            (parse_commit(parent_object.bytes.as_slice(), context.layout.object_format)?.tree, commit.tree)
+        }
+        _ => return None,
+    };
+    let (before, after): (Vec<FlatEntry>, Vec<FlatEntry>) = flatten_pair(&database, old.as_slice(), new.as_slice(), context.layout.object_format)?;
+    let changes = diff_sorted(before.as_slice(), after.as_slice())?;
+    return Some(Answer { stdout: name_lines(changes.as_slice()), stderr: Vec::new(), code: 0 });
+}
+
+/// `ls-tree -r -z --full-tree <commit or tree>`: every file of the tree with its mode and object.
+fn list_tree(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+    if !flags_are(&parsed.flags, &["-r", "-z", "--full-tree"], &[]) || parsed.operands.len() != 1 || !parsed.specs.is_empty() {
+        return None;
+    }
+    let database: ObjectDatabase = context.database()?;
+    let tree: Vec<u8> = context.tree_of(&database, parsed.operands[0])?;
+    let mut stdout: Vec<u8> = Vec::new();
+    for entry in flatten_tree(&database, tree.as_slice(), context.layout.object_format)? {
+        let kind: &str = if entry.mode == MODE_GITLINK { "commit" } else { "blob" };
+        stdout.extend_from_slice(format!("{:06o} {kind} {}\t", entry.mode, to_hex(entry.id.as_slice())).as_bytes());
+        stdout.extend_from_slice(entry.path.as_slice());
+        stdout.push(0);
+    }
+    return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
+}
+
 /// `show --no-patch --format=%s <commit>`.
 fn show_subject(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if !flags_are(&parsed.flags, &["--no-patch", "--format=%s"], &[]) || parsed.operands.len() != 1 || !parsed.specs.is_empty() {
@@ -345,7 +401,7 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
         None => std::env::current_dir().ok()?,
     };
     let parsed: Parsed<'_> = parse(query.arguments, &mut start)?;
-    if !matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "show" | "config" | "remote" | "rev-parse" | "for-each-ref" | "symbolic-ref" | "cat-file") {
+    if !matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "ls-tree" | "show" | "config" | "remote" | "rev-parse" | "for-each-ref" | "symbolic-ref" | "cat-file") {
         return None;
     }
     let (variables, index_variable, objects_variable) = environment(base, query.variables);
@@ -355,7 +411,7 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
         None => layout.git_dir.join("index"),
     };
     let objects: Option<PathBuf> = objects_variable.map(|directory| { return start.join(directory); });
-    let content_command: bool = matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "show");
+    let content_command: bool = matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "ls-tree" | "show");
     if content_command && !content_config_is_plain(&layout, scope)? {
         return None;
     }
@@ -371,7 +427,9 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
         "ls-files" => list_files(&context, &parsed),
         "diff-index" => diff_cached(&context, &parsed, false),
         "diff" => diff_cached(&context, &parsed, true),
-        "diff-tree" => diff_tree(&context, &parsed),
+        "diff-tree" if parsed.flags.contains(&"--root") => diff_tree(&context, &parsed),
+        "diff-tree" => diff_tree_names(&context, &parsed),
+        "ls-tree" => list_tree(&context, &parsed),
         "show" => show_subject(&context, &parsed),
         "config" => config_list(&context, &parsed),
         "remote" => remote_url(&context, &parsed),
