@@ -259,8 +259,8 @@ registry entry is a file created once by `link`, and a ledger is appended by exa
 Request states: `drafted` (client only) -> `bound` -> `accepted` -> `adopted` -> (`held` | `ready`) -> `publishing` -> (`published` |
 `pending` | `landing` | `rewritten-away`) -> (`materialized` | `voided`) -> `retired`; a hook may end a request as `refused`; an obsolete
 version of a held request ends as `superseded` (B3); a merge request has the extra state `merge-ready` and, after
-publication, `installing` and `attach-watch` (MG1 to MG3, MG6c) and may end `conflicted`; a request whose client
-stopped waiting ends `withdrawn` (W1, W2) and never
+publication, `installing` (MG1 to MG3, MG6c; the entries it leaves behind are of kind `attach-watch`) and may end
+`conflicted`; a request whose client stopped waiting ends `withdrawn` (W1, W2) and never
 lands. A request
 that a client abandons before `bound` is removed by the lane after the client's process identity is gone; a `bound` request is never removed
 as abandoned, because C3's recovery obligation is to complete it.
@@ -276,9 +276,10 @@ generation `g` + 1 and its checksum, into the other file of the pair `lane/state
 rule V: V on write, D by the syncer or a departure barrier; no rename over the only copy, so a power loss that lands
 the new file in part leaves the previous generation valid); `g` increases by one with every replacement and means
 nothing else. Consumption kinds added in revision 12: `merge-install` (a published merge whose files are still to be
-installed, MG2) is a third kind of `install` entry with the pre-merge worktree digest. The marker, not the parity of
-`g`, says
-that an effect outside the document is in progress: a transition with such an effect (the index replacement of M1, the checkout of MG3, the
+installed, MG2) is a third kind of `install` entry with the pre-merge worktree digest; MG3 turns it into the kind
+`attach-watch`, which has no effect on capture and only keeps the cleanup obligation of MG6c, and a `suppress` entry
+stays what it was. The marker, not the parity of `g`, says that an effect outside the document is in progress: a
+transition with such an effect (the index replacement of M1, the install of MG3, the
 recovery of L4) first replaces the document with the marker set, performs the effect, then replaces it with the marker cleared. A reader that
 reads the document once sees a state the lane was really in, including a multi-path release of the consumption map; C1 accepts a capture only
 when two reads show the same `g` and the marker `none`.
@@ -302,12 +303,12 @@ visible: the bytes are in the page cache and named, so they survive the death of
 a crash of the owner or the client), which is what the lane's crash recovery needs. D, durable: the bytes survive
 power loss or a kernel crash, which only a sync provides. A record is written V by its transition with no sync. The
 rule for D is the guarantee, nothing more:
-- A **departure barrier**: before a process stops being responsible for a request that is not published, the request's
+- A departure barrier: before a process stops being responsible for a request that is not published, the request's
   files are D, in the order of the dependency chain below. Departures are: W1 (the command leaves with an error and
   the saved commit must be kept), an interrupt of the command, and a handover to a request with no client (a
   service-originated request, a command that answers `handed over` and exits). A command that waits for its request
   until it is published has no departure before publication, so it waits for no sync of ours.
-- A **background syncer** (the lane owner, off every person's path) brings every V record to D within `SYNC_LAG` (a
+- A background syncer (the lane owner, off every person's path) brings every V record to D within `SYNC_LAG` (a
   shipped constant, unmeasured; its measurement is the longest healthy interval between a request's acceptance and its
   publication), syncing each distinct file once per pass however many requests share the pass, and the directory once
   per pass.
@@ -425,10 +426,10 @@ The register (waiting process; condition; bound and its basis; action at the bou
   corner).
 - STALL: the owner supervising a child; the measured stall interval ("Measured stall interval"), then `STOP_GRACE` (shipped, 5 s). The owner never
   blocks its event loop on a child; the blocked process is the client (FOREGROUND).
-- PREPARED-HOLD (revision 12): the owner holding a prepared reference transaction while the deciding client has not
-  written `commit` or `abort`; `PREPARED_HOLD`, starting from `STOP_GRACE`; counted from `prepare: ok`; at the bound
-  the owner closes its write end of the pipe, which aborts the transaction and releases the branch lock (P2b). It
-  exists so a stopped or suspended client cannot hold the branch lock for long.
+- PREPARED-HOLD (revision 12): the owner holding a prepared reference transaction while no closing line has been
+  written; `PREPARED_HOLD`, starting from `STOP_GRACE` (5 s, unmeasured), counted from `prepare: ok`; at the bound the
+  owner writes `abort` to the pipe (P2b), which releases the branch lock whatever else holds the pipe open. It exists
+  so a stopped or suspended client cannot hold the branch lock for long.
 - PUSH: the service's or a command's push; the shipped no-progress deadline `DEFAULT_PUSH_DEADLINE` (30 s) and ceiling `DEFAULT_PUSH_CEILING`
   (1800 s), unmeasured, measured from the end of any `pre-push` hook (revision 12); at the bound the push child is
   ended, only when its exact invocation cannot run a protected program (X1; a push with a `pre-push` hook ends at
@@ -577,9 +578,11 @@ Capture and acceptance (client)
   every captured side), compute its checksum and its identity (the content hash plus the lane instance; rule V), write
   it to one file under a unique name in `inbox/tmp/`, and publish it with a no-replace `link` to `inbox/<id>`;
   `EEXIST` means the same content already arrived (a resend), so check the existing file's checksum and use it. No
-  sync, no directory creation, no binding: the request is V (rule V). Crash: a temporary with no `inbox/` link belongs
-  to a dead client and is removed by the lane after the client's identity is gone; an `inbox/` entry with a failing
-  checksum is not accepted and is kept while its client could be alive.
+  sync, no directory creation, no binding: the request is V (rule V). Client resend rule: after a lost answer a client
+  resends the retained bytes of the request it already built and never builds the request again from the worktree (a
+  rebuilt request has another content hash, so it would be a second request and not a rejected resend). Crash: a
+  temporary with no `inbox/` link belongs to a dead client and is removed by the lane after the client's identity is
+  gone; an `inbox/` entry with a failing checksum is not accepted and is kept while its client could be alive.
 - C3 look up an identity (revision 12). Pre: an identity (a resend, W1, or a query). Do: route by the most advanced
   state of the identity, in this order, whatever names the inbox and the queue still hold: terminal (an `outcome` line
   in the named lane's ledger, published by T0: answer the recorded outcome; a `superseded` line is followed to the
@@ -667,34 +670,46 @@ Build and publication (lane)
   dispatches it), so a line written while a hook runs waits in the pipe. `prepare` takes the ref lock and runs the
   person's `reference-transaction` hook in `preparing` before the locks and in `prepared` after them
   (`refs.c:2713-2726`); it prints `prepare: ok` (`update-ref.c:621-631`) to `out`. While prepared, any line but
-  `abort` or `commit` makes `update-ref` die (`update-ref.c:760-763`). P2b decide: the decider is the single party
-  allowed to write the line that decides a prepared transaction: the attached client while its client lock (a `flock`
-  on `lane/client/<id>`, held for the life of the command and released by the kernel at its death) is held, otherwise
-  the owner. The client reads `prepare: ok` from `out` (a change notification, not a poll), and if at least
-  `COMMIT_MARGIN` (starting from `WAIT_COMMITTING`) of its FOREGROUND budget remains, writes `commit`; otherwise it
-  runs W1, which writes `abort`. The owner decides only for a request with no client: it writes `commit` on
-  `prepare: ok`, or `abort` when the mark exists. When the client lock is released with no mark and no `outcome` line
-  (the client was killed from outside), the owner becomes the decider and writes `commit`: the request now has no
-  client and may land later, which the outside-cause rule allows; a client that left through W1 created its mark
-  before it exited, so the owner, which checks the mark after it sees the lock free, writes `abort`. If the client is
-  silent for `PREPARED_HOLD` after `prepare: ok` (stopped, suspended), the owner closes its write end of the pipe: end
-  of input makes `update-ref` abort the transaction and release the lock (`update-ref.c:795-799`), and a `commit`
-  written later fails with `EPIPE` and is not executed, so the client learns the attempt is closed and nothing landed.
+  `abort` or `commit` makes `update-ref` die (`update-ref.c:760-763`).
+  P2b decide: the pipe is the atomic decision point. `update-ref` executes the first closing line it reads, and a
+  second one only makes it die with "transaction is closed" after the first has run (`update-ref.c:765-768`): `commit`
+  then `abort` lands the commit and exits non-zero, which E1(a) tolerates, and `abort` then `commit` lands nothing.
+  Who writes which line is the rule that keeps the two from racing in the ordinary case, not what correctness rests on.
+  The decider is the attached client while its client lock (a `flock` on `lane/client/<id>`, held for the life of the
+  command and released by the kernel at its death) is held, otherwise the owner. The client reads `prepare: ok` from
+  `out` (a change notification, not a poll), and if at least `COMMIT_MARGIN` (starting from `WAIT_COMMITTING`) of its
+  FOREGROUND budget remains, writes `commit`; otherwise it runs W1, which writes `abort`. A client opens the write end
+  only for its one line and closes it at once, so an idle writer never keeps the pipe open. The owner keeps its own
+  write end only until it has written `prepare` and, if it is the decider, its closing line; it closes the end after
+  the closing line has been executed, because `update-ref` keeps reading until every write end is closed. The owner
+  decides only for a request with no client: it writes `commit` on `prepare: ok`, or `abort` when the mark exists.
+  When the client lock is released with no mark and no `outcome` line (the client was killed from outside), the owner
+  becomes the decider and writes `commit`: the request now has no client and may land later, which the outside-cause
+  rule allows; a client that left through W1 created its mark before it exited, so the owner, which checks the mark
+  after it sees the lock free, writes `abort`. If no closing line appears within `PREPARED_HOLD` of `prepare: ok`
+  (the client is stopped or suspended), the owner writes `abort`: a `commit` that the client already wrote is ahead of
+  it in the pipe and lands (the client sees the evidence), and otherwise nothing lands and the client's late `commit`
+  is the second line, which `update-ref` does not execute. The branch lock is therefore released within
+  `PREPARED_HOLD`, however many processes hold the pipe.
   P2c commit: `update-ref` executes `commit` (the backend writes the ref, then runs the `committed` hook,
   `refs.c:2783-2785`), so the ref is written before `commit: ok` is printed. The landing evidence is `commit: ok` on
   `out`, or the tip equal to `new` or having it as an ancestor (R2); the client prints `published` on the first of
-  them. A second deciding line makes `update-ref` die with "transaction is closed" after it has done the first
-  (`update-ref.c:765-768`), so a non-zero exit after `commit: ok` is not a failure. `commit` failing makes
+  them. The owner records the end of the child in a file `result` of the attempt directory, which a client that wrote
+  `commit` watches together with the tip, so it learns that the attempt closed without landing. `commit` failing makes
   `update-ref` die on standard error with no line on standard output (`update-ref.c:645-658`). The one corner: the
-  client has written `commit` and the branch write has not been seen when its COMMITTING bound passes. The write is an
-  uninterruptible local operation already issued, so nothing in the protocol can recall it; the command exits non-zero
-  saying so, and whether that is the contract is owner question 1. Owner death: the owner's write end closes. Before
-  `commit` was written, `update-ref` reads end of input while prepared and aborts, so no prepared transaction survives
-  and nothing landed (this assumes the signal that L5 sets on a child lets Git remove its lock files, a backend
-  obligation to check by experiment). After `commit` was written, `update-ref` finishes it on its own; recovery
-  classes R1 to R5 decide what happened. Nothing but L6 and the lifetime owner lock `lane/owner` is held across P2.
-  Crash: before `commit` is written the transaction aborts and the recovery classes apply; a request with an attached
-  client then waits as in FOREGROUND for the next attempt (Q1), and W1 stays available.
+  client has written `commit` and neither the branch write nor the end of the child has been seen when its
+  COMMITTING bound passes (including an owner that stopped before it recorded the end). The write is an
+  uninterruptible local operation already issued, so nothing in the protocol can recall it; the command exits
+  non-zero saying so, and whether that is the contract is owner question 1.
+  Owner death: the child is ended by the parent-death signal that L5 sets and is reaped by L2; Git removes its own lock
+  files when it ends on a catchable signal (`lockfile.c:83`, `tempfile.c:93`), which is a backend obligation to check
+  by experiment for the signal L5 sets; a lock stranded by an uncatchable kill is the residue of choice R (the lane
+  never removes a ref lock). Revision 11's claim that no prepared transaction survives an owner's death is
+  withdrawn: end of input aborts a prepared transaction only when every write end is closed, and an owner's death
+  does not prove that. A `commit` written after the reader is gone fails with `EPIPE`. After `commit` was written,
+  `update-ref` finishes it on its own; recovery classes R1 to R5 decide what happened. Nothing but L6 and the lifetime
+  owner lock `lane/owner` is held across P2. Crash: the recovery classes apply; a request with an attached client then
+  waits as in FOREGROUND for the next attempt (Q1), and W1 stays available.
 - P3 published. Pre: P2 succeeded. Do: in one S1 replacement record `published` and update the logical state (no marker: nothing outside the document changes). Crash: recovery class R2.
 - P4 swap-failed. Pre: P2a failed or `commit` failed, and E1 classified it `store-failure`, or the attempt was closed
   without landing (owner death, `PREPARED_HOLD`). Do: in one S1 replacement record
@@ -741,7 +756,7 @@ Build and publication (lane)
       `update-ref` ended, the tip does not contain `new`.
   (d) the evidence is unavailable or inconsistent (no events at all, a signal, a result the owner could not record, or
       the owner died): class `unknown`, resolved by whether `commit` was written. If it was not, nothing can land: the
-      owner aborts the attempt (closes its write end) and with a client attached the attempt is closed (P4) and the
+      owner aborts the attempt (writes `abort`) and with a client attached the attempt is closed (P4) and the
       client withdraws at its bound; with no client it is a crash at P2 by the recovery classes. If it was, the
       evidence is the tip and the end of `update-ref` (its cgroup or pidfd empty): `update-ref` ended and the tip does
       not contain `new`, so the attempt is closed and did not land (`store-failure`); `update-ref` still running is
@@ -889,8 +904,10 @@ is a FOREGROUND wait with `resume = MG1`; at its bound it is W1, which changes n
   worktree file are recorded lazily, only when C1 needs them), so a capture between the publication and the install
   treats the lane's own pending install as neither staging nor edit: C1 ignores, for such a path, an index entry equal
   to `E` and a worktree file whose stat data equal `E`'s (or whose content equals the pre-merge blob when the stat
-  data differ), and a plain commit cannot capture the reversal of the merge. A lost swap or a held ref lock: P4 with
-  `resume = MG1` (the merge is computed again on the new tip; nothing was written, so no checkout state needs
+  data differ), and a plain commit cannot capture the reversal of the merge. A request that names a path with
+  `merge-install` outstanding states explicit content for it, so the person's content wins: that path's entry becomes
+  `declined` (kept as `suppress`), the install skips it, and the line names it. A lost swap or a held ref lock: P4
+  with `resume = MG1` (the merge is computed again on the new tip; nothing was written, so no checkout state needs
   reconciling). Refused by a hook: `refused`, nothing changed. The window between the publication and the install is
   stated: the branch holds `M`, and the index and worktree still hold the old tip until MG3 runs. A native
   `/usr/bin/git commit -a` outside the wrapper in that window commits the reversal of the merge on top of it (the
@@ -1138,14 +1155,15 @@ and the per-side spool files. Each schedule goes red under revision 11 and green
   COMMITTING and exits 0, and the commit lands when the owner resumes); green under 12 (the client is the decider, so
   it either wrote `commit` itself, and the commit lands before the command returns, or it writes `abort` and nothing
   can land; the wedged owner has no deciding step). (2) the owner dies after `prepare: ok` with a client attached: red
-  (the decision is `commit`, W1 cannot withdraw, recovery lands the request after the client returned); green (end of
-  input aborts the transaction, the client's write fails, nothing landed, W1 withdraws). (3) `commit` written,
-  `update-ref` exits non-zero with no `commit: ok`: red (E1(d) says withdraw, but the decision stands); green
-  (`store-failure`, P4, the attempt is closed). (4) `commit` written, `update-ref` still running at the COMMITTING
-  bound: red (exit 0); green (the corner, non-zero, result not known; owner question 1). (5) the client stopped after
-  `prepare: ok`: red (the branch lock is held without end); green (PREPARED-HOLD closes the pipe, a late `commit` gets
-  `EPIPE`). (6) the client is killed from outside after `prepare: ok`: green (the owner becomes the decider, the
-  request lands later as a request with no client).
+  (the decision is `commit`, W1 cannot withdraw, recovery lands the request after the client returned); green (the
+  client is the decider and writes `abort` or never writes `commit`; the child is ended by the parent-death signal, so
+  nothing landed, W1 withdraws). (3) `commit` written, `update-ref` exits non-zero with no `commit: ok`: red (E1(d)
+  says withdraw, but the decision stands); green (`store-failure`, P4, the attempt is closed). (4) `commit` written,
+  `update-ref` still running at the COMMITTING bound: red (exit 0); green (the corner, non-zero, result not known;
+  owner question 1). (5) the client stopped after `prepare: ok`: red (the branch lock is held without end); green
+  (PREPARED-HOLD writes `abort`, a late `commit` is the second line and is not executed, or fails with `EPIPE`). (6)
+  the client is killed from outside after `prepare: ok`: green (the owner becomes the decider, the request lands later
+  as a request with no client).
 - C1, C3 (R11-6; models new "capture between W1 and W2"). Schedule: R1 consumed `x=1`, W1 returns, the person stages
   `y`, a plain R2 captures: red (R2 omits `x`); green (the mark makes R1's entry void, R2 captures `x` and `y`).
 - Execution ownership, exit rule, REAP (R11-4; models new "planned exit with a protected execution", "REAP expiry of
@@ -2351,7 +2369,9 @@ Step 1, in this order (every model starts as a failing control that preserves th
    - F4: a quiet `update-ref` cancelled, the owner restarted during it, the lock left behind, then every future publication pending;
    - F5: `HEAD` changed after the last guard read, and changed away and back;
    - F6: the reviewer's schedule with `x=0`, `x=1`, `x=2` and a materializer paused before it advances the generation;
-   - F7: the same identity with different content from two clients, one before adoption and one after;
+   - F7: two clients that send the same request bytes, and a client that builds the request again from the worktree
+     after a lost answer (a new request, never a rejection: the resend rule of C2 sends the retained bytes), one
+     before adoption and one after;
    - F8: a destructive prune launched from one worktree while another worktree accepts, imports, publishes and releases;
    - F1 as a control too: the intact anchor with the post-anchor entries deleted, and the identical commit written by another writer.
 2. The hook-bypass ordering model (F9): held `R1` with independent `R2`, overlapping `R2`, `R1` refusing after `R2` landed, `R1` succeeding
@@ -2406,7 +2426,7 @@ schedule; each model represents observations, never the completed logical operat
 keyed to the transition that answers each:
 1. A `commit` decision durable, the owner wedged: P2b (the client is the decider; no durable `commit` decision
    exists). Control: the owner stops after `prepare: ok` at every step; the client either wrote `commit` (and the
-   commit lands before the command returns) or `abort`.
+   commit lands before the command returns) or `abort`; the client is never an idle holder of the pipe's write end.
 2. Owner death after the decision with an attached client at its deadline: P2 owner death, W1 step (3). Control: the
    owner dies before and after `commit` is written.
 3. P2c failure and uncertainty after the decision: E1(c) and E1(d), P4, COMMITTING. Control: `update-ref` exits
@@ -2432,16 +2452,17 @@ keyed to the transition that answers each:
     lost swap (nothing to reconcile); the MG-A amendments (iii) and (iv).
 14. A terminal outcome racing W1, the C3 lookup and candidate reclamation: T0, W1 steps (1) and (4), C3 precedence.
 15. Continuous capture invalidation and repeated recovery re-evaluation against one deadline: CAPTURE and the budget
-rule. New controls beyond the review's list: two lines written to the pipe by a decider and a late writer; the client
-lock released by a kill versus by W1 (the owner checks the mark after the lock); `PREPARED_HOLD` against a late
-`commit`; power loss at each write of the request file, the state pair and the order file; a request file whose
-checksum fails; the sync count on the waiting path (0) and the syncer's count per pass; two registry listings with a
-run admitted between them; `merge-install` suppression for a plain commit, a `commit -a` and a named-path commit
-between publication and install. Do not substitute these model conveniences (the review's list, kept):
-`decision = commit` means the ref was published; `terminal at the final registry read` means deletion preceded the
-connectivity check; `withdraw recorded` means restoration finished; `protected child exists` means an inline owner may
-exit harmlessly; `terminal outcome exists` means every lookup can already discover it. Add: `V` means durable;
-`request file linked` means its content reached the disk.
+rule. New controls beyond the review's list: two closing lines written to the pipe, the first wins and the late writer
+sees "transaction is closed" (`commit` then `abort` lands and exits non-zero; `abort` then `commit` lands nothing); a
+client stopped while it holds no write end; the client lock released by a kill versus by W1 (the owner checks the mark
+after the lock); `PREPARED_HOLD` against a late `commit`; power loss at each write of the request file, the state pair
+and the order file; a request file whose checksum fails; the sync count on the waiting path (0) and the syncer's count
+per pass; two registry listings with a run admitted between them; `merge-install` suppression for a plain commit, a
+`commit -a` and a named-path commit between publication and install. Do not substitute these model conveniences (the
+review's list, kept): `decision = commit` means the ref was published; `terminal at the final registry read` means
+deletion preceded the connectivity check; `withdraw recorded` means restoration finished; `protected child exists`
+means an inline owner may exit harmlessly; `terminal outcome exists` means every lookup can already discover it. Add:
+`V` means durable; `request file linked` means its content reached the disk.
 
 Properties to check at minimum (revision 11 restates the second and the third; revision 10 corrected the second: a perfect health classifier is not assumed, because the approved quiet-interval
 heuristic can target healthy but unusually quiet work, so the checkable properties concern incarnation identity, gate admission and protected
