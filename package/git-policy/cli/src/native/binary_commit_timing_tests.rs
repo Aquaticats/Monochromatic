@@ -281,6 +281,11 @@ fn a_wait_that_lost_time_or_a_phase_that_overlaps_it_is_caught() {
     assert!(!phase_lies_beside_the_wait(3_000, 2_000, 4_000), "3 s and 2 s do not fit in 4 s");
 }
 
+/// How many times the hold the pause between the foreign commit taking the lock and the wrapped commit starting lasts:
+/// a host so loaded that the wrapped commit reaches the lock late stalls it for longer than a stand-in that keeps the lock for
+///  a fixed time lasts (a failing run at a load average of 38 to 44 spent 6760 ms in one phase against a hold of 4000 ms).
+const STALL_HOLDS: u64 = 2;
+
 /// A foreign commit holds the index lock while the wrapped commit lands:
 /// the service's line puts the time in the wait for the
 ///  lock and names the holder,
@@ -289,13 +294,27 @@ fn a_wait_that_lost_time_or_a_phase_that_overlaps_it_is_caught() {
 ///  either comes near it.
 #[test]
 fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
-    let fixture: Fixture = fixture("timing-lock");
+    attributes_the_wait_for_a_foreign_index_holder("timing-lock", Duration::ZERO);
+}
+
+/// The same claim when the host stalls the wrapped commit after the foreign commit took the lock:
+/// however late the wrapped commit reaches the lock,
+/// the holder is still there and the wait is attributed to it.
+#[test]
+fn a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait() {
+    attributes_the_wait_for_a_foreign_index_holder("timing-lock-late", Duration::from_secs(STALL_HOLDS * u64::from(HOLD_SECONDS)));
+}
+
+/// Runs the claim of the two controls: a wrapped commit starts `stall` after the foreign commit took the lock.
+fn attributes_the_wait_for_a_foreign_index_holder(name: &str, stall: Duration) {
+    let fixture: Fixture = fixture(name);
     let repo: PathBuf = base_repository(&fixture);
-    let name: String = format!("timing-lock-{}", std::process::id());
+    let name: String = format!("{name}-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
     let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
     let holder: Child = foreign_commit(&fixture, &repo, HOLD_SECONDS);
+    std::thread::sleep(stall);
     let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
     let held = holder.wait_with_output().expect("the foreign commit ends");
     assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
