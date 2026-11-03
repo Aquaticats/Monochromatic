@@ -329,14 +329,15 @@ fn outside_a_catalog_repository_cargo_update_goes_to_cargo_untouched() {
     assert_eq!(log_lines(&world), vec!["update -p serde".to_string()]);
 }
 
-/// A launcher: a `cargo` that runs the shadow again, as the toolchain plan's launcher-backed links do. It counts its own
-/// runs in a file and gives up after ten, so a loop ends instead of filling the machine.
+/// A launcher: a `cargo` that runs the shadow again, as the toolchain plan's launcher-backed links do. It carries a nesting
+/// counter in the environment and gives up (exit 99) at the fourth nested level, so a regression of the loop guard fails fast
+/// with a small process tree instead of looping; it also counts its runs in a file.
 fn write_launcher(world: &World) -> (PathBuf, PathBuf) {
     let directory: PathBuf = world.shadow_directory.parent().expect("a parent").join("launcher");
     std::fs::create_dir_all(&directory).expect("make the launcher directory");
     let count: PathBuf = directory.join("count");
     let script: String = format!(
-        "#!/bin/sh\nn=$(cat '{count}' 2>/dev/null || echo 0)\nn=$((n + 1))\necho $n > '{count}'\nif [ \"$n\" -gt 10 ]; then echo 'launcher re-entered too often' >&2; exit 99; fi\nexec '{shadow}' \"$@\"\n",
+        "#!/bin/sh\nn=$(cat '{count}' 2>/dev/null || echo 0)\necho $((n + 1)) > '{count}'\ndepth=$((${{LAUNCHER_DEPTH:-0}} + 1))\nif [ \"$depth\" -gt 3 ]; then echo 'launcher nested too deep' >&2; exit 99; fi\nexport LAUNCHER_DEPTH=$depth\nexec '{shadow}' \"$@\"\n",
         count = count.display(),
         shadow = world.shadow_directory.join("cargo").display()
     );
@@ -380,7 +381,7 @@ fn a_launcher_that_leads_back_to_the_shadow_is_skipped_by_the_install_step_and_t
         .env("CI", "")
         .env("FAKE_CARGO_LOG", &world.log);
 
-    let output = output_within(&mut command, 30).expect("the command timed out: the shadow keeps leading back into the launcher");
+    let output = output_within(&mut command, 20).expect("the command timed out: the shadow keeps leading back into the launcher");
 
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(read_lock(&world), SATISFIED);
