@@ -63,6 +63,16 @@ export {
   type MutantGroup,
 } from './host/shards.ts';
 export { sanitizeShardTag, } from './host/shard-tag.ts';
+/**
+ Shard container argv and its disk weight, exported so built-artifact tests can check the options podman receives.
+
+ @internal
+ */
+export {
+  buildShardArgs,
+  diskWeightArguments,
+  LOWEST_DISK_WEIGHT,
+} from './host/podman.ts';
 export {
   selectSources,
   selectTests,
