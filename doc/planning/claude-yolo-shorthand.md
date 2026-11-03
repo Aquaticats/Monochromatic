@@ -5,7 +5,8 @@
 On 2026-11-02 in `America/New_York`,
 the user authorized installation:
 
-> Okay, install the bash fn.
+> Okay,
+> install the bash fn.
 
 The tested definition is installed at `${HOME}/.bashrc.d/claude.sh` with mode `0644`.
 The existing `.bashrc` already loads that directory.
