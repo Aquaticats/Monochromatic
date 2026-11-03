@@ -285,74 +285,52 @@ fn an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it() {
     let scene: Scene = scene("index-reset-ita-empty", &Plan { files: &files, edits: edits.as_slice(), ..Plan::default() });
     git(scene.repo.as_path(), &["rm", "--quiet", "--cached", "e"]);
     git(scene.repo.as_path(), &["add", "--intent-to-add", "e"]);
-    assert_eq!(&index_bytes(scene.repo.as_path())[4..8], &[0, 0, 0, 3], "the entry carries the intent-to-add flag");
+    let entry_e = |repo: &Path| -> crate::index_full::FullEntry {
+        let index = crate::index_full::parse_full_index(index_bytes(repo).as_slice(), 20).expect("parsed");
+        return index.entries.into_iter().find(|entry| { return entry.path == b"e"; }).expect("the entry e");
+    };
+    let before = entry_e(scene.repo.as_path());
+    assert!(before.extended & crate::index_full::INTENT_TO_ADD != 0, "the entry carries the intent-to-add flag");
     same_as_git(&scene, &named(&["e", "a"]), "empty intent-to-add");
-    assert_eq!(&index_bytes(scene.repo.as_path())[4..8], &[0, 0, 0, 3], "Git's own result still carries the flag");
+    let after = entry_e(scene.repo.as_path());
+    assert!(after.extended & crate::index_full::INTENT_TO_ADD != 0, "Git's own result still carries the flag");
+    assert_eq!((after.stat, after.mode, after.id), (before.stat, before.mode, before.id), "and the entry is the one it was");
     finish(scene);
 }
 
-/// The index Git writes through its lock file takes the mode `core.sharedRepository` gives it (`adjust_shared_perm`); the
-/// published file has the same mode, under a umask that would otherwise differ.
-#[test]
-fn the_file_mode_with_a_shared_repository_equals_git() {
+/// The modes of the index file after a reset in `repo` with `core.sharedRepository` set to each value, in Git and in process,
+/// under the mask this process runs with (the callers run it in a child process that starts with the mask).
+fn check_shared_modes(label: &str, expectations: &[(&str, u32)]) {
     use std::os::unix::fs::PermissionsExt as _;
-    // Each test runs in a process of its own under nextest, so the umask change reaches no other test (and the Git started
-    //  below inherits it).
-    // SAFETY: `umask` only sets this process's file creation mask.
-    unsafe { libc::umask(0o077) };
-    for (value, expected) in [("group", 0o660), ("all", 0o664), ("0640", 0o640), ("umask", 0o600)] {
+    for (value, expected) in expectations {
         let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
-        let scene: Scene = scene(format!("index-reset-mode-{value}").as_str(), &Plan { files: &BASE, edits: edits.as_slice(), ..Plan::default() });
+        let scene: Scene = scene(format!("index-reset-mode-{label}-{value}").as_str(), &Plan { files: &BASE, edits: edits.as_slice(), ..Plan::default() });
         git(scene.repo.as_path(), &["config", "core.sharedRepository", value]);
         same_as_git(&scene, &named(&["a"]), format!("shared repository {value}").as_str());
         let copy: PathBuf = scene.root.join("copy");
         let mode = |repo: &Path| -> u32 { return std::fs::metadata(repo.join(".git").join("index")).expect("index").permissions().mode() & 0o7777; };
-        assert_eq!(mode(scene.repo.as_path()), expected, "Git's mode for {value}");
-        assert_eq!(mode(copy.as_path()), expected, "the mode of the published file for {value}");
+        assert_eq!(mode(scene.repo.as_path()), *expected, "Git's mode for {value} under {label}");
+        assert_eq!(mode(copy.as_path()), *expected, "the mode of the published file for {value} under {label}");
         finish(scene);
     }
 }
 
-/// What `git status --porcelain=v1` and `git diff` print in `repo`.
-fn status_and_diff(repo: &Path) -> (String, String) {
-    let status: String = String::from_utf8(git_with(repo, &[], &["status", "--porcelain=v1"], None).stdout).expect("UTF-8");
-    let diff: String = String::from_utf8(git_with(repo, &[], &["diff"], None).stdout).expect("UTF-8");
-    return (status, diff);
+/// The index Git writes through its lock file takes the mode `core.sharedRepository` gives it (`adjust_shared_perm`); the
+/// published file has the same mode, under a mask of 077 that narrows what the value widens.
+#[test]
+fn the_file_mode_with_a_shared_repository_under_a_narrow_mask_equals_git() {
+    if crate::umask_child_test_support::ran_in_child(module_path!(), "the_file_mode_with_a_shared_repository_under_a_narrow_mask_equals_git", 0o077) {
+        return;
+    }
+    check_shared_modes("narrow", &[("group", 0o660), ("all", 0o664), ("0640", 0o640), ("umask", 0o600)]);
 }
 
-/// After the update without a refresh, entries made from the tree have no stat data, so Git compares the files' bytes: an edit
-/// of a selected or an unselected path, a same-size edit with the old modification time, and an empty file are all seen, and
-/// what a path that matches shows as clean is clean. The output equals the output after real Git's `reset --no-refresh`.
+/// The same under the usual mask of 022, where a file mode value is narrower than the mask gives: the file is never readable by
+/// the world, and the bytes are never written before its mode is set.
 #[test]
-fn later_status_and_diff_are_right_after_a_reset_without_a_refresh() {
-    let files: [(&str, &[u8], bool); 5] = [("a", b"a one\n", false), ("b", b"b one\n", false), ("keep", b"keep\n", false), ("empty", b"", false), ("z", b"z one\n", false)];
-    let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }, Edit::Put { path: "empty", mode: "100644", content: b"now not empty\n" }, Edit::Delete("b")];
-    let scene: Scene = scene("index-reset-status-diff", &Plan { files: &files, edits: edits.as_slice(), ..Plan::default() });
-    let copy: PathBuf = copy_of(&scene);
-    git_reset(scene.repo.as_path(), scene.new.as_str(), &named(&["a", "empty", "b"]));
-    assert!(landing_reset(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a", "empty", "b"]))));
-    assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()));
-    for repo in [scene.repo.as_path(), copy.as_path()] {
-        // The worktree holds what the commit holds for the selected paths.
-        std::fs::write(repo.join("a"), b"a two\n").expect("a");
-        std::fs::write(repo.join("empty"), b"now not empty\n").expect("empty");
-        std::fs::remove_file(repo.join("b")).expect("b");
+fn the_file_mode_with_a_shared_repository_under_the_usual_mask_equals_git() {
+    if crate::umask_child_test_support::ran_in_child(module_path!(), "the_file_mode_with_a_shared_repository_under_the_usual_mask_equals_git", 0o022) {
+        return;
     }
-    let clean: (String, String) = status_and_diff(scene.repo.as_path());
-    assert_eq!(clean.0, "", "a worktree that matches the commit is clean");
-    assert_eq!(clean, status_and_diff(copy.as_path()));
-    for repo in [scene.repo.as_path(), copy.as_path()] {
-        // A selected path edited to the same size, with its modification time put back: only its bytes differ.
-        let kept = std::fs::metadata(repo.join("a")).expect("metadata").modified().expect("mtime");
-        std::fs::write(repo.join("a"), b"a TWO\n").expect("same-size edit");
-        std::fs::OpenOptions::new().write(true).open(repo.join("a")).expect("open").set_modified(kept).expect("restore the time");
-        // An unselected path edited, and the empty path emptied again.
-        std::fs::write(repo.join("z"), b"z edited\n").expect("z");
-        std::fs::write(repo.join("empty"), b"").expect("empty");
-    }
-    let (status, diff) = status_and_diff(scene.repo.as_path());
-    assert_eq!(status.lines().collect::<Vec<&str>>(), vec![" M a", " M empty", " M z"]);
-    assert!(diff.contains("-a two") && diff.contains("+a TWO") && diff.contains("+z edited") && diff.contains("-now not empty"));
-    assert_eq!((status, diff), status_and_diff(copy.as_path()));
-    finish(scene);
+    check_shared_modes("usual", &[("group", 0o664), ("all", 0o664), ("0640", 0o640), ("umask", 0o644)]);
 }

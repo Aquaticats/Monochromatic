@@ -25,8 +25,12 @@ pub(crate) fn ran_in_child(module: &str, name: &str, mask: u32) -> bool {
             return Ok(());
         });
     }
-    let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("start the child test");
-    let status: std::process::ExitStatus = child.wait().expect("child test");
-    assert!(status.success(), "the child test {path} under umask {mask:o} failed");
+    command.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    let child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("start the child test");
+    let output: std::process::Output = child.wait_with_output().expect("child test");
+    let said: String = String::from_utf8_lossy(&output.stdout).into_owned();
+    assert!(output.status.success(), "the child test {path} under umask {mask:o} failed:\n{said}\n{}", String::from_utf8_lossy(&output.stderr));
+    // A name that matches no test would end with success and run nothing.
+    assert!(said.contains("running 1 test") && said.contains("1 passed"), "the child ran no test named {path}:\n{said}");
     return true;
 }
