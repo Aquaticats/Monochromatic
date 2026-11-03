@@ -38,7 +38,7 @@
 //! not here.
 //! A remembered pass is keyed by a scope string as well
 //! (the install mode,
-//! and for `trustLockfile = true` the base spelling),
+//! and for `trustLockfile = true` the resolved base identity the caller supplies: a commit, or `unresolved:<spelling>`),
 //! so a pass under one mode,
 //! policy or base is never taken for a pass under another.
 //!

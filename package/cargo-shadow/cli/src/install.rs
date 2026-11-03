@@ -546,8 +546,10 @@ pub struct InstallRequest<'a> {
     /// because resolving the base starts git,
     /// which a call whose checks are all remembered must not pay for.
     pub lock_base: Option<LockBaseFactory<'a>>,
-    /// How the base revision is spelled (`CARGO_SHADOW_TRUST_BASE`,
-    /// or `HEAD`);
+    /// The key of the base revision: the commit it resolved to
+    /// (so a base that moves is a different base),
+    /// or `unresolved:<spelling>` when it names no commit
+    /// (`shadow_step::trust_base_setup` supplies it);
     /// part of the key of a remembered pass under `trustLockfile`,
     /// so a pass against one base is never taken for another.
     pub trust_base: &'a str,

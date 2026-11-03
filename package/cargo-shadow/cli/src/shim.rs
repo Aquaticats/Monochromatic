@@ -226,12 +226,13 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     {
         return code;
     }
-    // The install step failed for an operational reason, or a frozen check refused: pnpm warns and runs the command anyway
-    // ("If that install fails ... pnpm prints a warning and runs the command anyway", https://pnpm.io/settings/build). Cargo
-    // rewrites a stale lock, so the command runs with `--locked` added (unless the user already passed it), and cargo stops
-    // with its own lock error where it would have changed the lock. A local policy refusal is different: `--locked` would not
-    // stop the build script of a refused release, so that case stops the command (below). `arguments` is replaced for the rest
-    // of the run, so the notice and guard logic see the same line.
+    // The install step failed for an operational reason (cargo or the registry could not be asked, or a frozen check found a
+    // stale lockfile): pnpm warns and runs the command anyway ("If that install fails ... pnpm prints a warning and runs the
+    // command anyway", https://pnpm.io/settings/build). Cargo rewrites a stale lock, so the command runs with `--locked` added
+    // (unless the user already passed it), and cargo stops with its own lock error where it would have changed the lock. A
+    // policy refusal, frozen or local, is different: `--locked` would not stop the build script of a refused release, so
+    // `Preflight::Refused` stops the command (below). `arguments` is replaced for the rest of the run, so the notice and
+    // guard logic see the same line.
     if hops == 0
         && treatment == Treatment::InstallStep
         // `Some`: the present or the absent value of an `Option`.
@@ -253,7 +254,7 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
                 // ```
                 eprintln!("{text}");
                 // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                eprintln!("cargo-shadow: the command was not run because the lockfile holds a release the policy refuses and no older release in range passes");
+                eprintln!("cargo-shadow: the command was not run because the install step refused a release (a local run first tries to set a refused release aside for an older one in range, a frozen check cannot change the lockfile)");
                 return INSTALL_FAILED_EXIT_CODE;
             }
             Preflight::Failed(text) => text,

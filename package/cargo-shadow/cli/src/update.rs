@@ -826,8 +826,8 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             let mut args: Vec<String> = cargo_args.to_vec();
             // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
             args.extend(request.forward.iter().cloned());
-            // An explicit `--precise` names the version the user wants: the policy decides whether it stands, and nothing is
-            // set aside in its place.
+            // An explicit `--precise` names the version the user wants: nothing is set aside in its place, and the policy judges
+            // that version after the run whether or not the command changed the lockfile (`precise_target.rs`).
             set_aside_allowed = !cargo_args.iter().map(String::as_str).any(is_precise_option);
             // Review finding (`--breaking` edits outside the transaction): cargo's breaking update rewrites the requirements in the
             // manifests, so their text is taken before the run and restored with the lockfiles when the update is not kept.

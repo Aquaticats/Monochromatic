@@ -541,10 +541,11 @@ fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, fo
 /// The transaction needs a lockfile to snapshot;
 /// a root without one is created by the update itself.
 /// The stand-in is created exclusively (`create_new`),
-/// so a lockfile another writer published first is never truncated,
-/// and it is removed only while it still holds the stand-in text,
-/// so a lockfile another writer published during the update
-/// is never deleted.
+/// so a lockfile another writer published first is never truncated.
+/// At the end it is taken by an atomic rename to a unique name and only then read:
+/// a stand-in is deleted, anything else is linked back to the path (or kept under the taken name when the path was
+/// taken again), so a lockfile another writer published during the update is never deleted.
+/// The path is briefly empty between the take and the link back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
