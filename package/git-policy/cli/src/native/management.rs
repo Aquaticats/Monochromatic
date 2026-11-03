@@ -496,13 +496,16 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
 ///  Decide the action of `git cli-git convert-worktree-to-subvolume`: a refused invocation prints its reason, anything else
 ///  runs from the working directory.
 /// Why:
-///   Like the migration, the command needs neither configuration nor Git.
+///   Like the migration, the command needs no valid configuration and starts no Git. It resolves the real Git the wrapper
+///  forwards to, as every forwarding path does, because the wrapper's own environment does not name it (only its children's
+///  does) and the content check needs to know where that Git reads its system files from. Where no real Git is found the
+///  command still runs, and a worktree that needs the system files is refused with that reason instead of guessed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planConvert(parsed: ConvertArguments | string): Action;
+/// function planConvert(parsed: ConvertArguments | string, globalArguments, environment, inputs): Action;
 /// ```
-fn plan_convert(parsed: Result<ConvertArguments, String>, global_arguments: &[OsString]) -> Action {
+fn plan_convert(parsed: Result<ConvertArguments, String>, global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
     let arguments: ConvertArguments = match parsed {
         Ok(found) => ConvertArguments { command_line_attributes: super::worktree_convert_arguments::selects_attribute_source(global_arguments), ..found },
         Err(reason) => {
@@ -517,18 +520,19 @@ fn plan_convert(parsed: Result<ConvertArguments, String>, global_arguments: &[Os
         Ok(found) => found,
         Err(error) => return failure(format!("cannot determine the current directory: {error}").as_str()),
     };
-    return run_convert(&arguments, cwd.as_path());
+    let real_git: Option<PathBuf> = resolve_real_git(inputs).ok();
+    return run_convert(&arguments, cwd.as_path(), environment, real_git.as_deref());
 }
 
 /// Run the conversion command where the platform has btrfs subvolumes.
 #[cfg(target_os = "linux")]
-fn run_convert(arguments: &ConvertArguments, cwd: &Path) -> Action {
-    return super::worktree_convert_command::convert_action(arguments, cwd);
+fn run_convert(arguments: &ConvertArguments, cwd: &Path, environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
+    return super::worktree_convert_command::convert_action(arguments, cwd, environment, real_git);
 }
 
 /// Other platforms have no btrfs subvolumes, so the command says so.
 #[cfg(not(target_os = "linux"))]
-fn run_convert(_arguments: &ConvertArguments, _cwd: &Path) -> Action {
+fn run_convert(_arguments: &ConvertArguments, _cwd: &Path, _environment: &[(OsString, OsString)], _real_git: Option<&Path>) -> Action {
     return failure("git cli-git convert-worktree-to-subvolume works on Linux with btrfs only");
 }
 
@@ -669,7 +673,7 @@ pub fn plan_management_with_section(
         ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
         ManagementAction::ServiceStatus => return plan_service(git_global_arguments, environment, inputs),
         ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
-        ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse, git_global_arguments),
+        ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse, git_global_arguments, environment, inputs),
         ManagementAction::Direct {
             fix,
             all,

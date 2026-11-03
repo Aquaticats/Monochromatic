@@ -43,7 +43,7 @@ fn cloned_in(lines: &[String], label: &str) -> u64 {
 #[test]
 fn a_real_migration_makes_subvolumes_and_clones_file_data() {
     let Some((parent, root)) = btrfs_checkout("btrfs-migrate") else { return };
-    let (code, lines) = run_command(&LinuxPlatform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (code, lines) = run_command(&LinuxPlatform::default(), &migrate_arguments(), root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
     let layout: Layout = layout_of(root.as_path()).expect("layout");
     assert_eq!(inode(root.as_path()), BTRFS_SUBVOLUME_ROOT_INODE);
@@ -61,9 +61,9 @@ fn a_real_migration_makes_subvolumes_and_clones_file_data() {
 fn a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange() {
     for point in ["after-copy", "after-lock", "after-exchange", "after-catchup"] {
         let Some((parent, root)) = btrfs_checkout(format!("btrfs-resume-{point}").as_str()) else { return };
-        let (code, lines) = run_command(&LinuxPlatform, &migrate_arguments(), root.as_path(), &Interrupt::at(point, 0));
+        let (code, lines) = run_command(&LinuxPlatform::default(), &migrate_arguments(), root.as_path(), &Interrupt::at(point, 0));
         assert_eq!(code, FAILED, "{point}: {lines:#?}");
-        let (code2, lines2) = run_command(&LinuxPlatform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+        let (code2, lines2) = run_command(&LinuxPlatform::default(), &migrate_arguments(), root.as_path(), &Interrupt::never());
         assert_eq!(code2, DONE, "{point}: {lines2:#?}");
         assert_eq!(inode(root.as_path()), BTRFS_SUBVOLUME_ROOT_INODE, "{point}");
         assert_eq!(git_text(root.as_path(), &["status", "--porcelain"]), "", "{point}");
@@ -77,17 +77,17 @@ fn a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange() {
 #[test]
 fn a_real_rollback_removes_the_subvolumes_whatever_the_mount_option_is() {
     let Some((parent, root)) = btrfs_checkout("btrfs-rollback") else { return };
-    let (code, lines) = run_command(&LinuxPlatform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (code, lines) = run_command(&LinuxPlatform::default(), &migrate_arguments(), root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
     let allowed: bool = removal_allowed(root.as_path());
     let arguments: MigrateArguments = MigrateArguments { mode: MigrateMode::Rollback, ..migrate_arguments() };
-    let (code2, lines2) = run_command(&LinuxPlatform, &arguments, root.as_path(), &Interrupt::never());
+    let (code2, lines2) = run_command(&LinuxPlatform::default(), &arguments, root.as_path(), &Interrupt::never());
     assert_eq!(code2, DONE, "removal allowed: {allowed}: {lines2:#?}");
     let layout: Layout = layout_of(root.as_path()).expect("layout");
     assert_ne!(inode(root.as_path()), BTRFS_SUBVOLUME_ROOT_INODE);
     assert!(!layout.new_path.exists() && !layout.old_path.exists() && !layout.journal_path.exists());
     assert_eq!(git_text(root.as_path(), &["status", "--porcelain"]), "");
-    assert_eq!(LinuxPlatform.is_subvolume_root(root.join("wt").as_path()), Ok(false));
+    assert_eq!(LinuxPlatform::default().is_subvolume_root(root.join("wt").as_path()), Ok(false));
     remove(parent.as_path());
 }
 
@@ -95,10 +95,10 @@ fn a_real_rollback_removes_the_subvolumes_whatever_the_mount_option_is() {
 #[test]
 fn a_real_deletion_of_the_old_tree_keeps_the_subvolumes() {
     let Some((parent, root)) = btrfs_checkout("btrfs-remove-old") else { return };
-    let (code, lines) = run_command(&LinuxPlatform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (code, lines) = run_command(&LinuxPlatform::default(), &migrate_arguments(), root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
     let arguments: MigrateArguments = MigrateArguments { mode: MigrateMode::RemoveOld, ..migrate_arguments() };
-    let (code2, lines2) = run_command(&LinuxPlatform, &arguments, root.as_path(), &Interrupt::never());
+    let (code2, lines2) = run_command(&LinuxPlatform::default(), &arguments, root.as_path(), &Interrupt::never());
     assert_eq!(code2, DONE, "{lines2:#?}");
     let layout: Layout = layout_of(root.as_path()).expect("layout");
     assert!(!layout.old_path.exists() && !layout.journal_path.exists());
@@ -114,7 +114,7 @@ fn a_real_deletion_of_the_old_tree_keeps_the_subvolumes() {
 fn a_hard_link_across_a_future_subvolume_boundary_becomes_a_copy_on_a_real_migration() {
     let Some((parent, root)) = btrfs_checkout("btrfs-hard-link-boundary") else { return };
     std::fs::hard_link(root.join("README.md"), root.join("wt/second-name-of-readme")).expect("a link into the linked worktree");
-    let (code, lines) = run_command(&LinuxPlatform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let (code, lines) = run_command(&LinuxPlatform::default(), &migrate_arguments(), root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
     assert_eq!(inode(root.join("wt").as_path()), BTRFS_SUBVOLUME_ROOT_INODE);
     for name in ["README.md", "wt/second-name-of-readme"] {
@@ -130,7 +130,7 @@ fn a_hard_link_across_a_future_subvolume_boundary_becomes_a_copy_on_a_real_migra
 fn a_real_preview_reports_the_removal_option_and_changes_nothing() {
     let Some((parent, root)) = btrfs_checkout("btrfs-preview") else { return };
     let arguments: MigrateArguments = MigrateArguments { dry_run: true, ..migrate_arguments() };
-    let (code, lines) = run_command(&LinuxPlatform, &arguments, root.as_path(), &Interrupt::never());
+    let (code, lines) = run_command(&LinuxPlatform::default(), &arguments, root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
     let text: String = lines.join("\n");
     let expected: &str = if removal_allowed(root.as_path()) { "user_subvol_rm_allowed: active" } else { "user_subvol_rm_allowed: absent" };
