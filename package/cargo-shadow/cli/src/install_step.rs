@@ -525,6 +525,8 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         Ok(found) => found,
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // A refusal of the policy or a lockfile that could not be put back stops the command; no `--locked` fallback may build it.
+        Err(error @ (InstallError::Refused { .. } | InstallError::Unsettled { .. })) => return StepOutcome::Refused(error.to_string()),
         Err(error) => return StepOutcome::Failed(error.to_string()),
     };
     if !finished.problems.is_empty() {

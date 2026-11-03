@@ -67,6 +67,10 @@ const REGISTRY_SOURCE_PREFIX: &str = "registry+";
 /// The start of a `source` value for a registry package of the sparse spelling.
 const SPARSE_SOURCE_PREFIX: &str = "sparse+";
 
+/// The words in the message about a registry other than crates.io;
+/// a caller that must treat that rejection as a policy refusal, not as a parse problem, recognizes the message by them.
+pub const UNSUPPORTED_REGISTRY_MARK: &str = "which the policy checks do not support";
+
 /// What:
 /// The `source` values that mean crates.io:
 /// the index URL cargo writes for crates.io whichever protocol it used,

@@ -185,7 +185,7 @@ use crate::http::RegistryError;
 /// ```ts
 /// import { LockedVersion, added_versions } from 'crate/lockfile';
 /// ```
-use crate::lockfile::{LockedVersion, added_versions};
+use crate::lockfile::{LockedVersion, UNSUPPORTED_REGISTRY_MARK, added_versions};
 /// What:
 /// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -369,6 +369,18 @@ pub enum InstallError {
         /// What failed.
         message: String,
     },
+    /// A lockfile holds something the policy cannot judge (a registry other than crates.io):
+    /// a refusal that stops the command, not an operational problem.
+    Refused {
+        /// What the lockfile holds and why it is refused.
+        message: String,
+    },
+    /// The step failed and a lockfile that this run's cargo wrote could not be put back:
+    /// building it would run unapproved dependencies, so the command must stop.
+    Unsettled {
+        /// Which lockfiles still hold this run's unapproved output.
+        message: String,
+    },
 }
 
 /// What:
@@ -462,6 +474,12 @@ impl fmt::Display for InstallError {
                 // Macro `write!`: builds or prints text (or a list) from a template.
                 return write!(formatter, "A registry lookup failed; every lockfile was restored: {message}");
             }
+            InstallError::Refused { message } => {
+                return write!(formatter, "{message}");
+            }
+            InstallError::Unsettled { message } => {
+                return write!(formatter, "{message}");
+            }
             InstallError::Io { message } => {
                 // Macro `write!`: builds or prints text (or a list) from a template.
                 return write!(formatter, "{message}");
@@ -551,7 +569,7 @@ pub struct InstallRequest<'a> {
 /// const ioError = (error: unknown) => new InstallError("io", String(error))
 /// ```
 fn io_error(error: impl fmt::Display) -> InstallError {
-    return InstallError::Io { message: error.to_string() };
+    return io_message(error.to_string());
 }
 
 /// What:
@@ -564,6 +582,10 @@ fn io_error(error: impl fmt::Display) -> InstallError {
 /// const ioMessage = (message: string) => new InstallError("io", message)
 /// ```
 pub(crate) fn io_message(message: String) -> InstallError {
+    // A registry other than crates.io is a refusal of the policy, not an operational failure.
+    if message.contains(UNSUPPORTED_REGISTRY_MARK) {
+        return InstallError::Refused { message };
+    }
     return InstallError::Io { message };
 }
 
@@ -578,6 +600,9 @@ pub(crate) fn io_message(message: String) -> InstallError {
 /// const registryError = (message: string) => new InstallError("registry", message)
 /// ```
 fn registry_error(message: String) -> InstallError {
+    if message.contains(UNSUPPORTED_REGISTRY_MARK) {
+        return InstallError::Refused { message };
+    }
     return InstallError::Registry { message };
 }
 
@@ -712,6 +737,10 @@ pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError
 /// ```
 fn invalid_lock_toml(message: String) -> InstallError {
     // Macro `format!`: builds or prints text (or a list) from a template.
+    // A registry other than crates.io is a refusal of the policy, not a parse problem.
+    if message.contains(UNSUPPORTED_REGISTRY_MARK) {
+        return InstallError::Refused { message };
+    }
     return InstallError::Io { message: format!("a Cargo.lock could not be read for its registry versions: {message}") };
 }
 
@@ -986,7 +1015,23 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // Borrow `&before`: lends the value without copying or giving it away.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        restore_warnings = restore_if_unchanged(request.root, &before, &produced.borrow()).map_err(io_error)?;
+        let restored: std::io::Result<Vec<String>> = restore_if_unchanged(request.root, &before, &produced.borrow());
+        // Review finding (2c 1): output of this run's cargo that is still live after the rollback is unapproved, and the shim's
+        // `--locked` fallback would build it, so the step stops instead of reporting an operational failure.
+        let still_live: Vec<String> = unapproved_roots(request.root, &produced.borrow());
+        if !still_live.is_empty() && outcome.is_err() {
+            return Err(InstallError::Unsettled {
+                message: format!(
+                    "cargo-shadow: this run's cargo changed {} and the change could not be put back ({}), so the command was not run",
+                    still_live.join(", "),
+                    match &restored {
+                        Ok(warnings) => warnings.join("; "),
+                        Err(error) => error.to_string(),
+                    }
+                ),
+            });
+        }
+        restore_warnings = restored.map_err(io_error)?;
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
         for warning in &restore_warnings {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.
@@ -1004,4 +1049,26 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         }
         Err(error) => Err(error),
     };
+}
+
+/// What:
+/// `fn unapproved_roots(root: &Path, produced: &[LockSnapshot]) -> Vec<String>` lists the crate roots whose live lockfile still holds
+/// what this run's cargo wrote.
+/// Why:
+/// After a rollback the output of this run must be gone; a root where it is still live (or cannot be read) is unsettled.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unapprovedRoots(root: string, produced: LockSnapshot[]): string[]
+/// ```
+fn unapproved_roots(root: &Path, produced: &[LockSnapshot]) -> Vec<String> {
+    let mut roots: Vec<String> = Vec::new();
+    for output in produced {
+        match crate::file_owner::observe(&root.join(&output.crate_dir).join(crate::constants::LOCKFILE_NAME)) {
+            Ok(Some(live)) if live.text == output.source => roots.push(output.crate_dir.clone()),
+            Ok(_) => {}
+            Err(_) => roots.push(output.crate_dir.clone()),
+        }
+    }
+    return roots;
 }
