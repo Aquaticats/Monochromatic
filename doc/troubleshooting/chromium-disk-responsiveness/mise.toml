@@ -6,4 +6,5 @@ run = [
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-audit-mapped.html" mapped-files.md',
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-audit-mobile.html" mobile-renderer-lifecycle.md',
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-audit-dependencies.html" dependencies.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-audit-handover.html" ../../handover/chromium-disk-responsiveness-audit.md',
 ]
