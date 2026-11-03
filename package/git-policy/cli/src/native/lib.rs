@@ -210,6 +210,9 @@ pub mod command_discard;
 /// The `checkout` and `restore` command lines that take one side of a conflicted file.
 pub mod command_conflict_side;
 
+/// Finding the worktree file a conflict-side command will replace, and copying it.
+pub mod conflict_side_source;
+
 /// Conflicted paths, the decision on a command line that names them, and the saved copy of each file.
 pub mod conflict_sides;
 

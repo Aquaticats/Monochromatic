@@ -17,14 +17,13 @@
 //! if (decision.kind === 'allow') await saveCopies({ root, commonDir, paths: decision.paths });
 //! ```
 
+use super::conflict_side_source::{copy_located, locate};
 use super::iso_time::format_iso_milliseconds;
 use super::private_storage::{create_private_directory, create_private_directory_all, sync_directory};
 use super::repo_read_index::IndexEntry;
 use std::collections::BTreeSet;
 use std::ffi::{OsStr, OsString};
-use std::io::{Read, Write};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 /// Where the copies live, below the common Git directory, beside `cli-git-audit.jsonl`.
@@ -159,14 +158,7 @@ pub fn decide_sides(tokens: &[OsString], prefix: &[u8], root: &Path, conflicted:
     return SideDecision::Refuse(others);
 }
 
-/// Why a copy could not be written.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SaveFailure {
-    /// The repository-relative path being copied, or the place the copies go when none was reached.
-    pub subject: String,
-    /// The operating system's words.
-    pub reason: String,
-}
+pub use super::conflict_side_source::SaveFailure;
 
 /// One saved file.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -197,50 +189,6 @@ fn fresh_directory(saved_root: &Path, name: &str) -> std::io::Result<PathBuf> {
     return Err(std::io::Error::other("a thousand copies were saved in this second"));
 }
 
-/// Copy one file's content, mode and kind to `destination`, which must not exist, and sync the file.
-fn copy_one(source: &Path, destination: &Path) -> std::io::Result<()> {
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(source)?;
-    if metadata.file_type().is_symlink() {
-        std::os::unix::fs::symlink(std::fs::read_link(source)?, destination)?;
-        return Ok(());
-    }
-    if !metadata.file_type().is_file() {
-        return Err(std::io::Error::other("it is neither a file nor a symbolic link"));
-    }
-    let mut from: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(source)?;
-    let mut to: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(destination)?;
-    let written: std::io::Result<()> = (|| -> std::io::Result<()> {
-        let mut buffer: Vec<u8> = vec![0; 1 << 16];
-        loop {
-            let count: usize = from.read(buffer.as_mut_slice())?;
-            if count == 0 {
-                break;
-            }
-            to.write_all(&buffer[..count])?;
-        }
-        to.set_permissions(std::fs::Permissions::from_mode_bits(metadata.mode() & 0o777))?;
-        return to.sync_all();
-    })();
-    if let Err(error) = written {
-        // A cut-short file named like a copy would pass for the whole file; the command is rejected, so none is left.
-        let _removed = std::fs::remove_file(destination);
-        return Err(error);
-    }
-    return Ok(());
-}
-
-/// `Permissions` from raw mode bits, named for what the call does.
-trait FromModeBits {
-    /// The permissions with exactly these bits.
-    fn from_mode_bits(bits: u32) -> Self;
-}
-
-impl FromModeBits for std::fs::Permissions {
-    fn from_mode_bits(bits: u32) -> Self {
-        return std::os::unix::fs::PermissionsExt::from_mode(bits);
-    }
-}
-
 /// What:
 ///  Save the current worktree file of each path below the common Git directory and sync everything written.
 /// Why:
@@ -259,15 +207,10 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
     let mut written_directories: BTreeSet<PathBuf> = BTreeSet::new();
     for path in paths {
         let shown: String = String::from_utf8_lossy(path).into_owned();
-        let source: PathBuf = root.join(OsString::from_vec(path.clone()));
-        match std::fs::symlink_metadata(source.as_path()) {
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                copies.push(SavedCopy { path: shown, saved_to: None });
-                continue;
-            }
-            Err(error) => return Err(SaveFailure { subject: shown, reason: error.to_string() }),
-            Ok(_) => {}
-        }
+        let Some(located) = locate(root, path.as_slice())? else {
+            copies.push(SavedCopy { path: shown, saved_to: None });
+            continue;
+        };
         let base: PathBuf = match &directory {
             Some(existing) => existing.clone(),
             None => {
@@ -290,7 +233,7 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
                 up = each.parent();
             }
         }
-        copy_one(source.as_path(), destination.as_path()).map_err(failed)?;
+        copy_located(&located, destination.as_path(), &mut || {}).map_err(failed)?;
         copies.push(SavedCopy { path: shown, saved_to: Some(destination) });
     }
     if directory.is_some() {
