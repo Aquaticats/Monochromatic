@@ -582,6 +582,36 @@ fn a_reference_update_ended_before_it_renamed_the_branch_withdraws_the_commit() 
     remove(world.root.as_path());
 }
 
+/// A Git whose `subcommand` never returns and whose other commands are the real one's.
+fn git_that_hangs_on(world: &World, subcommand: &str) -> PathBuf {
+    let program: PathBuf = world.root.join(format!("hang-on-{subcommand}-git"));
+    let script: String = format!("#!/bin/sh\ncase \" $* \" in\n  *\" {subcommand} \"*) sleep 600;;\n  *) exec '{}' \"$@\";;\nesac\n", crate::test_support::REAL_GIT);
+    std::fs::write(&program, script).expect("script");
+    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// A read step of the landing that never returns is ended at its ceiling, though it shows no fault: the landing ends with the step
+/// named, nothing moved, no intent is open, and the clients are told that this commit was not made.
+#[test]
+fn a_read_step_ended_at_its_ceiling_ends_the_landing_with_the_step_named() {
+    let world: World = world("service-land-read-ceiling");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    context.git.real_git = git_that_hangs_on(&world, "rev-parse");
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
+    let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+    let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| { said.lock().expect("lock").push(note); });
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    assert_eq!(answered, Err(FailureCode::StepTooSlow));
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head);
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
+    let line: String = said.lock().expect("lock").iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect::<Vec<String>>().join("");
+    assert!(line.contains("rev-parse") && line.contains("was not made"), "{line}");
+    remove(world.root.as_path());
+}
+
 /// The hold is measured from the placement of the lock to its release, so it covers the branch move and the index build and
 /// nothing before them.
 #[test]
