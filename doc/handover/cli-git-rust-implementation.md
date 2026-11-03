@@ -399,8 +399,19 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   a batch with no start record (a commit Git built) replays every path;
   two extra fsyncs per landing,
   unmeasured.
-  Its agent is resumed to merge the base `14c26dbcc9` (conflicts expected in the landing files),
-  then the fifth re-review.
+  It merged the base `14c26dbcc9` with no textual conflicts (`f6be7b42e2`);
+  one semantic conflict found at compile time,
+  the carried conflict stages against the private-copy directory,
+  fixed in `e7e304ffd6` (stages written into the copy's own `index` before the release);
+  794 of 795 library tests (`service_index_lock::tests::a_foreign_lock_is_described_with_the_process_that_has_it_open` failed once,
+  then passed alone and in its 64-test module:
+  a load flake to confirm in the gate)
+  and 95 of 95 binary tests,
+  clippy clean.
+  The base was fast-forwarded to `e7e304ffd6`.
+  Running,
+  not an agent:
+  the fifth cross-vendor re-review (`follow-up-index-sol-5.txt`).
 - Check the container image `native:test:container` builds:
   the index agent reports a Debian trixie base,
   against the repository's rule of the newest CachyOS image (`doc/decision/container-base-distro.md`).
