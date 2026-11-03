@@ -123,6 +123,7 @@ fn run_install(root: &Path, dirs: &[String], cargo: &FakeCargo, registry: &FakeR
         root,
         crate_dirs: dirs,
         frozen,
+        offline: true,
         dry_run,
         now: 0,
         settings: &catalog_settings,
@@ -305,6 +306,7 @@ fn real_cargo_finds_the_path_workspace_stale_updates_it_offline_and_then_finds_i
             root: root.path(),
             crate_dirs: &dirs,
             frozen,
+            offline: true,
             dry_run: false,
             now: 0,
             settings: &catalog_settings,
@@ -323,4 +325,27 @@ fn real_cargo_finds_the_path_workspace_stale_updates_it_offline_and_then_finds_i
 
     let again = install_rust_lockfiles(&request(true)).expect("now satisfied");
     assert!(again.stale.is_empty());
+}
+
+#[test]
+fn a_check_that_may_use_the_network_does_not_pass_offline() {
+    let (root, dirs) = repository(&[("package/a/one", SATISFIED)]);
+    let cargo: FakeCargo = cargo_that_writes(SATISFIED);
+    let catalog_settings: Settings = settings();
+    let registry: FakeRegistry = empty_registry();
+
+    install_rust_lockfiles(&InstallRequest {
+        root: root.path(),
+        crate_dirs: &dirs,
+        frozen: true,
+        offline: false,
+        dry_run: false,
+        now: 0,
+        settings: &catalog_settings,
+        runner: &cargo,
+        registry: &registry,
+    })
+    .expect("passes");
+
+    assert_eq!(*cargo.commands.borrow(), vec!["one :: update --workspace --locked".to_string()]);
 }
