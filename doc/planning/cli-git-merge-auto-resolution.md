@@ -1905,8 +1905,8 @@ native Git (`Some(1) if !staged_work`), this branch runs the pass on every confl
 work the pass runs from objects and the merge is refused whole if a file does not resolve; with a clean index the conflict stays
 native Git's, which stops and writes the markers, and the pass then runs on the stopped merge. The base's order was kept, not
 "resolve first, forward when unresolved", because the stopped path finishes through the wrapper's commit path, so the repository's
-commit policies judge the merge commit, while a merge completed from objects bypasses them (the finish control
-`the_ending_commit_is_judged_by_the_repositorys_policies` pins that). Where the intents truly conflicted the base's behavior won;
+commit policies judge the merge commit (the finish control `the_ending_commit_is_judged_by_the_repositorys_policies` pins
+that for the stopped path); whether a merge completed from objects is judged by the same policies was not measured. Where the intents truly conflicted the base's behavior won;
 nothing else did.
 The merge left one duplicate import, removed in a separate commit; compile, library and binary controls of the touched modules passed.
 

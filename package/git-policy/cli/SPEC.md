@@ -3690,8 +3690,9 @@ Anything else is left exactly as Git left it, with the reason in the debug log.
 Merges a person runs (`merge`, `rebase`, `cherry-pick`, `revert` and `pull` forwarded to Git):
 a conflicted merge computed from objects with another session's staged work gets the pass from objects (`merge_isolation.rs`,
 `merge_tree`); with a clean index the conflict is native Git's, which stops and writes the markers, and the pass then runs on the
-stopped merge here, because the ending commit then goes through the wrapper's commit path and its policies (a merge completed from
-objects bypasses them, as every merge completed in isolation does).
+stopped merge here, because the ending commit then goes through the wrapper's commit path and its policies (the control
+`the_ending_commit_is_judged_by_the_repositorys_policies` pins that for the stopped path; whether a merge completed from objects is
+judged by the same policies was not measured).
 The index is read in process before Git starts, and again when Git exits with a status other than 0.
 Only the paths that were not unmerged before the command and are unmerged after it are candidates, so a file a person is
 resolving by hand is never replaced by a later command that fails on it.
