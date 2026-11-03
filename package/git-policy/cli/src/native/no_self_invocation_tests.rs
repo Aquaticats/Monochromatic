@@ -15,6 +15,10 @@ use rules::{ALLOWED, Allowed, RULES, Rule};
 
 use crate::source_scan_tests::{CrateRoot, real_roots, source_root};
 
+/// Filesystem-backed controls of this scan on nested layouts.
+#[path = "no_self_invocation_fixture_tests.rs"]
+mod fixtures;
+
 /// One rule match: the source file, the rule that matched, and the line number.
 type Finding = (String, &'static str, usize);
 

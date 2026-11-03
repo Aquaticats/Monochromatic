@@ -6,6 +6,10 @@ use std::path::Path;
 
 use crate::source_scan_tests::{CrateRoot, real_roots, source_root};
 
+/// Filesystem-backed controls of this scan on nested layouts.
+#[path = "standards_review_boundary_fixture_tests.rs"]
+mod fixtures;
+
 /// The one file that may name the HTTP library.
 const CLIENT_FILE: &str = "standards_review_client.rs";
 
@@ -13,10 +17,11 @@ const CLIENT_FILE: &str = "standards_review_client.rs";
 const SERVICE_ONLY_MODULES: [&str; 3] = ["standards_review_client", "standards_review_run", "service_review"];
 
 /// Files outside the client path that may name the service-only modules: their own files and tests, the module
-/// declarations, the service's work consumer (which owns the handler that calls the review), and this test.
+/// declarations, the service's work consumer (which owns the handler that calls the review), and this test with its
+/// fixture controls (`standards_review_boundary_*`), which name the library and the modules on purpose.
 fn may_name_service_modules(file: &str) -> bool {
     return file == "lib.rs"
-        || file == "standards_review_boundary_tests.rs"
+        || file.starts_with("standards_review_boundary_")
         || file.starts_with("service_work")
         || SERVICE_ONLY_MODULES.iter().any(|module| return file.starts_with(module));
 }
@@ -46,7 +51,7 @@ fn violations(sources: &[(String, String)]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for (file, text) in sources {
         let client_tests: bool = file.starts_with("standards_review_client");
-        if text.contains("ureq") && !client_tests && file != "standards_review_boundary_tests.rs" {
+        if text.contains("ureq") && !client_tests && !file.starts_with("standards_review_boundary_") {
             found.push(format!("{file} names the HTTP library"));
         }
         // The credential type is shared with the client path on purpose; only the handler module is service-only.
