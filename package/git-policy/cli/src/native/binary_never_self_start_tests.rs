@@ -1,13 +1,24 @@
 //! What:
-//!  Controls that the built executable never starts itself as Git, whatever stands between the wrapper and the file it
-//!  selected: a toolchain launcher, a link, a copy, another release of the wrapper.
+//!  Controls that the built executable never starts itself as Git,
+//! whatever stands between the wrapper and the file it
+//!  selected:
+//! a toolchain launcher,
+//! a link,
+//! a copy,
+//! another release of the wrapper.
 //! Why:
 //!  Release 0.5.26 on a `PATH` whose only `git` was a symlink to the toolchain launcher of the wrapper started a chain of
-//!  wrapper processes, each one the Git of the one above it, each command line longer than its parent's, until the
+//!  wrapper processes,
+//! each one the Git of the one above it,
+//! each command line longer than its parent's,
+//! until the
 //!  control group it ran in refused another process
-//!  (`doc/planning/cli-git-no-self-invocation.md`, section "The wrapper never starts itself as Git").
-//!  Every control here runs the chain behind a counting stand-in that ends it after `START_CAP` starts, so a regression
-//!  shows as a start count and an exit code, never as a host that runs out of processes.
+//!  (`doc/planning/cli-git-no-self-invocation.md`,
+//! section "The wrapper never starts itself as Git").
+//!  Every control here runs the chain behind a counting stand-in that ends it after `START_CAP` starts,
+//! so a regression
+//!  shows as a start count and an exit code,
+//! never as a host that runs out of processes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,34 +26,48 @@
 //! // expect(run(wrapper, { PATH: launcherDirectory }).code).toBe(2); expect(starts).toBe(0);
 //! ```
 
-/// The shared fixtures, bounded runs and observation of what a run showed its caller.
+/// The shared fixtures,
+/// bounded runs and observation of what a run showed its caller.
 use super::support::{Fixture, Observed, bounded, copy_executable, executable, fixture, observe, remove, repository};
-/// Operating-system text, for building the one `PATH` value of a run.
+/// Operating-system text,
+/// for building the one `PATH` value of a run.
 use std::ffi::{OsStr, OsString};
 /// The paths of the fixture's files.
 use std::path::{Path, PathBuf};
 
 /// The most starts a counting stand-in allows before it ends the chain with `STAND_IN_STOP_CODE`.
-///  The value is a fixture bound and not a limit of the wrapper: it only has to be small, because the chain this
-///  control exists to catch grows by one process per start, and larger than the one or two starts a correct run makes
+///  The value is a fixture bound and not a limit of the wrapper:
+/// it only has to be small,
+/// because the chain this
+///  control exists to catch grows by one process per start,
+/// and larger than the one or two starts a correct run makes
 ///  so that a correct run never meets it.
 const START_CAP: usize = 6;
 
-/// The exit code of a stand-in that has reached `START_CAP`; no wrapper exit code uses it.
+/// The exit code of a stand-in that has reached `START_CAP`;
+/// no wrapper exit code uses it.
 const STAND_IN_STOP_CODE: i32 = 97;
 
 /// The exit code of a wrapper that stops because it has no real Git to run.
 const WRAPPER_STOP_CODE: i32 = 2;
 
-/// The name of the toolchain launcher the repository's tool links point at, and of its record's stem.
+/// The name of the toolchain launcher the repository's tool links point at,
+/// and of its record's stem.
 const LAUNCHER_NAME: &str = "cli-git-native";
 
 /// What:
-///  Write a stand-in launcher: a script that counts its start in `counter`, ends the chain after `START_CAP` starts, and
+///  Write a stand-in launcher:
+/// a script that counts its start in `counter`,
+/// ends the chain after `START_CAP` starts,
+/// and
 ///  otherwise replaces itself with `target`.
 /// Why:
-///  The real launcher replaces itself with the wrapper's executable. The stand-in does the same and also counts, so a
-///  control can assert how many times the wrapper reached the launcher. It uses shell built-ins only, because the
+///  The real launcher replaces itself with the wrapper's executable.
+/// The stand-in does the same and also counts,
+/// so a
+///  control can assert how many times the wrapper reached the launcher.
+/// It uses shell built-ins only,
+/// because the
 ///  hermetic `PATH` of a control holds no `echo` or `wc`.
 ///
 /// In TS you'd write (pseudocode):
@@ -67,11 +92,14 @@ fn counting_stand_in(path: &Path, counter: &Path, target: &Path) {
 }
 
 /// What:
-///  Write the record the toolchain's launcher keeps beside it, naming this wrapper's tool and the file it replaces
+///  Write the record the toolchain's launcher keeps beside it,
+/// naming this wrapper's tool and the file it replaces
 ///  itself with.
 /// Why:
-///  The wrapper recognises a launcher of itself by this record (`toolId` and `real`), so the control needs the same
-///  JSON the repository's `mpm-shadow` writes (`package/mpm-shadow/cli/src/toolchain/launcher.rs`, `render_record`).
+///  The wrapper recognises a launcher of itself by this record (`toolId` and `real`),
+/// so the control needs the same
+///  JSON the repository's `mpm-shadow` writes (`package/mpm-shadow/cli/src/toolchain/launcher.rs`,
+/// `render_record`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,7 +115,8 @@ fn write_launch_record(launcher: &Path, real: &Path) {
     std::fs::write(PathBuf::from(record_name), record).expect("launcher record");
 }
 
-/// How many starts a counter file records; none when nothing started.
+/// How many starts a counter file records;
+/// none when nothing started.
 fn starts(counter: &Path) -> usize {
     return match std::fs::read_to_string(counter) {
         Ok(text) => text.lines().count(),
@@ -95,7 +124,8 @@ fn starts(counter: &Path) -> usize {
     };
 }
 
-/// One directory under the fixture, created now.
+/// One directory under the fixture,
+/// created now.
 fn directory(fixture: &Fixture, name: &str) -> PathBuf {
     let path: PathBuf = fixture.root.join(name);
     std::fs::create_dir(&path).expect("fixture directory");
@@ -103,10 +133,14 @@ fn directory(fixture: &Fixture, name: &str) -> PathBuf {
 }
 
 /// What:
-///  Run the wrapper as a program named `git` under a `PATH` of exactly `path_directories`, in `repo`, with a time bound.
+///  Run the wrapper as a program named `git` under a `PATH` of exactly `path_directories`,
+/// in `repo`,
+/// with a time bound.
 /// Why:
-///  The reported failure had no directory of real Git on `PATH` at all, so the controls run with only the directories
-///  they name, and the wrapper's own `bin/git` link is the program that starts first.
+///  The reported failure had no directory of real Git on `PATH` at all,
+/// so the controls run with only the directories
+///  they name,
+/// and the wrapper's own `bin/git` link is the program that starts first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -128,16 +162,23 @@ fn run_with_only(fixture: &Fixture, repo: &Path, path_directories: &[&Path], arg
     );
 }
 
-/// The stderr of a run as text, for assertions on the words a person reads.
+/// The stderr of a run as text,
+/// for assertions on the words a person reads.
 fn words(observed: &Observed) -> String {
     return String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
 }
 
 /// What:
-///  The reported failure: the only `git` on `PATH` is a symlink to the toolchain launcher of the wrapper.
+///  The reported failure:
+/// the only `git` on `PATH` is a symlink to the toolchain launcher of the wrapper.
 /// Why:
-///  The launcher is a different file from the running wrapper, with different bytes, so neither file identity nor content
-///  recognised it; it was started as Git, replaced itself with the wrapper, and the wrapper did the same again.
+///  The launcher is a different file from the running wrapper,
+/// with different bytes,
+/// so neither file identity nor content
+///  recognised it;
+/// it was started as Git,
+/// replaced itself with the wrapper,
+/// and the wrapper did the same again.
 ///  The wrapper must start nothing and say what it searched and how to fix it.
 ///
 /// In TS you'd write (pseudocode):
@@ -167,10 +208,14 @@ fn a_symlink_to_the_toolchain_launcher_alone_on_path_starts_nothing_and_says_wha
 }
 
 /// What:
-///  The same failure for `--version`, which the reporter had run with a `PATH` that held real Git.
+///  The same failure for `--version`,
+/// which the reporter had run with a `PATH` that held real Git.
 /// Why:
-///  The version line proved nothing about the chain: the banner names the Git the wrapper selected, and which Git it
-///  selects depends on `PATH`, so under the launcher-only `PATH` the same command must stop too.
+///  The version line proved nothing about the chain:
+/// the banner names the Git the wrapper selected,
+/// and which Git it
+///  selects depends on `PATH`,
+/// so under the launcher-only `PATH` the same command must stop too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,10 +239,13 @@ fn a_toolchain_launcher_alone_on_path_answers_version_with_a_stop_and_not_a_chai
 }
 
 /// What:
-///  A launcher file that is itself named `git`, with its record beside it, and a chain of two symlinks that ends at a
+///  A launcher file that is itself named `git`,
+/// with its record beside it,
+/// and a chain of two symlinks that ends at a
 ///  launcher.
 /// Why:
-///  The record is found beside the candidate's own name and beside the file the links finally lead to, so both
+///  The record is found beside the candidate's own name and beside the file the links finally lead to,
+/// so both
 ///  spellings of a launcher on `PATH` are recognised and skipped.
 ///
 /// In TS you'd write (pseudocode):
@@ -229,12 +277,19 @@ fn a_launcher_named_git_and_a_symlink_chain_to_a_launcher_are_skipped() {
 }
 
 /// What:
-///  Another release of the wrapper behind a launcher that keeps no record, reached once by a child start and once by
+///  Another release of the wrapper behind a launcher that keeps no record,
+/// reached once by a child start and once by
 ///  process replacement.
 /// Why:
-///  Nothing on disk says that this launcher leads to a wrapper. The wrapper that starts it has set its marker in the
-///  environment of the start, so the other release finds itself the process, or the child, of a wrapper that started it
-///  as Git, and stops at once. The launcher is started once.
+///  Nothing on disk says that this launcher leads to a wrapper.
+/// The wrapper that starts it has set its marker in the
+///  environment of the start,
+/// so the other release finds itself the process,
+/// or the child,
+/// of a wrapper that started it
+///  as Git,
+/// and stops at once.
+/// The launcher is started once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -267,10 +322,14 @@ fn another_wrapper_release_behind_an_unrecorded_launcher_stops_on_arrival() {
 }
 
 /// What:
-///  A symlink, a hard link and a byte copy of the wrapper, each alone on `PATH`.
+///  A symlink,
+/// a hard link and a byte copy of the wrapper,
+/// each alone on `PATH`.
 /// Why:
-///  File identity and content recognise these forms of this very executable; with nothing else on `PATH` the run must
-///  end with the stop and the explanation, not with a start of the wrapper by itself.
+///  File identity and content recognise these forms of this very executable;
+/// with nothing else on `PATH` the run must
+///  end with the stop and the explanation,
+/// not with a start of the wrapper by itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

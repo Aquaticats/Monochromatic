@@ -1,14 +1,28 @@
 //! What:
-//!  The marker that every start of the real Git carries, and the check that stops a cli-git executable which finds it was
+//!  The marker that every start of the real Git carries,
+//! and the check that stops a cli-git executable which finds it was
 //!  started as that Git.
 //! Why:
-//!  Which file the wrapper selected as Git can be a launcher, a link, a copy or another release of the wrapper, and no test
-//!  of that file can recognise every one of them. What no spelling hides is the start itself: the wrapper that starts
-//!  "Git" puts its own process number, that process's birth identity and the way it starts the program (replacing itself or
-//!  as a child) in the environment of the start. A cli-git executable that finds itself in the very process, or the child,
-//!  that a wrapper started as Git has been started as Git, whatever stood in between, and stops at once.
-//!  Anything started further down (a hook, an alias, an editor a real Git started) has another process in between and
-//!  passes: running `git` there through an installed wrapper stays legitimate.
+//!  Which file the wrapper selected as Git can be a launcher,
+//! a link,
+//! a copy or another release of the wrapper,
+//! and no test
+//!  of that file can recognise every one of them.
+//! What no spelling hides is the start itself:
+//! the wrapper that starts
+//!  "Git" puts its own process number,
+//! that process's birth identity and the way it starts the program (replacing itself or
+//!  as a child) in the environment of the start.
+//! A cli-git executable that finds itself in the very process,
+//! or the child,
+//!  that a wrapper started as Git has been started as Git,
+//! whatever stood in between,
+//! and stops at once.
+//!  Anything started further down (a hook,
+//! an alias,
+//! an editor a real Git started) has another process in between and
+//!  passes:
+//! running `git` there through an installed wrapper stays legitimate.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,9 +33,11 @@
 /// The one lookup of a named variable in an injected environment.
 use super::child_environment::{FORWARD_TARGET_VARIABLE, environment_value};
 /// What:
-///  The birth identity of a process, which changes when its number is reused.
+///  The birth identity of a process,
+/// which changes when its number is reused.
 /// Why:
-///   A process number alone could name a later process after the first one ended; the identity cannot.
+///   A process number alone could name a later process after the first one ended;
+/// the identity cannot.
 use super::process_identity::{current_birth_identity, process_birth_identity};
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes (siblings `&str`/`String` must be UTF-8).
@@ -35,9 +51,11 @@ use std::process::Command;
 
 /// What:
 ///  The name of the marker variable.
-///       `&str` is a borrowed text baked into the program (owned sibling: `String`).
+///       `&str` is a borrowed text baked into the program (owned sibling:
+/// `String`).
 /// Why:
-///   Every start of the real Git sets it, and every wrapper start reads it.
+///   Every start of the real Git sets it,
+/// and every wrapper start reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,22 +63,31 @@ use std::process::Command;
 /// ```
 pub const STARTED_AS_GIT_VARIABLE: &str = "CLI_GIT_STARTED_AS_GIT";
 
-/// The byte between the three fields of the marker: the unit separator, which a process number, a birth identity or a mode
+/// The byte between the three fields of the marker:
+/// the unit separator,
+/// which a process number,
+/// a birth identity or a mode
 ///  word never contains.
 const FIELD_SEPARATOR: char = '\u{1f}';
 
 /// The mode word of a start that replaces the starting process.
 const REPLACE_WORD: &str = "replace";
 
-/// The mode word of a start that runs beside the starting process, which waits for it.
+/// The mode word of a start that runs beside the starting process,
+/// which waits for it.
 const CHILD_WORD: &str = "child";
 
 /// What:
 ///  How the process that starts "Git" starts it.
-///       `#[derive(...)]` generates copying, debug printing and `==`.
+///       `#[derive(...)]` generates copying,
+/// debug printing and `==`.
 /// Why:
-///   The two ways leave different traces. A replaced process keeps its number, so the started program is the very process
-///  the marker names; a child has the starter as its parent. The check looks at the trace its mode leaves and nowhere else.
+///   The two ways leave different traces.
+/// A replaced process keeps its number,
+/// so the started program is the very process
+///  the marker names;
+/// a child has the starter as its parent.
+/// The check looks at the trace its mode leaves and nowhere else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,18 +95,24 @@ const CHILD_WORD: &str = "child";
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StartMode {
-    /// The starter replaces its own program with the one it starts (`exec`); the process number stays.
+    /// The starter replaces its own program with the one it starts (`exec`);
+    /// the process number stays.
     Replace,
     /// The starter runs the program as a child and waits for it.
     Child,
 }
 
 /// What:
-///  What a marker says, taken apart.
-///       `u32` is an unsigned 32-bit integer (siblings `u64`, `i32`): the type of a Linux process number.
-///       `String` is owned text (sibling `&str`, a borrowed view).
+///  What a marker says,
+/// taken apart.
+///       `u32` is an unsigned 32-bit integer (siblings `u64`,
+/// `i32`):
+/// the type of a Linux process number.
+///       `String` is owned text (sibling `&str`,
+/// a borrowed view).
 /// Why:
-///   The check compares these three facts with the live process; keeping them in one value lets a test hand the check
+///   The check compares these three facts with the live process;
+/// keeping them in one value lets a test hand the check
 ///  a marker without touching the real environment.
 ///
 /// In TS you'd write (pseudocode):
@@ -90,7 +123,8 @@ pub enum StartMode {
 pub struct StartMarker {
     /// The process number of the wrapper that started the program as Git.
     pub starter_pid: u32,
-    /// The birth identity of that process; empty where this platform has none.
+    /// The birth identity of that process;
+    /// empty where this platform has none.
     pub starter_identity: String,
     /// How the program was started.
     pub mode: StartMode,
@@ -98,9 +132,11 @@ pub struct StartMarker {
 
 /// What:
 ///  Build the marker value for a start by the process `own_pid` with birth identity `own_identity`.
-///       `&str` borrows the identity text; `OsString` is the owned value an environment holds.
+///       `&str` borrows the identity text;
+/// `OsString` is the owned value an environment holds.
 /// Why:
-///   One function writes the format and `parse_marker` reads it, so the two cannot drift apart.
+///   One function writes the format and `parse_marker` reads it,
+/// so the two cannot drift apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -114,9 +150,11 @@ pub fn marker_value(mode: StartMode, own_pid: u32, own_identity: &str) -> OsStri
 
 /// What:
 ///  Take a marker value apart.
-///       `Option<StartMarker>` is "the marker, or nothing when the text is not one".
+///       `Option<StartMarker>` is "the marker,
+/// or nothing when the text is not one".
 /// Why:
-///   A variable some other program set to other text must not stop a wrapper, so anything that is not exactly three
+///   A variable some other program set to other text must not stop a wrapper,
+/// so anything that is not exactly three
 ///  fields of the right kinds is no marker.
 ///
 /// In TS you'd write (pseudocode):
@@ -145,11 +183,16 @@ pub fn parse_marker(value: &OsStr) -> Option<StartMarker> {
 }
 
 /// What:
-///  The birth identity of this process, or empty text where none can be read.
+///  The birth identity of this process,
+/// or empty text where none can be read.
 /// Why:
-///   A start is marked even where the platform cannot name a birth; the check then compares process numbers alone.
-///  Only Linux reads it here, from one small file that stays cached for the life of the process; the other platforms
-///  would start a program to ask, which every real-Git start must not pay.
+///   A start is marked even where the platform cannot name a birth;
+/// the check then compares process numbers alone.
+///  Only Linux reads it here,
+/// from one small file that stays cached for the life of the process;
+/// the other platforms
+///  would start a program to ask,
+/// which every real-Git start must not pay.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -171,8 +214,11 @@ fn own_identity() -> String {
 ///  Put the marker in the environment of a real-Git start.
 ///       `&mut Command` lends the builder for changing.
 /// Why:
-///   Every place that starts the real Git calls this, so a wrapper that arrives as Git can tell. `Command::env` overrides
-///  an earlier value of the same name, so a start that replaces the process can override the child marker that the shared
+///   Every place that starts the real Git calls this,
+/// so a wrapper that arrives as Git can tell.
+/// `Command::env` overrides
+///  an earlier value of the same name,
+/// so a start that replaces the process can override the child marker that the shared
 ///  builder put there.
 ///
 /// In TS you'd write (pseudocode):
@@ -187,7 +233,8 @@ pub fn mark_real_git_start(command: &mut Command, mode: StartMode) {
 ///  What the check asks of the live process.
 ///       `&dyn Fn(u32) -> Option<String>` borrows any function from a process number to its birth identity.
 /// Why:
-///   A control hands the check made-up numbers and identities; production hands it the process's own facts.
+///   A control hands the check made-up numbers and identities;
+/// production hands it the process's own facts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -198,16 +245,27 @@ pub struct ProcessFacts<'a> {
     pub own_pid: u32,
     /// The number of this process's parent.
     pub parent_pid: u32,
-    /// The birth identity of the process with a number; `None` when it cannot be read.
+    /// The birth identity of the process with a number;
+    /// `None` when it cannot be read.
     pub identity_of: &'a dyn Fn(u32) -> Option<String>,
 }
 
 /// What:
-///  Whether the marker names the process this one was started by, in the way its mode says.
+///  Whether the marker names the process this one was started by,
+/// in the way its mode says.
 /// Why:
-///   `Replace`: the starter replaced itself, so this is that very process (same number, same birth). `Child`: the starter
-///  ran this program as its child, so the starter is this process's parent. In both a identity the platform can read must
-///  agree, so a later process that reuses the number is not taken for the starter. A process further down has another
+///   `Replace`:
+/// the starter replaced itself,
+/// so this is that very process (same number,
+/// same birth).
+/// `Child`:
+/// the starter
+///  ran this program as its child,
+/// so the starter is this process's parent.
+/// In both a identity the platform can read must
+///  agree,
+/// so a later process that reuses the number is not taken for the starter.
+/// A process further down has another
 ///  process in between and is not the start.
 ///
 /// In TS you'd write (pseudocode):
@@ -237,9 +295,12 @@ pub fn started_as_git(marker: &StartMarker, facts: &ProcessFacts<'_>) -> bool {
 }
 
 /// What:
-///  The marker of an environment, if it carries one.
+///  The marker of an environment,
+/// if it carries one.
 /// Why:
-///   The caller's environment is passed in, never read from the process, so a control sets any value it likes.
+///   The caller's environment is passed in,
+/// never read from the process,
+/// so a control sets any value it likes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,8 +315,13 @@ pub fn marker_of(environment: &[(OsString, OsString)]) -> Option<StartMarker> {
 ///  The words a person reads when a cli-git executable stops because it was started as Git.
 ///       `&Path` borrows this executable's path for the message.
 /// Why:
-///   The message names the executable, the process that started it and how, the Git that process chose when the
-///  environment says so, the `PATH` this process saw, why stopping is right, and every way out.
+///   The message names the executable,
+/// the process that started it and how,
+/// the Git that process chose when the
+///  environment says so,
+/// the `PATH` this process saw,
+/// why stopping is right,
+/// and every way out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -287,12 +353,34 @@ pub fn refusal_text(marker: &StartMarker, own_executable: &Path, environment: &[
 }
 
 /// What:
-///  Whether this process was started as Git by a cli-git wrapper, read from the live process, and if so the words to
-///  say so.
-///       `Option<String>` is "the message, or nothing when this process was not started as Git".
+///  The birth identity of the process with a number, read from the operating system now.
+///       `.ok().flatten()` turns a read failure and an absent process into the same `None`.
 /// Why:
-///   The executable calls it once, before it plans anything. It reads the parent's number and, only when the marker's
-///  number matches, one small process file for the birth identity, so an ordinary start costs a variable lookup.
+///   The check treats an identity it cannot read as no contradiction, so both cases need no distinction here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function liveIdentityOf(pid: number): string | undefined { try { return readBirth(pid); } catch { return undefined; } }
+/// ```
+fn live_identity_of(pid: u32) -> Option<String> {
+    return process_birth_identity(i64::from(pid)).ok().flatten();
+}
+
+/// What:
+///  Whether this process was started as Git by a cli-git wrapper,
+/// read from the live process,
+/// and if so the words to
+///  say so.
+///       `Option<String>` is "the message,
+/// or nothing when this process was not started as Git".
+/// Why:
+///   The executable calls it once,
+/// before it plans anything.
+/// It reads the parent's number and,
+/// only when the marker's
+///  number matches,
+/// one small process file for the birth identity,
+/// so an ordinary start costs a variable lookup.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -300,10 +388,7 @@ pub fn refusal_text(marker: &StartMarker, own_executable: &Path, environment: &[
 /// ```
 pub fn refusal_when_started_as_git(environment: &[(OsString, OsString)], own_executable: &Path) -> Option<String> {
     let marker: StartMarker = marker_of(environment)?;
-    let identity_of = |pid: u32| -> Option<String> {
-        return process_birth_identity(i64::from(pid)).ok().flatten();
-    };
-    let facts: ProcessFacts<'_> = ProcessFacts { own_pid: std::process::id(), parent_pid: parent_pid(), identity_of: &identity_of };
+    let facts: ProcessFacts<'_> = ProcessFacts { own_pid: std::process::id(), parent_pid: parent_pid(), identity_of: &live_identity_of };
     if !started_as_git(&marker, &facts) {
         return None;
     }
@@ -313,7 +398,8 @@ pub fn refusal_when_started_as_git(environment: &[(OsString, OsString)], own_exe
 /// What:
 ///  The process number of this process's parent.
 /// Why:
-///   A child start leaves the starter as the parent; the standard library does not expose it.
+///   A child start leaves the starter as the parent;
+/// the standard library does not expose it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

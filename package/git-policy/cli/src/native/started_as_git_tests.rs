@@ -1,9 +1,14 @@
 //! What:
 //!  Controls for the marker every real-Git start carries and for the check that stops a wrapper started as Git.
 //! Why:
-//!  The check decides from made-up process numbers and birth identities, so each way a start can look (the starter
-//!  replaced itself, the starter is the parent, something else stands in between, a number was reused) is shown without
-//!  starting a process; one control then reads the marker the real builders put on a command.
+//!  The check decides from made-up process numbers and birth identities,
+//! so each way a start can look (the starter
+//!  replaced itself,
+//! the starter is the parent,
+//! something else stands in between,
+//! a number was reused) is shown without
+//!  starting a process;
+//! one control then reads the marker the real builders put on a command.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,7 +16,9 @@
 //! ```
 #![cfg(unix)]
 
-/// The marker, its parser, the check and the builders under test.
+/// The marker,
+/// its parser,
+/// the check and the builders under test.
 use super::{
     ProcessFacts, STARTED_AS_GIT_VARIABLE, StartMarker, StartMode, marker_of, marker_value, mark_real_git_start,
     parse_marker, refusal_text, refusal_when_started_as_git, started_as_git,
@@ -23,20 +30,24 @@ use std::process::Command;
 /// The identity a control gives the starter.
 const STARTER_IDENTITY: &str = "linux:1000";
 
-/// A marker of a start by process `pid` in the given mode, with the starter's identity.
+/// A marker of a start by process `pid` in the given mode,
+/// with the starter's identity.
 fn marker(pid: u32, mode: StartMode) -> StartMarker {
     return StartMarker { starter_pid: pid, starter_identity: STARTER_IDENTITY.to_string(), mode };
 }
 
-/// Whether the check judges a process with the numbers `own` and `parent` to be the start `marker` names, when the
-///  identity of the candidate process reads as `identity_of_candidate` (`None`: unreadable).
+/// Whether the check judges a process with the numbers `own` and `parent` to be the start `marker` names,
+/// when the
+///  identity of the candidate process reads as `identity_of_candidate` (`None`:
+/// unreadable).
 fn started(marker: &StartMarker, own: u32, parent: u32, identity_of_candidate: Option<&str>) -> bool {
     let answer = |_pid: u32| -> Option<String> { return identity_of_candidate.map(str::to_string); };
     let facts: ProcessFacts<'_> = ProcessFacts { own_pid: own, parent_pid: parent, identity_of: &answer };
     return started_as_git(marker, &facts);
 }
 
-/// The marker value round-trips through its parser for both modes, and text that is not a marker is none.
+/// The marker value round-trips through its parser for both modes,
+/// and text that is not a marker is none.
 #[test]
 fn a_marker_value_is_read_back_and_other_text_is_no_marker() {
     for mode in [StartMode::Replace, StartMode::Child] {
@@ -50,7 +61,9 @@ fn a_marker_value_is_read_back_and_other_text_is_no_marker() {
     }
 }
 
-/// A start that replaced its starter is the starter's own process: it matches by the program's own number, and a
+/// A start that replaced its starter is the starter's own process:
+/// it matches by the program's own number,
+/// and a
 ///  parent with that number alone does not make it one.
 #[test]
 fn a_replaced_start_is_the_process_the_marker_names() {
@@ -60,7 +73,9 @@ fn a_replaced_start_is_the_process_the_marker_names() {
     assert!(!started(&replace, 101, 1, Some(STARTER_IDENTITY)), "another process");
 }
 
-/// A child start is the starter's child: it matches by the parent's number, and the starter's own number alone does not
+/// A child start is the starter's child:
+/// it matches by the parent's number,
+/// and the starter's own number alone does not
 ///  (a child never has the starter's number).
 #[test]
 fn a_child_start_is_a_child_of_the_process_the_marker_names() {
@@ -70,8 +85,11 @@ fn a_child_start_is_a_child_of_the_process_the_marker_names() {
     assert!(!started(&child, 100, 1, Some(STARTER_IDENTITY)), "the number alone is not the child start");
 }
 
-/// A number that a later process reuses is not the starter: its identity differs; an identity that cannot be read does
-///  not contradict the marker, and a marker without an identity decides by the numbers.
+/// A number that a later process reuses is not the starter:
+/// its identity differs;
+/// an identity that cannot be read does
+///  not contradict the marker,
+/// and a marker without an identity decides by the numbers.
 #[test]
 fn a_reused_number_is_not_the_starter() {
     let child: StartMarker = marker(100, StartMode::Child);
@@ -81,7 +99,8 @@ fn a_reused_number_is_not_the_starter() {
     assert!(started(&without, 200, 100, Some("linux:2000")), "no recorded identity to compare");
 }
 
-/// The environment carries the marker only under its own name, and only a well-formed value counts.
+/// The environment carries the marker only under its own name,
+/// and only a well-formed value counts.
 #[test]
 fn the_environment_marker_is_read_by_name() {
     let value: OsString = marker_value(StartMode::Child, 9, STARTER_IDENTITY);
@@ -94,7 +113,9 @@ fn the_environment_marker_is_read_by_name() {
     assert_eq!(marker_of(&[]), None);
 }
 
-/// This test process is neither the starter nor its child, so a marker naming other processes does not stop it, and a
+/// This test process is neither the starter nor its child,
+/// so a marker naming other processes does not stop it,
+/// and a
 ///  marker naming this very process as a replacing starter does.
 #[test]
 fn the_live_check_reads_this_process() {
@@ -120,7 +141,11 @@ fn the_live_check_reads_this_process() {
     assert!(refusal_when_started_as_git(named_parent.as_slice(), Path::new("/wrapper")).is_some());
 }
 
-/// The message names the executable, the starter, the way it started, the Git it chose and the PATH, and every way out.
+/// The message names the executable,
+/// the starter,
+/// the way it started,
+/// the Git it chose and the PATH,
+/// and every way out.
 #[test]
 fn the_refusal_names_what_a_person_needs() {
     let environment: Vec<(OsString, OsString)> = vec![
@@ -146,7 +171,9 @@ fn the_refusal_names_what_a_person_needs() {
     assert!(replaced.contains("PATH is not set here"), "{replaced}");
 }
 
-/// The builders put the marker of the right mode on a command, naming this process, and a later mark overrides the
+/// The builders put the marker of the right mode on a command,
+/// naming this process,
+/// and a later mark overrides the
 ///  earlier one (the exec path marks "replace" over the shared builder's "child").
 #[test]
 fn marking_a_command_names_this_process_and_the_last_mark_wins() {
