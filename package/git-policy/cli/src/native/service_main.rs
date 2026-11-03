@@ -65,7 +65,7 @@ fn main() {
         git: GitContext { real_git: git, overlay: git_policy_cli::child_environment::lockfile_pid_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
         on_objects_written: None,
-        index_wait: git_policy_cli::wait_limit::live_wait_limit(),
+        index_wait: git_policy_cli::unproven_backoff::UNPROVEN_OWNER_BACKOFF,
     };
     let idle: Duration = option(&arguments, "--idle-seconds")
         .and_then(|text| { return text.parse::<u64>().ok(); })

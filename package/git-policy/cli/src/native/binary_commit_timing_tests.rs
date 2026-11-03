@@ -97,7 +97,6 @@ fn spawn_service_with_stderr(root: &Path, places: &Places, idle_seconds: &str, e
         .env("HOME", root.join("home"))
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .env("CLI_GIT_LOCK_WAIT_SECONDS", "60")
         .envs(environment.iter().map(|(name, value)| { return (*name, value.as_str()); }))
         .stdin(Stdio::null())
         .stdout(Stdio::null())

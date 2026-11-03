@@ -22,6 +22,9 @@
 /// ```
 use super::child_environment::environment_value;
 use super::real_git_candidate::{CandidateKind, classify_candidate};
+use super::real_git_record::service_unit_file;
+/// `pub use` re-exports names so callers keep importing the resolution from this module.
+pub use super::real_git_resolution::{RecordedGit, ResolvedGit, resolve_real_git};
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw OS bytes
 ///       (siblings `&str`/`String` must be UTF-8).
@@ -98,6 +101,11 @@ pub struct ResolutionInputs {
     /// This wrapper's own executable,
     ///  excluded from selection.
     pub own_executable: PathBuf,
+    /// The unit file of the commit service,
+    ///  whose `--git` option records the real Git the wrapper last set the service up with;
+    ///  nothing when the runtime directory is unknown.
+    ///  It is read only when `PATH` offers no real Git.
+    pub service_unit: Option<PathBuf>,
 }
 
 /// What:
@@ -143,6 +151,10 @@ pub struct RealGitNotFound {
     pub searched: Vec<SearchedCandidate>,
     /// The `PATH` value the search read; empty when unset.
     pub path: OsString,
+    /// The Git the commit service's unit records and the verdict on it,
+    ///  when the unit names one that was refused;
+    ///  nothing when there is no record or it is not readable.
+    pub recorded: Option<RecordedGit>,
 }
 
 /// What:
@@ -190,6 +202,17 @@ impl std::fmt::Display for RealGitNotFound {
         )?;
         for candidate in &self.searched {
             write!(formatter, "\n  {}: {}", candidate.path.display(), verdict_words(candidate.kind))?;
+        }
+        // `if let Some(x) = &field` runs only when a unit named a Git;
+        //  the line says where the name was read and why it was not used.
+        if let Some(recorded) = &self.recorded {
+            write!(
+                formatter,
+                "\n  {}: recorded by the commit service unit {} as the Git it starts, {}",
+                recorded.candidate.path.display(),
+                recorded.unit_file.display(),
+                verdict_words(recorded.candidate.kind)
+            )?;
         }
         // The last write is the function's result.
         return write!(
@@ -434,19 +457,22 @@ pub fn candidate_sequence(inputs: &ResolutionInputs) -> Vec<PathBuf> {
 }
 
 /// What:
-///  Select the first candidate that is real Git.
+///  Select the first `PATH` candidate that is real Git.
 ///       `Result<PathBuf, RealGitNotFound>` is the selected path or the typed failure.
 /// Why:
 ///   Wrappers are skipped and counted,
 ///  unusable entries are skipped,
 ///  and the
 ///       first remaining candidate in priority order is forwarded to.
+///  This is the search of `PATH` alone;
+///  every start of Git goes through `resolve_real_git`,
+///  which adds the recorded fallback.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function resolveRealGit(inputs: ResolutionInputs): string;
+/// function searchPathForRealGit(inputs: ResolutionInputs): string;
 /// ```
-pub fn resolve_real_git(inputs: &ResolutionInputs) -> Result<PathBuf, RealGitNotFound> {
+pub fn search_path_for_real_git(inputs: &ResolutionInputs) -> Result<PathBuf, RealGitNotFound> {
     let candidates: Vec<PathBuf> = candidate_sequence(inputs);
     let mut skipped_wrapper_count: usize = 0;
     // `mut` lets the loop record each verdict for the failure message.
@@ -469,6 +495,7 @@ pub fn resolve_real_git(inputs: &ResolutionInputs) -> Result<PathBuf, RealGitNot
         skipped_wrapper_count,
         searched,
         path: inputs.path.clone(),
+        recorded: None,
     });
 }
 
@@ -491,6 +518,27 @@ pub fn host_platform() -> Platform {
         return Platform::MacOs;
     }
     return Platform::Unix;
+}
+
+/// What:
+///  The unit file of the commit service below a runtime directory,
+///  when that directory is an absolute path.
+/// Why:
+///   A relative runtime directory would name a different file for each directory the wrapper runs in,
+///  which is no record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function serviceUnitBelow(runtime: string): string | undefined { return isAbsolute(runtime) ? serviceUnitFile(runtime) : undefined; }
+/// ```
+fn service_unit_below(runtime: OsString) -> Option<PathBuf> {
+    let directory: PathBuf = PathBuf::from(runtime);
+    if !directory.is_absolute() {
+        // `None` says there is no record to look for.
+        return None;
+    }
+    // `Some(...)` wraps the unit file's path.
+    return Some(service_unit_file(directory.as_path()));
 }
 
 /// What:
@@ -525,6 +573,15 @@ pub fn process_resolution_inputs(
     let path: OsString = environment_value(environment, "PATH").unwrap_or_default();
     let path_extensions: OsString = environment_value(environment, "PATHEXT")
         .unwrap_or(OsString::from(DEFAULT_WINDOWS_PATH_EXTENSIONS));
+    // What: The unit file is looked for below an absolute runtime directory only.
+    // Why:  A relative one would name a different file for each directory the wrapper runs in, which is no record.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const runtime = env.XDG_RUNTIME_DIR; const serviceUnit = runtime && isAbsolute(runtime) ? serviceUnitFile(runtime) : undefined;
+    // ```
+    let service_unit: Option<PathBuf> =
+        environment_value(environment, "XDG_RUNTIME_DIR").and_then(service_unit_below);
     return Ok(ResolutionInputs {
         platform,
         path,
@@ -532,6 +589,7 @@ pub fn process_resolution_inputs(
         current_directory,
         common_paths: common_git_paths(platform, environment),
         own_executable,
+        service_unit,
     });
 }
 
@@ -539,3 +597,8 @@ pub fn process_resolution_inputs(
 #[cfg(test)]
 #[path = "real_git_tests.rs"]
 mod tests;
+
+/// Controls for the fallback to the Git the commit service's unit records.
+#[cfg(test)]
+#[path = "real_git_fallback_tests.rs"]
+mod fallback_tests;

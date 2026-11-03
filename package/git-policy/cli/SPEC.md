@@ -222,7 +222,9 @@ An older file that sets one still loads, and the value is checked and ignored.
   non-negative safe integer,
   default `1000`.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
-  The service's bounded wait for a foreign `index.lock` (`CLI_GIT_LOCK_WAIT_SECONDS`) replaced it.
+  The service's wait for a foreign `index.lock` replaced it: a holder proven alive is waited for with no bound,
+  and an owner
+  nothing proves alive for a fixed 1000 ms (`src/native/unproven_backoff.rs`), which this key no longer sets.
   `git cli-git doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
   positive safe integer,
@@ -960,12 +962,11 @@ Stage each destination separately in a mode-`0700` sibling directory so file clo
  on the destination filesystem.
 Copy regular files into the stage with an exclusive copy-on-write request whose unsupported-filesystem behavior falls
 back to a full copy.
-A manifest of at least 4096 entries is copied by up to 8 threads, bounded by the CPUs the process may use,
+A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 threads, bounded by the CPUs the process may use,
 over contiguous slices after every directory exists; the first failure stops the others.
-The cap of eight is measured: cloning 22,718 entries took 1549, 880, 555, 397 and 415 ms at 1, 2, 4, 8 and 16 workers
-(`doc/planning/cli-git-shipped-limits-audit.md`, "Measurement record").
-The threshold of 4096 is not measured on the copy stage itself; the same file-making primitive was faster in parallel
-from 555 entries up, so the threshold is kept as an open question there.
+Both numbers are measured: the copy stage forced to 1, 2, 4 and 8 workers took 1.1, 1.0, 0.7 and 0.7 ms for 30 entries and 397.6,
+222.2, 139.4 and 104.4 ms for 9,301, and cloning 22,718 entries took 1549, 880, 555, 397 and 415 ms at 1, 2, 4, 8 and 16 workers
+(`doc/planning/cli-git-shipped-limits-audit.md`, "Measurement record"). The install and the clone of a package repair use the same break-even.
 Preserve directory and regular-file permission bits plus exact symbolic-link target text.
 Never follow a symbolic link while classifying source or destination entries.
 
@@ -1452,6 +1453,100 @@ A measured interval replaces a number only after the records above hold healthy 
 recorded
 beside the value; no margin is chosen here.
 
+#### Waits on a lock holder and on the service
+
+Delegated picks 2 and 6 of `doc/planning/cli-git-shipped-limits-audit.md` (2026-11-03).
+The owner was away and said: "Pick options as if I had picked them and invite veto when I say I'm back." and clarified:
+"\"As if I had chosen\" means what I would have picked most likely if I'm always here."
+The coordinator picked; both picks are open to the owner's veto.
+
+Owner decisions these waits follow, verbatim:
+
+- "You should (almost) never be waiting."
+- "Use as few locks as possible."
+- "Commits should never fail."
+- "socket activation (OS starts it) or a loud, clear failure - no,
+  never leak internal things that could be resolved to the
+  user." (2026-11-01T07:37:44-05:00, `DESIGN.md`)
+
+The decision record `doc/decision/cli-git-concurrent-commits.md`, "Locks", says, and is followed except where noted:
+"An `index.lock` owner proven alive (open holder matched by device and inode,
+or a PID file naming a live process started no
+later than the lock's ctime) gets an unbounded wait with one line naming the holder."
+"A dead or evidence-free owner gets Git-style quadratic backoff with jitter up to `indexLock.unprovenOwnerTimeoutMs`
+(default
+1000), then a diagnostic listing the evidence."
+The code before this change stopped every one of these waits at `CLI_GIT_LOCK_WAIT_SECONDS` (1800 seconds),
+which is gone.
+
+- A holder proven alive:
+  waited for with no bound.
+  The line names it ("waiting for PID n (command), which holds the lock (proven by an open descriptor | its Git lock PID
+  file)"), repeats every notice interval with the time so far,
+  and says the wait lasts as long as the process holds the lock.
+- An owner nothing proves alive:
+  waited for `UNPROVEN_OWNER_BACKOFF` (1000 ms, ten times the longest hold measured for Git's own `status`, `add -A`,
+  `reset`
+  and `update-index --refresh` in this repository on 2026-11-03: 100 ms;
+  the measurement is in `src/native/unproven_backoff.rs`).
+  The wait then stops with a diagnostic that lists what was found (processes with the lock open,
+  the Git lock PID file), says
+  nothing was changed, leaves the lock in place, and names the file to remove when no program is using the repository.
+  The merge then reports what Git says; the commit service fails the commit with the lock's code and the message
+  "Another program is using this repository's index".
+  The fixed backoff replaces the record's quadratic backoff with jitter;
+  the key `indexLock.unprovenOwnerTimeoutMs` stays
+  retired (see the configuration section above).
+- A dead owner (the PID file names a process that no longer runs):
+  nothing will release the lock, so the wait stops at once with the same kind of diagnostic naming the process.
+  This deviates from the record, which gives a dead owner the same backoff as an unproven one.
+- The service's own hold, for a forwarded `git add`, `rm` or `mv`:
+  a hold whose mark proves the service runs is waited for with no bound;
+  a hold whose holder cannot be asked about is taken for a leftover at `UNASKABLE_HOLD_AGE` (150 seconds,
+  a quarter more than
+  the longest of 715 measured holds, 119.7 s; 13 of them ran 58 to 120 seconds, all in the disk sync of the new index).
+  The earlier 60 seconds took those live holds for leftovers.
+- The index reconciliation of a commit whose corrections left no change waits like the merge does;
+  `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) now cover only a lock that was gone by the time it was looked at.
+
+Not built here: the owner's chosen answer for a commit that meets a live foreign `index.lock`, "Same as the ref lock
+(Recommended)" (a commit lands and exits 0 and the index catches up when the lock frees).
+It comes with the commits-never-fail design.
+Until then a commit behind an owner nothing proves alive, or a dead one, still fails with the diagnostic.
+
+The wait for the commit service has no clock of the client's own:
+
+- The service sends a heartbeat line to every client whose request is queued or landing, once a second
+  (`HEARTBEAT_EVERY`, `service_protocol.rs`), from the thread that read the request.
+  The client waits for the answer for as long as it keeps hearing from the service.
+  The 10-minute `COMMIT_WAIT` and its message, which told the person to raise a setting that does not exist, are gone.
+- A client that hears nothing for `HEARTBEAT_SILENCE` (5 seconds) takes the service for stopped.
+  It prints "The commit service stopped answering; asking it again with the same commit, which cannot land twice.",
+  connects again and sends the same request identity, so nothing lands twice.
+  A service that greets nothing on that connection ends the command with "The commit service stopped answering while
+  this
+  commit waited ... it is not known whether the commit was made", which gives `git log -1`, `git status`,
+  the journal command
+  and the restart command; the exit status is nonzero and the message does not claim that nothing changed.
+  A connection that closes (the service died) is sent the same request again up to `RECONNECTS` (5)
+  times and then ends with
+  the existing "stopped before it confirmed this commit" message.
+- The start of the service is waited for with no clock when the client can ask the service manager:
+  every second it asks for the state of the worktree's service unit,
+  and two answers of "failed" in a row end the wait with
+  "The commit service did not start". Where the manager cannot be asked, the wait ends at `START_WAIT` (10 seconds,
+  ten times
+  the slowest of 52 measured cold starts, 1041 ms) as before.
+  The wait for an older service to retire keeps `START_WAIT` too.
+- The protocol version is 6: a service of the version before sends no heartbeat,
+  and the client retires it as it retires any
+  service of another release.
+- A deadlocked landing thread behind a live connection thread is not detected by this beat;
+  only a service that stops as a
+  process, or freezes, is. A unit that stays `inactive` after a connection, with the socket still listening,
+  is not detected
+  either (open questions in the audit).
+
 #### Commands that add commits
 
 A command other than `git commit` hands the push over too (owner decision, 2026-11-02):
@@ -1866,13 +1961,15 @@ Pushing history unrelated to every published commit still scans that whole unrel
 Process creation is bounded independently of history length and update count:
 one `git cat-file --batch-check` peels every pushed and prior object,
 one `git for-each-ref` lists remote-tracking refs,
-at most four per-update `git rev-list --stdin` or `git ls-tree` processes run concurrently
-(local queries measured 37 and 18 percent faster at eight; the remote side was not measured, so four stays),
+at most eight per-update local `git rev-list --stdin`, `git cat-file` or `git ls-tree` processes run concurrently
+(`MOST_CONCURRENT_LOCAL_QUERIES`: `git ls-tree -r` took 80 and 50 ms at four and eight at once, `git rev-list` 231 and 190 ms,
+and no less at sixteen) and at most four `git ls-remote` queries, which open a connection to a remote, at a time
+(`MOST_CONCURRENT_REMOTE_QUERIES`, not measured),
 one `git diff-tree --stdin` reads every range commit's delta,
 and one `git cat-file --batch` reads every blob.
 Never spawn one process per commit.
 Met by the native executable: the `ls-remote` confirmation of each destination (one per push URL of the remote) and the
- `cat-file` and `rev-list` of each update run side by side, at most four at once and within the host budget, and their answers are
+ `cat-file` and `rev-list` of each update run side by side, at most eight at once and within the host budget, and their answers are
 used in the order Git printed the destinations and negotiated the updates, the first that fails deciding the error.
 Not yet met by the native executable: it peels each update's object with its own `git cat-file` process,
  runs `git rev-list <local> --not <published>`
@@ -1954,8 +2051,8 @@ Candidates are reference locks of the Git directory and the common Git directory
 has its own protocol in this document).
 A candidate is judged without starting Git, from the file system and `/proc`, in this order, and the first answer wins:
 
-1. A candidate that is not a regular file, or that is younger than the margin (`MARGIN`, four seconds: the whole second above the 3,438 ms
-   longest live reference step of a service journal), is left and not mentioned.
+1. A candidate that is not a regular file, or that is younger than the margin (`MARGIN`, seven seconds: twice the 3,438 ms
+   longest live reference step of a service journal, rounded up to a whole second), is left and not mentioned.
    The margin covers a lock that a live Git has just created and not yet filled, whose pid file is not yet written.
 2. A candidate on a file system that is not local (anything not on a fixed list of disk and memory file systems:
    `btrfs`, `ext4`, `xfs`, `f2fs`, `tmpfs`, `overlay`, `zfs`, `bcachefs`) is unproven, because a Git on another machine is
@@ -2168,17 +2265,56 @@ holds the incident of release 0.5.26, 2026-11-03, the cause, the options weighed
   the file the starter chose as Git (`CLI_GIT_NATIVE_FORWARD_TARGET`), the `PATH` it saw, why it stops, and what to do:
   put the directory of the real Git (for example `/usr/bin`) on the `PATH` of the program that started the first
   cli-git, or remove the entry that leads back to cli-git from that `PATH`.
-- No real Git on `PATH` is a stop with exit status 2 as well. The message gives the counts, the `PATH` value, every
-  candidate with its verdict (skipped because it leads back to cli-git, or missing, not executable or unreadable),
-  and the ways out: install Git, add the real Git's directory to the `PATH` of the program that ran the command, or
-  remove an entry that should not be used. The wrapper does not search outside `PATH` except for the promotion of a
-  conventional location that `PATH` already exposes.
+- No real Git on `PATH` falls back to the Git the commit service was set up with, when a record names one that passes
+  the same checks (below). Without a usable record it is a stop with exit status 2. The message gives the counts, the
+  `PATH` value, every candidate with its verdict (skipped because it leads back to cli-git, or missing, not executable
+  or unreadable), the record when a unit named one that was refused, and the ways out: install Git, add the real Git's
+  directory to the `PATH` of the program that ran the command, or remove an entry that should not be used. The wrapper
+  does not search outside `PATH` except for the promotion of a conventional location that `PATH` already exposes and
+  this record.
 - `cli-git-service` is never started by the wrapper and refuses a `--git` that is a launcher of the wrapper (a unit
   written by a release that had the flaw holds such a path); the unit text includes `--git`, so the next wrapper that
   provisions the unit writes it again. Its Git starts go through the marked builders.
 - Not covered: a user script named `git` that starts the wrapper as a child, with no launch record and no marker
   string. The parent of the arriving wrapper is the script, not the starter; the message of a wrapper that cannot find
   Git lists every candidate, which shows the script as the entry to remove.
+
+### The wrapper falls back to the Git its commit service was set up with
+
+Recorded on 2026-11-03T11:26:52-05:00; the pick is the coordinator's, made before the build under the owner's
+delegation ("Pick options as if I had picked them and invite veto when I say I'm back."), open to the owner's veto:
+when no real Git follows the wrapper on `PATH`,
+the wrapper uses the real Git it recorded for its commit service, with a notice, instead of stopping.
+The reason: native Git in that `PATH` would not be found at all,
+but once the wrapper is found the person expects `git` to work; the owner's rules "Commits should never fail." and
+"never leak internal things that could be resolved to the user"
+(`package/git-policy/cli/DESIGN.md`, 2026-11-01). The deliberation is in `doc/planning/cli-git-no-self-invocation.md`,
+section "Falling back to the Git the commit service was set up with".
+
+- The record is the `--git` option on the `ExecStart` line of the unit `cli-git@.service` that the wrapper writes below
+  `$XDG_RUNTIME_DIR/systemd/user` (`service_provision.rs`) when it sets up the commit service. It is read only when
+  `PATH` offers no real Git, only from an absolute `XDG_RUNTIME_DIR`, as text up to 64 KiB, with no process started
+  (`real_git_record.rs`). No other file is read and no location is guessed: with no unit, no `--git` word, a relative
+  path, or an unset runtime directory, there is no record and the stop stays.
+- The recorded path passes the checks of a `PATH` candidate (`classify_candidate`): it must exist and be an executable
+  file, and it is refused when it is this executable, a link or a byte copy of it, a toolchain launcher of it, or a
+  script that starts the TypeScript wrapper. Another release of the wrapper passes the check and is stopped on arrival
+  by the marker. A refusal keeps the stop and adds one line naming the record, the unit and the verdict.
+- The notice is one line on standard error, ahead of anything else the invocation writes, once per planned invocation
+  (the merge push planned inside a stacked push does not repeat it), in this form; an empty or unset `PATH` is printed
+  as `empty or unset`:
+
+  ```text
+  cli-git: no real Git follows this wrapper on PATH (<PATH>); used <path>, the Git recorded in <unit> as the one the commit service starts; to silence this notice, add <directory of path> to the PATH of the program that ran this command.
+  ```
+
+- The same resolution serves every start of the real Git: forwarded commands, the announced queries, the commit steps,
+  the push work, `git cli-git doctor`, the direct commands, `service status` and `convert-worktree-to-subvolume`.
+  The service takes the resolved path in the `--git` of its unit as before; a fallback path is therefore written into
+  the unit it came from, unchanged.
+- Limits: the unit is in the runtime directory, so it exists only after a commit has provisioned the service in this
+  login and is gone after the account's last logout; before that, the stop stays. A `cli-git-service` started with no
+  `--git` still defaults to `/usr/bin/git`; that is a development path, since the wrapper always writes `--git`.
 
 ### Git LFS upload before a push
 
@@ -2778,12 +2914,14 @@ Each commit passes through three phases:
     A foreign commit that moves the branch while the service waits for the lock makes the compare-and-swap fail,
     and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
-    bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (thirty minutes by default)
-    with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`;
-    a holder that outlasts the bound ends the commit before the branch moved,
+    with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
+    A holder proven alive is waited for with no bound.
+    An owner nothing proves alive is waited for 1000 ms and a dead one not at all;
+    either ends the commit before the branch moved,
     removing the batch's intent and scratch branch,
-    with a plain message naming the process.
-    Both variables belong in the environment of the unit that runs the service.
+    with a diagnostic that lists the evidence and a plain message naming the process
+    ("Waits on a lock holder and on the service", in "Merges and commits never fail").
+    The variable belongs in the environment of the unit that runs the service.
 3.  After landing:
     in the wrapper,
     print the one summary line,

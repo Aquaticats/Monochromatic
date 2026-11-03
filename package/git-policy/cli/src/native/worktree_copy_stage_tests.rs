@@ -442,3 +442,9 @@ fn the_copy_workers_follow_the_hosts_budget_up_to_the_ceiling() {
     assert_eq!(copy_worker_count_on(&large_host, PARALLEL_COPY_MIN_ENTRIES), PARALLEL_COPY_MAX_WORKERS);
     assert_eq!(copy_worker_count_on(&small_host, PARALLEL_COPY_MIN_ENTRIES), PARALLEL_COPY_MAX_WORKERS - crate::parallel_budget::cpu_margin(PARALLEL_COPY_MAX_WORKERS));
 }
+
+/// A copy goes parallel from the measured break-even number of entries and not before.
+#[test]
+fn the_copy_threshold_is_the_measured_break_even() {
+    assert_eq!(PARALLEL_COPY_MIN_ENTRIES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
+}

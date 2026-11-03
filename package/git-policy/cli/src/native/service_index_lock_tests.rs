@@ -1,5 +1,6 @@
 //! Controls for the service's hold on the index lock: exclusive creation with the marker in place, a wait that ends when the
-//!  holder lets go and is not woken by anything else, a limit that ends the wait with nothing changed, release by rename, and
+//!  holder lets go and is not woken by anything else, a backoff that ends the wait for an owner nothing proves alive and no
+//!  bound for one proven alive, release by rename, and
 //!  the removal of a stale lock only when it is the service's own and its holder is gone.
 
 use super::*;
@@ -194,6 +195,71 @@ fn a_holder_that_outlives_the_limit_ends_the_wait_with_nothing_changed() {
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("foreign lock stands"), "foreign");
     assert_eq!(std::fs::read_to_string(&index).expect("index"), "old index");
     assert!(heard.lock().expect("lock").iter().any(|note| { return matches!(note, Announce::Holder(_)); }), "the holder was announced");
+    remove(root.as_path());
+}
+
+/// The unproven owner's diagnostic reaches the clients before the failure, lists the evidence, and names the file to remove.
+#[test]
+fn an_unproven_owner_is_reported_with_its_evidence_when_the_backoff_ends() {
+    let (root, index) = index_in("index-lock-unproven-diagnostic");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let failure = acquire(&index, 4, Duration::from_millis(200), &|note| { heard.lock().expect("lock").push(note); }).expect_err("refused");
+    assert_eq!(failure.code, FailureCode::IndexInUse);
+    let said: Vec<Announce> = heard.lock().expect("lock").clone();
+    let texts: Vec<&str> = said.iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.as_str()) } else { None }; }).collect();
+    let ending: &str = texts.last().expect("a line was announced");
+    assert!(ending.contains("nothing proves a program holds it") && ending.contains("this commit was not made"), "{ending}");
+    assert!(ending.contains(format!("removing the file {}", lock_path_of(&index).display()).as_str()), "{ending}");
+    remove(root.as_path());
+}
+
+/// A PID file that names a process which no longer runs ends the wait at once, however long the backoff is, with the process
+///  named, and nothing is removed.
+#[test]
+fn a_dead_owner_ends_the_wait_at_once() {
+    let (root, index) = index_in("index-lock-dead-owner");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let gone: i64 = dead_pid();
+    std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {gone}\n")).expect("PID file");
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let began: Instant = Instant::now();
+    let backoff: Duration = Duration::from_secs(20);
+    let failure = acquire(&index, 5, backoff, &|note| { heard.lock().expect("lock").push(note); }).expect_err("refused");
+    assert_eq!(failure.code, FailureCode::IndexInUse);
+    assert!(began.elapsed() < backoff / 2, "ended at the backoff, not at once: {:?}", began.elapsed());
+    let said: Vec<Announce> = heard.lock().expect("lock").clone();
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains(format!("PID {gone}, which no longer runs").as_str())); }), "{said:?}");
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("foreign lock stands"), "foreign");
+    remove(root.as_path());
+}
+
+/// A holder proven alive is waited for with no bound: the backoff is a twentieth of the time the holder keeps the lock, the
+///  wait goes on through twenty times it with the holder named and no line that gives up, and the service's lock is taken the
+///  moment the holder lets go.
+#[test]
+fn a_holder_proven_alive_is_waited_for_far_beyond_the_backoff() {
+    let (root, index) = index_in("index-lock-proven-alive");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    // The PID file names this process, which runs and started before the lock was made.
+    std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {}\n", std::process::id())).expect("PID file");
+    let backoff: Duration = Duration::from_millis(100);
+    let holding: Duration = backoff * 20;
+    let foreign: PathBuf = lock_path_of(&index);
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(holding);
+        std::fs::remove_file(foreign).expect("the foreign holder lets go");
+    });
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let began: Instant = Instant::now();
+    let lock = acquire(&index, 6, backoff, &|note| { heard.lock().expect("lock").push(note); }).expect("taken once the holder let go");
+    release.join().expect("thread");
+    assert!(began.elapsed() >= holding, "{:?}", began.elapsed());
+    let said: Vec<Announce> = heard.lock().expect("lock").clone();
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("proven by its Git lock PID file")); }), "{said:?}");
+    assert!(!said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("giving up") || text.contains("not made")); }), "{said:?}");
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(6));
+    drop(lock);
     remove(root.as_path());
 }
 

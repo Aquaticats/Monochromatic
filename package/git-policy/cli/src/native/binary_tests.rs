@@ -72,6 +72,11 @@ mod resolution;
 #[path = "binary_never_self_start_tests.rs"]
 mod never_self_start;
 
+/// With no real Git after the wrapper on `PATH`, the wrapper falls back to the Git its commit service was set up with
+///  when that record passes the `PATH` candidate checks, and otherwise keeps its stop.
+#[path = "binary_installed_git_fallback_tests.rs"]
+mod installed_git_fallback;
+
 /// Configuration loading and the read-only fast path.
 #[path = "binary_policy_tests.rs"]
 mod policy;
@@ -364,6 +369,10 @@ mod service_lane;
 /// The scratch directory of a commit in preparation, removed by the service when the client's connection closes.
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
+
+/// The client's wait for the commit service: heartbeats, silence, a start the manager reports failed, a late start.
+#[path = "binary_service_heartbeat_tests.rs"]
+mod service_heartbeat;
 
 /// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
 #[path = "binary_service_native_tests.rs"]

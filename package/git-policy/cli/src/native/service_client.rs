@@ -14,24 +14,28 @@
 //! ```
 
 use super::commit_timing::{ReachTrace, SubmitTrace, holder_kind_of};
-use super::service_messages::{ClientFailure, Platform, STARTING_NOTICE, UPDATING_NOTICE, position_notice};
+use super::service_messages::{ClientFailure, Platform, SILENT_NOTICE, STARTING_NOTICE, UPDATING_NOTICE, position_notice};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_service, encode_client, encode_retire,
 };
+use super::service_instance::service_unit_instance;
+use super::service_provision::ProvisionHost;
 use super::service_review_key::ReviewKey;
+use super::systemd_dbus::{Bus, EXCHANGE_WAIT};
 use super::service_server::Bind;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
-/// How long the client waits for the operating system to start the service.
+/// How long the client waits for a service to start or to retire when it cannot ask the service manager how the start is going.
+///  Ten times the slowest of 52 cold starts in this repository's commit timing log (`startWaitMs`, longest 1041 ms,
+///  median 47 ms, 2026-11-03); the 70 commits that also asked an older service to retire all reached the service within
+///  that same 1041 ms (`reachMs`). A client that can ask the manager has no such bound: it ends when the manager says the
+///  start failed.
 pub const START_WAIT: Duration = Duration::from_secs(10);
 
 /// How long a start takes before the client says it is starting the service.
 pub const START_NOTICE_GRACE: Duration = Duration::from_secs(1);
-
-/// How long a commit waits in the queue before the client gives up and says so.
-pub const COMMIT_WAIT: Duration = Duration::from_secs(10 * 60);
 
 /// How many times a request is sent again after the connection broke before the client says it cannot be sure.
 pub const RECONNECTS: usize = 5;
@@ -55,10 +59,70 @@ pub struct ClientConfig {
     pub address: Bind,
     /// What the operating system can do about a service that is not running.
     pub activation: Activation,
-    /// Longest wait for a start.
+    /// Longest wait for a start when `start_watch` is absent; with a watch the wait ends only when the manager says the start
+    ///  failed, and this is the wait for an older service to retire.
     pub start_wait: Duration,
-    /// Longest wait in the queue.
-    pub commit_wait: Duration,
+    /// How long the service may send nothing, heartbeats included, before the client treats it as stopped. There is no limit
+    ///  on how long a request waits while the service keeps sending.
+    pub heartbeat_silence: Duration,
+    /// How to ask the service manager whether the service failed to start; absent where the client cannot ask.
+    pub start_watch: Option<ManagerWatch>,
+}
+
+/// What:
+///  How the client asks the service manager whether the service unit has failed.
+/// Why:
+///   A service that is starting sends nothing, so the wait for its first greeting has no heartbeat to listen for. The manager
+///  knows whether the start failed, which is the one thing that ends that wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ManagerWatch = { bus: string; unit: string; every: number; hasFailed: (bus: string, unit: string) => boolean };
+/// ```
+#[derive(Clone, Debug)]
+pub struct ManagerWatch {
+    /// The session bus of the account.
+    pub bus: std::path::PathBuf,
+    /// The service unit of the worktree.
+    pub unit: String,
+    /// How often the manager is asked while the greeting has not come.
+    pub every: Duration,
+    /// Whether the manager reports the unit as failed now; nothing when the manager cannot be asked, which leaves the wait
+    ///  to the start wait.
+    pub has_failed: fn(&std::path::Path, &str) -> Option<bool>,
+}
+
+/// How often the service manager is asked whether the service unit failed, while a start is waited for.
+pub const MANAGER_ASK_EVERY: Duration = START_NOTICE_GRACE;
+
+/// Whether the manager reports `unit` as failed: nothing when the bus or the unit cannot be asked about.
+fn unit_has_failed(bus: &std::path::Path, unit: &str) -> Option<bool> {
+    let mut connection: Bus = Bus::connect(bus, EXCHANGE_WAIT).ok()?;
+    let state: Option<String> = connection.active_state(unit).ok()?;
+    return Some(state.as_deref() == Some("failed"));
+}
+
+/// What:
+///  The watch that asks the account's service manager about the worktree's service unit.
+/// Why:
+///   The route knows the session bus and the worktree's instance, which is all the unit's name needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const watch = managerWatchFor(host)
+/// ```
+pub fn manager_watch_for(host: &ProvisionHost) -> ManagerWatch {
+    return ManagerWatch { bus: host.bus.clone(), unit: service_unit_instance(host.instance.as_str()), every: MANAGER_ASK_EVERY, has_failed: unit_has_failed };
+}
+
+/// What the client heard from the service in one read.
+enum Heard {
+    /// A message.
+    Message(ServiceMessage),
+    /// The service closed the connection, or sent something that is not a message.
+    Closed,
+    /// Nothing came within the silence bound.
+    Silent,
 }
 
 /// What a request came to.
@@ -89,47 +153,83 @@ fn connect(address: &Bind) -> std::io::Result<UnixStream> {
 }
 
 fn read_message(reader: &mut BufReader<UnixStream>) -> Option<ServiceMessage> {
+    return match listen(reader) {
+        Heard::Message(message) => Some(message),
+        Heard::Closed | Heard::Silent => None,
+    };
+}
+
+/// What:
+///  Reads one line from the service and says whether it was a message, a close, or silence.
+/// Why:
+///   A read that times out is the service saying nothing for the silence bound, which is not the same as a service that
+///  closed its end: the first is asked again with the same request, the second is a service that went away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const heard = await listen(reader) // { message } | 'closed' | 'silent'
+/// ```
+fn listen(reader: &mut BufReader<UnixStream>) -> Heard {
     let mut line: String = String::new();
     return match reader.read_line(&mut line) {
-        Ok(read) if read > 0 => decode_service(line.trim_end_matches('\n')).ok(),
-        _ => None,
+        Ok(read) if read > 0 => decode_service(line.trim_end_matches('\n')).map_or(Heard::Closed, Heard::Message),
+        Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => Heard::Silent,
+        _ => Heard::Closed,
     };
 }
 
 /// What:
 ///  Connects, waiting for a start the operating system performs, and returns the stream with the service's version.
 /// Why:
-///   The wait is bounded and honest: one notice after the grace, then silence until the bound.
+///   With a manager to ask, the wait has no clock: it ends when the service greets, or when the manager has said twice in a
+///  row that the unit failed. Where the manager cannot be asked it ends at the start wait, as it always did. Once a service
+///  has greeted during this command (`service_seen`), a service that then greets nothing within the silence bound is the
+///  one that stopped, and that ends the wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { stream, version } = await reach(config, notices)
+/// const { stream, version } = await reach(config, notices, serviceSeen)
 /// ```
 fn reach(
     config: &ClientConfig,
     notices: &mut dyn Write,
     announced: &mut bool,
     trace: &mut ReachTrace,
+    service_seen: bool,
 ) -> Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure> {
     let started: Instant = Instant::now();
     let mut refused_here: bool = false;
+    let mut last_asked: Instant = started;
+    let mut failed_answers: u32 = 0;
+    let mut cannot_ask: bool = false;
     loop {
         trace.tries += 1;
         match connect(&config.address) {
             Ok(stream) => {
-                let _timeout = stream.set_read_timeout(Some(config.start_wait));
+                let patience: Duration = match (&config.start_watch, service_seen) {
+                    (_, true) => config.heartbeat_silence,
+                    (Some(watch), false) => watch.every,
+                    (None, false) => config.start_wait,
+                };
+                let _timeout = stream.set_read_timeout(Some(patience));
                 let mut reader: BufReader<UnixStream> = BufReader::new(stream);
-                if let Some(ServiceMessage::Welcome { version, release }) = read_message(&mut reader) {
-                    let _widened = reader.get_ref().set_read_timeout(Some(config.commit_wait));
-                    trace.saw_release(release.as_deref());
-                    if refused_here {
-                        trace.start_waited += started.elapsed();
+                match listen(&mut reader) {
+                    Heard::Message(ServiceMessage::Welcome { version, release }) => {
+                        let _widened = reader.get_ref().set_read_timeout(Some(config.heartbeat_silence));
+                        trace.saw_release(release.as_deref());
+                        if refused_here {
+                            trace.start_waited += started.elapsed();
+                        }
+                        return Ok((reader, version, release));
                     }
-                    return Ok((reader, version, release));
+                    // A service that greeted before and now greets nothing is the one that stopped.
+                    Heard::Silent if service_seen => return Err(ClientFailure::ServiceSilent),
+                    // Connected, but nothing greeted: the service is still starting or is going away.
+                    Heard::Message(_) | Heard::Closed | Heard::Silent => {
+                        trace.refused += 1;
+                        refused_here = true;
+                    }
                 }
-                // Connected, but nothing greeted: the service is still starting or is going away.
-                trace.refused += 1;
-                refused_here = true;
             }
             Err(_) => match config.activation {
                 Activation::Unsupported(platform) => return Err(ClientFailure::NoActivation(platform)),
@@ -139,8 +239,24 @@ fn reach(
                 }
             },
         }
-        if started.elapsed() >= config.start_wait {
-            return Err(ClientFailure::DidNotStart);
+        match &config.start_watch {
+            Some(watch) => {
+                if last_asked.elapsed() >= watch.every {
+                    last_asked = Instant::now();
+                    let answer: Option<bool> = (watch.has_failed)(watch.bus.as_path(), watch.unit.as_str());
+                    cannot_ask = answer.is_none();
+                    failed_answers = if answer == Some(true) { failed_answers + 1 } else { 0 };
+                }
+                // One answer of "failed" can be the unit's last run, before the connection made the manager start it again.
+                if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) {
+                    return Err(ClientFailure::DidNotStart);
+                }
+            }
+            None => {
+                if started.elapsed() >= config.start_wait {
+                    return Err(ClientFailure::DidNotStart);
+                }
+            }
         }
         if !*announced && started.elapsed() >= START_NOTICE_GRACE {
             *announced = true;
@@ -165,18 +281,18 @@ fn reach(
 /// ```ts
 /// const reader = await reachCurrent(config, notices, announced)
 /// ```
-fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace) -> Result<BufReader<UnixStream>, ClientFailure> {
+fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
     let began: Instant = Instant::now();
-    let reached = reach_current_untimed(config, notices, announced, trace);
+    let reached = reach_current_untimed(config, notices, announced, trace, service_seen);
     trace.elapsed += began.elapsed();
     return reached;
 }
 
 /// `reach_current` without the clock around it.
-fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace) -> Result<BufReader<UnixStream>, ClientFailure> {
+fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
     let mut give_up_at: Option<Instant> = None;
     loop {
-        let (mut reader, version, release) = reach(config, notices, announced, trace)?;
+        let (mut reader, version, release) = reach(config, notices, announced, trace, service_seen)?;
         if version == PROTOCOL_VERSION && release.as_deref() == Some(RELEASE) {
             trace.answered_by = release;
             return Ok(reader);
@@ -255,18 +371,21 @@ pub fn submit_traced(config: &ClientConfig, request: &CommitRequest, notices: &m
 }
 
 /// The sends and the waits of `submit_traced`.
+///
+/// The wait for the answer has no clock: it lasts as long as the service keeps sending, and ends when the service goes
+///  silent for the silence bound. The request is then sent again with the same identity, so nothing lands twice, and the
+///  command ends only when every try has met silence or a closed connection.
 fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
     let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
-    let waiting_since: Instant = Instant::now();
     let mut announced: bool = false;
     let mut breaks: usize = 0;
     let mut last_position: Option<usize> = None;
     let mut holder: Option<String> = None;
+    let mut service_seen: bool = false;
+    let mut last_break_was_silence: bool = false;
     loop {
-        if waiting_since.elapsed() >= config.commit_wait {
-            return Err(ClientFailure::WaitedTooLong { minutes: config.commit_wait.as_secs() / 60 });
-        }
-        let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach)?;
+        let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach, service_seen)?;
+        service_seen = true;
         let mut payload: String = line.clone();
         payload.push('\n');
         if reader.get_mut().write_all(payload.as_bytes()).is_err() {
@@ -280,39 +399,51 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         trace.sends += 1;
         let written_at: Instant = Instant::now();
         let answered: Option<Result<Submitted, ClientFailure>> = loop {
-            match read_message(&mut reader) {
-                Some(ServiceMessage::Position { number, of }) => {
+            match listen(&mut reader) {
+                Heard::Message(ServiceMessage::Position { number, of }) => {
                     if last_position != Some(number) {
                         last_position = Some(number);
                         trace.positions.push(number);
                         let _written = writeln!(notices, "{}", position_notice(number, of));
                     }
                 }
-                Some(ServiceMessage::Landed { commit, already, .. }) => break Some(Ok(Submitted::Landed { commit, already })),
-                Some(ServiceMessage::RetryPrepare { base, landed, .. }) => break Some(Ok(Submitted::PrepareAgain { base, landed })),
-                Some(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => break Some(Ok(Submitted::Moved)),
-                Some(ServiceMessage::Failed { code: FailureCode::IndexInUse, .. }) => {
+                Heard::Message(ServiceMessage::Landed { commit, already, .. }) => break Some(Ok(Submitted::Landed { commit, already })),
+                Heard::Message(ServiceMessage::RetryPrepare { base, landed, .. }) => break Some(Ok(Submitted::PrepareAgain { base, landed })),
+                Heard::Message(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => break Some(Ok(Submitted::Moved)),
+                Heard::Message(ServiceMessage::Failed { code: FailureCode::IndexInUse, .. }) => {
                     break Some(Err(ClientFailure::IndexInUse(holder.take().unwrap_or_else(|| { return String::from("Another program"); }))));
                 }
-                Some(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
-                Some(ServiceMessage::Waiting { text }) => {
+                Heard::Message(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
+                Heard::Message(ServiceMessage::Waiting { text }) => {
                     trace.waiting_notices += 1;
                     trace.holder_kind = Some(holder_kind_of(text.as_str()));
                     let _written = write!(notices, "{text}");
                 }
-                Some(ServiceMessage::Holder { who }) => holder = Some(who),
-                Some(ServiceMessage::Welcome { .. }) => {}
-                None => break None,
+                Heard::Message(ServiceMessage::Holder { who }) => holder = Some(who),
+                // Each message, this one too, restarts the silence bound; nothing else is needed.
+                Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat) => {}
+                Heard::Silent => {
+                    last_break_was_silence = true;
+                    break None;
+                }
+                Heard::Closed => {
+                    last_break_was_silence = false;
+                    break None;
+                }
             }
         };
         trace.answer_wait += written_at.elapsed();
         if let Some(done) = answered {
             return done;
         }
-        // The connection broke before an answer: the service died or was replaced. Send the same request again.
+        // The service went silent or the connection broke before an answer: the service died, hung or was replaced. Send the
+        //  same request again.
         breaks += 1;
         if breaks > RECONNECTS {
-            return Err(ClientFailure::MayNotHaveLanded);
+            return Err(if last_break_was_silence { ClientFailure::ServiceSilent } else { ClientFailure::MayNotHaveLanded });
+        }
+        if last_break_was_silence {
+            let _written = writeln!(notices, "{SILENT_NOTICE}");
         }
         std::thread::sleep(CONNECT_PAUSE * u32::try_from(breaks).unwrap_or(1));
     }
@@ -384,7 +515,7 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     let mut line: String = encode_client(&ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: review_key.cloned() });
     line.push('\n');
     let mut announced: bool = false;
-    let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default())?;
+    let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default(), false)?;
     if reader.get_mut().write_all(line.as_bytes()).is_err() {
         return Err(ClientFailure::Unavailable);
     }

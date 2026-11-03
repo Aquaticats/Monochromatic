@@ -16,6 +16,13 @@ of a
 commit (delegated pick 4, option B) and the deadlines of tools and checks that are not Git (delegated pick 9, option A),
 with the read-only query ceiling added to both by the coordinator, and the new section "Quiet gaps in the existing
 logs".
+Two more groups of entries and their questions carry outcomes added on
+`feat/git-policy-cli-index-lock-and-service-waits`
+(2026-11-03): delegated pick 2 ("What a live or unproven index lock holder costs", option A) and delegated pick 6
+("Waits on the commit service itself", option A).
+Each says it was the coordinator's pick under the owner's delegation ("Pick options as if I had picked them and invite
+veto
+when I say I'm back.") and is open to the owner's veto.
 
 Audited commit: `d48d0a66f4` (main).
 Rule `LQM` of `AGENTS.md` (line 1357), quoted verbatim from the owner's approval:
@@ -280,108 +287,83 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
 
 ### Live-holder wait, 1800 seconds
 
-- Where: `src/native/wait_limit.rs:26` (`DEFAULT_LIVE_WAIT`), variable `CLI_GIT_LOCK_WAIT_SECONDS`
-  (`wait_limit.rs:22`).
-Read by `src/native/index_holder_wait.rs:152` (merge), `src/native/service_index_wait.rs:235` (forwarded index
-  writers),
-  and the service's landing (`src/native/service_main.rs:59`, `src/native/service_land.rs:42`).
-- Value: 30 minutes; a missing, zero or malformed variable falls back to it, never to no limit
-  (`wait_limit.rs:40` to `42`).
-- Bounds: how long a command or the service waits for a lock held by a live program, and also for a holder whose owner
-  cannot be proven alive (`src/native/index_holder_wait.rs:13` and `64`; `src/native/service_index_attempts.rs:50`).
-- When hit, the person sees (`src/native/index_lock_evidence.rs:447` and `474`):
-"cli-git: waiting for {holder}, which holds {lock} (proven by {proof}); giving up after {n} seconds" and, every notice
-  interval, "still waiting ... after {n} seconds; giving up after {n} seconds ({LIVE_WAIT_VARIABLE} changes this),
-  leaving the lock in place."
-  For an unproven owner: "waiting for {lock}, whose owner cannot be proven alive, after {n} seconds; giving up after
-  {n} seconds."
-  A forwarded writer that waited for the service's own hold prints "the commit service was still finishing a commit in
-  this repository after {n} seconds, so git {command} runs now and reports what Git says"
-  (`src/native/service_index_wait.rs:153`).
-  The service's landing ends with failure code `IndexInUse` (`src/native/service_index_attempts.rs:132` to `135`),
-  rendered as "{holder} is using this repository's index, so this commit was not made. Wait for it to finish, or close
-  it, and run the commit again." (`src/native/service_messages.rs:190`).
-  Where no inotify watch can be set, `watch.is_none()` makes the wait count as exhausted at once
-  (`service_index_attempts.rs:109`).
-- Fails or waits: waits up to the bound, then the commit fails (landing) or the merge refuses.
-- Citation: none.
-`doc/planning/cli-git-commit-timeouts.md:177` to `181` leaves "the number unchanged" because a holder "can also sit in
-  the user's hooks, whose runtime nobody here can bound"; the wrapper runs no external hooks
-  (`SPEC.md:1843`, "Real Git starts with traditional hooks off"), so that stated reason no longer applies.
-  The code comment (`wait_limit.rs:25`) says "longer than any ordinary hook run, short enough that a stuck holder is
-  noticed within the hour": a rationale, not a measurement.
-- Conflict, yes, with four decisions:
-  - `doc/decision/cli-git-concurrent-commits.md:151` to `154` and `347`: a proven-alive owner gets an unbounded wait,
-    the code stops at 1800 s.
-- Same record, lines 155 to 158: an unproven or dead owner gets backoff up to 1000 ms, the code waits the full 1800 s
-    for it (`index_holder_wait.rs:13`, "an unproven holder is waited for to the limit").
-  - "Commits should never fail" and "Designed out ... other programs' locks": at the bound the commit fails with
-    `IndexInUse`; "Same as the ref lock (Recommended)" (`SPEC.md:1234`) is the owner's chosen replacement and is not
-    built.
-  - "You should (almost) never be waiting."
-- Record mismatch: `src/native/doctor_config.rs:139` and `src/native/config_schema.rs:215` say
-`indexLock.unprovenOwnerTimeoutMs` "does nothing", while the decision record (lines 156 and 157) still prescribes it.
+- Outcome (delegated pick 2, option A; open to the owner's veto):
+  the 1800 seconds and `CLI_GIT_LOCK_WAIT_SECONDS` are gone, with `src/native/wait_limit.rs`.
+  A holder proven alive is waited for with no bound, in the merge wait (`index_holder_wait.rs`), the service's landing
+  (`service_index_attempts.rs`), the index reconciliation (`service_land_follow.rs`)
+  and the forwarded writers' wait for the
+  service's hold (`service_index_wait.rs`).
+  The line names the holder and its proof and says the wait lasts as long as the process holds the lock.
+  An owner nothing proves alive gets `UNPROVEN_OWNER_BACKOFF` and then a diagnostic that lists the evidence;
+  a dead owner gets the diagnostic at once.
+- Citation of the new number (`src/native/unproven_backoff.rs`):
+  1000 ms is ten times the longest hold measured for Git's own commands in this repository's layout (20,739 tracked
+  files,
+  2.9 MB index; 20 runs each of `git status`, `git add -A`, `git reset -q`,
+  `git update-index --refresh` on a copy of the
+  index, 2026-11-03): at most 100 ms (medians 26 to 53 ms).
+  No journal or log holds a measurement of a foreign holder:
+  none of 1,335 landings in the service journal recorded finding
+  the lock held (no `lock_looks`), and none of the 1,090 records of `.git/cli-git-commit-timing.jsonl` has a waiting
+  notice.
+  The record's default (1000) is the same number.
+- Left for the owner: whether 1000 ms is the number he would pick (see "What a live or unproven index lock holder
+  costs").
+- Earlier entry, kept for the record:
+- Where: `src/native/wait_limit.rs:26` (`DEFAULT_LIVE_WAIT`), variable `CLI_GIT_LOCK_WAIT_SECONDS`.
+- Value: 30 minutes, for a holder proven alive and also for one whose owner cannot be proven alive.
+- Conflict, yes, with the decision record's lines 151 to 158 and with "Commits should never fail." and "You should
+  (almost) never
+  be waiting."; this is what the outcome above removes.
+- The record's lines 155 to 158 (quoted): "A dead or evidence-free owner gets Git-style quadratic backoff with jitter
+  up to
+  `indexLock.unprovenOwnerTimeoutMs` (default 1000), then a diagnostic listing the evidence."
 
 ### Service hold age limit, 60 seconds
 
-- Where: `src/native/service_index_wait.rs:48` (`HOLD_LIMIT`), used at line 210.
-- Value: 60 seconds.
-- Bounds: the age at which a service hold whose mark names no holder, or a holder this process cannot ask about, is
-  taken for a dead service's leftover.
-- When hit: "the commit service's hold on this repository's index is {n} seconds old, longer than a commit takes, so
-  git
-  {command} does not wait for it." (`service_index_wait.rs:138`).
-- Fails or waits: stops waiting; the forwarded command then runs and may meet Git's own refusal.
-- Citation: none.
-  The comment says "Every step of a landing is bounded", but the bulk child bound is 300 seconds
-  (`src/native/child_class.rs:39`), so a legitimate hold can outlive 60 seconds; the two numbers are not reconciled.
-- Conflict: none found against the quoted decisions; it is a staleness judgment, not a wait.
+- Outcome (delegated pick 2; open to the owner's veto):
+  `HOLD_LIMIT` is now `UNASKABLE_HOLD_AGE`, 150 seconds, and the limit parameter of the wait is gone.
+  A hold whose mark proves the service runs is waited for with no bound (it already was, apart from the 1800 seconds).
+- Citation: the service's journal logged the time the service held the lock (`lock_hold_ms`) for 715 landings
+  (2026-11-02 to 2026-11-03): median 34 ms, 90th percentile 92 ms, 99th percentile 65,787 ms, longest 119,721 ms.
+  Thirteen holds ran 58 to 120 seconds, all in the disk sync of the new index (`sync_ms`),
+  so a live service on a slow disk
+  holds the lock for two minutes. The earlier 60 seconds took those for leftovers whenever the holder could not be
+  asked about
+  (another PID namespace). 150 seconds is a quarter more than the longest measured hold.
+- Deviation from pick 2's "short backoff": the measurement contradicts a short age for a live service's own hold,
+  so this
+  number is not short. It is listed under the open questions.
 
 ### Look counts and pauses of the lock wait
 
-- Where: `src/native/service_index_wait.rs:33` and `34` (`EMPTY_LOOKS` 5, `EMPTY_PAUSE` 2 ms),
-  `src/native/service_index_hold.rs:27` and `28` (`SETTLE_LOOKS` 5, `SETTLE_PAUSE` 10 ms),
-  `src/native/index_holder_wait.rs:41` (`POLL_PAUSE` 50 ms, only where no watch can be set).
-- Value: as listed.
-- Bounds: how long a lock that reads empty or a failing question is re-asked before it is judged foreign or given up.
-- When hit: the wait classifies the lock as a foreign program's; no message of its own.
-- Fails or waits: waits a few milliseconds.
-- Citation: none (the comment at `service_index_wait.rs:21` to `26` explains the case, not the numbers).
-- Conflict: none found.
+- Outcome: unchanged. They decide only whether an empty lock is read as the service's or as a foreign program's (8 to
+  40 ms),
+  and the 50 ms poll where no watch can be set. No measurement was made for them;
+  the measured holds of Git's own commands
+  (15 to 100 ms) show an empty foreign lock is the usual case,
+  so reading it as foreign after the looks is the right call
+  whatever the exact count. Still uncited.
 
 ### Service scan budget, 250 milliseconds
 
-- Where: `src/native/index_lock_holders.rs:293` (`SERVICE_SCAN_BUDGET`).
-- Value: 250 ms.
-- Bounds: the scan of open descriptors that looks for the process holding a lock.
-- When hit: the scan returns what it found; the holder may then read as "cannot be proven alive".
-- Fails or waits: waits at most the budget; changes which message is printed.
-- Citation: none.
-- Conflict: none found.
+- Outcome (delegated pick 2): cited beside the value (`index_lock_holders.rs`).
+  Walking every process's open descriptors (`ls -l /proc/[0-9]*/fd`)
+  over 858 processes took 0.10 s in each of three runs on
+  2026-11-03, so 250 ms is two and a half times a whole walk.
+  The scan is made at the first look and at each repeat of the
+  notice, not at every wake of the watch.
 
 ### Index reconciliation tries, 5
 
-- Where: `src/native/service_land_follow.rs:24` (`INDEX_ATTEMPTS` 5) and `27` (`INDEX_PAUSE` 100 ms), loop at line 147
-  in `update_index`.
-The only caller is `src/native/service_prepare.rs:448`, the ending of a commit whose corrections removed every change.
-- Value: five tries, 100 ms apart.
-- Bounds: how long the client retries resetting the real index entries of the corrected files to the base while
-  another
-  program holds the index.
-- When hit: failure code `IndexInUse` (`service_land_follow.rs:59` to `60`, from Git's "index.lock" text), and the
-  command
-  stops with "the index could not be reconciled with the corrected files: {word}" (`service_prepare.rs:449`).
-  That commit exits 1 in any case, because it has no change left to record.
-- Fails or waits: waits half a second, then the command ends with that message and the index is not reconciled.
-- Citation: none.
-- Conflict: partial. The cause is another program's lock, which the owner put on the designed-out list, and this is a
-  retry; the command was already ending without a commit, so no commit fails here.
-- Not this path: the service's landing builds the new index in a file of its own (`build_index`,
-  `service_land_follow.rs:176`) and installs it by releasing the lock it holds.
-`follow_up` returns a flag rather than an error (`src/native/service_land.rs:147`), and its caller says "The branch
-  has
-  moved: the commits exist whatever happens to the index, which recovery finishes" (`service_land.rs:408` to `410`).
-  So a landing does not fail on a foreign index lock after the ref moved, and no `INDEX_ATTEMPTS` bound applies to it.
+- Outcome (delegated pick 2): the reconciliation of a commit whose corrections left no change now waits through
+  `wait_for_index_release_here` like a merge: a holder proven alive is waited for with no bound,
+  an owner nothing proves alive for
+  the backoff, a dead one not at all.
+  `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) stay for a lock that was gone by the time it was looked at;
+  100 ms is the
+  longest measured hold of Git's own short commands (`unproven_backoff.rs`).
+  That commit still exits 1 in any case, because it has no change left to record.
 
 ### Rerun of a forwarded index writer, 50 starts
 
@@ -454,16 +436,11 @@ The only caller is `src/native/service_prepare.rs:448`, the ending of a commit w
 
 ### Retired unproven-owner timeout
 
-- Where: `src/native/config_schema.rs:41` (`DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS`); read in
-  `src/native/config_parse.rs:167`.
-- Value: 1000 ms.
-- Bounds: nothing; the comment says "nothing reads it now".
-- When hit: never.
-- Fails or waits: neither.
-- Citation: the value is the decision record's default (`doc/decision/cli-git-concurrent-commits.md:157`), but the
-  behavior it stood for is gone.
-- Conflict: the decision record still prescribes behavior the code does not have (see "Live-holder wait, 1800
-  seconds").
+- Outcome: the key stays retired. Its value, 1000 ms,
+  is now the fixed `UNPROVEN_OWNER_BACKOFF` with a measurement beside it.
+  `doctor_config.rs` and `config_schema.rs` no longer mention `CLI_GIT_LOCK_WAIT_SECONDS`;
+  the doctor says what the service
+  does instead.
 
 ## Git child steps of a commit
 
@@ -669,58 +646,62 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 
 ### Service start wait, 10 seconds
 
-- Where: `src/native/service_client.rs:28` (`START_WAIT`), `README.md:959`.
-- Value: 10 seconds, used for the connect loop (`service_client.rs:142`), the welcome read (`120`), the retire loop
-  (`189`) and `ask_to_retire` (`334`).
-- Bounds: how long the client waits for the operating system to start the service.
-- When hit (`service_messages.rs:126`): "The commit service did not start, so this commit was not made. Its log shows
-  why: `{LOG_COMMAND}`. Run the commit again after fixing that."; for a service of another release,
-  "... did not stop when asked ... Restart it with `{RESTART_COMMAND}`" (`147`).
-- Fails or waits: waits, then the commit fails.
-- Citation: none (`doc/planning/cli-git-resident-service.md:849` says "ten seconds by default"; a design statement).
-- Conflict, yes: `DESIGN.md:124`, "a slow start ... is resolved without the user".
+- Outcome (delegated pick 6, option A; open to the owner's veto):
+  where the client can ask the service manager (the route has the session bus and the worktree's instance),
+  the wait has no clock:
+  every second the client asks for the state of `cli-git@<instance>.service`,
+  and two answers of `failed` in a row end the wait
+  with the existing "The commit service did not start" message and the journal command.
+  Where the manager cannot be asked (no bus, or a bus call that fails), the wait ends at `START_WAIT` as before.
+  The wait for an older service to retire keeps `START_WAIT` as well.
+- Citation of the remaining 10 seconds: ten times the slowest of 52 cold starts in `.git/cli-git-commit-timing.jsonl`
+  (`startWaitMs` longest 1041 ms, 90th percentile 213 ms, median 47 ms);
+  the 70 commits that asked an older service to retire
+  all reached the service within the same 1041 ms (`reachMs`).
+- Open: a unit that stays `inactive` after a connection while the socket still listens has no bound-free detection; the
+  client waits for it, and a person can interrupt the command. Options in the open questions.
 
 ### Commit queue wait, 10 minutes
 
-- Where: `src/native/service_client.rs:34` (`COMMIT_WAIT`), `README.md:960`; fixed in
-`src/native/service_commit.rs:181`, `src/native/auto_push_trigger.rs:327`, `src/native/worktree_trash_dispose.rs:152`.
-- Value: 600 seconds as a socket read timeout (`service_client.rs:123`, check at `266`).
-- Bounds: how long a client waits for the answer to its request.
-- When hit (`service_messages.rs:182`): "This commit waited {minutes} minutes behind other commits and was not made.
-  Run
-  it again later, or raise the waiting limit in the settings for the wrapper."
-- Fails or waits: waits, then fails.
-- Citation: none. `doc/planning/cli-git-resident-service.md:280` says "default 10 minutes, configurable".
-  No setting exists: the only call sites pass the constant, and the environment and configuration readers name none.
-  The message therefore tells the person to change something that cannot be changed.
-- Conflict, yes: "Commits should never fail", "You should (almost) never be waiting."
-  The handover plans "heartbeats instead of `COMMIT_WAIT`" (line 190) on the unbuilt design.
+- Outcome (delegated pick 6, option A; open to the owner's veto):
+  `COMMIT_WAIT` and its message "raise the waiting limit in the settings for the wrapper" (`WaitedTooLong`) are gone.
+  The service sends a `heartbeat` line once a second (`HEARTBEAT_EVERY`, `service_protocol.rs`)
+  to every client whose request is
+  queued or landing, from the thread that read the request (`service_reply.rs`); the protocol version is 6.
+  The client waits for the answer for as long as it keeps hearing from the service.
+  A service silent for `HEARTBEAT_SILENCE` (5 seconds) is taken for stopped:
+  the client prints "The commit service stopped
+  answering; asking it again with the same commit, which cannot land twice.", connects again and sends the same request
+  identity. A service that greets nothing then ends the command with `ServiceSilent`:
+  "The commit service stopped answering
+  while this commit waited, and it did not answer when asked again,
+  so it is not known whether the commit was made." followed by
+  `git log -1`, `git status`, the journal command and the restart command.
+- Citation: queue waits the journal shows reach 89.9 s (`queued_ms`, 1,332 requests, 99th percentile 0 ms),
+  so no fixed client
+  bound near the old 600 s is supported either way; the beat replaces it.
+  `HEARTBEAT_EVERY` is the pace of the other waiting notices;
+  300 one-second timers on this host fired a median of 1.0 ms and
+  at most 2.2 ms late, so five missed beats (`HEARTBEAT_SILENCE`) are a stopped process and not a late timer,
+  and a wrong call
+  costs one resend of a request the service recognizes by identity.
+- Limit of the beat: it is sent by the thread that read the request, so it proves the process and the connection live,
+  not that
+  the landing thread makes progress; a stuck Git child is ended by the step bounds, not by this.
 
 ### Reconnects, 5
 
-- Where: `src/native/service_client.rs:37` (`RECONNECTS`), pause `40` (`CONNECT_PAUSE` 25 ms), uses `199`, `313`,
-  `317`.
-- Value: five resends of the same request id, pausing 25 ms times the try number.
-- Bounds: sends after the connection broke before an answer.
-- When hit (`service_messages.rs:138`): "The commit service stopped before it confirmed this commit. Run `{check}` to
-  see
-  whether it was made, and `{check}` to see what is still staged. If it was not made, run the commit again."
-- Fails or waits: waits under a second, then fails with an uncertain outcome.
-- Citation: none.
-- Conflict: none; the cause is a service kill or crash, on the "outside" list.
+- Outcome: unchanged. A connection that closes before an answer (the service died)
+  is sent the same request again up to five
+  times; a silence is asked again once per try as well, and the reach after a silence is bound by the same silence.
+  Still uncited.
 
 ### Request read timeout and accept backoff
 
-- Where: `src/native/service_server.rs:44` (`REQUEST_READ_TIMEOUT` 10 s, set at 265) and `255` (`ACCEPT_BACKOFF` 100
-  ms).
-- Value: as listed.
-- Bounds: how long a new connection may take to send its request line; how long the acceptor pauses when it cannot
-  start a thread.
-- When hit: the connection is dropped silently, or the client gets `Unavailable` ("The commit service could not finish
-  this commit, so it was not made. Run the commit again ...", `service_messages.rs:220`).
-- Fails or waits: fails that connection.
-- Citation: none.
-- Conflict: none found.
+- Outcome (delegated pick 6): `REQUEST_READ_TIMEOUT` (10 s) is unchanged and now cited:
+  the request line of 1,332 requests took
+  at most 99 ms to arrive (`read_ms`; median 0, 99th percentile 0), so 10 s is about a hundred times the slowest.
+  `ACCEPT_BACKOFF` is unchanged and uncited.
 
 ### Idle exit, three hours
 
@@ -763,6 +744,17 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   The prototype's burst measurement stays the only basis.
   The comment at `src/native/service_server.rs:41` says so; the options are in the question "Sizes and ages of the
   service's own housekeeping".
+
+- After the follow-up pick (option B, picked by the coordinator under the owner's delegation, open to the owner's
+  veto): measured and changed to 256 (`BATCH_COST_KNEE`).
+  A burst of simultaneous requests against a throwaway service landed in 71 to 76 ms for 62 to 63 requests, 82 to 85
+  ms for
+  126, 104 to 109 ms for 253 to 255, 193 to 204 ms for 509 to 511 and 525 to 547 ms for 1,021 to 1,023
+  ("Measurement record", batch burst).
+  The added cost of a request is 0.16 ms up to 254 requests, 0.36 ms to 510 and 0.66 ms to 1,022, so the cost per
+  request had not doubled at 256, and a burst of 128 that waited 243 to 249 ms in three landings at the old cap of 64
+  waited 176 to 206 ms in one.
+  Production never reached a batch of more than one request, so the cap bites only in a burst.
 
 ### Frame and change bounds
 
@@ -809,6 +801,18 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   journal) does not stop renewals.
   The comment at `src/native/service_work.rs` says so; the options are in the question "Sizes and ages of the
   service's own housekeeping".
+
+- After the follow-up pick (option B, picked by the coordinator under the owner's delegation, open to the owner's
+  veto): measured, value kept.
+  A throwaway service that held a claim on a push was killed with SIGKILL, and the push was made again 119.57, 119.56
+  and
+  119.55 s after the kill in three runs ("Measurement record", claim recovery), so the cost of a kill is the lease to
+  within
+  half a second.
+  The other side of the trade, a live holder losing its claim, needs a stall of the whole process longer than the 80 s a
+  renewal may be late; the longest landing stall seen was 119.8 s but the renewal thread is separate, and a stall of the
+  process itself was not observed or produced.
+  The value is kept at 120 s with both facts beside it (`src/native/service_work.rs`).
 
 ### Journal retention and capture memory
 
@@ -948,7 +952,8 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 
 ### Push output cap, 4 MiB
 
-Status after picks 5 and 12: unchanged. `bounded_push.rs` and `SPEC.md` now say beside the value that no citation exists.
+Status after picks 5 and 12: unchanged. `bounded_push.rs` and `SPEC.md` now say beside the value that no citation
+exists.
 
 - Where: `src/native/bounded_push.rs:62` (`MAX_PUSH_OUTPUT`), `is_flood` at `277`, `SPEC.md:1562`.
 - Value: 4 MiB; only the first 4 MiB are kept.
@@ -1295,6 +1300,18 @@ Owner decision "Pass only if unset" (`SPEC.md:651`, `src/native/checkout_workers
   listed as an open question.
 - Not measured at all: `REMOVAL_SPLIT_DEPTH` (3).
 
+- After the follow-up pick (option A, picked by the coordinator under the owner's delegation, open to the owner's
+  veto): the thresholds are measured on the real functions and changed.
+  The copy stage (`copy_manifest_entries`), the install (`install_snapshot`) and `clone_tree`, each forced to 1, 2, 4
+  and 8
+  workers, were never slower in parallel from 16 entries up, so the three thresholds (4096, 1024 and 512) are now one
+  value, `PARALLEL_BREAK_EVEN_ENTRIES`, 16 ("Measurement record", thresholds).
+  The old copy threshold left up to 145 ms on the table, the install 50 ms and the clone 12 ms.
+- `REMOVAL_SPLIT_DEPTH` (3) was measured at depths 1 to 6 on a tree of 22,717 entries: medians 365, 281, 304, 325, 437
+  and
+  512 ms, depths 2 and 3 overlapping; kept.
+  The tree has no very large subtrees, so a stage with a few was not measured.
+
 ### Install batch, 4096 entries
 
 - Where: `src/native/worktree_copy_install.rs:38` (`INSTALL_BATCH_ENTRIES`),
@@ -1305,6 +1322,16 @@ Owner decision "Pass only if unset" (`SPEC.md:651`, `src/native/checkout_workers
 - Fails or waits: waits.
 - Citation: none.
 - Conflict: "60s is fine for adding worktrees" bounds the add's total, not the batch; none found.
+
+- After the follow-up pick (option A, picked by the coordinator under the owner's delegation, open to the owner's
+  veto): measured, value kept.
+  With a recorder that appends each batch to a file and syncs twice, installing 22,717 entries took 6,542, 2,265, 983,
+  746,
+  688 and 663 ms for batches of 64, 256, 1,024, 4,096, 16,384 and one batch, so a batch costs about 16 ms of syncs and
+  4096
+  entries add 12 percent to the install.
+  The real journal's append was not run, and how many entries an interrupted owner may leave unrecorded is the owner's
+  trade, so the value is kept.
 
 ### Free space preflight, 5 GiB
 
@@ -1389,6 +1416,15 @@ Once the caps are removed, the round width is set by the host's CPUs less one in
   - `CPU_MARGIN_DIVISOR` and `MEMORY_SHARE_DIVISOR` are shares, not quantities; neither binds on this host (25 workers
     against measured ceilings of 8 and 16; more than 180 items against memory), and the owner's words "make sure we're
     running everything that can be run in parallel in parallel" are cited beside them.
+
+- After the follow-up picks (options A and B, picked by the coordinator under the owner's delegation, open to the
+  owner's veto):
+  - `MOST_CONCURRENT_QUERIES` is split: `MOST_CONCURRENT_LOCAL_QUERIES` is 8 (`git ls-tree -r` took 80 and 50 ms at
+    four and
+    eight at once, `git rev-list` 231 and 190 ms, and no less at sixteen) and `MOST_CONCURRENT_REMOTE_QUERIES`, the
+    `git ls-remote` queries that open a connection, stays 4.
+  - `INDEX_REWRITE_COPIES` (4) was measured: an index of 2,786,564 bytes grew the process by 13,123,584 bytes and one of
+    1,066,894 bytes by 7,929,856 bytes, which is 3.0 copies plus about 4.7 MB that does not grow with the index; kept.
 
 ## Saved copies, audit and log retention
 
@@ -1569,6 +1605,13 @@ by content" and the path is not judged clean; an over-large index makes the guar
   The longest of a sample understates the tail; whether to use a multiple of it is an open question.
   `SPEC.md` states the new value.
 
+- After the follow-up pick (option B, picked by the coordinator under the owner's delegation, open to the owner's
+  veto): changed again, to seven seconds.
+  `MARGIN` is `MARGIN_MULTIPLE` (2) times `LONGEST_LIVE_REF_STEP` (3,438 ms), rounded up to a whole second, 7 s; a
+  stale lock
+  is left that long before it is judged.
+  The binary tests whose sleeps follow `MARGIN` run that much longer.
+
 ### Boot proof slack, one hour
 
 - Where: `src/native/stale_ref_lock_judge.rs:37` (`BOOT_SLACK`), `41` (`REUSE_SLACK_MS` 100), `SPEC.md:1769`.
@@ -1588,6 +1631,8 @@ by content" and the path is not judged clean; an over-large index makes the guar
   The other two constants of the entry are kept with measurements beside them: `REUSE_SLACK_MS` (100 ms) against a
   start-time error of at most 2.331 ms beyond the 20 ms resolution (two runs of 1,000 spawns), and the kernel tick of
   1 ms (`CONFIG_HZ=1000`).
+
+- After the follow-up pick on the margin: `BOOT_SLACK` follows `MARGIN`, so it is 3607 s.
 
 ### Empty-lock settle time, one second
 
@@ -1958,6 +2003,72 @@ goes to the embedded path of the commits-never-fail design);
 `update-ref` stays out of the ended set until the eighth design review confirms how a killed child's lock is handled;
 the review's local log write is left without a judge.
 
+### Follow-up measurements
+
+All on 2026-11-03 on this host, under the load there was.
+Probe code was scratch and is not committed; the throwaway targets were a fixture repository, a service started by the
+fixture, and reflinked copies of `git archive HEAD` of this repository (20,768 files, 22,717 entries) under
+`${HOME}/temp/agent/limits`.
+Every run was in `systemd-run --user --scope` with `IOWeight=10` and a `CPUQuota`, `MemoryMax` and `TasksMax` sized to
+it
+(burst: 800%, 8G, 1500 and 3000 tasks; thresholds: 1800%, 12G, 600 tasks).
+The claim-kill run's scope had ended by the time its tests ran, so it was bounded only by the test's own five
+minutes; it ran one fixture service and sleeping hooks.
+
+#### Batch burst
+
+- Command: the native binary test harness (`cargo nextest --test native_binary`) with a scratch test that starts the
+  real
+  `cli-git-service` on an abstract socket in a fixture repository, prepares N commit requests, releases N client threads
+  at one barrier, and reads the service's `answered` lines; `MAX_BATCH` was raised to 4096 for the second run.
+- Old cap of 64, three rounds alternating order over 8, 16, 32, 64 and 128 clients: makespan 139 to 149 ms for 8
+  clients, 145 to 146 for 16, 150 to 159 for 32, 155 to 159 for 64, 243 to 249 for 128 (three landings).
+  A landing took 62 to 85 ms for 3 to 63 requests.
+- Cap of 4096, three rounds over 64, 128, 256, 512 and 1024 clients: makespan 163 to 171 ms for 64, 176 to 206 for 128,
+  216 to 218 for 256, 313 to 331 for 512 (once 2,119 ms, a host stall), 673 to 697 for 1024; landing times as in the
+  entry
+  "Batch size, 64".
+  All requests landed in every run.
+- The probes were a debug build.
+
+#### Claim recovery
+
+- Command: the native binary test harness with a scratch test (three tests, 2026-11-03): a fixture repository with a
+  bare
+  remote whose `pre-receive` hook sleeps 20 s; a push item is recorded and the service woken; when the item appears in
+  `claimed`, 1.5 s pass, the service is killed with SIGKILL together with its process group, the hook is removed, a new
+  service is started and woken, and the time until the item is in `done` is read.
+- Result: 119.57, 119.56 and 119.55 s; the lease is 120 s.
+
+#### Thresholds, depth, batch and index rewrite
+
+- Command: scratch probes inside the crate that call `copy_manifest_entries`, `install_snapshot`, `clone_tree`,
+  `remove_tree_split` and `refresh_index_file` with the worker count, the batch size or the depth forced, five runs per
+  cell in alternating orders, medians; destinations on the same btrfs volume as the sources, removed after each run.
+- Copy stage, milliseconds at 1, 2, 4 and 8 workers: 30 entries 1.1, 1.0, 0.7, 0.7; 90 entries 3.6, 2.8, 2.1, 1.9; 296
+  entries
+  13.4, 9.3, 7.2, 5.9; 1,077 entries 47.9, 31.5, 20.6, 15.7; 2,119 entries 91.4, 53.9, 32.3, 25.4; 4,722 entries 202.6,
+  121.0, 76.1, 57.3; 9,301 entries 397.6, 222.2, 139.4, 104.4.
+- Install, same columns: 30 entries 1.6, 1.4, 1.4, 1.3; 90 entries 5.0, 3.6, 3.3, 3.1; 296 entries 14.8, 11.1, 9.1,
+  8.9; 1,077
+  entries 54.7, 37.6, 31.3, 25.9; 2,119 entries 107.7, 71.2, 56.8, 49.2; 4,722 entries 254.7, 182.5, 144.1, 129.7; 9,301
+  entries 500.2, 349.3, 277.6, 244.9.
+- `clone_tree`, same columns: 6 entries 0.4 on all; 10 entries 0.6, 0.5, 0.6, 0.6; 16 entries 1.1, 0.8, 0.7, 0.7; 30
+  entries
+  1.8, 1.5, 1.2, 1.2; 56 entries 3.5, 2.5, 2.2, 2.0; 90 entries 5.9, 3.9, 3.1, 2.7; 296 entries 20.7, 13.7, 9.5, 8.1;
+  555 entries
+  39.2, 23.4, 16.4, 13.4.
+- Removal at depths 1 to 6, 22,717 entries: 365, 281, 304, 325, 437, 512 ms (ranges 360 to 377, 251 to 305, 253 to
+  309, 307
+  to 339, 418 to 451, 495 to 525).
+- Install batches, 22,717 entries, a recorder that appends and syncs twice per batch: 6,542, 2,265, 983, 746, 688 and
+  663 ms
+  for batches of 64, 256, 1,024, 4,096, 16,384 and one batch; the ranges of the five runs were 6,301 to 7,925, 2,064 to
+  5,389, 976 to 2,355, 730 to 4,407, 655 to 2,604 and 640 to 752 ms.
+- Index rewrite, fresh process, resident size sampled every 0.2 ms: index 2,786,564 bytes grew 13,123,584 bytes (4.71
+  times); index 1,066,894 bytes grew 7,929,856 bytes (7.43 times); later runs in the same process reuse freed memory and
+  grew less.
+
 ## Counts
 
 The limit sections hold 73 limits (a grouped entry, such as the three include-depth copies, counts once).
@@ -1978,6 +2089,14 @@ The quick and bulk child bounds, the push stall window, the batch size, the Mark
 - none: 58, one of which (`DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS`) is a dead constant.
 
 So 11 of 73 have a measurement or an owner decision beside them in some form, and 4 of those 11 determine the value.
+
+### After the follow-up picks
+
+- Changed: lock age margin (4 s to 7 s) and with it the boot proof slack (3604 s to 3607 s); batch size (64 to 256);
+  the three parallel thresholds of the copy stage, the install and the clone (4096, 1024 and 512 to 16);
+  `MOST_CONCURRENT_QUERIES` split into local (8) and remote (4).
+- Newly cited, value kept: claim lease, install batch, removal depth, index rewrite copies.
+- Unchanged by the pick: idle exit, foreign-owner patience, free-space preflight.
 
 ### After the delegated picks
 
@@ -2114,6 +2233,64 @@ the failure but still waits ("You should (almost) never be waiting."); and A > C
 a
 number for a cause (another program's lock) that the owner put on the designed-out list.
 
+Outcome (delegated pick 2, option A, built on `feat/git-policy-cli-index-lock-and-service-waits`;
+the coordinator picked while
+the owner was away, open to the owner's veto):
+a holder proven alive is waited for with no bound and a line that names it; an owner that cannot be proven alive gets
+`UNPROVEN_OWNER_BACKOFF` and then a diagnostic that lists the evidence; a dead owner gets the diagnostic at once;
+`CLI_GIT_LOCK_WAIT_SECONDS`, `DEFAULT_LIVE_WAIT` and `src/native/wait_limit.rs` are gone.
+Option B ("Same as the ref lock (Recommended)": a commit lands and exits 0, the index catches up when the lock frees)
+is not
+built; it comes with the commits-never-fail design.
+
+Open questions this pick raised, for the owner:
+
+- Is 1000 ms the right backoff for an owner nothing proves alive?
+  The number is cited from a measurement of Git's own commands (at most 100 ms, ten times that),
+  but no log holds a foreign
+  holder to set it against, and a person's `git commit` with an editor open and `core.lockfilePid` off holds the lock
+  for
+  minutes with no proof, so that commit is refused after 1000 ms with the diagnostic.
+  Options:
+  (a) keep 1000 ms (the record's number);
+  (b) wait until the lock's change time stops moving for a quiet period (an editor-held lock never changes,
+  so this does not help);
+  (c) treat evidence-free like proven alive (no bound; a leftover from a killed program then waits forever,
+  and the diagnostic
+  never appears);
+  (d) 10 seconds, the notice interval, so a person sees one repeated line before the refusal.
+  Ranking: a > d > c > b, because a is the owner's recorded number and the only one with a measurement behind it;
+  d > c because
+  d still ends a leftover's wait where c never does; c > b because b cannot tell an editor-held lock from a leftover.
+- Should a dead owner wait the backoff like an unproven one, as the record says?
+  It now ends at once, because the PID file names a process that cannot let go. Options: (a) at once (built); (b)
+  the backoff, as
+  the record says. Ranking: a > b, because b waits a second for nothing.
+- Is 150 seconds the right age for the service's own hold when its holder cannot be asked about?
+  Pick 2 said "short backoff"; the measurement (live holds up to 119.7 s)
+  says a short age takes a live service for a leftover.
+  Options: (a) 150 seconds (built); (b) 1000 ms like the foreign owner; (c) no age at all,
+  wait while the lock carries the
+  service's mark. Ranking: a > c > b, because a is cited and still ends a dead service's leftover; c never ends it;
+  b would
+  refuse a `git add` during any landing longer than a second from a container.
+- The backoff clock of an owner nothing proves alive starts when the wait starts, not when the proof changes.
+  A holder proven
+  alive for a minute that is followed by a lock nothing proves alive gets a zero-length backoff and the diagnostic at
+  once, in
+  `index_holder_wait.rs` and in `service_index_attempts.rs`. Options: (a) as built; (b)
+  restart the backoff when the proof
+  changes from alive to nothing. Ranking: b > a,
+  because b gives the next owner the same second the first would have had.
+- `service_hold_retry::ATTEMPTS` (50 starts of a forwarded index writer while the service takes the index first)
+  is unchanged and
+  still uncited.
+- When no inotify watch can be set, the landing's wait still counts as over at once,
+  so a commit fails there even behind a holder
+  proven alive. Options: (a) leave (rare, a resource failure); (b) poll at the merge wait's 50 ms. Ranking: b > a,
+  because b keeps
+  "never fail" for the one case the wait gives up on a live holder.
+
 ### Retry counts for moved branches and contended locks
 
 Covers: `LANDING_ATTEMPTS` 3, `REBUILD_ATTEMPTS` 5, merge `MAX_ROUNDS` 20, `MAX_RECONCILE_ATTEMPTS` 10,
@@ -2244,6 +2421,51 @@ Visible result: no "waited N minutes ... not made" and no "did not start" for a 
 
 Ranking: A > B > C, because A removes the failure the owner's rule says the system should resolve, and B keeps it but
 bases it on evidence; B > C because C makes the message honest without giving the number a basis.
+
+Outcome (delegated pick 6, option A, built on `feat/git-policy-cli-index-lock-and-service-waits`;
+the coordinator picked while
+the owner was away, open to the owner's veto):
+the client waits on heartbeats from the service and has no wall-clock bound of its own;
+`COMMIT_WAIT` and the message that named a
+setting that does not exist are gone.
+A service that stops sending for five seconds is asked again with the same request identity;
+one that then greets nothing ends the
+command with "The commit service stopped answering while this commit waited ...
+it is not known whether the commit was made".
+The start waits without a clock where the client can ask the service manager, and ends when the manager reports the unit
+`failed` twice in a row.
+
+Open questions this pick raised, for the owner:
+
+- A unit that stays `inactive` after the client connected (the socket listens, the manager starts nothing)
+  is not detected without
+  a clock. Options: (a) leave it, the person interrupts the command; (b) after `START_WAIT` of unanswered connection,
+  ask the
+  manager to start the unit and wait again; (c) fail after `START_WAIT` as before. Ranking: b > a > c,
+  because b resolves it
+  without the person and without a failure;
+  a > c because c brings the clock back for the one case the manager cannot explain.
+  The wrapper never starting the service is another branch's work.
+- The beat proves the service process and the connection live, not that the landing thread makes progress.
+  Options: (a) as built; (b) the landing thread increments a counter at each phase and the beat stops while it does
+  not move.
+  Ranking: a > b for now, because b needs a clock for "does not move", which the beat was chosen to avoid,
+  and stuck Git children
+  are ended by the step bounds of another branch.
+- `EXCHANGE_WAIT` (20 s) and `RETIREMENT_WAIT` (10 s) are in this question's list and are unchanged here.
+- A connection thread now lives through the whole queue and landing of its request,
+  so the service's thread count during a
+  batch is the queue depth plus the acceptors, and the 0.5.27 unit sets no `TasksMax`.
+  It is not a limit this change ships.
+- With a manager watch the read for the first greeting times out every second instead of at `START_WAIT`, so a slow
+  socket-activated start leaves one idle backlog connection per second until the service greets;
+  the service's acceptor drains
+  them harmlessly.
+- What the controls prove: the scripted listener of `binary_service_heartbeat_tests.rs` exercises the manager watch
+  with a
+  function standing in for the manager; no test calls the real D-Bus `unit_has_failed`,
+  and only the `start_watch: None` path
+  runs against a real `cli-git-service`.
 
 ### Foreign-owner patience
 
@@ -2722,3 +2944,9 @@ Coordinator, under the owner's delegation, veto open:
   B.
 - Free-space preflight scope:
   A.
+
+Applied on branch `fix/git-policy-cli-limits-cite-measurements`: batch size 64 to 256 (measured burst), claim lease kept at
+120 s (measured kill recovery 119.55 to 119.57 s), idle exit and foreign-owner patience and preflight unchanged, local
+per-update queries 8 and remote 4, the three parallel thresholds 16, install batch and removal depth and index rewrite
+copies measured and kept, lock age margin 7 s.
+See "After the follow-up picks" and "Follow-up measurements".

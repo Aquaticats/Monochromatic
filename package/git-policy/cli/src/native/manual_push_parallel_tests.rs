@@ -2,7 +2,7 @@
 //!  (timestamps written by a stand-in Git), the answers keep the order Git printed them, and one that fails decides the error.
 
 use super::*;
-use crate::manual_push_probe::{MOST_CONCURRENT_QUERIES, probe_manual_push_updates_on};
+use crate::manual_push_probe::{MOST_CONCURRENT_LOCAL_QUERIES, probe_manual_push_updates_on};
 use crate::parallel_budget::HostResources;
 use crate::test_support::{fixture, git, remove};
 use std::path::{Path, PathBuf};
@@ -138,10 +138,10 @@ fn an_update_that_cannot_be_scoped_fails_the_push_scope() {
     remove(root.as_path());
 }
 
-/// More updates than the SPEC allows queries at once are read at most that many at a time, however large the host.
+/// More updates than the SPEC allows local queries at once are read at most that many at a time, however large the host.
 #[test]
 fn no_more_than_the_specified_number_of_updates_are_read_at_once() {
-    let branches: usize = MOST_CONCURRENT_QUERIES + 2;
+    let branches: usize = MOST_CONCURRENT_LOCAL_QUERIES + 2;
     let (root, repo) = repository_with("mp-parallel-bound", 1, branches);
     let log: PathBuf = root.join("rev-list.log");
     let stand_in: PathBuf = timing_git(&root, "rev-list", &log);
@@ -151,6 +151,12 @@ fn no_more_than_the_specified_number_of_updates_are_read_at_once() {
     scopes_of_updates_on(&LARGE_HOST, &git_stand_in, &updates).expect("scopes");
     let held = intervals(&log);
     assert_eq!(held.len(), branches, "{held:?}");
-    assert_eq!(most_at_once(&held), MOST_CONCURRENT_QUERIES, "{held:?}");
+    assert_eq!(most_at_once(&held), MOST_CONCURRENT_LOCAL_QUERIES, "{held:?}");
     remove(root.as_path());
+}
+
+/// Local queries run as many at once as the measured gain allows, and no more than the remote queries unless measured to gain.
+#[test]
+fn local_queries_run_as_many_at_once_as_the_measured_gain_allows() {
+    assert_eq!(crate::manual_push_probe::MOST_CONCURRENT_LOCAL_QUERIES, crate::manual_push_probe::LOCAL_QUERY_GAIN_STOPS_AT);
 }

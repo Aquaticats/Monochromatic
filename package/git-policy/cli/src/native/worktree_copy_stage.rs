@@ -210,19 +210,20 @@ fn copy_file_exclusive_with(
 }
 
 /// What:
-///  The entries per worker below which a copy stays on one thread.
+///  The entries below which a copy stays on one thread: `PARALLEL_BREAK_EVEN_ENTRIES`.
 /// Why:
-///   Starting threads costs more than a small copy; a main checkout's hundreds of thousands of entries are what need them.
-///  Measured with `clone_tree` (`package_repair_tree_clone.rs`, the same `copy_file_exclusive` primitive as the copy stage) on trees of reflinked tracked files of this repository, medians of three runs, 28 threads, other sessions running, 2026-11-03: 8 workers took 99 ms against 330 ms for one at 4,723 entries, 33 ms against 143 ms at 2,119, and
-///  20 ms against 74 ms at 1,077, so a copy under this threshold gives up about a hundred milliseconds. The copy stage itself was
-///  not run at these sizes, so the value is not changed; it is the coordinator's pick under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
+///   Starting threads costs more than a very small copy. Measured with `copy_manifest_entries` itself forced to 1, 2, 4 and 8
+///  workers on reflinked trees of this repository (2026-11-03, five runs each in alternating orders, other sessions running, a
+///  debug build): 8 workers took 0.7 ms against 1.1 ms for 30 entries, 1.9 ms against 3.6 ms for 90, 5.9 ms against 13.4 ms for
+///  296, 25.4 ms against 91.4 ms for 2,119, 57.3 ms against 202.6 ms for 4,722, and 104.4 ms against 397.6 ms for 9,301, so the
+///  old threshold of 4096 kept copies of up to 4,095 entries on one thread for up to 145 ms more. Picked by the coordinator under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const PARALLEL_COPY_MIN_ENTRIES = 4096;
+/// const PARALLEL_COPY_MIN_ENTRIES = PARALLEL_BREAK_EVEN_ENTRIES;
 /// ```
-const PARALLEL_COPY_MIN_ENTRIES: usize = 4096;
+const PARALLEL_COPY_MIN_ENTRIES: usize = super::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
 
 /// What:
 ///  The most threads one copy starts.
