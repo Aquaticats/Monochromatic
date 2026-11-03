@@ -544,7 +544,7 @@ export function refusalLines(verdict: Exclude<OriginContainment, { readonly kind
     `${String(verdict.count,)} commits of local ${verdict.branch} that ${originRemote}/${verdict.branch} do not have`;
   return [
     `REFUSED ${releaseWorkflow} was not started: ${commits}.`,
-    `The newest of them is ${verdict.newestHash} ${verdict.newestSubject}`,
+    `Newest commit that origin lacks: ${verdict.newestHash} ${verdict.newestSubject}`,
     `${hazard} Dispatching now would publish source without ${verdict.count === 1 ? 'it' : 'them'} under the new version.`,
     `Either wait for auto-push to send ${verdict.count === 1 ? 'it' : 'them'}, or run \`git push ${originRemote} ${verdict.branch}\`; ${rerun}`,
   ];
