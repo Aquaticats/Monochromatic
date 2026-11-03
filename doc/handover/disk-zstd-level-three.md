@@ -54,3 +54,46 @@ Existing extents are not recompressed.
 Swapfiles, inode exceptions, unsupported filesystem types,
 and read-only data must not be rewritten or reformatted.
 No reboot or disk-wide defragmentation is authorized by this work.
+
+## Future mount coverage at 2026-11-03T01:19:52-05:00
+
+Configured `/etc/udisks2/mount_options.conf` with `btrfs_defaults=compress=zstd:3`.
+Updated the active Btrfs home and SD-card values in `/etc/default/steamos-btrfs` to level 3.
+
+Installed and enabled `btrfs-zstd-policy.service`.
+It reconciles writable Btrfs mounts using their existing live mount options,
+then waits for kernel mount/remount notifications through `findmnt --poll`.
+A 60-second wait deadline covers the gap between reconciliation and listener startup.
+It uses a quarter of a CPU core at most,
+128 MiB memory,
+16 tasks,
+and I/O weight 10.
+It must share the host mount namespace.
+
+Disposable sparse images verified:
+the old UDisks default omitted compression;
+the configured default supplies `compress=zstd:3`;
+direct policy selection excludes read-only mounts;
+new manual mounts and later remounts are corrected;
+and newly created/mounted subvolumes inherit the filesystem setting.
+The `rw`, `nodev`, `nosuid`, and `noexec` options were preserved.
+All fixture mounts and loop devices were removed.
+Test harnesses are retained in the private backup directory as `verify-policy.ts` and `verify-udisks.ts`.
+
+The user answered "Wait for the check to finish"
+and then requested "Please query the boot-arg update automatically."
+The expired 600-second wait has been replaced by `boot-args.ts`,
+running in `btrfs-zstd3-boot-args.scope`,
+command session `47909`.
+It waits for PID `1403954` with a 3600-second deadline,
+checks that no other rpm-ostree transaction is active,
+updates the current persistent rootflags while retaining unrelated options,
+and verifies the result.
+A successful run writes `boot-args-result.json`.
+Do not cancel the user's update check.
+The original handover commit is `9f5acfb801`.
+
+Remaining work:
+check F2FS compression support for future media,
+complete final verification and rendering of this record,
+and collect the automatic boot-argument result.
