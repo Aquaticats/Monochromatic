@@ -2,14 +2,17 @@
 //!  The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
 //! Why:
 //!  Git removes its `.lock` files when it ends normally or on a catchable signal, but a child that is killed, or that is
-//!  in an uninterruptible call when the stop arrives, cannot (measured on 2026-11-03: two pushes stopped at their deadline
-//!  left `refs/remotes/origin/main.lock` and a second tracking-ref lock, both empty and born in the same instant, long
-//!  after the stop; every later `git fetch` of that ref then failed with "Unable to create ... File exists").
+//!  in an uninterruptible call when the stop arrives, cannot. On 2026-11-03 two pushes were stopped at their deadline;
+//!  about 37 seconds later, in the same instant, empty `refs/remotes/origin/*.lock` files appeared for exactly their two
+//!  tracking refs, with no pid file beside them, and every later `git fetch` of those refs failed with "Unable to create
+//!  ... File exists". The service had started those pushes without `core.lockfilePid`, so no pid file was written. That
+//!  the creators were the stopped pushes, released by the kernel late, is the inference that fits these facts; nothing
+//!  observed the processes themselves.
 //!  Two kinds of file are removed, and nothing else:
 //!       a lock whose `~pid.lock` file (written by `core.lockfilePid`, which the wrapper turns on for every Git it starts)
 //!       names a process of the stopped tree that has ended, with that pid file;
-//!       an empty lock with no pid file, born after the child started, because the child can die between creating
-//!       the lock and writing the pid file, and an empty file holds nothing.
+//!       an empty lock with no pid file, born after the child started and still empty after a settle time, because the
+//!       child can die between creating the lock and writing the pid file, and an empty file holds nothing.
 //!  A lock another Git process holds is never matched: its pid file names a process outside the stopped tree, or it
 //!  has content, or it is older than the child. No lock of the wrapper's own is taken to do this.
 //!
@@ -48,6 +51,11 @@ const PID_TEXT_PREFIX: &str = "pid ";
 ///  The kernel stamps files from a coarse clock that lags the one `SystemTime` reads by up to one tick.
 const COARSE_CLOCK_SLACK: Duration = Duration::from_millis(50);
 
+/// How long an empty lock without a pid file must have stayed empty before it counts as left behind.
+///  Git creates a ref lock empty and fills it a moment later, so a lock that a live process just made is empty for
+///  milliseconds; one that is still empty after this long has no writer. The sweep waits out what remains of it.
+const EMPTY_LOCK_SETTLE: Duration = Duration::from_secs(1);
+
 /// The directory inside `objects` that Git locks files in; the other directories there hold only loose objects.
 const SEARCHED_OBJECT_DIRECTORIES: [&str; 2] = ["info", "pack"];
 
@@ -69,6 +77,8 @@ pub struct LockLedger {
     roots: Vec<PathBuf>,
     /// The wall-clock time read before the child started.
     since: SystemTime,
+    /// How long an empty lock without a pid file must have stayed empty before it is removed.
+    settle: Duration,
 }
 
 /// The common Git directory a linked worktree's Git directory names in its `commondir` file, or the directory itself.
@@ -120,7 +130,7 @@ fn git_directory_of(start: &Path) -> Option<PathBuf> {
 impl LockLedger {
     /// A ledger that finds nothing: for a child that holds no Git lock, such as a reader of objects.
     pub fn none() -> Self {
-        return Self { roots: Vec::new(), since: SystemTime::now() };
+        return Self { roots: Vec::new(), since: SystemTime::now(), settle: EMPTY_LOCK_SETTLE };
     }
 
     /// The ledger of a command that has not started yet: its repository comes from `GIT_DIR` in its environment, or from
@@ -146,19 +156,43 @@ impl LockLedger {
                 roots.push(common);
             }
         }
-        return Self { roots, since };
+        return Self { roots, since, settle: EMPTY_LOCK_SETTLE };
+    }
+
+    /// When a file was born; a file system that keeps no birth time still stamps a never-written file with its creation time.
+    fn born_at(path: &Path) -> Option<SystemTime> {
+        let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
+        return metadata.created().or_else(|_| { return metadata.modified(); }).ok();
     }
 
     /// Whether a file was born at or after the child started.
     fn born_since(&self, path: &Path) -> bool {
-        let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return Self::born_at(path).is_some_and(|born| { return born + COARSE_CLOCK_SLACK >= self.since; });
+    }
+
+    /// Whether `path` is a regular file with nothing in it.
+    fn is_empty_file(path: &Path) -> bool {
+        return std::fs::symlink_metadata(path).is_ok_and(|metadata| { return metadata.is_file() && metadata.len() == 0; });
+    }
+
+    /// The same ledger with another settle time, so a test does not wait out the real one.
+    #[cfg(test)]
+    pub fn with_settle(mut self, settle: Duration) -> Self {
+        self.settle = settle;
+        return self;
+    }
+
+    /// Whether an empty lock without a pid file is the stopped child's: born after it started, and still empty after the
+    ///  settle time, which this waits out.
+    fn left_empty(&self, path: &Path) -> bool {
+        if !self.born_since(path) || !Self::is_empty_file(path) {
             return false;
-        };
-        // A file system that keeps no birth time still stamps a never-written file with its creation time.
-        let Ok(born) = metadata.created().or_else(|_| { return metadata.modified(); }) else {
-            return false;
-        };
-        return born + COARSE_CLOCK_SLACK >= self.since;
+        }
+        let age: Duration = Self::born_at(path).and_then(|born| { return born.elapsed().ok(); }).unwrap_or_default();
+        if age < self.settle {
+            std::thread::sleep(self.settle - age);
+        }
+        return Self::is_empty_file(path);
     }
 
     /// What:
@@ -191,8 +225,7 @@ impl LockLedger {
                 remove_recording(path.as_path(), &mut removed);
             } else if tree_ended
                 && !path.with_file_name(format!("{}{PID_LOCK_SUFFIX}", name.trim_end_matches(LOCK_SUFFIX))).exists()
-                && std::fs::symlink_metadata(path.as_path()).is_ok_and(|metadata| { return metadata.is_file() && metadata.len() == 0; })
-                && self.born_since(path.as_path())
+                && self.left_empty(path.as_path())
             {
                 remove_recording(path.as_path(), &mut removed);
             }

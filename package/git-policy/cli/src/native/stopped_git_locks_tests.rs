@@ -42,11 +42,14 @@ fn pid_file_of(repo: &Repo, reference: &str) -> PathBuf {
     return repo.git_dir.join("refs").join("remotes").join("origin").join(format!("{reference}{PID_LOCK_SUFFIX}"));
 }
 
+/// How long an empty lock must have stayed empty in these controls, instead of the real settle time.
+const SHORT_SETTLE: Duration = Duration::from_millis(100);
+
 /// A ledger for a command that runs in the repository.
 fn ledger_of(repo: &Repo) -> LockLedger {
     let mut command: Command = Command::new("git");
     command.current_dir(repo.root.as_path());
-    return LockLedger::before_start(&command);
+    return LockLedger::before_start(&command).with_settle(SHORT_SETTLE);
 }
 
 /// A tree member that has ended: a short-lived process, recorded while it ran and reaped.
@@ -283,5 +286,24 @@ fn the_repository_is_found_from_the_working_directory_or_the_environment() {
     let mut named: Command = Command::new("git");
     named.current_dir(linked.as_path()).env("GIT_DIR", repo.git_dir.as_os_str());
     assert_eq!(LockLedger::before_start(&named).roots, vec![repo.git_dir.clone()]);
+    remove(repo.root.as_path());
+}
+
+/// A lock that is empty only because its writer has not filled it yet stays: the sweep waits out the settle time and looks again.
+#[test]
+fn an_empty_lock_that_a_live_writer_fills_stays() {
+    let repo: Repo = repo("stopped-locks-filled");
+    let ledger: LockLedger = ledger_of(&repo).with_settle(Duration::from_millis(600));
+    let member: TreeMember = ended_member();
+    let lock: PathBuf = lock_of(&repo, "main");
+    std::fs::write(lock.as_path(), "").expect("empty lock");
+    let writer_target: PathBuf = lock.clone();
+    let writer = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(150));
+        std::fs::write(writer_target, "0123456789012345678901234567890123456789\n").expect("the writer fills its lock");
+    });
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
+    writer.join().expect("the writer ends");
+    assert!(lock.exists());
     remove(repo.root.as_path());
 }
