@@ -1407,3 +1407,50 @@ Each is the owner's choice by the question tool or verbatim.
   standing instructions, veto open).
 - Locks: "Use as few locks as possible." and "You should (almost) never be waiting.": the repairs run after the settlement lock
   is released (adopted, veto open).
+
+### The stub link and the stale Cargo locks, measured 2026-11-03T01:46:51-05:00
+
+The stub link:
+
+- The link is `package/rolldown-plugin/import-attributes/node_modules/@monochromatic-dev/pnpm-override-stub-silent`, an absolute
+  link to `/var/home/user/Monochromatic/package/pnpm-override/stub-silent`, dated 2026-11-01T15:01:28-05:00.
+  The package it names, `@monochromatic-dev/pnpm-override-stub-silent` at `package/pnpm-override/stub-silent`, is the target of the
+  `silent` action of `.pnpmfile.mjs` (line 92 holds its `workspace:` specifier); CODEOWNERS names one owner for everything.
+- No code in the repository writes that link: a search of the tracked and ignored sources (without `node_modules` and `target`)
+  finds the package name only in documentation, in `package/config/pnpr/config.yaml` and in the stub's own manifest.
+  The importer's manifest does not declare it and `pnpm-lock.yaml` does not link it into that importer.
+  pnpm 12.16.1 never wrote an absolute link in the three ways probed in a throwaway workspace: a `workspace:` alias to a
+  package of another name, a `link:` specifier with an absolute path, and `pnpm link <absolute path>` all produced relative links.
+  The link's time lies inside the stub-silent review lane that the handover closed in commit 33691b3eb9
+  (2026-11-01T15:07:40-05:00), so it was most likely made by hand or by a script in that lane, not by pnpm.
+- Proof with a copy: in a worktree that is a copy of main, `require.resolve('@monochromatic-dev/pnpm-override-stub-silent')`
+  from `package/rolldown-plugin/import-attributes` resolves to the main checkout's `package/pnpm-override/stub-silent/index.cjs`,
+  not to the worktree's own file.
+  So today a worktree on a branch that changes the stub would still load main's stub through that link; nothing else loads the
+  stub (every consumer that declares it gets a relative link inside its own tree).
+- A relative link (`../../../../pnpm-override/stub-silent` from that directory) would resolve inside each worktree and change
+  nothing else; deleting the link would change nothing either, because no manifest asks for it.
+  pnpm keeps leaving it alone in a copy.
+
+The ten workspaces whose committed `Cargo.lock` disagrees with their manifest, found by `cargo metadata --locked --offline` in a
+throwaway export of the branch's `HEAD` (`lock-regen.ts`, kept under `${HOME}/temp/agent/pm-survey/`; nothing ran in a checkout).
+For each, the packages cargo would move when it resolves offline (it also re-locks the packages named here and nothing else):
+
+- `package/forbidden-strings/cli.fuzz`: 22 packages, among them `anyhow`, `arbitrary` 1.4.2 to 1.5.0, `clap` 4.6.1 to 4.6.7,
+  `forbidden-strings` 0.5.0 to 0.6.1, `ignore`, `memchr`, `serde`, and new `digest`, `sha2`, `syn` 3.0.9.
+- `package/forbidden-strings/core.bench`: `forbidden-strings` 0.6.0 to 0.6.1 and `memchr` 2.8.2 to 2.8.3.
+- `package/forbidden-strings/core.fuzz`: `arbitrary` and `derive_arbitrary` 1.4.2 to 1.5.0, `memchr` 2.8.2 to 2.8.3.
+- `package/ide/app`: `globset` 0.4.20 to 0.4.21, `ignore` 0.4.33 to 0.4.34, `notify` 8.2.0 to 8.2.1, `tokio` 1.53.2 to 1.54.1.
+- `package/jsonc-edit/core-rust.fuzz`: `arbitrary` and `derive_arbitrary` 1.4.2 to 1.5.0, `syn` 2.0.119 to 3.0.9.
+- `package/linter/monochromatic-lint.fuzz`: `arbitrary` and `derive_arbitrary` 1.4.2 to 1.5.0, `globset` and `ignore` as above.
+- `package/mpm-shadow/cli`: seven packages, the RustCrypto family (`sha2` 0.10.9 to 0.11.1, `digest`, `block-buffer`,
+  `crypto-common`, `cpufeatures`, plus new `const-oid` and `hybrid-array`).
+- `package/music-player/android-app/rust`, `package/music-player/desktop-app`, `package/music-player/truepeak-core`:
+  `tokio` 1.53.2 to 1.54.1 in each.
+
+Cause: the manifests of these workspaces were last changed by commit 581190711e (2026-11-01T20:57:42-05:00, "bump catalog floors and
+regenerate derived dependency files"), which raised minimum versions (`arbitrary >= 1.5.0`, `tokio >= 1.54.1`, `memchr >= 2.8.3`)
+and, for the forbidden-strings dependents, a path crate's version moved to 0.6.1; their locks were not regenerated.
+Owner of every package: `@Aquaticat` by `.github/CODEOWNERS`; no handover names a different owner for these ten.
+The catalog tooling that raises the floors lives in `package/dependency-catalog` (`cli-rust-update`, `cli-tighten`), and
+`native:lock:members` (`cargo update --offline --workspace`) is the existing task that records such a change for one crate.
