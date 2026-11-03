@@ -971,7 +971,7 @@ fn a_restart_does_not_replay_an_index_update_that_was_installed_and_unlocked() {
 /// removal does not replay the index update over what another session staged after the lock was given up.
 #[test]
 fn a_cleanup_that_fails_does_not_make_the_index_update_replayable() {
-    use crate::service_journal::{INDEXED_EXTENSION, is_indexed};
+    use crate::service_journal::{INDEXED_EXTENSION, Indexed, indexed_state};
     let world: World = world("service-land-cleanup-fails");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
@@ -991,7 +991,7 @@ fn a_cleanup_that_fails_does_not_make_the_index_update_replayable() {
     let lock = try_acquire(world.repo.join(".git/index").as_path(), 1).expect("the lock is free");
     let finished: bool = follow_up(&landing_git, world.repo.as_path(), &intent, lock, world.context.journal.as_path());
     assert!(!finished, "the cleanup did not finish");
-    assert!(is_indexed(world.context.journal.as_path(), 1, new.as_str()), "the installed index is recorded all the same");
+    assert_eq!(indexed_state(world.context.journal.as_path(), 1, new.as_str()), Indexed::Installed, "the installed index is recorded all the same");
     assert!(!world.repo.join(".git/index.lock").exists());
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
     // Another session stages a new version; the restart that retries the cleanup leaves it alone.

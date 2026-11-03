@@ -17,7 +17,7 @@ use super::service_fault::reach;
 use super::service_head::still_checked_out;
 use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
-use super::service_journal::{INDEXED_EXTENSION, Intent, Recovery, OPEN_EXTENSION, is_indexed, list_intents, mark_done, mark_indexed, recovery_for, write_intent};
+use super::service_journal::{INDEXED_EXTENSION, Indexed, Intent, Recovery, OPEN_EXTENSION, indexed_state, list_intents, mark_done, mark_indexed, recovery_for, write_intent};
 use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait, remove_stale, try_acquire};
 use super::service_timing::{LandTiming, wait_line};
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
@@ -529,15 +529,27 @@ fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, r
                 //  branch has its commit, so there is no index update to finish and the batch is done.
                 if still_checked_out(&git, intent.repository.as_path(), intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) == Ok(false) {
                     let _marked = mark_done(context.journal.as_path(), intent.seq);
-                } else if is_indexed(context.journal.as_path(), intent.seq, intent.new.as_str()) {
-                    // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
-                    if cleanup_done(&git, intent.repository.as_path(), &intent) {
-                        let _marked = mark_done(context.journal.as_path(), intent.seq);
+                } else {
+                    match indexed_state(context.journal.as_path(), intent.seq, intent.new.as_str()) {
+                        // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
+                        Indexed::Installed => {
+                            if cleanup_done(&git, intent.repository.as_path(), &intent) {
+                                let _marked = mark_done(context.journal.as_path(), intent.seq);
+                            }
+                        }
+                        // A record that cannot be read may say the index was installed: the batch stays open and the index alone.
+                        Indexed::Unreadable => {
+                            crate::service_error!("batch {} stays open: its completion record cannot be read, so the index is left as it is", intent.seq);
+                            continue;
+                        }
+                        Indexed::Absent => {
+                            if let Some(held) = try_acquire(intent.index.as_path(), intent.seq)
+                                && follow_up(&git, intent.repository.as_path(), &intent, held, context.journal.as_path())
+                            {
+                                let _marked = mark_done(context.journal.as_path(), intent.seq);
+                            }
+                        }
                     }
-                } else if let Some(held) = try_acquire(intent.index.as_path(), intent.seq)
-                    && follow_up(&git, intent.repository.as_path(), &intent, held, context.journal.as_path())
-                {
-                    let _marked = mark_done(context.journal.as_path(), intent.seq);
                 }
             }
         }

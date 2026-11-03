@@ -226,18 +226,55 @@ pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
     file.write_all(format!("{new}\n").as_bytes())?;
     file.sync_all()?;
     fs::rename(&temporary, batch_path(dir, seq, INDEXED_EXTENSION))?;
+    crate::service_fault::note("indexed-recorded");
     return File::open(dir)?.sync_all();
 }
 
-/// Whether the index update of the open batch `seq` that landed `new` is recorded as installed.
-pub fn is_indexed(dir: &Path, seq: u64, new: &str) -> bool {
-    return fs::read_to_string(batch_path(dir, seq, INDEXED_EXTENSION)).is_ok_and(|text| { return text.trim_end() == new; });
+/// What a batch's completion record says about its index update.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Indexed {
+    /// No record: the update was not recorded as installed.
+    Absent,
+    /// The record names the commit: the update was installed.
+    Installed,
+    /// A record exists and cannot be read, or names another commit: nothing can be said about the index.
+    Unreadable,
 }
 
-/// Marks a batch finished and drops its record of the index update. Not synced: if the mark is lost a restart redoes an
-///  idempotent step, and the record stays to say the index is not one of them.
+/// What:
+///  What the completion record of the open batch `seq` that landed `new` says.
+/// Why:
+///   Only a missing record means the update was not installed. A record that is there and cannot be read says nothing, and a
+///  restart that took it for none would replay the update over whatever was staged since, so the caller stops on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await indexedState(dir, seq, newCommit) // 'absent' | 'installed' | 'unreadable'
+/// ```
+pub fn indexed_state(dir: &Path, seq: u64, new: &str) -> Indexed {
+    return match fs::read_to_string(batch_path(dir, seq, INDEXED_EXTENSION)) {
+        Ok(text) if text.trim_end() == new => Indexed::Installed,
+        Ok(_) => Indexed::Unreadable,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Indexed::Absent,
+        Err(_) => Indexed::Unreadable,
+    };
+}
+
+/// What:
+///  Marks a batch finished and drops its record of the index update.
+/// Why:
+///   The rename is made durable before the record goes: a lost rename with the record already gone would let a restart replay
+///  an index update that was installed. A sync that fails keeps the record and the error says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await markDone(dir, seq) // rename intent to done; fsync dir; unlink indexed
+/// ```
 pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
     fs::rename(batch_path(dir, seq, OPEN_EXTENSION), batch_path(dir, seq, DONE_EXTENSION))?;
+    File::open(dir)?.sync_all()?;
+    crate::service_fault::note("sync-journal-dir");
+    crate::service_fault::note("remove-indexed");
     let _record_removed = fs::remove_file(batch_path(dir, seq, INDEXED_EXTENSION));
     return Ok(());
 }

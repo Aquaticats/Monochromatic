@@ -190,15 +190,21 @@ impl IndexLock {
         if built.exists() {
             std::fs::rename(built, &self.index)?;
         }
-        if let Err(error) = record() {
-            self.armed = false;
+        // From the installation on, the lock is given up only by this function's own removal: a failure or an unwinding panic
+        //  in what follows leaves it for the restart, because an installed index must never be left unlocked and replayable.
+        self.armed = false;
+        let durable: std::io::Result<()> = self.index.parent().map_or(Ok(()), |directory| { return std::fs::File::open(directory)?.sync_all(); });
+        crate::service_fault::note("sync-index-dir");
+        let recorded: std::io::Result<()> = durable.and_then(|()| { return record(); });
+        if let Err(error) = recorded {
             crate::service_error!(
-                "the index lock {} stays: the installed index could not be recorded as complete ({error}), and the service ends after this batch so that the restart reclaims the lock",
+                "the index lock {} stays: the installed index could not be made durable and recorded as complete ({error}), and the service ends after this batch so that the restart reclaims the lock",
                 self.lock.display()
             );
             note_unsettled();
             return Err(error);
         }
+        self.armed = true;
         self.remove_owned()?;
         self.armed = false;
         return Ok(());
