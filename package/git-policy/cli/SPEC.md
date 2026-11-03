@@ -526,6 +526,10 @@ A destination or Git directory whose path is not valid UTF-8 cannot be spelled i
 the trash is emptied in the foreground by the bytes of the path.
 A trash that cannot be emptied is reported on standard error as a warning that names the path and the reason and says
 the work item stays for the service; it does not fail the add, because the worktree is already in place and complete.
+The race with other processes is a risk the person accepts by using the command: a directory of the new worktree that another
+process replaces, moves or links elsewhere while the leave-out or the disposal runs is guarded only by the cheap checks above
+(opening without following links, comparing identities when an object is opened); the wrapper builds nothing further against
+it and does not promise to survive it.
 A trash that no one has emptied yet lies under an ignored path, so it is no untracked file.
 The wake reaches only a service of this wrapper's release: a service of another release is asked to retire first and is
 replaced, and when it does not retire within the start wait the wake fails, so the trash is removed in the foreground and

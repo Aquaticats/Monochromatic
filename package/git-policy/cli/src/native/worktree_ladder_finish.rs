@@ -90,7 +90,9 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     }
     // What a snapshot of the main checkout set aside is emptied by the service; nothing is set aside for a linked worktree. The
     //  worktree is in place and complete, so a trash that cannot be emptied is reported and never fails the add.
-    if let Err(reason) = dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut std::io::stderr()) {
+    //  `--quiet` silences the progress lines of the hand-over; a failure is still reported below.
+    let mut notices: Box<dyn std::io::Write> = if plan.quiet { Box::new(std::io::sink()) } else { Box::new(std::io::stderr()) };
+    if let Err(reason) = dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut notices) {
         warn(TAG, format!("cli-git: {reason}").as_str());
     }
     return Ok(target.line);
