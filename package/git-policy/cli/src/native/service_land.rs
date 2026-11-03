@@ -43,6 +43,28 @@ pub struct LandContext {
     pub lock_ceiling: std::time::Duration,
 }
 
+/// What:
+///  Keeps the commit built for a batch that was withdrawn on a side ref, and returns the line that tells the person where it is.
+/// Why:
+///   The owner's answer for a wait that reaches its bound is that nothing lands later by itself and the commit is kept for a retry;
+///  the person's staged changes are untouched, so running the commit again builds the same commit, and the side ref lets them
+///  recover this one if the worktree changed meanwhile.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['update-ref', `refs/cli-git/kept/${seq}`, tip]); return `kept at refs/cli-git/kept/${seq}`
+/// ```
+fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
+    let name: String = format!("refs/cli-git/kept/{seq}");
+    let made = run(git, repository, &["update-ref", name.as_str(), tip], None);
+    if !made.is_ok_and(|output| { return output.succeeded(); }) {
+        return String::from("cli-git: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
+    }
+    return format!(
+        "cli-git: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+    );
+}
+
 /// What became of one request of a batch.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Outcome {
@@ -392,8 +414,12 @@ pub fn land_batch_timed(
         let held: IndexLock = match taken {
             Ok(lock) => lock,
             Err(failure) => {
-                // Nothing moved: forget the intent and the scratch branch, as for a branch that moved under the batch.
+                // Nothing moved: forget the intent, so a restart of the service cannot land the batch later (owner, 2026-11-03: "No,
+                //  keep it for a retry"), keep the built commit on a side ref the message names, and forget the scratch branch.
                 let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+                if failure.code == FailureCode::IndexInUse {
+                    announce(Announce::Waiting(keep_unlanded(&git, repository, seq, new.as_str())));
+                }
                 let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
                 return Err(failure.code);
             }

@@ -20,6 +20,9 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: Some(String::from("/work/repo/.git/cli-git-saved-message-ab12")) },
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: None },
         ClientFailure::ServiceSilent,
+        ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("a landing behind another program's index lock")) },
+        ClientFailure::StillWithService { minutes: 20, blocker: None },
+        ClientFailure::WithdrawalUnconfirmed,
         ClientFailure::Refused,
         ClientFailure::IndexInUse(String::from("the editor (process 4242)")),
         ClientFailure::Unavailable,
@@ -59,6 +62,8 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::OtherRelease => 18,
         ClientFailure::BranchSwitched { .. } => 19,
         ClientFailure::ContentPruned => 20,
+        ClientFailure::StillWithService { .. } => 21,
+        ClientFailure::WithdrawalUnconfirmed => 22,
     };
 }
 
@@ -184,7 +189,7 @@ fn messages_quote_their_constants_and_facts() {
 fn only_the_unsure_failure_does_not_claim_nothing_changed() {
     for failure in samples() {
         let claims: bool = render(&failure).contains(NOTHING_CHANGED);
-        let may_have_landed: bool = matches!(failure, ClientFailure::MayNotHaveLanded | ClientFailure::ServiceSilent | ClientFailure::WorkNotHandedOver(_));
+        let may_have_landed: bool = matches!(failure, ClientFailure::MayNotHaveLanded | ClientFailure::ServiceSilent | ClientFailure::WithdrawalUnconfirmed | ClientFailure::WorkNotHandedOver(_));
         assert_eq!(!claims, may_have_landed, "{failure:?}");
     }
 }

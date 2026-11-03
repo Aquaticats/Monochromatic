@@ -314,6 +314,9 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             //  queues and keeps the client told that the service lives.
             write_until_answered(&stream, &messages, HEARTBEAT_EVERY);
         }
+        Ok(ClientMessage::Withdraw { id }) => {
+            send(&stream, &ServiceMessage::Failed { id, code: FailureCode::Rejected });
+        }
         Ok(ClientMessage::Retire) => {
             log(retire_line(release).as_str());
             let _queued = queue.send(Job::Retire);

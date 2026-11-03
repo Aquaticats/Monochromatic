@@ -492,8 +492,9 @@ fn a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_si
     assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0, "no intent is left to land it later");
     assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the scratch branch is gone");
     let texts: Vec<String> = said.iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect();
-    let ending: &String = texts.last().expect("the blocker was named");
+    let ending: String = texts.join("");
     assert!(ending.contains("refs/cli-git/kept/1") && ending.contains("was not made") && ending.contains("still held"), "{ending}");
+    assert!(ending.contains("an owner nothing proves alive"), "the blocker is named with its evidence: {ending}");
     // A restart of the service finds nothing to settle, and the branch still has not moved.
     assert!(recover(&world.context).is_empty(), "nothing is left for a restart to land");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head);
@@ -511,7 +512,7 @@ fn a_proven_holder_at_the_ceiling_is_named_in_the_withdrawal() {
     let (answered, said) = land_at_the_ceiling(&world, vec![request]).expect("the landing ended at its ceiling");
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let texts: Vec<String> = said.iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect();
-    let ending: &String = texts.last().expect("the blocker was named");
+    let ending: String = texts.join("");
     assert!(ending.contains(format!("PID {}", std::process::id()).as_str()) && ending.contains("still held"), "{ending}");
     remove(world.root.as_path());
 }

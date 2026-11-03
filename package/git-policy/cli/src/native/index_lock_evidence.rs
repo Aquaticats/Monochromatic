@@ -511,6 +511,45 @@ pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>) -> Stri
 }
 
 /// What:
+///  The line that names who still holds a lock when the wait for it reaches its ceiling, and what becomes of the command.
+/// Why:
+///   The owner's rule is that nothing waits for ever: at the bound the command stops and says what blocked it, with the evidence
+///  there is, and what to run again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ceilingLine({ lockPath, blocker, waitedSeconds, consequence }): string;
+/// ```
+pub fn ceiling_line(lock_path: &Path, blocker: &str, waited_seconds: u64, consequence: &str) -> String {
+    return format!(
+        "cli-git: {lock} is still held after {waited_seconds} seconds by {blocker}, so {consequence}; nothing was changed and the lock was \
+         left in place. Run the command again once that program is done.\n",
+        lock = lock_path.display()
+    );
+}
+
+/// What:
+///  The words for the owner of a lock that is held, from the evidence: a process proven alive, or an owner nothing proves alive
+///  with what was looked at.
+/// Why:
+///   The line at the ceiling names the blocker, whatever the proof.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function blockerWords(evidence, verdict): string;
+/// ```
+pub fn blocker_words(evidence: &Evidence) -> String {
+    return match classify_index_lock(evidence) {
+        Verdict::ProvenAlive { pid, by_descriptor, command } => {
+            let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
+            format!("{} (proven by {proof})", holder_name(pid, command.as_deref()))
+        }
+        Verdict::Dead(pid) => format!("{}, which no longer runs", holder_name(pid, None)),
+        Verdict::EvidenceFree => format!("an owner nothing proves alive ({})", evidence_words(evidence)),
+    };
+}
+
+/// What:
 ///  The diagnostic for a lock whose Git lock PID file names a process that no longer runs.
 /// Why:
 ///   That owner can never let go, so there is nothing to wait for.

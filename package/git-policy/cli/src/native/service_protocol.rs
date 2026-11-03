@@ -16,7 +16,7 @@ use super::service_review_key::ReviewKey;
 use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 6;
+pub const PROTOCOL_VERSION: u32 = 7;
 
 /// The release of this build: the crate version, which the wrapper and the service program share because they are built
 ///  and installed together. A service from another release is retired even when it speaks the same protocol, since the
@@ -53,6 +53,9 @@ pub const MAX_LINE_BYTES: usize = 1 << 20;
 ///  and those commits take the native path instead of the service. The coordinator's pick under the owner's delegation, open to
 ///  the owner's veto.
 pub const MAX_CHANGES: usize = 4096;
+
+/// The longest request identity either side accepts, in bytes (a random identity is 36 bytes). A display and input cap.
+pub const MAX_ID_BYTES: usize = 128;
 
 /// Modes a change may give a file.
 pub const ALLOWED_MODES: [u32; 3] = [0o100_644, 0o100_755, 0o120_000];
@@ -229,6 +232,12 @@ pub enum ClientMessage {
     Commit(Box<CommitRequest>),
     /// Finish the queue and exit, so the manager starts the current binary.
     Retire,
+    /// The sender stopped waiting for the commit of this identity (its ceiling passed): the service answers `Landed` when the
+    ///  commit is on the branch, and otherwise withdraws it so it can never land, and answers `Withdrawn`.
+    Withdraw {
+        /// The identity of the request, as the client sent it.
+        id: String,
+    },
     /// The sender keeps this scratch directory of a commit in preparation for as long as the connection stays open; the
     ///  service removes the directory when the connection closes, whatever closed it.
     Scratch {
@@ -263,6 +272,8 @@ pub enum ServiceMessage {
     Failed { id: String, code: FailureCode },
     /// The landing waits for another program that holds the repository's index: a line for the person's terminal.
     Waiting { text: String },
+    /// The request of this identity was withdrawn at the client's asking and will never land.
+    Withdrawn { id: String },
     /// Who held the index when the wait ran out, in words that fit "... is using this repository's index".
     Holder { who: String },
     /// The service is alive and the request is still waiting for its answer: sent on a fixed beat while a request is queued
@@ -348,6 +359,11 @@ pub fn encode_retire(version: u32) -> String {
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
         ClientMessage::Retire => encode_retire(PROTOCOL_VERSION),
+        ClientMessage::Withdraw { id } => object(vec![
+            ("type", Value::from("withdraw")),
+            ("version", Value::from(PROTOCOL_VERSION)),
+            ("id", Value::from(id.as_str())),
+        ]),
         ClientMessage::Scratch { git_dir, path } => object(vec![
             ("type", Value::from("scratch")),
             ("version", Value::from(PROTOCOL_VERSION)),
@@ -436,6 +452,13 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     }
     match field(&value, "type")? {
         "retire" => return Ok(ClientMessage::Retire),
+        "withdraw" => {
+            let id: &str = field(&value, "id")?;
+            if id.is_empty() || id.len() > MAX_ID_BYTES {
+                return Err(String::from("withdraw request is not acceptable"));
+            }
+            return Ok(ClientMessage::Withdraw { id: id.to_string() });
+        }
         "scratch" => {
             let git_dir: PathBuf = PathBuf::from(field(&value, "gitDir")?);
             let path: PathBuf = PathBuf::from(field(&value, "path")?);
@@ -582,6 +605,7 @@ pub fn encode_service(message: &ServiceMessage) -> String {
         ServiceMessage::Waiting { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str()))]),
         ServiceMessage::Holder { who } => object(vec![("type", Value::from("holder")), ("who", Value::from(who.as_str()))]),
         ServiceMessage::Heartbeat => object(vec![("type", Value::from("heartbeat"))]),
+        ServiceMessage::Withdrawn { id } => object(vec![("type", Value::from("withdrawn")), ("id", Value::from(id.as_str()))]),
         ServiceMessage::Failed { id, code } => {
             object(vec![("type", Value::from("failed")), ("id", Value::from(id.as_str())), ("code", Value::from(code.word()))])
         }
@@ -640,6 +664,7 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
         "waiting" => Ok(ServiceMessage::Waiting { text: field(&value, "text")?.to_string() }),
         "holder" => Ok(ServiceMessage::Holder { who: field(&value, "who")?.to_string() }),
         "heartbeat" => Ok(ServiceMessage::Heartbeat),
+        "withdrawn" => Ok(ServiceMessage::Withdrawn { id: field(&value, "id")?.to_string() }),
         "failed" => Ok(ServiceMessage::Failed {
             id: field(&value, "id")?.to_string(),
             code: FailureCode::from_word(field(&value, "code")?).ok_or("unknown failure code")?,

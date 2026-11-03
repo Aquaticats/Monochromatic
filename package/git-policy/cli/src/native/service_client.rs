@@ -69,6 +69,12 @@ pub struct ClientConfig {
     pub start_watch: Option<ManagerWatch>,
     /// A scratch directory of this command to keep from being swept as stale while the command waits.
     pub keep_fresh: Option<FreshScratch>,
+    /// The longest the client waits for the service's answer; then it withdraws the request (`wait_ceilings.rs`).
+    pub answer_ceiling: Duration,
+    /// The longest the client waits for the service to answer the withdrawal.
+    pub withdraw_ceiling: Duration,
+    /// The longest a start is waited for when the service manager can be asked.
+    pub start_ceiling: Duration,
 }
 
 /// What:
@@ -475,7 +481,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 }
                 Heard::Message(ServiceMessage::Holder { who }) => holder = Some(who),
                 // Each message, this one too, restarts the silence bound; nothing else is needed.
-                Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat) => {}
+                Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat | ServiceMessage::Withdrawn { .. }) => {}
                 Heard::Silent => {
                     last_break_was_silence = true;
                     break None;

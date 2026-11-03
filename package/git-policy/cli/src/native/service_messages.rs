@@ -94,6 +94,10 @@ pub enum ClientFailure {
     BranchSwitched { branch: String, now: String, file: Option<String> },
     /// The service sent nothing for longer than it ever stays silent while it works, on every try to ask it again.
     ServiceSilent,
+    /// The service kept the request for `minutes` minutes without answering, and the client withdrew it: it will not land.
+    StillWithService { minutes: u64, blocker: Option<String> },
+    /// The client stopped waiting and could not confirm the service withdrew the request.
+    WithdrawalUnconfirmed,
     /// The request was refused as malformed or unsafe.
     Refused,
     /// Another program holds the repository's index.
@@ -187,6 +191,19 @@ pub fn render(failure: &ClientFailure) -> String {
              not known whether the commit was made. Run `{}` to see whether it was made, and `{}` to see what is still \
              staged. If it was not made, look at why the service is stuck with `{LOG_COMMAND}`, restart it with \
              `{RESTART_COMMAND}`, and run the commit again.",
+            CHECK_COMMANDS[0], CHECK_COMMANDS[1]
+        ),
+        ClientFailure::StillWithService { minutes, blocker } => format!(
+            "This commit waited {minutes} minutes for the commit service and was withdrawn, so it will not land later by itself.{} \
+             Your staged changes and your worktree are as they were. Run the commit again; if the service is stuck, look at why with \
+             `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
+            blocker.as_ref().map_or_else(String::new, |text| { return format!(" It was waiting for: {text}."); })
+        ),
+        ClientFailure::WithdrawalUnconfirmed => format!(
+            "This commit waited for the commit service until the longest wait the wrapper allows, and the service did not confirm \
+             that it withdrew it, so it is not known whether the commit was made. Run `{}` to see whether it was made, and `{}` to \
+             see what is still staged. If it was not made, run the commit again; if the service is stuck, look at why with \
+             `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
             CHECK_COMMANDS[0], CHECK_COMMANDS[1]
         ),
         ClientFailure::Refused => format!(
