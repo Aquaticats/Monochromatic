@@ -16,7 +16,7 @@ use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path, 
 use git_policy_cli::commit_integrity::{crc32, sha256_hex};
 use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, append, encode_line, lane_ledger_path, lookup, parse_line, repair_tail};
 use git_policy_cli::commit_request::{Change, Published, Request, RequestError, content_hash, decode, encode, publish};
-use git_policy_cli::commit_spool::{SpoolError, verify_against_request, verify_spool, write_spool};
+use git_policy_cli::commit_spool::{SpoolError, read_closure, verify_against_request, verify_spool, write_spool};
 use std::path::{Path, PathBuf};
 
 /// A 32-character identity made of one repeated digit.
@@ -38,8 +38,20 @@ fn request(digit: char, message: &str) -> Request {
         base: "b".repeat(40),
         message: message.to_string(),
         changes: vec![
-            Change { path: "a/gone.txt".to_string(), mode: "000000".to_string(), sha256: "-".to_string() },
-            Change { path: "b/new.txt".to_string(), mode: "100644".to_string(), sha256: sha256_hex(&content) },
+            Change {
+                path: "a/gone.txt".to_string(),
+                mode: "000000".to_string(),
+                sha256: "-".to_string(),
+                old_mode: "100644".to_string(),
+                old_sha256: sha256_hex(b"old gone"),
+            },
+            Change {
+                path: "b/new.txt".to_string(),
+                mode: "100644".to_string(),
+                sha256: sha256_hex(&content),
+                old_mode: "000000".to_string(),
+                old_sha256: "-".to_string(),
+            },
         ],
     };
 }
@@ -233,13 +245,17 @@ fn request_validation_refuses_bad_fields() {
     }
 }
 
-/// A record of another version is not read, and is left where it is for a release that does.
+/// A record of another version is not read, and the file stays where it is, byte for byte, for a release that reads it.
 #[test]
 fn request_of_an_unknown_version_is_left_alone() {
     let bytes: Vec<u8> = encode(&request('b', "m")).expect("encode");
-    let mut text: String = String::from_utf8(bytes).expect("utf-8");
-    text = text.replacen("cli-git-request 1", "cli-git-request 2", 1);
-    assert!(matches!(decode(text.as_bytes()), Err(RequestError::Damaged("version"))));
+    let text: String = String::from_utf8(bytes).expect("utf-8").replacen("cli-git-request 2", "cli-git-request 3", 1);
+    let inbox: PathBuf = scratch("request-version").join("inbox");
+    std::fs::create_dir_all(&inbox).expect("inbox");
+    let file: PathBuf = inbox.join(identity('b'));
+    std::fs::write(&file, text.as_bytes()).expect("write");
+    assert!(matches!(decode(&std::fs::read(&file).expect("read")), Err(RequestError::Damaged("version"))));
+    assert_eq!(std::fs::read(&file).expect("read"), text.as_bytes());
 }
 
 /// Publication links the record in without replacing: the same bytes are a resend, other content is a conflict and the
@@ -280,11 +296,12 @@ fn spool_verifies_against_its_manifest_and_its_request() {
     let root: PathBuf = scratch("spool-verify");
     let original: Request = request('e', "m");
     let files: Vec<Vec<u8>> = vec![Vec::new(), b"new bytes".to_vec()];
-    write_spool(&root, &original.id, &files).expect("write");
-    assert_eq!(verify_spool(&root, &original.id).expect("verify").len(), 2);
+    let old_files: Vec<Vec<u8>> = vec![b"old gone".to_vec(), Vec::new()];
+    write_spool(&root, &original.id, &files, &old_files).expect("write");
+    assert_eq!(verify_spool(&root, &original.id).expect("verify").len(), 4);
     verify_against_request(&root, &original).expect("matches the request");
-    write_spool(&root, &original.id, &files).expect("a repeated write is a no-op");
-    assert!(matches!(write_spool(&root, &original.id, &[Vec::new(), b"other".to_vec()]), Err(SpoolError::Conflict)));
+    write_spool(&root, &original.id, &files, &old_files).expect("a repeated write is a no-op");
+    assert!(matches!(write_spool(&root, &original.id, &[Vec::new(), b"other".to_vec()], &old_files), Err(SpoolError::Conflict)));
     let victim: PathBuf = root.join("spool").join(&original.id).join("1");
     std::fs::write(&victim, b"damaged!!").expect("damage");
     assert!(matches!(verify_spool(&root, &original.id), Err(SpoolError::Mismatch(_))));
@@ -297,13 +314,14 @@ fn spool_crash_before_the_manifest_is_completed_by_a_resend() {
     let root: PathBuf = scratch("spool-crash");
     let original: Request = request('f', "m");
     let files: Vec<Vec<u8>> = vec![Vec::new(), b"new bytes".to_vec()];
-    write_spool(&root, &original.id, &files).expect("write");
+    let old_files: Vec<Vec<u8>> = vec![b"old gone".to_vec(), Vec::new()];
+    write_spool(&root, &original.id, &files, &old_files).expect("write");
     let directory: PathBuf = root.join("spool").join(&original.id);
     std::fs::remove_file(directory.join("manifest")).expect("simulate the crash");
     std::fs::remove_file(directory.join("1")).expect("simulate the crash");
     std::fs::write(directory.join(".tmp-0123456789abcdef"), b"half").expect("leftover temporary file");
     assert!(matches!(verify_spool(&root, &original.id), Err(SpoolError::Incomplete)));
-    write_spool(&root, &original.id, &files).expect("resend completes");
+    write_spool(&root, &original.id, &files, &old_files).expect("resend completes");
     verify_against_request(&root, &original).expect("complete");
 }
 
@@ -380,4 +398,42 @@ fn a_repair_saves_the_cut_bytes_before_it_truncates() {
     repair_tail(&ledger).expect("repair");
     assert!(directory_sync_count() > before, "the .torn entry is synced before the truncation");
     assert_eq!(std::fs::read(directory.join("ledger.torn")).expect("saved"), b"abc".to_vec());
+}
+
+/// Review P1 5: the spool alone carries both sides of every change. A repository is built, the base objects are captured into
+/// the spool, every object of the repository is then removed (as a branch rewrite and a prune would), and the closure still
+/// reads back the base bytes, which a replay needs to detect a competing change.
+#[test]
+fn spool_closure_survives_the_removal_of_the_base_objects() {
+    let repository: PathBuf = scratch("spool-closure");
+    crate::model_fixture::git(&repository, &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::write(repository.join("kept.txt"), "base bytes").expect("write");
+    crate::model_fixture::git(&repository, &["add", "--all"]);
+    crate::model_fixture::git(&repository, &["commit", "--quiet", "--message=base"]);
+    let base_bytes: Vec<u8> = crate::model_fixture::git(&repository, &["show", "HEAD:kept.txt"]);
+    let mut original: Request = request('9', "m");
+    original.changes = vec![Change {
+        path: "kept.txt".to_string(),
+        mode: "100644".to_string(),
+        sha256: sha256_hex(b"new bytes"),
+        old_mode: "100644".to_string(),
+        old_sha256: sha256_hex(&base_bytes),
+    }];
+    write_spool(&repository, &original.id, &[b"new bytes".to_vec()], &[base_bytes.clone()]).expect("write");
+    for entry in std::fs::read_dir(repository.join(".git/objects")).expect("objects") {
+        let path: PathBuf = entry.expect("entry").path();
+        std::fs::remove_dir_all(&path).expect("remove the object store");
+    }
+    let closure = read_closure(&repository, &original).expect("closure");
+    assert_eq!(closure[0].old, Some(("100644".to_string(), base_bytes)));
+    assert_eq!(closure[0].new, Some(("100644".to_string(), b"new bytes".to_vec())));
+}
+
+/// Review P2: a request with no changes (an empty commit, a message-only amend) is valid.
+#[test]
+fn a_request_with_no_changes_is_valid() {
+    let mut empty: Request = request('8', "message only");
+    empty.changes = Vec::new();
+    let bytes: Vec<u8> = encode(&empty).expect("encode");
+    assert_eq!(decode(&bytes).expect("decode"), empty);
 }

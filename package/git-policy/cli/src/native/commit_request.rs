@@ -19,7 +19,7 @@ use super::commit_identity::{create_dir_all_durable, sync_directory, temporary_n
 use super::commit_integrity::{hex, is_identity, is_object_name, sha256_hex, unhex};
 
 /// The record format version this module reads and writes.
-pub const REQUEST_VERSION: u32 = 1;
+pub const REQUEST_VERSION: u32 = 2;
 
 /// What:
 ///  `struct Change { ... }`: one path of a request: its mode (`000000` for a deletion), and the SHA-256 of its captured
@@ -39,6 +39,11 @@ pub struct Change {
     pub mode: String,
     /// The SHA-256 of the captured bytes, or `-` for a deletion.
     pub sha256: String,
+    /// The mode of the path at the captured base (`000000` when the base has no such path).
+    pub old_mode: String,
+    /// The SHA-256 of the path's bytes at the captured base, or `-` when the base has no such path. The spool holds those bytes,
+    /// so a replay needs no object of the base.
+    pub old_sha256: String,
 }
 
 /// What:
@@ -115,9 +120,6 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
     if request.message.trim().is_empty() || request.message.contains('\0') {
         return Err(RequestError::Invalid("message"));
     }
-    if request.changes.is_empty() {
-        return Err(RequestError::Invalid("changes"));
-    }
     let mut previous: Option<&str> = None;
     for change in &request.changes {
         if !valid_path(&change.path) {
@@ -135,6 +137,12 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
         let hash_ok: bool = if deletion { change.sha256 == "-" } else { change.sha256.len() == 64 && unhex(&change.sha256).is_some() };
         if !hash_ok {
             return Err(RequestError::Invalid("sha256"));
+        }
+        let absent: bool = change.old_mode == "000000";
+        let old_mode_ok: bool = absent || ["100644", "100755", "120000", "160000"].contains(&change.old_mode.as_str());
+        let old_hash_ok: bool = if absent { change.old_sha256 == "-" } else { change.old_sha256.len() == 64 && unhex(&change.old_sha256).is_some() };
+        if !old_mode_ok || !old_hash_ok {
+            return Err(RequestError::Invalid("old entry"));
         }
     }
     return Ok(());
@@ -155,7 +163,7 @@ pub fn encode(request: &Request) -> Result<Vec<u8>, RequestError> {
     body.push_str(&format!("branch {}\nbase {}\n", hex(request.branch.as_bytes()), request.base));
     body.push_str(&format!("message {}\n", hex(request.message.as_bytes())));
     for change in &request.changes {
-        body.push_str(&format!("change {} {} {}\n", change.mode, change.sha256, hex(change.path.as_bytes())));
+        body.push_str(&format!("change {} {} {} {} {}\n", change.mode, change.sha256, change.old_mode, change.old_sha256, hex(change.path.as_bytes())));
     }
     let end: String = format!("end {}\n", sha256_hex(body.as_bytes()));
     body.push_str(&end);
@@ -202,12 +210,18 @@ pub fn decode(bytes: &[u8]) -> Result<Request, RequestError> {
     for line in lines {
         if let Some(rest) = line.strip_prefix("change ") {
             let parts: Vec<&str> = rest.trim_end().split(' ').collect();
-            if parts.len() != 3 || end.is_some() {
+            if parts.len() != 5 || end.is_some() {
                 return Err(RequestError::Damaged("change"));
             }
-            let path: String = String::from_utf8(unhex(parts[2]).ok_or(RequestError::Damaged("path"))?)
+            let path: String = String::from_utf8(unhex(parts[4]).ok_or(RequestError::Damaged("path"))?)
                 .map_err(|_| { return RequestError::Damaged("path"); })?;
-            changes.push(Change { path, mode: parts[0].to_string(), sha256: parts[1].to_string() });
+            changes.push(Change {
+                path,
+                mode: parts[0].to_string(),
+                sha256: parts[1].to_string(),
+                old_mode: parts[2].to_string(),
+                old_sha256: parts[3].to_string(),
+            });
         } else if let Some(rest) = line.strip_prefix("end ") {
             if end.is_some() {
                 return Err(RequestError::Damaged("end"));

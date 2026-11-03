@@ -101,23 +101,34 @@ fn link_complete(target: &Path, bytes: &[u8]) -> Result<(), SpoolError> {
 }
 
 /// What:
-///  Writes the spool of `id` holding `files` (entry `n` is file `n`), then the manifest, syncing the directory between.
-///  Safe to call again with the same files after a crash; other files under the same identity give `Conflict`.
+///  Writes the spool of `id`: entry `n` of `files` is the new bytes of change `n` (file `n`), entry `n` of `old_files` the bytes
+///  of that path at the captured base (file `n.old`), then the manifest, syncing the directory between.
+///  Safe to call again with the same bytes after a crash; other bytes under the same identity give `Conflict`.
 /// Why:
-///  The manifest is linked last, so a spool with a manifest is complete.
+///  The base side of the three-way replay is part of the spool, so a replay needs no object of the base (a prune after a branch
+///  rewrite cannot remove it). The manifest is linked last, so a spool with a manifest is complete.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function writeSpool(root: string, id: string, files: Uint8Array[]): void;
+/// function writeSpool(root: string, id: string, files: Uint8Array[], oldFiles: Uint8Array[]): void;
 /// ```
-pub fn write_spool(root: &Path, id: &str, files: &[Vec<u8>]) -> Result<(), SpoolError> {
+pub fn write_spool(root: &Path, id: &str, files: &[Vec<u8>], old_files: &[Vec<u8>]) -> Result<(), SpoolError> {
+    if files.len() != old_files.len() {
+        return Err(SpoolError::Mismatch("file counts".to_string()));
+    }
     let directory: PathBuf = spool_directory(root, id)?;
     create_dir_all_durable(&directory)?;
     for (number, bytes) in files.iter().enumerate() {
         link_complete(&directory.join(number.to_string()), bytes)?;
     }
+    for (number, bytes) in old_files.iter().enumerate() {
+        link_complete(&directory.join(format!("{}.old", number)), bytes)?;
+    }
     sync_directory(&directory)?;
-    let body: String = manifest_body(files);
+    let mut body: String = manifest_body(files);
+    for (number, bytes) in old_files.iter().enumerate() {
+        body.push_str(&format!("old {} {} {}\n", number, bytes.len(), sha256_hex(bytes)));
+    }
     let manifest: String = format!("{}end {}\n", body, sha256_hex(body.as_bytes()));
     link_complete(&directory.join("manifest"), manifest.as_bytes())?;
     sync_directory(&directory)?;
@@ -128,7 +139,7 @@ pub fn write_spool(root: &Path, id: &str, files: &[Vec<u8>]) -> Result<(), Spool
 }
 
 /// What:
-///  Checks the spool of `id` against its manifest and returns the SHA-256 of each file, in order.
+///  Checks the spool of `id` against its manifest and returns the SHA-256 of each new file, in order, then of each old file.
 /// Why:
 ///  An integrity check that reads every byte: the manifest's own end hash, then each file's length and hash.
 ///
@@ -149,24 +160,33 @@ pub fn verify_spool(root: &Path, id: &str) -> Result<Vec<String>, SpoolError> {
         return Err(SpoolError::Mismatch("manifest hash".to_string()));
     }
     let mut hashes: Vec<String> = Vec::new();
-    for (number, line) in body.lines().enumerate() {
+    let mut news: usize = 0;
+    for line in body.lines() {
         let parts: Vec<&str> = line.split(' ').collect();
-        let well_formed: bool = parts.len() == 4 && parts[0] == "file" && parts[1] == number.to_string();
-        if !well_formed {
-            return Err(SpoolError::Mismatch(format!("manifest line {}", number)));
+        let old: bool = parts.len() == 4 && parts[0] == "old";
+        let new: bool = parts.len() == 4 && parts[0] == "file";
+        if !old && !new {
+            return Err(SpoolError::Mismatch(format!("manifest line {}", line)));
         }
-        let bytes: Vec<u8> = fs::read(directory.join(number.to_string()))?;
+        if new {
+            news += 1;
+        }
+        let name: String = if old { format!("{}.old", parts[1]) } else { parts[1].to_string() };
+        let bytes: Vec<u8> = fs::read(directory.join(&name))?;
         if bytes.len().to_string() != parts[2] || sha256_hex(&bytes) != parts[3] {
-            return Err(SpoolError::Mismatch(format!("file {}", number)));
+            return Err(SpoolError::Mismatch(format!("file {}", name)));
         }
         hashes.push(parts[3].to_string());
+    }
+    if news * 2 != hashes.len() {
+        return Err(SpoolError::Mismatch("file counts".to_string()));
     }
     return Ok(hashes);
 }
 
 /// What:
-///  Checks the spool of `request.id` against the request: one file per change, each non-deletion file hashing to the
-///  hash the change records, each deletion file empty.
+///  Checks the spool of `request.id` against the request: one new and one old file per change, each hashing to what the change
+///  records (a deletion's new file and an absent old entry's file are empty).
 /// Why:
 ///  The record promises what the spool must hold; this is the check that the promise is kept.
 ///
@@ -176,14 +196,63 @@ pub fn verify_spool(root: &Path, id: &str) -> Result<Vec<String>, SpoolError> {
 /// ```
 pub fn verify_against_request(root: &Path, request: &Request) -> Result<(), SpoolError> {
     let hashes: Vec<String> = verify_spool(root, &request.id)?;
-    if hashes.len() != request.changes.len() {
+    let count: usize = request.changes.len();
+    if hashes.len() != count * 2 {
         return Err(SpoolError::Mismatch("file count".to_string()));
     }
     for (number, change) in request.changes.iter().enumerate() {
-        let expected: String = if change.mode == "000000" { sha256_hex(&[]) } else { change.sha256.clone() };
-        if hashes[number] != expected {
+        let expected_new: String = if change.mode == "000000" { sha256_hex(&[]) } else { change.sha256.clone() };
+        let expected_old: String = if change.old_mode == "000000" { sha256_hex(&[]) } else { change.old_sha256.clone() };
+        if hashes[number] != expected_new || hashes[count + number] != expected_old {
             return Err(SpoolError::Mismatch(format!("change {}", number)));
         }
     }
     return Ok(());
+}
+
+/// What:
+///  `struct ClosureEntry { ... }`: one path of a request with both sides of its replay, read from the spool alone.
+///  `Option<(String, Vec<u8>)>` is the mode and bytes, or `None` for an absent side.
+/// Why:
+///  A replay after the base objects are gone (a branch rewrite and a prune) still has the base side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ClosureEntry = { path: string; old?: [string, Uint8Array]; new?: [string, Uint8Array] };
+/// ```
+#[derive(Debug, Eq, PartialEq)]
+pub struct ClosureEntry {
+    /// The repository-relative path.
+    pub path: String,
+    /// Mode and bytes at the captured base, `None` when the base has no such path.
+    pub old: Option<(String, Vec<u8>)>,
+    /// Mode and bytes of the captured result, `None` for a deletion.
+    pub new: Option<(String, Vec<u8>)>,
+}
+
+/// What:
+///  The replay closure of `request`, after `verify_against_request` passed: both sides of every change, with no read of any
+///  Git object.
+/// Why:
+///  This is what makes the spool self-contained.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readClosure(root: string, request: Request): ClosureEntry[];
+/// ```
+pub fn read_closure(root: &Path, request: &Request) -> Result<Vec<ClosureEntry>, SpoolError> {
+    verify_against_request(root, request)?;
+    let directory: PathBuf = spool_directory(root, &request.id)?;
+    let mut entries: Vec<ClosureEntry> = Vec::new();
+    for (number, change) in request.changes.iter().enumerate() {
+        let new: Option<(String, Vec<u8>)> =
+            if change.mode == "000000" { None } else { Some((change.mode.clone(), fs::read(directory.join(number.to_string()))?)) };
+        let old: Option<(String, Vec<u8>)> = if change.old_mode == "000000" {
+            None
+        } else {
+            Some((change.old_mode.clone(), fs::read(directory.join(format!("{}.old", number)))?))
+        };
+        entries.push(ClosureEntry { path: change.path.clone(), old, new });
+    }
+    return Ok(entries);
 }
