@@ -1762,6 +1762,8 @@ C-class. Which commands may the stall rule cancel (new in revision 9; for the co
    - Ranking: C-kind > C-freeze > C-sample. C-kind beats C-freeze because it keeps the hook guarantee without new machinery, at the cost
      of leaving an internal wedge to the person; C-freeze beats C-sample because it removes the race by construction instead of narrowing
      its window.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): C-kind, the machine's default. The owner's
+     "End Git, hold hooks (Recommended)" puts the person's hook first; the wedge it leaves needs a Git bug and stays named and durable.
 H. Hook runs when a held request is replayed (new in revision 9; for the coordinator to pick).
    Case: a configured pre-commit hook takes minutes; it succeeds for the captured content; meanwhile the branch moves, so the commit must be
    built again on the new tip.
@@ -1774,6 +1776,8 @@ H. Hook runs when a held request is replayed (new in revision 9; for the coordin
    - Ranking: H-version > H-build. H-version beats H-build because the owner's rules are that nothing is waited for without end and a
      person's program is not repeated, and the loss (a combination check by the hook) is the same loss every ordinary Git commit has when
      a pre-commit hook ran before a later merge.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): H-version, the machine's default, for the ranking's reason
+     and the owner's "You should (almost) never be waiting."
 M. Merge order (new in revision 9; for the coordinator to pick).
    Case: a merge whose hook refuses after the files were already written, while an editor keeps saving one of the merged files.
    - Option M-A, check out first, swap second, with restoration (MG6) and retargeting (MG5). Pros: branch and worktree are never apart, so
@@ -1784,6 +1788,8 @@ M. Merge order (new in revision 9; for the coordinator to pick).
      a plain commit in that window reverts the merge unless every capture is also taught to subtract it; the first review withdrew this.
    - Ranking: M-A > M-B. M-A beats M-B because M-B's window can lose the merge's content in a later commit, which the owner's "never discard
      user data" excludes, while M-A's cost is machinery and saved files, both recoverable.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): M-A, the machine's default, because of "never discard
+     user data".
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
