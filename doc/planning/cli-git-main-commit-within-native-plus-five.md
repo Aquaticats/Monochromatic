@@ -192,6 +192,31 @@ shipped in 0.5.27, and are fixed here for the same reason):
   same physical index at once could remove a lock a third program took in between; the service lifecycle (one per worktree
   instance) excludes it, a shared alternate index is not covered, and no control exercises competing reclaimers.
 
+What the fourth cross-vendor review changed:
+
+- A replay of an index update that never installed could overwrite what another session staged since. The landing now records
+  the entries of its paths under the lock before the branch moves (`<batch>.start`), a replay resets only the paths still at
+  them, and the others keep their staging with a notice. This is the coordinator's pick, open to the owner's veto; the owner's
+  rule "never discard user data" decides it. Not closed: the unlocked gap between `remove_stale` and `try_acquire` in a restart
+  (the replay is now non-destructive, so a program that stages in the gap loses nothing), a batch with no record replays every
+  path (a commit Git built lists its paths only when it is finished, so it has none), and a path staged to exactly the entry
+  the landing started from is reset (the staging equals what the landing found, so nothing differs to keep). A panic that
+  unwinds through the record leaves the lock.
+- `is_indexed` read every error as no record. The record is now three-valued (absent, installed, unreadable) and a restart that
+  cannot read it leaves the batch and the index alone.
+- The installed index's directory is synced before the completion record, and the journal directory before the record is removed.
+- The worktree's head is read from the Git directory the request recorded. The ref transaction cannot carry
+  `symref-verify HEAD`: Git 2.56.0 refuses it beside an update of the branch `HEAD` names ("multiple updates for 'HEAD'",
+  checked by hand on a throwaway repository), so the head is read again after the move, under the lock, and a worktree that left
+  the branch keeps its index. This differs from the review's proposal.
+- The private copy is a random-named owner-only directory with a marker (`service_land_copy.rs`), which replaces the loose
+  file: no default permissions before the first byte, no shared name, no exhaustible names, no length that grows with the
+  index's name (the lock's own staging name overflows a file name long before that matters, `service_index_staging.rs`).
+- A restart after a branch switch still finishes an index kept in another file, and the batch stays open until the conclusion
+  state is removed.
+- The default ACL control sets the ACL through its extended attribute, so the gate image needs no `setfacl`; a file system
+  that refuses it skips with the reason.
+
 Measured on 2026-11-03 on throwaway copies of main's shape (20 672 tracked files, 53 000 ignored, a signed explicit-path commit,
 `core.untrackedCache = true`, no fsmonitor, release builds, 20 rounds after 2 warm-up rounds, native Git and both wrappers in
 turn, host not quiet): native 38 and 39 ms (37 to 41); the base wrapper (the branch point) 137 ms (132 to 213, median absolute
