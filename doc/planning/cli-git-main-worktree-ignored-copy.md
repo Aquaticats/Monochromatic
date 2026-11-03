@@ -563,6 +563,56 @@ Ranking: S3 plus S2 > S2 > S1 > A > S4.
   the
   ladder's rung order already expresses; this branch makes that fallback carry the ignored state.
 
+## Applying the shared pnpm store
+
+Owner decision, 2026-11-02: "Set the shared store (Recommended)".
+Measured on a throwaway clone with its own `HOME` (reflinked pnpm metadata cache), then deleted; the real home store,
+main's
+store and main's `node_modules` were only read.
+
+- `pnpm-workspace.yaml` is a hand-edited file: `file-enforcer.config.jsonc` does not name it, so the change goes to
+  the file
+  itself.
+- The exact edit, one line at the top level of `pnpm-workspace.yaml`, with a comment saying why:
+  `storeDir: ${HOME}/.local/share/pnpm/store`.
+  The `${HOME}` form expands; `~` does not (it created a directory named `~`), and the environment variable
+  `npm_config_store_dir` is ignored.
+- What happens to an existing checkout whose `node_modules` was linked from the old store, once the line is present:
+  1. every command except an install keeps working: `pnpm exec` ran against the old `node_modules` and passed, and
+     `HOME`
+     unset or pointing elsewhere did not matter to it;
+  2. `pnpm install --frozen-lockfile --offline` against a new store that does not hold the packages fails with
+     `snapshot not present in local store` AND LEAVES `node_modules` EMPTY (only `.pnpm-workspace-state-v1.json`
+     remained).
+     pnpm removes the old links before it finds the packages missing; there is no "unexpected store" refusal.
+     With `HOME` unset the same install fails the same way, so the setting needs `HOME` in every environment that
+     installs
+     (CI and containers included);
+  3. once the new store holds the packages, the same install re-links everything from it in 1.8 s to 2.9 s and records
+     the new
+     `storeDir` in `node_modules/.modules.yaml`.
+- Filling the store, which must come first:
+  - The real home store is `~/.local/share/pnpm/store/v11` (49 GB, a live pnpm 12 store with an `index.db`), so main's
+    store cannot be copied over it: a copy would replace its index.
+    On a fresh `HOME` a reflink copy of main's store took 2.1 s and worked.
+  - `pnpm fetch --frozen-lockfile` fills the configured store from the network without linking, and took 10.7 s into
+    an empty
+    store; but it also empties the `node_modules` of the directory it runs in, so run it in a disposable worktree or
+    clone
+    that carries the edit, never in main.
+- Reinstalling main is NOT safe while other sessions use main's `node_modules`: while the switch install ran (3.0 s),
+  a loop
+  resolving two installed packages failed 102 of 215 times.
+  Run it when no session is working in main, or accept about 3 s of failures.
+- Existing worktrees need nothing until they next run an install after receiving the edit; then they need the store
+  filled
+  first, or the install empties their `node_modules` as above.
+- Order for the owner: edit on a branch; in a disposable worktree of that branch run `pnpm fetch --frozen-lockfile`
+  once;
+  merge; in main, with sessions idle, run `pnpm install --frozen-lockfile` (about 3 s); other worktrees pick it up at
+  their next
+  install.
+
 ## Assumptions and limits
 
 - The fixture is `git clone --shared` of the main checkout in `/var/home/user/.cache/main-ignored-copy`, with the main
