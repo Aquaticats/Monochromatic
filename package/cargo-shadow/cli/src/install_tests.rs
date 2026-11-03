@@ -525,3 +525,61 @@ fn under_trust_lockfile_without_a_base_reader_the_install_refuses_instead_of_tru
         other => panic!("expected a refusal, got {other:?}"),
     }
 }
+
+/// A fake cargo that fails in `package/a/one` after another writer published `package/a/two`.
+struct CargoWithAConcurrentWriter {
+    root: PathBuf,
+}
+
+impl CargoRunner for CargoWithAConcurrentWriter {
+    fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
+        if args.iter().any(|argument| { return argument == "--locked"; }) {
+            return Ok(CargoOutcome { ok: false, output: "the lock file needs to be updated".to_string(), stdout: String::new() });
+        }
+        if args[0] == "update" && cwd.ends_with("one") {
+            fs::write(self.root.join("package/a/two/Cargo.lock"), "published by another writer meanwhile").map_err(|error| { return error.to_string(); })?;
+            return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
+        }
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    }
+}
+
+/// Review finding (early-error rollback): cargo fails in the first root before anything was produced, and another writer
+/// updates the second root meanwhile. The rollback must not read the second root's new content and call it its own output.
+#[test]
+fn a_failure_before_anything_was_produced_does_not_restore_over_another_writers_lock() {
+    let (root, dirs) = repository(&[("package/a/one", STALE), ("package/a/two", SATISFIED)]);
+    let cargo: CargoWithAConcurrentWriter = CargoWithAConcurrentWriter { root: root.path().to_path_buf() };
+    let settings_value: Settings = settings();
+
+    let result = install_rust_lockfiles(&InstallRequest {
+        root: root.path(),
+        crate_dirs: &dirs,
+        frozen: false,
+        offline: true,
+        dry_run: false,
+        now: 0,
+        settings: &settings_value,
+        runner: &cargo,
+        registry: &empty_registry(),
+        lock_base: None,
+    });
+
+    assert!(result.is_err());
+    assert_eq!(lock_text(root.path(), "package/a/two"), "published by another writer meanwhile");
+}
+
+/// Review finding (failed begin): without a complete recovery record nothing may be mutated, so a journal that cannot be
+/// started stops the install before cargo runs.
+#[test]
+fn an_install_whose_journal_cannot_be_started_runs_no_cargo_and_changes_nothing() {
+    let (root, dirs) = repository(&[("package/a/one", STALE)]);
+    fs::write(root.path().join(".cache"), "a file where the cache directory must go").expect("block the cache directory");
+    let cargo: FakeCargo = cargo_that_writes(SATISFIED);
+
+    let result = run_install(root.path(), &dirs, &cargo, &empty_registry(), false, false);
+
+    assert!(result.is_err(), "{result:?}");
+    assert!(cargo.commands.borrow().is_empty(), "{:?}", cargo.commands);
+    assert_eq!(lock_text(root.path(), "package/a/one"), STALE);
+}

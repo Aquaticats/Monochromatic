@@ -118,3 +118,97 @@ fn finish_removes_this_processs_journal() {
 
     assert!(!root.path().join(JOURNAL_DIR).join(std::process::id().to_string()).exists());
 }
+
+/// Review finding (recovery destroys the remaining recovery copies): a second refusal must not overwrite the first saved
+/// lockfile, so every saved copy gets its own name.
+#[test]
+fn a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives() {
+    let root = repository("first unchecked output");
+    plant_journal(root.path(), "original");
+    let refuse = |_before: &[LockSnapshot], _live: &[LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; };
+    recover(root.path(), &|_pid| { return false; }, &refuse);
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), "second unchecked output").expect("the second killed run");
+    plant_journal(root.path(), "original");
+
+    recover(root.path(), &|_pid| { return false; }, &refuse);
+
+    let mut saved: Vec<String> = Vec::new();
+    for entry in fs::read_dir(root.path().join(CRATE_DIR)).expect("list").flatten() {
+        let name: String = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with("Cargo.lock.refused") {
+            saved.push(fs::read_to_string(entry.path()).expect("read a saved copy"));
+        }
+    }
+    saved.sort();
+    assert_eq!(saved, vec!["first unchecked output".to_string(), "second unchecked output".to_string()]);
+}
+
+/// Review finding: a recovery that could not finish keeps the journal, because the journal holds the only copy of the
+/// original lockfile. Here the crate directory cannot be written, so neither the refused copy nor the restore can happen.
+#[test]
+fn a_recovery_that_fails_keeps_the_journal() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = repository("unchecked output of the killed run");
+    plant_journal(root.path(), "original");
+    let crate_dir = root.path().join(CRATE_DIR);
+    fs::set_permissions(&crate_dir, fs::Permissions::from_mode(0o555)).expect("make the directory read-only");
+
+    let messages = recover(root.path(), &|_pid| { return false; }, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    fs::set_permissions(&crate_dir, fs::Permissions::from_mode(0o755)).expect("make the directory writable again");
+    assert_eq!(messages.len(), 1, "{messages:?}");
+    assert!(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists(), "the journal of a failed recovery was deleted");
+}
+
+/// Review finding: a live lockfile that cannot be read keeps the journal.
+#[test]
+fn an_unreadable_live_lock_keeps_the_journal() {
+    let root = repository("whatever");
+    plant_journal(root.path(), "original");
+    fs::remove_file(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("remove the live lock");
+
+    recover(root.path(), &|_pid| { return false; }, &|_before, _live| { return Vec::new(); });
+
+    assert!(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists(), "the journal was deleted with the live lock unread");
+}
+
+/// Review finding: a journal that cannot be read in full keeps its directory.
+#[test]
+fn an_unreadable_journal_is_kept() {
+    let root = repository("whatever");
+    plant_journal(root.path(), "original");
+    fs::remove_file(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).join("0.lock")).expect("damage the journal");
+
+    recover(root.path(), &|_pid| { return false; }, &|_before, _live| { return Vec::new(); });
+
+    assert!(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists(), "a damaged journal was deleted");
+}
+
+/// Review finding (compare-before-replace): the policy judgement is slow, and another writer can publish a lockfile while
+/// it runs. Recovery must compare again right before it replaces the file.
+#[test]
+fn recovery_leaves_a_lock_that_another_writer_published_while_the_policy_was_judged() {
+    let root = repository("unchecked output of the killed run");
+    plant_journal(root.path(), "original");
+    let lock_path = root.path().join(CRATE_DIR).join("Cargo.lock");
+
+    let messages = recover(root.path(), &|_pid| { return false; }, &|_before, _live| {
+        fs::write(&lock_path, "published by another writer meanwhile").expect("the other writer");
+        return vec!["dep@1.0.1 refused".to_string()];
+    });
+
+    assert_eq!(lock(root.path()), "published by another writer meanwhile");
+    assert_eq!(messages.len(), 1, "{messages:?}");
+    assert!(messages[0].contains("another process"), "{messages:?}");
+}
+
+/// Review finding (unknown ownership): a lockfile this run never produced is not restored.
+#[test]
+fn a_lock_the_run_never_produced_is_left_alone_even_when_it_differs_from_the_snapshot() {
+    let root = repository("written by someone else");
+
+    let warnings = restore_if_unchanged(root.path(), &[snapshot("original")], &[]).expect("restores");
+
+    assert_eq!(lock(root.path()), "written by someone else");
+    assert_eq!(warnings.len(), 1);
+}

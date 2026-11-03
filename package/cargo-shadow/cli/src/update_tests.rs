@@ -407,3 +407,34 @@ fn an_update_of_some_workspaces_never_prunes_the_catalog_because_other_lockfiles
     assert!(report.pruned.is_empty());
     assert!(fs::read_to_string(&world.catalog).expect("catalog").contains("needed-elsewhere@1.0.0"));
 }
+
+/// Review finding (early-error rollback): cargo fails before anything of this run was recorded as produced, and another
+/// writer published the lockfile meanwhile. The rollback must leave that lockfile alone.
+#[test]
+fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_writers_lock() {
+    let world = world(&lock_with("0.9.0"), "");
+    let lock_path: PathBuf = world.root.path().join(CRATE_DIR).join("Cargo.lock");
+    let cargo = move |_cwd: &Path, _args: &[String]| -> Result<CargoOutcome, String> {
+        fs::write(&lock_path, "published by another writer meanwhile").map_err(|error| { return error.to_string(); })?;
+        return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
+    };
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::new() };
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &RecordingSyncer { calls: RefCell::new(0) },
+        prune_catalog: false,
+    };
+
+    let result = update_rust_lockfiles(&request, &UpdateKind::Full);
+
+    assert!(result.is_err());
+    assert_eq!(lock_of(&world), "published by another writer meanwhile");
+}
