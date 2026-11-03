@@ -28,7 +28,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'eight';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'nine';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -43,6 +43,9 @@ pub enum Rules {
     /// Revision 8 draft (`~/temp/agent/reviews/commits-never-fail-design-r8.md`, recovery classes R1 to R5): published,
     /// tip or ancestor, positive old-value evidence, then a recorded swap failure replays on the tip, then landing.
     Eight,
+    /// Revision 9, R4: a recorded swap failure replays on the tip only when the reflog after the anchor is intact; with
+    /// the post-anchor lines missing or rewritten the attempt is class R5 (landing with a notice).
+    Nine,
 }
 
 /// What:
@@ -84,6 +87,9 @@ pub struct State {
     pub owner_dead: bool,
     /// The recovery's decision.
     pub outcome: u8,
+    /// Read at the instant of a silent republication: 1 the reflog showed the branch moved away, 2 the branch had held the
+    /// commit and lost it, 0 neither (later events do not change it).
+    pub republish_harm: u8,
 }
 
 /// What:
@@ -110,6 +116,7 @@ pub fn initial(rules: Rules) -> State {
         evidence_deleted: false,
         owner_dead: false,
         outcome: 0,
+        republish_harm: 0,
     };
 }
 
@@ -131,6 +138,10 @@ fn decide(state: &State) -> u8 {
     }
     // Revision 8, R4: a recorded failure, with no R1 to R3 evidence, replays on the tip.
     if state.rules == Rules::Eight && !(state.tip == 1 || state.evidence) && state.swap_failed_record {
+        return 2;
+    }
+    // Revision 9, R4: only with an intact post-anchor reflog; otherwise class R5.
+    if state.rules == Rules::Nine && !(state.tip == 1 || state.evidence) && state.swap_failed_record && !state.evidence_deleted {
         return 2;
     }
     if state.tip == 1 {
@@ -217,6 +228,11 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
     if state.owner_dead && state.outcome == 0 {
         let mut after: State = state.clone();
         after.outcome = decide(state);
+        if after.outcome == 2 && state.evidence {
+            after.republish_harm = 1;
+        } else if after.outcome == 2 && state.held_d && state.tip == 0 {
+            after.republish_harm = 2;
+        }
         push_step(&mut found, "recovery: decides from the evidence", after);
     }
     return found;
@@ -233,10 +249,10 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
 /// function invariant(s: State): string | undefined;
 /// ```
 pub fn invariant(state: &State) -> Option<String> {
-    if state.outcome == 2 && state.evidence {
+    if state.republish_harm == 1 {
         return Some("a commit was published again although the reflog shows the branch moved away from it".to_string());
     }
-    if state.outcome == 2 && state.held_d && state.tip == 0 {
+    if state.republish_harm == 2 {
         return Some("a commit the branch had held and lost was published again silently".to_string());
     }
     return None;

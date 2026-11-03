@@ -170,3 +170,32 @@ fn eight_replays_silently_when_the_evidence_was_erased() {
     assert_eq!(invariant(&reached), Some("a commit the branch had held and lost was published again silently".to_string()));
     assert!(check(Rules::Eight).violation.is_some());
 }
+
+/// Revision 9, R4 with an intact-reflog condition: the schedule that is red under revision 8 (the post-anchor lines erased
+/// after a recorded swap failure) lands the commit with a notice, and every schedule is green.
+#[test]
+fn nine_lands_with_a_notice_when_the_reflog_after_the_anchor_is_not_intact() {
+    let reached = replay(
+        initial(Rules::Nine),
+        steps,
+        &[
+            "lane: records publishing with the reflog anchor",
+            "foreign: takes the ref lock",
+            "lane: the swap fails because another writer holds the ref lock, and records swap-failed",
+            "foreign: releases the ref lock",
+            "foreign: installs exactly the lane's commit",
+            "foreign: resets the branch away from the commit",
+            "reflog operation: deletes the lines after the anchor, keeping the anchor",
+            "environment: the owner dies without a durable published record",
+            "recovery: decides from the evidence",
+        ],
+    );
+    assert_eq!(reached.outcome, 3);
+    assert_eq!(invariant(&reached), None);
+    let report: Report = check(Rules::Nine);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F1 nine: {} states, deepest {}", report.states, report.deepest);
+}

@@ -29,7 +29,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'candidate-no-gate';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'nine' | 'candidate-no-gate';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -48,6 +48,9 @@ pub enum Rules {
     /// the pidfd (read here as a terminate signal, since the intent exists for the owner that is still running); an owner that
     /// finds the intent at an admission point admits nothing and exits.
     Eight,
+    /// Revision 9, L6 and L7: as revision 8, and step (5) ends the owner through the pidfd with SIGKILL (uncatchable), so a
+    /// wedged owner outside any gate is ended; the shared gate is checked against the restart-intent after it is held.
+    Nine,
     /// The candidate without the exclusive gate (a mutation that must stay red).
     CandidateNoGate,
 }
@@ -188,6 +191,11 @@ fn owner_gone(state: &State, by_restart: bool) -> State {
     return after;
 }
 
+/// Whether the rule is revision 8 or revision 9, which share the gate, the restart-intent and the namespace rule.
+fn eight_like(rules: Rules) -> bool {
+    return rules == Rules::Eight || rules == Rules::Nine;
+}
+
 /// Whether the restarter's pidfd still names the live owner it observed.
 fn pidfd_names_live_owner(state: &State) -> bool {
     return !state.target_unrelated && state.owner_alive && state.incarnation == state.observed;
@@ -244,7 +252,7 @@ fn owner_steps(state: &State) -> Vec<(String, State)> {
     let stub: bool = state.rules == Rules::Candidate || state.rules == Rules::CandidateNoGate;
     let gated: bool = state.rules != Rules::Six;
     let free: bool = state.owner_alive && !state.owner_wedged && !state.kill_pending;
-    let intent_set: bool = state.rules == Rules::Eight && state.intent == state.incarnation;
+    let intent_set: bool = eight_like(state.rules) && state.intent == state.incarnation;
     if free && intent_set && !state.hook_running {
         push_step(&mut found, "L7 intent: the owner finds the restart-intent at an admission point, admits nothing and exits", owner_gone(state, false));
     }
@@ -326,7 +334,7 @@ fn restarter_steps(state: &State) -> Vec<(String, State)> {
         after.stop_outstanding = true;
         push_step(&mut found, "restarter: asks the manager to restart the unit", after);
     }
-    if phase == RPhase::Idle && state.rules == Rules::Eight && state.foreign_namespace {
+    if phase == RPhase::Idle && eight_like(state.rules) && state.foreign_namespace {
         let mut after: State = state.clone();
         after.restarter = RPhase::Done;
         push_step(&mut found, "L7 precondition: the pid namespaces differ, no restart", after);
@@ -362,7 +370,7 @@ fn restarter_steps(state: &State) -> Vec<(String, State)> {
             push_step(&mut found, "restarter: re-reads lane/incarnation, finds it changed and aborts", after);
         }
     }
-    if phase == RPhase::Verified && state.rules == Rules::Eight {
+    if phase == RPhase::Verified && eight_like(state.rules) {
         let mut after: State = state.clone();
         after.restarter = RPhase::Intent;
         after.intent = state.observed;
@@ -373,10 +381,17 @@ fn restarter_steps(state: &State) -> Vec<(String, State)> {
         after.restarter = RPhase::Signalled;
         if state.target_unrelated {
             after.unrelated_killed = true;
+        } else if pidfd_names_live_owner(state) && state.rules == Rules::Nine {
+            after.kill_pending = true;
         } else if pidfd_names_live_owner(state) {
             after.term_pending = true;
         }
-        push_step(&mut found, "restarter: sends the terminate signal through the pidfd", after);
+        let label: &str = if state.rules == Rules::Nine {
+            "L7 (5): the restarter ends the owner with SIGKILL through the pidfd"
+        } else {
+            "restarter: sends the terminate signal through the pidfd"
+        };
+        push_step(&mut found, label, after);
     }
     if phase == RPhase::Verified && candidate {
         let mut after: State = state.clone();
@@ -440,7 +455,7 @@ pub fn invariant(state: &State) -> Option<String> {
 /// The liveness check: a wedged owner that no restarter can act on, with no program of the person's running.
 pub fn end_state(state: &State) -> Option<String> {
     // Revision 8, owner question B: an owner wedged while it holds the gate is not restarted automatically.
-    if state.rules == Rules::Eight && state.owner_wedged && state.gate_shared != 0 {
+    if eight_like(state.rules) && state.owner_wedged && state.gate_shared != 0 {
         return None;
     }
     if state.owner_alive && state.owner_wedged && !state.hook_running {

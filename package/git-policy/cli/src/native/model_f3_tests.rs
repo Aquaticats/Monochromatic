@@ -193,3 +193,33 @@ fn eight_cannot_end_a_wedged_owner_with_a_catchable_signal() {
         "a wedged owner with no running program of the person's can never be restarted"
     );
 }
+
+/// Revision 9, L7 step (5): the uncatchable signal ends a wedged owner that revision 8's terminate signal could not, the
+/// restarter-death and namespace schedules stay closed, the restart still needs the exclusive gate, and a wedged gate
+/// holder is the stated narrowing (B-hand). Every other schedule is green.
+#[test]
+fn nine_ends_a_wedged_owner_with_sigkill_and_still_needs_the_gate() {
+    let reached = replay(
+        initial(Rules::Nine, false),
+        steps,
+        &[
+            "environment: the owner wedges and takes no further step",
+            "restarter: reads lane/incarnation and opens a pidfd",
+            "restarter: takes the gate exclusively without waiting",
+            "restarter: re-reads lane/incarnation and finds it unchanged",
+            "L7 (4): the restarter creates the restart-intent and fsyncs it",
+            "L7 (5): the restarter ends the owner with SIGKILL through the pidfd",
+            "kernel: completes the kill of the owner",
+        ],
+    );
+    assert!(!reached.owner_alive);
+    let holder = replay(initial(Rules::Nine, false), steps, &["owner: takes the shared gate", "environment: the owner wedges and takes no further step"]);
+    assert!(!steps(&holder).iter().any(|entry| { return entry.0.contains("takes the gate exclusively"); }));
+    assert_eq!(end_state(&holder), None);
+    let report: Report = check(Rules::Nine);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F3 nine: {} states, deepest {}", report.states, report.deepest);
+}
