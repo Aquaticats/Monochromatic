@@ -205,4 +205,4 @@ impl Clock {
 /// Progress behavior is controlled in the test module.
 #[cfg(test)]
 #[path = "push_progress_tests.rs"]
-mod tests;
+pub(crate) mod tests;

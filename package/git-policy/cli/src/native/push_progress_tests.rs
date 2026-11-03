@@ -14,6 +14,14 @@
 use super::*;
 use crate::test_support::{fixture, remove};
 use std::process::{Child, Command, Stdio};
+/// The name the control gives the probe test in order to run it as a process of its own.
+const PROBE_NAME: &str = "push_progress::tests::disk_wait_probe";
+
+/// The variable that holds the probe's hold in milliseconds; without it the probe does nothing.
+const PROBE_HOLD_VARIABLE: &str = "CLI_GIT_DISK_WAIT_PROBE_HOLD_MILLISECONDS";
+
+/// The variable that says what the probe does when its hold is over: `exit`, or `idle` to sleep as a process waiting on a server.
+const PROBE_THEN_VARIABLE: &str = "CLI_GIT_DISK_WAIT_PROBE_THEN";
 
 /// Pause between two looks of a control, shorter than every limit it uses.
 const LOOK: Duration = Duration::from_millis(50);
@@ -202,4 +210,111 @@ fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
     assert!(began.elapsed() >= stall);
     end(child);
     remove(root.as_path());
+}
+
+/// What the probe's child does for its hold: sleep, and end. The probe's thread is then blocked in `clone` with
+///  `CLONE_VFORK`, which the kernel waits out in uninterruptible sleep (state `D`) without any disk, byte or processor time.
+extern "C" fn hold_in_vfork_child(milliseconds: *mut libc::c_void) -> libc::c_int {
+    let hold: usize = milliseconds as usize;
+    let pause: libc::timespec = libc::timespec {
+        tv_sec: libc::time_t::try_from(hold / 1000).unwrap_or(0),
+        tv_nsec: libc::c_long::try_from((hold % 1000) * 1_000_000).unwrap_or(0),
+    };
+    // SAFETY: `nanosleep` and `_exit` are async-signal-safe and touch nothing of the parent but the stack this child owns;
+    //  the child shares the parent's memory until it ends, so it calls nothing else.
+    unsafe {
+        libc::nanosleep(&pause, std::ptr::null_mut());
+        libc::_exit(0);
+    }
+}
+
+/// Hold the calling thread in uninterruptible sleep for `milliseconds`: no I/O, no processor time, no byte moved, which is
+///  what a wait for a slow disk looks like to `/proc` and what no file system, device or FUSE mount is needed to make.
+fn hold_in_disk_wait(milliseconds: usize) {
+    let mut stack: Vec<u8> = vec![0; 64 * 1024];
+    // SAFETY: the child gets its own stack (`stack` outlives the call, which returns only after the child ended) and runs
+    //  `hold_in_vfork_child`, which only sleeps and exits; the parent waits for it with `waitpid` so no zombie is left.
+    unsafe {
+        let top: *mut libc::c_void = stack.as_mut_ptr().add(stack.len()).cast();
+        let child: libc::pid_t =
+            libc::clone(hold_in_vfork_child, top, libc::CLONE_VM | libc::CLONE_VFORK | libc::SIGCHLD, milliseconds as *mut libc::c_void);
+        assert!(child > 0, "clone failed: {}", std::io::Error::last_os_error());
+        libc::waitpid(child, std::ptr::null_mut(), 0);
+    }
+}
+
+/// The process the controls start when they need a tree in disk wait: not a test of its own, it does nothing unless the
+///  variable names a hold, and then holds a thread in uninterruptible sleep for that long and either ends or sleeps on.
+#[test]
+fn disk_wait_probe() {
+    let Some(hold) = std::env::var(PROBE_HOLD_VARIABLE).ok().and_then(|text| { return text.parse::<usize>().ok(); }) else {
+        return;
+    };
+    hold_in_disk_wait(hold);
+    if std::env::var(PROBE_THEN_VARIABLE).as_deref() == Ok("idle") {
+        std::thread::sleep(Duration::from_secs(600));
+    }
+}
+
+/// The command that runs the probe: this test binary, the probe only, holding for `hold`, then `then`.
+pub(crate) fn disk_wait_command(hold: Duration, then: &str) -> Command {
+    let mut command: Command = Command::new(std::env::current_exe().expect("this test binary"));
+    command
+        .args(["--exact", PROBE_NAME, "--nocapture", "--test-threads", "1"])
+        .env(PROBE_HOLD_VARIABLE, hold.as_millis().to_string())
+        .env(PROBE_THEN_VARIABLE, then)
+        .stdin(Stdio::null());
+    return command;
+}
+
+/// A thread in uninterruptible sleep is a sign of life at every look, with nothing else moving: the wait of a process for
+///  its disk (the fsync of an object, the update of a ref) is not a stall. The probe's hold ends and it sleeps on, and then
+///  the tree is idle at last.
+#[test]
+fn a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends() {
+    let mut probe: Command = disk_wait_command(Duration::from_millis(3000), "idle");
+    probe.stdout(Stdio::null()).stderr(Stdio::null());
+    let child: Child = probe.spawn().expect("start the probe");
+    let pid: i32 = i32::try_from(child.id()).expect("pid");
+    let mut meter: Meter = Meter::new();
+    // The probe starts up and works for a moment first; the looks below fall in its hold or in that start-up, both alive.
+    std::thread::sleep(Duration::from_millis(700));
+    for look in 0..4 {
+        std::thread::sleep(Duration::from_millis(400));
+        assert!(meter.sample(pid), "look {look}: a thread in uninterruptible sleep is alive");
+    }
+    let began: Instant = Instant::now();
+    let mut idle: bool = false;
+    while !idle && began.elapsed() < PATIENCE {
+        std::thread::sleep(Duration::from_millis(400));
+        idle = !meter.sample(pid);
+    }
+    assert!(idle, "once the hold is over and the probe sleeps, the tree is idle");
+    end(child);
+}
+
+/// A push-like tree in disk wait for longer than the stall window is not stopped, and one that sleeps on afterwards is.
+#[test]
+fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
+    let mut probe: Command = disk_wait_command(Duration::from_millis(4000), "idle");
+    probe.stdout(Stdio::null()).stderr(Stdio::null());
+    let child: Child = probe.spawn().expect("start the probe");
+    let stall: Duration = Duration::from_millis(1500);
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling: Duration::from_secs(600) });
+    // The probe's own start-up counts as work; the hold begins after it and lasts well past the window.
+    let began: Instant = Instant::now();
+    let cause: StopCause = loop {
+        if let Some(cause) = clock.check() {
+            break cause;
+        }
+        assert!(began.elapsed() < PATIENCE);
+        std::thread::sleep(LOOK);
+    };
+    let StopCause::Stalled(report) = cause else { panic!("a stall, not another limit") };
+    assert!(
+        report.elapsed >= Duration::from_millis(4000),
+        "the hold of 4 s in disk wait is no stall, and the stall came only after it: {:?}",
+        report.elapsed
+    );
+    end(child);
 }

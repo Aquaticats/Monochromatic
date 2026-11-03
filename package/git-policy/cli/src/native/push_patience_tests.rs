@@ -16,7 +16,10 @@ use crate::bounded_push::{
     DEFAULT_PUSH_CEILING, DEFAULT_PUSH_DEADLINE, PUSH_CEILING_VARIABLE, PUSH_DEADLINE_VARIABLE, Patience, STOPPED_EXIT_CODE, push_ceiling,
     push_patience, run_bounded_push,
 };
+use crate::push_progress::tests::disk_wait_command;
 use crate::test_support::{fixture, git, remove, repository, scratch_environment};
+use std::io::Read;
+use std::net::TcpListener;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -162,4 +165,48 @@ fn the_ceiling_and_the_patience_come_from_the_environment() {
         (OsString::from(PUSH_CEILING_VARIABLE), OsString::from("70")),
     ];
     assert_eq!(push_patience(&both), Patience::Progress { stall: Duration::from_secs(7), ceiling: Duration::from_secs(70) });
+}
+
+/// A push that waits for its disk for longer than the stall window (an fsync of an object or a ref on a slow volume) moves no
+/// byte and uses no processor time, but is not stalled: it finishes. The wait is a thread held in uninterruptible sleep by
+/// the probe, so its length is exact and nothing depends on the speed of the disk under the test.
+#[test]
+fn a_push_in_disk_wait_longer_than_the_stall_window_is_not_stopped() {
+    let hold: Duration = Duration::from_millis(5000);
+    let started: Instant = Instant::now();
+    let attempt: PushAttempt = run_bounded_push(
+        disk_wait_command(hold, "exit"),
+        Patience::Progress { stall: STALL, ceiling: Duration::from_secs(120) },
+        GRACE,
+        scratch_environment().as_slice(),
+    )
+    .expect("runs");
+    assert!(started.elapsed() >= hold, "the push waited for its disk the whole hold: {:?}", started.elapsed());
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+}
+
+/// A push that sleeps on a socket with nothing moving (a server that took the connection and says nothing) is a stall, and is
+/// stopped after the window: real Git, a real connection to a listener that never answers.
+#[test]
+fn a_push_sleeping_on_a_silent_socket_is_stopped_after_the_stall_window() {
+    let listener: TcpListener = TcpListener::bind("127.0.0.1:0").expect("a local listener");
+    let port: u16 = listener.local_addr().expect("its address").port();
+    let silent = std::thread::spawn(move || {
+        // Take the connection and read what the client sends, and never answer: the client waits on the socket.
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut sink: [u8; 4096] = [0; 4096];
+            while stream.read(&mut sink).is_ok_and(|count| { return count > 0; }) {}
+        }
+    });
+    let root: PathBuf = fixture("patience-silent-socket");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{port}/silent.git").as_str()]);
+    let stage: Stage = Stage { root, repo };
+    let (attempt, elapsed): (PushAttempt, Duration) = run(&stage, Patience::Progress { stall: STALL, ceiling: Duration::from_secs(120) });
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "{}", attempt.output);
+    assert!(attempt.output.contains("limit=stall"), "{}", attempt.output);
+    assert!(elapsed >= STALL, "{elapsed:?}");
+    assert!(elapsed < STALL + GRACE + STOP_SLACK, "{elapsed:?}");
+    remove(stage.root.as_path());
+    drop(silent);
 }
