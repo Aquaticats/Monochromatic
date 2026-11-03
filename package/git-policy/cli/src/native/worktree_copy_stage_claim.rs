@@ -85,9 +85,9 @@ impl StageClaim {
     /// await claim.markComplete();
     /// ```
     pub fn mark_complete(&self) -> Result<(), WorktreeCopyError> {
-        write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker")?;
+        super::add_timing::step("markCompleteFile", || { return write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); })?;
         if let Some(parent) = self.path.parent() {
-            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+            super::add_timing::step("markCompleteDirectory", || { return sync_directory(parent); }).map_err(|error| return raw_failure(&error))?;
         }
         return Ok(());
     }

@@ -611,12 +611,12 @@ fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Op
     if let Some(name) = operation_in_progress(git_dir, owned_index_lock) {
         return Err(CleanRefusal::new(CleanRefusalKind::OperationInProgress(name), format!("{name} exists in {}", git_dir.display())));
     }
-    let state: State = read_state(git_dir, common_dir)?;
-    if let Some(refusal) = index_differs_from_tree(state.entries.as_slice(), state.tree.as_slice()) {
+    let state: State = super::add_timing::step("readIndexAndTree", || { return read_state(git_dir, common_dir); })?;
+    if let Some(refusal) = super::add_timing::step("indexAgainstTree", || { return index_differs_from_tree(state.entries.as_slice(), state.tree.as_slice()); }) {
         return Err(refusal);
     }
     let differs: Option<CleanRefusal> = match environment {
-        None => tree_refusal(root, state.stats.as_slice(), state.index_seconds),
+        None => super::add_timing::step("walkSource", || { return tree_refusal(root, state.stats.as_slice(), state.index_seconds); }),
         Some(found) => tree_differs_from_index_by_content(&ContentTarget { root, git_dir, common_dir, environment: found, format: state.format }, state.stats.as_slice(), state.entries.as_slice(), state.index_seconds)
             .map(|reason: String| { return CleanRefusal::new(CleanRefusalKind::FileChanged, reason); }),
     };

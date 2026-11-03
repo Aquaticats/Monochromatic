@@ -331,7 +331,8 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
     if let Some(answered) = try_request(context, request) {
         return Ok(answered);
     }
-    return run_git_pausing(context, request, START_RETRY_BUDGET, &mut |wait: Duration| { std::thread::sleep(wait); });
+    let label: String = super::add_timing::git_step_label(request.arguments.as_slice());
+    return super::add_timing::step(label.as_str(), || { return run_git_pausing(context, request, START_RETRY_BUDGET, &mut |wait: Duration| { std::thread::sleep(wait); }); });
 }
 
 /// Commands whose second run after a refusal is harmless: they read, or they write content-addressed objects,

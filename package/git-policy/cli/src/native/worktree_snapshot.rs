@@ -15,6 +15,7 @@
 //! await putInPlace({ stage, destination, mode });
 //! ```
 
+use super::add_timing::step as timed;
 use super::fs_beneath::{ObjectId, exchange_at, identity_at, open_directory_at, open_directory_beneath, open_file_at, open_root, plain_components, remove_at, rename_at};
 use super::fs_btrfs_ioctl::snapshot_create_at;
 use super::subvolume_index_files::install_index_in;
@@ -124,11 +125,11 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index:
     let bytes: &[u8] = own_index.unwrap_or(source.clean.index_bytes.as_slice());
     if own_index.is_none() {
         let entries: Vec<StatEntry> = stored_stats(bytes, source.clean.hash_length).ok_or_else(|| { return String::from("the source's index changed shape"); })?;
-        if let Some(reason) = tree_differs_from_index_beneath(&root, entries.as_slice(), source.clean.index_seconds) {
+        if let Some(reason) = timed("compareWalk", || { return tree_differs_from_index_beneath(&root, entries.as_slice(), source.clean.index_seconds); }) {
             return Err(format!("the source changed while it was copied ({reason})"));
         }
     }
-    let report: String = install_index_in(admin, bytes, &mut |path: &[u8]| { return stat_fields_beneath(&root, path); }, source.clean.hash_length)?;
+    let report: String = timed("refreshIndexStats", || { return install_index_in(admin, bytes, &mut |path: &[u8]| { return stat_fields_beneath(&root, path); }, source.clean.hash_length); })?;
     super::diagnostic_log::debug("takeSnapshot", report.as_str());
     return Ok(());
 }
@@ -162,17 +163,17 @@ fn read_own_index(stage: &Path) -> Result<Vec<u8>, String> {
 /// await takeSnapshot({ source, plan, stage, admin, pointer });
 /// ```
 pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8]) -> Result<Snapshotted, SnapshotFailure> {
-    snapshot_create_at(source.root.as_path(), stage).map_err(|error| { return SnapshotFailure { reason: format!("the snapshot was refused ({error})"), stage: None }; })?;
+    timed("snapshotIoctl", || { return snapshot_create_at(source.root.as_path(), stage); }).map_err(|error| { return SnapshotFailure { reason: format!("the snapshot was refused ({error})"), stage: None }; })?;
     // From here the stage exists and this process made it; its identity is what a later removal checks.
     let made: Option<ObjectId> = open_root(stage.parent().unwrap_or(stage)).ok().and_then(|parent: File| { return identity_at(&parent, stage.file_name()?).ok(); });
     let failed = |reason: String| -> SnapshotFailure { return SnapshotFailure { reason, stage: made }; };
     std::fs::set_permissions(stage, std::fs::Permissions::from_mode(0o700)).map_err(|error| { return failed(format!("the stage cannot be made private ({error})")); })?;
     // The snapshot's own index is read before its `.git` goes: it is the index of the same instant as the files.
-    let own_index: Option<Vec<u8>> = if source.dirty.is_some() { Some(read_own_index(stage).map_err(failed)?) } else { None };
-    let pruned: Pruned = prune_snapshot(stage, source).map_err(failed)?;
-    remove_stubs(stage, source, plan).map_err(failed)?;
-    replace_git_pointer(stage, pointer).map_err(failed)?;
-    install_index(source, stage, admin, own_index.as_deref()).map_err(failed)?;
+    let own_index: Option<Vec<u8>> = if source.dirty.is_some() { Some(timed("readOwnIndex", || { return read_own_index(stage); }).map_err(failed)?) } else { None };
+    let pruned: Pruned = timed("prune", || { return prune_snapshot(stage, source); }).map_err(failed)?;
+    timed("removeStubs", || { return remove_stubs(stage, source, plan); }).map_err(failed)?;
+    timed("replacePointer", || { return replace_git_pointer(stage, pointer); }).map_err(failed)?;
+    timed("installIndex", || { return install_index(source, stage, admin, own_index.as_deref()); }).map_err(failed)?;
     let stage_id: ObjectId = made.ok_or_else(|| { return failed(String::from("the stage cannot be examined")); })?;
     return Ok(Snapshotted { stage: stage_id, trash: pruned.trash });
 }

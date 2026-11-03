@@ -16,6 +16,7 @@
 //! const result = await ladder.finish({ git, runGit, context, out });
 //! ```
 
+use super::add_timing::step as timed;
 use super::diagnostic_log::{debug, warn};
 use super::fs_beneath::ObjectId;
 use super::transaction_git::GitContext;
@@ -72,8 +73,8 @@ impl From<PlaceError> for Ended {
 /// ```
 fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut GitRunner, context: &GitContext) -> Result<String, Ended> {
     verify_association(bound)?;
-    let target: Target = prepare_target(source, plan, context, bound)?;
-    let trash: Option<TrashManifest> = match take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice()) {
+    let target: Target = timed("prepareTarget", || { return prepare_target(source, plan, context, bound); })?;
+    let trash: Option<TrashManifest> = match timed("takeSnapshot", || { return take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice()); }) {
         Ok(taken) => {
             *made = Some(taken.stage);
             taken.trash
@@ -85,20 +86,20 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     };
     verify_association(bound)?;
     if source.dirty.is_some() {
-        restore_dirty(source, &target, stage, run_git, context)?;
+        timed("restoreDirty", || { return restore_dirty(source, &target, stage, run_git, context); })?;
     } else {
-        apply_difference(source, &target, stage, run_git)?;
+        timed("applyDifference", || { return apply_difference(source, &target, stage, run_git); })?;
     }
     let mode: u32 = std::fs::metadata(source.root.as_path()).map_err(|error| { return format!("the source's root is unreadable ({error})"); })?.mode() & 0o7777;
-    put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id)?;
-    for note in settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice()) {
+    timed("exchange", || { return put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id); })?;
+    for note in timed("settleDisplaced", || { return settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice()); }) {
         warn(TAG, format!("cli-git: {note}").as_str());
     }
     // What a snapshot of the main checkout set aside is emptied by the service; nothing is set aside for a linked worktree. The
     //  worktree is in place and complete, so a trash that cannot be emptied is reported and never fails the add.
     //  `--quiet` silences the progress lines of the hand-over; a failure is still reported below.
     let mut notices: Box<dyn std::io::Write> = if plan.quiet { Box::new(std::io::sink()) } else { Box::new(std::io::stderr()) };
-    if let Err(reason) = dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut notices) {
+    if let Err(reason) = timed("disposeTrash", || { return dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut notices); }) {
         warn(TAG, format!("cli-git: {reason}").as_str());
     }
     return Ok(target.line);
@@ -190,7 +191,7 @@ fn report_incomplete(plan: &AddPlan) {
 /// await markComplete(claim);
 /// ```
 fn mark_complete(claim: &StageClaim) {
-    if let Err(error) = claim.mark_complete() {
+    if let Err(error) = timed("markComplete", || { return claim.mark_complete(); }) {
         warn(TAG, format!("the completion of the add could not be recorded ({}); a later command may report it as interrupted although it is whole", error.0).as_str());
     }
 }
@@ -225,8 +226,8 @@ fn complete_like_git(plan: &AddPlan, claim: &StageClaim, bound: &Bound, run_git:
 /// const bound = await bind(claim, source, plan); // throws a reason
 /// ```
 fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<Bound, String> {
-    let bound: Bound = bind_registration(source.common_dir.as_path(), plan.destination.as_path())?;
-    if let Err(error) = claim.record_binding(&bound.binding) {
+    let bound: Bound = timed("bindRegistration", || { return bind_registration(source.common_dir.as_path(), plan.destination.as_path()); })?;
+    if let Err(error) = timed("recordBinding", || { return claim.record_binding(&bound.binding); }) {
         warn(TAG, format!("the binding of the add could not be recorded ({}); an interruption will be reported by path only", error.0).as_str());
     }
     return Ok(bound);
@@ -326,7 +327,7 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
 
 /// Release the claim on a stage name, saying so when that fails.
 fn release_claim(claim: StageClaim) {
-    if let Err(error) = claim.release() {
+    if let Err(error) = timed("releaseClaim", || { return claim.release(); }) {
         warn(TAG, format!("the stage claim could not be released ({})", error.0).as_str());
     }
 }

@@ -340,6 +340,10 @@ pub mod discard_audit;
 /// appended beside the discard audit.
 pub mod commit_timing;
 
+/// The record of where one wrapped `git worktree add` spent its time, step by step,
+/// appended beside the commit timing record.
+pub mod add_timing;
+
 /// The intent-guessing hint that follows a finding, an engine failure or a notice.
 pub mod event_hints;
 
