@@ -63,7 +63,7 @@ fn walk(source: &Path) -> Result<(Vec<Entry>, Vec<PathBuf>), String> {
     while let Some(relative) = pending.pop() {
         let directory: PathBuf = source.join(&relative);
         let listing = match std::fs::read_dir(&directory) {
-            Ok(found) => found,
+            Ok(listed_directory) => listed_directory,
             // A directory a test or a tool left without read permission has nothing the clone can take; it is made empty and named.
             Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && !relative.as_os_str().is_empty() => {
                 left_out.push(relative);
