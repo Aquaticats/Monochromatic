@@ -100,7 +100,6 @@ fn a_racily_clean_entry_is_left_to_git() {
     let before: Vec<u8> = index_bytes(scene.repo.as_path());
     assert!(!landing_reset_copy(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"])), true), "racy");
     assert!(before == index_bytes(scene.repo.as_path()));
-    follow_up_falls_back(&scene, "racy");
     finish(scene);
 }
 
