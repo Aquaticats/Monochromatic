@@ -198,7 +198,7 @@ impl Marks {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// process.kill(pid, 'SIGTERM'); await Promise.race([exited, delay(graceMs)]) || process.kill(pid, 'SIGKILL'); locks.sweep();
+/// process.kill(pid, 'SIGTERM'); await Promise.race([exited, delay(graceMs)]) || process.kill(pid, 'SIGKILL'); locks.sweep(tree.as_slice());
 /// ```
 #[cfg(unix)]
 fn stop_process(pid: u32, locks: &LockLedger, incoming: &Receiver<Mark>) {
@@ -243,7 +243,7 @@ fn stop_process(pid: u32, locks: &LockLedger, incoming: &Receiver<Mark>) {
             Ok(_) | Err(RecvTimeoutError::Timeout) => {}
         }
     }
-    locks.sweep();
+    locks.sweep(tree.as_slice());
 }
 
 /// A platform without signals cannot end the child from the watcher; the wait is only announced.

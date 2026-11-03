@@ -30,14 +30,18 @@
 use super::diagnostic_log::warn;
 /// The Git directories a command works in.
 use super::git_directory_roots::roots_of_command;
-/// How reference locks are judged.
-use super::stale_ref_lock_judge::Judge;
+/// How reference locks are judged, and what the judge knows of the wrapper's own stopped child.
+use super::stale_ref_lock_judge::{Judge, OwnEnded};
+/// The processes of the stopped tree and whether each still runs.
+use super::process_tree::{TreeMember, still_running};
 /// The judgement and conditional removal of the reference locks below some Git directories.
 use super::stale_ref_locks::clear_stale_ref_locks;
 /// Paths of the repository.
 use std::path::{Path, PathBuf};
 /// The command whose children are stopped.
 use std::process::Command;
+/// The wall clock the kernel stamps files with.
+use std::time::SystemTime;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "cli-git";
@@ -54,16 +58,19 @@ const PID_TEXT_PREFIX: &str = "pid ";
 /// What:
 ///  Where a command's Git child can leave reference locks.
 /// Why:
-///   The sweep after a stop judges the locks of this repository, the one the child worked in.
+///   The sweep after a stop judges the locks of this repository, the one the child worked in; the time taken before the
+///  child started tells a lock born in its life from an older one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LockLedger = { roots: string[]; judge?: Judge };
+/// type LockLedger = { roots: string[]; since: Date; judge?: Judge };
 /// ```
 #[derive(Clone, Debug)]
 pub struct LockLedger {
     /// The Git directory and the common Git directory of the repository the command runs in; empty when none is found.
     roots: Vec<PathBuf>,
+    /// The wall-clock time read before the child started.
+    since: SystemTime,
     /// The judge of this process, unless a control sets another.
     judge: Option<Judge>,
 }
@@ -71,13 +78,14 @@ pub struct LockLedger {
 impl LockLedger {
     /// A ledger that finds nothing: for a child that holds no Git lock, such as a reader of objects.
     pub fn none() -> Self {
-        return Self { roots: Vec::new(), judge: None };
+        return Self { roots: Vec::new(), since: SystemTime::now(), judge: None };
     }
 
     /// The ledger of a command that has not started yet: its repository comes from `GIT_DIR` in its environment, or from
     ///  its working directory (the process's own when the command sets none).
     pub fn before_start(command: &Command) -> Self {
-        return Self { roots: roots_of_command(command), judge: None };
+        let since: SystemTime = SystemTime::now();
+        return Self { roots: roots_of_command(command), since, judge: None };
     }
 
     /// The same ledger with another judge, so a control does not wait out the margin of a real one.
@@ -97,10 +105,13 @@ impl LockLedger {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// function sweep(): string[];
+    /// function sweep(tree: TreeMember[]): string[];
     /// ```
-    pub fn sweep(&self) -> Vec<PathBuf> {
-        let judge: Judge = self.judge.clone().unwrap_or_else(Judge::here);
+    pub fn sweep(&self, tree: &[TreeMember]) -> Vec<PathBuf> {
+        let mut judge: Judge = self.judge.clone().unwrap_or_else(Judge::here);
+        // The one proof that is the wrapper's own: the numbers of the stopped tree's processes that have ended.
+        let pids: Vec<i64> = tree.iter().filter(|member| { return !still_running(member); }).map(|member| { return i64::from(member.pid); }).collect();
+        judge.own_ended = Some(OwnEnded { pids, since: self.since });
         let outcome = clear_stale_ref_locks(self.roots.as_slice(), &judge);
         let notice: String = outcome.notice();
         if !notice.is_empty() {
