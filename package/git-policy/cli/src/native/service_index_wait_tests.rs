@@ -102,6 +102,13 @@ fn a_hold_that_outlasts_the_limit_ends_the_wait_and_stays() {
     remove(root.as_path());
 }
 
+/// A limit no test outlasts:
+/// a wait that is wrongly taken for a leftover's hold runs into the per-test limit and is reported as
+/// a hang,
+/// whatever the host's load,
+/// where a wall-clock assertion would fail a correct wait on a slow host.
+const LIMIT_NO_TEST_OUTLASTS: Duration = Duration::from_secs(24 * 60 * 60);
+
 /// A hold older than a landing can last is a dead service's leftover: it is not waited for, it says so, and it stays.
 #[test]
 fn a_hold_older_than_any_landing_is_not_waited_for() {
@@ -112,7 +119,7 @@ fn a_hold_older_than_any_landing_is_not_waited_for() {
     let long_ago: std::time::SystemTime = std::time::SystemTime::now() - HOLD_LIMIT - Duration::from_secs(60);
     std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
     let mut out: Vec<u8> = Vec::new();
-    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(60), QUICK, &mut out), Waited::Stale);
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", LIMIT_NO_TEST_OUTLASTS, QUICK, &mut out), Waited::Stale);
     assert!(String::from_utf8_lossy(&out).contains("does not wait for it"), "{}", String::from_utf8_lossy(&out));
     assert!(lock.exists());
     remove(root.as_path());
@@ -208,7 +215,7 @@ fn a_hold_whose_process_runs_is_not_stale_by_age() {
     let parts: Vec<&str> = identity.split('#').collect();
     std::fs::write(&lock, format!("{LOCK_MARKER}8 {} {}#{}#{}\n", std::process::id(), parts[0], "0".repeat(32), parts[2])).expect("lock of another boot");
     std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
-    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut out), Waited::Stale);
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", LIMIT_NO_TEST_OUTLASTS, QUICK, &mut out), Waited::Stale);
     remove(root.as_path());
 }
 
@@ -261,7 +268,7 @@ fn a_mark_whose_holder_is_gone_is_not_waited_for() {
     // A process number no system hands out, with a birth identity nothing has.
     std::fs::write(&lock, format!("{LOCK_MARKER}7 2147483646 no-such-birth\n")).expect("lock");
     let mut out: Vec<u8> = Vec::new();
-    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut out), Waited::Stale);
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", LIMIT_NO_TEST_OUTLASTS, QUICK, &mut out), Waited::Stale);
     let said: String = String::from_utf8_lossy(out.as_slice()).into_owned();
     assert!(said.contains("no longer runs"), "{said}");
     assert!(said.contains("next commit"), "{said}");
@@ -290,7 +297,7 @@ fn a_hold_of_another_pid_namespace_is_neither_gone_nor_proven() {
     let long_ago: std::time::SystemTime = std::time::SystemTime::now() - HOLD_LIMIT - Duration::from_secs(60);
     std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
     let mut old: Vec<u8> = Vec::new();
-    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut old), Waited::Stale);
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", LIMIT_NO_TEST_OUTLASTS, QUICK, &mut old), Waited::Stale);
     assert!(String::from_utf8_lossy(old.as_slice()).contains("does not wait for it"), "{}", String::from_utf8_lossy(old.as_slice()));
     remove(root.as_path());
 }
