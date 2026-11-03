@@ -81,3 +81,75 @@ fn a_global_pathspec_mode_keeps_the_rejection() {
     assert_eq!(std::fs::read(repo.join("A.rs")).expect("A.rs"), LOOK_ALIKE_EDIT, "the look-alike is not named, so it stays");
     remove(&fixture);
 }
+
+/// What stands where the directory `dir` was when the command runs.
+#[derive(Clone, Copy, Debug)]
+enum InTheWay {
+    /// A symbolic link to a directory that holds a `file` of its own.
+    LinkToDirectory,
+    /// A symbolic link to nothing.
+    DanglingLink,
+    /// A regular file.
+    RegularFile,
+}
+
+/// A merge stopped with `dir/file` conflicted, then `dir` replaced by `in_the_way`; the thing now at `dir` is returned with
+///  its description, which `assert_in_the_way_kept` compares.
+fn conflicted_below_a_replaced_directory(fixture: &Fixture, in_the_way: InTheWay) -> PathBuf {
+    let repo: PathBuf = super::super::support::repository(fixture, std::ffi::OsStr::new("repo"));
+    std::fs::create_dir(repo.join("dir")).expect("dir");
+    std::fs::write(repo.join("dir/file"), "base\n").expect("base");
+    git(fixture, repo.as_path(), &["add", "--", "dir/file"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "topic"]);
+    std::fs::write(repo.join("dir/file"), "topic\n").expect("topic");
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=topic side"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("dir/file"), "main\n").expect("main");
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main side"]);
+    let started: Observed = super::super::support::run_direct(fixture, repo.as_path(), &["merge", "--no-edit", "topic"]);
+    assert_eq!(started.code, Some(1), "the merge stops with a conflict: {}", stderr_of(&started));
+    std::fs::remove_dir_all(repo.join("dir")).expect("remove the directory");
+    match in_the_way {
+        InTheWay::LinkToDirectory => {
+            std::fs::create_dir(repo.join("elsewhere")).expect("elsewhere");
+            std::fs::write(repo.join("elsewhere/file"), "the person's file reached through the link\n").expect("file");
+            std::os::unix::fs::symlink("elsewhere", repo.join("dir")).expect("link");
+        }
+        InTheWay::DanglingLink => std::os::unix::fs::symlink("nowhere", repo.join("dir")).expect("link"),
+        InTheWay::RegularFile => std::fs::write(repo.join("dir"), "the person's file named dir\n").expect("file"),
+    }
+    return repo;
+}
+
+/// The thing the person put at `dir` is still there, as it was.
+fn assert_in_the_way_kept(repo: &std::path::Path, in_the_way: InTheWay, said: &str) {
+    match in_the_way {
+        InTheWay::LinkToDirectory => {
+            assert_eq!(std::fs::read_link(repo.join("dir")).expect("dir is still a link"), PathBuf::from("elsewhere"), "{said}");
+            assert_eq!(std::fs::read(repo.join("elsewhere/file")).expect("file"), b"the person's file reached through the link\n", "{said}");
+        }
+        InTheWay::DanglingLink => assert_eq!(std::fs::read_link(repo.join("dir")).expect("dir is still a link"), PathBuf::from("nowhere"), "{said}"),
+        InTheWay::RegularFile => assert_eq!(std::fs::read(repo.join("dir")).expect("dir is still a file"), b"the person's file named dir\n", "{said}"),
+    }
+}
+
+/// A link or a file where a directory was is replaced by a real directory when Git writes `dir/file`; the wrapper saves
+///  nothing of it, so it rejects the command, names `dir`, and leaves everything as the person had it.
+#[test]
+fn something_where_a_directory_was_is_never_replaced_unsaved() {
+    for (in_the_way, kind) in [(InTheWay::LinkToDirectory, "symbolic link"), (InTheWay::DanglingLink, "symbolic link"), (InTheWay::RegularFile, "file")] {
+        let fixture: Fixture = fixture(format!("side-ancestor-{in_the_way:?}").to_lowercase().as_str());
+        let repo: PathBuf = conflicted_below_a_replaced_directory(&fixture, in_the_way);
+        for arguments in [["checkout", "--theirs", "--", "dir/file"], ["restore", "--ours", "--", "dir/file"]] {
+            let observed: Observed = run_wrapped(&fixture, repo.as_path(), &arguments);
+            let said: String = stderr_of(&observed);
+            assert!(rejected_by_policy(&observed), "{in_the_way:?} {arguments:?}: {said}");
+            assert!(said.contains("`dir`") && said.contains(kind), "{in_the_way:?} the refusal names the ancestor and what it is: {said}");
+            assert!(said.contains("--no-enforce-worktree") && said.contains("Move"), "{in_the_way:?} the refusal says what to do: {said}");
+            assert_in_the_way_kept(repo.as_path(), in_the_way, said.as_str());
+        }
+        assert!(audit_lines(repo.as_path()).iter().all(|line| { return !line.contains("saved-conflict"); }), "{in_the_way:?}");
+        remove(&fixture);
+    }
+}
