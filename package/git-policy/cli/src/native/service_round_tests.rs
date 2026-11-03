@@ -80,8 +80,8 @@ impl WorkHandlers for Handlers<'_> {
 
 /// Drain `repositories` on `host` with `handlers` and return the retry list.
 fn round(repositories: &[Repository], host: &HostResources, handlers: &Handlers<'_>) -> Vec<(PathBuf, Duration)> {
-    let directories: Vec<PathBuf> = repositories.iter().map(|repository: &Repository| { return repository.common.clone(); }).collect();
-    return drain_directories(&RoundDrain { directories: directories.as_slice(), handlers, now: &ClaimTime::read(), host });
+    let directories: Vec<Assignment> = repositories.iter().map(|repository: &Repository| { return Assignment::plain(repository.common.clone()); }).collect();
+    return drain_directories(&RoundDrain { directories: directories.as_slice(), handlers, now: &ClaimTime::read(), host }).waits;
 }
 
 /// How many items a repository settled as done.
@@ -200,7 +200,7 @@ fn the_directories_of_one_repository_are_drained_one_after_another() {
         }),
         began: Mutex::new(Vec::new()),
     };
-    let directories: Vec<PathBuf> = vec![made[0].common.clone(), linked.clone()];
+    let directories: Vec<Assignment> = vec![Assignment::plain(made[0].common.clone()), Assignment::plain(linked.clone())];
     drain_directories(&RoundDrain { directories: directories.as_slice(), handlers: &handlers, now: &ClaimTime::read(), host: &LARGE_HOST });
     assert_eq!(handlers.began.lock().expect("pushes").len(), 2, "both directories were drained");
     assert_eq!(busiest.load(Ordering::SeqCst), 1);

@@ -42,7 +42,7 @@ fn the_variable_sets_the_first_pause() {
 /// A plan is due after its pause and not before, replaces an earlier plan of its branch, and belongs to its Git directory.
 #[test]
 fn a_plan_is_per_branch_and_due_after_its_pause() {
-    let retries: PushRetries = PushRetries::with_first_pause(Duration::from_secs(10));
+    let mut retries: PushRetries = PushRetries::with_first_pause(Duration::from_secs(10));
     let now: Instant = Instant::now();
     let here: &Path = Path::new("/srv/repo/.git");
     let elsewhere: &Path = Path::new("/srv/other/.git");

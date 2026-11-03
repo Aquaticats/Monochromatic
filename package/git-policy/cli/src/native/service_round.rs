@@ -16,13 +16,59 @@
 use super::claim_time::ClaimTime;
 use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use super::parallel_runner::{Event, OrderedRun, run_ordered};
-use super::service_work::{WorkHandlers, common_directory_of, drain, drain_common_records};
+use super::push_retry::{RetryChange, Retrying};
+use super::service_work::{CLAIM_LEASE, Drained, WorkHandlers, common_directory_of, drain_common_records_planned, drain_planned};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// The bytes the drain of one repository holds at its peak, estimated: the items of a burst, the output of a push, and a review's
 ///  patch and answer, which the review bounds; about 64 MiB.
 pub const REPOSITORY_MEMORY: u64 = 64 << 20;
+
+/// What:
+///  One directory of a round, with the pushes of it that are due again.
+/// Why:
+///   The service loop owns the retry plan; it takes what is due for the directory out of the plan before the round and hands it to
+///  the directory's worker inside the request, as an owned value, so no worker reads the plan.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Assignment = { directory: string; retrying: Retrying };
+/// ```
+#[derive(Clone, Debug)]
+pub struct Assignment {
+    /// The Git directory to drain.
+    pub directory: PathBuf,
+    /// The first pause and the pushes due again for this directory.
+    pub retrying: Retrying,
+}
+
+/// Methods over an assignment.
+impl Assignment {
+    /// A directory with no plan: a push that could pass is reported as failed.
+    pub fn plain(directory: PathBuf) -> Self {
+        return Self { directory, retrying: Retrying::none() };
+    }
+}
+
+/// What:
+///  What a round gives back: when to look again at the directories that have a claim another instance holds, and the changes the
+///  workers ask of the retry plan.
+/// Why:
+///   The waits keep the order the directories were named; the changes are in that order too, so applying them in sequence gives
+///  the plan a drain of one directory after another would.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RoundAnswer = { waits: [string, number][]; changes: RetryChange[] };
+/// ```
+#[derive(Debug, Default)]
+pub struct RoundAnswer {
+    /// For each directory that has such a claim, how long until its lease runs out, in the order the directories were named.
+    pub waits: Vec<(PathBuf, Duration)>,
+    /// What the workers ask of the retry plan.
+    pub changes: Vec<RetryChange>,
+}
 
 /// What:
 ///  What a round needs to drain its repositories.
@@ -34,8 +80,8 @@ pub const REPOSITORY_MEMORY: u64 = 64 << 20;
 /// type RoundDrain<H> = { directories: string[]; handlers: H; now: ClaimTime; host: HostResources };
 /// ```
 pub struct RoundDrain<'a, H: WorkHandlers + Sync> {
-    /// The Git directories named by the round's wakes, each once, in the order they were first named.
-    pub directories: &'a [PathBuf],
+    /// The Git directories named by the round's wakes, each once, in the order they were first named, each with what is due again.
+    pub directories: &'a [Assignment],
     /// What runs each kind of work; shared read-only by every worker.
     pub handlers: &'a H,
     /// The reading of the clock the round started at.
@@ -65,38 +111,43 @@ fn lane_key(directory: &Path) -> PathBuf {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const retries = await drainDirectories({ directories, handlers, now, host });
+/// const answer = await drainDirectories({ directories, handlers, now, host });
 /// ```
-pub fn drain_directories<H: WorkHandlers + Sync>(request: &RoundDrain<'_, H>) -> Vec<(PathBuf, Duration)> {
+pub fn drain_directories<H: WorkHandlers + Sync>(request: &RoundDrain<'_, H>) -> RoundAnswer {
     let RoundDrain { directories, handlers, now, host } = *request;
     let mut lanes: Vec<Vec<usize>> = Vec::new();
     let mut lane_of: std::collections::HashMap<PathBuf, usize> = std::collections::HashMap::new();
-    for (index, directory) in directories.iter().enumerate() {
-        match lane_of.get(&lane_key(directory.as_path())) {
+    for (index, assignment) in directories.iter().enumerate() {
+        match lane_of.get(&lane_key(assignment.directory.as_path())) {
             Some(&lane) => lanes[lane].push(index),
             None => {
-                lane_of.insert(lane_key(directory.as_path()), lanes.len());
+                lane_of.insert(lane_key(assignment.directory.as_path()), lanes.len());
                 lanes.push(vec![index]);
             }
         }
     }
     let workers: usize = worker_budget(&BudgetRequest { items: lanes.len(), per_item_memory: REPOSITORY_MEMORY, ceiling: None, cap: None, host });
-    let mut retries: Vec<(PathBuf, Duration)> = Vec::new();
+    let mut answer: RoundAnswer = RoundAnswer::default();
     run_ordered(OrderedRun {
         items: directories,
         lanes: lanes.as_slice(),
         workers,
-        work: &|_index: usize, directory: &PathBuf, _say: &mut dyn FnMut(&str)| {
-            let waits: [Option<Duration>; 2] = [drain(directory.as_path(), handlers, now), drain_common_records(directory.as_path(), handlers, now)];
-            return waits.into_iter().flatten().min();
+        work: &|_index: usize, assignment: &Assignment, _say: &mut dyn FnMut(&str)| {
+            let own: Drained = drain_planned(assignment.directory.as_path(), handlers, now, &assignment.retrying);
+            let common: Drained = drain_common_records_planned(assignment.directory.as_path(), handlers, now, CLAIM_LEASE, assignment.retrying.first);
+            let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();
+            return (wait, own.changes.into_iter().chain(common.changes).collect::<Vec<RetryChange>>());
         },
-        on_event: &mut |event: Event<'_, Option<Duration>>| {
-            if let Event::End(index, Some(wait)) = event {
-                retries.push((directories[index].clone(), wait));
+        on_event: &mut |event: Event<'_, (Option<Duration>, Vec<RetryChange>)>| {
+            if let Event::End(index, (wait, changes)) = event {
+                if let Some(wait) = wait {
+                    answer.waits.push((directories[index].directory.clone(), wait));
+                }
+                answer.changes.extend(changes);
             }
         },
     });
-    return retries;
+    return answer;
 }
 
 /// Round controls stay out of the release executable.

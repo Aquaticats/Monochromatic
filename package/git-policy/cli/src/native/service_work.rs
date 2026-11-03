@@ -25,13 +25,13 @@ use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use super::auto_push::AutoPushOutcome;
 use super::claim_time::ClaimTime;
 use super::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
-use super::push_retry::{PushRetries, needs_the_person};
+use super::push_retry::{Due, PushRetries, RetryChange, Retrying, needs_the_person, pause_before};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use super::service_claim_renewal::{ClaimRenewal, HeldClaims, Renewal, held_claims, renewal_interval};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::parallel_budget::HostResources;
 use super::service_review_key::ReviewKey;
-use super::service_round::{RoundDrain, drain_directories};
+use super::service_round::{Assignment, RoundAnswer, RoundDrain, drain_directories};
 use super::service_timing::log_entry;
 use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
@@ -70,10 +70,6 @@ pub trait WorkHandlers {
     fn maintenance(&self, item: &WorkItem) -> Verdict;
     /// Review one landed commit into the repository's shadow log.
     fn review(&self, item: &WorkItem) -> Verdict;
-    /// The pushes waiting for a new try, for the handlers that retry a push; the others report a retryable push as failed.
-    fn retries(&self) -> Option<&PushRetries> {
-        return None;
-    }
     /// Empty the directory of left-out files a snapshot-made worktree set aside; a handler that does not know it skips.
     fn trash(&self, _item: &WorkItem) -> Verdict {
         return Verdict::Skipped(String::from("this handler does not empty trash directories"));
@@ -198,18 +194,64 @@ fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
 }
 
 /// What:
+///  What one drain of a directory hands back: how long until it must be looked at again for a claim another instance holds, and
+///  the changes it asks of the retry plan.
+/// Why:
+///   A drain runs on a worker and cannot change the plan, which the service loop owns; it returns what it did and the loop
+///  applies it (`PushRetries::apply`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Drained = { wait?: number; changes: RetryChange[] };
+/// ```
+#[derive(Debug, Default)]
+pub struct Drained {
+    /// How long until a claim another instance holds runs out its lease, or nothing when there is none.
+    pub wait: Option<Duration>,
+    /// The plans and the forgets the drain asks of the retry plan, in the order they were made.
+    pub changes: Vec<RetryChange>,
+}
+
+/// What:
+///  The retry state one drain works with: the first pause (nothing when a retryable push is to be reported as failed) and the
+///  changes it has asked of the plan so far.
+/// Why:
+///   One value is passed down to the places that plan or forget a retry, so none of them reads the plan or shares it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Replanning = { first?: number; changes: RetryChange[] };
+/// ```
+struct Replanning {
+    /// The pause before the first new try, or nothing for a drain that keeps no plan.
+    first: Option<Duration>,
+    /// What was asked of the plan.
+    changes: Vec<RetryChange>,
+}
+
+/// Methods over the state.
+impl Replanning {
+    /// Ask the plan to drop the branch: its push landed, or the person must act.
+    fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string() });
+    }
+}
+
+/// What:
 ///  Plan the next try of a push that failed for a reason that can pass, say so in the journal, and give the words the person's
 ///  failure record carries.
 /// Why:
 ///   The journal line names the cause, the number of the try that is planned and the pause before it, so the service's quiet
 ///  between tries is explained; the person's record says the service keeps trying, so they do not push by hand for nothing.
+///  The plan is asked of the service loop (`Replanning`), which owns it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const said = plannedRetry(gitDir, retries, item, attempt, text);
+/// const said = plannedRetry(gitDir, replanning, first, item, attempt, text);
 /// ```
-fn planned_retry(git_dir: &Path, retries: &PushRetries, item: &WorkItem, attempt: u32, text: &str) -> String {
-    let pause: Duration = retries.schedule(git_dir, item, attempt, Instant::now());
+fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> String {
+    let pause: Duration = pause_before(attempt, first);
+    replanning.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause });
     let plan: String = format!(
         "cli-git: the commit service tries this push again by itself in {} seconds (try {}), and keeps trying with longer pauses until the push lands or a conflict needs you.",
         pause.as_secs(),
@@ -233,42 +275,52 @@ fn planned_retry(git_dir: &Path, retries: &PushRetries, item: &WorkItem, attempt
 /// Why:
 ///   The work loop looks at the repository when `drain` tells it to (the wait it returns), and this is what the look does for
 ///  a push the service stopped: it lands and the person's failure record goes, it is planned again with a longer pause, or it
-///  is given up on because a conflict needs the person.
+///  is given up on because a conflict needs the person. The due pushes come with the directory's request, taken from the plan
+///  by the service loop before the round.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const due of retries.takeDue(gitDir)) await settleRetry(await handlers.push([due.item]));
+/// for (const due of request.due.filter((d) => d.gitDir === gitDir)) await settleRetry(await handlers.push([due.item]));
 /// ```
-fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers) {
-    let Some(retries) = handlers.retries() else { return };
-    for due in retries.take_due(git_dir, Instant::now()) {
+fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, due: &[Due], replanning: &mut Replanning) {
+    for due in due.iter().filter(|candidate| { return candidate.git_dir == git_dir; }) {
+        let branch: &str = due.item.branch_ref.as_str();
+        let commit: &str = due.item.oid.as_str();
         if !is_acceptable(&due.item, git_dir) {
-            crate::service_warn!("the push of {} is not tried again: its repository or branch record is no longer acceptable", due.item.branch_ref);
+            crate::service_warn!("the push of {branch} is not tried again: its repository or branch record is no longer acceptable");
+            replanning.forget(git_dir, branch);
             continue;
         }
         let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
         let began: Instant = Instant::now();
         let verdict: Verdict = handlers.push(std::slice::from_ref(&due.item));
-        let branch: &str = due.item.branch_ref.as_str();
-        let commit: &str = due.item.oid.as_str();
         match verdict {
             Verdict::Done => {
                 clear_push_failures_before(git_dir, branch, pushing_since);
+                replanning.forget(git_dir, branch);
                 crate::service_log!("the push of {branch:?} landed on try {} push_ms={}", due.attempt + 1, began.elapsed().as_millis());
             }
             Verdict::Retry(text) => {
-                let said: String = planned_retry(git_dir, retries, &due.item, due.attempt + 1, text.as_str());
+                let said: String = match replanning.first {
+                    Some(first) => planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str()),
+                    None => {
+                        replanning.forget(git_dir, branch);
+                        text
+                    }
+                };
                 if let Err(reason) = record_push_failure(git_dir, branch, commit, said.as_str()) {
                     crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
                 }
             }
             Verdict::Failed(text) => {
                 crate::service_warn!("the push of {branch:?} failed on try {} and needs you: {}", due.attempt + 1, text.lines().next().unwrap_or_default());
+                replanning.forget(git_dir, branch);
                 if let Err(reason) = record_push_failure(git_dir, branch, commit, text.as_str()) {
                     crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
                 }
             }
             Verdict::Skipped(text) => {
+                replanning.forget(git_dir, branch);
                 if !text.is_empty() && let Err(reason) = record_push_skip(git_dir, branch, commit, text.as_str()) {
                     crate::service_error!("the skipped push of {commit} could not be recorded for the person: {reason}");
                 }
@@ -291,7 +343,8 @@ pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 ///   Coalescing keeps a burst of commits to one push; a handler that fails leaves the items in `failed`, not in a loop. A
 ///  claim found in this directory may belong to a live instance (a restarted service starts beside the one it replaces, and the
 ///  linked worktrees of a bare repository share a directory), so only its lease says it was abandoned; the caller is told when
-///  to look again, because nothing else would wake it once the lease is over.
+///  to look again, because nothing else would wake it once the lease is over. This keeps no retry plan: a push that could pass
+///  is reported as failed, as for handlers that do not retry. The service's rounds use `drain_planned` instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -309,12 +362,24 @@ pub fn drain_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &Claim
 /// `drain_with_lease` with the way its claims are kept fresh given,
 /// so a control can drive the renewal itself.
 pub fn drain_with_renewal(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>) -> Option<Duration> {
+    return drain_planned_with(git_dir, handlers, now, lease, renewal, &Retrying::none()).wait;
+}
+
+/// `drain` for a service round: the pushes due again come with the request, and the changes the drain asks of the retry plan are
+/// given back with the wait, for the service loop to apply.
+pub fn drain_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, retrying: &Retrying) -> Drained {
+    return drain_planned_with(git_dir, handlers, now, CLAIM_LEASE, Renewal::Timed, retrying);
+}
+
+/// `drain_planned` with the lease and the renewal given.
+pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>, retrying: &Retrying) -> Drained {
     let work_dir: PathBuf = work_directory(git_dir);
+    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new() };
     tell_about_given_up(git_dir, requeue_expired_reporting(work_dir.as_path(), now, lease, MAX_TRIES).given_up.as_slice());
-    run_due_push_retries(git_dir, handlers);
-    drain_pending(git_dir, handlers, lease, renewal);
-    let retry_wait: Option<Duration> = handlers.retries().and_then(|retries| { return retries.next_wait(git_dir, Instant::now()); });
-    return [next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease), retry_wait].into_iter().flatten().min();
+    run_due_push_retries(git_dir, handlers, retrying.due.as_slice(), &mut replanning);
+    drain_pending(git_dir, handlers, lease, renewal, &mut replanning);
+    let wait: Option<Duration> = next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease);
+    return Drained { wait, changes: replanning.changes };
 }
 
 /// What:
@@ -338,13 +403,24 @@ pub fn drain_common_records(git_dir: &Path, handlers: &dyn WorkHandlers, now: &C
 
 /// `drain_common_records` with the lease given, so a test can use a short one.
 pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
-    let common = common_directory_of(git_dir)?;
+    return drain_common_records_planned(git_dir, handlers, now, lease, None).wait;
+}
+
+/// `drain_common_records` for a service round: `first` is the pause before the first new try of a push that could pass (nothing
+/// keeps no plan), and the plans the drain asks for are keyed by the common directory, which the service loop wakes by itself
+/// when one is due; that wake drains the common directory as a directory of its own, which has no `commondir`.
+pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, first: Option<Duration>) -> Drained {
+    let Some(common) = common_directory_of(git_dir) else {
+        return Drained::default();
+    };
     if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
-        return None;
+        return Drained::default();
     }
+    let mut replanning: Replanning = Replanning { first, changes: Vec::new() };
     tell_about_given_up(common.as_path(), requeue_expired_reporting(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES).given_up.as_slice());
-    drain_pending(common.as_path(), handlers, lease, Renewal::Timed);
-    return next_claim_expiry(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease);
+    drain_pending(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning);
+    let wait: Option<Duration> = next_claim_expiry(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease);
+    return Drained { wait, changes: replanning.changes };
 }
 
 /// The common directory a linked worktree's Git directory names in its `commondir` file, or nothing for any other directory.
@@ -373,7 +449,7 @@ pub(crate) fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
 
 /// Claims and runs every pending item of one work directory until none is left; the claims held are renewed every third of
 /// `lease`, so that none of them looks abandoned to another instance while it waits or runs.
-fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, renewal: Renewal<'_>) {
+fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, renewal: Renewal<'_>, replanning: &mut Replanning) {
     let work_dir: PathBuf = work_directory(git_dir);
     let (held, renewer) = held_claims(work_dir.as_path());
     let _renewing: ClaimRenewal = match renewal {
@@ -448,16 +524,14 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
                     //  before the items settle: a service that dies between the two pushes again, and nothing is lost.
                     if let Some(newest) = members.last() {
                         clear_push_failures_before(git_dir, newest.item.branch_ref.as_str(), pushing_since);
-                        if let Some(retries) = handlers.retries() {
-                            retries.forget(git_dir, newest.item.branch_ref.as_str());
-                        }
+                        replanning.forget(git_dir, newest.item.branch_ref.as_str());
                     }
                     settle_all(work_dir.as_path(), &held, &members, DONE);
                 }
                 Verdict::Retry(text) => {
                     // Without handlers that retry, a retryable push is a failed one.
-                    let said: String = match (members.last(), handlers.retries()) {
-                        (Some(newest), Some(retries)) => planned_retry(git_dir, retries, &newest.item, 1, text.as_str()),
+                    let said: String = match (members.last(), replanning.first) {
+                        (Some(newest), Some(first)) => planned_retry(git_dir, replanning, first, &newest.item, 1, text.as_str()),
                         _ => text,
                     };
                     if let Some(newest) = members.last()
@@ -469,8 +543,8 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
                 }
                 Verdict::Failed(text) => {
                     // A failure the service gives up on is no longer waiting for a new try.
-                    if let (Some(newest), Some(retries)) = (members.last(), handlers.retries()) {
-                        retries.forget(git_dir, newest.item.branch_ref.as_str());
+                    if let Some(newest) = members.last() {
+                        replanning.forget(git_dir, newest.item.branch_ref.as_str());
                     }
                     // The record goes before the items settle, so an item in `failed` always has its record.
                     if let Some(newest) = members.last()
@@ -562,12 +636,12 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
 /// ```ts
 /// const round = handlers.forRound(keysOf(wakes)); await Promise.all(directories.map((dir) => drain(dir, round)));
 /// ```
-pub fn run_round(wakes: Vec<Wake>, handlers: &GitHandlers, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
-    return run_round_on(&HostResources::read(), wakes, handlers, now);
+pub fn run_round(wakes: Vec<Wake>, handlers: &GitHandlers, retries: &mut PushRetries, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
+    return run_round_on(&HostResources::read(), wakes, handlers, retries, now);
 }
 
 /// `run_round` with the host's resources chosen by the caller, so a control states a host of any size.
-pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandlers, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
+pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandlers, retries: &mut PushRetries, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
     let mut directories: Vec<PathBuf> = Vec::new();
     let mut keys: std::collections::HashMap<PathBuf, ReviewKey> = std::collections::HashMap::new();
     for (directory, review_key) in wakes {
@@ -579,7 +653,49 @@ pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandle
         }
     }
     let round: GitHandlers = handlers.for_round(keys);
-    return drain_directories(&RoundDrain { directories: directories.as_slice(), handlers: &round, now, host });
+    return run_planned_round(host, directories.as_slice(), &round, retries, now);
+}
+
+/// What:
+///  Runs one round over `directories` with the retry plan: takes what is due for each directory out of the plan, hands it to
+///  that directory's worker as an owned value, applies the changes the workers ask once they are done, and gives for each
+///  directory when to look at it again, whichever is first of its leases and its plan.
+/// Why:
+///   The plan is owned by the caller and changed here on the caller's thread only, so the workers share nothing and no lock is
+///  taken. A directory whose drain planned a push under another directory (a common directory of a bare repository) is named
+///  too, so that its wake is not lost.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const due = dirs.map((d) => retries.takeDue(d)); const answers = await Promise.all(dirs.map((d, i) => drain(d, due[i]))); retries.apply(answers.flatMap(changes));
+/// ```
+pub fn run_planned_round<H: WorkHandlers + Sync>(host: &HostResources, directories: &[PathBuf], handlers: &H, retries: &mut PushRetries, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
+    let taken_at: Instant = Instant::now();
+    let first: Duration = retries.first();
+    let assignments: Vec<Assignment> = directories
+        .iter()
+        .map(|directory| { return Assignment { directory: directory.clone(), retrying: Retrying { first: Some(first), due: retries.take_due(directory.as_path(), taken_at) } }; })
+        .collect();
+    let answered: RoundAnswer = drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers, now, host });
+    let mut named: Vec<PathBuf> = directories.to_vec();
+    for change in &answered.changes {
+        if let RetryChange::Plan { git_dir, .. } = change
+            && !named.contains(git_dir)
+        {
+            named.push(git_dir.clone());
+        }
+    }
+    retries.apply(answered.changes);
+    let applied_at: Instant = Instant::now();
+    let mut asked: Vec<(PathBuf, Duration)> = Vec::new();
+    for directory in named {
+        let lease: Option<Duration> = answered.waits.iter().find(|(named_directory, _)| { return *named_directory == directory; }).map(|(_, wait)| { return *wait; });
+        let planned: Option<Duration> = retries.next_wait(directory.as_path(), applied_at);
+        if let Some(wait) = [lease, planned].into_iter().flatten().min() {
+            asked.push((directory, wait));
+        }
+    }
+    return asked;
 }
 
 /// The handlers that run real Git.
@@ -596,8 +712,6 @@ pub struct GitHandlers {
     /// Variables a test adds to the environment of the push, such as a short stall window.
     #[cfg(test)]
     push_environment: Vec<(std::ffi::OsString, std::ffi::OsString)>,
-    /// The pushes waiting for a new try.
-    push_retries: PushRetries,
 }
 
 /// Methods over the real handlers.
@@ -611,7 +725,6 @@ impl GitHandlers {
             review_endpoint: None,
             #[cfg(test)]
             push_environment: Vec::new(),
-            push_retries: PushRetries::from_environment(),
         };
     }
 
@@ -619,13 +732,6 @@ impl GitHandlers {
     #[cfg(test)]
     pub fn with_push_environment(mut self, variables: &[(&str, &str)]) -> GitHandlers {
         self.push_environment = variables.iter().map(|(name, value)| { return (std::ffi::OsString::from(name), std::ffi::OsString::from(value)); }).collect();
-        return self;
-    }
-
-    /// The same handlers with the first pause before a push is tried again given; tests only.
-    #[cfg(test)]
-    pub fn with_retry_pause(mut self, pause: Duration) -> GitHandlers {
-        self.push_retries = PushRetries::with_first_pause(pause);
         return self;
     }
 
@@ -637,12 +743,16 @@ impl GitHandlers {
     }
 
     /// A copy of these handlers that holds `keys` as the review credentials of one round; the copy is dropped with the round.
+    /// The test-only settings (the review endpoint, the push environment) are carried into the copy, so a round runs the way the
+    /// handlers it was made from are set to run.
     pub fn for_round(&self, keys: std::collections::HashMap<PathBuf, ReviewKey>) -> GitHandlers {
         return GitHandlers {
             context: self.context.clone(),
             review_keys: keys,
             #[cfg(test)]
             review_endpoint: self.review_endpoint.clone(),
+            #[cfg(test)]
+            push_environment: self.push_environment.clone(),
         };
     }
 
@@ -684,10 +794,6 @@ impl WorkHandlers for GitHandlers {
             Ok(result) => Verdict::Retry(result.shown),
             Err(error) => Verdict::Retry(format!("{error}")),
         };
-    }
-
-    fn retries(&self) -> Option<&PushRetries> {
-        return Some(&self.push_retries);
     }
 
     fn trash(&self, item: &WorkItem) -> Verdict {

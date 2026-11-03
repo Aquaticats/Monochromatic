@@ -82,6 +82,8 @@ struct Waiting {
 /// A push that is due again.
 #[derive(Clone, Debug)]
 pub struct Due {
+    /// The Git directory whose service pushes; the plan is keyed by it.
+    pub git_dir: PathBuf,
     /// The item to push again.
     pub item: WorkItem,
     /// The number of this try.
@@ -89,20 +91,80 @@ pub struct Due {
 }
 
 /// What:
-///  The branches whose push is waiting for a new try, with the first pause.
+///  What the worker of one directory is handed about retries: the first pause (nothing when its handlers do not retry) and the
+///  pushes of that directory that are due again.
 /// Why:
-///   The work thread alone reads and writes it, so it is a plain cell and nothing waits for it.
+///   The plan belongs to the service loop alone. A worker never reads it: it gets its own copy of what is due for its directory,
+///  as an owned value inside its request, so no worker shares the plan with another and nothing waits for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class PushRetries { schedule(); forget(); takeDue(); nextWait(); }
+/// type Retrying = { first?: number; due: Due[] };
+/// ```
+#[derive(Clone, Debug, Default)]
+pub struct Retrying {
+    /// The pause before the first new try; nothing when a retryable failure is to be reported as a failed push.
+    pub first: Option<Duration>,
+    /// The pushes due again, each naming the directory it belongs to.
+    pub due: Vec<Due>,
+}
+
+/// Methods over a request.
+impl Retrying {
+    /// A request for a drain that keeps no plan: a push that could pass is reported as failed, as it is for handlers that do not retry.
+    pub fn none() -> Self {
+        return Self { first: None, due: Vec::new() };
+    }
+}
+
+/// What:
+///  One change a worker asks of the plan: plan a try, or drop the plan of a branch.
+/// Why:
+///   A worker cannot change the plan (it does not hold it), so it returns what it did and the service loop applies the changes
+///  on its own thread, in the order they were made, which is how the last plan of a branch wins.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef } };
+/// ```
+#[derive(Clone, Debug)]
+pub enum RetryChange {
+    /// Try the branch of `item` again as try number `attempt`, at `due`, replacing any plan of the same branch.
+    Plan {
+        /// The Git directory whose service pushes.
+        git_dir: PathBuf,
+        /// The newest push item of the branch.
+        item: WorkItem,
+        /// The number of the try that is planned.
+        attempt: u32,
+        /// When it is due.
+        due: Instant,
+    },
+    /// The branch needs no new try: its push landed, or the person must act.
+    Forget {
+        /// The Git directory whose service pushes.
+        git_dir: PathBuf,
+        /// The branch reference.
+        branch_ref: String,
+    },
+}
+
+/// What:
+///  The branches whose push is waiting for a new try, with the first pause.
+/// Why:
+///   The service loop alone owns it and changes it through `&mut self`, so it needs no cell and no lock; workers get what is due
+///  as owned values (`Retrying`) and hand their changes back (`RetryChange`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class PushRetries { schedule(); forget(); takeDue(); nextWait(); apply(changes); }
 /// ```
 #[derive(Debug)]
 pub struct PushRetries {
     /// The pause before the first new try.
     first: Duration,
     /// The waiting pushes, one per branch of a Git directory.
-    waiting: std::cell::RefCell<Vec<Waiting>>,
+    waiting: Vec<Waiting>,
 }
 
 /// Methods over the list.
@@ -114,33 +176,63 @@ impl PushRetries {
 
     /// A list with this first pause.
     pub fn with_first_pause(first: Duration) -> Self {
-        return Self { first, waiting: std::cell::RefCell::new(Vec::new()) };
+        return Self { first, waiting: Vec::new() };
+    }
+
+    /// The pause before the first new try.
+    pub fn first(&self) -> Duration {
+        return self.first;
     }
 
     /// Plan try number `attempt` of the branch of `item`, replacing any plan for the same branch; gives the pause.
-    pub fn schedule(&self, git_dir: &Path, item: &WorkItem, attempt: u32, now: Instant) -> Duration {
+    pub fn schedule(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, now: Instant) -> Duration {
         let pause: Duration = pause_before(attempt, self.first);
-        self.forget(git_dir, item.branch_ref.as_str());
-        self.waiting.borrow_mut().push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: now + pause });
+        self.plan(git_dir, item, attempt, now + pause);
         return pause;
     }
 
+    /// Plan try number `attempt` of the branch of `item` for `due`, replacing any plan for the same branch.
+    fn plan(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant) {
+        self.forget(git_dir, item.branch_ref.as_str());
+        self.waiting.push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due });
+    }
+
     /// Drop the plan of a branch: its push landed, or the person must act.
-    pub fn forget(&self, git_dir: &Path, branch_ref: &str) {
-        self.waiting.borrow_mut().retain(|entry| { return !(entry.git_dir == git_dir && entry.item.branch_ref == branch_ref); });
+    pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        self.waiting.retain(|entry| { return !(entry.git_dir == git_dir && entry.item.branch_ref == branch_ref); });
+    }
+
+    /// Apply what the workers of a round asked, in the order they asked it.
+    pub fn apply(&mut self, changes: Vec<RetryChange>) {
+        for change in changes {
+            match change {
+                RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), &item, attempt, due),
+                RetryChange::Forget { git_dir, branch_ref } => self.forget(git_dir.as_path(), branch_ref.as_str()),
+            }
+        }
     }
 
     /// Remove and return the plans of this Git directory that are due at `now`.
-    pub fn take_due(&self, git_dir: &Path, now: Instant) -> Vec<Due> {
-        let mut list = self.waiting.borrow_mut();
-        let (due, kept): (Vec<Waiting>, Vec<Waiting>) = std::mem::take(&mut *list).into_iter().partition(|entry| { return entry.git_dir == git_dir && entry.due <= now; });
-        *list = kept;
-        return due.into_iter().map(|entry| { return Due { item: entry.item, attempt: entry.attempt }; }).collect();
+    pub fn take_due(&mut self, git_dir: &Path, now: Instant) -> Vec<Due> {
+        let (due, kept): (Vec<Waiting>, Vec<Waiting>) = std::mem::take(&mut self.waiting).into_iter().partition(|entry| { return entry.git_dir == git_dir && entry.due <= now; });
+        self.waiting = kept;
+        return due.into_iter().map(|entry| { return Due { git_dir: entry.git_dir, item: entry.item, attempt: entry.attempt }; }).collect();
     }
 
     /// How long until the first plan of this Git directory is due (zero for one already due), or nothing when none waits.
     pub fn next_wait(&self, git_dir: &Path, now: Instant) -> Option<Duration> {
-        return self.waiting.borrow().iter().filter(|entry| { return entry.git_dir == git_dir; }).map(|entry| { return entry.due.saturating_duration_since(now); }).min();
+        return self.waiting.iter().filter(|entry| { return entry.git_dir == git_dir; }).map(|entry| { return entry.due.saturating_duration_since(now); }).min();
+    }
+
+    /// The Git directories that have a plan, each once.
+    pub fn directories(&self) -> Vec<PathBuf> {
+        let mut found: Vec<PathBuf> = Vec::new();
+        for entry in &self.waiting {
+            if !found.contains(&entry.git_dir) {
+                found.push(entry.git_dir.clone());
+            }
+        }
+        return found;
     }
 }
 

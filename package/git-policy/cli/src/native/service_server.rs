@@ -23,6 +23,7 @@ use super::private_storage::remove_tree;
 use super::service_instance::instance_of;
 use super::claim_time::ClaimTime;
 use super::service_retry::RetrySchedule;
+use super::push_retry::PushRetries;
 use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
@@ -481,15 +482,30 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
 /// Why:
 ///   Draining claims everything pending, so a burst of wakes for one repository is one pass. The instance that held a claim
 ///  may have died, and nothing but this loop would then wake the work: it waits for a wake no longer than the first lease still
-///  running, and the service counts itself busy meanwhile, so it does not exit idle with work claimed by a dead holder.
+///  running, and the service counts itself busy meanwhile, so it does not exit idle with work claimed by a dead holder. The same
+///  holds for a push the service stopped: the loop owns the plan of its new tries (`PushRetries`), each round hands the workers
+///  what is due and applies what they ask, and the wake for the earliest plan is kept in the same schedule as the lease wakes, so
+///  the service neither forgets the plan nor exits idle while a try is pending.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
 /// ```
-fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize) {
+fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize, mut push_retries: PushRetries) {
     let mut retries: RetrySchedule = RetrySchedule::default();
     let mut counted_waiting: bool = false;
+    // A plan that is already there when the loop starts (one rebuilt from disk) is woken for like one made by a round.
+    let started: Instant = Instant::now();
+    let restored: Vec<(PathBuf, Duration)> = push_retries
+        .directories()
+        .into_iter()
+        .filter_map(|directory| { return push_retries.next_wait(directory.as_path(), started).map(|wait| { return (directory, wait); }); })
+        .collect();
+    retries.replace(&[], restored, started);
+    if !retries.is_empty() {
+        busy.fetch_add(1, Ordering::SeqCst);
+        counted_waiting = true;
+    }
     loop {
         let first: Option<Wake> = match retries.next_wait(Instant::now()) {
             None => match receiver.recv() {
@@ -505,8 +521,10 @@ fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsi
         busy.fetch_add(1, Ordering::SeqCst);
         let mut wakes: Vec<Wake> = first.into_iter().chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })).collect();
         wakes.extend(retries.take_due(Instant::now()).into_iter().map(|directory| { return (directory, None); }));
-        let ran: Vec<PathBuf> = wakes.iter().map(|(directory, _)| { return directory.clone(); }).collect();
-        let asked: Vec<(PathBuf, Duration)> = run_round(wakes, handlers, &ClaimTime::read());
+        let mut ran: Vec<PathBuf> = wakes.iter().map(|(directory, _)| { return directory.clone(); }).collect();
+        let asked: Vec<(PathBuf, Duration)> = run_round(wakes, handlers, &mut push_retries, &ClaimTime::read());
+        // A directory the round named for its plan alone (the common directory of a bare repository) replaces its old entry too.
+        ran.extend(asked.iter().map(|(directory, _)| { return directory.clone(); }));
         retries.replace(ran.as_slice(), asked, Instant::now());
         // A repository waiting to be looked at again keeps the service from exiting idle, as running work does.
         if !retries.is_empty() && !counted_waiting {
@@ -549,7 +567,7 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
-    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy); });
+    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::from_environment()); });
     let announced_release: String = settings.release.clone();
     let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     let instance: Option<String> = settings.instance.clone();
