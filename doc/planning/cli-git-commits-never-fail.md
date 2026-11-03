@@ -248,11 +248,13 @@ Lane transitions (the owner and its incarnation)
 - L1 acquire. Pre: none. Do: open `lane/owner` (a file created once and never replaced) with close-on-exec, wait for the exclusive lock.
   Crash: nothing to recover. Note: the wait ends when the previous owner and any child still between fork and exec have gone; a child
   between fork and exec holds the description until it execs or dies, so this wait is bounded only by that child's own progress.
-- L2 reap. Pre: L1 done; `lane/incarnation` names a previous incarnation `P` that is not this process. Do: terminate the cgroup whose
+- L2 reap. Pre: L1 done. Fresh lane: if `lane/incarnation` is absent (the lane was never owned) or names this process, L2 has nothing to
+  reap and is done at once; the first owner of a lane goes from L1 to L3. Otherwise `lane/incarnation` names a previous incarnation `P`
+  that is not this process. Do: terminate the cgroup whose
   name contains `P`'s identifier (each incarnation has its own cgroup: a transient scope for an inline client, a delegated sub-cgroup of
   the unit for a service; the identifier is unique, so the target can never be this owner's own group) and wait until it reports no
   processes. Crash: repeat L2. Until L2 completes the owner mutates nothing. Never targeted: a live owner, a group not named `P`.
-- L3 incarnate. Pre: L2 done. Do: write `lane/incarnation` (a fresh id, process identity, pid-namespace identity, the cgroup name),
+- L3 incarnate. Pre: L2 done (reaped, or the fresh-lane case). Do: write `lane/incarnation` (a fresh id, process identity, pid-namespace identity, the cgroup name),
   create that cgroup, move this process into it. Crash: the next owner reaps this incarnation by L2.
 - L4 resume. Pre: L3 done. Do: first write the generation odd (fsync), so that no capture can mix the state of a half-completed mutation;
   then complete or roll back each journaled mutation; repair the torn tail of `lane/order` and of this lane's own ledger only (never
@@ -313,13 +315,19 @@ Capture and acceptance (client)
   completes the link and the S1 replacement; a second `adopt` is never appended.
 
 Build and publication (lane)
-- B1 build. Pre: adopted. Do: build the commit by replaying the captured delta on the logical tail; where a person's hook is configured
-  for the build, spawn it under L6 and mark the request `held` (it has no commit, it is not in the logical tail, its consumption entries
-  are kept and are keyed by request and version). Crash: the build is repeated; a held request's hook is the person's program and is
-  re-run by the repeated build.
+- B1 build. Pre: adopted (or Q1 resumed). Do: build the commit by replaying the captured delta on the logical tail (an object write; no ref,
+  index or worktree change). Where a person's hook is configured for the build, a request that has no `hook-ok` for its current version
+  spawns it under L6 and is recorded `held` (it has no commit, it is not in the logical tail, its consumption entries are kept and are
+  keyed by request and version). Otherwise record `ready` in one S1 replacement: `ready <id> <version> <attempt> <commit> <base>`, where `commit`
+  is the built object and `base` the tip it was replayed on; `ready` is the crash-recoverable artifact (the object is in the spool closure and
+  the record names it). Crash: before `ready` the build is repeated (an object write, idempotent); a `held` request's hook is the person's
+  program and is not re-run by recovery while its execution tree is still running; recovery reads its completion.
+  Hooks once per version (default, owner choice H below): a hook's success is recorded as `hook-ok <id> <version>` in the S1 replacement
+  that ends `held`; a later replay of the same version on a moved tip (Q1, P4) builds with `hook-ok` present and does not spawn the
+  hook again, so there is no held, success, replay, held loop. A new version (an amendment) has no `hook-ok` and is held again.
 - B2 ordering exception. Pre: `R1` held. Do: a request `R2` whose changed-path set is disjoint from `R1`'s (adds, edits, deletions, modes,
   directory-versus-file conflicts) and that is not a conclusion or an amendment of anything held proceeds ahead of `R1`; an overlapping
-  `R2` waits. When `R1` completes: success re-enters it at the tail (replayed on the then-tip); refusal ends it as `refused` with the
+  `R2` waits. When `R1` completes: success records `hook-ok` for that version and re-enters it at B1 at the tail (replayed on the then-tip, with no second hook run); refusal ends it as `refused` with the
   hook's message and changes nothing. A completion carries (request, version) and is accepted only for the active version; the
   completion of a superseded version is discarded. Crash: as B1.
 - P1 publish-begin. Pre: `ready`, B2 clear. Do: journal `publishing <id> <attempt> <old> <new>` with the reflog anchor and, for a
@@ -327,11 +335,33 @@ Build and publication (lane)
   is journaled), with no marker.
   Crash: the next owner treats the attempt by the recovery classes (R1 to R5 below).
 - P2 swap. Pre: P1 and L6 held for the ref-transaction child. Do: run `update-ref refs/heads/<branch> <new> <old>`. A person's
-  `reference-transaction` hook may run inside it; nothing but L6 is held across it. Crash: recovery classes below.
+  `reference-transaction` hook may run inside it; nothing but L6 and the lifetime owner lock `lane/owner` (held from L1 to the end
+  of the incarnation, never released between transitions, and it is what keeps another owner from reaping a live incarnation) is held across it.
+  The command is run with `LC_ALL=C` so its diagnostics can be classified (E1). Crash: recovery classes below.
 - P3 published. Pre: P2 succeeded. Do: write generation odd, record `published`, update the state, write even. Crash: recovery class R2.
-- P4 swap-failed. Pre: P2 failed with a held lock or an old-value mismatch. Do: record `swap-failed`, then the request becomes `pending`
-  (side ref written best effort, the command already answered, the lane waits for the branch) or is replayed once if the old-value
-  mismatch shows the branch moved (one operative rule: one try, then pending). Crash: recovery classes below.
+- P4 swap-failed. Pre: P2 failed and E1 classified it as a held ref lock or an old-value mismatch. Do: in one S1 replacement record
+  `swap-failed <id> <attempt>` and make the request `pending` (the side ref is written best effort, the command is answered with the
+  pending notice and exit 0, the lane waits for the branch). The foreground makes exactly one attempt: there is no replay inside the
+  foreground command. Further attempts are background attempts by Q1, one at a time, each a full B1, P1 to P3 cycle with a higher
+  attempt number. Crash: recovery classes below.
+- Q1 resume a pending or landing request. Pre: the request is `pending` or `landing` and a trigger holds: the lane observed the branch tip
+  differ from the request's `base`, or a branch lock was observed free (a stat of the lock file and a read of the tip, no more), or a client
+  captured and found the lane idle with such a request. Do: in one S1 replacement set the request's `base` to the then-tip, increment
+  `attempt`, discard the old `ready` record, and re-enter B1 (with `hook-ok` kept for the version, so no hook is re-run); P1 follows from
+  `ready`. The durable version update is that replacement. Crash: the old `ready` or `pending` record stays valid until the replacement
+  is renamed, so a crash leaves either the old state or the new one.
+- E1 classify a P2 exit. Pre: P2's child ended, or was ended by the outside (a kill, OOM or reboot). Do: classify in this order, using the exit
+  status, the diagnostic read with `LC_ALL=C`, and the state read after the exit (never the diagnostic alone):
+  (a) the tip equals `new` or the recovery classes R1 to R3 hold: published (P3);
+  (b) the diagnostic names a held ref lock (`Unable to create '...lock'`, the lock exists) or an old-value mismatch, and the tip still equals
+      `old` or moved: P4;
+  (c) the diagnostic is the reference-transaction hook abort text (`in '<phase>' phase, update aborted by the reference-transaction hook`,
+      `refs.c:66`, die at `refs.c:2711,2723`) and the tip equals `old` and the lock file is absent: the hook refused; record `refused` with the hook's
+      own stderr; nothing was changed; no retry of the hook. The classification text is verified against the installed Git in step 1;
+  (d) any other exit, a signal, or an exit whose evidence matches none of the above (the outside ended it; Git's own failure; a lock
+      left by a killed process): treated exactly as a crash at P2, by the recovery classes R1 to R5, and a lock that remains is the
+      A-kill narrowing (the wrapper does not remove it, and the request stays pending with the message naming the lock).
+  X1 never cancels P2's child (update-ref is exempt). Crash: as P2.
 - Recovery classes for an attempt, in this order. R1 a durable `published`: published. R2 the new commit is the tip or an ancestor of
   it: published. R3 a reflog entry after the anchor whose own recorded old value is the new commit: `rewritten-away` (saved, not
   republished); this is checked before any `swap-failed`, because a failed invocation does not say the request was never satisfied.
@@ -1572,6 +1602,18 @@ C-class. Which commands may the stall rule cancel (new in revision 9; for the co
    - Ranking: C-kind > C-freeze > C-sample. C-kind beats C-freeze because it keeps the hook guarantee without new machinery, at the cost
      of leaving an internal wedge to the person; C-freeze beats C-sample because it removes the race by construction instead of narrowing
      its window.
+H. Hook runs when a held request is replayed (new in revision 9; for the coordinator to pick).
+   Case: a configured pre-commit hook takes minutes; it succeeds for the captured content; meanwhile the branch moves, so the commit must be
+   built again on the new tip.
+   - Option H-version, the hook runs once per version of the request; a success is recorded and a replay on a moved tip does not run it again.
+     Pros: no held, success, replay, held loop; the person's slow program is not re-run by a foreign writer's activity. Cons: the hook saw
+     the captured content, not the new tip's combination; a hook that checks the combination does not see it.
+   - Option H-build, the hook runs once per build, so it sees every combination. Pros: the hook judges what is published. Cons: on a branch that
+     keeps moving the hook may never finish before the tip moves, so the request may stay held for ever; each foreign commit re-runs the
+     person's program.
+   - Ranking: H-version > H-build. H-version beats H-build because the owner's rules are that nothing is waited for without end and a
+     person's program is not repeated, and the loss (a combination check by the hook) is the same loss every ordinary Git commit has when
+     a pre-commit hook ran before a later merge.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
