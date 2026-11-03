@@ -128,7 +128,15 @@ impl fmt::Display for UpdateError {
     }
 }
 
-/// Runs one cargo command and fails with the crate named when it exits non-zero.
+/// What:
+/// `fn run_or_fail(request, crate_dir, args) -> Result<CargoOutcome, UpdateError>` runs one cargo command in a crate root and turns a non-zero exit into an error naming the crate. `Result<T, E>` is Rust's success-or-failure value (sibling: `Option<T>`, a value or nothing); `?` on one returns early with the failure.
+/// Why:
+/// Every cargo step of an update fails the same way, so the message is in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runOrFail(args): Promise<CargoOutcome>  // throws
+/// ```
 fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Result<CargoOutcome, UpdateError> {
     let outcome: CargoOutcome = request
         .runner
@@ -173,7 +181,15 @@ pub fn excluded_update_specs(lock: &str, selectors: &[String]) -> Result<Vec<Str
     return Ok(specs);
 }
 
-/// Re-resolves one crate root under the cutoff; returns whether it fell back to ignoring the cutoff.
+/// What:
+/// `fn resolve_crate(request, crate_dir, cutoff) -> Result<bool, UpdateError>` re-resolves one crate root under the cutoff and returns whether it had to fall back to ignoring the cutoff.
+/// Why:
+/// With `minimumReleaseAgeStrict` false a crate that cannot resolve under the cutoff resolves without it and is reported; strict fails instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function resolveCrate(args): Promise<boolean>  // throws
+/// ```
 fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Result<bool, UpdateError> {
     let mut constrained: Vec<String> = Vec::new();
     if cutoff.is_empty() {
@@ -196,7 +212,15 @@ fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Resu
     return Ok(true);
 }
 
-/// The full kind's resolution of every root: constrained resolution, then the exempt crates to their newest release.
+/// What:
+/// `fn resolve_all(request, cutoff) -> Result<Vec<String>, UpdateError>` resolves every listed crate root and then moves the exempt crates to their newest release.
+/// Why:
+/// The exempt update reads the lockfile that the same root's resolution just wrote, so the two steps stay together per root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function resolveAll(args): Promise<string[]>
+/// ```
 fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, UpdateError> {
     let mut fell_back: Vec<String> = Vec::new();
     for crate_dir in request.crate_dirs {
@@ -217,15 +241,41 @@ fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, Upd
     return Ok(fell_back);
 }
 
+/// What:
+/// `fn sources_of(snapshots) -> Vec<String>` copies the lockfile texts out of snapshots; `.clone()` makes an independent copy of owned text.
+/// Why:
+/// The lockfile diff takes plain texts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sourcesOf = (snapshots) => snapshots.map((s) => s.source)
+/// ```
 fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
     return snapshots.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
 }
 
+/// What:
+/// `fn other(message) -> UpdateError` wraps a message in the catch-all update error.
+/// Why:
+/// `map_err(other)` turns a plain text failure into the error type of the function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const other = (message: string) => new UpdateError(message)
+/// ```
 fn other(message: String) -> UpdateError {
     return UpdateError::Other { message };
 }
 
-/// The transaction body; the caller restores on error or refusal.
+/// What:
+/// `fn run_update(request, kind, before, produced) -> Result<UpdateReport, UpdateError>` is the transaction body: resolve or run the user's update, set refused versions aside, check what is left, prune and raise catalog entries when kept. `&mut Option<...>` is a borrowed slot the function may fill.
+/// Why:
+/// The caller restores on an error or a refusal; `produced` records what cargo wrote before the slow registry checks, so the restore can tell a concurrent writer from this run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runUpdate(args): Promise<UpdateReport>
+/// ```
 fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot], produced: &mut Option<Vec<LockSnapshot>>) -> Result<UpdateReport, UpdateError> {
     let settings: &Settings = request.settings;
     let cutoff: String = if settings.minimum_release_age == 0 { String::new() } else { publish_time_cutoff(request.now, settings.minimum_release_age) };

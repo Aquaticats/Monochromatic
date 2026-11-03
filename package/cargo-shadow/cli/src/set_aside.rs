@@ -55,7 +55,15 @@ pub struct SetAsideRequest<'a> {
     pub forward: &'a [String],
 }
 
-/// Versions refused for their publish time under a strict release age, as refusals.
+/// What:
+/// `fn age_refusals(added, request) -> Result<Vec<TrustRefusal>, RegistryError>` lists the new versions that the release-age rule refuses, as refusals. `Result<T, E>` is Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing); `?` on one returns early with the failure.
+/// Why:
+/// Under a strict `minimumReleaseAge` a too-young version must be set aside like a version the trust rule refuses; without a cutoff in `cargo update` the age rule cannot steer the resolution, so it has to be a refusal here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ageRefusals(added: LockedVersion[], request: SetAsideRequest): TrustRefusal[]  // throws RegistryError
+/// ```
 fn age_refusals(added: &[LockedVersion], request: &SetAsideRequest) -> Result<Vec<TrustRefusal>, RegistryError> {
     let mut refusals: Vec<TrustRefusal> = Vec::new();
     if request.settings.minimum_release_age == 0 || !request.settings.minimum_release_age_strict {
@@ -74,7 +82,15 @@ fn age_refusals(added: &[LockedVersion], request: &SetAsideRequest) -> Result<Ve
     return Ok(refusals);
 }
 
-/// Whether a history record may replace the refused version.
+/// What:
+/// `fn is_candidate(record, refused, prerelease_allowed, cutoff_ms, yanked, rejected) -> bool` says whether one published release may replace the refused version. `&` marks a borrowed read-only argument; `BTreeSet<String>` is an ordered set of owned text (sibling: `HashSet`, unordered).
+/// Why:
+/// A replacement must be older, in the same caret class, not yanked, not already rejected, published before the cutoff, and a prerelease only when the refused version is one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isCandidate(args): boolean
+/// ```
 fn is_candidate(record: &VersionRecord, refused: &TrustRefusal, prerelease_allowed: bool, cutoff_ms: i64, yanked: &BTreeSet<String>, rejected: &BTreeSet<String>) -> bool {
     if yanked.contains(&record.num) || rejected.contains(&format!("{}@{}", refused.name, record.num)) {
         return false;
@@ -117,7 +133,15 @@ pub fn set_aside_candidates(refused: &TrustRefusal, request: &SetAsideRequest, r
     return Ok(candidates);
 }
 
-/// The crate roots whose lockfile holds `name@version`.
+/// What:
+/// `fn crates_locking(snapshots, key) -> Vec<String>` lists the crate roots whose lockfile holds `name@version`. `Vec<String>` is a growable list of owned text (siblings: `&[String]`, a borrowed view; `[String; N]`, fixed size).
+/// Why:
+/// Only those roots need the refused version moved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cratesLocking(snapshots: LockSnapshot[], key: string): string[]
+/// ```
 fn crates_locking(snapshots: &[LockSnapshot], key: &str) -> Vec<String> {
     let mut dirs: Vec<String> = Vec::new();
     for snapshot in snapshots {
@@ -130,7 +154,15 @@ fn crates_locking(snapshots: &[LockSnapshot], key: &str) -> Vec<String> {
     return dirs;
 }
 
-/// Tries the candidates in order in one crate; returns the one cargo accepted, or empty.
+/// What:
+/// `fn move_crate(request, crate_dir, refused, candidates) -> Result<String, String>` tries the candidates in order in one crate root with `cargo update --package name@version --precise candidate` and returns the first that cargo accepts, or the empty text.
+/// Why:
+/// Cargo refuses a candidate the dependency graph cannot hold; the next one is tried, at most ten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function moveCrate(args): Promise<string>
+/// ```
 fn move_crate(request: &SetAsideRequest, crate_dir: &str, refused: &TrustRefusal, candidates: &[String]) -> Result<String, String> {
     for candidate in candidates.iter().take(PRECISE_ATTEMPTS) {
         let mut args: Vec<String> = vec![

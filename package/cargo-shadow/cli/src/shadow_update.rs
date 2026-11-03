@@ -101,7 +101,15 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
     }
 }
 
-/// pnpm's rule for `pnpm update <name>@<version>`: the name must be a direct dependency.
+/// What:
+/// `fn check_direct(root, crate_dir, names) -> Result<(), String>` applies pnpm's rule for `pnpm update <name>@<version>`: the name must be a direct dependency. `Result<(), String>` is success with no value or an error text.
+/// Why:
+/// pnpm fails with `ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP` for an indirect one; the shadow refuses `--precise` the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkDirect(root: string, crateDir: string, names: string[]): void  // throws
+/// ```
 fn check_direct(root: &Path, crate_dir: &str, names: &[String]) -> Result<(), String> {
     let snapshots = read_locks(root, &[crate_dir.to_string()]).map_err(|error| { return error.to_string(); })?;
     let direct = direct_dependency_names(snapshots.first().map(|snapshot| { return snapshot.source.as_str(); }).unwrap_or(""))?;
@@ -115,7 +123,15 @@ fn check_direct(root: &Path, crate_dir: &str, names: &[String]) -> Result<(), St
     return Ok(());
 }
 
-/// Prints an install outcome and returns the exit code.
+/// What:
+/// `fn report_install(outcome, dry_run, sink) -> i32` prints an install outcome to the writer and returns the exit code. `&mut dyn Write` is a borrowed writer of any type (a TS `Writable`).
+/// Why:
+/// Standard error is the sink, so cargo's standard output stays free.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reportInstall(outcome, dryRun: boolean, sink: Writable): number
+/// ```
 fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, dry_run: bool, sink: &mut dyn Write) -> i32 {
     return match outcome {
         Ok(report) => {
@@ -134,7 +150,15 @@ fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, 
     };
 }
 
-/// The full update for one crate root; a missing lockfile is stood in for while it is created and removed again on a refusal.
+/// What:
+/// `fn run_full_update(prepared, crate_dirs, dry_run, forward, sink) -> i32` runs the full catalog update for one crate root.
+/// Why:
+/// When no lockfile exists a stand-in is written so the transaction has a snapshot, and it is removed again if the update is refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runFullUpdate(args): number
+/// ```
 fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, forward: &[String], sink: &mut dyn Write) -> i32 {
     let lock_path = prepared.catalog_root.join(&crate_dirs[0]).join(LOCKFILE_NAME);
     let created_placeholder: bool = !lock_path.is_file() && std::fs::write(&lock_path, EMPTY_LOCK).is_ok();
@@ -145,7 +169,15 @@ fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, fo
     return code;
 }
 
-/// Runs the update and prints its report.
+/// What:
+/// `fn run_update(prepared, crate_dirs, dry_run, kind, forward, sink) -> i32` runs an update of either kind and prints its report.
+/// Why:
+/// One place turns an update outcome into text and an exit code.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runUpdate(args): number
+/// ```
 fn run_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, kind: &UpdateKind, forward: &[String], sink: &mut dyn Write) -> i32 {
     let catalog_path = prepared.catalog_root.join(CATALOG_MARKER);
     let outcome = update_rust_lockfiles(
