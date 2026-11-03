@@ -143,7 +143,29 @@ impl IndexLock {
     /// An error naming the lock when the check cannot be made:
     /// the lock stays,
     /// and the service ends after its batch so that the restart reclaims it.
-    pub fn release_with(mut self, built: &Path) -> Result<(), std::io::Error> {
+    pub fn release_with(self, built: &Path) -> Result<(), std::io::Error> {
+        return self.release_with_record(built, &|| { return Ok(()); });
+    }
+
+    /// What:
+    ///  `release_with`, calling `record` after the index is installed and before the lock is given up.
+    /// Why:
+    ///   Once the lock is gone another program may stage into the installed index, so a restart that would replay the
+    ///  installation then loses what it staged. The caller records in `record` (durably) that the installation is done, while the
+    ///  lock still keeps every other writer out: a death before the record leaves the lock for the restart to reclaim, and the
+    ///  replay it does is of an index nobody could have changed; a death after it leaves a record that stops the replay.
+    ///  A record that cannot be made keeps the lock in place and ends the service after its batch, as an unanswerable ownership
+    ///  question does, so an installed index is never left unlocked and replayable.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// lock.releaseWithRecord(built, record) // rename(built, index); record(); unlink(lock)
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// As `release_with`, and the error of `record`, with the lock left in place.
+    pub fn release_with_record(mut self, built: &Path, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
         match self.ownership() {
             Ownership::Owned => {}
             Ownership::Replaced => {
@@ -167,6 +189,15 @@ impl IndexLock {
         // No index existed and nothing was staged when `built` is absent: there is nothing to install.
         if built.exists() {
             std::fs::rename(built, &self.index)?;
+        }
+        if let Err(error) = record() {
+            self.armed = false;
+            crate::service_error!(
+                "the index lock {} stays: the installed index could not be recorded as complete ({error}), and the service ends after this batch so that the restart reclaims the lock",
+                self.lock.display()
+            );
+            note_unsettled();
+            return Err(error);
         }
         self.remove_owned()?;
         self.armed = false;
