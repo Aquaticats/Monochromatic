@@ -51,3 +51,11 @@ mod model_f4_ref_lock;
 /// The controls of finding F4.
 #[path = "model_f4_tests.rs"]
 mod model_f4_tests;
+
+/// Finding F5: the attachment guard on the first-try and deferred index paths.
+#[path = "model_f5_attachment.rs"]
+mod model_f5_attachment;
+
+/// The controls of finding F5.
+#[path = "model_f5_tests.rs"]
+mod model_f5_tests;
