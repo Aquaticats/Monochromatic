@@ -222,7 +222,7 @@ fn a_unit_from_another_release_is_rewritten() {
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     add_socket(&machine);
     let dir: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
-    let other: String = written(&machine, SERVICE_UNIT_NAME).replace("Restart=on-failure", "Restart=always").replace("MemoryMax=1G", "MemoryMax=2G");
+    let other: String = written(&machine, SERVICE_UNIT_NAME).replace("Restart=on-failure", "Restart=always");
     std::fs::write(dir.join(SERVICE_UNIT_NAME), &other).expect("other release's unit");
     assert!(!in_place(&machine.host));
     let mut recorder: Recorder = Recorder::default();
@@ -240,7 +240,15 @@ fn a_refused_reload_leaves_no_unit_that_looks_installed() {
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     add_socket(&machine);
     let unit: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME);
-    std::fs::write(&unit, written(&machine, SERVICE_UNIT_NAME).replace("MemoryMax=1G", "MemoryMax=2G")).expect("older unit");
+    // What:     `format!("{}...", text)` builds a new owned `String`: the written unit followed by one more line.
+    // Why:      an older release's unit differs from this release's template by a line this release never writes, so
+    //           the difference does not depend on any one setting staying in the template.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(unit, `${written(machine, SERVICE_UNIT_NAME)}# a line an older release wrote\n`);
+    // ```
+    std::fs::write(&unit, format!("{}# a line an older release wrote\n", written(&machine, SERVICE_UNIT_NAME))).expect("older unit");
     let mut refusing: Recorder = Recorder::default();
     *refusing.failure.lock().expect("lock") = Some(CallError::Manager { name: String::from("org.freedesktop.systemd1.AccessDenied"), text: String::new() });
     provision_with(&machine.host, &mut refusing).expect_err("refused");

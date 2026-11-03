@@ -12,7 +12,7 @@ After=cli-git@%i.socket
 ExecStart=@SERVICE_BINARY@ --journal %S/cli-git/service/%i --git @GIT@ --instance %i
 StateDirectory=cli-git/service/%i
 Restart=on-failure
-MemoryMax=1G
-TasksMax=512
-CPUQuota=200%
-IOWeight=50
+# No resource limits of the wrapper's own: the service and the Git processes it starts get systemd's defaults, the same
+# resources plain Git gets. The memory, CPU, task and disk-weight limits this unit once set had no measurement behind
+# them, and a memory cap is charged with the page cache those Git processes read the repository's packs and index
+# through, so it made them read the same pages from disk again.
