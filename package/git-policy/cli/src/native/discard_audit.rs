@@ -24,8 +24,24 @@ use std::path::{Path, PathBuf};
 /// The file inside the common Git directory that collects the lines of every worktree of the repository.
 pub const AUDIT_FILE: &str = "cli-git-audit.jsonl";
 
-/// The size at which the file moves to `cli-git-audit.jsonl.1`, replacing an older copy.
+/// The size at which a log file moves aside.
+///
+/// Measured on this host (read-only, 2026-11-03T14:55Z): `cli-git-audit.jsonl` of the main repository held 322,900 bytes in
+/// 950 lines from 2026-10-21T00:35:32Z to 2026-11-03T14:15:51Z, about 23 KB a day with a daily range of 1,074 to 71,328
+/// bytes, so one mebibyte is about 45 days of audit lines at the mean rate and about 15 days at the busiest measured day.
+/// `cli-git-commit-timing.jsonl` held 760,605 bytes in 1,040 lines from 2026-11-02T09:01:37Z to 2026-11-03T14:55:02Z, so it
+/// reaches one mebibyte in about two days. The commands and the window are in
+/// `doc/planning/cli-git-shipped-limits-audit.md`, "Audit log rotation, 1 MiB and one generation".
 const ROTATE_AT_BYTES: u64 = 1024 * 1024;
+
+/// The bytes of audit generations that name no saved copy still on disk, kept beside the live file.
+///
+/// Derived from the measurement at `ROTATE_AT_BYTES`: the busiest measured day was 211 lines, and the lines written now are
+/// about 489 bytes each (the newest day's 67 lines took 32,779 bytes), so about 103 KB; the saved copies that these lines
+/// explain are kept for `DEFAULT_MAX_AGE_DAYS` (30) days, and 30 such days are about 3.0 MiB. Four generations hold that
+/// with one to spare. It is a default set by the coordinator under the owner's delegation, open to the owner's veto; it
+/// bounds only history that explains no saved copy, because a generation that names a copy still on disk is never removed.
+pub const AUDIT_HISTORY_BYTES: u64 = 4 * ROTATE_AT_BYTES;
 
 /// Module tag for diagnostics.
 const TAG: &str = "discardAudit";
@@ -481,3 +497,9 @@ fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn F
 #[cfg(test)]
 #[path = "discard_audit_tests.rs"]
 mod tests;
+
+/// The generations kept, the bound on them, and the timing logs' single generation are controlled in the generation test
+/// module.
+#[cfg(test)]
+#[path = "discard_audit_generation_tests.rs"]
+mod generation_tests;
