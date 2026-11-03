@@ -910,10 +910,16 @@ The repairs, which run side by side:
   Nothing is cloned or cleaned when the source and the worktree share one build directory, when the source has no such
   workspace, or when the worktree's build directory already holds state.
 - Toolchain: when a launcher record under `.cache/toolchain-launchers` names a `toolchain.lock.json` other than the worktree's,
-  `mpm-shadow list` and, only when every tool is in sync, `mpm-shadow install --frozen-lockfile`, with
-  `MONOCHROMATIC_WORKTREE_ROOT` set to the worktree.
-  An install is not started while the tools differ from the lock, because it could download; the line names
+  `mpm-shadow install --frozen-lockfile`, with `MONOCHROMATIC_WORKTREE_ROOT` set to the worktree.
+  The install is lock-constrained: it relinks what is installed and downloads the tools the worktree's lock names that are not
+  installed yet.
+  The owner chose this on 2026-11-03 ("Install online during the add"), told that an add can then download and can retire tool
+  copies another checkout still links; both are accepted consequences.
+  The success line keeps mpm-shadow's own summary of what was installed.
+  A failed install, a timeout or a missing `mpm-shadow` never fails the add: the line names the reason and
   `mise run toolchain:install`.
+- The `pnpm` the repair starts is the first one on the person's `PATH`, which in this repository is the pnpm-shadow.
+  The owner decided this on 2026-11-03: "The repair should start whatever pnpm is first on path."
 
 Each tool ends in a finding.
 A run longer than the tool limit is stopped with its whole process group.

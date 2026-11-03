@@ -1279,7 +1279,8 @@ command created, a snapshot-served one included; see `SPEC.md`, section "Package
 - `package_repair_pnpm.rs`: `pnpm install --offline --frozen-lockfile`.
 - `package_repair_cargo.rs` and `package_repair_tree_clone.rs`: metadata, the plan (clone and clean, clean only, or nothing),
   the clone (per-file `FICLONE`, modes, times and links kept, parallel) and `cargo clean --locked --offline --package <member>`.
-- `package_repair_toolchain.rs`: stale launcher records, `mpm-shadow list`, then `mpm-shadow install --frozen-lockfile`.
+- `package_repair_toolchain.rs`: stale launcher records, then `mpm-shadow install --frozen-lockfile` (online when the lock names tools
+  that are not installed; see the owner answers).
 - `package_repair_report.rs`: one success line (not under `--quiet`) and one line per failure (always).
 - `worktree_copy_prune.rs`: `.zig-cache` joins the cache names.
 
@@ -1355,27 +1356,7 @@ Other managers (fixtures): `uv sync --offline --frozen --reinstall` 62 ms; `npm 
 These are questions for the owner, not decisions.
 Each is phrased to be answered on its own.
 
-- Main's `node_modules` still has the isolated layout (`.modules.yaml` says `virtualStoreDir: .pnpm`, 625 entries under
-  `.pnpm`) while `pnpm-workspace.yaml` says `virtualStoreType: global`.
-  Every new worktree copied from main therefore starts in the old layout, and the first repair converts it: 57 s measured in a
-  worktree (42 s of it system time, unlinking `.pnpm`), against about a second once a tree is already in the new layout.
-  Will you run `pnpm install` in the main checkout once, so that copies of it start in the new layout?
-  (The wrapper never runs it there, and this work did not.)
-- Should the pnpm repair pass `--ignore-scripts`?
-  It runs as `pnpm install --offline --frozen-lockfile`, the words you gave, so the repository's `allowBuilds` decides which
-  dependency builds run (only `sharp` is allowed, and it works either way).
-  No tracked manifest has an install-time script of its own.
-  Measured with and without: no difference beyond the noise of a loaded host.
-- A repair that cannot finish prints one line even under `--quiet`, because the worktree then needs a command.
-  Success is silent under `--quiet`.
-  Is that the behaviour you want, or should `--quiet` silence failures too?
-- The toolchain repair runs `mpm-shadow install --frozen-lockfile` only when `mpm-shadow list` finds every tool in sync, so an
-  add never downloads.
-  When a branch's lock differs from what is installed it prints `mise run toolchain:install` instead.
-  Should an add be allowed to install online in that case?
-  Also: `install` retires older copies of this repository's own tools in every checkout; with an unchanged lock it changed
-  nothing outside the new worktree (634 entries of main's `.cache`, `~/.local/bin` and the toolchain root compared before and
-  after), but a branch that moves a pinned version would retire a copy another checkout still links.
+- Answered, see the section on the owner answers: main's reinstall, `--ignore-scripts`.
 - Owner instruction applied (recorded as adopted, veto open): "Use as few locks as possible." and "You should (almost) never be
   waiting."
   The repairs now run after the settlement lock is released, still side by side, and a binary control shows that a second add
@@ -1388,19 +1369,8 @@ Each is phrased to be answered on its own.
   the first project appears; (c) leave `.venv` out of a copy.
   Ranking: b > a > c, because b buys a real test, a adds code with no consumer, and c makes every new worktree reinstall
   instead of cloning.
-- The symlink rule (a copied link whose target lies outside the source tree keeps resolving to the same place) was not
-  implemented, for the evidence in the section on the symlink rule.
-  Do you want it anyway as the fallback for a worktree whose pnpm repair could not run?
-- The pnpm hook substitutes blocked dependencies with workspace stubs (`.pnpmfile.mjs`), and one such link in main,
-  `package/rolldown-plugin/import-attributes/node_modules/@monochromatic-dev/pnpm-override-stub-silent`, is an absolute path into
-  the main checkout.
-  After the repair it still points at main in the new worktree: pnpm relinks what its lockfile and layout name and leaves this one
-  alone, so a hook-substituted dependency leaks across worktrees (the `throw` stub is likely the same).
-  Is that acceptable (the stubs hold no state), or should the substitution be written as a relative link?
-- The pnpm used is the one `PATH` resolves, which is the pnpm-shadow here.
-  It works from the wrapper but its first run in a tree took 20.5 s against 0.6 s for the real binary behind
-  `.cache/toolchain-bin/pnpm` (the cause was not separated from pnpm's own re-verification).
-  Keep resolving `pnpm` through `PATH`, or start the real binary directly?
+- The pnpm hook substitutes blocked dependencies with workspace stubs; the stub link and the ten stale Cargo locks are
+  measured in the section on those measurements, and still open.
 - A snapshot-served or copied worktree whose lock for a Cargo workspace disagrees with its manifest (ten here) is cleaned
   with the lock put back byte for byte, which also means the clean's own resolution result is thrown away.
   The disagreement is a defect of the committed locks, not of the wrapper; should those locks be regenerated?
@@ -1416,3 +1386,24 @@ Each is phrased to be answered on its own.
   `cfg(target_os = "linux")`.
 - Timing figures come from a host whose load average was in the thirties; no spread was measured on unchanged input, so
   differences of a few seconds between runs are not claims.
+
+### Owner answers received during the work, recorded 2026-11-03T01:39:52-05:00
+
+Each is the owner's choice by the question tool or verbatim.
+
+- Main's `node_modules`: "Run it now (Recommended)". The coordinator runs `pnpm install --frozen-lockfile` in main; the wrapper
+  never does.
+- Online toolchain install during an add: "Install online during the add", against the offered ranking. So the toolchain repair
+  runs `mpm-shadow install --frozen-lockfile` with the network instead of printing `mise run toolchain:install` when the
+  worktree's tools differ from its lock.
+  The owner was told it can download during an add and can retire tool copies another checkout still links; both are accepted
+  consequences.
+  Kept: the line that says what was installed, the time limit, and the rule that a failed install never fails the add.
+- `--ignore-scripts`: "Run scripts as allowBuilds says (Recommended)": the repair keeps the words offline and frozen only.
+- Symlink fallback rule: "No fallback rule (Recommended)": nothing is built.
+- Which pnpm: "The repair should start whatever pnpm is first on path.": the repair keeps resolving `pnpm` through `PATH`
+  (the pnpm-shadow here), and the comparison of the shadow with the real binary was dropped.
+- Failure lines under `--quiet`: they stay visible, as Git's own `--quiet` still shows errors (adopted from the owner's
+  standing instructions, veto open).
+- Locks: "Use as few locks as possible." and "You should (almost) never be waiting.": the repairs run after the settlement lock
+  is released (adopted, veto open).

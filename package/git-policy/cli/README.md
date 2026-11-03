@@ -522,15 +522,16 @@ After the ladder (or Git's checkout) and the ignored-file copy,
  the wrapper starts each tool's own repair in the new worktree:
 
 - pnpm: `pnpm install --offline --frozen-lockfile`, when `pnpm-lock.yaml` and `node_modules` are both there.
-  The `pnpm` is the one your `PATH` resolves (in this repository the pnpm-shadow, whose warnings are shown only if the run fails).
+  The `pnpm` is the first one on your `PATH` (in this repository the pnpm-shadow, whose warnings are shown only if the run fails).
 - Cargo: for each Cargo workspace,
    the source's external build directory is cloned to the worktree's when the worktree has none,
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out, so the worktree is not dirty).
   Registry and git dependencies stay reused; the worktree's own crates rebuild with their own paths.
-- Toolchain: `mpm-shadow list`,
-   and only when every tool is in sync `mpm-shadow install --frozen-lockfile`,
-   so no download happens inside an add.
+- Toolchain: `mpm-shadow install --frozen-lockfile`.
+  It also downloads the tools the worktree's lock names that are not installed yet,
+   and can retire tool copies another checkout still links (both accepted by the owner),
+   and its summary of what was installed is part of the success line.
 
 Nothing runs for `--no-worktree-copy` or `--no-checkout`.
 `--quiet` silences the one line that reports success; a failure is always printed.

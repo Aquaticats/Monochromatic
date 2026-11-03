@@ -5,9 +5,11 @@
 //! Why:
 //!  mpm-shadow owns `toolchain.plan.jsonc`, `toolchain.lock.json` and the pinned tools. Its exposed links and launcher records
 //!  hold absolute paths, so a copy would run the source checkout's tool versions and guard, and a branch that changes the
-//!  lock would silently use the source's. It installs nothing here: the repair runs only when `mpm-shadow list` finds every
-//!  tool in sync, so `install` only relinks and never reaches the network. A tool that is out of sync is left for the person,
-//!  with `mise run toolchain:install` named.
+//!  lock would silently use the source's. The install is lock-constrained: it relinks what is installed and, when this
+//!  worktree's lock names tools that are not installed, downloads them. The owner chose that on 2026-11-03 ("Install online
+//!  during the add"), knowing an add can then download and can retire tool copies another checkout still links. The summary
+//!  line mpm-shadow prints says what was installed. A failed install never fails the add: it prints the reason and
+//!  `mise run toolchain:install`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,7 +18,7 @@
 
 use super::diagnostic_log::debug;
 use super::package_repair::RepairEnvironment;
-use super::package_repair_command::{ToolCommand, ToolEnd, ToolRun, find_program, run_tool};
+use super::package_repair_command::{ToolCommand, ToolRun, find_program, run_tool};
 use super::package_repair_report::{Finding, Outcome, Tool, finding_from, missing_tool};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -101,10 +103,24 @@ fn mpm_command(destination: &Path, arguments: &[&str]) -> ToolCommand {
 }
 
 /// What:
-///  Rebuild the worktree's toolchain links and launchers, when its launcher records are stale and its tools are in sync.
+///  The part of mpm-shadow's last summary line that says what was installed, such as `3 installed, 62 unchanged, 0 failed`.
 /// Why:
-///   `list` reads and compares; `install --frozen-lockfile` then only relinks. Installing while the tools differ could
-///  download, which a worktree add must not do unasked.
+///   The person is told what an add installed, in mpm-shadow's own words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function installSummary(stdout: string): string | undefined;
+/// ```
+fn install_summary(stdout: &[u8]) -> Option<String> {
+    const PREFIX: &str = "toolchain install: ";
+    let text: String = String::from_utf8_lossy(stdout).into_owned();
+    return text.lines().rev().find_map(|line: &str| { return line.strip_prefix(PREFIX).filter(|rest: &&str| { return rest.contains("installed"); }).map(str::to_owned); });
+}
+
+/// What:
+///  Rebuild the worktree's toolchain links and launchers, when its launcher records are stale.
+/// Why:
+///   See the module comment: one frozen install, with the network when the lock names tools that are not installed yet.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -120,19 +136,13 @@ pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> 
     let Some(program) = find_program(PROGRAM, environment.path()).or_else(|| { return own_link.is_file().then_some(own_link.clone()); }) else {
         return Some(missing_tool(Tool::Toolchain, PROGRAM, MANUAL_COMMAND));
     };
-    let listed: ToolRun = run_tool(program.as_path(), &mpm_command(destination, &["list"]), environment.tool_limit);
-    debug(TAG, format!("{}: list ended {:?} after {} ms", destination.display(), listed.end, listed.millis).as_str());
-    if listed.end != ToolEnd::Succeeded {
-        let reason: String = match &listed.end {
-            ToolEnd::Failed(text) => format!("the installed tools differ from this worktree's {LOCK_FILE}, so nothing was installed: {text}"),
-            ToolEnd::TimedOut | ToolEnd::Succeeded => String::from("listing the installed tools ran past its time limit and was stopped"),
-        };
-        return Some(Finding { tool: Tool::Toolchain, outcome: Outcome::Failed { reason, run_instead: String::from(MANUAL_COMMAND) } });
-    }
     let installed: ToolRun = run_tool(program.as_path(), &mpm_command(destination, &["install", "--frozen-lockfile"]), environment.tool_limit);
     debug(TAG, format!("{}: install ended {:?} after {} ms", destination.display(), installed.end, installed.millis).as_str());
-    let total: ToolRun = ToolRun { end: installed.end.clone(), millis: listed.millis + installed.millis, stdout: Vec::new() };
-    let finding: Finding = finding_from(Tool::Toolchain, &total, "mpm-shadow rebuilt the toolchain links", MANUAL_COMMAND);
+    let detail: String = match install_summary(installed.stdout.as_slice()) {
+        Some(summary) => format!("mpm-shadow rebuilt the toolchain links ({summary})"),
+        None => String::from("mpm-shadow rebuilt the toolchain links"),
+    };
+    let finding: Finding = finding_from(Tool::Toolchain, &installed, detail.as_str(), MANUAL_COMMAND);
     let remaining: usize = stale_launch_records(destination).len();
     if matches!(finding.outcome, Outcome::Repaired { .. }) && remaining > 0 {
         return Some(Finding { tool: Tool::Toolchain, outcome: Outcome::Failed { reason: format!("{remaining} launcher records still name another lock file"), run_instead: String::from(MANUAL_COMMAND) } });
