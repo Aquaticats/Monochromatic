@@ -939,3 +939,30 @@ fn a_restart_leaves_the_batch_open_while_a_foreign_lock_is_held() {
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
     remove(world.root.as_path());
 }
+
+/// A batch whose index was installed and whose lock was given up, and whose service died before the batch was marked done, is
+/// not replayed: a change another session staged to a path of the batch in between survives the restart. The service records the
+/// completed index update in the journal (`<batch>.indexed`, holding the commit) before it gives the lock up; the control writes
+/// that record as the dead service left it.
+#[test]
+fn a_restart_does_not_replay_an_index_update_that_was_installed_and_unlocked() {
+    let world: World = world("service-land-recover-installed");
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    let new: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    // The death came after the lock was given up and before the batch was marked done.
+    std::fs::rename(&done, &open).expect("reopen");
+    std::fs::write(world.context.journal.join("1.indexed"), format!("{new}\n")).expect("the record of the completed index update");
+    // Another session stages a new version of the batch's path.
+    std::fs::write(world.repo.join("landed.txt"), "edited and staged after the landing\n").expect("edit");
+    git(world.repo.as_path(), &["add", "landed.txt"]);
+    let reports = recover(&world.context);
+    assert!(reports.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Finish; }));
+    assert_eq!(git_text(world.repo.as_path(), &["diff", "--cached", "--name-only"]), "landed.txt", "the later stage survives the restart");
+    assert_eq!(git_text(world.repo.as_path(), &["show", ":landed.txt"]), "edited and staged after the landing");
+    assert!(done.exists() && !open.exists(), "the batch is finished");
+    assert!(!world.context.journal.join("1.indexed").exists(), "and its record is gone");
+    remove(world.root.as_path());
+}
