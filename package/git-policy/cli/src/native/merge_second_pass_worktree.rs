@@ -19,7 +19,7 @@ use super::child_environment::environment_value;
 use super::conflict_side_state::conflicted_paths;
 use super::diagnostic_log::{debug, warn};
 use super::index_writer_forward::CoordinatedForward;
-use super::merge_second_pass::{Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, resolved_record, second_pass, write_blob};
+use super::merge_second_pass::{Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
 use super::merge_second_pass_tree::announce;
 use super::path_bytes::path_message_text;
 use super::private_storage::read_regular_file;
@@ -29,7 +29,6 @@ use super::repo_read_object::to_hex;
 use super::transaction_git::GitContext;
 use std::collections::BTreeSet;
 use std::io::Write;
-use std::path::Path;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "wordMergeWorktree";
@@ -213,10 +212,11 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     let context: GitContext = GitContext {
         real_git: forward.real_git.clone(),
         overlay: forward.overlay.clone(),
-        global_prefix: forward.command.arguments[..forward.command.subcommand_index].to_vec(),
+        global_prefix: config_options(&forward.command.arguments[..forward.command.subcommand_index]),
         common_dir: Some(layout.common_dir.clone()),
     };
-    let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: Path::new("."), without_prefix: false, object_directory: None, environment: Vec::new() };
+    // From the top of the worktree, so the paths of the stages mean what they say.
+    let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: layout.worktree_root.as_path(), without_prefix: false, object_directory: None, environment: Vec::new() };
     let verdicts: Vec<Verdict> = match second_pass(&runner, conflicts.as_slice()) {
         Ok(found) => found,
         Err(reason) => {

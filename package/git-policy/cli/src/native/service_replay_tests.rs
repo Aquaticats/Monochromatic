@@ -297,4 +297,26 @@ fn the_notice_lists_each_merged_part_and_is_absent_without_one() {
     assert_eq!(lines.len(), 1);
     assert!(lines[0].contains("word-level merge") && lines[0].contains("notes.md") && lines[0].contains("joined"), "{lines:?}");
 }
+
+/// A merge-driver attribute of a path below a directory is honoured when the commit was run from a subdirectory of the
+/// worktree: the second pass reads attribute paths from the top, so the driver's refusal stands and nothing is merged by word.
+#[test]
+fn a_driver_attribute_below_a_directory_is_honoured_from_a_subdirectory() {
+    let world: World = corpus_world("replay-subdirectory-driver", "md1b", "docs/notes.md");
+    std::fs::write(world.repo.join(".gitattributes"), "docs/*.md merge=binary\n").expect("attributes");
+    git(world.repo.as_path(), &["add", "--all"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=attributes"]);
+    let attributed: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let driven: World = World { base: attributed, ..world };
+    let mine: Captured = corpus_sides(&driven, "md1b", "docs/notes.md");
+    let tip: String = git_text(driven.repo.as_path(), &["rev-parse", "HEAD"]);
+    let common: PathBuf = driven.repo.join(".git");
+    let scratch: PathBuf = driven.root.join("scratch");
+    let subdirectory: PathBuf = driven.repo.join("docs");
+    let site: MergeSite<'_> =
+        MergeSite { context: &driven.context, cwd: subdirectory.as_path(), common_dir: common.as_path(), object_directory: &common.join("objects"), scratch: scratch.as_path() };
+    let merged: Merged = merge_captured(&site, &mine, tip.as_str(), 1).expect("the merge runs");
+    assert!(matches!(merged, Merged::Conflict(_)), "{merged:?}");
+    remove(driven.root.as_path());
+}
 //endregion

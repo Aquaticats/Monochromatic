@@ -31,7 +31,7 @@ use super::forwarded_command::ResolvedCommand;
 /// The merge messages.
 use super::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source};
 /// The word-level second pass over the conflicts of the merge tree, and the attribute tree it reads.
-use super::merge_second_pass::{ContextRunner, GitReply, GitRunner, Merged, conflicts_of_merge_tree};
+use super::merge_second_pass::{ContextRunner, GitReply, GitRunner, Merged, config_options, conflicts_of_merge_tree};
 use super::merge_second_pass_tree::{announce, attribute_source_variables, resolve_tree};
 use super::path_bytes::path_message_text;
 /// The intent record.
@@ -456,7 +456,7 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
         Some(describe_merge_source(reference.as_str(), full_name.as_str(), target).ok_or(Bail::Forward(None))?)
     };
     let (tree, second_pass_files): (String, Vec<Merged>) =
-        merge_tree(&session, &shape, (head, target, reference.as_str()), (common_dir, input.environment))?;
+        merge_tree(&session, &shape, (head, target, reference.as_str()), (common_dir, root, input.environment))?;
     let incoming: Vec<Vec<u8>> = diff_paths(
         session
             .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, tree.as_str()])?
@@ -573,10 +573,10 @@ fn merge_tree(
     session: &Session,
     shape: &MergeShape,
     ends: (&str, &str, &str),
-    places: (&Path, &[(OsString, OsString)]),
+    places: (&Path, &Path, &[(OsString, OsString)]),
 ) -> Result<(String, Vec<Merged>), Bail> {
     let (head, target, reference): (&str, &str, &str) = ends;
-    let (common_dir, environment): (&Path, &[(OsString, OsString)]) = places;
+    let (common_dir, root, environment): (&Path, &Path, &[(OsString, OsString)]) = places;
     let mut arguments: Vec<&str> = vec!["merge-tree", "--write-tree", "-z", "--no-messages"];
     if shape.allow_unrelated_histories {
         arguments.push("--allow-unrelated-histories");
@@ -596,7 +596,10 @@ fn merge_tree(
         Some(0) if !tree.is_empty() => return Ok((tree, Vec::new())),
         Some(0) => return Err(Bail::from(String::from("merge-tree printed no tree"))),
         Some(1) => {
-            if let Some(resolved) = resolve_tree(&runner, common_dir, tree.as_str(), conflicts.as_slice()) {
+            // The second pass runs from the top of the worktree with the person's configuration options only.
+            let top_context: GitContext = GitContext { global_prefix: config_options(&session.context.global_prefix), ..session.context.clone() };
+            let top_runner: ContextRunner<'_> = ContextRunner { context: &top_context, cwd: root, ..runner };
+            if let Some(resolved) = resolve_tree(&top_runner, common_dir, tree.as_str(), conflicts.as_slice()) {
                 return Ok((resolved.tree, resolved.merged));
             }
             let paths: Vec<String> = conflicts.iter().map(|conflict| { return path_message_text(conflict.path.as_slice()); }).collect();

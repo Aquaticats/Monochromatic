@@ -2635,7 +2635,8 @@ Standard error gets one line per part, `cli-git: word-level merge: <path>: part 
 and a closing line that names the staged files and says how to review them (`git diff --cached -- <file>`).
 Each merged file is one journal entry of priority `warning` under `SYSLOG_IDENTIFIER` `cli-git`, with the fields
 `CLI_GIT_WORD_MERGE_FILE`, `CLI_GIT_WORD_MERGE_OPERATION` and `CLI_GIT_WORD_MERGE_PARTS`.
-A clean merge costs one in-process index read more before Git starts and one after it; the Git starts above happen only for a conflict.
+A merge that Git completes costs one in-process read of the index before Git starts and nothing after it; the Git starts above happen only after a conflict,
+and they run from the top of the worktree with the invocation's `-c` options only, because `check-attr` and `checkout-index` read paths relative to the directory they run in.
 
 Merges from objects (the isolated merge, the auto-push reconcile merge, the commit replay merge):
 `git merge-tree --write-tree -z` prints the stages of every conflicted path.

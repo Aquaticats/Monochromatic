@@ -227,3 +227,13 @@ fn the_report_lines_name_the_file_and_number_the_parts_and_escape_the_text() {
 fn a_resolved_record_is_the_index_info_form() {
     assert_eq!(resolved_record(0o100_755, "abc", b"d/\xff.sh"), b"100755 abc\td/\xff.sh\0".to_vec());
 }
+
+/// Only the `-c` pairs of the global options remain, in order, so the second pass keeps the person's settings and no
+///  option that would move it away from the top of the worktree.
+#[test]
+fn only_the_configuration_options_of_the_prefix_are_kept() {
+    let prefix: Vec<OsString> = ["-C", "sub", "-c", "core.autocrlf=true", "--git-dir=x", "-c", "a.b=c", "--no-pager", "-c"].iter().map(OsString::from).collect();
+    let kept: Vec<OsString> = config_options(prefix.as_slice());
+    assert_eq!(kept, ["-c", "core.autocrlf=true", "-c", "a.b=c"].iter().map(OsString::from).collect::<Vec<OsString>>());
+    assert!(config_options(&[]).is_empty());
+}

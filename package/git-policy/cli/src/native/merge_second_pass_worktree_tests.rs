@@ -3,6 +3,7 @@
 //!  `binary_word_merge_tests.rs`.
 
 use super::*;
+use std::path::Path;
 
 /// An index entry of a path at a stage.
 fn entry(path: &str, stage: u8, mode: u32, byte: u8) -> IndexEntry {

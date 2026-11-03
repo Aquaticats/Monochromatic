@@ -255,9 +255,16 @@ pub fn word_merge_notice(files: &[MergedFile]) -> Option<PolicyEvent> {
 /// ```
 fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths: Vec<Vec<u8>>) -> Merged {
     let (tree, conflicts): (&str, &[Conflict]) = merge;
+    // The commit may have been run from a subdirectory; the second pass reads paths from the top of the worktree.
+    let mut top_request: GitRequest = GitRequest::new(site.cwd, &["rev-parse", "--show-toplevel"]);
+    top_request.without_prefix = true;
+    let top: PathBuf = match run_git_checked(site.context, &top_request) {
+        Ok(found) => PathBuf::from(String::from_utf8_lossy(found.stdout.as_slice()).trim()),
+        Err(_) => return Merged::Conflict(paths),
+    };
     let runner: ContextRunner<'_> = ContextRunner {
         context: site.context,
-        cwd: site.cwd,
+        cwd: top.as_path(),
         without_prefix: true,
         object_directory: Some(site.object_directory),
         environment: attribute_source_variables(tip, &[]),

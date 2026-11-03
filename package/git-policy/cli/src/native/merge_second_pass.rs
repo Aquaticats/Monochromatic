@@ -111,6 +111,31 @@ impl GitRunner for ContextRunner<'_> {
     }
 }
 
+/// What:
+///  The configuration options (`-c <name>=<value>`) among an invocation's global options, and nothing else.
+/// Why:
+///   The second pass runs from the top of the worktree, because `git check-attr` and `git checkout-index` read the paths
+///  they are given relative to the directory they run in; `-C` and `--git-dir` would move them again. The settings that change
+///  what a checkout writes (`core.autocrlf`, filters) still apply.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function configOptions(prefix: string[]): string[]; // ['-c', 'a=b', '-c', 'c=d']
+/// ```
+pub fn config_options(prefix: &[OsString]) -> Vec<OsString> {
+    let mut kept: Vec<OsString> = Vec::new();
+    let mut tokens = prefix.iter();
+    while let Some(token) = tokens.next() {
+        if token == "-c"
+            && let Some(setting) = tokens.next()
+        {
+            kept.push(token.clone());
+            kept.push(setting.clone());
+        }
+    }
+    return kept;
+}
+
 /// One side of a conflicted path: its mode and object name.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Stage {

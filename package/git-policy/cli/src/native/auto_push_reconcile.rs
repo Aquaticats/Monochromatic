@@ -252,7 +252,15 @@ fn commit_merge(
     let mut second_pass_files: Vec<Merged> = Vec::new();
     if merged.code == Some(1) {
         let common = common_dir_of(git)?;
-        match resolve_tree(&runner, common.as_path(), &tree, &conflicts) {
+        // The second pass reads paths from the top of the worktree, whatever directory the commit landed in.
+        let top = PathBuf::from(git_output(git, &argv(&["rev-parse", "--show-toplevel"]))?);
+        let from_top = PushGit {
+            real_git: attributed.real_git.clone(),
+            cwd: top,
+            environment: attributed.environment.clone(),
+            lfs: attributed.lfs,
+        };
+        match resolve_tree(&PushRunner { git: &from_top }, common.as_path(), &tree, &conflicts) {
             Some(resolved) => {
                 tree = resolved.tree;
                 second_pass_files = resolved.merged;
