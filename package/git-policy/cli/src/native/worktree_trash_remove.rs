@@ -121,7 +121,7 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
     // The names from the top directory down to the frame being worked on, for messages.
     let mut shown: Vec<OsString> = Vec::new();
     // The path of the frame being worked on, from the names kept in `shown`.
-    let here = |shown: &[OsString]| -> PathBuf { return shown.iter().fold(top.clone(), |path: PathBuf, part: &OsString| { return path.join(part); }); };
+    let here = |names: &[OsString]| -> PathBuf { return names.iter().fold(top.clone(), |path: PathBuf, part: &OsString| { return path.join(part); }); };
     loop {
         let Some(frame) = stack.last_mut() else { break };
         match frame.entries.pop() {

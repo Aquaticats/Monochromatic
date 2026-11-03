@@ -166,11 +166,11 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
     verify_association(&root, repository, git_dir)?;
     let device: u64 = device_of(&root).map_err(|error: std::io::Error| { return format!("{} cannot be examined ({error})", repository.display()); })?;
     let names = plain_components(Path::new(TRASH_PARENT)).map_err(|error: std::io::Error| { return format!("the trash parent is not a plain path ({error})"); })?;
-    let mut holders: Vec<File> = vec![root];
     let mut shown: PathBuf = repository.to_path_buf();
+    let mut holders: Vec<File> = vec![root];
     for name in &names {
         shown.push(name);
-        let held: &File = holders.last().unwrap_or(&holders[0]);
+        let Some(held) = holders.last() else { return Err(format!("{} cannot be held", shown.display())) };
         let next: File = match open_directory_at(held, name.as_os_str()) {
             Ok(opened) => opened,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),

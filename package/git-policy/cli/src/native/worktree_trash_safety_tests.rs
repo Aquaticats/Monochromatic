@@ -161,6 +161,22 @@ fn a_trash_entry_that_was_replaced_by_a_link_is_not_followed() {
     remove(root.as_path());
 }
 
+/// Finding 11: an entry of the trash that was replaced by another real directory under the same name is not the object the
+///  leave-out moved there, so it is left alone and reported.
+#[test]
+fn a_trash_entry_that_was_replaced_by_another_directory_is_not_emptied() {
+    let name: String = "4".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-entry-replaced", name.as_str(), 2);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    std::fs::rename(trash.join("d0"), worktree.join("moved-away")).expect("move the real entry away");
+    put(trash.as_path(), "d0/precious", b"somebody else's directory under the same name\n");
+    let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
+    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("d0")), "{verdict:?}");
+    assert!(trash.join("d0/precious").exists(), "the replacement is untouched");
+    assert!(!trash.join("d1").exists(), "the entry that was still the recorded object is emptied");
+    remove(root.as_path());
+}
+
 /// Finding 11: something in the trash that the leave-out did not put there stays, and so does the trash directory.
 #[test]
 fn something_in_the_trash_that_was_not_moved_there_stays() {

@@ -288,7 +288,7 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
     }
     let count: usize = aside.count;
     let manifest: Option<TrashManifest> = match aside.trash {
-        Some(trash) if count > 0 => Some(TrashManifest { name: trash.name, trash: trash.id, entries: aside.entries }),
+        Some(made) if count > 0 => Some(TrashManifest { name: made.name, trash: made.id, entries: aside.entries }),
         Some(empty) => {
             // Nothing was moved, so the trash made for it goes again; a refusal only leaves an empty directory.
             if let Err(error) = super::fs_beneath::remove_at(&empty.parent, OsStr::new(empty.name.as_str()), true) {

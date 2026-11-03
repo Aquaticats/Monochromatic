@@ -71,17 +71,16 @@ impl From<PlaceError> for Ended {
 fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext) -> Result<String, Ended> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
-    let trash: Option<TrashManifest>;
-    match take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice()) {
+    let trash: Option<TrashManifest> = match take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice()) {
         Ok(taken) => {
             *made = Some(taken.stage);
-            trash = taken.trash;
+            taken.trash
         }
         Err(failure) => {
             *made = failure.stage;
             return Err(Ended::from(failure.reason));
         }
-    }
+    };
     verify_association(bound)?;
     apply_difference(source, &target, stage, token, run_git)?;
     let mode: u32 = std::fs::metadata(source.root.as_path()).map_err(|error| { return format!("the source's root is unreadable ({error})"); })?.mode() & 0o7777;
