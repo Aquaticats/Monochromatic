@@ -147,12 +147,30 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   ask the service manager to start an inactive unit after `START_WAIT`;
   a scratch file can be aged out during a wait longer than a day.
   The 150 s hold-age margin is for the owner to approve on return.
-- The two shipped lock-deletion P1s from the eighth design review (S-1,
+- Done,
+  to merge into the 0.5.28 base once its running gate ends:
+  the two shipped lock-deletion P1s from the eighth design review (S-1,
   S-2),
-  branch `fix/git-policy-cli-never-removes-a-live-lock` from the 0.5.28 base `177f9ebc50`:
-  `stopped_git_locks.rs` deletes live foreign empty locks,
-  and `stale_ref_lock_judge.rs` judges by PID-namespace and boot-clock heuristics,
-  then checks and unlinks in two steps.
+  `fix/git-policy-cli-never-removes-a-live-lock` `9f92dae98c` (from `177f9ebc50`).
+  The stopped-child sweep no longer deletes anything itself
+  (it deleted a live foreign writer's empty lock,
+  and a lock made after an old pid file);
+  it calls the same judgement as every fetch and push.
+  The boot-time proof is gone (a clock step fooled it);
+  a pid number proves a holder gone only from the initial PID namespace,
+  without `hidepid`,
+  and when no process carries that number inside a nested namespace (`NSpid:`).
+  Companion files (pid file,
+  `packed-refs.new`) go through the same rename,
+  compare and remove-or-put-back step as the lock;
+  that step now checks identity twice and moves with `RENAME_NOREPLACE`.
+  7 red tests first,
+  98 library and 10 binary tests,
+  clippy clean.
+  Its four questions are in "Picks made under the owner's delegation".
+  Conflict to expect:
+  the citations follow-ups set `BOOT_SLACK` to 3607 s,
+  which this branch removes.
 - Done:
   the second cross-vendor review of cargo-shadow,
   split in three after the whole 733 KB diff timed out at 3600 s with no output
@@ -301,8 +319,27 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   so that run was bounded only by the tests' five-minute limit.
 - The third round on the in-process index writer,
   its agent resumed with the third re-review's findings and told to merge the base `177f9ebc50` first.
-- Design revision 9 of `doc/planning/cli-git-commits-never-fail.md`,
-  its agent resumed with the eighth review and the step-1 models' four findings.
+- Done:
+  design revision 9 of `doc/planning/cli-git-commits-never-fail.md`,
+  `a7b917e47e` to `5ff9706edc` (2026-11-03T11:44:10-05:00 to 11:54:15),
+  answering all of the eighth review and the four model findings;
+  the three choices it left were picked in `7afb60a024` (see "Picks made under the owner's delegation").
+  Running,
+  not an agent:
+  the ninth cross-vendor review of it (`~/temp/agent/reviews/commits-never-fail-sol-9.txt`).
+- Step 1,
+  second round:
+  its agent is resumed to model revision 9 (red under revision 8,
+  green under 9 for each changelog schedule),
+  build the eighth review's section-4 controls,
+  raise the comment density,
+  and then fix the components review:
+  "not correct" (`commit-components-sol-1.txt`),
+  P1s for a mode and object merged across file types (a symlink made from an edited file),
+  ledger repair racing an append (answered by revision 9's per-lane ledgers),
+  new directory names never synced into their parents,
+  a resend acknowledging a link whose directory entry was never synced,
+  and a spool that cannot be replayed once the base objects are pruned.
 - cargo-shadow fixes for all three second-review parts,
   its agent resumed;
   it writes the three diffs for the third review to `~/temp/agent/reviews/cargo-shadow-3a.diff`,
@@ -1711,6 +1748,54 @@ revision 9 renames them.
    then withdrawn for option B1 (hand it to the person with a line naming it),
    because the eighth review showed a restart can end a person's hook that starts after the "no program running"
    observation (R8-1).
+
+### Commits never fail, revision 9 (three choices)
+
+In `doc/planning/cli-git-commits-never-fail.md`,
+"Questions for the owner",
+on `fix/git-policy-cli-commits-never-fail` (`7afb60a024`).
+Options of the revision 8 questions are renamed A-keep,
+A-kill,
+B-hand and B-restart.
+
+1. What the stall rule (X1) may cancel:
+   C-kind (by command kind,
+   `update-ref` exempt) over freezing the dispatch inputs and over re-checking at cancel time,
+   because of "End Git,
+   hold hooks";
+   a stalled `update-ref` with no hook,
+   which needs a Git bug,
+   stays named and durable for the person.
+2. When a held request's hook runs:
+   once per version (H-version) over once per build,
+   so a slow hook is not rerun each time another program moves the branch,
+   and nothing waits without end.
+3. Merge order:
+   check out first,
+   then swap (M-A),
+   over swap first,
+   whose window lets a plain commit capture the reverse of the merge ("never discard user data").
+
+### Shipped lock removal (four questions)
+
+On `fix/git-policy-cli-never-removes-a-live-lock` (`9f92dae98c`).
+
+1. A lock a reboot left without a pid file is now reported with the `rm` line,
+   not cleared:
+   kept (picked),
+   because the wrapper sets `core.lockfilePid` for every Git it starts,
+   so only a kill between the lock and its pid file,
+   or a foreign Git without the setting,
+   leaves one;
+   a rule keyed to a recorded boot identifier could not cover locks made before the record.
+2. The sweep after a stopped child judges every reference lock of the repository (picked),
+   as each fetch and push already does,
+   over only those born during the child's life.
+3. Its notice goes to the diagnostic log on standard error (picked,
+   unchanged),
+   because the sweep runs on a background thread.
+4. Its new lines over 120 characters:
+   left for the lint-debt pass (task 88).
 
 ### Shipped-limits follow-ups
 
