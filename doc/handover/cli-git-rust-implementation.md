@@ -447,9 +447,21 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   a populated-submodule fixture,
   deterministic fault points,
   the comment-density pass.
-  Running,
-  not an agent:
-  the components' third review (`commit-components-sol-3.txt`).
+  The components' third review (`commit-components-sol-3.txt`,
+  2026-11-03T12:51:01-05:00):
+  "Ready after named fixes".
+  A and B are repaired provided the anchor is durable;
+  to do:
+  an initialized-root constructor that makes the root durable through a known-durable parent
+  (P1 integration prerequisite),
+  bare relative ledger filenames and ancestor durability before a repair (P2),
+  gitlink and amendment eligibility and retention contracts (P2),
+  the trace gated out of production (P3),
+  a fully canonical manifest syntax or an accurate claim (P3),
+  deterministic filesystem-ordering tests,
+  and bumping `REQUEST_VERSION` for the new mandatory line.
+  Queued for the step-1 agent's next free slot,
+  with the real per-site comment pass.
   Done:
   step 1,
   fourth round (`bc3ff62cd4`,
