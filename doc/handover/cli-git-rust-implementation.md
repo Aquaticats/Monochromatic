@@ -307,10 +307,22 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   its agent resumed;
   it writes the three diffs for the third review to `~/temp/agent/reviews/cargo-shadow-3a.diff`,
   `-3b.diff` and `-3c.diff`.
-- The word-level second merge pass brought up to the 0.5.28 base (task 114):
-  the agent merges the base into `feat/git-policy-cli-word-level-second-merge-pass`,
-  verifies the `--autostash` and `branch.<name>.mergeOptions` follow-ups,
-  and builds `git pull` through the isolated merge if it is missing.
+- The word-level second merge pass (task 114),
+  `feat/git-policy-cli-word-level-second-merge-pass` at `2a37bb7682`:
+  the 0.5.28 base merged in (`9763599f3a`;
+  in `merge_isolation.rs` a clean-index conflict still goes to native Git first,
+  then the pass runs on the stopped merge);
+  autostash and `branch.<name>.mergeOptions` verified;
+  a pull that is stated to merge now runs as `git fetch` plus the isolated `git merge FETCH_HEAD`
+  (`pull_isolation.rs`),
+  because native `git pull` starts its merge as Git's own child,
+  out of the wrapper's sight.
+  178 library and 72 neighbouring binary tests,
+  clippy clean;
+  full suite not run.
+  Its agent is resumed with the three picks in "Picks made under the owner's delegation",
+  a measurement of the pull split's extra Git starts,
+  and a merge of the base at `afc9a8621d`.
 - Running:
   a second early gate of the 0.5.28 base at `afc9a8621d` (after the waits,
   citations follow-ups and fallback merges),
@@ -494,6 +506,11 @@ in this order:
     the reclamation check-then-unlink in `service_index_lock.rs` 285-289 needs a per-physical-index single-reclaimer
     guarantee or a test;
     the non-Linux test imports stay paused.
+- Carry a conflicted autostash's stash and unmerged entries back from the shadow repository
+  (option A in "Word-level second merge pass and pull"),
+  after the index writer's third round,
+  because both change the landing code;
+  it fixes a shipped loss for a person's own `git commit` after `merge --autostash`.
 - The index-lock and service waits follow-ups listed in "Picks made under the owner's delegation",
   "Shipped-limits follow-ups":
   resume the waits agent with them once the index round finishes,
@@ -1742,6 +1759,34 @@ built on `feat/git-policy-cli-falls-back-to-installed-git` (`6453c380b1`).
 4. How often the notice prints:
    on every command (picked),
    because printing once per login needs a file that outlives the process and a rule for when it expires.
+
+### Word-level second merge pass and pull (three questions)
+
+In `doc/planning/cli-git-merge-auto-resolution.md`,
+the section dated 2026-11-03T11:45:26-05:00,
+on `feat/git-policy-cli-word-level-second-merge-pass` (`2a37bb7682`).
+
+1. A stash whose autostash apply conflicts is lost:
+   the shadow repository keeps `refs/stash` and the unmerged entries,
+   where Git keeps `stash@{0}: autostash` and `UU` entries.
+   This also happens to a person's own `git commit` after `merge --autostash`,
+   which has shipped.
+   Picked:
+   B now (a dry-run of the stash apply hands the wrapper's finish back to native Git when it would conflict),
+   then A after the index writer's third round (carry the stash,
+   its objects and reflog entry,
+   and the unmerged stages back into the real repository under the landing lock),
+   which also fixes the shipped path;
+   over leaving it documented,
+   because of "never discard user data" and "Fix even pre-existing issues of the pkgs you own."
+2. A pull with nothing stated,
+   and `--ff-only`:
+   left to native Git's whole pull (picked),
+   because its refusals are deliberate and the isolated merge already forwards fast-forwards.
+3. The working-tree update after a fetch that moved the checked-out branch:
+   wait on the index lock before it (picked),
+   over leaving native Git's race,
+   which a loaded host hits and the never-fail rules cover.
 
 ### Release contents
 
