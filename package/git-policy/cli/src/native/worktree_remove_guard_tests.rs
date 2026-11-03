@@ -232,6 +232,10 @@ fn a_worktree_with_a_populated_submodule_is_left_to_git() {
         age(worktree.join(name).as_path());
     }
     git(worktree.as_path(), &["update-index", "--refresh"]);
+    // Which rule refuses it, so that the result is not an accident of file times.
+    let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let proof = check_clean(&git_context(), worktree.as_path(), admin_of(repo.as_path(), "wt").as_path(), common_dir.as_path());
+    assert_eq!(proof, Err(String::from("lib is a submodule")));
     let stand: Stand = Stand::new(vec![worktree.clone()]);
     assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
     assert!(worktree.join("lib/tracked.txt").is_file(), "the submodule's files are untouched");

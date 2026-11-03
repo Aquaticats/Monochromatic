@@ -208,6 +208,9 @@ Read-only commands,
   It does so only for a worktree that the repository you run it in registered and that Git would pick for the name you typed
    (Git matches the name against the last components of every registered path before it resolves the path); an empty name,
    another repository's worktree and a name that Git resolves differently go to Git, which words its answer.
+  A subvolume destroy cannot be undone, and the command prints a line that says so each time it destroys one: a write, a
+   lock or a rename that another process makes in the moments between the last check and the destroy is destroyed with the
+   worktree, as it is when Git deletes the files one by one. Do not run it on a worktree something else is still using.
   If the files are destroyed but the registration cannot be removed, the command fails with status 2 and a report that
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
    (`git -C <repository> worktree prune`); it does not run Git afterwards.

@@ -245,3 +245,27 @@ fn a_registration_left_after_the_destroy_fails_the_command_with_the_repair_steps
     assert!(!worktrees.join("clean").exists(), "the prune removed the leftover registration");
     remove(&fixture);
 }
+
+/// Where the destroy runs, the command says on standard error that it cannot be undone and what the person accepts.
+#[test]
+fn the_destroy_of_a_subvolume_worktree_says_it_cannot_be_undone() {
+    let fixture: Fixture = fixture("ladder-remove-notice");
+    if !on_btrfs_or_acknowledged(&fixture, "ladder-remove-notice") {
+        remove(&fixture);
+        return;
+    }
+    if !removal_allowed(fixture.root.as_path()) {
+        eprintln!("CONTROL NOT RUN: ladder-remove-notice (the mount of {} lacks user_subvol_rm_allowed)", fixture.root.display());
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = populated_repository(&fixture, false);
+    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "notice", "../notice"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    age_tracked_files(&fixture, fixture.root.join("notice").as_path());
+    let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../notice"]);
+    assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
+    assert!(!fixture.root.join("notice").exists());
+    assert!(stderr_of(&removed).contains("this cannot be undone"), "{}", stderr_of(&removed));
+    remove(&fixture);
+}

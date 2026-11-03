@@ -585,26 +585,22 @@ The wrapper serves the removal only when real Git would remove the same director
   an entry, or any other result of the lookup, leaves the removal to Git.
 - The worktree is clean by the proof of `worktree_clean.rs`.
 
-The check and the destroy are not one step, and neither are Git's check and its deletion.
-Git reads the list of worktrees, looks for `locked` once, runs `git status`, and then deletes the files by the path it
-read earlier; a file written, a lock taken, or a directory replaced by another process between its check and its deletion
-is deleted too, and the deletion takes seconds on a large tree.
-The wrapper holds the parent directory, the worktree directory and the administrative directory open from before the proof
-of cleanliness (opened below their parents without following a link or crossing a mount), and looks again immediately
-before the destroy: at the lock, at whether the name still leads to the object that was proven (by device, inode and birth
-time), at whether the parent path still names the held parent, at whether the registration is still the object that was
-proven, and at whether its `gitdir` text is unchanged.
-Any difference leaves the whole removal to Git with nothing changed.
-The destroy then acts on the subvolume id read from the held directory, so a rename or a replacement of the path after the
-last look cannot redirect it to another subvolume, and the registration is emptied through its held descriptor and removed
-from the held `worktrees` directory by name, which succeeds only for an empty directory, so a registration that another
-process put at the same path in the meantime is never touched.
-What stays open is a write or `git worktree lock` made by another process in the interval between the last look and the
-kernel call; btrfs offers no "destroy only if unchanged", and the files of a worktree that is in use cannot be held still.
-In that interval the wrapper does what Git does for its whole deletion, over a window of microseconds instead of seconds,
-so it is no worse than Git there, and the fast path is kept.
-A worktree directory moved away in the same interval is destroyed by id wherever it went, which is the subvolume that was
-proven clean.
+Accepted risk, stated to the person who runs the command: the check and the destroy are not one step, and neither are
+Git's check and its deletion.
+A write, a `git worktree lock`, a rename or a replacement of the worktree or of its administrative directory made by another
+process between the last check and the destroy is destroyed or deleted with the worktree, by this command as by Git, and
+nothing can undo the destroy of a subvolume.
+The owner's decision is that the person who runs `git worktree remove` accepts that risk, and that no machinery is built to
+close races that other processes cause.
+The command says so on standard error whenever it destroys a subvolume.
+Cheap guards that already exist are kept and described here without a promise: the parent directory, the worktree directory
+and the administrative directory are held open from before the proof of cleanliness (opened below their parents without
+following a link or crossing a mount), the lock, the identity of the worktree directory, of its parent and of the
+registration, and the `gitdir` text are looked at again immediately before the destroy (any difference leaves the removal
+to Git with nothing changed), the destroy names the subvolume by the id read from the held directory, and the registration is
+emptied through its held descriptor and removed by name from the held `worktrees` directory, which succeeds only for an empty
+directory.
+These narrow the window to a few system calls; they do not close it.
 
 When the subvolume is destroyed and the registration cannot be removed (an unwritable `worktrees` directory, a registration
 replaced meanwhile), the command exits with status 2 and prints one report: the removed worktree, the leftover
@@ -623,8 +619,8 @@ A boundary that appears after that first pass is refused again at the directory 
 The settlement of a destination the wrapper made as an empty subvolume removes it only while the name still leads to the
 object created (identity recorded right after the creation) and the object is empty; a replacement is kept with a warning
 that names it.
-The last `rmdir` names the entry in the held parent and removes only an empty directory, so a swap in that instant can
-remove an empty directory at most, never data.
+The last `rmdir` names the entry in the held parent and removes only an empty directory, so a swap by another process in
+that instant can remove an empty directory at most, never data; that residual is an accepted risk like the one above.
 
 Before staging,
 exclude every registered worktree root strictly nested under the source.

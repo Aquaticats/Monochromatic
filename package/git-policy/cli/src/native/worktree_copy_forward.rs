@@ -203,6 +203,7 @@ pub fn run_forwarded_git(
 /// ```
 #[cfg(all(unix, target_os = "linux"))]
 fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts) -> Option<ForwardedRun> {
+    use std::io::Write;
     use super::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
     use super::worktree_identity::WorktreeIdentity;
     let plan = facts.remove_plan.as_ref()?;
@@ -220,7 +221,11 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
     };
     match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir }) {
         RemoveOutcome::LeftToGit => return None,
-        RemoveOutcome::Removed => return Some(ForwardedRun::Ran(0)),
+        RemoveOutcome::Removed => {
+            // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it.
+            let _closed = writeln!(std::io::stderr(), "{}", super::worktree_remove::DESTROY_NOTICE);
+            return Some(ForwardedRun::Ran(0));
+        }
         RemoveOutcome::Incomplete(report) => {
             return Some(ForwardedRun::Failed { stderr: format!("{report}\n"), code: super::action::ENGINE_FAILURE_EXIT_CODE });
         }

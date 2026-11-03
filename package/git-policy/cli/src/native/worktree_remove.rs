@@ -44,6 +44,9 @@ const TAG: &str = "worktreeRemove";
 /// The mount option that lets a regular user destroy a subvolume with the ioctl.
 const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
 
+/// What the command says on standard error whenever it destroys a subvolume.
+pub const DESTROY_NOTICE: &str = "cli-git: destroyed the btrfs subvolume of the removed worktree in one step; this cannot be undone, and anything another process wrote or locked in the moments since the last check went with it (the risk of git worktree remove, here faster).";
+
 /// What:
 ///  Whether the administrative directory holds a `locked` entry.
 /// Why:
