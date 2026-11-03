@@ -155,7 +155,7 @@ use crate::git_base::{base_from_environment, git_base_lock_reader};
 /// ```
 use crate::http::UreqFetcher;
 /// What:
-/// `use crate::install::is_continuous_integration;` imports `is_continuous_integration` from another module of this crate so this file can name it unqualified.
+/// `use crate::install::{LockBaseReader, is_continuous_integration};` imports `is_continuous_integration` from another module of this crate so this file can name it unqualified.
 /// Why:
 /// `is_continuous_integration` is used by `prepare`.
 ///
@@ -163,7 +163,7 @@ use crate::http::UreqFetcher;
 /// ```ts
 /// import { is_continuous_integration } from 'crate/install';
 /// ```
-use crate::install::is_continuous_integration;
+use crate::install::{LockBaseReader, is_continuous_integration};
 /// What:
 /// `use crate::install_step::{StepOutcome, StepRequest, run_install_step};` imports `StepOutcome`,
 /// `StepRequest`,
@@ -380,9 +380,12 @@ pub struct Prepared {
     /// in CI,
     /// or the user's own command carries `--locked` or `--frozen`.
     pub frozen: bool,
-    /// The base-revision lockfile reader,
-    /// built when a frozen install under `trustLockfile` will need it.
-    pub lock_base: Option<Box<dyn Fn(&str) -> String>>,
+    /// The maker of the base-revision lockfile reader,
+    /// present under `trustLockfile`;
+    /// git is started only when a check that is not remembered needs the reader.
+    pub lock_base: Option<OwnedLockBaseFactory>,
+    /// How the base revision is spelled (`CARGO_SHADOW_TRUST_BASE`, or `HEAD`).
+    pub trust_base: String,
     /// Whether the install step keeps cargo offline:
     /// always,
     /// except in CI,
@@ -572,12 +575,13 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // ```ts
     // function f(registry: Registry) { ... }  // an interface type
     // ```
-    let lock_base: Option<Box<dyn Fn(&str) -> String>> = lock_base_reader(&catalog_root, &document, frozen)?;
+    let lock_base: Option<OwnedLockBaseFactory> = lock_base_factory(&catalog_root, &document);
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
     return Ok(Some(Prepared {
         start,
         lock_base,
+        trust_base: base_from_environment(),
         runner: RealCargo { program, toolchain },
         // Borrow `&catalog_root`: lends the value without copying or giving it away.
         // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
@@ -597,29 +601,58 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
 }
 
 /// What:
-/// `pub fn lock_base_reader(catalog_root: &Path, document: &CatalogDocument, needed: bool) -> Result<Option<Box<dyn Fn(&str) -> String>>, String>`
-/// builds the base-revision lockfile reader a frozen install needs under `trustLockfile`,
-/// and nothing otherwise.
+/// `pub type OwnedLockBaseFactory = Box<dyn Fn() -> Result<LockBaseReader, String>>` is an owned maker of the base-revision
+/// lockfile reader.
 /// Why:
-/// The reader runs `git`,
-/// so it is built only when a frozen check will use it.
-/// The base comes from the environment
-/// (`git_base.rs`),
-/// `HEAD` by default.
+/// The prepared step keeps it beside the other settings and lends it to the install as `&dyn Fn`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function lockBaseReader(root: string, settings: Settings, needed: boolean): ReadBaseLock | undefined
+/// type OwnedLockBaseFactory = () => (crateDir: string) => string  // throws when the base cannot be read
 /// ```
-pub fn lock_base_reader(catalog_root: &Path, document: &CatalogDocument, needed: bool) -> Result<Option<Box<dyn Fn(&str) -> String>>, String> {
-    if !needed || !document.settings.trust_lockfile {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        // `None`: the present or the absent value of an `Option`.
-        return Ok(None);
+pub type OwnedLockBaseFactory = Box<dyn Fn() -> Result<LockBaseReader, String>>;
+
+/// What:
+/// `pub fn lock_base_factory(catalog_root, document) -> Option<OwnedLockBaseFactory>` makes the maker of the base-revision
+/// lockfile reader when the catalog sets `trustLockfile = true`, and `None` otherwise.
+/// Why:
+/// Review finding (the freshness stamp): git must not start on a call whose checks are all remembered, so the base is
+/// resolved only when the factory is called; its spelling (`CARGO_SHADOW_TRUST_BASE`) is read once, here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function lockBaseFactory(catalogRoot: string, document: CatalogDocument): (() => Reader) | undefined
+/// ```
+pub fn lock_base_factory(catalog_root: &Path, document: &CatalogDocument) -> Option<OwnedLockBaseFactory> {
+    if !document.settings.trust_lockfile {
+        return None;
     }
-    // Borrow `&base_from_environment`: lends the value without copying or giving it away.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    return git_base_lock_reader(catalog_root, &base_from_environment()).map(Some);
+    let root: PathBuf = catalog_root.to_path_buf();
+    let base: String = base_from_environment();
+    return Some(Box::new(move || { return git_base_lock_reader(&root, &base); }));
+}
+
+/// What:
+/// `pub enum Preflight { Failed(String), Refused(String) }` is what the install step tells the shim when the user's command
+/// should not simply run.
+/// Why:
+/// `Failed` is an operational problem (no network, a cargo error, a frozen check that refused): the shim warns and runs the
+/// command with `--locked`, as recorded in `doc/planning/cargo-shadow-update.md`. `Refused` is a policy refusal of a local
+/// install with no older release that passes: the owner decided (2026-11-03) that the command stops, because a refused
+/// release must never run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Preflight = { kind: 'failed'; message: string } | { kind: 'refused'; message: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Preflight {
+    /// An operational problem or a frozen refusal:
+    /// warn, then run with `--locked`.
+    Failed(String),
+    /// A local policy refusal:
+    /// stop.
+    Refused(String),
 }
 
 /// What:
@@ -635,7 +668,7 @@ pub fn lock_base_reader(catalog_root: &Path, document: &CatalogDocument, needed:
 /// ```ts
 /// export function beforeCargo(args: string[]): string | undefined
 /// ```
-pub fn before_cargo(arguments: &[OsString]) -> Option<String> {
+pub fn before_cargo(arguments: &[OsString]) -> Option<Preflight> {
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `prepared: Prepared`.
     let prepared: Prepared = match prepare(arguments) {
@@ -647,7 +680,7 @@ pub fn before_cargo(arguments: &[OsString]) -> Option<String> {
         Ok(None) => return None,
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `Some`: the present or the absent value of an `Option`.
-        Err(message) => return Some(message),
+        Err(message) => return Some(Preflight::Failed(message)),
     };
     // Borrow `&StepRequest`: lends the value without copying or giving it away.
     // Typed binding: `outcome: StepOutcome`.
@@ -662,11 +695,28 @@ pub fn before_cargo(arguments: &[OsString]) -> Option<String> {
         // Borrow `&prepared.registry`: lends the value without copying or giving it away.
         registry: &prepared.registry,
         lock_base: prepared.lock_base.as_deref(),
+        trust_base: &prepared.trust_base,
     });
-    // `match`: picks the arm whose pattern fits the value.
+    return preflight_of(outcome);
+}
+
+/// What:
+/// `pub fn preflight_of(outcome: StepOutcome) -> Option<Preflight>` turns what the install step did into what the shim must do:
+/// `None` runs the user's command as typed, `Some(Preflight::Failed)` warns and runs it with `--locked`,
+/// `Some(Preflight::Refused)` stops.
+/// Why:
+/// The decision whether a refusal stops the command is the one place the owner's rule of 2026-11-03 lives,
+/// and a function of the outcome alone can be tested without a registry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function preflightOf(outcome: StepOutcome): Preflight | undefined
+/// ```
+pub fn preflight_of(outcome: StepOutcome) -> Option<Preflight> {
     match outcome {
         // `Some`: the present or the absent value of an `Option`.
-        StepOutcome::Failed(message) => return Some(message),
+        StepOutcome::Failed(message) => return Some(Preflight::Failed(message)),
+        StepOutcome::Refused(message) => return Some(Preflight::Refused(message)),
         StepOutcome::Updated { crate_dir, added } => {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!(

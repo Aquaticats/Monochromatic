@@ -74,7 +74,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
 /// Imports the fixed values.
-use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
+use crate::constants::{EXEC_FAILED_EXIT_CODE, INSTALL_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
 /// Imports the loop guard.
 use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, MAX_HOPS, format_guard, is_meant_for, parse_guard};
 /// Imports the notice handshake.
@@ -86,19 +86,20 @@ use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
 /// Imports the command-word rules.
 use crate::options::asserts_lock;
 /// What:
-/// `use crate::shadow_step::{before_cargo, warn_after_cargo, with_locked};` imports `before_cargo`,
+/// `use crate::shadow_step::{Preflight, before_cargo, warn_after_cargo, with_locked};` imports `before_cargo`,
 /// `warn_after_cargo`,
 /// `with_locked` from another module of this crate so this file can name them unqualified.
 /// Why:
+/// `Preflight` is used by `run_shim`;
 /// `before_cargo` is used by `run_shim`;
 /// `warn_after_cargo` is used by `run_shim`;
 /// `with_locked` is used by `run_shim`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { before_cargo, warn_after_cargo, with_locked } from 'crate/shadow_step';
+/// import { Preflight, before_cargo, warn_after_cargo, with_locked } from 'crate/shadow_step';
 /// ```
-use crate::shadow_step::{before_cargo, warn_after_cargo, with_locked};
+use crate::shadow_step::{Preflight, before_cargo, warn_after_cargo, with_locked};
 /// What:
 /// `use crate::shadow_update::run_update_command;` imports `run_update_command` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -231,8 +232,18 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // changed the lock. `arguments` is replaced for the rest of the run, so the notice and guard logic see the same line.
     if hops == 0
         && treatment == Treatment::InstallStep
-        && let Some(message) = before_cargo(&arguments)
+        && let Some(preflight) = before_cargo(&arguments)
     {
+        // A local policy refusal stops the command: a release the policy refuses must never run, and `--locked` would not
+        // stop its build script (the owner's decision of 2026-11-03).
+        let message: String = match preflight {
+            Preflight::Refused(text) => {
+                eprintln!("{text}");
+                eprintln!("cargo-shadow: the command was not run because the lockfile holds a release the policy refuses and no older release in range passes");
+                return INSTALL_FAILED_EXIT_CODE;
+            }
+            Preflight::Failed(text) => text,
+        };
         eprintln!("{message}");
         if !asserts_lock(&arguments) {
             eprintln!("cargo-shadow: warning: the install step did not complete, so `--locked` is added to your cargo command; cargo stops with its own lock error where it would have changed Cargo.lock");

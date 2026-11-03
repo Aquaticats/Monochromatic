@@ -31,10 +31,12 @@
 //! so an unchanged lockfile costs
 //! nothing the next time;
 //! a failing one is never remembered.
-//! There is no `trustLockfile` setting here:
-//! the catalog's settings
-//! library has no such key,
-//! and the owner has not asked for one.
+//! Which of the two checks runs is the catalog setting `trustLockfile` (default false, as in pnpm;
+//! the repository's `rust-catalog.toml` sets it true by the owner's decision of 2026-10-29),
+//! read by the caller (`install.rs`), not here.
+//! A remembered pass is keyed by a scope string as well
+//! (the install mode, and for `trustLockfile = true` the base spelling),
+//! so a pass under one mode, policy or base is never taken for a pass under another.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -172,27 +174,74 @@ fn hex(digest: &[u8]) -> String {
     return text;
 }
 
-/// The cache key of one lockfile under one policy:
-/// a digest of the text and of every setting.
-pub fn cache_key(snapshot: &LockSnapshot, settings: &Settings) -> String {
+/// The scope of the remembered passes of the frozen check of every locked entry.
+pub const ALL_ENTRIES_SCOPE: &str = "frozen-all-entries";
+
+/// What:
+/// `pub fn cache_key(snapshot, settings, scope) -> String` is the cache key of one lockfile under one policy and one check:
+/// a digest of the text, of every setting and of the scope.
+/// Why:
+/// A lockfile that passed one check (for example every entry, or only what is new since one base) says nothing about another
+/// check, another base or another policy, so each of those gets its own key.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const cacheKey = (snapshot: LockSnapshot, settings: Settings, scope: string): string => sha256(snapshot.source + JSON.stringify(settings) + scope);
+/// ```
+pub fn cache_key(snapshot: &LockSnapshot, settings: &Settings, scope: &str) -> String {
     let mut hasher: Sha256 = Sha256::new();
     hasher.update(snapshot.source.as_bytes());
     hasher.update(format!("{settings:?}").as_bytes());
+    // A separator keeps the lockfile text and the scope from running into each other.
+    hasher.update([0u8]);
+    hasher.update(scope.as_bytes());
     return hex(hasher.finalize().as_slice());
 }
 
 /// What:
-/// `fn cache_file(root, snapshot, settings) -> PathBuf` is the marker file for one lockfile under one policy.
+/// `fn cache_file(root, snapshot, settings, scope) -> PathBuf` is the marker file for one lockfile under one policy and check.
 /// Why:
 /// The lookup before a check and the write after a pass must agree on the name,
-/// which holds the crate directory and the digest of the lockfile text and settings.
+/// which holds the crate directory and the digest of the lockfile text, settings and scope.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// cacheFile(root: string, snapshot: LockSnapshot, settings: Settings): string
+/// cacheFile(root: string, snapshot: LockSnapshot, settings: Settings, scope: string): string
 /// ```
-fn cache_file(root: &Path, snapshot: &LockSnapshot, settings: &Settings) -> PathBuf {
-    return root.join(VERIFIED_DIR).join(format!("{}.{}.ok", snapshot.crate_dir.replace('/', "__"), cache_key(snapshot, settings)));
+fn cache_file(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: &str) -> PathBuf {
+    return root.join(VERIFIED_DIR).join(format!("{}.{}.ok", snapshot.crate_dir.replace('/', "__"), cache_key(snapshot, settings, scope)));
+}
+
+/// What:
+/// `pub fn is_verified(root, snapshot, settings, scope) -> bool` says whether this lockfile text passed this check under this
+/// policy before.
+/// Why:
+/// An unchanged, already verified lockfile costs one file lookup instead of registry requests.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const isVerified = (root, snapshot, settings, scope): boolean => existsSync(cacheFile(root, snapshot, settings, scope));
+/// ```
+pub fn is_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: &str) -> bool {
+    return cache_file(root, snapshot, settings, scope).exists();
+}
+
+/// What:
+/// `pub fn mark_verified(root, snapshot, settings, scope)` remembers that this lockfile text passed this check.
+/// Why:
+/// Only a pass is ever written; a failing lockfile is checked again each time.
+/// A write that fails only costs the next check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function markVerified(root, snapshot, settings, scope): void  // best effort
+/// ```
+pub fn mark_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: &str) {
+    let path: PathBuf = cache_file(root, snapshot, settings, scope);
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::write(path, "");
 }
 
 /// What:
@@ -216,7 +265,7 @@ pub fn verify_locked_entries(
 ) -> Result<Vec<String>, String> {
     let mut pending: Vec<&LockSnapshot> = Vec::new();
     for snapshot in snapshots {
-        if !cache_file(root, snapshot, settings).exists() {
+        if !is_verified(root, snapshot, settings, ALL_ENTRIES_SCOPE) {
             pending.push(snapshot);
         }
     }
@@ -230,11 +279,7 @@ pub fn verify_locked_entries(
     problems.extend(check_trust(&versions, settings, registry, now).map_err(message_of)?);
     if problems.is_empty() {
         for snapshot in pending {
-            let path: PathBuf = cache_file(root, snapshot, settings);
-            if let Some(parent) = path.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            let _ = fs::write(path, "");
+            mark_verified(root, snapshot, settings, ALL_ENTRIES_SCOPE);
         }
     }
     return Ok(problems);

@@ -88,7 +88,7 @@ fn registry() -> FakeRegistry {
 }
 
 fn step(start: &Path, frozen: bool, runner: &FakeCargo, registry: &FakeRegistry) -> StepOutcome {
-    return run_install_step(&StepRequest { start_dir: start, frozen, offline: true, now: 0, runner, registry, lock_base: None });
+    return run_install_step(&StepRequest { start_dir: start, frozen, offline: true, now: 0, runner, registry, lock_base: None, trust_base: "HEAD" });
 }
 
 #[test]
@@ -191,7 +191,7 @@ fn a_refused_new_version_fails_the_step_and_restores_the_lock() {
     let outcome = step(&start, false, &runner, &fake);
 
     match outcome {
-        StepOutcome::Failed(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
         other => panic!("expected a refusal, got {other:?}"),
     }
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), STALE);
@@ -249,5 +249,82 @@ fn a_stamp_recorded_under_a_lenient_policy_does_not_skip_the_verification_under_
     match outcome {
         StepOutcome::Failed(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
         other => panic!("the stricter policy was never applied: {other:?}"),
+    }
+}
+
+/// The lockfile used by the base tests: it holds the refused `dep@1.0.1`.
+fn refused_lock() -> String {
+    return format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+}
+
+fn step_with_base(start: &Path, frozen: bool, runner: &FakeCargo, registry: &FakeRegistry, base_text: &str, trust_base: &str) -> StepOutcome {
+    let text: String = base_text.to_string();
+    let factory = move || -> Result<crate::install::LockBaseReader, String> {
+        let held: String = text.clone();
+        return Ok(Box::new(move |_dir: &str| -> String { return held.clone(); }));
+    };
+    return run_install_step(&StepRequest { start_dir: start, frozen, offline: true, now: 0, runner, registry, lock_base: Some(&factory), trust_base });
+}
+
+/// Review finding (the stamp bypasses the base-revision check): a pass against one base must not let a frozen call against
+/// another base skip `verify_added_since_base`.
+#[test]
+fn a_pass_against_one_trust_base_does_not_stand_for_another_base() {
+    let root = repository(&refused_lock());
+    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\ntrustLockfile = true\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    let runner: FakeCargo = cargo(&refused_lock());
+    let start = root.path().join(CRATE_DIR);
+
+    let against_the_old_base = step_with_base(&start, true, &runner, &downgrading_registry(), &refused_lock(), "base-one");
+    let against_a_base_without_it = step_with_base(&start, true, &runner, &downgrading_registry(), "", "base-two");
+
+    assert_eq!(against_the_old_base, StepOutcome::Passed);
+    match against_a_base_without_it {
+        StepOutcome::Failed(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        other => panic!("the new base was never applied: {other:?}"),
+    }
+}
+
+/// The same base and settings do take the fast path, with no cargo call and no git: the saving the stamp exists for.
+#[test]
+fn the_same_base_and_settings_take_the_fast_path() {
+    let root = repository(&refused_lock());
+    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\ntrustLockfile = true\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    let runner: FakeCargo = cargo(&refused_lock());
+    let start = root.path().join(CRATE_DIR);
+    assert_eq!(step_with_base(&start, true, &runner, &downgrading_registry(), &refused_lock(), "base-one"), StepOutcome::Passed);
+    let before: usize = runner.commands.borrow().len();
+
+    let again = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: true,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &downgrading_registry(),
+        lock_base: Some(&|| { return Err("git must not be started on the fast path".to_string()); }),
+        trust_base: "base-one",
+    });
+
+    assert_eq!(again, StepOutcome::FastPath);
+    assert_eq!(runner.commands.borrow().len(), before);
+}
+
+/// A local install under `trustLockfile = true` holds only the versions new since the base to the policy: an entry the base
+/// already held is trusted, one it did not is set aside (cargo here refuses every move, so the install stops).
+#[test]
+fn a_local_install_under_trust_lockfile_checks_only_what_is_new_since_the_base() {
+    let root = repository(&refused_lock());
+    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\ntrustLockfile = true\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    let runner: FakeCargo = cargo(&refused_lock());
+    let start = root.path().join(CRATE_DIR);
+
+    let trusted = step_with_base(&start, false, &runner, &downgrading_registry(), &refused_lock(), "base-one");
+    let new_since_the_base = step_with_base(&start, false, &runner, &downgrading_registry(), "", "base-two");
+
+    assert_eq!(trusted, StepOutcome::Passed);
+    match new_since_the_base {
+        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        other => panic!("expected a refusal: {other:?}"),
     }
 }

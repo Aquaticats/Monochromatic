@@ -56,6 +56,8 @@
 /// // TS objects are mutable through any reference; no import is needed.
 /// ```
 use std::cell::RefCell;
+/// Imports `BTreeSet`, an ordered set (sibling: `HashSet`, unordered), which collects the versions to check once each.
+use std::collections::BTreeSet;
 /// What:
 /// `use std::fmt;` imports `fmt` from the standard library so this file can name it unqualified.
 /// Why:
@@ -195,18 +197,24 @@ use crate::lockfile::{LockedVersion, added_versions};
 /// import { Registry } from 'crate/registry';
 /// ```
 use crate::registry::Registry;
+/// Imports the set-aside round, which moves a refused release to the newest older one that passes.
+use crate::set_aside::{SetAsideRequest, set_aside_until_clean};
 /// What:
-/// `use crate::verify::{verify_added_since_base, verify_locked_entries};` imports `verify_added_since_base`,
+/// `use crate::verify::{ALL_ENTRIES_SCOPE, is_verified, mark_verified, verify_added_since_base, verify_locked_entries};` imports
+/// `ALL_ENTRIES_SCOPE`,
+/// `is_verified`,
+/// `mark_verified`,
+/// `verify_added_since_base`,
 /// `verify_locked_entries` from another module of this crate so this file can name them unqualified.
 /// Why:
-/// `verify_added_since_base` is used by `install_rust_lockfiles`;
-/// `verify_locked_entries` is used by `install_rust_lockfiles`.
+/// The frozen check, the remembered passes and their scope names live in `verify.rs`;
+/// `install_rust_lockfiles`, `update_stale_roots` and `verification_cached` use them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { verify_added_since_base, verify_locked_entries } from 'crate/verify';
+/// import { ALL_ENTRIES_SCOPE, isVerified, markVerified, verifyAddedSinceBase, verifyLockedEntries } from 'crate/verify';
 /// ```
-use crate::verify::{verify_added_since_base, verify_locked_entries};
+use crate::verify::{ALL_ENTRIES_SCOPE, is_verified, mark_verified, verify_added_since_base, verify_locked_entries};
 
 /// Asks whether the lockfile satisfies the manifests:
 /// exits 0 without writing when it does.
@@ -488,11 +496,23 @@ pub struct InstallRequest<'a> {
     pub runner: &'a dyn CargoRunner,
     /// The registry for the policy checks.
     pub registry: &'a dyn Registry,
-    /// Reads one crate's lockfile text at the base revision (empty when absent there);
-    /// a frozen install under `trustLockfile`
-    /// checks only the versions this reader's lockfiles did not hold.
-    pub lock_base: Option<&'a dyn Fn(&str) -> String>,
+    /// Makes the reader of one crate's lockfile text at the base revision (empty when absent there);
+    /// an install under `trustLockfile` checks only the versions this reader's lockfiles did not hold.
+    /// A factory, not a reader, because resolving the base starts git, which a call whose checks are all remembered must not pay for.
+    pub lock_base: Option<LockBaseFactory<'a>>,
+    /// How the base revision is spelled (`CARGO_SHADOW_TRUST_BASE`, or `HEAD`);
+    /// part of the key of a remembered pass under `trustLockfile`, so a pass against one base is never taken for another.
+    pub trust_base: &'a str,
+    /// The freshness stamp already showed that every lockfile satisfies its manifests,
+    /// so the staleness check (a cargo call) is skipped; the policy checks are not.
+    pub known_consistent: bool,
 }
+
+/// A reader of one crate root's lockfile text at the base revision.
+pub type LockBaseReader = Box<dyn Fn(&str) -> String>;
+
+/// Makes a `LockBaseReader`, or says why the base cannot be read.
+pub type LockBaseFactory<'a> = &'a dyn Fn() -> Result<LockBaseReader, String>;
 
 /// What:
 /// `fn io_error(error) -> InstallError` wraps any displayable error as the `Io` variant of the install error.
@@ -667,91 +687,190 @@ fn invalid_lock_toml(message: String) -> InstallError {
     return InstallError::Io { message: format!("a Cargo.lock could not be read for its registry versions: {message}") };
 }
 
-/// The transaction body:
+/// What:
+/// `pub fn verification_scope(settings, frozen, trust_base) -> String` names the check a remembered pass belongs to.
+/// Why:
+/// A pass of the frozen check says nothing about the local check (which also sets refused releases aside), and a pass
+/// against one base revision says nothing about another, so the remembered passes are keyed by this text as well as by the
+/// lockfile and the settings.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const verificationScope = (settings: Settings, frozen: boolean, trustBase: string): string
+/// ```
+pub fn verification_scope(settings: &Settings, frozen: bool, trust_base: &str) -> String {
+    let mode: &str = if frozen { "frozen" } else { "local" };
+    if settings.trust_lockfile {
+        return format!("{mode}-since-base:{trust_base}");
+    }
+    if frozen {
+        return ALL_ENTRIES_SCOPE.to_string();
+    }
+    return format!("{mode}-all-entries");
+}
+
+/// What:
+/// `pub fn verification_cached(root, crate_dirs, settings, frozen, trust_base) -> bool` says whether every lockfile already
+/// passed the policy check of this mode, under these settings and this base.
+/// Why:
+/// The freshness stamp answers "do the lockfiles satisfy the manifests"; this answers "were they checked against the policy".
+/// A call may take the fast path only when both are true.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function verificationCached({ root, crateDirs, settings, frozen, trustBase }): boolean
+/// ```
+pub fn verification_cached(root: &Path, crate_dirs: &[String], settings: &Settings, frozen: bool, trust_base: &str) -> bool {
+    let snapshots: Vec<LockSnapshot> = match read_locks(root, crate_dirs) {
+        Ok(found) => found,
+        Err(_) => return false,
+    };
+    let scope: String = verification_scope(settings, frozen, trust_base);
+    for snapshot in &snapshots {
+        if !is_verified(root, snapshot, settings, &scope) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+/// `fn base_reader(request) -> Result<LockBaseReader, InstallError>` makes the base-revision lockfile reader.
+/// Why:
+/// An install under `trustLockfile = true` compares with the base, and without a reader nothing can be trusted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function baseReader(request: InstallRequest): (crateDir: string) => string  // throws
+/// ```
+fn base_reader(request: &InstallRequest) -> Result<LockBaseReader, InstallError> {
+    let factory: LockBaseFactory = request.lock_base.ok_or_else(|| {
+        return InstallError::Io {
+            message: "trustLockfile is true in rust-catalog.toml, but no base-revision lockfile reader was given, so nothing can be trusted".to_string(),
+        };
+    })?;
+    return factory().map_err(io_message);
+}
+
+/// What:
+/// `fn set_aside_pass(request, baseline, produced) -> Result<Vec<String>, InstallError>` sets every release the policy
+/// refuses (among the versions `baseline` did not hold) aside for the newest older release that passes,
+/// prints one line per move and returns the lines.
+/// Why:
+/// pnpm resolves to the newest release older than the cutoff instead of refusing, and the owner decided (2026-11-03) that a
+/// local install does the same for a committed lockfile: the refused release never runs, the older copy does.
+/// The moves go through the transaction (`produced` records each lockfile this run wrote), so another writer's lockfile is
+/// never replaced.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function setAsidePass(request, baseline, produced): Promise<string[]>
+/// ```
+fn set_aside_pass(request: &InstallRequest, baseline: &[String], produced: &RefCell<Vec<LockSnapshot>>) -> Result<Vec<String>, InstallError> {
+    let forward: Vec<String> = if request.offline { vec!["--offline".to_string()] } else { Vec::new() };
+    let lines: Vec<String> = set_aside_until_clean(&SetAsideRequest {
+        root: request.root,
+        crate_dirs: request.crate_dirs,
+        before: baseline,
+        registry: request.registry,
+        settings: request.settings,
+        now: request.now,
+        runner: request.runner,
+        forward: &forward,
+        produced,
+    })
+    .map_err(io_message)?;
+    for line in &lines {
+        eprintln!("cargo-shadow: {line}");
+    }
+    return Ok(lines);
+}
+
+/// What:
+/// `fn update_stale_roots(request, before, produced) -> Result<InstallReport, InstallError>` is the transaction body:
 /// update the stale roots,
-/// then check the new versions;
+/// set refused releases aside,
+/// then check what is left;
 /// restoring on refusal is the caller's.
+/// Why:
+/// Three sets of versions are held to the policy: the ones this update newly locked, and, unless a remembered pass covers
+/// them, the existing entries (all of them, or under `trustLockfile = true` the ones new since the base revision).
+/// A refused one is set aside for the newest older release that passes; only a refusal with no such release stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function updateStaleRoots(request, before, produced): Promise<InstallReport>
+/// ```
 fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produced: &RefCell<Vec<LockSnapshot>>) -> Result<InstallReport, InstallError> {
-    // `let mut`: a binding that may change.
-    // Typed binding: `stale: Vec<String>`.
-    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
     let mut stale: Vec<String> = Vec::new();
     for crate_dir in request.crate_dirs {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        if !is_stale(request, crate_dir)? {
-            // Macro `eprintln!`: builds or prints text (or a list) from a template.
+        // The stamp already showed this root consistent, so no cargo call is spent on asking again.
+        if request.known_consistent || !is_stale(request, crate_dir)? {
             eprintln!("cargo-shadow: {crate_dir}: lockfile already satisfies its manifests");
             continue;
         }
-        // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: {crate_dir}: lockfile is stale, updating the workspace offline");
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&UPDATE_ARGS`: lends the value without copying or giving it away.
         run_or_fail(request, crate_dir, &UPDATE_ARGS)?;
         // Review finding (early-error rollback): this root now holds what this run's cargo wrote, so a rollback may replace it
         // (and only while it still holds this); roots the run never reached are never recorded and never restored.
         note_produced(request.root, crate_dir, produced);
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&VERIFY_ARGS`: lends the value without copying or giving it away.
         run_or_fail(request, crate_dir, &VERIFY_ARGS)?;
-        // `.clone()`: an independent owned copy.
         stale.push(crate_dir.clone());
     }
-    // Typed binding: `after: Vec<LockSnapshot>`.
-    let after: Vec<LockSnapshot> =
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|error|`: an anonymous function, like a TS arrow function.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        read_locks(request.root, request.crate_dirs).map_err(io_error)?;
-    // Borrow `&sources_of`: lends the value without copying or giving it away.
-    // Typed binding: `added: Vec<LockedVersion>`.
-    let added: Vec<LockedVersion> = added_versions(&sources_of(before), &sources_of(&after))
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|message|`: an anonymous function, like a TS arrow function.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        .map_err(invalid_lock_toml)?;
-    // Typed binding: `age: CheckOutcome`.
-    let age: CheckOutcome = if added.is_empty() {
+    let before_sources: Vec<String> = sources_of(before);
+    let mut baselines: Vec<Vec<String>> = vec![before_sources.clone()];
+    let mut notes: Vec<String> = Vec::new();
+    // The versions this update newly locked.
+    if !stale.is_empty() {
+        notes.extend(set_aside_pass(request, &before_sources, produced)?);
+    }
+    // The existing entries, unless a remembered pass covers this exact lockfile text, policy and base.
+    let scope: String = verification_scope(request.settings, false, request.trust_base);
+    let covered: bool = verification_cached(request.root, request.crate_dirs, request.settings, false, request.trust_base);
+    if !covered {
+        let baseline: Vec<String> = if request.settings.trust_lockfile {
+            let reader: LockBaseReader = base_reader(request)?;
+            request.crate_dirs.iter().map(|dir| { return reader(dir); }).collect()
+        } else {
+            Vec::new()
+        };
+        notes.extend(set_aside_pass(request, &baseline, produced)?);
+        baselines.push(baseline);
+    }
+    let after: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(io_error)?;
+    let after_sources: Vec<String> = sources_of(&after);
+    let added: Vec<LockedVersion> = added_versions(&before_sources, &after_sources).map_err(invalid_lock_toml)?;
+    // Everything either baseline did not hold is checked, once.
+    let mut checked: BTreeSet<LockedVersion> = BTreeSet::new();
+    for baseline in &baselines {
+        for version in added_versions(baseline, &after_sources).map_err(invalid_lock_toml)? {
+            checked.insert(version);
+        }
+    }
+    let versions: Vec<LockedVersion> = checked.into_iter().collect();
+    let age: CheckOutcome = if versions.is_empty() {
         CheckOutcome::default()
     } else {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&added`: lends the value without copying or giving it away.
-        check_release_age(&added, request.settings, request.registry, request.now)?
+        check_release_age(&versions, request.settings, request.registry, request.now)?
     };
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
-    // Why:      The trust lookup runs only when the install added versions, because an unchanged lockfile has nothing new to check and costs no request.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (value !== undefined) { const inner = value; ... }
-    // ```
-    // Borrow `&added`: lends the value without copying or giving it away.
-    // Typed binding: `trust: Vec<String>`.
-    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    let trust: Vec<String> = if added.is_empty() { Vec::new() } else { check_trust(&added, request.settings, request.registry, request.now)? };
-    // `let mut`: a binding that may change.
-    // Typed binding: `problems: Vec<String>`.
+    let trust: Vec<String> = if versions.is_empty() { Vec::new() } else { check_trust(&versions, request.settings, request.registry, request.now)? };
     let mut problems: Vec<String> = age.problems;
     problems.extend(trust);
-    // Typed binding: `keep: bool`.
+    // Only a pass is remembered, and only for the text that is live now.
+    if problems.is_empty() && !covered {
+        for snapshot in &after {
+            mark_verified(request.root, snapshot, request.settings, &scope);
+        }
+    }
+    let mut warnings: Vec<String> = age.warnings;
+    warnings.extend(notes);
     let keep: bool = problems.is_empty() && !request.dry_run;
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(InstallReport {
-        // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
-        // Why:      The report owns its crate roots, so `to_vec` copies them out of the request's borrowed slice.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // [...slice]
-        // ```
         crate_dirs: request.crate_dirs.to_vec(),
         stale,
         added,
         problems,
-        warnings: age.warnings,
+        warnings,
         written: keep,
     });
 }
@@ -817,57 +936,38 @@ pub fn policy_findings(settings: &Settings, registry: &dyn Registry, now: i64, b
 /// ```
 pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport, InstallError> {
     if request.frozen {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Typed binding: `stale: Vec<String>`.
-        let stale: Vec<String> = stale_roots(request)?;
-        if !stale.is_empty() {
-            // Macro `eprintln!`: builds or prints text (or a list) from a template.
-            eprintln!("cargo-shadow: frozen install: {} stale lockfiles, nothing written", stale.len());
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            return Err(InstallError::Stale { stale_dirs: stale });
+        // The stamp showed the lockfiles consistent, so no cargo call asks again; the policy check below still runs.
+        if !request.known_consistent {
+            let stale: Vec<String> = stale_roots(request)?;
+            if !stale.is_empty() {
+                eprintln!("cargo-shadow: frozen install: {} stale lockfiles, nothing written", stale.len());
+                return Err(InstallError::Stale { stale_dirs: stale });
+            }
         }
-        // Typed binding: `locks: Vec<LockSnapshot>`.
-        let locks: Vec<LockSnapshot> =
-            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-            // Closure `|error|`: an anonymous function, like a TS arrow function.
-            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            // `.map_err(...)`: converts the callee's error into this function's error type.
-            read_locks(request.root, request.crate_dirs).map_err(io_error)?;
-        // `trustLockfile = true` (the owner's decision of 2026-10-29): committed lockfiles are trusted, so only the versions no
-        // lockfile held at the base revision are checked. With it false, pnpm's default: every lockfile entry is re-validated
-        // against the release-age and trust policy, and a lockfile that passed before is remembered by its digest (verify.rs).
+        let locks: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(io_error)?;
         let problems: Vec<String> = if request.settings.trust_lockfile {
-            // Closure `||`: an anonymous function, like a TS arrow function.
-            // What:     `.ok()` turns a `Result` into an `Option` (dropping the error); `.ok_or(e)` turns an `Option` into a `Result` with the given error.
-            // Why:      `ok_or_else` turns a missing base reader (`None`) into the `Io` error that says `trustLockfile` needs a base revision, instead of trusting everything silently.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // try { return compute(); } catch { return undefined; }
-            // ```
-            let read_base = request.lock_base.ok_or_else(|| {
-                return InstallError::Io {
-                    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-                    message: "trustLockfile is true in rust-catalog.toml, but no base-revision lockfile reader was given, so nothing can be trusted".to_string(),
-                };
-            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-            })?;
-            // Borrow `&locks`: lends the value without copying or giving it away.
-            verify_added_since_base(&locks, read_base, request.settings, request.registry, request.now)
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // Closure `|message|`: an anonymous function, like a TS arrow function.
-                // `.map_err(...)`: converts the callee's error into this function's error type.
-                .map_err(registry_error)?
+            let scope: String = verification_scope(request.settings, true, request.trust_base);
+            let mut pending: Vec<LockSnapshot> = Vec::new();
+            for snapshot in &locks {
+                if !is_verified(request.root, snapshot, request.settings, &scope) {
+                    pending.push(snapshot.clone());
+                }
+            }
+            if pending.is_empty() {
+                Vec::new()
+            } else {
+                let read_base: LockBaseReader = base_reader(request)?;
+                let found: Vec<String> = verify_added_since_base(&pending, &*read_base, request.settings, request.registry, request.now).map_err(registry_error)?;
+                if found.is_empty() {
+                    for snapshot in &pending {
+                        mark_verified(request.root, snapshot, request.settings, &scope);
+                    }
+                }
+                found
+            }
         } else {
-            // Borrow `&locks`: lends the value without copying or giving it away.
-            verify_locked_entries(request.root, &locks, request.settings, request.registry, request.now)
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // Closure `|message|`: an anonymous function, like a TS arrow function.
-                // `.map_err(...)`: converts the callee's error into this function's error type.
-                .map_err(registry_error)?
+            verify_locked_entries(request.root, &locks, request.settings, request.registry, request.now).map_err(registry_error)?
         };
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        // `.to_vec()`: copies the slice into a new owned `Vec`.
         return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), problems, ..InstallReport::default() });
     }
     // Closure `|old, live|`: an anonymous function, like a TS arrow function.

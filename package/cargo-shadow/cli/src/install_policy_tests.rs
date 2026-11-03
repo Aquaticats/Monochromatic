@@ -152,6 +152,8 @@ fn install(root: &Path, dirs: &[String], runner: &FakeCargo, registry: &FakeRegi
         runner,
         registry,
         lock_base: None,
+        trust_base: "HEAD",
+        known_consistent: false,
     });
 }
 

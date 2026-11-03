@@ -63,6 +63,10 @@ impl CargoRunner for FakeCargo {
             let satisfied: bool = fs::read_to_string(&lock_path).unwrap_or_default().starts_with("# satisfied");
             return Ok(CargoOutcome { ok: satisfied, output: "the lock file needs to be updated".to_string(), stdout: String::new() });
         }
+        // A move to an older release (`--precise`) is one this fake cargo cannot make, so the refusal it answers stands.
+        if args.iter().any(|argument| { return argument == "--precise"; }) {
+            return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
+        }
         if args[0] == "update" {
             if let Some(failing) = &self.fail_update_in
                 && cwd.ends_with(failing)
@@ -135,6 +139,8 @@ fn run_install(root: &Path, dirs: &[String], cargo: &FakeCargo, registry: &FakeR
         runner: cargo,
         registry,
         lock_base: None,
+        trust_base: "HEAD",
+        known_consistent: false,
     });
 }
 
@@ -320,6 +326,8 @@ fn real_cargo_finds_the_path_workspace_stale_updates_it_offline_and_then_finds_i
             runner: &cargo,
             registry: &registry,
             lock_base: None,
+            trust_base: "HEAD",
+            known_consistent: false,
         };
     };
 
@@ -353,11 +361,16 @@ fn a_check_that_may_use_the_network_does_not_pass_offline() {
         runner: &cargo,
         registry: &registry,
         lock_base: None,
+        trust_base: "HEAD",
+        known_consistent: false,
     })
     .expect("passes");
 
     assert_eq!(*cargo.commands.borrow(), vec!["one :: update --workspace --locked".to_string()]);
 }
+
+/// What the other writer publishes: a lockfile that still holds the refused release, so the checks still refuse it.
+const OTHER_WRITERS_LOCK: &str = "# written by another process\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n";
 
 /// A registry that,
 /// like a second process,
@@ -375,7 +388,7 @@ impl Registry for InterferingRegistry {
         return Ok(std::collections::BTreeSet::new());
     }
     fn history(&self, name: &str, _versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
-        fs::write(&self.lock, "# written by another process\nversion = 4\n").expect("the other writer");
+        fs::write(&self.lock, OTHER_WRITERS_LOCK).expect("the other writer");
         return Ok(self.histories.get(name).cloned().unwrap_or_default());
     }
     fn owners(&self, _name: &str) -> Result<std::collections::BTreeSet<String>, RegistryError> {
@@ -407,12 +420,14 @@ fn a_lockfile_another_process_wrote_during_the_checks_is_not_discarded_by_a_refu
         runner: &cargo,
         registry: &registry,
         lock_base: None,
+        trust_base: "HEAD",
+        known_consistent: false,
     })
     .expect("reports");
 
     assert!(!report.written);
     assert_eq!(report.problems.len(), 1);
-    assert_eq!(lock_text(root.path(), "package/a/stale"), "# written by another process\nversion = 4\n");
+    assert_eq!(lock_text(root.path(), "package/a/stale"), OTHER_WRITERS_LOCK);
     assert!(report.warnings.iter().any(|warning| { return warning.contains("another process"); }), "{:?}", report.warnings);
 }
 
@@ -479,7 +494,10 @@ fn frozen_under_trust_lockfile(base_lock: &str, with_reader: bool) -> Result<Ins
     let mut catalog_settings: Settings = settings();
     catalog_settings.trust_lockfile = true;
     let base: String = base_lock.to_string();
-    let reader = move |_crate_dir: &str| -> String { return base.clone(); };
+    let factory = move || -> Result<crate::install::LockBaseReader, String> {
+        let text: String = base.clone();
+        return Ok(Box::new(move |_crate_dir: &str| -> String { return text.clone(); }));
+    };
     return install_rust_lockfiles(&InstallRequest {
         root: root.path(),
         crate_dirs: &dirs,
@@ -490,7 +508,9 @@ fn frozen_under_trust_lockfile(base_lock: &str, with_reader: bool) -> Result<Ins
         settings: &catalog_settings,
         runner: &cargo,
         registry: &registry,
-        lock_base: if with_reader { Some(&reader) } else { None },
+        lock_base: if with_reader { Some(&factory) } else { None },
+        trust_base: "HEAD",
+        known_consistent: false,
     });
 }
 
@@ -563,6 +583,8 @@ fn a_failure_before_anything_was_produced_does_not_restore_over_another_writers_
         runner: &cargo,
         registry: &empty_registry(),
         lock_base: None,
+        trust_base: "HEAD",
+        known_consistent: false,
     });
 
     assert!(result.is_err());

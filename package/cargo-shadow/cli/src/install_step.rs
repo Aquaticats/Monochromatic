@@ -95,7 +95,7 @@ use crate::cargo_run::CargoRunner;
 /// ```
 use crate::constants::{CATALOG_MARKER, LOCKFILE_NAME};
 /// What:
-/// `use crate::install::{InstallError, InstallReport, InstallRequest, VERIFY_ARGS, arguments_for, install_rust_lockfiles};` imports `InstallError`,
+/// `use crate::install::{InstallError, InstallReport, InstallRequest, LockBaseFactory, VERIFY_ARGS, arguments_for, install_rust_lockfiles, verification_cached};` imports `InstallError`,
 /// `InstallReport`,
 /// `InstallRequest`,
 /// `VERIFY_ARGS`,
@@ -113,7 +113,7 @@ use crate::constants::{CATALOG_MARKER, LOCKFILE_NAME};
 /// ```ts
 /// import { InstallError, InstallReport, InstallRequest, VERIFY_ARGS, arguments_for, install_rust_lockfiles } from 'crate/install';
 /// ```
-use crate::install::{InstallError, InstallReport, InstallRequest, VERIFY_ARGS, arguments_for, install_rust_lockfiles};
+use crate::install::{InstallError, InstallReport, InstallRequest, LockBaseFactory, VERIFY_ARGS, arguments_for, install_rust_lockfiles, verification_cached};
 /// What:
 /// `use crate::lockfile::LockedVersion;` imports `LockedVersion` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -209,7 +209,14 @@ pub enum StepOutcome {
         /// The registry versions newly locked.
         added: Vec<LockedVersion>,
     },
-    /// The step refused or failed,
+    /// A local install found a release the policy refuses and no older release in range passes:
+    /// the caller must not run the user's command.
+    /// Carries the message to show.
+    Refused(
+        /// The findings, as text (`String`, owned).
+        String,
+    ),
+    /// The step failed (cargo or the registry could not be asked, or a frozen check refused),
     /// with the message to show.
     Failed(
         /// What:
@@ -243,8 +250,11 @@ pub struct StepRequest<'a> {
     pub runner: &'a dyn CargoRunner,
     /// The registry for the policy checks.
     pub registry: &'a dyn Registry,
-    /// The base-revision lockfile reader a frozen install needs under `trustLockfile`.
-    pub lock_base: Option<&'a dyn Fn(&str) -> String>,
+    /// The maker of the base-revision lockfile reader an install needs under `trustLockfile`.
+    pub lock_base: Option<LockBaseFactory<'a>>,
+    /// How the base revision is spelled (`CARGO_SHADOW_TRUST_BASE`, or `HEAD`):
+    /// part of the key of a remembered policy pass.
+    pub trust_base: &'a str,
 }
 
 /// The crate root relative to the repository,
@@ -453,10 +463,6 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
     // Borrow `&catalog_root`: lends the value without copying or giving it away.
     // Typed binding: `stamp: PathBuf`.
     let stamp: PathBuf = stamp_file(&catalog_root, &crate_dir);
-    // Borrow `&stamp`: lends the value without copying or giving it away.
-    if is_fresh(&stamp, &lock) {
-        return StepOutcome::FastPath;
-    }
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&catalog_root`: lends the value without copying or giving it away.
     // Typed binding: `document: CatalogDocument`.
@@ -466,6 +472,14 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(message) => return StepOutcome::Failed(message),
     };
+    // Review finding (the freshness stamp bypasses the policy checks): the stamp certifies that the lockfile satisfies its
+    // manifests, nothing about the policy, so the settings are read first and the fast path needs both the stamp and a
+    // remembered policy pass of this mode, these settings and this base.
+    let fresh: bool = is_fresh(&stamp, &lock);
+    let crate_dirs_for_cache: Vec<String> = vec![crate_dir.clone()];
+    if fresh && verification_cached(&catalog_root, &crate_dirs_for_cache, &document.settings, request.frozen, request.trust_base) {
+        return StepOutcome::FastPath;
+    }
     // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
     // Why:      The copy can be stored or moved elsewhere while the original stays in place.
     // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
@@ -493,6 +507,8 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         runner: request.runner,
         registry: request.registry,
         lock_base: request.lock_base,
+        trust_base: request.trust_base,
+        known_consistent: fresh,
     });
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `finished: InstallReport`.
@@ -524,7 +540,12 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         }
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         lines.push("Settings live in rust-catalog.toml; see doc/decision/rust-dependency-catalog.md.".to_string());
-        return StepOutcome::Failed(lines.join("\n"));
+        // A frozen check keeps the recorded behavior (the caller warns and runs the command with `--locked`); a local install
+        // that could not set the refused release aside stops the command.
+        if request.frozen {
+            return StepOutcome::Failed(lines.join("\n"));
+        }
+        return StepOutcome::Refused(lines.join("\n"));
     }
     // Borrow `&catalog_root`: lends the value without copying or giving it away.
     write_stamp(request, &catalog_root, &crate_dir);

@@ -126,24 +126,24 @@ use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles};
 /// ```
 use crate::lockfile::direct_dependency_names;
 /// What:
-/// `use crate::shadow_step::{Prepared, lock_base_reader, now_millis, prepare};` imports `Prepared`,
-/// `lock_base_reader`,
+/// `use crate::shadow_step::{Prepared, lock_base_factory, now_millis, prepare};` imports `Prepared`,
+/// `lock_base_factory`,
 /// `now_millis`,
 /// `prepare` from another module of this crate so this file can name them unqualified.
 /// Why:
 /// `Prepared` is used by `run_update_command`,
 /// `run_full_update`,
 /// `run_update`;
-/// `lock_base_reader` is used by `run_update_command`;
+/// `lock_base_factory` is used by `run_update_command`;
 /// `now_millis` is used by `run_update_command`,
 /// `run_update`;
 /// `prepare` is used by `run_update_command`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Prepared, lock_base_reader, now_millis, prepare } from 'crate/shadow_step';
+/// import { Prepared, lock_base_factory, now_millis, prepare } from 'crate/shadow_step';
 /// ```
-use crate::shadow_step::{Prepared, lock_base_reader, now_millis, prepare};
+use crate::shadow_step::{Prepared, lock_base_factory, now_millis, prepare};
 /// What:
 /// `use crate::tighten::FileEnforcer;` imports `FileEnforcer` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -360,18 +360,7 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
             };
             // `match`: picks the arm whose pattern fits the value.
             // Borrow `&prepared.document`: lends the value without copying or giving it away.
-            let reader = match lock_base_reader(root, &prepared.document, frozen) {
-                // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                Ok(found) => found,
-                // `Err(...)`: builds the success or the failure variant of a `Result`.
-                Err(message) => {
-                    // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                    eprintln!("cargo-shadow: {message}");
-                    // `Some`: the present or the absent value of an `Option`.
-                    return Some(INSTALL_FAILED_EXIT_CODE);
-                }
-            };
-            // Borrow `&InstallRequest`: lends the value without copying or giving it away.
+            let reader = lock_base_factory(root, &prepared.document);
             let outcome = install_rust_lockfiles(&InstallRequest {
                 root,
                 // Borrow `&crate_dirs`: lends the value without copying or giving it away.
@@ -387,6 +376,8 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
                 // Borrow `&prepared.registry`: lends the value without copying or giving it away.
                 registry: &prepared.registry,
                 lock_base: reader.as_deref(),
+                trust_base: &prepared.trust_base,
+                known_consistent: false,
             });
             // `Some`: the present or the absent value of an `Option`.
             // Borrow `&mut sink`: lends the value without copying or giving it away.

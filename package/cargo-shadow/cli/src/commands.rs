@@ -158,15 +158,17 @@ use crate::real_binary::find_real_cargo;
 /// ```
 use crate::registry::CratesIo;
 /// What:
-/// `use crate::shadow_step::lock_base_reader;` imports `lock_base_reader` from another module of this crate so this file can name it unqualified.
+/// `use crate::shadow_step::lock_base_factory;` imports `lock_base_factory` from another module of this crate so this file can name it unqualified.
 /// Why:
-/// `lock_base_reader` is used by `run_command`.
+/// `lock_base_factory` is used by `run_command`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { lock_base_reader } from 'crate/shadow_step';
+/// import { lock_base_factory } from 'crate/shadow_step';
 /// ```
-use crate::shadow_step::lock_base_reader;
+use crate::shadow_step::lock_base_factory;
+/// Imports `base_from_environment`, which reads how the base revision is spelled.
+use crate::git_base::base_from_environment;
 /// What:
 /// `use crate::toolchain::cargo_toolchain;` imports `cargo_toolchain` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -570,17 +572,8 @@ pub fn run_command(command: Command) -> i32 {
             };
             // `match`: picks the arm whose pattern fits the value.
             // Borrow `&root`: lends the value without copying or giving it away.
-            let reader = match lock_base_reader(&root, &document, frozen) {
-                // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                Ok(found) => found,
-                // `Err(...)`: builds the success or the failure variant of a `Result`.
-                Err(message) => {
-                    // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                    eprintln!("cargo-shadow: {message}");
-                    return INSTALL_FAILED_EXIT_CODE;
-                }
-            };
-            // Borrow `&InstallRequest`: lends the value without copying or giving it away.
+            let reader = lock_base_factory(&root, &document);
+            let trust_base: String = base_from_environment();
             let outcome = install_rust_lockfiles(&InstallRequest {
                 // Borrow `&root`: lends the value without copying or giving it away.
                 root: &root,
@@ -599,6 +592,8 @@ pub fn run_command(command: Command) -> i32 {
                 // Borrow `&registry`: lends the value without copying or giving it away.
                 registry: &registry,
                 lock_base: reader.as_deref(),
+                trust_base: &trust_base,
+                known_consistent: false,
             });
             // `match`: picks the arm whose pattern fits the value.
             return match outcome {
