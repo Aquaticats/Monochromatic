@@ -13,7 +13,7 @@
 //! ```
 #![cfg(unix)]
 
-use crate::bounded_push::{run_bounded_push, STOPPED_EXIT_CODE};
+use crate::bounded_push::{run_bounded_push, Patience, STOPPED_EXIT_CODE};
 use crate::child_watch::{output_watched, WatchTerms};
 use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment};
 use std::os::unix::process::CommandExt;
@@ -141,7 +141,7 @@ fn assert_clean_after_stop(stage: &Stage, kind: Holder, how: &str) {
 /// A push-style bounded run stops the holder at its deadline and leaves no lock.
 fn bounded_run_leaves_no_lock(kind: Holder, name: &str) {
     let stage: Stage = stage(name);
-    let attempt = run_bounded_push(holder(&stage, kind), HOLD_DEADLINE, SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
+    let attempt = run_bounded_push(holder(&stage, kind), Patience::Fixed(HOLD_DEADLINE), SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
     assert_clean_after_stop(&stage, kind, "bounded run");
     remove(stage.root.as_path());
@@ -159,6 +159,17 @@ fn watched_step_leaves_no_lock(kind: Holder, name: &str) {
     let ended = output_watched(&mut command, "git update-ref --stdin", terms);
     assert_eq!(ended.expect_err("the step is stopped at its bound").kind(), std::io::ErrorKind::TimedOut);
     assert_clean_after_stop(&stage, kind, "watched step");
+    remove(stage.root.as_path());
+}
+
+/// A push stopped on no progress, under a ceiling, leaves no lock either.
+#[test]
+fn a_stall_stop_of_an_unresponsive_holder_leaves_no_lock() {
+    let stage: Stage = stage("stop-lock-push-stall");
+    let patience: Patience = Patience::Progress { stall: HOLD_DEADLINE, ceiling: Duration::from_secs(120) };
+    let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), patience, SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped on no progress");
+    assert_clean_after_stop(&stage, Holder::Unresponsive, "stalled run");
     remove(stage.root.as_path());
 }
 
@@ -214,7 +225,7 @@ const SWEEP_PATIENCE: Duration = Duration::from_secs(10);
 #[test]
 fn a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own() {
     let stage: Stage = stage("stop-lock-push-no-grace");
-    let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), HOLD_DEADLINE, Duration::ZERO, scratch_environment().as_slice()).expect("runs");
+    let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), Duration::ZERO, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
     let waited: Instant = Instant::now();
     while !lock_files(stage.repo.join(".git").as_path()).is_empty() && waited.elapsed() < SWEEP_PATIENCE {

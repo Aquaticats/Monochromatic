@@ -42,8 +42,15 @@ const TAG: &str = "cli-git";
 /// Environment variable that sets the push deadline in whole seconds.
 pub const PUSH_DEADLINE_VARIABLE: &str = "CLI_GIT_PUSH_DEADLINE_SECONDS";
 
-/// How long a push may run when the variable is absent or unusable.
+/// How long a push may go without moving any data (the stall window) when the variable is absent or unusable.
+///  Where no progress can be measured, it is how long the push may run in all.
 pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
+
+/// Environment variable that sets the push ceiling in whole seconds.
+pub const PUSH_CEILING_VARIABLE: &str = "CLI_GIT_PUSH_CEILING_SECONDS";
+
+/// How long a push may run in all, however much data it keeps moving, when the variable is absent or unusable.
+pub const DEFAULT_PUSH_CEILING: Duration = Duration::from_secs(30 * 60);
 
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
 pub const STOP_GRACE: Duration = Duration::from_secs(5);
@@ -125,6 +132,52 @@ fn seconds_variable(environment: &[(OsString, OsString)], name: &str) -> Option<
 /// ```
 pub fn push_deadline(environment: &[(OsString, OsString)]) -> Duration {
     return seconds_variable(environment, PUSH_DEADLINE_VARIABLE).unwrap_or(DEFAULT_PUSH_DEADLINE);
+}
+
+/// What:
+///  The push ceiling: the environment's value, or the default.
+/// Why:
+///   A push that trickles data forever never stalls, so a total bound keeps it from holding the service for good.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ceilingMs = secondsOf(env.CLI_GIT_PUSH_CEILING_SECONDS) ?? DEFAULT_CEILING_MS;
+/// ```
+pub fn push_ceiling(environment: &[(OsString, OsString)]) -> Duration {
+    return seconds_variable(environment, PUSH_CEILING_VARIABLE).unwrap_or(DEFAULT_PUSH_CEILING);
+}
+
+/// What:
+///  How long a bounded child may take: a fixed time, or a time without progress under a ceiling.
+/// Why:
+///   A slow push that keeps moving data is working and should finish; one that moves nothing is stuck and should stop
+///  fast. A query has no transfer to measure and keeps a fixed bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Patience = { kind: 'fixed'; ms: number } | { kind: 'progress'; stallMs: number; ceilingMs: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Patience {
+    /// Stop after this long, whatever the child does.
+    Fixed(Duration),
+    /// Stop after `stall` without data moved by the child and everything it started, or after `ceiling` in all.
+    Progress {
+        /// How long the child may move nothing.
+        stall: Duration,
+        /// How long the child may run in all.
+        ceiling: Duration,
+    },
+}
+
+/// The patience of a push from the environment: the stall window and the ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ({ kind: 'progress', stallMs: pushDeadline(env), ceilingMs: pushCeiling(env) })
+/// ```
+pub fn push_patience(environment: &[(OsString, OsString)]) -> Patience {
+    return Patience::Progress { stall: push_deadline(environment), ceiling: push_ceiling(environment) };
 }
 
 /// What:
@@ -369,8 +422,13 @@ pub enum StopCause {
 pub fn wait_until_done(
     child: &mut Child,
     outputs: &[&File],
-    deadline: Duration,
+    patience: Patience,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
+    // Until progress is measured, a progress patience is its stall window as a fixed bound.
+    let deadline: Duration = match patience {
+        Patience::Fixed(limit) => limit,
+        Patience::Progress { stall, .. } => stall,
+    };
     let started: Instant = Instant::now();
     loop {
         if let Some(status) = child.try_wait().map_err(SingleFlightError::Start)? {
@@ -407,7 +465,7 @@ pub fn wait_until_done(
 /// ```
 pub fn run_bounded_push(
     mut command: Command,
-    deadline: Duration,
+    patience: Patience,
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<PushAttempt, SingleFlightError> {
@@ -422,7 +480,7 @@ pub fn run_bounded_push(
     let locks: LockLedger = LockLedger::before_start(&command);
     let mut child: Child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
     drop(command);
-    let ended: Result<ExitStatus, StopCause> = wait_until_done(&mut child, &[&output], deadline)?;
+    let ended: Result<ExitStatus, StopCause> = wait_until_done(&mut child, &[&output], patience)?;
     if ended.is_err() {
         stop_push(child, grace, locks);
     }
@@ -439,7 +497,10 @@ pub fn run_bounded_push(
                     "cli-git: git push did not finish within {} seconds and was stopped; \
                      {}. Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
-                    deadline.as_secs(),
+                    match patience {
+                        Patience::Fixed(limit) => limit.as_secs(),
+                        Patience::Progress { stall, .. } => stall.as_secs(),
+                    },
                     extend_clause()
                 ),
                 StopCause::Flood => format!(

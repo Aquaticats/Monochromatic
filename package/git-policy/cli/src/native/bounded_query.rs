@@ -13,7 +13,7 @@
 /// The failure type of the auto-push coordination.
 use super::auto_push_single_flight::SingleFlightError;
 /// The deadline runner shared with the push, and its stop causes.
-use super::bounded_push::{MAX_PUSH_OUTPUT, StopCause, push_deadline, stop_push, wait_until_done};
+use super::bounded_push::{MAX_PUSH_OUTPUT, Patience, StopCause, push_deadline, stop_push, wait_until_done};
 /// The lock files a stopped query leaves, and the ledger that finds them.
 use super::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
@@ -112,7 +112,7 @@ pub fn run_bounded_query(
     let mut child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
     drop(command);
     let ended: Result<ExitStatus, StopCause> =
-        wait_until_done(&mut child, &[&stdout, &stderr], deadline)?;
+        wait_until_done(&mut child, &[&stdout, &stderr], Patience::Fixed(deadline))?;
     return match ended {
         Ok(status) => Ok(QueryOutput {
             code: status.code(),

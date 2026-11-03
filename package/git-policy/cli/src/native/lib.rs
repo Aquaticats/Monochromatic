@@ -101,6 +101,10 @@ pub mod real_git_candidate;
 #[cfg(test)]
 mod git_stop_lock_tests;
 
+/// Controls for stopping a push on no progress, with real Git and a local remote.
+#[cfg(test)]
+mod push_patience_tests;
+
 /// Disposable fixtures shared by unit tests;
 ///  never part of the release executable.
 #[cfg(test)]
