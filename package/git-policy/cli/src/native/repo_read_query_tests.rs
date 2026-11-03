@@ -304,3 +304,36 @@ fn a_worktree_config_that_sets_a_content_key_is_declined() {
     }
     remove(root.as_path());
 }
+
+/// What a commit changed is found by reading the trees along the changed path and no others: the two trees of a commit share
+/// nearly every subtree, and the listing of a commit's changes used to read every file of both trees (measured: 20,740 files,
+/// about 1,400 trees on each side, in the gate that follows every commit). A repository of many directories with one changed
+/// file is the shape where the two ways differ most; the answer must still equal Git's.
+#[test]
+fn the_changes_of_a_commit_are_found_without_reading_the_unchanged_directories() {
+    let root = fixture("repo-read-query-changes-only");
+    let repo = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let directories: usize = 40;
+    for directory in 0..directories {
+        std::fs::create_dir_all(repo.join(format!("d{directory}/sub"))).expect("dirs");
+        std::fs::write(repo.join(format!("d{directory}/sub/f.txt")), format!("{directory}\n")).expect("file");
+    }
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    std::fs::write(repo.join("d3/sub/f.txt"), "changed\n").expect("edit");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=second"]);
+    git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
+    git(repo.as_path(), &["prune-packed"]);
+    let head = text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let shape = ["diff-tree", "--root", "--no-commit-id", "-r", "-z", "-m", "--no-renames", "--no-abbrev", head.as_str()];
+    let before = crate::repo_read_pack::DECODED_TOTAL.load(std::sync::atomic::Ordering::Relaxed);
+    answered(root.as_path(), repo.as_path(), &shape);
+    let decoded = crate::repo_read_pack::DECODED_TOTAL.load(std::sync::atomic::Ordering::Relaxed) - before;
+    // Positive control: the repository has more directories than the changed path is deep, so reading all of both trees would
+    // decode more entries than there are directories.
+    assert!(decoded > 0, "the answer reads the pack");
+    assert!(decoded < directories as u64, "only the trees along the changed path are read, not every directory: {decoded} entries decoded");
+    remove(root.as_path());
+}

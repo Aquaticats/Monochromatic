@@ -29,6 +29,10 @@ const CACHE_BYTE_LIMIT: usize = 32 * 1024 * 1024;
 /// The bytes of the index header and fanout table: magic, version, 256 counts.
 const FANOUT_END: u64 = 8 + 256 * 4;
 
+/// How many pack entries every pack of this process decoded, for a control that compares the work of two ways to answer.
+#[cfg(test)]
+pub(crate) static DECODED_TOTAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// One open pack and its version 2 index.
 #[derive(Debug)]
 pub struct Pack {
@@ -263,6 +267,8 @@ impl Pack {
             return None;
         }
         self.decoded.set(self.decoded.get() + 1);
+        #[cfg(test)]
+        DECODED_TOTAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         // Room for the size and distance varints and, for a `REF_DELTA`, the base name that follows them.
         let head: Vec<u8> = read_at(&self.data, offset, (32 + self.hash_length).min((self.data_length - offset) as usize))?;
         let mut cursor: usize = 0;
