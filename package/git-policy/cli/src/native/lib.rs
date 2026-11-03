@@ -100,6 +100,9 @@ pub mod real_git;
 /// Wrapper self-exclusion for one PATH candidate.
 pub mod real_git_candidate;
 
+/// The real Git that the commit service's unit file records, read as the fallback when `PATH` offers none.
+pub mod real_git_record;
+
 /// The marker every real-Git start carries and the check that stops a wrapper which finds it was started as Git.
 pub mod started_as_git;
 
