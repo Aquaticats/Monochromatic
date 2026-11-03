@@ -168,12 +168,9 @@ pub struct ScopeEnvironment {
 }
 
 impl ScopeEnvironment {
-    /// The facts of this process.
-    pub fn from_process() -> ScopeEnvironment {
-        return ScopeEnvironment::from_variables(std::env::vars_os().collect::<Vec<(OsString, OsString)>>().as_slice());
-    }
-
-    /// The facts of an environment as a child would see it: the process variables with a run's additions over them.
+    /// The facts of an environment as a child would see it: the process variables with a run's additions over them, which
+    ///  include the forward-target variable naming the real Git; the wrapper's own environment does not carry it, so there is
+    ///  deliberately no constructor that reads the process environment alone.
     pub fn from_variables(variables: &[(OsString, OsString)]) -> ScopeEnvironment {
         let find = |name: &str| -> Option<OsString> {
             return variables.iter().rev().find(|(candidate, _)| { return candidate == name; }).map(|(_, value)| { return value.clone(); });
