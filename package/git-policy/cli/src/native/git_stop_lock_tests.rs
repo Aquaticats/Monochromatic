@@ -15,7 +15,7 @@
 
 use crate::bounded_push::{run_bounded_push, Patience, STOPPED_EXIT_CODE};
 use crate::child_watch::{output_watched, WatchTerms};
-use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment};
+use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment, while_test_lives};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -70,9 +70,13 @@ fn stage(name: &str) -> Stage {
 fn holder(stage: &Stage, kind: Holder) -> Command {
     let lock: PathBuf = stage.repo.join(".git").join(format!("{HELD_REF}.lock"));
     let target: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]);
-    let script: &str = "( printf 'start\\nupdate %s %s\\nprepare\\n' \"$HELD_REF\" \"$TARGET\"; \
-                        while [ ! -e \"$LOCK\" ]; do sleep 0.05; done; : > \"$READY\"; sleep 600 ) \
-                        | /usr/bin/git update-ref --stdin";
+    // Both waits end with the test, so a failed test leaves neither the holder nor the lock it was about to take.
+    let lives: String = while_test_lives(stage.root.as_path());
+    let script: String = format!(
+        "( printf 'start\\nupdate %s %s\\nprepare\\n' \"$HELD_REF\" \"$TARGET\"; \
+         while [ ! -e \"$LOCK\" ] && {lives}; do sleep 0.05; done; : > \"$READY\"; while {lives}; do sleep 0.05; done ) \
+         | /usr/bin/git update-ref --stdin"
+    );
     let mut command: Command = Command::new("sh");
     command
         .arg("-c")
@@ -230,7 +234,7 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
     let mut command: Command = Command::new("sh");
     command
         .arg("-c")
-        .arg("trap ': > \"$MARKER\"; exit 0' TERM; while :; do sleep 0.05; done")
+        .arg(format!("trap ': > \"$MARKER\"; exit 0' TERM; while {}; do sleep 0.05; done", while_test_lives(root.as_path())))
         .env("MARKER", marker.as_os_str());
     let terms: WatchTerms = WatchTerms {
         limit: Duration::from_millis(500),

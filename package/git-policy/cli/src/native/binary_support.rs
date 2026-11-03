@@ -1209,6 +1209,12 @@ mod fixture_executable;
 
 pub use fixture_executable::executable;
 
+/// The shell condition that holds while the test that started a fixture script is still there.
+#[path = "test_alive.rs"]
+mod test_alive;
+
+pub use test_alive::while_test_lives;
+
 /// What:
 ///  Copy an executable through a child `cp` process,
 ///  keeping its mode.

@@ -217,7 +217,7 @@ fn a_command_that_runs_long_is_announced_and_its_output_is_kept() {
     let mut command: Command = Command::new("sh");
     command
         .arg("-c")
-        .arg("while [ ! -e \"$1\" ]; do sleep 0.02; done; printf out; printf err >&2")
+        .arg(format!("while [ ! -e \"$1\" ] && {}; do sleep 0.02; done; printf out; printf err >&2", crate::test_support::while_test_lives(root.as_path())))
         .arg("sh")
         .arg(&release)
         .stdin(Stdio::null());

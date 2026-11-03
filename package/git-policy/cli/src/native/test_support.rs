@@ -322,6 +322,14 @@ mod fixture_executable;
 #[cfg(unix)]
 pub(crate) use fixture_executable::executable;
 
+/// The shell condition that holds while the test that started a fixture script is still there.
+#[cfg(unix)]
+#[path = "test_alive.rs"]
+mod test_alive;
+
+#[cfg(unix)]
+pub(crate) use test_alive::while_test_lives;
+
 /// What:
 ///  Variables that isolate a Git child started through the production runners from the
 ///       real system and global configuration,

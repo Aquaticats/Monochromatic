@@ -17,12 +17,12 @@ use crate::bounded_push::{
     push_patience, run_bounded_push,
 };
 use crate::push_progress::tests::disk_wait_command;
-use crate::test_support::{fixture, git, remove, repository, scratch_environment};
+use crate::test_support::{fixture, git, remove, repository, scratch_environment, while_test_lives};
 use std::io::Read;
 use std::net::TcpListener;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
@@ -61,11 +61,12 @@ enum Hook {
 
 impl Hook {
     /// The hook's script.
-    fn script(self) -> String {
+    fn script(self, root: &Path) -> String {
+        let lives: String = while_test_lives(root);
         return match self {
-            Hook::Silent => String::from("#!/bin/sh\nexec sleep 600\n"),
+            Hook::Silent => format!("#!/bin/sh\nwhile {lives}; do sleep {TICK}; done\n"),
             Hook::ProgressThenAccept => format!("#!/bin/sh\ni=0\nwhile [ $i -lt 20 ]; do echo tick >&2; sleep {TICK}; i=$((i+1)); done\nexit 0\n"),
-            Hook::TrickleForever => format!("#!/bin/sh\nwhile :; do echo tick >&2; sleep {TICK}; done\n"),
+            Hook::TrickleForever => format!("#!/bin/sh\nwhile {lives}; do echo tick >&2; sleep {TICK}; done\n"),
         };
     }
 }
@@ -87,7 +88,7 @@ fn stage(name: &str, hook: Hook) -> Stage {
     let remote: PathBuf = root.join("remote.git");
     git(root.as_path(), &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
     let script: PathBuf = remote.join("hooks").join("pre-receive");
-    std::fs::write(script.as_path(), hook.script()).expect("hook");
+    std::fs::write(script.as_path(), hook.script(root.as_path())).expect("hook");
     std::fs::set_permissions(script.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook mode");
     git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
     return Stage { root, repo, extra_environment: Vec::new() };
