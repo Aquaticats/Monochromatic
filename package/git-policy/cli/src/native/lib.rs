@@ -213,7 +213,16 @@ pub mod command_conflict_side;
 /// Finding the worktree file a conflict-side command will replace, and copying it.
 pub mod conflict_side_source;
 
-/// Conflicted paths, the decision on a command line that names them, and the saved copy of each file.
+/// The operation in progress and the conflicted paths of the index.
+pub mod conflict_side_state;
+
+/// Whether every token of a command line names a conflicted file.
+pub mod conflict_side_decision;
+
+/// The notices of a conflict-side command: the saved copies and the clean paths of a refused line.
+pub mod conflict_side_notice;
+
+/// The saved copy of each file a conflict-side command replaces.
 pub mod conflict_sides;
 
 /// The linked-worktree policy's carve-out for conflicted files during a merge, rebase, cherry-pick or revert.

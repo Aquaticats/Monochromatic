@@ -1,7 +1,8 @@
 //! What:
-//!  The decision and the file work behind taking one side of a conflicted file: which operation is in progress, which
-//!  paths the index marks as conflicted, whether a command line names only such paths, and the saved copy of each file
-//!  before the command replaces it.
+//!  The saved copy of each file a conflict-side command replaces, and the one place that names the pieces of that carve-out:
+//!  the operation and conflicted paths (`conflict_side_state.rs`), the decision on a command line
+//!  (`conflict_side_decision.rs`), the notices (`conflict_side_notice.rs`) and the finding and reading of a file
+//!  (`conflict_side_source.rs`).
 //! Why:
 //!  `linked-worktree-only` rejects `git checkout --theirs -- a.rs` because it overwrites the worktree file. During a
 //!  merge, a rebase, a cherry-pick or a revert that command is how a conflict is settled, and the file it overwrites is the
@@ -20,145 +21,18 @@
 use super::conflict_side_source::{copy_located, locate};
 use super::iso_time::format_iso_milliseconds;
 use super::private_storage::{create_private_directory, create_private_directory_all, sync_directory};
-use super::repo_read_index::IndexEntry;
 use std::collections::BTreeSet;
-use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::ffi::OsString;
+use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
+
+pub use super::conflict_side_decision::{SideDecision, decide_sides, literal_path};
+pub use super::conflict_side_notice::{clean_paths_note, saved_notice};
+pub use super::conflict_side_source::{FailureKind, SaveFailure};
+pub use super::conflict_side_state::{Operation, conflicted_paths, operation_in_progress};
 
 /// Where the copies live, below the common Git directory, beside `cli-git-audit.jsonl`.
 pub const SAVED_DIRECTORY: &str = "cli-git/discarded";
-
-/// An operation that stops with conflicts and waits for them to be settled.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Operation {
-    /// `git merge`.
-    Merge,
-    /// `git rebase`, either backend.
-    Rebase,
-    /// `git cherry-pick`.
-    CherryPick,
-    /// `git revert`.
-    Revert,
-}
-
-/// What:
-///  The operation in progress in a worktree's Git directory, if any.
-/// Why:
-///   Git leaves `MERGE_HEAD`, `CHERRY_PICK_HEAD` or `REVERT_HEAD` while a merge, cherry-pick or revert waits, and a
-///  `rebase-merge` directory or a `rebase-apply` directory that holds `rebasing` for a rebase (the same directory with
-///  `applying` is `git am`, whose conflicts are not covered).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function operationInProgress(gitDir: string): Operation | undefined;
-/// ```
-pub fn operation_in_progress(git_dir: &Path) -> Option<Operation> {
-    if git_dir.join("MERGE_HEAD").exists() {
-        return Some(Operation::Merge);
-    }
-    if git_dir.join("rebase-merge").is_dir() || git_dir.join("rebase-apply/rebasing").exists() {
-        return Some(Operation::Rebase);
-    }
-    if git_dir.join("CHERRY_PICK_HEAD").exists() {
-        return Some(Operation::CherryPick);
-    }
-    if git_dir.join("REVERT_HEAD").exists() {
-        return Some(Operation::Revert);
-    }
-    return None;
-}
-
-/// What:
-///  The paths with an unmerged entry, once each.
-/// Why:
-///   A conflicted path has entries at stage 1, 2 or 3 in place of the one at stage 0.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const conflicted = new Set(entries.filter((entry) => entry.stage !== 0).map((entry) => entry.path));
-/// ```
-pub fn conflicted_paths(entries: &[IndexEntry]) -> BTreeSet<Vec<u8>> {
-    return entries.iter().filter(|entry| { return entry.stage != 0; }).map(|entry| { return entry.path.clone(); }).collect();
-}
-
-/// What:
-///  The repository-relative path a pathspec token names, when it names exactly one file by its literal spelling.
-/// Why:
-///   Git resolves a pathspec below the directory the command runs in. Magic (`:(glob)`, `:/`), wildcards, a trailing
-///  slash and a directory are not a single conflicted file, so they resolve to nothing and the usual rejection stays.
-///  `.` and `..` segments are folded; a path that leaves the worktree resolves to nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function literalPath(prefix: string, root: string, token: string): string | undefined;
-/// ```
-pub fn literal_path(prefix: &[u8], root: &Path, token: &OsStr) -> Option<Vec<u8>> {
-    let bytes: &[u8] = token.as_bytes();
-    if bytes.is_empty() || bytes[0] == b':' || bytes.ends_with(b"/") || bytes.iter().any(|byte| { return matches!(byte, b'*' | b'?' | b'[' | b'\\'); }) {
-        return None;
-    }
-    let joined: Vec<u8> = if bytes[0] == b'/' {
-        let below: &Path = Path::new(token).strip_prefix(root).ok()?;
-        below.as_os_str().as_bytes().to_vec()
-    } else {
-        [prefix, bytes].concat()
-    };
-    let mut kept: Vec<&[u8]> = Vec::new();
-    for segment in joined.split(|byte| { return *byte == b'/'; }) {
-        match segment {
-            b"" | b"." => {}
-            b".." => {
-                kept.pop()?;
-            }
-            other => kept.push(other),
-        }
-    }
-    if kept.is_empty() {
-        return None;
-    }
-    return Some(kept.join(&b'/'));
-}
-
-/// What a command line that names paths came to, against the conflicted set.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SideDecision {
-    /// Every path is a conflicted file: the repository-relative paths, in the order named, each once.
-    Allow(Vec<Vec<u8>>),
-    /// At least one token is not a conflicted file; these are the tokens, as typed.
-    Refuse(Vec<OsString>),
-}
-
-/// What:
-///  Whether every token names a conflicted file.
-/// Why:
-///   A pathspec that mixes conflicted and clean paths is refused whole, and the refusal names the clean ones, so a
-///  person sees exactly what to leave out.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function decideSides(tokens: string[], prefix: string, root: string, conflicted: Set<string>): SideDecision;
-/// ```
-pub fn decide_sides(tokens: &[OsString], prefix: &[u8], root: &Path, conflicted: &BTreeSet<Vec<u8>>) -> SideDecision {
-    let mut allowed: Vec<Vec<u8>> = Vec::new();
-    let mut others: Vec<OsString> = Vec::new();
-    for token in tokens {
-        match literal_path(prefix, root, token.as_os_str()) {
-            Some(path) if conflicted.contains(&path) => {
-                if !allowed.contains(&path) {
-                    allowed.push(path);
-                }
-            }
-            _ => others.push(token.clone()),
-        }
-    }
-    if others.is_empty() {
-        return SideDecision::Allow(allowed);
-    }
-    return SideDecision::Refuse(others);
-}
-
-pub use super::conflict_side_source::{FailureKind, SaveFailure};
 
 /// One saved file.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -249,65 +123,6 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
         }
     }
     return Ok(copies);
-}
-
-/// What:
-///  The plain-language notice for the copies, one block per path.
-/// Why:
-///   The person is told where each copy is before Git runs, so a file they edited by hand can be found again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function savedNotice(copies: SavedCopy[]): string;
-/// ```
-pub fn saved_notice(copies: &[SavedCopy]) -> String {
-    let mut text: String = String::new();
-    for copy in copies {
-        match &copy.saved_to {
-            Some(place) => text.push_str(
-                format!(
-                    "cli-git: saved your copy of {} to\n  {}\n  before this command replaces it ({} was conflicted).\n",
-                    copy.path,
-                    place.display(),
-                    copy.path
-                )
-                .as_str(),
-            ),
-            None => text.push_str(
-                format!(
-                    "cli-git: {} was conflicted and is deleted in your worktree, so there is no copy to save; this command brings a file back.\n",
-                    copy.path
-                )
-                .as_str(),
-            ),
-        }
-    }
-    return text;
-}
-
-/// What:
-///  The sentence a rejection gets when the command qualified for a conflict side but some paths were not conflicted.
-/// Why:
-///   The person is told what is allowed and which paths to leave out.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function cleanPathsNote(others: string[], operation: Operation): string;
-/// ```
-pub fn clean_paths_note(others: &[OsString], operation: Operation) -> String {
-    let named: Vec<String> = others.iter().map(|each| { return format!("`{}`", each.to_string_lossy()); }).collect();
-    let word: &str = match operation {
-        Operation::Merge => "merge",
-        Operation::Rebase => "rebase",
-        Operation::CherryPick => "cherry-pick",
-        Operation::Revert => "revert",
-    };
-    return format!(
-        " This {word} is in progress, and a command that names only conflicted files is let through after your copy is saved, \
-         but these are not conflicted files: {}. Leave them out, or name each conflicted file itself (no directory, wildcard or \
-         pathspec magic).",
-        named.join(", ")
-    );
 }
 
 /// The decision, the literal paths, the copies and the notices.
