@@ -10411,3 +10411,29 @@ by the coordinator at merge.
   install task, then `mise env`, a fresh shell and the android-app clippy task as user-boundary checks. Catalog agent
   done: `rust:install` (pnpm `install` counterpart, `--frozen-lockfile` in CI) replaces `--reconcile`; the
   `cli.fuzz` clippy now stops on a pre-existing `implicit_return` at `rules_list_tests.rs:102` (QUEUED, one line).
+- 2026-11-03T04:47:10-05:00: 0.5.23 candidate (stale-lock fix + no-progress limit + main) FAILED 1 of 4009:
+  `push_patience_tests::a_push_that_keeps_moving_data_past_the_stall_window_is_not_stopped` was stopped after its hook's
+  ticks (bytes_moved=342565, elapsed 13 s, stall window 5 s): the meter counts only bytes, so a push busy in fsync or CPU
+  reads as stalled. Sent back to the deadline agent (count CPU time and disk wait as progress, deterministic controls).
+  The no-progress limit moves to the next release; the stale-lock fix (which passed in that run) is gated alone
+  (`gpc-gate-release-0.5.23-stale-lock-fix-20261103T044002-0500`) and combined with add speed
+  (`gpc-gate-release-0.5.23-add-speed-and-stale-lock-20261103T044547-0500`).
+- 2026-11-03T04:47:10-05:00: add speed done (branch `perf/git-policy-cli-fast-snapshot-add`, host 3414 and binary 575): one cached walk
+  of the snapshot (about 900 ms to 350 ms), Cargo workspaces on all available parallelism (85 s of work inside a 20 s
+  step on main), the clone finishes past unreadable entries, per-step add timing at
+  `<common-git-dir>/cli-git-worktree-add-timing.jsonl`. The 18 s step was the completion marker's fsync, which btrfs
+  turns into a full filesystem commit after a subvolume rename; owner (question tool): "Drop the fsync (Recommended)";
+  restored as `144dc0fd5a`, SPEC note added. Why main took the copy route at 03:29:01: the snapshot was refused because
+  another session landed into main between the pre-check and the compare (correct refusal). QUEUED from that report:
+  overlap inline trash disposal with the repair; on a post-snapshot mismatch of a main source, keep the snapshot and
+  take the restore path instead of the full copy. Left by that agent: 12 reflinked benchmark build directories under
+  `/var/mnt/encrypted/cargo-build` (paths in `~/temp/agent/bench-mine.txt`; deletion was refused by the permission
+  classifier).
+- 2026-11-03T04:47:10-05:00: wrapper bug found and delegated (`fix/git-policy-cli-wrapper-options-before-pathspec`): with a revert in
+  progress, `git commit -- <path>` fails with "pathspec '--quiet' did not match" because the service runs
+  `git commit -o --message=... -- a.txt --quiet` in its shadow; real Git 2.56.0 accepts the commit. Merge second pass
+  follow-ups done (hooks are off in every wrapper-started Git, so nothing to change; autostash and mergeOptions finished
+  as Git does; a stale `MERGE_AUTOSTASH` link in the shadow fixed; loop bound from the todo length; about 35 more plain
+  environment prefixes). Its earlier gate copy failed the already-fixed dash-h test and
+  `supervisor_guard::a_wait_on_the_test_is_judged_idle_only_when_the_test_does_not_hold_it` (SIGABRT, a sibling of the
+  harness race fixed on the stale-lock branch); regate after it merges current main.
