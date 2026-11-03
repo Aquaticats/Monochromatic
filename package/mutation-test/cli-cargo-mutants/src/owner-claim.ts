@@ -132,6 +132,7 @@ type RoundParameters = {
   readonly prefix: string;
   readonly record: ClaimRecord;
   readonly afterListing?: () => Promise<void>;
+  readonly afterPublishing?: () => Promise<void>;
   readonly round: number;
 };
 
@@ -182,6 +183,26 @@ function createClaim({
     release,
     [Symbol.asyncDispose]: release,
   });
+}
+
+/**
+ Remove the generation this call published and lost with.
+
+ @param path - the claim file
+
+ @example
+ ```ts
+ await withdraw('/d/item.owner.1');
+ ```
+ */
+async function withdraw(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  }
+  catch (error) {
+    if (!isMissing(error))
+      throw error;
+  }
 }
 
 /**
@@ -279,6 +300,7 @@ async function takeInRounds(parameters: RoundParameters): Promise<ClaimOutcome> 
     prefix,
     record,
     afterListing,
+    afterPublishing,
     round,
   } = parameters;
   if (round > mostRounds)
@@ -328,6 +350,8 @@ async function takeInRounds(parameters: RoundParameters): Promise<ClaimOutcome> 
       ...parameters,
       round: round + 1,
     });
+  if (afterPublishing !== undefined)
+    await afterPublishing();
   // A command that read an older listing may have published a lower number after the others were removed; a newer
   // generation than this one means this claim lost (`single_owner_claim.rs:272`).
   /**
@@ -340,7 +364,9 @@ async function takeInRounds(parameters: RoundParameters): Promise<ClaimOutcome> 
   if (after.some(function isNewer(generation) {
     return generation > decision.generation;
   })) {
-    await unlink(path);
+    // Withdrawn; a later claimant may have removed it already as an older generation, which is the same outcome
+    // (`single_owner_claim.rs:273` ignores the result of the removal).
+    await withdraw(path);
     return await takeInRounds({
       ...parameters,
       round: round + 1,
@@ -376,6 +402,9 @@ async function takeInRounds(parameters: RoundParameters): Promise<ClaimOutcome> 
 
  @param afterListing - runs between the listing and the publication, where a test lets another command act; absent in use
 
+ @param afterPublishing - runs between the publication and the check for a newer generation, for the same purpose; absent in
+ use
+
  @returns the held claim or the live owner
 
  @throws CargoMutantsToolingError when the newest generation is not a claim, or whether its owner runs cannot be decided
@@ -389,10 +418,12 @@ export async function takeClaim({
   directory,
   prefix,
   afterListing,
+  afterPublishing,
 }: {
   readonly directory: string;
   readonly prefix: string;
   readonly afterListing?: () => Promise<void>;
+  readonly afterPublishing?: () => Promise<void>;
 }): Promise<ClaimOutcome> {
   /**
    This process, as an owner (`single_owner_claim.rs:227`).
@@ -406,6 +437,7 @@ export async function takeClaim({
       ...own,
     },
     ...(afterListing === undefined ? {} : { afterListing }),
+    ...(afterPublishing === undefined ? {} : { afterPublishing }),
     round: 1,
   });
 }

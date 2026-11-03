@@ -229,7 +229,7 @@ export async function rewriteAsReleased({
 
  @param path - the file
 
- @returns its text
+ @returns its text, empty for anything that is not a plain file (which then reads as no claim)
 
  @throws Error when the file cannot be opened or read
 
@@ -240,12 +240,16 @@ export async function rewriteAsReleased({
  */
 async function readSmallText(path: string): Promise<string> {
   /**
-   The file, never followed through a link.
+   The file, never followed through a link and never waited for: a named pipe with no writer would block an ordinary open.
    */
   await using handle = await open(
     path,
-    constants.O_RDONLY | constants.O_NOFOLLOW,
+    constants.O_RDONLY | constants.O_NONBLOCK
+      | constants.O_NOFOLLOW,
   );
+  // Only a plain file is a claim (`worktree_convert_journal.rs`, `read_plain_file`); anything else cannot be read as one.
+  if (!(await handle.stat()).isFile())
+    return '';
   /**
    What the first bytes hold.
    */

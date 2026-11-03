@@ -11,6 +11,7 @@ export * from './campaign-protocol.ts';
 export * from './campaign-report.ts';
 export * from './campaign-runner.ts';
 export * from './campaign-signals.ts';
+export * from './claim-liveness.ts';
 export * from './constants.ts';
 export * from './container-limits.ts';
 export * from './error.ts';

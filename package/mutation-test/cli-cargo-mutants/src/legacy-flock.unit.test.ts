@@ -151,19 +151,22 @@ await describe({
               path,
               '',
             );
-            let replacement: OldHolder | undefined;
+            const replacements: OldHolder[] = [];
             const standing = await probeLegacyLock({
               path,
               retireWhenFree: true,
               afterLocking: async () => {
                 // Another probe retired the file, and a waiting gate of the earlier release created and locked a new one.
                 await rm(path);
-                replacement = replacement ?? await startOldHolder(path);
+                if (replacements.length === 0)
+                  replacements.push(await startOldHolder(path));
               },
             });
             expect(standing).toBe('held');
             expect((await lstat(path)).isFile()).toBe(true);
-            await replacement?.kill();
+            await Promise.all(replacements.map(async function stop(replacement) {
+              await replacement.kill();
+            }));
           },
           timeout: 30_000,
         }),

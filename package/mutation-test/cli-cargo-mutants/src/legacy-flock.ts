@@ -19,9 +19,13 @@ import {
   spawn,
 } from 'node:child_process';
 import { once } from 'node:events';
-import { constants } from 'node:fs';
+import {
+  constants,
+  type Stats,
+} from 'node:fs';
 import {
   type FileHandle,
+  lstat,
   open,
   unlink,
 } from 'node:fs/promises';
@@ -197,33 +201,69 @@ async function openForProbe(path: string): Promise<FileHandle | 'absent'> {
 }
 
 /**
- Ask once, without waiting, whether a process of the earlier release holds the kernel lock on a path.
+ Stands for a lock file whose path names another file than the one the probe locked.
+ */
+const pathChanged: unique symbol = Symbol('legacy-flock.path-changed');
 
- @param path - the lock file (`slot-<n>.lock`) or the evidence directory the earlier release locked
+/**
+ Most times the probe starts over when the path keeps naming a new file, before it gives up.
+ */
+const mostProbeAttempts = 3;
 
- @param retireWhenFree - true to remove a plain lock file nobody holds, false to keep whatever the path is
+/**
+ What a path names now, by device and inode.
 
- @param program - the `flock` program; absent to use the one on the search path
+ @param path - the lock file
 
- @returns what the probe found
+ @returns the file's status, or the text `absent` when there is no such path
 
- @throws CargoMutantsToolingError when the path cannot be opened or `flock` cannot be run or ends unexpectedly; nothing is
- removed then
+ @throws CargoMutantsToolingError when the path cannot be examined for any other reason
 
  @example
  ```ts
- const standing = await probeLegacyLock({ path: '/l/slot-1.lock', retireWhenFree: true });
+ await statOnDisk('/l/slot-1.lock');
  ```
  */
-export async function probeLegacyLock({
+async function statOnDisk(path: string): Promise<Stats | 'absent'> {
+  try {
+    return await lstat(path);
+  }
+  catch (error) {
+    if (isMissing(error))
+      return 'absent';
+    throw new CargoMutantsToolingError(`Cannot examine ${path}, the lock file the earlier release left (${String(error)}).`);
+  }
+}
+
+/**
+ One probe: open the path, try the lock, and retire the file when asked and nobody holds it.
+
+ @param path - the lock file or evidence directory
+ 
+ @param retireWhenFree - true to remove a plain lock file nobody holds
+ 
+ @param program - the `flock` program
+ 
+ @param afterLocking - runs once the probe holds the lock, before the file is removed; for tests
+
+ @returns what the probe found, or {@link pathChanged} when the path no longer names the file that was locked
+
+ @example
+ ```ts
+ await probeOnce({ path: '/l/slot-1.lock', retireWhenFree: true, program: 'flock' });
+ ```
+ */
+async function probeOnce({
   path,
   retireWhenFree,
-  program = flockProgram,
+  program,
+  afterLocking,
 }: {
   readonly path: string;
   readonly retireWhenFree: boolean;
-  readonly program?: string;
-}): Promise<LegacyStanding> {
+  readonly program: string;
+  readonly afterLocking?: () => Promise<void>;
+}): Promise<LegacyStanding | typeof pathChanged> {
   /**
    The path, opened here: this descriptor, not the helper, holds the lock once it is taken.
    */
@@ -235,7 +275,7 @@ export async function probeLegacyLock({
    */
   await using file = opened;
   /**
-   What the path is.
+   What the opened file is.
    */
   const status = await file.stat();
   // A path that is not a plain file is never a lock file the earlier release made, and is left where it is.
@@ -248,6 +288,18 @@ export async function probeLegacyLock({
     return 'held';
   if (!retireWhenFree)
     return 'free';
+  if (afterLocking !== undefined)
+    await afterLocking();
+  // Holding a lock does not protect the name: another probe may have retired this file and a gate of the earlier release
+  // may have created and locked a new one at the same path, which must not be removed here.
+  /**
+   What the path names now.
+   */
+  const onDisk = await statOnDisk(path);
+  if (onDisk === 'absent')
+    return 'absent';
+  if ((onDisk.dev !== status.dev) || (onDisk.ino !== status.ino))
+    return pathChanged;
   try {
     // Removed while the probe still holds the lock, so no earlier command can take the name in between.
     await unlink(path);
@@ -257,4 +309,62 @@ export async function probeLegacyLock({
       throw new CargoMutantsToolingError(`Cannot remove ${path}, the lock file the earlier release left (${String(error)}).`);
   }
   return 'retired';
+}
+
+/**
+ Ask once, without waiting, whether a process of the earlier release holds the kernel lock on a path.
+
+ @param path - the lock file (`slot-<n>.lock`) or the evidence directory the earlier release locked
+
+ @param retireWhenFree - true to remove a plain lock file nobody holds, false to keep whatever the path is
+
+ @param program - the `flock` program; absent to use the one on the search path
+
+ @param afterLocking - runs once the probe holds the lock, before the file is removed; a test lets another command act there
+
+ @param attemptsLeft - how many more times the probe may start over when the path names a new file; absent in use
+
+ @returns what the probe found
+
+ @throws CargoMutantsToolingError when the path cannot be opened or `flock` cannot be run or ends unexpectedly, or the path
+ keeps naming new files; nothing is removed then
+
+ @example
+ ```ts
+ const standing = await probeLegacyLock({ path: '/l/slot-1.lock', retireWhenFree: true });
+ ```
+ */
+export async function probeLegacyLock({
+  path,
+  retireWhenFree,
+  program = flockProgram,
+  afterLocking,
+  attemptsLeft = mostProbeAttempts,
+}: {
+  readonly path: string;
+  readonly retireWhenFree: boolean;
+  readonly program?: string;
+  readonly afterLocking?: () => Promise<void>;
+  readonly attemptsLeft?: number;
+}): Promise<LegacyStanding> {
+  if (attemptsLeft < 1)
+    throw new CargoMutantsToolingError(`${path} keeps being replaced by another lock file while it is probed; nothing was removed. Run the command again.`);
+  /**
+   What one probe found.
+   */
+  const found = await probeOnce({
+    path,
+    retireWhenFree,
+    program,
+    ...(afterLocking === undefined ? {} : { afterLocking }),
+  });
+  if (found !== pathChanged)
+    return found;
+  return await probeLegacyLock({
+    path,
+    retireWhenFree,
+    program,
+    ...(afterLocking === undefined ? {} : { afterLocking }),
+    attemptsLeft: attemptsLeft - 1,
+  });
 }
