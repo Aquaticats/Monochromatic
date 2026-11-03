@@ -21,10 +21,28 @@ The same log at lines 133-137 records both a failing `status` invocation and ano
 The command environment contains `JETBRAINS_AI_PLATFORM_TOKEN=<redacted>`.
 Do not copy its actual value into diagnostics.
 
-## Root cause status
+## Root cause
 
-The emitting component is identified;
-the reason its authenticated child process exits is not yet established.
+The IDE-authenticated CLI refuses to proceed until the Air Context CLI EAP User Agreement is accepted.
+Temporary output capture during normal IDE activity reproduced this for both `status` and `index`.
+Both processes exited 1 with an IDE token present and this message on stderr:
+
+```text
+This Early Access build of Air Context requires accepting the Air Context CLI EAP User Agreement
+(https://www.jetbrains.com/legal/docs/terms/jetbrains-context-cli-eap/).
+Accept it in an interactive terminal, or set JBCONTEXT_ACCEPT_EAP_TERMS=1
+(plus JBCONTEXT_ACCEPT_EAP_EMAIL=<email> to record it) to accept non-interactively.
+```
+
+The diagnostic is one line in the actual JSON error;
+it is wrapped here for readability.
+Its stack identifies `EapAgreementGate.requireAcceptance(EapAgreementGate.kt:221)`,
+`EapAgreementGate.ensureAccepted(EapAgreementGate.kt:200)`,
+and `IsLoggedInGuard.authenticate(IsLoggedInGuard.kt:154)`.
+The indexing branch then names `IndexCommand.kt:213`;
+the status branch names `StatusCommand.kt:94`.
+These are observed stack frames,
+not independently inspected private source.
 
 The installed plugin descriptor is
 `$HOME/.local/share/JetBrains/IntelliJIdea2026.3/embark/lib/embark.jar!/META-INF/plugin.xml:2-4`:
@@ -109,7 +127,8 @@ This exits 1 and emits:
 The actual JSON also contains a stack trace through `IsLoggedInGuard.reportNoAuth`.
 This terminal invocation lacks the IDE-supplied token,
 so it is a separate failure and does not reproduce the authenticated IDE failure.
-An end-to-end reproduction with the IDE's authentication remains missing.
+The subsequent IDE-authenticated capture reproduced the actual agreement gate at
+`2026-11-02 23:25:02` for status and `23:25:04` for indexing.
 
 The CLI log at `$HOME/.jbcontext/logs/jbcontext.log` contains certificate-loading entries
 at the IDE failure times but no corresponding failure detail.
@@ -118,12 +137,15 @@ it exposes project and debugger operations but no direct Context authentication 
 
 ## Verified workarounds
 
-None yet.
+Acceptance is being applied;
+successful indexing remains unverified.
 The user chose "Keep Semantic search and diagnose" on 2026-11-02.
+After the agreement requirement was identified,
+the user explicitly instructed "Accept it for me."
 The plugin remains enabled.
-No credential,
-index,
-or IDE setting was changed during this investigation.
+The supported `JBCONTEXT_ACCEPT_EAP_TERMS=1` mechanism is being applied to an IDE-authenticated
+invocation so the acceptance uses the same authentication environment as the failing command.
+No synthetic account identity is supplied.
 
 A temporary launcher wrapper captures stdout and stderr of ordinary IDE-triggered
 `status` and `index` commands with inherited token values redacted.
@@ -131,14 +153,10 @@ It forwards the original output and exit status.
 The observation controller restores the original launcher after an authenticated indexing failure
 or after a 60-second deadline,
 and compares the restored bytes with the original.
-This instrumentation is diagnostic,
-not a workaround.
-
-If retaining Context,
-the next diagnostic is a successful CLI login followed by the read-only status command.
-`jbcontext login --help` confirms the login operation exists.
-A successful terminal status still would not prove IntelliJ's token works;
-the IDE invocation must be checked separately.
+The initial capture restored the launcher successfully and compared its bytes with the original.
+The acceptance capture uses the same restoration mechanism.
+The diagnostic `jbcontext login` invocation opened browser authentication and was canceled before completion.
+It did not accept the agreement.
 
 ## What does not work
 
@@ -157,12 +175,14 @@ the IDE invocation must be checked separately.
 ## Upstream filing decision
 
 No report was posted or recommended.
-The incident lacks the authenticated CLI error needed to establish a cause.
+The runtime error establishes an unaccepted agreement rather than an indexing implementation defect.
+The generic IDE notification omits that actionable detail.
 Posting a weak report risks wasting maintainers' time and the poster's reputation;
 filing remains the poster's decision.
 
 - Upstream fault:
-  unknown because the child process's actual error was not captured.
+  the CLI enforces an agreement gate;
+  the notification's lack of detail is distinct from that expected gate.
 - Fixability:
   unknown because the private CLI implementation is unavailable.
 - Supported use case:
@@ -176,8 +196,10 @@ filing remains the poster's decision.
   no identified cause supports a corrective patch.
 
 No matching exemption was found among `.out-of-scope/` file names.
-Tracker queries used `gh search issues --repo JetBrains/context` with `indexing`
-and `"exit code 1"`,
+Tracker queries used `gh search issues --repo JetBrains/context` with `indexing`,
+`"exit code 1"`,
+`EAP terms`,
+and `agreement`,
 and `gh search prs --repo JetBrains/context indexing`.
 The issue search found issue 39 about repeated CLI login;
 its comments describe a daemon returning `204 No Content`,
@@ -187,9 +209,10 @@ not the IDE failure.
 These are related search results,
 not confirmed duplicates or fixes.
 
-## Remaining evidence
+## Remaining verification
 
-Capture the CLI's stdout and stderr from an IDE-authenticated failure,
-with tokens redacted,
-before asserting a root cause or a verified repair.
-Preserve the distinction between terminal authentication and the IDE-supplied token.
+Verify acceptance persists after restoring the original launcher,
+then confirm IntelliJ's index operation completes and semantic search returns results.
+The EAP agreement is version 1.0,
+effective July 15, 2026,
+as fetched from JetBrains on the investigation date.
