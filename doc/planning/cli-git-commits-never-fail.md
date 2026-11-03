@@ -684,12 +684,21 @@ A child that ignores termination is the one case where the wrapper would have to
 lock manufactures a lock the wrapper may not remove, and not killing it leaves the child stuck. That is a real choice (owner question A); until
 it is decided the default is the conservative one: do not kill, leave the request pending with a notice that names the child and says it
 ignored the signal. A command that can launch a protected program (for instance `update-ref` while a `reference-transaction` hook exists, or a
-commit with `pre-commit` or `commit-msg` configured) is exempt from cancellation entirely, decided at spawn from the hooks directory, the hooks
-path and the `hook.*` configuration, not from a sample of the process tree, because Git can dispatch a hook between the sample and the signal.
+commit with `pre-commit` or `commit-msg` configured) is exempt from cancellation entirely. Revision 9 (R8-5) classifies by the kind of command, fixed in a table, and not at spawn from the hooks
+directory, the hooks path or the `hook.*` configuration: any configuration read at spawn can change before Git reaches its dispatch point, so a
+spawn-time classification races a program installed in between (owner question C-class lists the alternatives).
 The restart of a quiet owner (L7) is unavailable while a ref-transaction child is in flight (the gate), so ending the owner can never leave a lock
 that cancellation would not have left. After an outside kill (the OOM killer, a person) a lock may remain; it is treated as foreign, the request
 becomes pending, and the notice names the file and says that if no Git process runs it can be removed by hand; that case is on the owner's
 outside list.
+X1 stays as written, and no finding forces otherwise (revision 9, model finding on F4). The step-1 model candidate that removed a stale lock through a
+journaled `O_TMPFILE` plus `linkat` would make the wrapper delete a lock it did not create: a ref lock is created by Git, so no inode of it is
+one the lane created and journaled, and the identity rule (delete only an inode the lane created and journaled) cannot hold for it. The same
+technique is sound for `index.lock` that the lane itself creates by `linkat` (M1), where the inode is the lane's own, and that is the only place
+it is used. A finding that would force the wrapper to remove a ref lock does not exist: R8-5 concerns classification, S-1 and S-2 concern the
+shipped sweeper, and the accepted narrowing A-kill is the stated cost. The L7 restart ends the owner with an uncatchable signal through the
+pidfd (SIGKILL, step 1 finding F3): a wedged owner can ignore the terminate signal, and L7 holds the gate exclusively, so no ref-transaction
+child is in flight when it is ended.
 Tests (red controls first): the retained-description deadlock in the fork-to-exec window; a closed-description descendant still writing when the
 lock frees; the service cgroup reused by a replacement owner (the replacement must not kill itself); restart versus hook dispatch; restarter
 death at every point of L7; a wedged shared gate holder; a pid read in another namespace.
