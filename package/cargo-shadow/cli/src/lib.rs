@@ -14,8 +14,11 @@
 //! // ...one line per module...
 //! ```
 
-#[cfg(not(unix))]
-compile_error!("cargo-shadow supports Unix only; a cross-platform version is a later change");
+// Linux only, by the owner's word ("Ignore Win and mac until I say so."): the journal decides whether a killed run's owner is
+// alive by reading `/proc/<pid>`, which other Unix systems lack, so an active run there would look dead and be recovered
+// from under its own feet.
+#[cfg(not(target_os = "linux"))]
+compile_error!("cargo-shadow supports Linux only (its journal reads /proc); other systems are a later change");
 
 /// The command-line grammar of the binary when it is started under its own name.
 pub mod cli;

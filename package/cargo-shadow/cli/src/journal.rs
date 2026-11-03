@@ -60,7 +60,9 @@ use std::fs;
 /// ```ts
 /// import { io } from 'std';
 /// ```
+use std::cell::RefCell;
 use std::io;
+use std::io::Write;
 /// What:
 /// `use std::path::{Path, PathBuf};` imports `Path`,
 /// `PathBuf` from the standard library so this file can name them unqualified.
@@ -167,6 +169,7 @@ fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a
 /// replacing it would discard
 /// that change,
 /// so it is left alone and named in a warning.
+/// A root that `produced` does not list was never written by this run, so unknown ownership never authorizes a restore.
 /// One that already equals the snapshot needs nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -181,17 +184,83 @@ pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &
         if live == snapshot.source {
             continue;
         }
+        // Review finding (unknown ownership): only a lockfile this run is known to have written may be replaced. A root the run
+        // never recorded as produced, or one that holds something else than was recorded, belongs to somebody else.
         let expected: Option<&LockSnapshot> = snapshot_of(produced, &snapshot.crate_dir);
-        if matches!(expected, Some(found) if found.source != live) {
-            warnings.push(format!(
-                "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
-                snapshot.crate_dir
-            ));
-            continue;
+        match expected {
+            Some(found) if found.source == live => {}
+            Some(_) => {
+                warnings.push(format!(
+                    "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
+                    snapshot.crate_dir
+                ));
+                continue;
+            }
+            None => {
+                warnings.push(format!(
+                    "{}/{LOCKFILE_NAME} differs from the snapshot, but this run did not write it, so another process did; it was left as it is, not restored",
+                    snapshot.crate_dir
+                ));
+                continue;
+            }
         }
         atomic_write(&path, &snapshot.source)?;
     }
     return Ok(warnings);
+}
+
+/// What:
+/// `pub fn note_produced(root, crate_dir, produced)` records the lockfile of one crate root as this run's own output,
+/// right after a cargo call of this run succeeded there.
+/// Why:
+/// The rollback replaces a lockfile only when it still holds what this run produced;
+/// recording each write as it happens means a failure halfway never has to guess the content from the file system,
+/// where another writer's content would be indistinguishable from the run's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function noteProduced({ root, crateDir, produced }: { root: string; crateDir: string; produced: LockSnapshot[] }): void
+/// ```
+pub fn note_produced(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSnapshot>>) {
+    // A lockfile that cannot be read right now is not recorded; an unrecorded root is never restored.
+    let source: String = match fs::read_to_string(root.join(crate_dir).join(LOCKFILE_NAME)) {
+        Ok(found) => found,
+        Err(_) => return,
+    };
+    let mut list = produced.borrow_mut();
+    list.retain(|known| { return known.crate_dir != crate_dir; });
+    list.push(LockSnapshot { crate_dir: crate_dir.to_string(), source });
+}
+
+/// What:
+/// `fn save_aside(target, text) -> io::Result<PathBuf>` writes `text` to a new file next to `target`
+/// named `target`, then `target.1`, `target.2`, ... , the first name that does not exist yet, and returns the path.
+/// Why:
+/// A refused lockfile is evidence the user may need;
+/// a later refusal must never replace an earlier saved copy,
+/// and `create_new` makes the claim of a name atomic, so two runs never pick the same one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function saveAside(target: string, text: string): string  // writeFileSync(name, text, { flag: 'wx' }) per candidate name
+/// ```
+fn save_aside(target: &Path, text: &str) -> io::Result<PathBuf> {
+    let base: String = target.file_name().map(|name| { return name.to_string_lossy().to_string(); }).unwrap_or_default();
+    let mut number: u32 = 0;
+    loop {
+        let name: String = if number == 0 { base.clone() } else { format!("{base}.{number}") };
+        let candidate: PathBuf = target.with_file_name(name);
+        // `create_new(true)` fails with `AlreadyExists` instead of truncating, the exclusive-create flag `wx` of Node.
+        let opened = fs::OpenOptions::new().write(true).create_new(true).open(&candidate);
+        match opened {
+            Ok(mut file) => {
+                file.write_all(text.as_bytes())?;
+                return Ok(candidate);
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => number += 1,
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 /// Where this process's journal lives.
@@ -240,9 +309,10 @@ fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>> {
     return Ok(snapshots);
 }
 
-/// Whether a process with this id exists (Linux `/proc`;
-/// a reused id reads as alive,
-/// which only delays a recovery).
+/// Whether a process with this id exists.
+/// It reads Linux `/proc`, and the crate refuses to compile on other systems (`lib.rs`), so a missing `/proc` cannot make a
+/// running process look dead;
+/// a reused id reads as alive, which only delays a recovery.
 pub fn process_exists(pid: u32) -> bool {
     return Path::new("/proc").join(pid.to_string()).exists();
 }
@@ -254,9 +324,12 @@ pub fn process_exists(pid: u32) -> bool {
 /// a live lock equal to its snapshot needs nothing;
 /// a live lock the `judge` finds acceptable (no policy
 /// findings for the versions it added) is kept;
-/// otherwise the live lock is saved as `Cargo.lock.refused` and the snapshot goes
-/// back by atomic rename.
-/// Either way the journal is removed and a message says what happened.
+/// otherwise the live lock is saved as `Cargo.lock.refused` (or the first free `Cargo.lock.refused.N`, so an earlier copy
+/// is never replaced) and the snapshot goes back by atomic rename,
+/// after the live lock was read again and found to be still the judged one.
+/// The journal is removed only when every root it lists was settled;
+/// an unreadable journal or lockfile and a failed step keep it, because it holds the only copy of the original.
+/// A message says what happened.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -277,21 +350,24 @@ pub fn recover(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[Loc
             continue;
         }
         let directory: PathBuf = listed.path();
+        // Review finding (recovery destroys the remaining copies): the journal holds the only copy of the original lockfiles,
+        // so it is deleted only when every root it lists was settled. Any unreadable part or failed step keeps it.
         let before: Vec<LockSnapshot> = match read_journal(&directory) {
             Ok(found) => found,
-            Err(_) => {
-                let _ = fs::remove_dir_all(&directory);
+            Err(error) => {
+                messages.push(format!("{}: the journal of a killed run could not be read ({error}); it was kept", directory.display()));
                 continue;
             }
         };
         let dirs: Vec<String> = before.iter().map(LockSnapshot::crate_dir_text).collect();
         let live: Vec<LockSnapshot> = match read_locks(root, &dirs) {
             Ok(found) => found,
-            Err(_) => {
-                let _ = fs::remove_dir_all(&directory);
+            Err(error) => {
+                messages.push(format!("{}: a lockfile of a killed run could not be read ({error}); its journal was kept", directory.display()));
                 continue;
             }
         };
+        let mut settled: bool = true;
         for (old, now) in before.iter().zip(live.iter()) {
             if old.source == now.source {
                 continue;
@@ -302,21 +378,37 @@ pub fn recover(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[Loc
                 messages.push(format!("{}/{LOCKFILE_NAME} was left by a run that was killed; its new versions pass the policy, so it was kept", old.crate_dir));
                 continue;
             }
-            let refused: PathBuf = path.with_file_name(format!("{LOCKFILE_NAME}{REFUSED_SUFFIX}"));
-            let saved: io::Result<()> = match atomic_write(&refused, &now.source) {
-                Ok(()) => atomic_write(&path, &old.source),
+            // Review finding (compare-before-replace): the judgement above can take a long time, so the file is read again
+            // right before it is replaced, and a lockfile that is no longer the judged one is another writer's and is left.
+            let latest: String = fs::read_to_string(&path).unwrap_or_default();
+            if latest != now.source {
+                messages.push(format!(
+                    "{}/{LOCKFILE_NAME} was changed by another process while a killed run was being recovered; it was left as that process wrote it, not restored",
+                    old.crate_dir
+                ));
+                continue;
+            }
+            let saved: io::Result<PathBuf> = save_aside(&path.with_file_name(format!("{LOCKFILE_NAME}{REFUSED_SUFFIX}")), &now.source);
+            let restored: io::Result<PathBuf> = match saved {
+                Ok(copy) => atomic_write(&path, &old.source).map(|()| { return copy; }),
                 Err(error) => Err(error),
             };
-            match saved {
-                Ok(()) => messages.push(format!(
-                    "{}/{LOCKFILE_NAME} was left by a run that was killed and holds versions the policy refuses ({}); it was saved as {LOCKFILE_NAME}{REFUSED_SUFFIX} and the earlier lockfile was put back",
+            match restored {
+                Ok(copy) => messages.push(format!(
+                    "{}/{LOCKFILE_NAME} was left by a run that was killed and holds versions the policy refuses ({}); it was saved as {} and the earlier lockfile was put back",
                     old.crate_dir,
-                    problems.join("; ")
+                    problems.join("; "),
+                    copy.file_name().map(|name| { return name.to_string_lossy().to_string(); }).unwrap_or_default()
                 )),
-                Err(error) => messages.push(format!("{}/{LOCKFILE_NAME}: could not recover a killed run: {error}", old.crate_dir)),
+                Err(error) => {
+                    settled = false;
+                    messages.push(format!("{}/{LOCKFILE_NAME}: could not recover a killed run: {error}; its journal was kept", old.crate_dir));
+                }
             }
         }
-        let _ = fs::remove_dir_all(&directory);
+        if settled {
+            let _ = fs::remove_dir_all(&directory);
+        }
     }
     return messages;
 }

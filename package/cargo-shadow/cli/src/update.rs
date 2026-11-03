@@ -37,6 +37,8 @@
 //! export async function updateRustLockfiles({ root, dryRun, now, runCargo, registry }): Promise<UpdateReport>
 //! ```
 
+/// Imports `RefCell`, a list or value that can be changed through a shared reference; it holds the record of the lockfiles this run wrote.
+use std::cell::RefCell;
 /// What:
 /// `use std::fmt;` imports `fmt` from the standard library so this file can name it unqualified.
 /// Why:
@@ -146,7 +148,7 @@ use crate::http::RegistryError;
 /// ```
 use crate::install::policy_findings;
 /// What:
-/// `use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged};` imports `begin`,
+/// `use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};` imports `begin`,
 /// `finish`,
 /// `process_exists`,
 /// `recover`,
@@ -160,9 +162,9 @@ use crate::install::policy_findings;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { begin, finish, process_exists, recover, restore_if_unchanged } from 'crate/journal';
+/// import { begin, finish, note_produced, process_exists, recover, restore_if_unchanged } from 'crate/journal';
 /// ```
-use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged};
+use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};
 /// What:
 /// `use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};` imports `LockedVersion`,
 /// `added_versions`,
@@ -646,7 +648,7 @@ fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Resu
 /// ```ts
 /// async function resolveAll(args): Promise<string[]>
 /// ```
-fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, UpdateError> {
+fn resolve_all(request: &UpdateRequest, cutoff: &str, produced: &RefCell<Vec<LockSnapshot>>) -> Result<Vec<String>, UpdateError> {
     // `let mut`: a binding that may change.
     // Typed binding: `fell_back: Vec<String>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -656,7 +658,10 @@ fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, Upd
         // Constructor `String::new()`: an empty owned collection or a boxed value.
         eprintln!("cargo-shadow: resolving {crate_dir}{}", if cutoff.is_empty() { String::new() } else { format!(" with releases published before {cutoff}") });
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        if resolve_crate(request, crate_dir, cutoff)? {
+        let moved_to_fallback: bool = resolve_crate(request, crate_dir, cutoff)?;
+        // Review finding (early-error rollback): record the root the moment this run's cargo wrote it.
+        note_produced(request.root, crate_dir, produced);
+        if moved_to_fallback {
             // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
             // Why:      `fell_back` lists the crate roots that could not resolve under the cutoff and resolved without it, so the report can name them; the root name is copied because the loop still uses it.
             // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
@@ -710,6 +715,7 @@ fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, Upd
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Borrow `&args`: lends the value without copying or giving it away.
             run_or_fail(request, crate_dir, &args)?;
+            note_produced(request.root, crate_dir, produced);
         }
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -828,17 +834,17 @@ fn raised_floor_warning(change: &str) -> String {
 /// set refused versions aside,
 /// check what is left,
 /// prune and raise catalog entries when kept.
-/// `&mut Option<...>` is a borrowed slot the function may fill.
+/// `&RefCell<Vec<...>>` is a borrowed list the function may add to.
 /// Why:
 /// The caller restores on an error or a refusal;
-/// `produced` records what cargo wrote before the slow registry checks,
-/// so the restore can tell a concurrent writer from this run.
+/// `produced` records each lockfile the moment this run's cargo wrote it,
+/// so the restore can tell a concurrent writer from this run, and a root this run never wrote is never restored.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function runUpdate(args): Promise<UpdateReport>
 /// ```
-fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot], produced: &mut Option<Vec<LockSnapshot>>) -> Result<UpdateReport, UpdateError> {
+fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot], produced: &RefCell<Vec<LockSnapshot>>) -> Result<UpdateReport, UpdateError> {
     // Borrow `&Settings`: lends the value without copying or giving it away.
     // Typed binding: `settings: &Settings`.
     let settings: &Settings = request.settings;
@@ -880,7 +886,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     match kind {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&cutoff`: lends the value without copying or giving it away.
-        UpdateKind::Full => fell_back = resolve_all(request, &cutoff)?,
+        UpdateKind::Full => fell_back = resolve_all(request, &cutoff, produced)?,
         UpdateKind::Targeted { cargo_args } => {
             // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
             // Why:      `args` starts as a copy of the user's cargo arguments so forwarded options can be appended without changing the caller's slice.
@@ -901,6 +907,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Borrow `&args`: lends the value without copying or giving it away.
                 run_or_fail(request, crate_dir, &args)?;
+                note_produced(request.root, crate_dir, produced);
             }
         }
     }
@@ -923,6 +930,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             cutoff_ms,
             runner: request.runner,
             forward: request.forward,
+            produced,
         })
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // `.map_err(...)`: converts the callee's error into this function's error type.
@@ -934,8 +942,6 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `after_snapshots: Vec<LockSnapshot>`.
     let after_snapshots: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(other_text)?;
-    // What cargo produced, taken before the slow registry checks: a restore later replaces a lockfile only if it still holds this.
-    *produced = Some(after_snapshots.clone());
     // Borrow `&after_snapshots`: lends the value without copying or giving it away.
     // Typed binding: `after: Vec<String>`.
     let after: Vec<String> = sources_of(&after_snapshots);
@@ -1079,22 +1085,20 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // Macro `eprintln!`: builds or prints text (or a list) from a template.
     eprintln!("cargo-shadow: snapshotted {} lockfiles", before.len());
     // Borrow `&before`: lends the value without copying or giving it away.
-    // Typed binding: `journaled: bool`.
-    let journaled: bool = begin(request.root, &before).is_ok();
-    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-    // Why:      `produced` is `None` until `run_update` has re-read the lockfiles after cargo; the restore then tells a concurrent writer from this run's own changes.
+    // Review finding (failed begin): without a complete recovery record nothing may be mutated, so a journal that cannot be
+    // started stops the update here, before the first cargo call.
+    begin(request.root, &before).map_err(other_text)?;
+    // What:     `RefCell<Vec<LockSnapshot>>` is a list that can be added to through a shared reference (sibling: `&mut Vec`, which needs exclusive access); `RefCell::new(Vec::new())` makes an empty one.
+    // Why:      `produced` starts empty because cargo has not written yet; each cargo write is recorded the moment it succeeded.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // // Some(value) is  value
-    // // None        is  undefined
+    // const produced: LockSnapshot[] = [];
     // ```
-    // `let mut`: a binding that may change.
-    // Typed binding: `produced: Option<Vec<LockSnapshot>>`.
-    let mut produced: Option<Vec<LockSnapshot>> = None;
+    let produced: RefCell<Vec<LockSnapshot>> = RefCell::new(Vec::new());
     // Borrow `&before`: lends the value without copying or giving it away.
     // Typed binding: `outcome: Result<UpdateReport, UpdateError>`.
-    let outcome: Result<UpdateReport, UpdateError> = run_update(request, kind, &before, &mut produced);
+    let outcome: Result<UpdateReport, UpdateError> = run_update(request, kind, &before, &produced);
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Borrow `&outcome`: lends the value without copying or giving it away.
     // Typed binding: `keep: bool`.
@@ -1107,30 +1111,19 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     if !keep {
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: restoring every lockfile that this run changed");
-        // `match`: picks the arm whose pattern fits the value.
-        // Typed binding: `state: Vec<LockSnapshot>`.
-        let state: Vec<LockSnapshot> = match produced {
-            // `Some`: the present or the absent value of an `Option`.
-            Some(found) => found,
-            // `None`: the present or the absent value of an `Option`.
-            // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-            None => read_locks(request.root, request.crate_dirs).unwrap_or_default(),
-        };
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Closure `|error|`: an anonymous function, like a TS arrow function.
         // Borrow `&before`: lends the value without copying or giving it away.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        restore_warnings = restore_if_unchanged(request.root, &before, &state).map_err(other_text)?;
+        restore_warnings = restore_if_unchanged(request.root, &before, &produced.borrow()).map_err(other_text)?;
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
         for warning in &restore_warnings {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("cargo-shadow: warning: {warning}");
         }
     }
-    if journaled {
-        finish(request.root);
-    }
+    finish(request.root);
     // Closure `|mut report|`: an anonymous function, like a TS arrow function.
     // Adapter `.map(`: transforms or selects items with a closure.
     return outcome.map(|mut report| {

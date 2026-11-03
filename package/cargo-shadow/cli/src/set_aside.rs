@@ -18,6 +18,8 @@
 //! export async function setAsideUntilClean(args): Promise<string[]>  // warnings
 //! ```
 
+/// Imports `RefCell`, a list or value that can be changed through a shared reference; it holds the record of the lockfiles this run wrote.
+use std::cell::RefCell;
 /// What:
 /// `use std::collections::BTreeSet;` imports `BTreeSet` from the standard library so this file can name it unqualified.
 /// Why:
@@ -93,6 +95,8 @@ use crate::checks::{TrustRefusal, group_by_name, trust_refusals};
 /// import { LockSnapshot, read_locks } from 'crate/crates';
 /// ```
 use crate::crates::{LockSnapshot, read_locks};
+/// Imports `note_produced`, which records a lockfile this run's cargo wrote.
+use crate::journal::note_produced;
 /// What:
 /// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -220,6 +224,9 @@ pub struct SetAsideRequest<'a> {
     /// `--config`,
     /// ...).
     pub forward: &'a [String],
+    /// The record of the lockfiles this run wrote;
+    /// every successful `--precise` move is added, so a rollback knows the root is this run's own.
+    pub produced: &'a RefCell<Vec<LockSnapshot>>,
 }
 
 /// What:
@@ -546,6 +553,7 @@ fn move_crate(request: &SetAsideRequest, crate_dir: &str, refused: &TrustRefusal
         // Borrow `&request.root.join`: lends the value without copying or giving it away.
         let outcome = request.runner.run(&request.root.join(crate_dir), &args)?;
         if outcome.ok {
+            note_produced(request.root, crate_dir, request.produced);
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.clone()`: an independent owned copy.
             return Ok(candidate.clone());

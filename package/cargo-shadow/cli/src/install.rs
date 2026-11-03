@@ -47,6 +47,16 @@
 //! ```
 
 /// What:
+/// `use std::cell::RefCell;` imports `RefCell`, a value that can be changed through a shared reference (sibling: `&mut`, which needs exclusive access).
+/// Why:
+/// The record of what this run's cargo calls wrote (`produced`) grows while the transaction body holds a shared reference to it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // TS objects are mutable through any reference; no import is needed.
+/// ```
+use std::cell::RefCell;
+/// What:
 /// `use std::fmt;` imports `fmt` from the standard library so this file can name it unqualified.
 /// Why:
 /// `fmt` is used by the `impl` of `InstallError`,
@@ -126,23 +136,25 @@ use crate::checks::{CheckOutcome, check_release_age, check_trust};
 /// ```
 use crate::crates::{LockSnapshot, read_locks};
 /// What:
-/// `use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged};` imports `begin`,
+/// `use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};` imports `begin`,
 /// `finish`,
+/// `note_produced`,
 /// `process_exists`,
 /// `recover`,
 /// `restore_if_unchanged` from another module of this crate so this file can name them unqualified.
 /// Why:
 /// `begin` is used by `install_rust_lockfiles`;
 /// `finish` is used by `install_rust_lockfiles`;
+/// `note_produced` is used by `update_stale_roots`;
 /// `process_exists` is used by `install_rust_lockfiles`;
 /// `recover` is used by `install_rust_lockfiles`;
 /// `restore_if_unchanged` is used by `install_rust_lockfiles`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { begin, finish, process_exists, recover, restore_if_unchanged } from 'crate/journal';
+/// import { begin, finish, note_produced, process_exists, recover, restore_if_unchanged } from 'crate/journal';
 /// ```
-use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged};
+use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};
 /// What:
 /// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -659,7 +671,7 @@ fn invalid_lock_toml(message: String) -> InstallError {
 /// update the stale roots,
 /// then check the new versions;
 /// restoring on refusal is the caller's.
-fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produced: &mut Option<Vec<LockSnapshot>>) -> Result<InstallReport, InstallError> {
+fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produced: &RefCell<Vec<LockSnapshot>>) -> Result<InstallReport, InstallError> {
     // `let mut`: a binding that may change.
     // Typed binding: `stale: Vec<String>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -676,6 +688,9 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&UPDATE_ARGS`: lends the value without copying or giving it away.
         run_or_fail(request, crate_dir, &UPDATE_ARGS)?;
+        // Review finding (early-error rollback): this root now holds what this run's cargo wrote, so a rollback may replace it
+        // (and only while it still holds this); roots the run never reached are never recorded and never restored.
+        note_produced(request.root, crate_dir, produced);
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&VERIFY_ARGS`: lends the value without copying or giving it away.
         run_or_fail(request, crate_dir, &VERIFY_ARGS)?;
@@ -689,8 +704,6 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         read_locks(request.root, request.crate_dirs).map_err(io_error)?;
-    // What cargo produced, taken before the slow registry checks: a restore later replaces a lockfile only if it still holds this.
-    *produced = Some(after.clone());
     // Borrow `&sources_of`: lends the value without copying or giving it away.
     // Typed binding: `added: Vec<LockedVersion>`.
     let added: Vec<LockedVersion> = added_versions(&sources_of(before), &sources_of(&after))
@@ -876,22 +889,20 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     // Macro `eprintln!`: builds or prints text (or a list) from a template.
     eprintln!("cargo-shadow: snapshotted {} lockfiles", before.len());
     // Borrow `&before`: lends the value without copying or giving it away.
-    // Typed binding: `journaled: bool`.
-    let journaled: bool = begin(request.root, &before).is_ok();
-    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-    // Why:      `produced` starts as `None` because cargo has not written yet; the update step fills it with what cargo produced, before the slow registry checks.
+    // Review finding (failed begin): without a complete recovery record nothing may be mutated, so a journal that cannot be
+    // started stops the install here, before the first cargo call.
+    begin(request.root, &before).map_err(io_error)?;
+    // What:     `RefCell<Vec<LockSnapshot>>` is a list that can be added to through a shared reference (sibling: `&mut Vec`, which needs exclusive access); `RefCell::new(Vec::new())` makes an empty one.
+    // Why:      `produced` starts empty because cargo has not written yet; each cargo write is recorded the moment it succeeded, so a failure never has to guess what the run wrote.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // // Some(value) is  value
-    // // None        is  undefined
+    // const produced: LockSnapshot[] = [];
     // ```
-    // `let mut`: a binding that may change.
-    // Typed binding: `produced: Option<Vec<LockSnapshot>>`.
-    let mut produced: Option<Vec<LockSnapshot>> = None;
+    let produced: RefCell<Vec<LockSnapshot>> = RefCell::new(Vec::new());
     // Borrow `&before`: lends the value without copying or giving it away.
     // Typed binding: `outcome: Result<InstallReport, InstallError>`.
-    let outcome: Result<InstallReport, InstallError> = update_stale_roots(request, &before, &mut produced);
+    let outcome: Result<InstallReport, InstallError> = update_stale_roots(request, &before, &produced);
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Borrow `&outcome`: lends the value without copying or giving it away.
     // Typed binding: `keep: bool`.
@@ -904,37 +915,19 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     if !keep {
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: restoring every lockfile that this run changed");
-        // `match`: picks the arm whose pattern fits the value.
-        // Typed binding: `state: Vec<LockSnapshot>`.
-        let state: Vec<LockSnapshot> = match produced {
-            // `Some`: the present or the absent value of an `Option`.
-            Some(found) => found,
-            // `None`: the present or the absent value of an `Option`.
-            // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-            // Why:      If the lockfiles cannot be re-read after a failure, an empty list gives no sign of a concurrent writer, so every lockfile that differs from its snapshot is restored.
-            // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // value ?? fallback
-            // ```
-            None => read_locks(request.root, request.crate_dirs).unwrap_or_default(),
-        };
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Closure `|error|`: an anonymous function, like a TS arrow function.
         // Borrow `&before`: lends the value without copying or giving it away.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        restore_warnings = restore_if_unchanged(request.root, &before, &state).map_err(io_error)?;
+        restore_warnings = restore_if_unchanged(request.root, &before, &produced.borrow()).map_err(io_error)?;
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
         for warning in &restore_warnings {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("cargo-shadow: warning: {warning}");
         }
     }
-    if journaled {
-        finish(request.root);
-    }
+    finish(request.root);
     // Closure `|mut report|`: an anonymous function, like a TS arrow function.
     // Adapter `.map(`: transforms or selects items with a closure.
     return match outcome {
