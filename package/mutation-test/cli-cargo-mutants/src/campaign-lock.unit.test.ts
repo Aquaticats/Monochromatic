@@ -1,19 +1,9 @@
 import {
-  spawn,
-  spawnSync,
-} from 'node:child_process';
-import { once } from 'node:events';
-import {
-  chmod,
-  mkdir,
-  mkdtempDisposable,
   readdir,
-  symlink,
-  writeFile,
+  readFile,
+  mkdir,
 } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
 
 import {
   describe,
@@ -21,42 +11,27 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { acquireCampaignLock } from './campaign-lock.ts';
+import {
+  acquireCampaignLock,
+  campaignClaimPrefix,
+} from './campaign-lock.ts';
+import {
+  runClaimHolder,
+  scratchDirectory,
+  startOldHolder,
+} from './claim-test-support.ts';
+import { noLiveOwner } from './claim-liveness.ts';
+import { decodeClaimRecord } from './claim-record.ts';
 import { CargoMutantsToolingError } from './error.ts';
+import { liveOwnerOf } from './owner-claim.ts';
 
 /**
- Longest a test waits for the kernel to give back the lock of a process that was killed.
+ Path of the module the holder children import.
  */
-const releaseWaitMilliseconds = 10_000;
-
-/**
- Make a disposable directory under the agent scratch area, never the system temporary directory.
-
- @returns the directory, removed when disposed
-
- @example
- ```ts
- await using directory = await scratch();
- ```
- */
-async function scratch(): Promise<AsyncDisposable & { readonly path: string }> {
-  /**
-   Parent of every scratch directory.
-   */
-  const parent = join(
-    homedir(),
-    'temp',
-    'agent',
-  );
-  await mkdir(
-    parent,
-    { recursive: true },
-  );
-  return mkdtempDisposable(join(
-    parent,
-    'cargo-mutants-lock-',
-  ));
-}
+const claimModule = join(
+  import.meta.dirname,
+  'owner-claim.ts',
+);
 
 /**
  The outcome of trying to take the lock.
@@ -100,118 +75,84 @@ async function attempt(directory: string): Promise<Attempt> {
 }
 
 /**
- A child process that took, or failed to take, the lock; killed and awaited when disposed.
- */
-type Owner = AsyncDisposable & {
-  /**
-   The child's process ID.
-   */
-  readonly pid: number;
-  /**
-   The first line the child printed: `acquired`, or `refused` with the reason.
-   */
-  readonly line: string;
-};
+ List the claim files of the campaign in a directory.
 
-/**
- Script of a child process that takes the lock, says what became of it, and keeps the lock until it is killed.
- */
-const ownerScript = (lockModule: string, evidence: string): string => `import { acquireCampaignLock } from ${JSON.stringify(lockModule)};
-try { await acquireCampaignLock(${JSON.stringify(evidence)}); console.log('acquired'); setTimeout(() => process.exit(0), 30000); }
-catch (error) { console.log('refused ' + String(error)); }`;
+ @param directory - evidence directory
 
-/**
- Find a program on the host.
-
- @param program - its name
-
- @returns its path
+ @returns their names, sorted
 
  @example
  ```ts
- hostPathOf('flock');
+ await claimFiles('/e/native-mutation-abc');
  ```
  */
-function hostPathOf(program: string): string {
-  return spawnSync('sh', ['-c', `command -v ${program}`], { encoding: 'utf8' }).stdout.trim();
-}
-
-/**
- Run a child node process whose `PATH` holds only the given programs, and read its first line.
-
- @param programs - names of programs to find on the host and link into the child's `PATH`
-
- @param fakes - the programs to write into the child's `PATH` as given text, by name
-
- @param evidence - evidence directory the child takes the lock on
-
- @returns the child's first line and process ID; declare it with `await using` so the child is killed at the end
-
- @example
- ```ts
- await using owner = await runWithPath({ programs: ['flock', 'sh'], fakes: {}, evidence: '/e/x' });
- ```
- */
-async function runWithPath({
-  programs,
-  fakes,
-  evidence,
-}: {
-  readonly programs: readonly string[];
-  readonly fakes: Readonly<Record<string, string>>;
-  readonly evidence: string;
-}): Promise<Owner> {
-  await using bin = await scratch();
-  await Promise.all([
-    ...programs.map((program) => symlink(hostPathOf(program), join(bin.path, program))),
-    ...Object.entries(fakes).map(async ([name, text]) => {
-      await writeFile(join(bin.path, name), text);
-      await chmod(join(bin.path, name), 0o755);
-    }),
-  ]);
-  const child = spawn(
-    process.execPath,
-    ['--input-type=module', '--eval', ownerScript(join(import.meta.dirname, 'campaign-lock.ts'), evidence)],
-    { stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, PATH: bin.path } },
-  );
-  if ((child.stdout === null) || (child.pid === undefined))
-    throw new Error('The child has no standard output or process ID.');
-  const chunks: readonly unknown[] = await once(child.stdout, 'data');
-  return {
-    pid: child.pid,
-    line: String(chunks[0]).trim(),
-    async [Symbol.asyncDispose](): Promise<void> {
-      if ((child.exitCode !== null) || (child.signalCode !== null))
-        return;
-      child.kill('SIGKILL');
-      await once(child, 'close');
-    },
-  };
+async function claimFiles(directory: string): Promise<readonly string[]> {
+  return (await readdir(directory))
+    .filter(function isClaim(name) {
+      return name.startsWith(`${campaignClaimPrefix}.`);
+    })
+    .toSorted();
 }
 
 await describe({
   name: acquireCampaignLock.name,
   children: [
     it({
-      name: 'refuses a second run while the first holds the lock, and allows one after the first released it',
+      name: 'refuses a second run while the first holds the claim, naming the owner and its claim file, and allows one after the first released it',
       fn: async () => {
-        await using directory = await scratch();
+        await using directory = await scratchDirectory('campaign-claim-');
         {
           await using held = await acquireCampaignLock(directory.path);
           expect(held).toBeDefined();
-          await expect(acquireCampaignLock(directory.path)).rejects.toThrow(CargoMutantsToolingError);
+          const second = await attempt(directory.path);
+          expect(second.lock).toEqual([]);
+          expect(second.reason).toContain('Another run of this campaign is alive');
+          expect(second.reason).toContain(`process ${String(process.pid)}`);
+          expect(second.reason).toContain(`${campaignClaimPrefix}.1`);
         }
         await using again = await acquireCampaignLock(directory.path);
         expect(again).toBeDefined();
+        expect(await claimFiles(directory.path)).toEqual([`${campaignClaimPrefix}.2`]);
       },
     }),
     it({
-      name: 'lets exactly one of several runs that start together take the lock, over a leftover lock file of the old runner, and leaves no file of its own',
+      name: 'refuses at once and never waits when another process holds the claim',
       fn: async () => {
-        await using directory = await scratch();
-        // The old runner left a lock file that names a process that is gone; it means nothing now, and no contender has to
-        // judge it, which is the step two contenders used to race on.
-        await writeFile(join(directory.path, 'campaign.lock'), '999999 some-boot:1\n');
+        await using directory = await scratchDirectory('campaign-claim-child-');
+        await using holder = await runClaimHolder({
+          claimModule,
+          directory: directory.path,
+          prefix: campaignClaimPrefix,
+        });
+        expect(holder.line).toBe('held');
+        const started = Date.now();
+        const second = await attempt(directory.path);
+        expect(second.lock).toEqual([]);
+        expect(second.reason).toContain(`process ${String(holder.pid)}`);
+        expect(Date.now() - started).toBeLessThan(5_000);
+      },
+    }),
+    it({
+      name: 'takes over the claim of a run that was killed, as the next generation, so a killed run never leaves a lock to clean up',
+      fn: async () => {
+        await using directory = await scratchDirectory('campaign-claim-killed-');
+        await using holder = await runClaimHolder({
+          claimModule,
+          directory: directory.path,
+          prefix: campaignClaimPrefix,
+        });
+        expect((await attempt(directory.path)).lock).toEqual([]);
+        await holder.kill();
+        const taken = await attempt(directory.path);
+        expect(taken.lock).toHaveLength(1);
+        expect(await claimFiles(directory.path)).toEqual([`${campaignClaimPrefix}.2`]);
+        await taken.lock[0]?.[Symbol.asyncDispose]();
+      },
+    }),
+    it({
+      name: 'lets exactly one of several runs that start together take the claim, and tells every other run who holds it',
+      fn: async () => {
+        await using directory = await scratchDirectory('campaign-claim-together-');
         const settled = await Promise.all(Array.from(
           { length: 8 },
           function start() {
@@ -221,112 +162,72 @@ await describe({
         const held = settled.flatMap(function lockOf(result) {
           return result.lock;
         });
-        expect(held.length).toBe(1);
+        expect(held).toHaveLength(1);
         expect(settled.filter((result) => result.lock.length === 0).every((result) => result.reason.includes('Another run'))).toBe(true);
-        expect((await readdir(directory.path)).toSorted()).toEqual(['campaign.lock']);
         await held[0]?.[Symbol.asyncDispose]();
         await using again = await acquireCampaignLock(directory.path);
         expect(again).toBeDefined();
       },
     }),
     it({
-      name: 'is given back by the kernel when the process that holds it is killed, so a killed run never leaves a lock to take over',
+      name: 'leaves the claim file behind as a released tombstone when the run ends, and writes nothing else',
       fn: async () => {
-        await using directory = await scratch();
-        const lockModule = join(import.meta.dirname, 'campaign-lock.ts');
-        /**
-         A process that takes the lock and waits.
-         */
-        const owner = spawn(
-          process.execPath,
-          [
-            '--input-type=module',
-            '--eval',
-            `import { acquireCampaignLock } from ${JSON.stringify(lockModule)}; await acquireCampaignLock(${JSON.stringify(directory.path)}); console.log('owner holds'); setTimeout(() => process.exit(0), 30000);`,
-          ],
-          { stdio: ['ignore', 'pipe', 'inherit'] },
+        await using directory = await scratchDirectory('campaign-claim-tombstone-');
+        {
+          await using held = await acquireCampaignLock(directory.path);
+          expect(held).toBeDefined();
+        }
+        expect(await readdir(directory.path)).toEqual([`${campaignClaimPrefix}.1`]);
+        expect(decodeClaimRecord(await readFile(
+          join(
+            directory.path,
+            `${campaignClaimPrefix}.1`,
+          ),
+          'utf8',
+        ))).toEqual({ kind: 'released' });
+      },
+    }),
+    it({
+      name: 'respects a campaign of the earlier release that still holds the kernel lock on the directory, then proceeds once it ended',
+      fn: async () => {
+        await using directory = await scratchDirectory('campaign-claim-legacy-');
+        const evidence = join(
+          directory.path,
+          'evidence',
         );
-        await once(owner.stdout, 'data');
+        await mkdir(evidence);
+        const holder = await startOldHolder(evidence);
+        const refused = await attempt(evidence);
+        expect(refused.lock).toEqual([]);
+        expect(refused.reason).toContain('earlier release');
+        expect(refused.reason).toContain(evidence);
+        await holder.kill();
+        const taken = await attempt(evidence);
+        expect(taken.lock).toHaveLength(1);
+        await taken.lock[0]?.[Symbol.asyncDispose]();
+      },
+    }),
+    it({
+      name: 'does not leave a claim behind that blocks the next run after refusing for an earlier release',
+      fn: async () => {
+        await using directory = await scratchDirectory('campaign-claim-legacy-given-back-');
+        const holder = await startOldHolder(directory.path);
         expect((await attempt(directory.path)).lock).toEqual([]);
-        owner.kill('SIGKILL');
-        await once(owner, 'close');
-        const deadline = Date.now() + releaseWaitMilliseconds;
-        /**
-         Take the lock as soon as the kernel has dropped it.
-
-         @returns the lock, as the only element, or none within the wait
-         */
-        async function takeWhenFree(): Promise<readonly AsyncDisposable[]> {
-          const result = await attempt(directory.path);
-          if (result.lock.length > 0)
-            return result.lock;
-          if (Date.now() > deadline)
-            return [];
-          await sleep(50);
-          return await takeWhenFree();
-        }
-        const taken = await takeWhenFree();
-        expect(taken.length).toBe(1);
-        await taken[0]?.[Symbol.asyncDispose]();
+        expect(await liveOwnerOf({
+          directory: directory.path,
+          prefix: campaignClaimPrefix,
+        })).toBe(noLiveOwner);
+        await holder.kill();
       },
     }),
     it({
-      name: 'keeps the lock when every child process of the lock owner is killed, because the campaign process itself holds it',
+      name: 'does not take a claim on a directory that is missing, and does not call that a second run',
       fn: async () => {
-        await using directory = await scratch();
-        // The owner is a separate process, so killing its children cannot touch another test's holders.
-        await using owner = await runWithPath({ programs: ['flock', 'sh', 'cat'], fakes: {}, evidence: directory.path });
-        expect(owner.line).toBe('acquired');
-        const children = spawnSync('pgrep', ['--parent', String(owner.pid)], { encoding: 'utf8' }).stdout.split('\n').filter((entry) => entry !== '');
-        for (const child of children)
-          process.kill(Number(child), 'SIGKILL');
-        await sleep(500);
-        const second = await attempt(directory.path);
-        expect(second.lock.length).toBe(0);
-        expect(second.reason.includes('Another run')).toBe(true);
-      },
-    }),
-    it({
-      name: 'does not report a lock held that a helper without cat would drop at once: with no cat on PATH a second run is still refused',
-      fn: async () => {
-        await using directory = await scratch();
-        await using owner = await runWithPath({ programs: ['flock', 'sh'], fakes: {}, evidence: directory.path });
-        if (owner.line === 'acquired') {
-          await sleep(500);
-          expect((await attempt(directory.path)).lock.length).toBe(0);
-        }
-        else
-          expect(owner.line.startsWith('refused')).toBe(true);
-      },
-    }),
-    it({
-      name: 'fails closed when flock reports anything but success or a conflict, even after it printed the old readiness word',
-      fn: async () => {
-        await using directory = await scratch();
-        const bodies = [
-          String.raw`process.stdout.write('held\n'); process.exit(3);`,
-          'process.exit(3);',
-          String.raw`process.stdout.write('held\n'); process.kill(process.pid, 'SIGKILL');`,
-        ];
-        const lines = await Promise.all(bodies.map(async (body) => {
-          await using owner = await runWithPath({
-            programs: [],
-            fakes: { flock: `#!${process.execPath}\n${body}\n` },
-            evidence: directory.path,
-          });
-          return owner.line;
-        }));
-        for (const line of lines) {
-          expect(line.startsWith('refused')).toBe(true);
-          expect(line.includes('Could not take the lock')).toBe(true);
-        }
-      },
-    }),
-    it({
-      name: 'does not take a lock on a directory that is missing, and does not call that a second run',
-      fn: async () => {
-        await using directory = await scratch();
-        const outcome = await attempt(join(directory.path, 'missing'));
+        await using directory = await scratchDirectory('campaign-claim-missing-');
+        const outcome = await attempt(join(
+          directory.path,
+          'missing',
+        ));
         expect(outcome.lock).toEqual([]);
         expect(outcome.reason.includes('Another run')).toBe(false);
       },
