@@ -1,15 +1,15 @@
 //! Recovery checks against real Git repositories: registration, discards with their notices, and resumption.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{dead_copy_owner, fixture, git, git_context, remove, repository};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal::{
-    Journal, create_journal, ensure_journal_root, read_pending_journals, write_journal,
+    Journal, adopt_journal, create_journal, create_journal_for, ensure_journal_root, journal_root, read_pending_journals,
+    write_journal,
 };
-use crate::worktree_copy_lock::{SETTLEMENT_LOCK_NAME, acquire_worktree_copy_lock};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
-use crate::worktree_copy_stage_claim::{claim_stage, stage_claims_exist};
+use crate::worktree_copy_stage_claim::{claim_stage, claim_stage_for, stage_claims_exist};
 use std::os::unix::fs::PermissionsExt;
 
 /// A repository with an ignored `cache` file and a linked worktree at `topic` that the copy would fill.
@@ -41,7 +41,7 @@ fn staged_journal(source: &Path, destination: &Path) -> PendingJournal {
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let snapshot: StagedSnapshot =
         stage_ignored_snapshot(&git_context(), source, new_stage_container(destination).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
-    return create_journal(common.as_path(), destination, &snapshot).expect("journal");
+    return create_journal_for(common.as_path(), destination, &snapshot, &dead_copy_owner()).expect("journal");
 }
 
 /// A linked worktree of the repository is registered; a removed or re-pointed one is not.
@@ -197,7 +197,7 @@ fn an_interrupted_main_checkout_copy_is_resumed_from_its_stage() {
         &CopySelection::MainCheckout,
     )
     .expect("staged");
-    let pending: PendingJournal = create_journal(common.as_path(), topic.as_path(), &snapshot).expect("journal");
+    let pending: PendingJournal = create_journal_for(common.as_path(), topic.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
     write_journal(pending.path.as_path(), &Journal { phase: Phase::Installing, ..pending.journal.clone() }).expect("installing phase");
     let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 1);
@@ -244,30 +244,46 @@ fn completed_journal_only_cleans_up() {
     remove(root.as_path());
 }
 
-/// Recovery skips the settlement lock when no journal is pending, and skips recovery while a live owner holds it.
+/// The pending check does nothing, and creates nothing, when no journal is pending; it leaves a live owner's journal whole
+/// and recovers a dead owner's.
 #[cfg(unix)]
 #[test]
-fn pending_check_takes_the_lock_only_for_a_journal() {
+fn pending_check_leaves_a_live_journal_and_recovers_a_dead_one() {
     let root: PathBuf = fixture("recovery-pending-check");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     recover_pending_worktree_copies(common.as_path(), &mut Vec::new()).expect("nothing pending");
-    assert!(
-        !ensure_journal_root(common.as_path())
-            .expect("root")
-            .join(SETTLEMENT_LOCK_NAME)
-            .exists()
-    );
-    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    let mut stderr: Vec<u8> = Vec::new();
-    let held = acquire_worktree_copy_lock(common.as_path(), &mut stderr).expect("held by us");
-    recover_pending_worktree_copies(common.as_path(), &mut Vec::new())
-        .expect("held by a live owner");
-    assert!(
-        pending.path.exists(),
-        "a live owner keeps the journal for itself"
-    );
-    held.release().expect("released");
+    assert!(!journal_root(common.as_path()).exists(), "the check creates no journal root");
+    let snapshot: StagedSnapshot =
+        stage_ignored_snapshot(&git_context(), source.as_path(), new_stage_container(topic.as_path()).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
+    let live: PendingJournal = create_journal(common.as_path(), topic.as_path(), &snapshot).expect("journal of this process");
+    let mut notices: Vec<u8> = Vec::new();
+    recover_pending_worktree_copies(common.as_path(), &mut notices).expect("a live owner's journal is skipped");
+    assert!(live.path.exists(), "a live owner keeps the journal for itself");
+    assert!(notices.is_empty(), "{}", String::from_utf8_lossy(notices.as_slice()));
+    assert!(Path::new(live.journal.stage_container.as_str()).exists(), "its stage stays");
+    let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    recover_pending_worktree_copies(common.as_path(), &mut notices).expect("a dead owner's journal is recovered");
+    assert!(!dead.path.exists());
+    assert!(live.path.exists(), "the live journal is still whole after the dead one went");
+    remove(root.as_path());
+}
+
+/// Taking over a dead owner's journal is one rename: the first command gets it, and a second command that still holds the
+/// old name gets nothing, so a journal is never installed twice.
+#[cfg(unix)]
+#[test]
+fn only_one_command_takes_over_a_dead_journal() {
+    let root: PathBuf = fixture("recovery-single-winner");
+    let (source, topic) = linked_source(root.as_path());
+    let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let first = dead_copy_owner();
+    let second = dead_copy_owner();
+    let won: PendingJournal = adopt_journal(&dead, &first).expect("rename works").expect("the first command wins");
+    assert_eq!(won.owner_token(), Some(first.token()));
+    assert!(won.path.exists());
+    assert!(!dead.path.exists());
+    assert!(adopt_journal(&dead, &second).expect("rename works").is_none(), "the old name is gone");
     remove(root.as_path());
 }
 
@@ -278,7 +294,7 @@ fn recovery_removes_a_stage_no_journal_names() {
     let root: PathBuf = fixture("recovery-abandoned-stage");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let claim = claim_stage(common.as_path(), topic.as_path()).expect("claim");
+    let claim = claim_stage_for(common.as_path(), topic.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::create_dir(claim.container()).expect("stage");
     std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
     std::fs::write(claim.container().join("half"), b"copied so far").expect("partial copy");
@@ -291,25 +307,25 @@ fn recovery_removes_a_stage_no_journal_names() {
     remove(root.as_path());
 }
 
-/// A forwarded command that creates no worktree reaps an abandoned stage when no live copy holds the lock,
-/// and leaves it alone while one does.
+/// A forwarded command that creates no worktree reaps the stage of a dead owner's claim, and leaves alone the stage of a claim
+/// whose owner still runs.
 #[cfg(unix)]
 #[test]
 fn the_pending_check_reaps_abandoned_stages_only_without_a_live_owner() {
     let root: PathBuf = fixture("recovery-pending-claim");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let claim = claim_stage(common.as_path(), topic.as_path()).expect("claim");
-    std::fs::create_dir(claim.container()).expect("stage");
-    std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
-    let mut stderr: Vec<u8> = Vec::new();
-    let held = acquire_worktree_copy_lock(common.as_path(), &mut stderr).expect("held by us");
-    recover_pending_worktree_copies(common.as_path(), &mut stderr).expect("held by a live owner");
-    assert!(claim.container().exists(), "a live copy may still be staging");
-    held.release().expect("released");
+    let live = claim_stage(common.as_path(), topic.as_path()).expect("claim of this process");
+    let dead = claim_stage_for(common.as_path(), topic.as_path(), &dead_copy_owner()).expect("claim of a dead process");
+    for claim in [&live, &dead] {
+        std::fs::create_dir(claim.container()).expect("stage");
+        std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
+    }
     let mut notices: Vec<u8> = Vec::new();
     recover_pending_worktree_copies(common.as_path(), &mut notices).expect("reaped");
-    assert!(!claim.container().exists());
+    assert!(live.container().exists(), "a live copy may still be staging");
+    assert!(!dead.container().exists(), "a dead owner's stage is reaped");
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the live claim stays");
     assert!(String::from_utf8_lossy(notices.as_slice()).contains("removed the stage"));
     remove(root.as_path());
 }
@@ -439,5 +455,34 @@ fn a_stage_that_cannot_be_examined_is_a_fault_and_not_a_missing_stage() {
         "{}",
         failure.0
     );
+    remove(root.as_path());
+}
+
+/// Commands that race for one dead journal at the same instant produce exactly one winner, and the winner's journal is the
+/// only one left under any name.
+#[cfg(unix)]
+#[test]
+fn racing_commands_take_a_dead_journal_exactly_once() {
+    const RACERS: usize = 4;
+    let root: PathBuf = fixture("recovery-race");
+    let (source, topic) = linked_source(root.as_path());
+    let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let owners: Vec<_> = (0..RACERS).map(|_racer| { return dead_copy_owner(); }).collect();
+    let start: std::sync::Barrier = std::sync::Barrier::new(RACERS);
+    let wins: usize = std::thread::scope(|scope| {
+        let handles: Vec<_> = owners
+            .iter()
+            .map(|owner| {
+                return scope.spawn(|| {
+                    start.wait();
+                    return adopt_journal(&dead, owner).expect("rename works").is_some();
+                });
+            })
+            .collect();
+        return handles.into_iter().map(|handle| { return handle.join().expect("racer ends"); }).filter(|won| { return *won; }).count();
+    });
+    assert_eq!(wins, 1, "exactly one command takes the journal");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "one journal remains, under the winner's name");
     remove(root.as_path());
 }

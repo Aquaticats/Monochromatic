@@ -179,7 +179,7 @@ pub fn migrate_action(arguments: &MigrateArguments, cwd: &Path) -> Action {
         let mut stderr = std::io::stderr().lock();
         let _written = writeln!(stderr, "{text}");
     };
-    let code: i32 = execute(&LinuxPlatform, arguments, root.as_path(), &Interrupt::never(), &mut say);
+    let code: i32 = execute(&LinuxPlatform::default(), arguments, root.as_path(), &Interrupt::never(), &mut say);
     return Action::Exit { code, stdout: String::new(), stderr: String::new() };
 }
 

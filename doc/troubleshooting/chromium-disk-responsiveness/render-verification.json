@@ -1,0 +1,738 @@
+{
+  "checkedAt": "2026-11-03T08:45:23.773Z",
+  "documents": [
+    {
+      "source": "doc/troubleshooting/chromium-disk-responsiveness.md",
+      "html": "chromium-audit-overview.html",
+      "codeBlocks": 7,
+      "emphasis": 0,
+      "headings": [
+        {
+          "id": "chromium-1560807873-synchronous-disk-dependencies-can-delay-ui-and-rendering",
+          "text": "Chromium\n156.0.8078.73 synchronous disk dependencies can delay UI and\nrendering"
+        },
+        {
+          "id": "audit-status-at-2026-11-03t034341-0500",
+          "text": "Audit status at\n2026-11-03T03:43:41-05:00"
+        },
+        {
+          "id": "symptom-boundaries",
+          "text": "Symptom boundaries"
+        },
+        {
+          "id": "findings-to-prioritize-for-desktop-linux",
+          "text": "Findings to prioritize\nfor desktop Linux"
+        },
+        {
+          "id": "diagnostic-histogram-writes-touch-a-writable-file-mapping",
+          "text": "Diagnostic\nhistogram writes touch a writable file mapping"
+        },
+        {
+          "id": "gpu-persistent-cache-misses-synchronously-read-sqlite-backed-files",
+          "text": "GPU\npersistent-cache misses synchronously read SQLite-backed files"
+        },
+        {
+          "id": "ui-resources-can-incur-file-page-faults-while-constructing-menus-or-images",
+          "text": "UI\nresources can incur file-page faults while constructing menus or\nimages"
+        },
+        {
+          "id": "font-and-spelling-cache-misses-retain-synchronous-file-dependencies",
+          "text": "Font\nand spelling cache misses retain synchronous file dependencies"
+        },
+        {
+          "id": "parked-strings-and-images-are-synchronously-read-back-from-disk",
+          "text": "Parked\nstrings and images are synchronously read back from disk"
+        },
+        {
+          "id": "cold-localstorage-reads-block-the-renderer-on-its-storage-service",
+          "text": "Cold\nlocalStorage reads block the renderer on its storage service"
+        },
+        {
+          "id": "file-pickers-and-profile-loading-perform-direct-ui-filesystem-operations",
+          "text": "File\npickers and profile loading perform direct UI filesystem operations"
+        },
+        {
+          "id": "enterprise-scan-teardown-can-wait-on-background-file-reads",
+          "text": "Enterprise\nscan teardown can wait on background file reads"
+        },
+        {
+          "id": "other-platform-and-lifecycle-flags",
+          "text": "Other platform and lifecycle\nflags"
+        },
+        {
+          "id": "verification-and-coverage",
+          "text": "Verification and coverage"
+        },
+        {
+          "id": "dependency-coverage",
+          "text": "Dependency coverage"
+        },
+        {
+          "id": "browser-validation-resource-limit",
+          "text": "Browser-validation resource\nlimit"
+        },
+        {
+          "id": "reproducing-the-lexical-search",
+          "text": "Reproducing the lexical\nsearch"
+        },
+        {
+          "id": "what-does-not-establish-a-ui-disk-stall",
+          "text": "What does not establish\na UI disk stall"
+        },
+        {
+          "id": "verified-workarounds",
+          "text": "Verified workarounds"
+        },
+        {
+          "id": "upstream-filing-decision",
+          "text": "Upstream filing decision"
+        }
+      ],
+      "ids": [
+        "chromium-1560807873-synchronous-disk-dependencies-can-delay-ui-and-rendering",
+        "audit-status-at-2026-11-03t034341-0500",
+        "symptom-boundaries",
+        "findings-to-prioritize-for-desktop-linux",
+        "diagnostic-histogram-writes-touch-a-writable-file-mapping",
+        "gpu-persistent-cache-misses-synchronously-read-sqlite-backed-files",
+        "cb1",
+        "cb1-1",
+        "cb1-2",
+        "cb1-3",
+        "cb2",
+        "cb2-1",
+        "cb2-2",
+        "cb2-3",
+        "cb3",
+        "cb3-1",
+        "cb3-2",
+        "cb3-3",
+        "cb3-4",
+        "cb3-5",
+        "cb3-6",
+        "cb3-7",
+        "cb4",
+        "cb4-1",
+        "cb4-2",
+        "ui-resources-can-incur-file-page-faults-while-constructing-menus-or-images",
+        "font-and-spelling-cache-misses-retain-synchronous-file-dependencies",
+        "parked-strings-and-images-are-synchronously-read-back-from-disk",
+        "cb5",
+        "cb5-1",
+        "cb5-2",
+        "cb5-3",
+        "cb5-4",
+        "cb5-5",
+        "cb5-6",
+        "cb6",
+        "cb6-1",
+        "cb6-2",
+        "cb6-3",
+        "cb6-4",
+        "cold-localstorage-reads-block-the-renderer-on-its-storage-service",
+        "file-pickers-and-profile-loading-perform-direct-ui-filesystem-operations",
+        "enterprise-scan-teardown-can-wait-on-background-file-reads",
+        "other-platform-and-lifecycle-flags",
+        "verification-and-coverage",
+        "dependency-coverage",
+        "browser-validation-resource-limit",
+        "reproducing-the-lexical-search",
+        "cb7",
+        "cb7-1",
+        "cb7-2",
+        "cb7-3",
+        "cb7-4",
+        "cb7-5",
+        "cb7-6",
+        "what-does-not-establish-a-ui-disk-stall",
+        "verified-workarounds",
+        "upstream-filing-decision"
+      ],
+      "literalBackticks": 0,
+      "title": "Chromium 156.0.8078.73 synchronous disk dependencies can delay UI and rendering",
+      "links": 82
+    },
+    {
+      "source": "doc/troubleshooting/chromium-disk-responsiveness/desktop-ui.md",
+      "html": "chromium-audit-desktop.html",
+      "codeBlocks": 12,
+      "emphasis": 0,
+      "headings": [
+        {
+          "id": "chromium-desktop-ui-disk-blocking-source-audit",
+          "text": "Chromium desktop\nUI disk-blocking source audit"
+        },
+        {
+          "id": "scope-and-evidence-status",
+          "text": "Scope and evidence status"
+        },
+        {
+          "id": "interactive-paths-with-direct-ui-thread-disk-evidence",
+          "text": "Interactive\npaths with direct UI-thread disk evidence"
+        },
+        {
+          "id": "linux-file-pickers-synchronously-inspect-filesystem-metadata",
+          "text": "Linux\nfile pickers synchronously inspect filesystem metadata"
+        },
+        {
+          "id": "switching-to-an-unloaded-profile-still-does-synchronous-filesystem-work",
+          "text": "Switching\nto an unloaded profile still does synchronous filesystem work"
+        },
+        {
+          "id": "enterprise-file-scan-cancellation-waits-for-file-reading-workers",
+          "text": "Enterprise\nfile-scan cancellation waits for file-reading workers"
+        },
+        {
+          "id": "macos-drag-out-creates-files-before-returning-to-native-ui",
+          "text": "macOS\ndrag-out creates files before returning to native UI"
+        },
+        {
+          "id": "windows-drag-out-creates-a-temporary-directory-synchronously",
+          "text": "Windows\ndrag-out creates a temporary directory synchronously"
+        },
+        {
+          "id": "windows-crash-acknowledgment-deletes-a-profile-file-synchronously",
+          "text": "Windows\ncrash acknowledgment deletes a profile file synchronously"
+        },
+        {
+          "id": "macos-file-pickers-inspect-the-default-directory-synchronously",
+          "text": "macOS\nfile pickers inspect the default directory synchronously"
+        },
+        {
+          "id": "profile-loading-and-startup-paths",
+          "text": "Profile loading and startup\npaths"
+        },
+        {
+          "id": "theme-packs-and-theme-migration-read-files-on-the-ui-thread",
+          "text": "Theme\npacks and theme migration read files on the UI thread"
+        },
+        {
+          "id": "extension-manifest-reload-during-profile-startup-reads-on-ui",
+          "text": "Extension\nmanifest reload during profile startup reads on UI"
+        },
+        {
+          "id": "clean-exit-beacon-performs-synchronous-diagnostic-file-io",
+          "text": "Clean-exit\nbeacon performs synchronous diagnostic file I/O"
+        },
+        {
+          "id": "debug-logging-opens-files-synchronously-when-the-network-service-is-created",
+          "text": "Debug\nlogging opens files synchronously when the network service is\ncreated"
+        },
+        {
+          "id": "shutdown-waits-for-asynchronous-preference-writes",
+          "text": "Shutdown\nwaits for asynchronous preference writes"
+        },
+        {
+          "id": "candidates-requiring-more-dependency-or-runtime-attribution",
+          "text": "Candidates\nrequiring more dependency or runtime attribution"
+        },
+        {
+          "id": "windows-printing-invokes-blocking-driver-calls-on-ui",
+          "text": "Windows\nprinting invokes blocking driver calls on UI"
+        },
+        {
+          "id": "chromeos-internal-diagnostic-pages-contain-direct-filesystem-calls",
+          "text": "ChromeOS\ninternal diagnostic pages contain direct filesystem calls"
+        },
+        {
+          "id": "false-positives-checked",
+          "text": "False positives checked"
+        },
+        {
+          "id": "limitations-and-priorities",
+          "text": "Limitations and priorities"
+        }
+      ],
+      "ids": [
+        "chromium-desktop-ui-disk-blocking-source-audit",
+        "scope-and-evidence-status",
+        "interactive-paths-with-direct-ui-thread-disk-evidence",
+        "linux-file-pickers-synchronously-inspect-filesystem-metadata",
+        "cb1",
+        "cb1-1",
+        "cb1-2",
+        "cb1-3",
+        "cb1-4",
+        "cb1-5",
+        "cb1-6",
+        "cb2",
+        "cb2-1",
+        "cb2-2",
+        "cb2-3",
+        "switching-to-an-unloaded-profile-still-does-synchronous-filesystem-work",
+        "cb3",
+        "cb3-1",
+        "cb3-2",
+        "cb3-3",
+        "cb3-4",
+        "cb3-5",
+        "enterprise-file-scan-cancellation-waits-for-file-reading-workers",
+        "cb4",
+        "cb4-1",
+        "cb4-2",
+        "cb4-3",
+        "cb4-4",
+        "macos-drag-out-creates-files-before-returning-to-native-ui",
+        "cb5",
+        "cb5-1",
+        "cb5-2",
+        "cb5-3",
+        "windows-drag-out-creates-a-temporary-directory-synchronously",
+        "cb6",
+        "cb6-1",
+        "cb6-2",
+        "cb6-3",
+        "cb6-4",
+        "cb6-5",
+        "cb6-6",
+        "windows-crash-acknowledgment-deletes-a-profile-file-synchronously",
+        "cb7",
+        "cb7-1",
+        "cb7-2",
+        "cb7-3",
+        "cb7-4",
+        "cb7-5",
+        "macos-file-pickers-inspect-the-default-directory-synchronously",
+        "profile-loading-and-startup-paths",
+        "theme-packs-and-theme-migration-read-files-on-the-ui-thread",
+        "cb8",
+        "cb8-1",
+        "cb8-2",
+        "cb8-3",
+        "cb8-4",
+        "extension-manifest-reload-during-profile-startup-reads-on-ui",
+        "cb9",
+        "cb9-1",
+        "cb9-2",
+        "cb9-3",
+        "cb9-4",
+        "cb9-5",
+        "clean-exit-beacon-performs-synchronous-diagnostic-file-io",
+        "cb10",
+        "cb10-1",
+        "cb10-2",
+        "cb10-3",
+        "debug-logging-opens-files-synchronously-when-the-network-service-is-created",
+        "cb11",
+        "cb11-1",
+        "cb11-2",
+        "cb11-3",
+        "shutdown-waits-for-asynchronous-preference-writes",
+        "cb12",
+        "cb12-1",
+        "cb12-2",
+        "candidates-requiring-more-dependency-or-runtime-attribution",
+        "windows-printing-invokes-blocking-driver-calls-on-ui",
+        "chromeos-internal-diagnostic-pages-contain-direct-filesystem-calls",
+        "false-positives-checked",
+        "limitations-and-priorities"
+      ],
+      "literalBackticks": 0,
+      "title": "Chromium desktop UI disk-blocking source audit",
+      "links": 75
+    },
+    {
+      "source": "doc/troubleshooting/chromium-disk-responsiveness/mapped-files.md",
+      "html": "chromium-audit-mapped.html",
+      "codeBlocks": 14,
+      "emphasis": 0,
+      "headings": [
+        {
+          "id": "chromium-mapped-file-disk-risks-at-2026-11-03t0810390000",
+          "text": "Chromium\nmapped-file disk risks at 2026-11-03T08:10:39+00:00"
+        },
+        {
+          "id": "browsermetrics-writes-can-fault-on-the-browser-ui-thread",
+          "text": "BrowserMetrics\nwrites can fault on the browser UI thread"
+        },
+        {
+          "id": "ui-resource-packs-expose-mapped-bytes-during-synchronous-string-and-image-lookup",
+          "text": "UI\nresource packs expose mapped bytes during synchronous string and image\nlookup"
+        },
+        {
+          "id": "font-misses-synchronously-await-disk-work-then-retain-file-mappings-for-rendering",
+          "text": "Font\nmisses synchronously await disk work, then retain file mappings for\nrendering"
+        },
+        {
+          "id": "hunspell-dictionaries-remain-mapped-on-synchronous-editing-paths",
+          "text": "Hunspell\ndictionaries remain mapped on synchronous editing paths"
+        },
+        {
+          "id": "external-v8-snapshots-and-icu-data-retain-startup-and-cold-page-dependencies",
+          "text": "External\nV8 snapshots and ICU data retain startup and cold-page dependencies"
+        },
+        {
+          "id": "legacy-gpu-disk-cache-mapping-is-not-a-proven-steady-state-ui-fault",
+          "text": "Legacy\nGPU disk-cache mapping is not a proven steady-state UI fault"
+        },
+        {
+          "id": "coverage-and-exclusions",
+          "text": "Coverage and exclusions"
+        }
+      ],
+      "ids": [
+        "chromium-mapped-file-disk-risks-at-2026-11-03t0810390000",
+        "browsermetrics-writes-can-fault-on-the-browser-ui-thread",
+        "cb1",
+        "cb1-1",
+        "cb1-2",
+        "cb1-3",
+        "cb2",
+        "cb2-1",
+        "cb2-2",
+        "cb2-3",
+        "cb2-4",
+        "cb3",
+        "cb3-1",
+        "cb3-2",
+        "cb3-3",
+        "cb3-4",
+        "ui-resource-packs-expose-mapped-bytes-during-synchronous-string-and-image-lookup",
+        "cb4",
+        "cb4-1",
+        "cb4-2",
+        "cb4-3",
+        "cb5",
+        "cb5-1",
+        "cb5-2",
+        "font-misses-synchronously-await-disk-work-then-retain-file-mappings-for-rendering",
+        "cb7",
+        "cb7-1",
+        "cb7-2",
+        "cb7-3",
+        "cb7-4",
+        "cb8",
+        "cb8-1",
+        "cb8-2",
+        "cb8-3",
+        "cb8-4",
+        "cb8-5",
+        "cb8-6",
+        "cb8-7",
+        "hunspell-dictionaries-remain-mapped-on-synchronous-editing-paths",
+        "cb9",
+        "cb9-1",
+        "cb9-2",
+        "cb9-3",
+        "cb9-4",
+        "cb9-5",
+        "cb10",
+        "cb10-1",
+        "cb10-2",
+        "cb10-3",
+        "cb10-4",
+        "external-v8-snapshots-and-icu-data-retain-startup-and-cold-page-dependencies",
+        "cb11",
+        "cb11-1",
+        "cb11-2",
+        "cb11-3",
+        "cb12",
+        "cb12-1",
+        "cb12-2",
+        "cb12-3",
+        "legacy-gpu-disk-cache-mapping-is-not-a-proven-steady-state-ui-fault",
+        "cb13",
+        "cb13-1",
+        "cb13-2",
+        "cb13-3",
+        "cb14",
+        "cb14-1",
+        "cb14-2",
+        "cb14-3",
+        "coverage-and-exclusions"
+      ],
+      "literalBackticks": 0,
+      "title": "Chromium mapped-file disk risks at 2026-11-03T08:10:39+00:00",
+      "links": 70
+    },
+    {
+      "source": "doc/troubleshooting/chromium-disk-responsiveness/mobile-renderer-lifecycle.md",
+      "html": "chromium-audit-mobile.html",
+      "codeBlocks": 15,
+      "emphasis": 0,
+      "headings": [
+        {
+          "id": "chromium-platform-renderer-storage-and-lifecycle-disk-blocking-evidence",
+          "text": "Chromium\nplatform, renderer storage, and lifecycle disk-blocking evidence"
+        },
+        {
+          "id": "scope-and-evidence-at-2026-11-03t0815090000",
+          "text": "Scope and evidence\nat 2026-11-03T08:15:09+00:00"
+        },
+        {
+          "id": "renderer-cold-localstorage-access-synchronously-waits-for-database-reads",
+          "text": "Renderer\ncold localStorage access synchronously waits for database reads"
+        },
+        {
+          "id": "android-active-tab-restoration-blocks-the-ui-in-both-store-generations",
+          "text": "Android\nactive-tab restoration blocks the UI in both store generations"
+        },
+        {
+          "id": "android-legacy-tab-persistence-writes-and-flushes-synchronously-during-lifecycle-transitions",
+          "text": "Android\nlegacy tab persistence writes and flushes synchronously during lifecycle\ntransitions"
+        },
+        {
+          "id": "android-history-submenu-falls-back-to-a-synchronous-metadata-read",
+          "text": "Android\nhistory submenu falls back to a synchronous metadata read"
+        },
+        {
+          "id": "android-legacy-first-run-tab-id-repair-enumerates-directories-on-the-ui-thread",
+          "text": "Android\nlegacy first-run tab ID repair enumerates directories on the UI\nthread"
+        },
+        {
+          "id": "android-webview-initialization-opens-locks-and-writes-its-data-lock-file-on-ui",
+          "text": "Android\nWebView initialization opens, locks, and writes its data lock file on\nUI"
+        },
+        {
+          "id": "android-webview-synchronous-cookie-apis-can-make-an-app-ui-wait-for-storage",
+          "text": "Android\nWebView synchronous cookie APIs can make an app UI wait for storage"
+        },
+        {
+          "id": "ios-session-restoration-and-lazy-tab-realization-synchronously-read-files",
+          "text": "iOS\nsession restoration and lazy tab realization synchronously read\nfiles"
+        },
+        {
+          "id": "ios-profile-creation-synchronously-checks-and-creates-directories",
+          "text": "iOS\nprofile creation synchronously checks and creates directories"
+        },
+        {
+          "id": "browser-shutdown-waits-for-disk-workers-even-though-ordinary-saves-are-asynchronous",
+          "text": "Browser\nshutdown waits for disk workers even though ordinary saves are\nasynchronous"
+        },
+        {
+          "id": "false-positives-and-limits-retained",
+          "text": "False positives and limits\nretained"
+        }
+      ],
+      "ids": [
+        "chromium-platform-renderer-storage-and-lifecycle-disk-blocking-evidence",
+        "scope-and-evidence-at-2026-11-03t0815090000",
+        "renderer-cold-localstorage-access-synchronously-waits-for-database-reads",
+        "cb1",
+        "cb1-1",
+        "cb1-2",
+        "cb2",
+        "cb2-1",
+        "cb2-2",
+        "cb2-3",
+        "cb2-4",
+        "cb2-5",
+        "cb4",
+        "cb4-1",
+        "cb4-2",
+        "cb4-3",
+        "cb4-4",
+        "cb4-5",
+        "cb4-6",
+        "cb4-7",
+        "cb4-8",
+        "android-active-tab-restoration-blocks-the-ui-in-both-store-generations",
+        "cb5",
+        "cb5-1",
+        "cb5-2",
+        "cb5-3",
+        "cb5-4",
+        "cb5-5",
+        "cb5-6",
+        "cb5-7",
+        "cb5-8",
+        "cb5-9",
+        "cb5-10",
+        "cb6",
+        "cb6-1",
+        "cb6-2",
+        "cb6-3",
+        "cb6-4",
+        "cb6-5",
+        "cb6-6",
+        "cb6-7",
+        "cb6-8",
+        "cb6-9",
+        "cb6-10",
+        "cb6-11",
+        "cb6-12",
+        "cb6-13",
+        "android-legacy-tab-persistence-writes-and-flushes-synchronously-during-lifecycle-transitions",
+        "cb7",
+        "cb7-1",
+        "cb7-2",
+        "cb7-3",
+        "cb7-4",
+        "cb7-5",
+        "cb7-6",
+        "cb7-7",
+        "cb7-8",
+        "cb7-9",
+        "cb7-10",
+        "cb7-11",
+        "android-history-submenu-falls-back-to-a-synchronous-metadata-read",
+        "cb8",
+        "cb8-1",
+        "cb8-2",
+        "cb8-3",
+        "cb8-4",
+        "cb8-5",
+        "cb8-6",
+        "android-legacy-first-run-tab-id-repair-enumerates-directories-on-the-ui-thread",
+        "cb9",
+        "cb9-1",
+        "cb9-2",
+        "cb9-3",
+        "cb9-4",
+        "cb9-5",
+        "cb9-6",
+        "cb9-7",
+        "cb9-8",
+        "android-webview-initialization-opens-locks-and-writes-its-data-lock-file-on-ui",
+        "cb10",
+        "cb10-1",
+        "cb10-2",
+        "cb10-3",
+        "cb10-4",
+        "cb10-5",
+        "cb10-6",
+        "android-webview-synchronous-cookie-apis-can-make-an-app-ui-wait-for-storage",
+        "cb11",
+        "cb11-1",
+        "cb11-2",
+        "cb11-3",
+        "cb11-4",
+        "cb11-5",
+        "cb11-6",
+        "cb11-7",
+        "ios-session-restoration-and-lazy-tab-realization-synchronously-read-files",
+        "cb12",
+        "cb12-1",
+        "cb12-2",
+        "cb12-3",
+        "cb12-4",
+        "cb12-5",
+        "ios-profile-creation-synchronously-checks-and-creates-directories",
+        "cb14",
+        "cb14-1",
+        "cb14-2",
+        "cb14-3",
+        "cb14-4",
+        "cb14-5",
+        "cb14-6",
+        "cb14-7",
+        "browser-shutdown-waits-for-disk-workers-even-though-ordinary-saves-are-asynchronous",
+        "cb15",
+        "cb15-1",
+        "cb15-2",
+        "cb15-3",
+        "false-positives-and-limits-retained"
+      ],
+      "literalBackticks": 0,
+      "title": "Chromium platform, renderer storage, and lifecycle disk-blocking evidence",
+      "links": 149
+    },
+    {
+      "source": "doc/troubleshooting/chromium-disk-responsiveness/dependencies.md",
+      "html": "chromium-audit-dependencies.html",
+      "codeBlocks": 11,
+      "emphasis": 0,
+      "headings": [
+        {
+          "id": "chromium-runtime-dependency-disk-audit-at-2026-11-03t0840070000",
+          "text": "Chromium\nruntime dependency disk audit at 2026-11-03T08:40:07+00:00"
+        },
+        {
+          "id": "coverage",
+          "text": "Coverage"
+        },
+        {
+          "id": "browser-ui-fonts-use-synchronous-skia-file-access-under-a-shared-manager-lock",
+          "text": "Browser\nUI fonts use synchronous Skia file access under a shared manager\nlock"
+        },
+        {
+          "id": "pdf-substitute-font-reads-run-synchronously-in-the-renderer-callback",
+          "text": "PDF\nsubstitute-font reads run synchronously in the renderer callback"
+        },
+        {
+          "id": "stopping-an-enabled-aec-dump-waits-for-file-writes-on-renderer-main",
+          "text": "Stopping\nan enabled AEC dump waits for file writes on renderer main"
+        },
+        {
+          "id": "v8-and-icu-preserve-the-mapped-data-dependencies",
+          "text": "V8 and ICU\npreserve the mapped-data dependencies"
+        },
+        {
+          "id": "native-library-loading-is-an-additional-conditional-gpu-dependency",
+          "text": "Native-library\nloading is an additional conditional GPU dependency"
+        },
+        {
+          "id": "database-and-logging-false-positive-boundaries",
+          "text": "Database and\nlogging false-positive boundaries"
+        },
+        {
+          "id": "verification-and-cleanup",
+          "text": "Verification and cleanup"
+        }
+      ],
+      "ids": [
+        "chromium-runtime-dependency-disk-audit-at-2026-11-03t0840070000",
+        "coverage",
+        "browser-ui-fonts-use-synchronous-skia-file-access-under-a-shared-manager-lock",
+        "cb1",
+        "cb1-1",
+        "cb1-2",
+        "cb2",
+        "cb2-1",
+        "cb2-2",
+        "cb2-3",
+        "cb2-4",
+        "cb2-5",
+        "cb2-6",
+        "cb3",
+        "cb3-1",
+        "cb3-2",
+        "cb3-3",
+        "cb3-4",
+        "cb3-5",
+        "pdf-substitute-font-reads-run-synchronously-in-the-renderer-callback",
+        "cb4",
+        "cb4-1",
+        "cb4-2",
+        "cb4-3",
+        "cb4-4",
+        "cb4-5",
+        "cb4-6",
+        "cb5",
+        "cb5-1",
+        "cb5-2",
+        "cb6",
+        "cb6-1",
+        "cb6-2",
+        "cb6-3",
+        "stopping-an-enabled-aec-dump-waits-for-file-writes-on-renderer-main",
+        "cb7",
+        "cb7-1",
+        "cb7-2",
+        "cb7-3",
+        "v8-and-icu-preserve-the-mapped-data-dependencies",
+        "cb8",
+        "cb8-1",
+        "cb8-2",
+        "cb8-3",
+        "cb8-4",
+        "cb9",
+        "cb9-1",
+        "cb9-2",
+        "native-library-loading-is-an-additional-conditional-gpu-dependency",
+        "cb10",
+        "cb10-1",
+        "cb10-2",
+        "cb11",
+        "cb11-1",
+        "cb11-2",
+        "database-and-logging-false-positive-boundaries",
+        "verification-and-cleanup"
+      ],
+      "literalBackticks": 0,
+      "title": "Chromium runtime dependency disk audit at 2026-11-03T08:40:07+00:00",
+      "links": 62
+    }
+  ],
+  "internalLinkProblems": []
+}

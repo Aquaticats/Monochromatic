@@ -47,6 +47,16 @@ export const defaultOpenFiles = 4_096;
 export const cpuPeriod = 100_000;
 
 /**
+ Lowest weight podman accepts for a container's disk I/O (`podman run --blkio-weight` takes 10 to 1000).
+
+ Repository rule HXR (AGENTS.md) runs containers that can exhaust the host at the lowest disk weight, because a
+ rootless container sits in its own `libpod-<id>.scope` outside the launcher's unit and ignores the launcher's
+ `IOWeight`. The default weight is 100, so at this weight a started container gets a tenth of the disk time of a
+ default sibling when both want it.
+ */
+export const lowestDiskWeight = 10;
+
+/**
  The variables a caller may set; an unset or empty one leaves the computed value.
  */
 export const variableNames = {
@@ -92,7 +102,8 @@ export type ContainerBounds = {
   readonly jobs: string;
   readonly testThreads: string;
   /**
-   Arguments of `podman run` that bound the container, in the order the tasks always passed them.
+   Arguments of `podman run` that bound the container, in the order the tasks always passed them, then the lowest
+   disk weight ({@link diskWeightArguments}).
    */
   readonly limitArguments: readonly string[];
   /**
@@ -173,6 +184,21 @@ function readVariable({
   }
   return value;
 }
+
+/**
+ Disk-weight bound of a started container, in the two forms the two block-layer weight files need.
+
+ `--blkio-weight` sets the cgroup file `io.bfq.weight`, which the BFQ I/O scheduler reads, and leaves `io.weight`
+ (which other schedulers read) at the default; `--cgroup-conf=io.weight=` sets `io.weight` and leaves `io.bfq.weight`
+ at the default. Passing both puts whichever file the host's scheduler reads at {@link lowestDiskWeight}.
+ `podman build` has neither option, so the image build is not covered.
+
+ @returns `['--blkio-weight=10', '--cgroup-conf=io.weight=10']`
+ */
+export function diskWeightArguments(): string[] { return [
+  `--blkio-weight=${lowestDiskWeight}`,
+  `--cgroup-conf=io.weight=${lowestDiskWeight}`,
+]; }
 
 /**
  Bound of one container run.
@@ -258,7 +284,8 @@ export function containerBounds(
       `--cpus=${cpus}`,
       `--pids-limit=${pids}`,
       '--ulimit',
-      `nofile=${openFiles}:${openFiles}`
+      `nofile=${openFiles}:${openFiles}`,
+      ...diskWeightArguments()
     ],
     environmentArguments: [
       '--env',

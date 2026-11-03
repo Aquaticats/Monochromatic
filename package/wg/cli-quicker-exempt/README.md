@@ -9,6 +9,7 @@ This loader applies that mark to sockets created in Ghostty,
  Steam,
  Helium,
  Pale Moon,
+ Firefox release,
  Firefox Nightly,
  ChatGPT,
  Interpreter,
@@ -53,6 +54,7 @@ List Ghostty,
  Steam,
  Helium,
  Pale Moon,
+ Firefox release,
  Firefox Nightly,
  ChatGPT,
  Interpreter,
@@ -896,19 +898,23 @@ Release builds omit injection seam.
    Detached application watcher owns Ghostty,
    Steam,
    Helium,
-   Firefox Nightly,
+   Firefox release,
+ Firefox Nightly,
    ChatGPT,
    Interpreter,
    Qure,
    and OdyTTY service enumeration plus future-cgroup inotify coverage.
    It periodically rescans Helium,
    Pale Moon,
-   Firefox Nightly,
+   Firefox release,
+ Firefox Nightly,
    ChatGPT,
    Interpreter,
    Qure,
    and OdyTTY processes.
-   Firefox Nightly matching accepts exact `firefox` and `firefox-bin` names only under a `firefox-nightly` directory.
+   Firefox matching accepts exact `firefox` and `firefox-bin` names only under a `firefox` or `firefox-nightly` directory.
+   The release launcher matches `app-firefox@*.service`.
+   Firefox ESR's directory and service remain tunnel-routed.
    ChatGPT matching accepts every executable inside the root-owned `/usr/lib/chatgpt` package tree,
    which includes the subprocess agents that application spawns.
    Interpreter matching accepts every executable whose name begins with `interpreter`,
@@ -926,7 +932,8 @@ Release builds omit injection seam.
 - Process discovery attaches entire current cgroup.
    If Helium,
    Pale Moon,
-   Firefox Nightly,
+   Firefox release,
+ Firefox Nightly,
    ChatGPT,
    Interpreter,
    Qure,

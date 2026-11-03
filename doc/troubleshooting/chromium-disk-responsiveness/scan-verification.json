@@ -1,0 +1,55 @@
+{
+  "checkedAt": "2026-11-03T08:32:27.684Z",
+  "primaryRows": 84855,
+  "uniqueFiles": 19920,
+  "totalsAgree": true,
+  "positiveControls": [
+    {
+      "category": "allowance",
+      "path": "third_party/blink/renderer/platform/disk_data_allocator.cc",
+      "needle": "base::ScopedAllowBlocking allow_blocking;",
+      "line": 210,
+      "found": true
+    },
+    {
+      "category": "mapping",
+      "path": "components/spellcheck/renderer/hunspell_engine.cc",
+      "needle": "bdict_file_ = std::make_unique<base::MemoryMappedFile>();",
+      "line": 66,
+      "found": true
+    },
+    {
+      "category": "file",
+      "path": "ui/shell_dialogs/select_file_dialog_linux.cc",
+      "needle": "return base::DirectoryExists(path);",
+      "line": 37,
+      "found": true
+    },
+    {
+      "category": "wait",
+      "path": "components/services/font/public/cpp/font_service_thread.cc",
+      "needle": "done_event.Wait();",
+      "line": 59,
+      "found": true
+    },
+    {
+      "category": "managed",
+      "path": "android_webview/java/src/org/chromium/android_webview/AwDataDirLock.java",
+      "needle": "sLockFile = new RandomAccessFile(lockFile, \"rw\");",
+      "line": 88,
+      "found": true
+    },
+    {
+      "category": "posix",
+      "path": "base/files/file_posix.cc",
+      "needle": "return !HANDLE_EINTR(fdatasync(file_.get()));",
+      "line": 680,
+      "found": true
+    }
+  ],
+  "negativeControl": {
+    "path": "components/spellcheck/renderer/hunspell_engine.cc",
+    "line": 62,
+    "mappingMatch": false
+  }
+}

@@ -1,0 +1,1367 @@
+[
+  {
+    "mode": "160000",
+    "sha": "8f6ca7b4a66b74e21d77bca5c3e9b9be13391d28",
+    "path": "agents/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "865684c4f7092e4ab05adcd3fcf068672ff28d27",
+    "path": "agents/shared"
+  },
+  {
+    "mode": "160000",
+    "sha": "7ee202378c4a9f7f27ee414d9279aed17dc0405d",
+    "path": "chrome/app/theme/default_100_percent/google_chrome"
+  },
+  {
+    "mode": "160000",
+    "sha": "ef57d258616e413be4280d12e946a6251867765a",
+    "path": "chrome/app/theme/default_200_percent/google_chrome"
+  },
+  {
+    "mode": "160000",
+    "sha": "a3f8a0d7fbeb56e64acf5d02b54d0e7c480bde4f",
+    "path": "chrome/app/theme/google_chrome"
+  },
+  {
+    "mode": "160000",
+    "sha": "a93269b6f5eaf301ee21a44c7d286cf9d029237c",
+    "path": "chrome/browser/actor/resources/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "dfe1ccf3c2a93128082bb1d955517b4a6489ba62",
+    "path": "chrome/browser/cpu_performance_internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "7fd7c8dd496740724d0024408ae7a96298e34aa2",
+    "path": "chrome/browser/enterprise/connectors/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "633e82a69da6c0dc7103aca37da31f843a83b09b",
+    "path": "chrome/browser/glic/e2e_test/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "95f6df7236aeabbcc0409bf3f7e4c284ca3f2e72",
+    "path": "chrome/browser/glic/resources/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "fe28a8f90c5471f20f8fee9ff7f6c6f8b8d02bed",
+    "path": "chrome/browser/google/linkdoctor_internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "e5bb8afda21891a056d1233d457d453c5f2367e0",
+    "path": "chrome/browser/indigo/resources/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "0e2954fa51642ce835ca682092f86ce0893ba75c",
+    "path": "chrome/browser/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "14b00ddbb904612ec8805f00718ae3f95c02a076",
+    "path": "chrome/browser/media/engagement_internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "042372f4d9c1f5022eeb0b969cc56dd8ef3e461f",
+    "path": "chrome/browser/nearby_sharing/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "2ee0bfd5990740fccfe223fd6c9fe21bc4846b9a",
+    "path": "chrome/browser/payments/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "06cae3eb7dd1fde62d3b7f3860ddcc11ebbad086",
+    "path": "chrome/browser/platform_experience/win"
+  },
+  {
+    "mode": "160000",
+    "sha": "4fefb8a24ae6c421f640b9ef028e4b4ca75df729",
+    "path": "chrome/browser/resources/downloads/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "38176286288ea406972da7b2fd2a391c3ca54050",
+    "path": "chrome/browser/resources/history/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "fbc0f36186884f936537d5f74758550dd772b980",
+    "path": "chrome/browser/resources/preinstalled_web_apps/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "9fe49c27bc46e72b437d5b5e24b977ba5893fcaa",
+    "path": "chrome/browser/resources/settings/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "54ba496f51ce3792b7ef8161558985b192ac078b",
+    "path": "chrome/browser/resources/webui_browser/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "a947d8ad27f6b809aee0b6b3d9c4182236cc78d1",
+    "path": "chrome/browser/resources/webui_toolbar/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "a22002a5b3cf7c6b872b25712af97a5664a350e2",
+    "path": "chrome/browser/spellchecker/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "baa547de4e4b4eef5687a3a7b4d383e7254ed300",
+    "path": "chrome/browser/ttc/resources/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "1cb2c5fc30aebc581f3ee53cd5cfcf39fa4d895f",
+    "path": "chrome/common/request_header_integrity/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "2674521ba834202d25783d99ec1baaba424b96e4",
+    "path": "chrome/elevation_service/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "18a92d1fc1bb3809a6edfa483a5aad9e9a550f6c",
+    "path": "chrome/installer/mac/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "5517dd8896bf2d66fc8e98986dbc314913fa6574",
+    "path": "chrome/services/speech/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "2a9fb59b5ff65eb3ce98946af93cf96b838bf04b",
+    "path": "chrome/test/data/autofill/captured_sites/artifacts"
+  },
+  {
+    "mode": "160000",
+    "sha": "6cf09b86fb9d058453e7d05978ff8e91b5e8e749",
+    "path": "chrome/test/data/firefox3_profile/searchplugins"
+  },
+  {
+    "mode": "160000",
+    "sha": "490580801915834d72dd8a1e943924c35df45673",
+    "path": "chrome/test/data/firefox3_searchplugins"
+  },
+  {
+    "mode": "160000",
+    "sha": "c34f30f909a414d378a1678eba921e58940708c4",
+    "path": "chrome/test/data/gpu/vt"
+  },
+  {
+    "mode": "160000",
+    "sha": "a252d7722f577b62c6244648b4031baffa876f17",
+    "path": "chrome/test/data/password/captured_sites/artifacts"
+  },
+  {
+    "mode": "160000",
+    "sha": "23b64c03647779d193ee8ccb3f2a1a5560da9c94",
+    "path": "chrome/test/data/pdf_private"
+  },
+  {
+    "mode": "160000",
+    "sha": "a7b40ea5ae0239517d78845a5fc9b12976bfc732",
+    "path": "chrome/test/data/perf/canvas_bench"
+  },
+  {
+    "mode": "160000",
+    "sha": "c10272c88463efeef6bb19c9ec07c42bc8fe22b9",
+    "path": "chrome/test/data/perf/frame_rate/content"
+  },
+  {
+    "mode": "160000",
+    "sha": "6394c925a272b92a4e9e16d929af049b7aa6e4f8",
+    "path": "chrome/test/data/perf/frame_rate/private"
+  },
+  {
+    "mode": "160000",
+    "sha": "6f3e320b1fa10910eb1dcbad36afdd1ad00b2c5a",
+    "path": "chrome/test/data/perf/private"
+  },
+  {
+    "mode": "160000",
+    "sha": "c58ae99b9ff9e2aa4c524633519570bf33536248",
+    "path": "chrome/test/data/xr/webvr_info"
+  },
+  {
+    "mode": "160000",
+    "sha": "99937b3180700d9fb63eace8c762c7a5977a301f",
+    "path": "chrome/test/media_router/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "3c9359382236f6d57c91505234a2bc7fd635ba6c",
+    "path": "chrome/tools/memory"
+  },
+  {
+    "mode": "160000",
+    "sha": "5f1216c3c95eb081c1a24a9e7bf65d0096f1e645",
+    "path": "chrome/updater/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "d4509cba32a0981c86a9fd63db3186f32c1042e2",
+    "path": "chromeos/ash/resources/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "1929b1906442b7b8d3fd5fffafe2ffbb9e395f13",
+    "path": "chromeos/assistant/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "36d38dc0e68bc9ba70a586872f192e07457dc076",
+    "path": "clank"
+  },
+  {
+    "mode": "160000",
+    "sha": "2480f92838658249a445b7abca105f6aa5a905ec",
+    "path": "clusterfuzz-data"
+  },
+  {
+    "mode": "160000",
+    "sha": "a16011cd66bd0a7c80a0034cfa6da5fce54327f7",
+    "path": "components/accessibility/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "0540703a9db51619739c3de547961dd2227d2f26",
+    "path": "components/activity_reporter/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "db77775730ff471bb8f3c6b6e7da0e8eaa21c799",
+    "path": "components/autofill/core/browser/form_parsing/internal_resources"
+  },
+  {
+    "mode": "160000",
+    "sha": "a2c20aaa74def75d6485ba287340ffb05bbabc09",
+    "path": "components/autofill/core/browser/geo/chrome_alternative_state_name_maps"
+  },
+  {
+    "mode": "160000",
+    "sha": "977755983e64eb91813875407050afcc7c1b6683",
+    "path": "components/crash/core/app/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "4e8c4db51652c4650b58b0bbfee03741df8f37d2",
+    "path": "components/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "6c5b0a009ec24624e40e58045cc107d1c47672c6",
+    "path": "components/metrics/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "48c257ae331a9c642af38b8f62cb2c789e2a7da6",
+    "path": "components/ntp_tiles/resources/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "04e619606ec20733fb1a052fa4021bc88357cfa3",
+    "path": "components/optimization_guide/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "c901bb10e5eead4fb1754cdafd9627c3393f7384",
+    "path": "components/personal_context/core/resources/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "0b41acf3313cd01d274d997287e0fec258bd5016",
+    "path": "components/record_replay/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "0a1ee5c152fed45a3327765a02f97f93dc57ac9a",
+    "path": "components/resources/default_100_percent/google_chrome"
+  },
+  {
+    "mode": "160000",
+    "sha": "9c3d5e1eaf940652d6eb93ec4aa846d5c7f527c0",
+    "path": "components/resources/default_200_percent/google_chrome"
+  },
+  {
+    "mode": "160000",
+    "sha": "48ffc6fb9142c31e7a51cb3361a0771034aa50bc",
+    "path": "components/resources/default_300_percent/google_chrome"
+  },
+  {
+    "mode": "160000",
+    "sha": "a4e5252de8a9fb866cd79a3616ed638887b943bd",
+    "path": "components/safe_browsing/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "c0820b79078dbee4b737614f83f5942ea4c0b916",
+    "path": "components/site_isolation/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "c42210aba0150db60a72af7cf50778e062e14c6d",
+    "path": "components/test/data/autofill/heuristics-json/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "c67083dbb39d4bd87d86c083fecbe35aa562c777",
+    "path": "components/test/data/autofill/label-doms/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "f780a676feb2400384c881901656758f1a02f382",
+    "path": "components/vector_icons/google_chrome"
+  },
+  {
+    "mode": "160000",
+    "sha": "3e80d4d08f5421d6bc9340964834ebc903a318aa",
+    "path": "content/test/data/plugin"
+  },
+  {
+    "mode": "160000",
+    "sha": "70bb13377fed8671966ab9565b7627f2e73ae1a2",
+    "path": "docs/website"
+  },
+  {
+    "mode": "160000",
+    "sha": "7b404d2cef42e71f92977364e5249511e46f3571",
+    "path": "google_apis/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "2937a07f3886189767a6a13ffa6bbec196dc3da4",
+    "path": "internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "490bfbdfebf0b1771194ca3f2451557b457e6174",
+    "path": "ios/third_party/earl_grey2/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "2bbd17fe3acacc199efd2c758b1b8044acd9ee05",
+    "path": "ios/third_party/edo/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "0e6d6628c5b4d733dfc8f605ab576dcbb72aeeb9",
+    "path": "ios/third_party/gtx/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "4a4367659c0b8576d4a106669ff2ba129026085f",
+    "path": "ios/third_party/lottie/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "f8c0fe750d94b7db23d193c0b1f31858c2537620",
+    "path": "ios/third_party/webkit/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "26cbb894e4f3bdaecf7d829500e20667cdfa2799",
+    "path": "ios_internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "d6c4e1ea4c8fc3dcd98ac3ab5a981f63067223a4",
+    "path": "media/cdm/api"
+  },
+  {
+    "mode": "160000",
+    "sha": "a1628192cf32ba40d21e0dd80f485d68c24ff87a",
+    "path": "net/third_party/quiche/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "e190816de75b14897f1af785eb37d237750460e2",
+    "path": "remoting/host/installer/linux/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "0642dbbd16b6a237d3328a781a3f6b72f9d1af34",
+    "path": "remoting/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "34ff3657e2176fc48a57fad555b076a50a409de6",
+    "path": "remoting/test/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "acfed9c3a363694f37aadfb5cda4c31109661eb8",
+    "path": "remoting/tools/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "c56fb8783131945365a2ec6a52f3fb8c57a8e8d3",
+    "path": "services/shape_detection/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "5138e684915721cbccbb487ec0764ed05650fcd0",
+    "path": "signing_keys"
+  },
+  {
+    "mode": "160000",
+    "sha": "1df5e50a45db9518a56ebb42cb020a94a090258b",
+    "path": "testing/libfuzzer/fuzzers/wasm_corpus"
+  },
+  {
+    "mode": "160000",
+    "sha": "3fbcdf38727f967badc13f9537bda0b4392c1f74",
+    "path": "third_party/android_prebuilts/build_tools"
+  },
+  {
+    "mode": "160000",
+    "sha": "4413fe7bd41f09f37d7c8fe87df59b6e0f54300a",
+    "path": "third_party/androidx/third_party/ink/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "7539442db1dc790c64d0d9bade922329292d834b",
+    "path": "third_party/androidx_javascriptengine/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "127e783de33425c27a70a3f48da9d9202d6a0745",
+    "path": "third_party/angle"
+  },
+  {
+    "mode": "160000",
+    "sha": "1ae8df5e40bab28959cc182c2c0d88923059e278",
+    "path": "third_party/anonymous_tokens/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "c3f11fcd86b42922834cae91103cf068246c6bb6",
+    "path": "third_party/apache-portable-runtime/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "80036a515b38deca1ad080b7c436856b454358f5",
+    "path": "third_party/arcore-android-sdk/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "2ea3200c3a3ec176613ab7a0b9a4ffc6db846120",
+    "path": "third_party/boringssl/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "868abe6f016cfeabfb7208681e89031ae667c336",
+    "path": "third_party/breakpad/breakpad"
+  },
+  {
+    "mode": "160000",
+    "sha": "5969239e7c87f4cd64c8ec170ce1e7f4eb559e37",
+    "path": "third_party/cardboard/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "f5ee589bdaea60418f670fa176be15ccb9a34942",
+    "path": "third_party/cast_core/public/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "f411808cd159db5e47be79ebee59fffca3da1bd4",
+    "path": "third_party/catapult"
+  },
+  {
+    "mode": "160000",
+    "sha": "d127078cedef9c6642cbe592dacdd2292b50bb19",
+    "path": "third_party/ced/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "5a56d4d33d67dc7c692da032d2ebbdefd7de780e",
+    "path": "third_party/chromevox/third_party/sre/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "4e13c8d57812f7e784f6b19442d41d64df083bcf",
+    "path": "third_party/chromite"
+  },
+  {
+    "mode": "160000",
+    "sha": "9f796802e5d633c96dbe97e0b6683d5e62594f9f",
+    "path": "third_party/clang-format/script"
+  },
+  {
+    "mode": "160000",
+    "sha": "b48dc46512566f5a2d41118c8c1116c4f96dc661",
+    "path": "third_party/cld_3/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "3de9f013df4b470069d03d250224062e8cf15c49",
+    "path": "third_party/colorama/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "627967b9c76e9a9d09a29e2c48a9283556f5a3a3",
+    "path": "third_party/compiler-rt/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "0a0e7ea516249e786d5a8884552bbd6e163d89cb",
+    "path": "third_party/content_analysis_sdk/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "81d13c49649f0714dd41fb56bb246398b6584085",
+    "path": "third_party/cpu_features/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "66ee79c038d70dad9f08705b2c9b3e58f6d8f512",
+    "path": "third_party/cpuinfo/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "d25069779cc7258d5f8816d3ca175d463b0b6444",
+    "path": "third_party/crabbyavif/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "2bbb3be42e20a0e6c0f7b39dc07dc863d9ffbc07",
+    "path": "third_party/crc32c/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "0abb2efaa3d16db861c9710b193c39e657ac3bdf",
+    "path": "third_party/cros-components/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "0af149cadb77d8e4002cd5e9162043a498db494a",
+    "path": "third_party/cros_system_api"
+  },
+  {
+    "mode": "160000",
+    "sha": "043866e26bee4936f0a6a3cf87813fb928d7ea1f",
+    "path": "third_party/crossbench"
+  },
+  {
+    "mode": "160000",
+    "sha": "4483f71db32259409d9c5f7c4c95e2605b7a3b13",
+    "path": "third_party/crossbench-web-tests"
+  },
+  {
+    "mode": "160000",
+    "sha": "bf5a8792744ee78c977dfb16503f9156dde6401d",
+    "path": "third_party/dav1d/libdav1d"
+  },
+  {
+    "mode": "160000",
+    "sha": "0caf3649477f7c3ffbd4b1ca4764a81b469b1582",
+    "path": "third_party/dawn"
+  },
+  {
+    "mode": "160000",
+    "sha": "a07c06fe67a1a9d64ac4728df3a11c1ceb0cf73e",
+    "path": "third_party/depot_tools"
+  },
+  {
+    "mode": "160000",
+    "sha": "8c62f844ad8e0664ff41a633bfc17c472f1c5fd6",
+    "path": "third_party/devtools-frontend/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "2d960dae4b4fb29dba05cfc48210fbed423f3d2c",
+    "path": "third_party/disarm/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "015cda307cf81e293889c0887cffff4f0aa090ce",
+    "path": "third_party/dom_distiller_js/dist"
+  },
+  {
+    "mode": "160000",
+    "sha": "fadff396cc45d521cc594d3e2396e27e887b1963",
+    "path": "third_party/domato/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "beeeef91cf6fef89a4d4ba5e95d47ca64ccb3a44",
+    "path": "third_party/dragonbox/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "6f971c764a511f609615c6c4f5ae2a9403ff32cb",
+    "path": "third_party/ds_store/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "04bfe22876d3bab4260f39491cce7a8df17daa40",
+    "path": "third_party/eigen3/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "173b9b26e8fcbcbe64e1ecbf073a21a96b95c6b1",
+    "path": "third_party/emoji-metadata/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "955936be8b391e00835257059607d7c5b72ce744",
+    "path": "third_party/emoji-segmenter/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "a851869e111c06fbcdc89edf639abf5fc2b6deba",
+    "path": "third_party/expat/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "c9f78f532b9004de278489019ab2c6c28ae9746e",
+    "path": "third_party/fadec/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "9d99331eb762e9ee22fd97d15a594525ad98310a",
+    "path": "third_party/farmhash/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "b0ab987b3dfdde13fa1915f65ef2a5c068d9208c",
+    "path": "third_party/fast_float/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "f5241fb459426f88af484a909927044a71306209",
+    "path": "third_party/federated_compute/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "9db86ce5b5b454dfc96c435f9f0723012980c37f",
+    "path": "third_party/ffmpeg"
+  },
+  {
+    "mode": "160000",
+    "sha": "e7108e2ed031547c3759217819a032065c820d73",
+    "path": "third_party/flac"
+  },
+  {
+    "mode": "160000",
+    "sha": "a86afae9399bbe631d1ea0783f8816e780e236cc",
+    "path": "third_party/flatbuffers/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "bd8f7b597de96761750d0365abb49b19d2f8d5c3",
+    "path": "third_party/fontconfig/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "782eea126dc5c755827be751a099eb01826175cf",
+    "path": "third_party/fp16/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "891f904e2e7b4289f615598cd4b69832f87d2f3a",
+    "path": "third_party/freetype/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "7a8e9056de2a4f745082a4b3861a67ada47ced36",
+    "path": "third_party/fuzztest/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "63058eff77e11aa15bf531df5dd34395ec3017c8",
+    "path": "third_party/fxdiv/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "16e8662c34917be0065110bfcd9cc27d30f52fdf",
+    "path": "third_party/gemmlowp/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "354344fe59cc32627c9993b532d633e4ff34920e",
+    "path": "third_party/glib/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "2ff6f609379ce43c4291c732cf6a19dd2461a680",
+    "path": "third_party/glslang/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "838b9b3ed5181c96dcde04bd71a6c1351f7882a8",
+    "path": "third_party/google-truth/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "8abf1e701fbd88c8170f48fe0558247e2e5f8e7d",
+    "path": "third_party/google_benchmark/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "4fe3307fb2d9f86d19777c7eb0e4809e9694dde7",
+    "path": "third_party/googletest/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "e9eeea862a18e77b945d98eff7e1bf065d3daf8e",
+    "path": "third_party/gperf"
+  },
+  {
+    "mode": "160000",
+    "sha": "1db238b6a349ea7fae6f1c0713afe04d1bb7ea5c",
+    "path": "third_party/gsettings-desktop-schemas/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "c6f2359cc1d00f16e0a0e2527fa0bc1882b8b5ab",
+    "path": "third_party/gvdb/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "f5efbbef3841bdcdc6427bde7c2971f62ac8c8f1",
+    "path": "third_party/harfbuzz/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "2607d3b5b0113992fe84d3848859eae13b3b52c1",
+    "path": "third_party/highway/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "cee14e319bb7603a1157bb4d1e216be64ee82b77",
+    "path": "third_party/hunspell_dictionaries"
+  },
+  {
+    "mode": "160000",
+    "sha": "2a51536dfb3b448bdf3dae70c782ea2879c90904",
+    "path": "third_party/icu"
+  },
+  {
+    "mode": "160000",
+    "sha": "1d5a871aefe0a401685cd4388b9b92f9b1c5cadb",
+    "path": "third_party/ink/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "51898bc68243bf1f096b49420f96312df48c363f",
+    "path": "third_party/instrumented_libs"
+  },
+  {
+    "mode": "160000",
+    "sha": "566963547575e93d305871d9cb26ce47ff1a036e",
+    "path": "third_party/javalang/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "c603c04db8505477867974a69789309ded2cc948",
+    "path": "third_party/jetstream/main"
+  },
+  {
+    "mode": "160000",
+    "sha": "2145cedef4ca2777b792cb0059d3400ee2a6153c",
+    "path": "third_party/jetstream/v2.2"
+  },
+  {
+    "mode": "160000",
+    "sha": "06785cf861ac44855f168cbbe829278c2802e6de",
+    "path": "third_party/jetstream/v3.0"
+  },
+  {
+    "mode": "160000",
+    "sha": "3347a4b86bb914cb565f0cbda19c06e109513300",
+    "path": "third_party/jsoncpp/source"
+  },
+  {
+    "mode": "160000",
+    "sha": "300468b1efd48d76fac2f7bd6d576846dcbbf5ed",
+    "path": "third_party/junit/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "7ee830d02b623e8ffe0b95d59a74db1e58da04c5",
+    "path": "third_party/leveldatabase/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "9951014982324338ea932dfdba259aeb1cca70f7",
+    "path": "third_party/libFuzzer/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "81eb9628382b07d371d8ea0b11badf7de3857fd5",
+    "path": "third_party/libaddressinput/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "016144ea8b8b84b9cfa1c3fba56227b2d3471229",
+    "path": "third_party/libaom/source/libaom"
+  },
+  {
+    "mode": "160000",
+    "sha": "97b436da4c33663581d394f4ee0a5977fc38c2f4",
+    "path": "third_party/libc++/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "127292c11d332549ba1e0aebcece6d4c91de9239",
+    "path": "third_party/libc++abi/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "66b802d05b374cd8f388dc6ad1e7ae4f08cb3300",
+    "path": "third_party/libdisplay-info/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "e984d448b8b17aab853369e6c203e53719f46de1",
+    "path": "third_party/libdrm/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "a9bf31da06f06bfce73702191c3db93aae289459",
+    "path": "third_party/libei/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "085032331f60c10055d32ab52932bd7bd77e6f53",
+    "path": "third_party/libgav1/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "df7c9c9940160307aaeb31347f4776a46f8736a9",
+    "path": "third_party/libgudev/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "39491253b27715d8c81a6a0f3a96d767e0defc7b",
+    "path": "third_party/libinput/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "4be5f77f672a3a9f1bbf3c935fb0ea8b3f86ce61",
+    "path": "third_party/libipp/libipp"
+  },
+  {
+    "mode": "160000",
+    "sha": "640f254ad0fa03f6b1f29f89b7dd9366f2f6e533",
+    "path": "third_party/libjpeg_turbo"
+  },
+  {
+    "mode": "160000",
+    "sha": "9700847afb92cb35969bdfcbbfbbb74b9c7b3376",
+    "path": "third_party/liblouis/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "995ad37079531b7c3a98cbd164b7619f3b0adc0d",
+    "path": "third_party/libpfm4/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "0ae309f1940227efe688f5eb1815ef45a6fbee8d",
+    "path": "third_party/libphonenumber/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "c1c950eae0440c3808f2b8bd7c57d0c6a42c1a90",
+    "path": "third_party/libprotobuf-mutator/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "cd5d177bf1fde755ddb4c7f0d9ff7693f8b49e5e",
+    "path": "third_party/libsrtp"
+  },
+  {
+    "mode": "160000",
+    "sha": "074e053f159602aa7558cfb2ae2f3c67878d90e0",
+    "path": "third_party/libsync/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "8d41badfccd4bc7dfd17817f65217f2868d69be8",
+    "path": "third_party/libunwind/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "333fcafb91bd3830c5ef814c071ff73df9cdc976",
+    "path": "third_party/libunwindstack"
+  },
+  {
+    "mode": "160000",
+    "sha": "04f902b9ba9f8083b19d22e7b55591bbcaae31c0",
+    "path": "third_party/libva-fake-driver/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "de61454cf81594d5927899da122fc53dcc4a846e",
+    "path": "third_party/libvpx/source/libvpx"
+  },
+  {
+    "mode": "160000",
+    "sha": "6184f4484a826724b5293837134ab9492261b941",
+    "path": "third_party/libwebm/source"
+  },
+  {
+    "mode": "160000",
+    "sha": "b43b2caa710c0c997c066cb32c7fea1391fad70a",
+    "path": "third_party/libwebp/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "f1c9b5898619f2ced836030c023249f5a8b189d1",
+    "path": "third_party/libyuv"
+  },
+  {
+    "mode": "160000",
+    "sha": "4dac1538b76bc20bb7f2ba314bcc89dc57c0ee2b",
+    "path": "third_party/litert/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "b8b28272d32b75f0ee71acd2fa1144c8b5b95460",
+    "path": "third_party/llvm-libc/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "29164a80da4d41134950d76d55199ea33fbb9613",
+    "path": "third_party/lss"
+  },
+  {
+    "mode": "160000",
+    "sha": "d0c076b4562541c1509d9874f42880378245d268",
+    "path": "third_party/mac_alias/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "5b3618b16fdc3825e21d5679bafd144662088ea1",
+    "path": "third_party/material_color_utilities/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "07b94cba474be6cdfd934febdbd0b21ca0524187",
+    "path": "third_party/microsoft_dxheaders/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "8b1d8893d126547309f1bab8d8232418aa7c7109",
+    "path": "third_party/microsoft_multimedia_redirection/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "ef82c157125a0490e05f6ea82a7adb1b8e1bad08",
+    "path": "third_party/microsoft_webauthn/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "9d21b5cb5896c0cde186b54d430131f9f537104c",
+    "path": "third_party/minigbm/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "7c88672bfc702f7d47c6b3755147fbeb859391af",
+    "path": "third_party/mutter/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "525a09a813be0f75b646ee93fc2a31c27b87d722",
+    "path": "third_party/nasm"
+  },
+  {
+    "mode": "160000",
+    "sha": "0bad8b0c9877f92eeeb550654f1ea51a71a085e4",
+    "path": "third_party/nearby/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "183fc88bcb90dbfaefba33a292eae8a5ce94bd67",
+    "path": "third_party/neon_2_sse/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "b21c6eee658866b83122c674e3c0da054e09a3d7",
+    "path": "third_party/netty-tcnative/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "cc4420b13bb4eeea5b1cf4f93b2755644cd3b120",
+    "path": "third_party/netty4/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "55f93686c01528224f448c19128836e7df245f72",
+    "path": "third_party/nlohmann_json/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "14031232cec7d3d454e89bbae36404d74abf18dc",
+    "path": "third_party/oak/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "9547f96ea5c47f4d465d97b07264b997ecc4b4b6",
+    "path": "third_party/openh264/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "a515d3a249e7411fa251a27125815a06a2d73862",
+    "path": "third_party/openscreen/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "75c53b6e853dc12c7b3c771edc9c9c841b15faaa",
+    "path": "third_party/openxr/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "46bea9879127d0ff1c6601b078e2ce98e83fcd33",
+    "path": "third_party/ots/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "fa4d5f8fbd89ea07273529daf9fd24fe1c7f6b9a",
+    "path": "third_party/pdfium"
+  },
+  {
+    "mode": "160000",
+    "sha": "403906f4adfbf287a02e5546f8430dcc9d56b649",
+    "path": "third_party/perfetto"
+  },
+  {
+    "mode": "160000",
+    "sha": "a2bd4470d3485e6eda532eee416a71d16db2d7ba",
+    "path": "third_party/perl"
+  },
+  {
+    "mode": "160000",
+    "sha": "b741e0c74f5436f0c925f7741140db0efd32cf4e",
+    "path": "third_party/pipewire/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "e6d763860001ba1a76a63adcff5efb12b1c96024",
+    "path": "third_party/protobuf-javascript/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "15a6644ba1c45f1acc16ac1e883efc3e56c6bed2",
+    "path": "third_party/pthreadpool/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "8047437615d66d3267ac0134834b80e70639d572",
+    "path": "third_party/pyelftools"
+  },
+  {
+    "mode": "160000",
+    "sha": "139224e0d71db84fe1922601cb92ec8c8f3885ba",
+    "path": "third_party/pywebsocket3/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "6ecf6aa8e604655f1dfa72c4a1ae733c4c7fc883",
+    "path": "third_party/quic_trace/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "972a15cedd008d846f1a39b2e88ce48d7f166cbd",
+    "path": "third_party/re2/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "d7949dc47dd9ed9ee1d3b34ffdcf3bce28cde435",
+    "path": "third_party/readability/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "c2b307dbefe21177af03f9feb37181a89a799fcc",
+    "path": "third_party/requests/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "2264753777198e4393fb83c44c693462d57a2be1",
+    "path": "third_party/ruy/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "5dc9f1afd38a8ac2b26b1972eb4fc1bbd5754e8c",
+    "path": "third_party/search_engines_data/resources"
+  },
+  {
+    "mode": "160000",
+    "sha": "7c90875a405251ca4b5407fff7759f08bc8069d1",
+    "path": "third_party/search_engines_data/resources_internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "fa07beb12babc3b25e0c5b1f38c16aa8cb6b8f84",
+    "path": "third_party/securemessage/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "6a37f061f4eda0c6594c91ecf99b5ff498c8c124",
+    "path": "third_party/sframe/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "a65b5cc03a5131808aec172085b7074fc66625b9",
+    "path": "third_party/skia"
+  },
+  {
+    "mode": "160000",
+    "sha": "07bb4de10a63e8cc2e1724865454eba635742383",
+    "path": "third_party/smhasher/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "32ded457c0b1fe78ceb8397632c416568d6714a0",
+    "path": "third_party/snappy/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "f866d2b077038bc85bea5edb7bff8e05cadef0b2",
+    "path": "third_party/speedometer/main"
+  },
+  {
+    "mode": "160000",
+    "sha": "732af0dfe867f8815e662ac637357e55f285dbbb",
+    "path": "third_party/speedometer/v2.0"
+  },
+  {
+    "mode": "160000",
+    "sha": "8bf7946e39e47c875c00767177197aea5727e84a",
+    "path": "third_party/speedometer/v2.1"
+  },
+  {
+    "mode": "160000",
+    "sha": "8d67f28d0281ac4330f283495b7f48286654ad7d",
+    "path": "third_party/speedometer/v3.0"
+  },
+  {
+    "mode": "160000",
+    "sha": "1386415be8fef2f6b6bbdbe1828872471c5d802a",
+    "path": "third_party/speedometer/v3.1"
+  },
+  {
+    "mode": "160000",
+    "sha": "b8fcf307f1f347089e3c46eb4451d27f32ebc8d3",
+    "path": "third_party/spirv-cross/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "cb42dec3830d3ac67fa449ecdc0c0f73d5e74498",
+    "path": "third_party/spirv-headers/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "1d0401cd2b68ae34cda9ff625bedd1be4ed6214a",
+    "path": "third_party/spirv-tools/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "ba8c54c83337618a9f15dd368a267e46b672fc84",
+    "path": "third_party/sqlite/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "1e80438d2b93ef36a7c05f8d2b81233bac0e3d16",
+    "path": "third_party/swiftshader"
+  },
+  {
+    "mode": "160000",
+    "sha": "abc6ed408b3f20e91d9cbda9977748459f5e3877",
+    "path": "third_party/text-fragments-polyfill/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "9edd58f895c58c3db484a9e39ab2e953baca4bca",
+    "path": "third_party/tflite/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "0275885d8e6038c39b8a8ca55e75d1d4d1727f47",
+    "path": "third_party/ukey2/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "f86e6c66b639c9a6b24640218931d30a9b0f1e3e",
+    "path": "third_party/vulkan-deps"
+  },
+  {
+    "mode": "160000",
+    "sha": "3c65a01745e4a1134d32b9c2c456472212dba16d",
+    "path": "third_party/vulkan-headers/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "3270cf8a1349306f0ddee1b500ee2b0d552e1c82",
+    "path": "third_party/vulkan-loader/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "69ca4d4b6590ab32e7a398725bfc90f81e6338e6",
+    "path": "third_party/vulkan-tools/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "666fdaa0f87b9d49ae576473227b4b4cf428ba7e",
+    "path": "third_party/vulkan-utility-libraries/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "b0688753f1fc04a382ef0fd8c46ecb5a7c91486c",
+    "path": "third_party/vulkan-validation-layers/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "82a9d47e4f9d91f0e32d2b6acd9714fcee1933a0",
+    "path": "third_party/vulkan_memory_allocator"
+  },
+  {
+    "mode": "160000",
+    "sha": "40ebed3a03aef096addc0af09fec4ec529d882a0",
+    "path": "third_party/wayland-protocols/gtk"
+  },
+  {
+    "mode": "160000",
+    "sha": "0b07950714b3a36c9b9f71fc025fc7783e82926e",
+    "path": "third_party/wayland-protocols/kde"
+  },
+  {
+    "mode": "160000",
+    "sha": "ee78491a237eaff9389a0ccf8680521d074407d3",
+    "path": "third_party/wayland-protocols/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "87cc8a8728a923fc57938faa81ba0e74f34ecdc7",
+    "path": "third_party/wayland/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "1e954903022e9386b9acf452c24f4458dd4c4fc1",
+    "path": "third_party/webdriver/pylib"
+  },
+  {
+    "mode": "160000",
+    "sha": "714857a28445e8f5d8d6ae1c78498578009534d8",
+    "path": "third_party/webgl/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "a5e5d7440fa036b74ea13c3c5cb6b618a3c884e9",
+    "path": "third_party/webgpu-cts/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "219ee9a2bb0d0d1440832a0e1d44716833da1ff3",
+    "path": "third_party/webpagereplay"
+  },
+  {
+    "mode": "160000",
+    "sha": "19576e37870bfe5a0a910a32f98ff411f722f43a",
+    "path": "third_party/webrtc"
+  },
+  {
+    "mode": "160000",
+    "sha": "b65be9e699847c975440108a42f05412cc7fddac",
+    "path": "third_party/weston/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "c0c105991677d8ef446cf23989939f2dedece36a",
+    "path": "third_party/widevine/cdm/chromeos"
+  },
+  {
+    "mode": "160000",
+    "sha": "6327c8373bcf4198d37a94c10d8495b7ffe281ae",
+    "path": "third_party/widevine/cdm/linux"
+  },
+  {
+    "mode": "160000",
+    "sha": "75510ce15dcf46354b6cfc6d66caaa41da855423",
+    "path": "third_party/widevine/cdm/mac"
+  },
+  {
+    "mode": "160000",
+    "sha": "96de637e98fcefc5d1cbd2037605c2b452522dea",
+    "path": "third_party/widevine/cdm/win"
+  },
+  {
+    "mode": "160000",
+    "sha": "6a0f9d00e79c6453d33dcccaf7c4e701e0eba4e8",
+    "path": "third_party/widevine/scripts"
+  },
+  {
+    "mode": "160000",
+    "sha": "d0745e3bc7a7a83b8848d9384ac0178036c1fd04",
+    "path": "third_party/wix"
+  },
+  {
+    "mode": "160000",
+    "sha": "7411f488fe2e2c205c3d3b3d28638b7356522930",
+    "path": "third_party/wuffs/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "b6d54fe94520ee6e1181ca1b402f71dbb5d50efa",
+    "path": "third_party/xnnpack/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "10da6ba6de05e29169261fa4b68eb99239f770dd",
+    "path": "third_party/zstd/src"
+  },
+  {
+    "mode": "160000",
+    "sha": "c7eaf497f690ee69e832b1530e19877602e65b18",
+    "path": "tools/perf/data"
+  },
+  {
+    "mode": "160000",
+    "sha": "a84801be1d5ef906cc03db7eeadd25ce0245ce44",
+    "path": "ui/file_manager/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "4afc450a9363ab44f45c3639d0661daa7dbe5bda",
+    "path": "ui/webui/internal"
+  },
+  {
+    "mode": "160000",
+    "sha": "235050a0df6db2c9d92a419af2b72fbf3b2dd73b",
+    "path": "v8"
+  },
+  {
+    "mode": "160000",
+    "sha": "595d7702a51c161b9d0e0239c1a44dbfed818162",
+    "path": "webkit/data/bmp_decoder"
+  },
+  {
+    "mode": "160000",
+    "sha": "aba38604e037bdbeedca9c2780c94502a8a6034d",
+    "path": "webkit/data/ico_decoder"
+  },
+  {
+    "mode": "160000",
+    "sha": "e4bd19f95afa6483a54906c2a3e5d329d2d81690",
+    "path": "webkit/data/test_shell/plugins"
+  }
+]

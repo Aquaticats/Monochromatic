@@ -35,7 +35,7 @@ use super::effective_target::default_allowed_worktree_dirs;
 use super::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
 use super::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordinated_forward};
 use super::index_writer_commands::is_index_writer;
-use super::forwarded_command::{ResolvedCommand, Route, creates_or_moves_worktrees, resolve_forwarded_command};
+use super::forwarded_command::{ResolvedCommand, Route, creates_worktrees, resolve_forwarded_command};
 use super::invocation_config::{config_invalid_event, load_identity_config};
 use super::repository_location::RepositoryLocation;
 use super::transaction_git::GitContext;
@@ -55,7 +55,7 @@ use super::rule_require_root::{RequireRootDecision, decide_require_root};
 use super::scanner_selection::RULES_VARIABLE;
 use super::wrapped_command::{WrappedOutcome, run_wrapped_command};
 use super::wrapper_controls::{Controls, no_controls, strip_global_controls};
-use super::worktree_add_plan::{AddPlan, parse_add_plan, start_directory};
+use super::worktree_add_plan::{AddPlan, copy_start_directory, parse_add_plan, parse_copy_destination, start_directory};
 use super::worktree_remove_plan::{RemovePlan, parse_remove_plan};
 use super::worktree_copy_forward::{CopyFacts, ForwardedRun, copy_applies_with, run_forwarded_git};
 use super::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
@@ -638,17 +638,17 @@ fn forward_action(
             stderr: config_invalid_event(&error),
         };
     }
-    let creates_or_moves: bool = creates_or_moves_worktrees(&command);
-    let add_plan: Option<AddPlan> = if creates_or_moves { plan_worktree_add(&command) } else { None };
+    let creates: bool = creates_worktrees(&command);
+    let add_plan: Option<AddPlan> = if creates { plan_worktree_add(&command) } else { None };
+    let destination: Option<PathBuf> = if creates { plan_copy_destination(&command) } else { None };
     let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" { plan_worktree_remove(&command) } else { None };
     let serves_ladder: bool = add_plan.is_some() || remove_plan.is_some();
     let copy: Option<CopyFacts> =
-        if !copy_bypassed && copy_applies_with(&location.identity, creates_or_moves, serves_ladder) {
+        if !copy_bypassed && copy_applies_with(&location.identity, creates, serves_ladder) {
             Some(CopyFacts {
                 identity: location.identity.clone(),
-                creates_or_moves,
-                global_prefix: checks.facts.transaction_context().global_prefix,
-                environment: environment.to_vec(),
+                creates,
+                destination,
                 add_plan,
                 remove_plan,
             })
@@ -701,6 +701,23 @@ fn plan_worktree_add(command: &ResolvedCommand) -> Option<AddPlan> {
     let current: PathBuf = std::env::current_dir().ok()?;
     let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
     return parse_add_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path());
+}
+
+/// What:
+///  The destination of a `git worktree add` in any form of Git's documented options, read from the resolved command and the
+///  process's working directory.
+/// Why:
+///   The ignored-state copy goes to the worktree this command created, which the command line names; a form the reading
+///  does not know leaves the destination unknown, and the copy then says it did not run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planCopyDestination(command: ResolvedCommand): string | undefined;
+/// ```
+fn plan_copy_destination(command: &ResolvedCommand) -> Option<PathBuf> {
+    let current: PathBuf = std::env::current_dir().ok()?;
+    let start: PathBuf = copy_start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
+    return parse_copy_destination(command.arguments.as_slice(), command.subcommand_index, start.as_path());
 }
 
 /// What:

@@ -75,7 +75,7 @@ fn a_refused_named_worktree_is_status_one_and_a_failure_is_status_two() {
 /// Help is status 0 on standard output.
 #[test]
 fn help_is_printed() {
-    let action: Action = convert_action(&ConvertArguments { help: true, ..ConvertArguments::default() }, Path::new("."));
+    let action: Action = convert_action(&ConvertArguments { help: true, ..ConvertArguments::default() }, Path::new("."), &[], None);
     assert!(matches!(action, Action::Exit { code: 0, ref stdout, .. } if stdout.contains("--abandon")));
 }
 

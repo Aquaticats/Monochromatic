@@ -599,6 +599,11 @@ BRQ:
  inferred requirements or policy:
  ask first.
 
+FBN:
+ A user saying a cost is fine or acceptable sets a bound,
+ never a stop:
+ keep improving it unless the user drops the goal.
+
 ## Before running a command
 
 ### Command execution conventions

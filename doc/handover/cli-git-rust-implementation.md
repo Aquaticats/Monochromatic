@@ -10238,3 +10238,139 @@ by the coordinator at merge.
   same instant (host-wide stalls). Adopted unasked from standing rules: the migration keeps `index.lock` over the
   catch-up ("never discard user data"); the one-hour patience for an owner in another PID namespace matches the
   wrapper's other owner records.
+- 2026-11-03T03:04:29-05:00, owner answers (question tool): push deadline: "Stop only on no progress (Recommended)" (stop a push
+  after 30 s without progress, bytes read or written by the push and its children, under a generous outer
+  ceiling); empty pidless locks: "Keep rule 2 (Recommended)"; service work lease: "Keep the lease
+  (Recommended)"; shared tooling flocks (`campaign-lock.ts`, `gate-slot.ts` in
+  `package/mutation-test/cli-cargo-mutants`): "Port both", against the offered ranking (keep both), with the
+  stated consequence that liveness becomes a pid-and-start-time judgement. QUEUED until a delegate slot frees
+  (five running): resume the deadline agent for the no-progress deadline on top of its branch; then port both
+  tooling flocks to numbered claim files (the wrapper's `single_owner_claim.rs` design, with a TypeScript process
+  start-time reader); then the snapshot-add timing split (parent fsync, second walk); then the service follow-ups
+  (scratch ref left by a killed landing, O(N squared) `claimed/` scan).
+- 2026-11-03T03:07:31-05:00: integration gate `gpc-gate-service-and-subvolume-locks-20261103T025533-0500` passed (3948 run, 3948
+  passed, 6 skipped; the once-seen `lfs_hang` failure did not recur); `integrate/git-policy-cli-service-and-subvolume-locks`
+  merged into main as `5d90cc2550`. Main now carries the package repair, the subvolume claims and the service lock
+  removal. Deadline-stop gate `gpc-gate-deadline-stop-with-main-20261103T030559-0500` running; plan: on its pass,
+  merge it and release 0.5.21 with all of these, then install and verify (a new worktree's `node_modules` resolve,
+  commit timing, service landing log).
+- 2026-11-03T03:14:40-05:00: conversion fix done (branch `fix/git-policy-cli-conversion-knows-real-git`, host suites 3381 and 563
+  passed, clippy clean): `plan_convert` resolves the real Git and `LinuxPlatform::forwarding_to` builds the
+  conversion's environment through `with_real_git`; red binary control `binary_convert_tests.rs` printed the exact
+  refusal before the fix. `subvolume_journal.rs::mark` now writes `<journal>.tmp.<pid>.<nanos>` with `O_EXCL`
+  and mode 0600, renames, syncs the directory, and sweeps only plain-file leftovers of its own names. Its note on
+  the service's empty overlay (`service_main.rs:56`) is already fixed on the deadline-stop branch. QUEUED,
+  pre-existing in this package: sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers, and
+  read the migration journal without following a link (`Journal::load` uses `read_to_string`).
+  Release candidate: `integrate/git-policy-cli-deadline-stop-and-conversion-real-git` = deadline-stop + conversion
+  fix + main (package repair, subvolume claims, service locks); gate `release-0.5.21-candidate` launched; on a pass,
+  merge and release 0.5.21, install, verify, then convert the 18 skipped worktrees. The deadline agent was resumed
+  for the no-progress push limit on `feat/git-policy-cli-push-stops-on-no-progress`.
+- 2026-11-03T03:24:55-05:00: deadline-stop gate `gpc-gate-deadline-stop-with-main-20261103T030559-0500` FAILED: 3959 run, 3956
+  passed, 3 failed. In the container only, `git_stop_lock_tests::a_push_stop_of_a_responsive_holder_leaves_no_lock`
+  and `..._unresponsive_holder_leaves_no_lock` left `refs/remotes/origin/main.lock`
+  (`git_stop_lock_tests.rs:128`), and `supervisor_guard::a_loop_is_ended_by_the_processor_budget_and_reported`
+  aborted after 96.3 s ("a command the supervisor ended was never reported by its test"; no earlier sighting in
+  this handover). Sent back to the deadline agent (fix on its branch, red first, cause with evidence). The first
+  0.5.21 candidate (deadline-stop + conversion + main) was stopped, since it carries those failures.
+  Coordinator tool defect found: `~/temp/agent/gate/launch-gate.ts` starts collected units, and `systemctl show` on
+  a collected unit reports `Result=success`/status 0 whatever happened, so the waiter's "success" line never
+  meant a pass. Every merge so far was also checked against the log's nextest summary, and the three gates merged
+  on today (package repair, subvolume-only, service and subvolume) end with their last stage finished and no
+  failed task. Fixed: the launcher now writes `gate-exit-status=<n>` as the log's last line, and verdicts read
+  that. New candidate: conversion fix + main, gate `gpc-gate-release-0.5.21-conversion-candidate-20261103T032431-0500`.
+- 2026-11-03T03:36:07-05:00: settlement branch finished (host 3353 and binary 573 passed, clippy clean): main merged
+  (`e9211c0ffa`; the package repair runs after the copy for exactly the confirmed destination, control
+  `the_repair_is_handed_exactly_the_confirmed_destination`); in-place notes added to the decision and planning docs
+  that called the lock current; the owner's "read more forms" built from Git 2.56.0's `parse-options.c:520-593`
+  rules (unique prefix, exact name wins, `no-` negation, `--end-of-options`) with one option table checked
+  against real `git worktree add -h` both ways; a destination below missing directories is now read; forms Git
+  rejects keep Git's error and get no copy (`git worktree --verbose add` is "unknown option" in Git itself).
+  Stacked candidate `integrate/git-policy-cli-conversion-and-lock-free-add` = conversion candidate + settlement
+  (doc conflicts in the README lock-wait sentence and the planning doc's two appended sections, resolved by keeping
+  both in time order); gate `gpc-gate-release-0.5.22-lock-free-add-candidate-20261103T033514-0500` running.
+  Plan: 0.5.21 = conversion candidate when its gate passes; 0.5.22 = this stack. Add-speed lane started on
+  `perf/git-policy-cli-fast-snapshot-add` from the stack (split the add's steps without strace, judge the two walks
+  and the parent fsync against the kernel source; also why an add from main took the full copy route at
+  2026-11-03T03:29:01-05:00, "copied 140294 ignored filesystem entries").
+- 2026-11-03T03:42:03-05:00: word-level second merge pass built (branch `feat/git-policy-cli-word-level-second-merge-pass`, host
+  3340 and binary 557 passed, clippy clean; own merge `word_merge.rs` on `similar` 3.2.1 Myers, matching
+  Jujutsu 0.46.0 on 41 stored corpus inputs; runs in a person's merge/rebase/cherry-pick/revert, the isolated
+  merge, the auto-push reconcile merge and the commit replay; `native:perf` commit +1.7 ms inside the run-median
+  spread of 40.3 to 57.0 ms). Owner answer (question tool): a fully resolved merge "Finish like a clean merge
+  (Recommended)", honouring `--no-commit`, `--squash`, `--edit` and similar. Adopted unasked from standing
+  decisions and sent to the agent with it: cover `git pull` (a merge a person runs), respect a person's
+  `attr.tree` as Git does, derive the candidate size bounds from Git's own constants, and give service-sent
+  journal entries the service's identifier. The agent first merges the 0.5.22 stack into its branch.
+- 2026-11-03T03:45:35-05:00: 0.5.21 candidate gate `gpc-gate-release-0.5.21-conversion-candidate-20261103T032431-0500` passed (3957
+  run, 3957 passed, 6 skipped, `gate-exit-status=0`); conversion fix merged into main; release 0.5.21 dispatched.
+  Disk-weight branch `fix/star-containers-at-lowest-disk-weight` merged into main after reading its diff: all six
+  packages pass `--blkio-weight=10 --cgroup-conf=io.weight=10` from a named constant or mise variable (ide/app and
+  mutation-test/cli own helpers, forbidden-strings/cli reuses `diskWeightArguments()`, vm-builder a constant plus a
+  mise var tied by a unit test, two inline-script constants). Evidence: argv recorded through a stand-in `podman`
+  replayed into small containers read 10/10 on `io.bfq.weight` and `io.weight` (controls read default 100); the
+  packages' real images were not built. Open for the owner: about twenty other packages and two workflows start
+  containers at the default weight; the constant has several copies; vm-builder's rootful privileged
+  bootc-image-builder run has no CPU, memory or process limits (HXR asks for them).
+- 2026-11-03T03:48:46-05:00: 0.5.22 stack gate `gpc-gate-release-0.5.22-lock-free-add-candidate-20261103T033514-0500` failed 1 of
+  3970 (`gate-exit-status=1`): `worktree_add_plan::tests::the_option_table_matches_what_git_prints_for_dash_h` ran
+  `git worktree add -h` in the current directory, which in the container is no repository ("fatal: not a git
+  repository"). Fixed on the settlement branch by running it inside a fixture repository (passes alone on the
+  host); fix and main merged into the stack; rerun gate
+  `gpc-gate-release-0.5.22-lock-free-add-rerun-20261103T034827-0500` running. Release 0.5.21 run 41605647987 being
+  waited on.
+- 2026-11-03T03:59:32-05:00: 0.5.21 published (crates.io 2026-11-03T08:52:50Z, run 41605647987) and installed: `git --version`
+  names 0.5.21; install commit `f22aafad62` (toolchain lock) took 1842 ms with the service upgrade (0.5.20 retired
+  after its batch, 0.5.21 started; landing 65 ms, `lock_hold_ms` 32). Conversion dry run with 0.5.21
+  (`~/temp/agent/convert-dry-run-0.5.21.log`): 183 looked at, 164 already subvolumes, 18 would convert (all the
+  former config-reader refusals; zero lines with the old reason), 1 skipped for real content
+  (`.claude/worktrees/follow-ups-059`: `package/forbidden-strings/core/Cargo.lock` differs from the commit). Real
+  conversion running as unit `cli-git-convert-all-20261103T035840-0500`. QUEUED small fix: a dry run's summary
+  says "0 converted or completed" beside "would convert" lines; it should count what would convert. 0.5.22 stack
+  rerun gate passed (3970 run, 3970 passed, `gate-exit-status=0`) and is merged into main; release after the
+  0.5.21 add check (new worktree's `node_modules` resolve) returns.
+- 2026-11-03T04:00:40-05:00: 0.5.21 add check from main (throwaway worktree, removed): snapshot route; `node_modules/.bin/oxlint`
+  runs and `typescript` resolves through the global store, so the package repair works. But the add took 60493
+  ms: pnpm relink 7.0 s, Cargo (32 build directories cloned, own crates cleaned) 46.1 s, toolchain links 1.4 s;
+  and one clone failed on a file a test left unreadable
+  (`.../debug/build/wg-quicker-exempt/test-scratch/.../cmdline`, `EACCES`), for which the add printed the remaining
+  `cargo clean` step. Sent to the add-speed agent (split the Cargo step, parallelism, reflink across filesystems,
+  deferral options within the owner's decision, and finishing a clone past an unreadable file). 0.5.22 dispatched
+  (run 41607520853).
+- 2026-11-03T04:03:30-05:00, owner, verbatim: "60s is fine for adding worktrees. And make sure we're running everything that can be
+  run in parallel in parallel." I first misread the first sentence as dropping speed work and briefed the add-speed
+  agent so (an inferred requirement in a brief, against AGENTS.md BRQ); owner, verbatim: "No, I didn't say speed
+  is unnecessary!" Corrected the agent the same minute. Meaning recorded: an add of about 60 s is acceptable, not a
+  failure, and sets no target to stop at; speed work continues (per-step split, walks, parent fsync judged against
+  the kernel source, no durability traded); independent steps run concurrently everywhere, starting with the add's
+  package repair (32 Cargo workspaces, pnpm, Cargo and toolchain repairs) and then a package-wide audit of loops
+  over independent items (conversion `--all`, migration, prune, recovery, service drains). Orchestration: five
+  delegate agents run at once (the owner's cap); gates and long jobs run beside them as their own units.
+- 2026-11-03T04:04:53-05:00: parallelism inventory, first pass: the package repair already runs pnpm and toolchain beside Cargo
+  (`package_repair.rs:178`) and the Cargo workspaces on scoped threads (`package_repair_cargo.rs:385`), so the
+  46.1 s needs the add-speed agent's split; conversion `--all` converts worktrees one after another
+  (`worktree_convert_command.rs:65`; the 48-worktree run took about 25 minutes). QUEUED for the next free delegate
+  slot, in order: (1) package-wide parallelism audit and fix (conversion `--all`, migration, prune, recovery
+  sweeps, service drains, every loop over independent items), within a CPU and disk budget derived from the host;
+  (2) reconcile the old in-progress tasks against this handover and Git state: the linter cutover (task 24), the
+  slice 6 convergence mutation rerun (25), the post-cutover non-core mutation campaigns (29), and the unmerged
+  `planted-control-cache` branch ("Not merging `planted-control-cache` to main until a round finds no P1").
+  Closed now with evidence: the gate-33 campaign queue (cross-checked in `ae73ff8a8a`, survivors bundle merged)
+  and the conflict-side cross-vendor review (returned; fixes merged).
+- 2026-11-03T04:13:14-05:00: second real conversion with 0.5.21 (unit `cli-git-convert-all-20261103T035840-0500`, log
+  `~/temp/agent/convert-all-20261103T035840-0500.log`, `convert-exit-status=0`): 183 looked at, 17 converted, 3
+  skipped, none for the old config-reader reason. Skips: `fast-snapshot-add` (the add-speed agent's worktree:
+  an edited file and its running test processes), `follow-ups-059` (an edited `Cargo.lock`), and my throwaway
+  `verify-0.5.21-add-*` (removed after the run listed it; skipped as "cannot be resolved"). 0.5.22 published
+  (crates.io 2026-11-03T09:07:34Z, run 41607520853); install running after the conversion finished.
+- 2026-11-03T04:21:22-05:00: 0.5.22 installed (service 0.5.21 retired, 0.5.22 started; install commit landed in 56 ms, 1416 ms with
+  the upgrade); concurrent-add check running. Merge second pass finished (host 3442 and binary 595 passed):
+  resolved merges, rebases, cherry-picks, reverts and `git pull` now end like a clean run (owner's choice),
+  `attr.tree` precedence as Git's `attr.c`, binary probe `FIRST_FEW_BYTES`, size bound 8 MiB by measurement
+  (worst case 0.73 s and 352 MB). Its gate runs on a separate copy (`.claude/worktrees/gate-word-level-merge-pass`).
+  QUEUED follow-ups on that branch, settled by the owner's "finish like a clean merge": run the hooks a clean merge
+  runs (`pre-merge-commit`, not `pre-commit`); finish `--autostash` and `branch.<name>.mergeOptions` cases
+  where Git's own continue applies them; derive the finish loop's limit from the rebase todo length instead of 64;
+  teach the in-process config reader that variables such as `GIT_EDITOR` do not change config, saving a Git start.
+  Parallelism audit started on `perf/git-policy-cli-parallel-independent-work` (excludes the add path and merge
+  code, owned by other agents).

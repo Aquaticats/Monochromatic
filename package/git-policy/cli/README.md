@@ -34,7 +34,8 @@ Read-only commands,
   When another commit lands first,
    the wrapper prepares its own commit again on top of the new state.
   Concurrent commits from several worktrees or sessions therefore never overwrite each other.
-  The wrapper takes no lock of its own: a commit meets only Git's `index.lock`.
+  The wrapper takes no lock of its own: a commit meets only Git's `index.lock`,
+   which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).
   A commit the service was landing when it died is settled by the service from its journal when it starts again.
 - Merges beside other sessions' staged work.
   Native Git refuses every `git merge` that creates a commit while the index holds any staged change,
@@ -186,7 +187,13 @@ Read-only commands,
 - Linked worktrees.
   When a Git command creates a linked worktree,
    the wrapper copies the ignored state of the source worktree into it
-  under one settlement lock per repository (this lock remains until the copy moves into the commit service).
+  without any lock: the destination comes from the command line, the copy is a transaction of its own whose journal and
+  stage claim name the process that owns them, and a copy a dead process left is recovered by the next command.
+  Concurrent adds in one repository never wait for one another, and each worktree receives exactly its own copy.
+  The wrapper reads the destination of every form Git's option parser accepts (abbreviated long options resolved as Git
+   resolves them, bundled short options, `--git-dir` and `--work-tree`, a destination below directories Git creates);
+   a form Git rejects keeps Git's own error, and a form the wrapper cannot read is made by Git alone with one line on
+   standard error saying the worktree received no copy.
   `git worktree add` in the plain forms (`-b <branch>`, `--detach`, `--quiet`, `--lock`, `--reason`, one path and at most
    one commit-ish) is served by the first rung of a ladder that applies and otherwise falls to the next; when the add
    succeeds without being a snapshot, one line on standard error (unless `--quiet`) and one journal entry say why, in plain
@@ -426,6 +433,12 @@ It takes minutes on a large checkout and there is no time limit on it.
 One command at a time works on a checkout: it owns the checkout through a claim file beside the journal
  (`.cli-git-migrate-<name>.owner.<generation>`), a second command is refused with the owner's process id, and a claim a
  killed command left needs no cleanup.
+The journal is replaced by writing a sibling file that is created exclusively under a name of its own (the journal's name,
+ `.tmp`, the process number and a clock reading), synchronizing it and renaming it over the journal, so a link or a file
+ planted or left at a fixed name is never followed, truncated or written through.
+Releases up to 0.5.20 wrote one fixed sibling name and followed a link planted there.
+The plain files a killed run left under the writer's own names (that fixed name included) are removed once a later write lands;
+ a link, a directory or any other name beside the journal is left alone.
 
 ```sh
 git cli-git migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
@@ -536,6 +549,13 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
 - A quoted line in any attributes file, an attribute source chosen with `GIT_ATTR_SOURCE`, `attr.tree` or `--attr-source`, or a
   filter, `ident` or encoding attribute that may apply to a file whose recorded size and times cannot vouch for it, makes the
   command refuse that worktree and name the reason, instead of deciding by the file's content.
+- Where Git reads its system configuration file and its system attributes file from is a fact only the real Git the wrapper
+  forwards to can give (`git var GIT_CONFIG_SYSTEM`, `git var GIT_ATTR_SYSTEM`, learned once per executable and cached). The
+  command resolves that Git itself, as every command that forwards does, because the wrapper puts the variable that names it
+  only into the environment of the Git processes it starts, never into its own. Release 0.5.20 and older read their own
+  environment, found no Git named, and skipped every worktree whose index entries the stat data could not vouch for with
+  "the Git configuration cannot be read without running Git"; this release judges those worktrees by content. Where no real
+  Git is found, such a worktree is still skipped with that reason, which is the safe side.
 - Risk you accept by running it: it deletes the old directory, and it cannot stop another process from changing the worktree
   while it works (see "Other processes changing files").
   It says so once on standard error before it starts, and in `--help`.
@@ -720,7 +740,7 @@ The folder is bounded, because it would otherwise grow for as long as the reposi
  then, while the folder is over 1 GiB, the oldest saves first.
  A save younger than 24 hours is never removed by either limit, and neither is the save just written.
  Only directories named like the wrapper's own (`2026-11-02T14-01-07`) are touched.
- No commit waits for this, and two passes never run at once.
+ No commit waits for this, and no lock is taken: passes that overlap share a save's files, and each copy is audited once.
  The folder is never followed through a link: if `.git/cli-git` or `.git/cli-git/discarded` is a symbolic link,
  nothing is removed, and the command's notice and `git cli-git doctor` say so;
  make it a real directory to apply the limits again.
@@ -1109,9 +1129,8 @@ fractional or non-numeric value is ignored.
 - `CLI_GIT_LOCK_WAIT_SECONDS`,
    default `1800`.
   How long a command waits for a lock that a live process holds:
-   the commit service waits for a foreign `index.lock` before it lands a commit,
-   a forwarded index writer waits for the service's own hold on the index,
-   and the worktree-copy settlement.
+   the commit service waits for a foreign `index.lock` before it moves the branch,
+   and a forwarded index writer waits for the service's own hold on the index.
   At the limit it stops with a message that names the holder and every way forward:
    let the holder finish and run the command again,
    check with `ps` whether it is stuck,
@@ -1181,7 +1200,6 @@ because healthy commits queue behind each other briefly all the time.
 After that the first line comes,
 and it repeats every `CLI_GIT_WAIT_NOTICE_SECONDS` seconds until the wait ends.
 A wait whose holder is already known when it begins (a live `index.lock`,
- the worktree-copy settlement,
  another process's push) prints its first line at once.
 Each line names what the command waits for,
  the process that holds it when the wrapper can tell,
@@ -1193,7 +1211,7 @@ Each line names what the command waits for,
    The first line of a wait adds a hint,
    and the repeats stay short.
 - The commit service's own hold on the index, which a forwarded `git add` waits for.
-- The worktree-copy settlement lock and another process's push of the same branch.
+- Another process's push of the same branch.
 - A long run of `monochromatic-lint` for a Markdown file,
    which names the file and stops waiting for the linter after 60 seconds,
    leaving its thread to end with the command.
@@ -2041,6 +2059,8 @@ each prefixed `cli-git-service:` on standard error and identified as `cli-git-se
   `journal_ms`,
   `ref_ms`
   (moving the branch) and `sync_ms` (the index);
+  `lock_hold_ms` is how long the index lock was held, from its placement to its release (the branch move and the index
+  build), and is no phase of that sum;
   `attempts` is more than one when the branch moved under the batch.
   Each figure is cut to whole milliseconds on its own,
   so a sum can fall short of its total by less than one per term.
