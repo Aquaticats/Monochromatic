@@ -206,7 +206,10 @@ pub fn run_tool(program: &Path, command: &ToolCommand, window: Duration) -> Tool
             Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new() },
         }
     };
-    quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none());
+    // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
+    if clock.measures() {
+        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none());
+    }
     let Some(finished) = status else {
         stop_group(&child);
         // The group is gone, so the pipes close and the readers end; the reaped child leaves no zombie.

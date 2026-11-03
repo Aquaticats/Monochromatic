@@ -367,6 +367,8 @@ impl BatchTimes {
 /// from the acceptance of its connection to the answer.
 fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, position: usize, outcome: &str) {
     let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
+    // What the Git steps and tools since the previous answer showed; the answer that finds them takes them.
+    let quiet: Vec<(String, Duration)> = super::quiet_ledger::drain();
     let line: String = answered_line(&Answered {
         request: request.id.as_str(),
         reference: request.reference.as_str(),
@@ -381,6 +383,7 @@ fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, po
         land_total: times.land_total,
         answer: times.landed_at.elapsed(),
         total: arrival.accepted.elapsed(),
+        quiet: quiet.as_slice(),
     });
     // A request that was answered with a failure is a warning, so `journalctl --priority=warning` finds the commits that failed.
     let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };

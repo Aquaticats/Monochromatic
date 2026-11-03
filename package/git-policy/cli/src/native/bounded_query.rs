@@ -114,11 +114,13 @@ pub fn run_bounded_query(
     let locks = LockLedger::before_start(&command);
     let mut child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
     drop(command);
-    let mut quiet: Duration = Duration::ZERO;
+    let mut quiet: Option<Duration> = None;
     let ended: Result<ExitStatus, StopCause> =
         wait_until_done(&mut child, &[&stdout, &stderr], Patience::Progress { stall: window }, &mut quiet)?;
     let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
-    quiet_ledger::note(step.as_str(), quiet, ended.is_err());
+    if let Some(gap) = quiet {
+        quiet_ledger::note(step.as_str(), gap, ended.is_err());
+    }
     return match ended {
         Ok(status) => Ok(QueryOutput {
             code: status.code(),

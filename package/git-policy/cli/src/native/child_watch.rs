@@ -178,7 +178,8 @@ impl Marks {
 
     /// Keep the longest quiet gap of the wait that is ending, the one still running included.
     fn keep_gap(&self) {
-        if let Some(clock) = &self.clock {
+        // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
+        if let Some(clock) = self.clock.as_ref().filter(|measuring| { return measuring.measures(); }) {
             let micros: u64 = u64::try_from(clock.longest_quiet().as_micros()).unwrap_or(u64::MAX);
             self.longest.fetch_max(micros, Ordering::AcqRel);
         }

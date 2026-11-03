@@ -1573,7 +1573,17 @@ A real wrapped commit under the controls already writes figures, for example `gi
 14.3 ms
 and `git version` 15.2 ms (`binary_commit_timing_tests.rs`, the record printed by
 `a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it`).
-The commit service's landing steps run in the service process and are not yet carried into its journal lines.
+The commit service's landing steps run in the service process, so the `answered` line of each request in its journal
+ends
+with `quiet_ms` and `quiet_steps` (the ledger is shared, so the first answer after a batch holds the batch's figures).
+The slow steps the design record names (`fast-import`, `update-ref`, the follow-up `diff-tree` and `reset`) are
+therefore
+collected in the service's journal and not in the client's record, which shows only trivial gaps.
+
+The gateway call's other transport timeouts default to none in the locked `ureq` 3.5.0 (`Timeouts::default` in its
+`src/config.rs`: `global`, `per_call`, `send_body`, `recv_response` and `recv_body` are `None`; only the one second
+wait for a
+`100 Continue` is set, which the call never sends), so no hidden total deadline remains.
 
 Options to collect, with the coordinator's ranking (for the coordinator to pick):
 
@@ -1599,7 +1609,10 @@ margin; B > C because B at least measures gaps, while C relabels elapsed time as
 
 The limit sections hold 73 limits (a grouped entry, such as the three include-depth copies, counts once).
 These totals are for the audited commit; picks 5 and 12 removed the push ceiling, the low-speed abort and the LFS retry,
-which the totals below still count.
+and picks 4 and 9 removed `QUERY_CEILING` and the review `BUDGET` and turned the other time limits of Git steps, tools
+and
+checks into labelled unmeasured quiet windows (the review call's window moved from "cited, with a caveat" to "none,
+unmeasured", because 1.4 s is a whole time), which the totals below still count as they were.
 
 - cited: 4.
   The conversion storage ceiling (`src/native/worktree_convert_command.rs:76`), the conversion memory estimate

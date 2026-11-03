@@ -26,6 +26,7 @@
 use super::service_index_found::WaitNotes;
 use super::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, cut, one_line};
 use super::lfs_output_mask::mask_userinfo_text;
+use super::quiet_ledger::longest_healthy;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
@@ -138,6 +139,16 @@ pub struct Answered<'record> {
     pub answer: Duration,
     /// Time from the acceptance of the connection to the answer.
     pub total: Duration,
+    /// The longest quiet gap of every Git step and tool the service ran since the previous answered line, by step name, taken
+    ///  from the ledger (`quiet_ledger.rs`). The landings of one service share the ledger, so the first answer of a batch holds
+    ///  what the batch's steps showed and the others of that batch hold nothing.
+    pub quiet: &'record [(String, Duration)],
+}
+
+/// The text of the quiet gaps in the answered line: `name=milliseconds` joined by semicolons.
+fn quiet_steps(figures: &[(String, Duration)]) -> String {
+    let words: Vec<String> = figures.iter().map(|(step, gap)| { return format!("{step}={:.3}", gap.as_micros() as f64 / 1000.0); }).collect();
+    return words.join(";");
 }
 
 /// The word for a named holder,
@@ -219,7 +230,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
     return format!(
         "answered request={:?} branch={:?} outcome={} batch={} size={} position={} read_ms={} queued_ms={} settle_ms={} \
          lock_wait_ms={}{holder} lock_hold_ms={} reads_ms={} objects_ms={} journal_ms={} ref_ms={} sync_ms={} attempts={} landing_ms={} \
-         answer_ms={} total_ms={}",
+         answer_ms={} total_ms={} quiet_ms={} quiet_steps={:?}",
         answered.request,
         answered.reference,
         answered.outcome,
@@ -240,6 +251,8 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
         answered.land_total.as_millis(),
         answered.answer.as_millis(),
         answered.total.as_millis(),
+        longest_healthy(answered.quiet),
+        quiet_steps(answered.quiet),
     );
 }
 

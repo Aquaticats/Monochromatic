@@ -400,7 +400,7 @@ pub enum StopCause {
 ///  which never blocks; the clock reads the signs of work a few times a second. A query that works is waited for however
 ///  long it takes: it has no wall-clock bound (owner, 2026-11-03: "Stop only on no progress"; the coordinator's scope addition
 ///  to picks 4 and 9 of `doc/planning/cli-git-shipped-limits-audit.md`, open to the owner's veto), and on a system that counts
-///  nothing it is never judged stalled. `quiet` receives the longest quiet gap seen, for the ledger.
+///  nothing it is never judged stalled. `quiet` receives the longest quiet gap seen, for the ledger, and nothing where the system counts nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -410,7 +410,7 @@ pub fn wait_until_done(
     child: &mut Child,
     outputs: &[&File],
     patience: Patience,
-    quiet: &mut Duration,
+    quiet: &mut Option<Duration>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
     let clock: Clock = Clock::start(child.id(), patience).without_wall_fallback();
@@ -435,7 +435,7 @@ pub fn wait_until_done_noting(
     waits: &mut Vec<WaitReport>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let clock: Clock = Clock::start(child.id(), patience);
-    let mut unused: Duration = Duration::ZERO;
+    let mut unused: Option<Duration> = None;
     return wait_with_clock(child, outputs, clock, label, waits, &mut unused);
 }
 
@@ -446,11 +446,13 @@ fn wait_with_clock(
     mut clock: Clock,
     label: &str,
     waits: &mut Vec<WaitReport>,
-    quiet: &mut Duration,
+    quiet: &mut Option<Duration>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
+    // Nothing is kept where the clock reads nothing: its figure would be the elapsed time, not a quiet gap.
+    let kept = |watched: &Clock| -> Option<Duration> { return watched.measures().then(|| { return watched.longest_quiet(); }); };
     loop {
         if let Some(status) = child.try_wait().map_err(SingleFlightError::Start)? {
-            *quiet = clock.longest_quiet();
+            *quiet = kept(&clock);
             return Ok(Ok(status));
         }
         for output in outputs {
@@ -459,12 +461,12 @@ fn wait_with_clock(
                 Err(_) => u64::MAX,
             };
             if is_flood(size) {
-                *quiet = clock.longest_quiet();
+                *quiet = kept(&clock);
                 return Ok(Err(StopCause::Flood));
             }
         }
         if let Some(cause) = clock.check() {
-            *quiet = clock.longest_quiet();
+            *quiet = kept(&clock);
             return Ok(Err(cause));
         }
         if let Some(report) = clock.take_wait_note() {

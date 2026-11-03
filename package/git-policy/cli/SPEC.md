@@ -1399,8 +1399,18 @@ timing record the command already writes: `longestQuietMs` (the longest among th
 The resolution of a gap is the sampling interval of the meter, 500 milliseconds, and a window below that interval can
 end a
 step that works between two samples, so no window is set below it outside the controls.
-The commit service's own landing steps run in the service process, whose records are its journal lines; they are not yet
-carried there.
+The commit service runs the landing's Git steps in its own process, so its figures go to its journal: the `answered`
+line of
+each request ends with `quiet_ms=<longest among the steps that ended by themselves>` and `quiet_steps="<step>=<ms>;..."`
+(`src/native/service_timing.rs`).
+The landings of one service share the ledger, so the first answer after a batch's steps holds their figures and the
+others of
+that batch hold none; a figure is a gap of some step of the service since the previous answer, not of one request.
+The gateway call has no total deadline by construction: the transport's other timeouts (`global`, `per_call`,
+`send_body`,
+`recv_response`, `recv_body`) default to none in the locked `ureq` 3.5.0 (`Timeouts::default`, `src/config.rs`; only
+the one
+second wait for a `100 Continue`, which the call never sends), and the call sets only the four idle ones.
 
 ##### The quiet windows are labelled unmeasured
 
