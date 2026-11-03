@@ -3961,7 +3961,8 @@ What Git does after a clean run, from the Git 2.56.0 source:
   `MERGE_AUTOSTASH` after it concludes the merge (`builtin/commit.c` line 1982), as a clean merge's `finish` does
   (`builtin/merge.c` line 1848). The wrapper's commit builds the commit in a shadow repository, which now holds a private copy of
   `MERGE_AUTOSTASH`; landing removes the real pseudoref when the shadow consumed it (`conclusion_cleanup.rs`).
-  A stash whose apply conflicts when the commit concludes the merge (the finish's, or the person's own `git commit`) is stored by Git in the
+  A stash whose apply conflicts when the commit concludes the merge (the finish's, or the person's own `git commit`)
+  is stored by Git in the
   scratch repository's private `refs/stash`, with its conflict stages in the commit's private index.
   The landing carries both back
   (`autostash_carry.rs`): the stash is stored in the repository with `git stash store -m autostash` (once;
@@ -3974,7 +3975,8 @@ What Git does after a clean run, from the Git 2.56.0 source:
   declined it was retired). The controls `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
   `a_pull_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
   `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` and
-  `a_commit_over_unsaved_changes_to_a_stash_file_keeps_the_stash_as_git_keeps_it` compare the stash list, the status, the files and
+  `a_commit_over_unsaved_changes_to_a_stash_file_keeps_the_stash_as_git_keeps_it` compare the stash list, the status,
+  the files and
   the exit status with a twin repository that real Git runs. A
   `branch.<name>.mergeoptions` value of the checked-out branch is split as Git splits it (`alias.c` lines 126 to 180) and read
   before the command line (`merge.c` lines 1407 to 1409), so `--no-commit`, `--squash`, `--edit` or `-m` set there is honoured.

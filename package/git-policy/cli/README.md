@@ -1023,11 +1023,13 @@ When every conflicted file resolves, the operation is finished the way Git finis
  as Git applies them; a command with an option the wrapper does not read exactly is left stopped with the files staged and
  Git's status.
 What Git printed when it stopped (`CONFLICT` lines) is already out and stays.
-An autostash (`--autostash`, `merge.autoStash`, or a pull's) is applied by the commit that ends the finished merge, as in Git.
+An autostash (`--autostash`, `merge.autoStash`, or a pull's) is applied by the commit that ends the finished merge,
+ as in Git.
 When the stash conflicts with the merged files, the merge commit is still made, the stash is kept in your repository as
  `stash@{0}: autostash`, the files it conflicted in are unmerged in your index with the markers in the worktree,
  and the exit status is the commit's, as after Git's own apply.
-The same holds when you conclude such a merge yourself with `git commit`, and when you have edited a file the stash touches
+The same holds when you conclude such a merge yourself with `git commit`,
+ and when you have edited a file the stash touches
  since the merge stopped (Git's apply then refuses and keeps the whole stash).
 Standard error lists every part that was merged, with the file and the lines in the base, your side and the other side,
  and the text it became:
