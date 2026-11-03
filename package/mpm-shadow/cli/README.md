@@ -640,15 +640,16 @@ and mise, which runs every task and shell of the repository, reads that fragment
 - The repository scope writes `.config/mise/conf.d/30-toolchain-env.local.toml` in the worktree.
   The `.local.` part keeps it out of git through the `*.local.*` ignore pattern,
   the way file-enforcer's `10-bin.local.toml` is.
-  The machine-global scope (`install --global`) writes
-  `<config home>/mise/conf.d/30-toolchain-env.toml`
-  (`$XDG_CONFIG_HOME/mise/conf.d`, or `~/.config/mise/conf.d`),
-  beside the global `config.toml`, which is hand-written and never edited.
+  The machine-global scope (`install --global`) writes no tool environment at all:
+  tool variables are exported in this repository's worktrees only,
+  never in a shell outside the repository,
+  so a global lock's `env` block (its `RUSTUP_TOOLCHAIN`, for one) reaches no process through `install --global`.
+  The hand-written global `config.toml` is never edited.
 - Mise reads every file of a `conf.d` directory in name order, so no committed file points at the fragment.
   An `include` of the generated file from a committed one would make mise fail on a fresh clone,
   before the first `install`, because mise refuses an include of a file that is missing.
-- A value with a `/` is relative to the toolchain root of the scope
-  (`<data home>/monochromatic-dev/toolchain`, or `toolchain-global` with `--global`)
+- A value with a `/` is relative to the repository scope's toolchain root
+  (`<data home>/monochromatic-dev/toolchain`)
   and is written as an absolute path:
   `android-sdk/23.0` becomes `<toolchain root>/android-sdk/23.0`.
   The lock holds the value with `{version}` already replaced,

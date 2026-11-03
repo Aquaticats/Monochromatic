@@ -24,9 +24,14 @@ fn set_env(rig: &mut Rig, id: &str, pairs: &[(&str, &str)]) {
     }
 }
 
+/// The repository scope's fragment path.
+fn fragment_path(rig: &Rig) -> &Path {
+    return rig.scope.mise_env_file.as_deref().expect("the repository scope has a fragment");
+}
+
 /// The fragment's text.
 fn fragment(rig: &Rig) -> String {
-    return fs::read_to_string(&rig.scope.mise_env_file).expect("the fragment exists");
+    return fs::read_to_string(fragment_path(rig)).expect("the fragment exists");
 }
 
 /// The `[env]` body of a fragment: every line after the table header.
@@ -48,14 +53,12 @@ fn path_text(path: &Path) -> String {
 }
 
 #[test]
-fn the_repository_fragment_sits_in_the_mise_conf_d_directory_of_the_worktree_and_the_global_one_in_the_user_config() {
+fn the_repository_fragment_sits_in_the_mise_conf_d_directory_of_the_worktree_and_the_global_scope_has_none() {
     let rig = Rig::new();
-    assert_eq!(rig.scope.mise_env_file, rig.scope.root.join(".config/mise/conf.d/30-toolchain-env.local.toml"));
+    assert_eq!(rig.scope.mise_env_file, Some(rig.scope.root.join(".config/mise/conf.d/30-toolchain-env.local.toml")));
     let env = EnvMap::from_pairs(&[("HOME", "/home/someone"), ("XDG_CONFIG_HOME", "/config/home")]);
     let scope = global_scope(&env).expect("a global scope");
-    assert_eq!(scope.mise_env_file, Path::new("/config/home/mise/conf.d/30-toolchain-env.toml"));
-    let plain = global_scope(&EnvMap::from_pairs(&[("HOME", "/home/someone")])).expect("a global scope");
-    assert_eq!(plain.mise_env_file, Path::new("/home/someone/.config/mise/conf.d/30-toolchain-env.toml"));
+    assert_eq!(scope.mise_env_file, None);
 }
 
 #[test]
@@ -65,7 +68,7 @@ fn a_lock_entry_with_env_writes_absolute_values_under_the_toolchain_root_and_pas
     let outcome = write_tool_env(&rig.context()).expect("the fragment is written");
     let sdk = path_text(&rig.scope.toolchain_root.join("android-sdk/23.0"));
     assert!(Path::new(&sdk).is_absolute(), "{sdk}");
-    assert_eq!(outcome.file, rig.scope.mise_env_file);
+    assert_eq!(outcome.file.as_deref(), Some(fragment_path(&rig)));
     assert_eq!(outcome.names, vec!["ANDROID_HOME", "ANDROID_SDK_ROOT", "RUSTUP_TOOLCHAIN"]);
     assert_eq!(
         env_body(&fragment(&rig)),
@@ -104,7 +107,7 @@ fn a_tool_removed_from_the_lock_loses_its_variables_and_a_lock_without_env_remov
     set_env(&mut rig, "rust", &[]);
     let emptied = write_tool_env(&rig.context()).expect("the fragment is removed");
     assert!(emptied.names.is_empty());
-    assert!(!rig.scope.mise_env_file.exists(), "no variables, no fragment");
+    assert!(!fragment_path(&rig).exists(), "no variables, no fragment");
     write_tool_env(&rig.context()).expect("removing an absent fragment is not an error");
 }
 
@@ -119,7 +122,7 @@ fn a_tool_that_does_not_apply_to_the_host_family_exports_nothing() {
     rig.host = Host { platform: "linux-x64".to_string(), family: Some(OsFamily::Linux) };
     let outcome = write_tool_env(&rig.context()).expect("nothing to write");
     assert!(outcome.names.is_empty());
-    assert!(!rig.scope.mise_env_file.exists());
+    assert!(!fragment_path(&rig).exists());
 }
 
 #[test]
@@ -157,7 +160,7 @@ fn a_value_that_leaves_the_root_or_that_mise_would_template_or_expand_is_refused
             Err(error) => {
                 assert_eq!(error.kind, ErrorKind::Failure, "{value}");
                 assert!(error.message.contains("android-sdk") && error.message.contains("ANDROID_HOME"), "{value}: {error}");
-                assert!(!rig.scope.mise_env_file.exists(), "{value}: nothing may be written");
+                assert!(!fragment_path(&rig).exists(), "{value}: nothing may be written");
             }
         }
     }
@@ -195,7 +198,7 @@ fn a_variable_name_that_is_not_a_plain_identifier_is_refused() {
             Ok(_) => accepted.push(name),
             Err(error) => {
                 assert!(error.message.contains("android-sdk"), "{name:?}: {error}");
-                assert!(!rig.scope.mise_env_file.exists(), "{name:?}: nothing may be written");
+                assert!(!fragment_path(&rig).exists(), "{name:?}: nothing may be written");
             }
         }
     }
@@ -219,7 +222,7 @@ fn install_writes_the_fragment_from_the_whole_lock_and_a_partial_sync_leaves_it_
     set_env(&mut rig, "android-sdk", &[("ANDROID_HOME", "android-sdk/23.0")]);
     let report = sync_tools(&rig.context(), Some(&["node".to_string()]));
     assert!(report.failed.iter().all(|(id, _)| return id != "tool environment"), "{:?}", report.failed);
-    assert!(!rig.scope.mise_env_file.exists(), "update's partial sync must not touch the fragment");
+    assert!(!fragment_path(&rig).exists(), "update's partial sync must not touch the fragment");
     sync_tools(&rig.context(), None);
     assert!(fragment(&rig).contains("ANDROID_HOME"), "{}", fragment(&rig));
     assert!(fragment(&rig).contains("RUSTUP_TOOLCHAIN"), "{}", fragment(&rig));
