@@ -9473,3 +9473,9 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   Git's own dry run refuses ends with Git's exit code and stderr (six refusals checked against plain Git). One control
   changed: `git push --no-such-option` now equals plain Git (exit 129). Same agent now makes the hint follow the cause
   for the remaining probe failures.
+- Campaign lock round 9 review (`~/temp/agent/review-planted-controls-9/sol-review.txt`): `campaign-lock.ts` and
+  `campaign-protocol.ts` no defect; one P2 in `startEvidenceOf`: the campaign-wide protocol record can certify a later
+  attempt made by an older markerless runner that reused the directory. Fix (per-attempt protocol record) sent to the
+  agent on `fix/mutation-test-cli-cargo-mutants-unit-under-process-limits`.
+- Conversion and trash review started (`~/temp/agent/review-main-snapshot/`: `worktree_convert.rs`,
+  `worktree_trash.rs` at `91c306da97`).
