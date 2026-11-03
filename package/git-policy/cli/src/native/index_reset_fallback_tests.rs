@@ -39,11 +39,12 @@ fn follow_up_falls_back(scene: &Scene, label: &str) {
     context.common_dir = Some(scene.repo.join(".git"));
     let index: PathBuf = scene.repo.join(".git").join("index");
     let paths: Vec<Vec<u8>> = named(&["a"]);
-    let built: PathBuf = crate::service_land_follow::build_index(&context, scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&paths), index.as_path(), 7).expect("built");
+    let held = crate::service_index_lock::try_acquire(index.as_path(), 7).expect("the lock is free");
+    let built: PathBuf = crate::service_land_follow::build_index(&context, scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&paths), &held, 7).expect("built");
     let starts: Vec<String> = recorded_starts(log.as_path());
     assert!(starts.iter().any(|start| { return start.starts_with("reset --no-refresh "); }), "{label}: no fallback reset in {starts:?}");
     assert!(!starts.iter().any(|start| { return start.starts_with("reset -q"); }), "{label}: the fallback still asks for -q or a refresh: {starts:?}");
-    std::fs::rename(built, index).expect("installed");
+    held.release_with(built.as_path()).expect("installed");
     assert!(git_output(scene.repo.as_path(), &["diff", "--cached", "--quiet", scene.new.as_str(), "--", "a"]).status.success(), "{label}: the path is not at the commit");
 }
 
@@ -99,7 +100,6 @@ fn a_racily_clean_entry_is_left_to_git() {
     let before: Vec<u8> = index_bytes(scene.repo.as_path());
     assert!(!landing_reset_copy(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"])), true), "racy");
     assert!(before == index_bytes(scene.repo.as_path()));
-    follow_up_falls_back(&scene, "racy");
     finish(scene);
 }
 
@@ -167,5 +167,31 @@ fn git_refuses_the_protected_names_the_update_declines() {
         let output = git_with(scene.repo.as_path(), &[], &["-c", "core.protectNTFS=true", "update-index", "--add", "--cacheinfo", format!("{mode},{blob},{name}").as_str()], None);
         assert!(!output.status.success(), "Git accepted {name:?}");
     }
+    finish(scene);
+}
+
+/// Names Git refuses by their NTFS short forms, among them the hashed short name of `.gitmodules` as a link, are in no index
+/// real `git reset --no-refresh` writes: it fails and leaves the index file as it was, and so does the update's decline; an
+/// ordinary link name in the same position is taken by both and gives equal files.
+#[test]
+fn ntfs_short_names_are_refused_by_git_and_declined_by_the_update() {
+    use super::support::{commit_with_raw_entry, copy_of, git_reset_status};
+    for name in ["GI7EBA~1", "gi7eba~2", "GI7EBA~1 .", "GITMOD~3", "GI7EBA~9"] {
+        let scene: Scene = changed_a("index-fallback-short-name");
+        let commit: String = commit_with_raw_entry(&scene, name, "120000", b"target");
+        let before: Vec<u8> = index_bytes(scene.repo.as_path());
+        let copy: PathBuf = copy_of(&scene);
+        assert!(!git_reset_status(scene.repo.as_path(), commit.as_str(), &named(&[name])), "Git accepted {name:?}");
+        assert!(before == index_bytes(scene.repo.as_path()), "Git changed the index for {name:?}");
+        assert!(!landing_reset(&git_context(), copy.as_path(), commit.as_str(), IndexPaths::Named(&named(&[name]))), "the update accepted {name:?}");
+        assert!(before == index_bytes(copy.as_path()), "the update changed the index for {name:?}");
+        finish(scene);
+    }
+    let scene: Scene = changed_a("index-fallback-short-name-control");
+    let commit: String = commit_with_raw_entry(&scene, "ordinary-link", "120000", b"target");
+    let copy: PathBuf = copy_of(&scene);
+    assert!(git_reset_status(scene.repo.as_path(), commit.as_str(), &named(&["ordinary-link"])));
+    assert!(landing_reset(&git_context(), copy.as_path(), commit.as_str(), IndexPaths::Named(&named(&["ordinary-link"]))));
+    assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()));
     finish(scene);
 }

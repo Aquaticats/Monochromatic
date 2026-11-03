@@ -1166,6 +1166,11 @@ pub mod index_reset_publish;
 #[cfg(target_os = "linux")]
 pub mod index_reset_file;
 
+/// A test body run in a child process under a chosen umask; never part of the release executable.
+#[cfg(test)]
+#[cfg(target_os = "linux")]
+mod umask_child_test_support;
+
 /// Index files real Git wrote, for the controls of the readers and writers; never part of the release executable.
 #[cfg(test)]
 #[cfg(target_os = "linux")]

@@ -46,6 +46,61 @@ fn only_spaces_and_dots(rest: &[u8]) -> bool {
 }
 
 /// What:
+///  Git's `is_ntfs_dotgitmodules` (`path.c:1451-1522`, `is_ntfs_dot_generic` with the name `gitmodules` and the hashed short-name
+///  prefix `gi7eba`) for one path component: `.gitmodules`, its short form `gitmod~1` to `gitmod~4`, and the fall-back short name
+///  NTFS makes from the hash (`GI7EBA~1`), each followed only by spaces and dots or a stream.
+/// Why:
+///   A link with any of these names is refused by Git with the NTFS protection on, so the update must decline it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused: boolean = isNtfsDotGitmodules(component);
+/// ```
+fn is_ntfs_dotgitmodules(name: &[u8]) -> bool {
+    // The component ends where Git's string would: a position past the end reads as the terminating NUL.
+    let at = |index: usize| -> u8 { return name.get(index).copied().unwrap_or(0); };
+    let spaces_and_periods = |start: usize| -> bool {
+        for index in start.. {
+            let byte: u8 = at(index);
+            if byte == 0 || byte == b':' {
+                return true;
+            }
+            if byte != b' ' && byte != b'.' {
+                return false;
+            }
+        }
+        return false;
+    };
+    if at(0) == b'.' && name.len() > 10 && name[1..11].eq_ignore_ascii_case(b"gitmodules") {
+        return spaces_and_periods(11);
+    }
+    if name.len() > 5 && name[..6].eq_ignore_ascii_case(b"gitmod") && at(6) == b'~' && (b'1'..=b'4').contains(&at(7)) {
+        return spaces_and_periods(8);
+    }
+    let (mut index, mut saw_tilde): (usize, bool) = (0, false);
+    while index < 8 {
+        let byte: u8 = at(index);
+        if byte == 0 {
+            return false;
+        } else if saw_tilde {
+            if !byte.is_ascii_digit() {
+                return false;
+            }
+        } else if byte == b'~' {
+            index += 1;
+            if !(b'1'..=b'9').contains(&at(index)) {
+                return false;
+            }
+            saw_tilde = true;
+        } else if index >= 6 || byte & 0x80 != 0 || byte.to_ascii_lowercase() != b"gi7eba"[index] {
+            return false;
+        }
+        index += 1;
+    }
+    return spaces_and_periods(8);
+}
+
+/// What:
 ///  Whether one path component is one Git's name checks (`verify_path_internal` in `read-cache.c` with `core.protectNTFS`,
 ///  which is on by default, and `core.protectHFS`) cannot refuse or alias to a refused name.
 /// Why:
@@ -63,7 +118,7 @@ fn only_spaces_and_dots(rest: &[u8]) -> bool {
 fn component_is_plain(component: &[u8], is_link: bool) -> bool {
     let lowered: Vec<u8> = component.to_ascii_lowercase();
     let dot_git_like: bool = lowered.strip_prefix(b".git").is_some_and(only_spaces_and_dots);
-    let dot_gitmodules_like: bool = is_link && (lowered.strip_prefix(b".gitmodules").is_some_and(only_spaces_and_dots) || lowered.starts_with(b"gitmod~"));
+    let dot_gitmodules_like: bool = is_link && (is_ntfs_dotgitmodules(component) || lowered.strip_prefix(b".gitmodules").is_some_and(only_spaces_and_dots) || lowered.starts_with(b"gitmod~"));
     // The ignorable characters of a case-folding disk: U+2000 to U+206F begin with E2 80 or E2 81, and U+FEFF is EF BB BF.
     let ignorable: bool = component.windows(2).any(|pair| { return pair == [0xe2, 0x80] || pair == [0xe2, 0x81]; }) || component.windows(3).any(|triple| { return triple == [0xef, 0xbb, 0xbf]; });
     let separators: bool = component.contains(&b'\\') || component.contains(&b':');

@@ -157,6 +157,17 @@ pub(crate) fn git_reset(repo: &Path, commit: &str, names: &[Vec<u8>]) {
     assert!(output.status.success(), "git reset: {}", String::from_utf8_lossy(&output.stderr));
 }
 
+/// Whether `git reset --no-refresh <commit> -- <names>` succeeds in `repo`.
+pub(crate) fn git_reset_status(repo: &Path, commit: &str, names: &[Vec<u8>]) -> bool {
+    let mut input: Vec<u8> = Vec::new();
+    for name in names {
+        input.extend_from_slice(b":(top,literal)");
+        input.extend_from_slice(name.as_slice());
+        input.push(0);
+    }
+    return git_with(repo, &[], &["reset", "--no-refresh", commit, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input.as_slice())).status.success();
+}
+
 /// The bytes of the repository's index file.
 pub(crate) fn index_bytes(repo: &Path) -> Vec<u8> {
     return std::fs::read(repo.join(".git").join("index")).expect("index");
@@ -195,7 +206,7 @@ pub(crate) fn landing_reset(context: &crate::transaction_git::GitContext, repo: 
 pub(crate) fn landing_reset_copy(context: &crate::transaction_git::GitContext, repo: &Path, new: &str, paths: crate::service_land_follow::IndexPaths<'_>, old_copy: bool) -> bool {
     let live: PathBuf = repo.join(".git").join("index");
     let seq: u64 = NEXT_BATCH.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let built: PathBuf = live.with_file_name(format!("index.cli-git-{seq}"));
+    let built: PathBuf = crate::service_land_follow::private_index_path(live.as_path(), seq);
     let Some(held) = crate::service_index_lock::try_acquire(live.as_path(), seq) else {
         return false;
     };
@@ -205,7 +216,7 @@ pub(crate) fn landing_reset_copy(context: &crate::transaction_git::GitContext, r
             age(built.as_path());
         }
     }
-    let done: bool = crate::index_reset_file::reset_index_file(context, repo, new, paths, &crate::index_reset_publish::Landing { live: live.as_path(), built: built.as_path(), seq });
+    let done: bool = crate::index_reset_file::reset_index_file(context, repo, new, paths, &held, seq);
     if done {
         held.release_with(built.as_path()).expect("installed");
     } else {
@@ -213,4 +224,18 @@ pub(crate) fn landing_reset_copy(context: &crate::transaction_git::GitContext, r
         drop(held);
     }
     return done;
+}
+
+/// A commit on top of the scene's `new` whose whole tree is the one entry `name` of `mode` naming a blob with `content`, made
+/// without Git's name checks (`hash-object --literally`), so a name Git refuses can be in a tree.
+pub(crate) fn commit_with_raw_entry(scene: &Scene, name: &str, mode: &str, content: &[u8]) -> String {
+    let blob: String = String::from_utf8(git_with(scene.repo.as_path(), &[], &["hash-object", "-w", "--stdin"], Some(content)).stdout).expect("UTF-8").trim().to_string();
+    let mut tree: Vec<u8> = format!("{mode} {name}\0").into_bytes();
+    for pair in blob.as_bytes().as_chunks::<2>().0 {
+        tree.push(u8::from_str_radix(std::str::from_utf8(pair).expect("hex"), 16).expect("hex digit pair"));
+    }
+    let made: Output = git_with(scene.repo.as_path(), &[], &["hash-object", "-t", "tree", "-w", "--literally", "--stdin"], Some(tree.as_slice()));
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(&made.stderr));
+    let tree_name: String = String::from_utf8(made.stdout).expect("UTF-8").trim().to_string();
+    return git_text(scene.repo.as_path(), &["commit-tree", tree_name.as_str(), "-p", scene.new.as_str(), "-m", "raw entry"]);
 }

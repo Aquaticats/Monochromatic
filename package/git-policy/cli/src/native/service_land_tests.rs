@@ -865,3 +865,77 @@ fn the_import_and_the_connectivity_check_of_a_landing_start_without_quiet() {
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     remove(world.root.as_path());
 }
+
+/// A restart finishes the index of a landed batch without starting a Git `reset`: it takes the lock itself, as the first landing
+/// did, and the in-process update runs under it.
+#[test]
+fn a_restart_finishes_the_index_without_a_git_reset() {
+    use crate::recording_git::{recorded_starts, recording_context};
+    use crate::repo_read_hook::SWITCH_VARIABLE;
+    let mut world: World = world("service-land-recover-no-reset");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("reopen");
+    let (mut recording, log) = recording_context(world.root.as_path());
+    recording.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
+    world.context.git = recording;
+    let reports = recover(&world.context);
+    assert!(reports.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Finish; }));
+    let words: Vec<String> = recorded_starts(log.as_path()).iter().map(|start| { return start.split(' ').next().unwrap_or_default().to_string(); }).collect();
+    assert!(!words.iter().any(|word| { return word == "reset"; }), "recovery started a Git reset: {words:?}");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
+    assert!(!world.repo.join(".git/index.lock").exists());
+    remove(world.root.as_path());
+}
+
+/// A landing keeps a change another session staged before the landing took the lock, for a path the commit does not name, and
+/// starts no Git `reset`.
+#[test]
+fn a_landing_keeps_an_earlier_stage_of_another_path() {
+    use crate::recording_git::{recorded_starts, recording_context};
+    use crate::repo_read_hook::SWITCH_VARIABLE;
+    let mut world: World = world("service-land-keeps-stage");
+    std::fs::write(world.repo.join("elsewhere.txt"), "staged earlier\n").expect("write");
+    // An entry recorded in the second of the lock's copy is racily clean and sends the update to Git; this one is older.
+    crate::test_support::age(world.repo.join("elsewhere.txt").as_path());
+    git(world.repo.as_path(), &["add", "elsewhere.txt"]);
+    let (mut recording, log) = recording_context(world.root.as_path());
+    recording.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
+    world.context.git = recording;
+    let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    land_batch(&world.context, 1, &[mine]).expect("landed");
+    let words: Vec<String> = recorded_starts(log.as_path()).iter().map(|start| { return start.split(' ').next().unwrap_or_default().to_string(); }).collect();
+    assert!(!words.iter().any(|word| { return word == "reset"; }), "the landing started a Git reset: {words:?}");
+    assert_eq!(git_text(world.repo.as_path(), &["diff", "--cached", "--name-only"]), "elsewhere.txt", "the earlier stage is the only difference left");
+    remove(world.root.as_path());
+}
+
+/// A restart that finds a foreign program holding the live index lock leaves the batch open, the index and the foreign lock as
+/// they are, and finishes the batch on a later restart once the lock is free.
+#[test]
+fn a_restart_leaves_the_batch_open_while_a_foreign_lock_is_held() {
+    let world: World = world("service-land-recover-foreign-lock");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    std::fs::rename(&done, &open).expect("reopen");
+    let lock: PathBuf = world.repo.join(".git/index.lock");
+    std::fs::write(&lock, "foreign").expect("foreign lock");
+    let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
+    let first = recover(&world.context);
+    assert!(first.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Finish; }));
+    assert!(open.exists(), "the batch stays open while the lock is held");
+    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), before, "the index was not touched");
+    assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "foreign");
+    std::fs::remove_file(&lock).expect("the foreign program lets go");
+    recover(&world.context);
+    assert!(!open.exists(), "the batch is finished once the lock is free");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
+    remove(world.root.as_path());
+}

@@ -152,21 +152,26 @@ The index update that is not part of a landing (`update_index`, used when correc
 
 What the cross-vendor review of the branch at `48d6abb28c` changed:
 
-- The update runs only under the landing's lock. `service_land.rs` takes the live `index.lock` (`acquire_noting_wait`) before the
-  branch moves and passes it to `follow_up`; `build_index` copies the live index while it is held; `IndexLock::release_with`
-  (`service_index_hold.rs`) renames the copy over the live index and removes the lock. The recovery path takes the lock the same way
-  (`try_acquire` in `recover_selected`). A foreign `git add` finds the lock taken from the copy to the installation, so nothing it staged
-  before is lost and nothing after starts. The helper now refuses unless the lock's marker names this process and this batch and the
-  private index is another file beside the live one (`holds_the_lock`), writes through a temporary file it creates exclusively
-  (no run shares a name, and a run removes only its own), and gives the file Git's index mode, `core.sharedRepository` included.
-- A bitmap in the fsmonitor or untracked-cache extension is read only if its runs, literals and last run-length word are
-  consistent with its bit size and the bit size is at most the entries or the directories; a 20-byte bitmap that described
-  terabytes is refused before anything is listed.
-- Names are declined for every spelling the NTFS and HFS protections of Git refuse (colon and backslash included), whatever
-  `core.protectNTFS` says; this is a superset of Git's refusals, so Git answers all of them. Real Git 2.56.0 refuses each one the
-  control lists.
-- The review expected an intent-to-add entry equal to the tree's to be replaced. Git 2.56.0 leaves it with its flag (the
-  differential control `an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it`), and so does the update.
+- The update runs only under the landing's lock. `service_land.rs` takes the live `index.lock` (`acquire_noting_wait`)
+  before the branch moves and passes it to `follow_up`; `build_index` copies the live index while it is held;
+  `IndexLock::release_with` (`service_index_hold.rs`) renames the copy over the live index and removes the lock. The
+  recovery path takes the lock the same way (`try_acquire` in `recover_selected`). A foreign `git add` finds the lock
+  taken from the copy to the installation, so nothing it staged before is lost and nothing after starts. The helper
+  now takes a borrow of the held `IndexLock`, so only the holder can call it, and works on
+  `private_index_path(lock.index(), seq)` alone; its only caller is `follow_up`, which owns the lock on both paths. It
+  writes through a temporary file it creates exclusively (no run shares a name, and a run removes only its own), sets
+  Git's index mode on that file before the first byte (owner-only creation, then the mode `calc_shared_perm` makes of
+  the file Git would have created under the process mask), flushes it, and renames it.
+- A bitmap in the fsmonitor or untracked-cache extension is read only if its runs, literals and last run-length word
+  are consistent with its bit size and the bit size is at most the entries or the directories; a 20-byte bitmap that
+  described terabytes is refused before anything is listed.
+- Names are declined for every spelling the NTFS and HFS protections of Git refuse (colon and backslash included, and
+  the hashed short name of `.gitmodules`, ported from `is_ntfs_dotgitmodules` in `path.c`), whatever
+  `core.protectNTFS` says; this is a superset of Git's refusals, so Git answers all of them. Real Git 2.56.0 refuses
+  each one the control lists.
+- The review expected an intent-to-add entry equal to the tree's to be replaced. Git 2.56.0 leaves it with its flag
+  (the differential control `an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it`), and so does the
+  update.
 
 Measured on 2026-11-03 on throwaway copies of main's shape (20 672 tracked files, 53 000 ignored, a signed explicit-path commit,
 `core.untrackedCache = true`, no fsmonitor, release builds, 20 rounds after 2 warm-up rounds, native Git and both wrappers in
