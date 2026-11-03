@@ -194,7 +194,7 @@ pub fn replay_delta(base: &[FlatEntry], result: &[FlatEntry], current: &[FlatEnt
             }
             Ok(None) => {}
             Err(()) => {
-                let gitlinks: bool = [b.get(path), c.get(path), r.get(path)].iter().all(|cell| { return cell.is_some_and(|cell| { return cell.0 == 0o160_000; }); });
+                let gitlinks: bool = [b.get(path), c.get(path), r.get(path)].iter().all(|cell| { return cell.is_some_and(|entry| { return entry.0 == 0o160_000; }); });
                 let kind: ConflictKind = if gitlinks { ConflictKind::GitlinkNeedsAncestry } else { ConflictKind::BothChanged };
                 conflicts.push(Conflict { path: path.clone(), kind });
                 if let Some(cell) = c.get(path) {

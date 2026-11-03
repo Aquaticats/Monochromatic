@@ -133,10 +133,10 @@ fn differential(label: &str, base: &[Edit], current: &[Edit], result: &[Edit]) -
         // (here the commit's object name); it is accepted only for a path the pure replay also reports, with exactly that label.
         let mut ids_at: BTreeSet<Vec<u8>> = BTreeSet::new();
         for conflict in &pure.conflicts {
-            for label in [&c, &t] {
+            for side in [&c, &t] {
                 let mut moved: Vec<u8> = conflict.path.clone();
                 moved.push(b'~');
-                moved.extend_from_slice(label.as_bytes());
+                moved.extend_from_slice(side.as_bytes());
                 ids_at.insert(moved);
             }
         }

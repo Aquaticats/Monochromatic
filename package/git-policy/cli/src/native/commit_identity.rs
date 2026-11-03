@@ -146,14 +146,14 @@ fn parent_of(path: &Path) -> Option<PathBuf> {
 /// function syncChain(from: string, anchor: string): void;
 /// ```
 pub fn sync_chain(from: &Path, anchor: &Path) -> io::Result<()> {
-    let anchor: PathBuf = std::path::absolute(anchor)?;
+    let absolute_anchor: PathBuf = std::path::absolute(anchor)?;
     let mut current: PathBuf = std::path::absolute(from)?;
-    if !current.starts_with(&anchor) {
+    if !current.starts_with(&absolute_anchor) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the path is not below its durable anchor"));
     }
     loop {
         sync_directory(&current)?;
-        if current == anchor {
+        if current == absolute_anchor {
             return Ok(());
         }
         match parent_of(&current) {
