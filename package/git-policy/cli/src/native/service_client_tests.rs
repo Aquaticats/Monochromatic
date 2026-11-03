@@ -1,25 +1,17 @@
 //! Controls for the client's wait bounds and for how it reads the lines the service sends.
 
 use super::*;
-use crate::service_protocol::encode_service;
+use crate::service_protocol::{HEARTBEAT_EVERY, HEARTBEAT_SILENCE, encode_service};
 
-/// The documented wait of a commit in the queue:
-/// ten minutes,
-/// configurable
-///  (`doc/planning/cli-git-resident-service.md`,
-/// "bounded commit wait").
-const DOCUMENTED_COMMIT_WAIT: Duration = Duration::from_secs(10 * 60);
-
-/// A commit queued behind a full batch of landings waits for them;
-/// a bound of about a minute would fail commits that were
-/// only waiting their turn,
-/// so the default is the documented ten minutes,
-/// which is also longer than a service start.
+/// A commit queued behind a full batch of landings waits for them for as long as the service keeps sending, so there is no
+/// queue wait to read; what bounds the wait is the silence of the service, which is the service's own beat several times over.
 #[test]
-fn a_commit_waits_the_documented_ten_minutes_in_the_queue() {
-    assert_eq!(COMMIT_WAIT, DOCUMENTED_COMMIT_WAIT);
-    assert!(COMMIT_WAIT > START_WAIT);
+fn the_silence_bound_is_several_beats_so_one_late_beat_is_not_a_stopped_service() {
+    assert!(HEARTBEAT_SILENCE >= HEARTBEAT_EVERY * MINIMUM_BEATS_MISSED, "{HEARTBEAT_SILENCE:?} against a beat every {HEARTBEAT_EVERY:?}");
 }
+
+/// The fewest beats of silence a stopped service is told from a late one by.
+const MINIMUM_BEATS_MISSED: u32 = 3;
 
 /// A reader over a connection whose service sent `bytes` and then closed it.
 fn reader_after(bytes: &[u8]) -> BufReader<UnixStream> {

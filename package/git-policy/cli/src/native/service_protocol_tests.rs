@@ -44,6 +44,7 @@ fn service_messages_round_trip() {
         ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) },
         ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: None },
         ServiceMessage::Position { number: 3, of: 7 },
+        ServiceMessage::Heartbeat,
         ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: true },
         ServiceMessage::RetryPrepare { id: String::from("x"), base: String::from(BLOB), landed: Vec::new() },
         ServiceMessage::RetryPrepare {

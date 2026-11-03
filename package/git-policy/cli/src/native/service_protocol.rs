@@ -16,12 +16,25 @@ use super::service_review_key::ReviewKey;
 use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 5;
+pub const PROTOCOL_VERSION: u32 = 6;
 
 /// The release of this build: the crate version, which the wrapper and the service program share because they are built
 ///  and installed together. A service from another release is retired even when it speaks the same protocol, since the
 ///  program its unit names, and the behavior behind the same messages, may differ.
 pub const RELEASE: &str = env!("CARGO_PKG_VERSION");
+
+/// How often the service tells each waiting client that it is alive, while the client's request is queued or landing.
+///  One second is the pace of the other waiting notices (`service_client::START_NOTICE_GRACE`), so a client that waits sees
+///  proof of life as often as it sees any other line. Measured on 2026-11-03 on this host: 300 timers of one second fired a
+///  median of 1.0 ms and at most 2.2 ms late (`doc/planning/cli-git-shipped-limits-audit.md`, "Waits on the commit service
+///  itself"), so a beat is never missed by the clock alone.
+pub const HEARTBEAT_EVERY: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// How long a client hears nothing from the service, heartbeats included, before it takes the service for stopped.
+///  Five beats: the measured lateness of a beat is a few milliseconds, so five missing beats are a stopped or frozen
+///  process and not a late timer, and a wrong call costs one resend of the same request, which the service recognizes by
+///  its identity and answers without landing it twice.
+pub const HEARTBEAT_SILENCE: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// The longest line either side accepts, in bytes.
 pub const MAX_LINE_BYTES: usize = 1 << 20;
@@ -240,6 +253,9 @@ pub enum ServiceMessage {
     Waiting { text: String },
     /// Who held the index when the wait ran out, in words that fit "... is using this repository's index".
     Holder { who: String },
+    /// The service is alive and the request is still waiting for its answer: sent on a fixed beat while a request is queued
+    ///  or landing, so the client can wait for the answer with no clock of its own and end the wait on silence alone.
+    Heartbeat,
 }
 
 fn field<'a>(value: &'a Value, name: &str) -> Result<&'a str, String> {
@@ -553,6 +569,7 @@ pub fn encode_service(message: &ServiceMessage) -> String {
         ]),
         ServiceMessage::Waiting { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str()))]),
         ServiceMessage::Holder { who } => object(vec![("type", Value::from("holder")), ("who", Value::from(who.as_str()))]),
+        ServiceMessage::Heartbeat => object(vec![("type", Value::from("heartbeat"))]),
         ServiceMessage::Failed { id, code } => {
             object(vec![("type", Value::from("failed")), ("id", Value::from(id.as_str())), ("code", Value::from(code.word()))])
         }
@@ -610,6 +627,7 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
         }),
         "waiting" => Ok(ServiceMessage::Waiting { text: field(&value, "text")?.to_string() }),
         "holder" => Ok(ServiceMessage::Holder { who: field(&value, "who")?.to_string() }),
+        "heartbeat" => Ok(ServiceMessage::Heartbeat),
         "failed" => Ok(ServiceMessage::Failed {
             id: field(&value, "id")?.to_string(),
             code: FailureCode::from_word(field(&value, "code")?).ok_or("unknown failure code")?,

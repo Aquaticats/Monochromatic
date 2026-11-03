@@ -25,8 +25,9 @@ use super::claim_time::ClaimTime;
 use super::service_retry::RetrySchedule;
 use super::push_retry::{PLAN_DIRECTORY, PushRetries};
 use super::service_work::{GitHandlers, Wake, run_round};
+use super::service_reply::{Reply, beat_while_held};
 use super::service_protocol::{
-    ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
+    ClientMessage, CommitRequest, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
 };
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -178,7 +179,7 @@ fn peer_user(stream: &UnixStream) -> Option<u32> {
 /// what the client sent,
 /// the connection to answer it on,
 /// and how it arrived.
-type Queued = (Box<CommitRequest>, UnixStream, Arrival);
+type Queued = (Box<CommitRequest>, Reply, Arrival);
 
 /// What a landing group shares:
 /// the common Git directory,
@@ -214,7 +215,7 @@ fn place_in_groups<T>(groups: &mut Vec<(GroupKey, Vec<T>)>, key: GroupKey, membe
 }
 
 enum Job {
-    Commit(Box<CommitRequest>, UnixStream, Arrival),
+    Commit(Box<CommitRequest>, Reply, Arrival),
     Retire,
     /// After-commit work was announced; it only restarts the idle clock.
     Activity,
@@ -288,8 +289,12 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
         }
         Ok(ClientMessage::Commit(request)) => {
             let id: String = request.id.clone();
-            let _queued = queue.send(Job::Commit(request, stream, Arrival { accepted, read: accepted.elapsed() }));
+            let reply: Reply = Reply::new(stream);
+            let beat: std::sync::Weak<std::sync::Mutex<UnixStream>> = reply.beat_handle();
+            let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
             super::service_fault::queued(id.as_str());
+            // This thread has nothing else to do until the request is answered, so it keeps the client told that the service lives.
+            beat_while_held(&beat, HEARTBEAT_EVERY);
         }
         Ok(ClientMessage::Retire) => {
             log(retire_line(release).as_str());
@@ -399,7 +404,7 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
     let (again, pending): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _, _)| { return landed.contains_key(&request.id); });
     let unlanded: BatchTimes = BatchTimes::not_landed(group_began);
     for (request, stream, arrival) in again {
-        send(&stream, &ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
+        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
         log_answer(&unlanded, &request, &arrival, 1, "already");
     }
     // The same request sent twice into one batch (a client that reconnected) is landed once and answered twice.
@@ -415,14 +420,14 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
     let settle: Duration = settling.elapsed();
     *seq += 1;
     for (index, (_, stream, _)) in fresh.iter().enumerate().skip(1) {
-        send(stream, &ServiceMessage::Position { number: index + 1, of: fresh.len() });
+        stream.send(&ServiceMessage::Position { number: index + 1, of: fresh.len() });
     }
     let requests: Vec<CommitRequest> = fresh.iter().map(|(request, _, _)| { return (**request).clone(); }).collect();
     let announce = |note: Announce| {
         for (_, stream, _) in &fresh {
             match &note {
-                Announce::Waiting(text) => send(stream, &ServiceMessage::Waiting { text: text.clone() }),
-                Announce::Holder(who) => send(stream, &ServiceMessage::Holder { who: who.clone() }),
+                Announce::Waiting(text) => stream.send(&ServiceMessage::Waiting { text: text.clone() }),
+                Announce::Holder(who) => stream.send(&ServiceMessage::Holder { who: who.clone() }),
             }
         }
     };
@@ -442,7 +447,7 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
             for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
                 if let Outcome::Landed { commit } = outcome {
                     for (repeat, stream, arrival) in repeats.iter().filter(|(repeat, _, _)| { return repeat.id == request.id; }) {
-                        send(stream, &ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true });
+                        stream.send(&ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true });
                         log_answer(&times, repeat, arrival, 1, "already");
                     }
                 }
@@ -451,16 +456,16 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
                 let word: &str = match outcome {
                     Outcome::Landed { commit } => {
                         landed.insert(request.id.clone(), commit.clone());
-                        send(stream, &ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
+                        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                         "landed"
                     }
                     Outcome::RetryPrepare { base } => {
                         let known = captures.remembered(request.common_dir.as_path(), request.repository.as_path());
-                        send(stream, &ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
+                        stream.send(&ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
                         "retry-prepare"
                     }
                     Outcome::BranchMoved => {
-                        send(stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
+                        stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
                         "branch-moved"
                     }
                 };
@@ -469,7 +474,7 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
         }
         Err(code) => {
             for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
-                send(stream, &ServiceMessage::Failed { id: request.id.clone(), code });
+                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
                 log_answer(&times, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
             }
         }
