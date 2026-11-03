@@ -1185,3 +1185,59 @@ fn a_replay_reads_the_start_record_or_stops_and_an_older_batch_has_none() {
     assert!(done.exists() && !open.exists());
     remove(world.root.as_path());
 }
+
+/// The index of a worktree that switched away is the branch checked out's own and is left alone, but an index kept in another
+/// file (`GIT_INDEX_FILE`) belongs to no branch: a restart still finishes its update.
+#[test]
+fn a_restart_after_a_switch_still_finishes_an_alternate_index() {
+    let world: World = world("service-land-recover-alternate");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let alternate: PathBuf = world.repo.join(".git/alternate-index");
+    std::fs::copy(world.repo.join(".git/index"), &alternate).expect("an alternate index");
+    let mut landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    landed.index = alternate.clone();
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    let staged = |index: &Path| -> String { return git_with_index(world.repo.as_path(), index, &["ls-files", "--stage", "--", "landed.txt"]); };
+    assert!(!staged(alternate.as_path()).is_empty(), "the landing updated the alternate index");
+    git_with_index(world.repo.as_path(), alternate.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    assert!(staged(alternate.as_path()).is_empty());
+    git(world.repo.as_path(), &["branch", "other", base.as_str()]);
+    git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    std::fs::rename(&done, &open).expect("reopen");
+    recover(&world.context);
+    assert!(!staged(alternate.as_path()).is_empty(), "the alternate index shows the landing again");
+    assert!(done.exists() && !open.exists(), "the batch is finished");
+    remove(world.root.as_path());
+}
+
+/// The conclusion state a landing leaves is removed whether or not the worktree switched branches; a batch whose cleanup is not
+/// done stays open.
+#[test]
+fn a_restart_after_a_switch_keeps_the_batch_open_while_its_cleanup_is_pending() {
+    let world: World = world("service-land-recover-switched-cleanup");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    git(world.repo.as_path(), &["branch", "other", base.as_str()]);
+    git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    std::fs::rename(&done, &open).expect("reopen");
+    let mut intent: Intent = parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
+    let scratch: PathBuf = world.root.join("scratch");
+    std::fs::create_dir_all(scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY)).expect("a copy directory with no record in it");
+    intent.cleanup = Some(crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false });
+    crate::service_journal::write_intent(world.context.journal.as_path(), &intent).expect("intent with a cleanup");
+    recover(&world.context);
+    assert!(open.exists() && !done.exists(), "the batch stays open while its cleanup cannot be done");
+    remove(world.root.as_path());
+}
+
+/// Git in `repository` with `GIT_INDEX_FILE` set to `index`; its output, trimmed.
+fn git_with_index(repository: &Path, index: &Path, arguments: &[&str]) -> String {
+    let output = std::process::Command::new(crate::test_support::REAL_GIT).current_dir(repository).env("GIT_INDEX_FILE", index).args(arguments).output().expect("git");
+    assert!(output.status.success(), "git {arguments:?}: {}", String::from_utf8_lossy(&output.stderr));
+    return String::from_utf8_lossy(&output.stdout).trim().to_string();
+}
