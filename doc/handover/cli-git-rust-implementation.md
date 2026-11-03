@@ -20,11 +20,19 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
 
 ### Installed versions
 
-- Git wrapper `monochromatic-git-policy-cli` 0.5.26 (`toolchain.lock.json`,
+- Git wrapper `monochromatic-git-policy-cli` 0.5.27 (`toolchain.lock.json`,
   row `cargo:monochromatic-git-policy-cli`,
-  lock commit `c76a6b6d3e`;
-  `git --version` prints "monochromatic-git-policy-cli 0.5.26,
+  lock commit `4779907f6e`;
+  `git --version` prints "monochromatic-git-policy-cli 0.5.27,
   shadowing git at /usr/bin/git" over Git 2.56.0).
+  Its commit service unit runs with systemd's defaults
+  (`systemctl --user show` at 2026-11-03T10:47-05:00:
+  `MemoryMax=infinity`,
+  `MemoryHigh=infinity`,
+  `CPUQuotaPerSecUSec=infinity`,
+  `IOWeight` not set,
+  `TasksMax=75462`,
+  systemd's own default).
 - `monochromatic-mpm-shadow` 0.2.5,
   `monochromatic-pnpm-shadow` 0.1.1,
   `monochromatic-search-shadow` 0.2.1,
@@ -39,13 +47,17 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
 
 ### Release in flight
 
-0.5.27,
-dispatched 2026-11-03T10:28-05:00 from main after its gate passed (4264 of 4264,
+None.
+0.5.27 was dispatched 2026-11-03T10:28-05:00 from main after its gate passed (4264 of 4264,
 6 skipped),
-run https://github.com/Aquaticats/Monochromatic/actions/runs/41663034226;
-`native:release:wait` is running,
-then `upgrade-wrapper.ts 0.5.27` and the measurement on main against native Git.
-0.5.26 was published to crates.io at 2026-11-03T13:21:01Z and installed by `upgrade-wrapper.ts`.
+run https://github.com/Aquaticats/Monochromatic/actions/runs/41663034226,
+published to crates.io at 2026-11-03T15:44:38Z,
+and installed by `upgrade-wrapper.ts 0.5.27`.
+Its lock commit on main took 1625 ms in all,
+of which 1169 ms was provisioning the new service (the 0.5.26 service retired after its batch);
+the service's landing took 49 ms (`lock_hold_ms=28`,
+`sync_ms=25`).
+0.5.26 was published to crates.io at 2026-11-03T13:21:01Z.
 
 ### Unmerged branches and worktrees of this effort
 
