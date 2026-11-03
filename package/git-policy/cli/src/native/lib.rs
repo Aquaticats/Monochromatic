@@ -659,6 +659,9 @@ mod service_lock_inventory_tests;
 /// What `git cli-git doctor` reports from the configuration: configured hooks and the retired `hooks` key.
 pub mod doctor_config;
 
+/// What `git cli-git doctor` says about Git's own fsmonitor: off by the owner's decision, or the setting that turns it on.
+pub mod doctor_fsmonitor;
+
 /// The configured external hooks, read from the snapshot, and the loud report that none runs.
 pub mod external_hooks;
 

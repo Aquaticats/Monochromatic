@@ -81,6 +81,17 @@ fn plan(values: &[&str], directory: &Path, inputs: &ResolutionInputs) -> Action 
     return plan_with(values, directory, &no_controls(), inputs);
 }
 
+/// The standard error without its first line, which must be the fsmonitor line.
+///  These controls run the doctor in the test process's own environment, so the host's global configuration decides
+///  whether the line says off or on; the line's wording is controlled in `doctor_fsmonitor_tests.rs` with an injected
+///  global file.
+fn without_fsmonitor_line(stderr: &str) -> String {
+    let prefix: &str = "git cli-git doctor: Git's fsmonitor is ";
+    assert!(stderr.starts_with(prefix), "{stderr}");
+    let line_end: usize = stderr.find('\n').expect("the fsmonitor line ends with a line feed");
+    return String::from(&stderr[line_end + 1..]);
+}
+
 /// Build the expected stop action.
 fn exit(code: i32, stdout: &str, stderr: &str) -> Action {
     return Action::Exit {
@@ -631,7 +642,8 @@ fn doctor_lists_traditional_hooks_without_loading_the_configuration() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join(CONFIG_FILE_NAME), b"{ not valid").expect("a broken configuration");
     let inputs: ResolutionInputs = with_git(root.as_path());
-    assert_eq!(plan(&["doctor"], repo.as_path(), &inputs), exit(0, "", ""));
+    let (quiet_code, quiet_stdout, quiet_stderr) = exit_parts(plan(&["doctor"], repo.as_path(), &inputs));
+    assert_eq!((quiet_code, quiet_stdout.as_str(), without_fsmonitor_line(quiet_stderr.as_str()).as_str()), (0, "", ""));
     executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
     let (code, stdout, stderr) = exit_parts(plan(&["doctor"], repo.as_path(), &inputs));
     assert_eq!(code, 1);
@@ -665,7 +677,8 @@ fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_
         return String::from("section text\n");
     };
     let doctor: Action = plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), &[], &inputs, &supplier);
-    assert_eq!(doctor, exit(0, "", "section text\n"));
+    let (code, stdout, stderr) = exit_parts(doctor);
+    assert_eq!((code, stdout.as_str(), without_fsmonitor_line(stderr.as_str()).as_str()), (0, "", "section text\n"));
     assert_eq!(*asked.borrow(), vec![repo.join(".git")]);
     let help: Action = plan_management_with_section(&[OsString::from("--help")], global.as_slice(), &no_controls(), &[], &inputs, &supplier);
     assert!(matches!(help, Action::Exit { code: 0, .. }));

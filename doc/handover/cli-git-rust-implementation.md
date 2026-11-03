@@ -118,6 +118,28 @@ Agent on `perf/git-policy-cli-follow-up-index-in-process` writes the committed e
 as `builtin/commit.c` does for a partial commit,
 and answers the merge's `diff-index` check in process,
 with differential tests against real Git and a measured before and after.
+Service journal 2026-11-03T08:55 to 09:20 (main instance):
+eight one-file commits landed in 43 to 52 ms each (`sync_ms` 20 to 27,
+so the service's `git reset` took milliseconds);
+only `3d138d5bc6` (09:19:18) was slow,
+with `sync_ms=50370` in the service's `git reset`,
+and in the same commit the client's `git read-tree --reset` ran over 50 s and its `git add --all -- <path>` over
+40 s.
+Three separate Git processes each stalled about 50 s in one commit,
+so the cause is shared by them in that window,
+not a slow step of the wrapper;
+the observer now records each Git process's current system call (`/proc/<pid>/syscall`) to find what they block on.
+Observed 2026-11-03T09:21:59-05:00 (commit `53f96ecc24`,
+7.7 s wall):
+from 0.5 s to 7.0 s the wrapper's Git child (`/usr/bin/git -c core.hooksPath=...`) sat in `wait4` on its own
+child `git fsmonitor--daemon start`,
+which was on the CPU with a `fsmonitor--daemon run --detach` beside it;
+the commit finished half a second after that start ended.
+A Git process of another session showed the same wait.
+Stopped there,
+because the owner's rule is to never chase Git's fsmonitor as a cause
+(see "Git's own fsmonitor");
+the observation is raised with the owner.
 An observed one-file commit on main at 2026-11-03T08:42:37-05:00 took 343 ms
 (`~/temp/agent/tools/observe-main-commit.ts`),
 with no new cap hit and one new major fault in the service cgroup,
@@ -597,10 +619,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 
 ### Known flakes and failures not yet fixed
 
-- `a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait` aborted once under load and passed alone
-  (timing-dependent;
-  derive its bound from the measured wait,
-  as was done for its siblings).
+- `a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait` failed twice alone at load 38 to 44
+  (`objects_ms=6760`,
+  `attempts=2`:
+  the stand-in holder let go before the commit's wait) and passed at load 11;
+  an agent is making the holder release only once the commit is observably waiting,
+  on branch `fix/git-policy-cli-foreign-index-holder-test-waits-for-the-wait` (started 2026-11-03).
 - `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` failed
   once in a full
   binary run,
@@ -735,9 +759,7 @@ Still open from them:
   a question for the owner (does "never discard user data" cover the audit history?),
   folded into the shipped-limits audit;
 - a non-file at `slot-N.lock` makes `holdLegacyLock` return `absent`,
-  which the gate treats as an earlier-release holder forever;
-- `package/git-policy/cli/SPEC.md` line 814 says the campaign's two kernel locks stay,
-  which is only partly accurate now.
+  which the gate treats as an earlier-release holder forever.
 
 Accepted limit with a documented remedy,
 no code fix:

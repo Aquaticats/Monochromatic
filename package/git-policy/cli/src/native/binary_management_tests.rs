@@ -431,7 +431,11 @@ fn doctor_lists_traditional_hooks_and_exits_by_what_it_finds() {
     let clean: Observed = run(&fixture, repo.as_path(), &["cli-git", "doctor"]);
     assert_eq!(clean.code, Some(0), "{}", stderr_text(&clean));
     assert_eq!(stdout_text(&clean), "");
-    assert_eq!(before_filesystem_section(stderr_text(&clean).as_str()), "", "only the informational filesystem section may be on standard error");
+    assert_eq!(
+        before_filesystem_section(stderr_text(&clean).as_str()),
+        git_policy_cli::doctor_fsmonitor::render_fsmonitor(&[]),
+        "only the fsmonitor line and the informational filesystem section may be on standard error"
+    );
     super::support::executable(repo.join(".git/hooks/commit-msg").as_path(), b"#!/bin/sh\n");
     std::fs::create_dir(repo.join("custom")).expect("custom hooks");
     super::support::executable(repo.join("custom/pre-commit").as_path(), b"#!/bin/sh\n");
