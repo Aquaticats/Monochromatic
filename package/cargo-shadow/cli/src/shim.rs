@@ -226,10 +226,12 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     {
         return code;
     }
-    // The install step failed or was refused: pnpm warns and runs the command anyway ("If that install fails ... pnpm prints a
-    // warning and runs the command anyway", https://pnpm.io/settings/build). Cargo rewrites a stale lock, so the command runs
-    // with `--locked` added (unless the user already passed it), and cargo stops with its own lock error where it would have
-    // changed the lock. `arguments` is replaced for the rest of the run, so the notice and guard logic see the same line.
+    // The install step failed for an operational reason, or a frozen check refused: pnpm warns and runs the command anyway
+    // ("If that install fails ... pnpm prints a warning and runs the command anyway", https://pnpm.io/settings/build). Cargo
+    // rewrites a stale lock, so the command runs with `--locked` added (unless the user already passed it), and cargo stops
+    // with its own lock error where it would have changed the lock. A local policy refusal is different: `--locked` would not
+    // stop the build script of a refused release, so that case stops the command (below). `arguments` is replaced for the rest
+    // of the run, so the notice and guard logic see the same line.
     if hops == 0
         && treatment == Treatment::InstallStep
         && let Some(preflight) = before_cargo(&arguments)

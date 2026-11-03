@@ -53,10 +53,9 @@ which finds the binary.
 
 For a command that resolves dependencies it runs the install step for the Cargo workspace that holds the working directory
  (`-C <dir>` and `--manifest-path` move that place),
-and then runs the real cargo with the arguments exactly as typed.
-It never adds `--locked`,
-`--frozen`,
-`--offline` or any other argument to the user's command.
+and then runs the real cargo with the arguments as typed.
+The step edits no argument of its own accord;
+the one place the shadow adds an option to your command is the `--locked` described below for an operational failure.
 Outside a repository with a `rust-catalog.toml`,
 and in a workspace without a `Cargo.lock`,
 it does nothing.
@@ -67,21 +66,43 @@ The install step:
 - A stale lockfile is updated offline,
   keeping every locked release the manifests still allow (`cargo update --workspace --offline`,
   then `cargo metadata --locked --offline` confirms).
-  Any registry version no lockfile held before is checked against the release-age and trust policy;
-  a refusal restores the lockfile and fails the command,
-  naming the finding.
+- Every registry version the update newly locked is checked against the release-age and trust policy,
+  and so is every version already in the lockfile that the policy covers:
+  all of them when `trustLockfile = false` (pnpm's default),
+  the ones new since the base revision when `trustLockfile = true` (the repository's setting).
+  This runs on every local (not frozen) install,
+  as pnpm's lockfile verification runs on every install that is not frozen
+  (`pnpm11/installing/deps-installer/src/install/mutateModules.ts:314-343`).
+- A release the policy refuses is set aside:
+  the lockfile is changed to the newest older release that passes and fits the manifests (`cargo update --package <name>@<version> --precise <older>`),
+  one line names both releases,
+  and cargo runs.
+  This is what pnpm does with `minimumReleaseAge` (its resolver picks the newest release older than the cutoff;
+  `resolving/npm-resolver/src/pickMatchingVersion.ts`, `pickRespectingMinReleaseAge`),
+  and the owner's decision of 2026-11-03 for a committed lockfile:
+  a merge that brings `serde 1.0.230` published three hours ago under a one day limit gives `serde 1.0.229` in `Cargo.lock`,
+  and a trust downgrade gives the earlier release with the earlier trust level.
+  The refused release never runs; the older copy does.
+- If no older release passes and fits,
+  the refusal stands:
+  nothing is left changed and your cargo command is not run.
+  That is the only case in which the step stops the command because of the policy.
 - In CI (`CI` set to anything but empty,
   `0` or `false`),
   or when the user's own command carries `--locked` or `--frozen`,
-  a stale lockfile fails the command instead,
-  naming it,
-  and nothing is written.
+  the install is frozen:
+  a stale lockfile fails the step naming it,
+  nothing is written and nothing is set aside.
   That is `pnpm install --frozen-lockfile`.
   In CI the check also drops `--offline`,
   because a fresh runner has no cached registry index.
-- A failed or refused install step prints a warning naming what failed or was refused and why,
-  and then runs your cargo command anyway,
-  with `--locked` added (before any `--`) unless you already passed `--locked` or `--frozen`;
+- When the step fails for an operational reason (no network,
+  a registry lookup that fails,
+  a cargo error,
+  an unreadable catalog),
+  or a frozen step refuses,
+  it prints a warning naming what failed and why,
+  and then runs your cargo command with `--locked` added (before any `--`) unless you already passed `--locked` or `--frozen`;
   the warning says so.
   This is pnpm's behavior:
   for `verifyDepsBeforeRun: install` pnpm says "If that install fails,
@@ -92,12 +113,9 @@ The install step:
   cargo does rewrite a stale lock,
   so the faithful form of "run it anyway" is `--locked`:
   cargo runs when the lock is current and stops with its own lock error when the lock would change.
-  Nothing past the policy gets locked or built,
-  and the command is not blocked when it could safely run.
-  In CI the frozen step fails,
-  warns,
-  and `--locked` makes cargo fail the same way.
-  This is the only place the shadow adds an option to your command.
+  `--locked` keeps cargo from rewriting the lock;
+  it does not check publisher trust,
+  which is why a local policy refusal stops the command instead.
 
 ### The fast path
 
@@ -106,11 +124,20 @@ so it resolves nothing when nothing changed.
 After a pass,
 the step records the size and modification time of the lockfile and of every manifest `cargo metadata` lists as part of the workspace
  (members and path dependencies) in `.cache/cargo-shadow/stamps/`.
-A later call that finds all of them unchanged starts no cargo at all.
+That stamp certifies one thing:
+the lockfile satisfies its manifests.
+It says nothing about the policy,
+so a call takes the fast path only when the stamp is fresh and the policy check of the same mode,
+the same settings and the same base revision has passed for this exact lockfile text
+ (a remembered pass under `.cache/cargo-shadow/verified/`).
+Otherwise the policy check runs again and only the staleness check (a cargo call) is skipped.
 A missing stamp,
 an unreadable file or any difference runs the authoritative check again.
 Limits:
-a change to `.cargo/config.toml` `[patch]` tables or to a manifest outside the recorded list is not noticed until a recorded file changes.
+a change to `.cargo/config.toml` `[patch]` tables or to a manifest outside the recorded list is not noticed until a recorded file changes,
+and a base revision spelled as a moving reference (`HEAD`, `origin/main`) is keyed by its spelling,
+not by the commit it names,
+so the pass is reused after the reference moves.
 
 Measured on 2026-11-03 in a throwaway worktree (release build,
 up-to-date workspaces,
@@ -283,7 +310,11 @@ Each flag maps to the nearest pnpm behavior:
   pnpm refuses it for a package that is not a direct dependency (`ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP`),
   and so does the shadow.
 - `--breaking` is `pnpm update --latest`:
-  cargo's own breaking update runs,
+  cargo's own breaking update runs
+  (it rewrites the requirements in the manifests as well as the lockfile,
+  so the manifests are part of the transaction:
+  a refusal or a dry run puts them back with the lockfiles,
+  while a manifest another process changed meanwhile is left alone with a warning),
   then the policy decides,
   and then the same thing pnpm does with a `catalog:` dependency happens.
   In pnpm 12.16.1 the resolver collects the updated range of every catalog dependency of an update that saves
@@ -328,6 +359,11 @@ Each flag maps to the nearest pnpm behavior:
   The policy checks still ask crates.io,
   so `--offline` makes cargo offline,
   not the checks.
+  Global options are read before the command word as well as after it
+  (`cargo --locked update` is the frozen check, `cargo --offline update` forwards `--offline`),
+  and `-m <path>` selects the workspace like `--manifest-path`.
+  An option that has no mapping is refused by name instead of being dropped from a full update or passed on to a targeted one,
+  and `--package=<name>`, `--package <name>` and `-p<name>` all name the package.
 - `cargo generate-lockfile` is `pnpm install --lockfile-only`:
   with a lockfile present it is the install step (locked versions kept,
   not re-resolved from scratch);
@@ -384,6 +420,18 @@ whatever `trustLockfile` says,
 as pnpm's resolver does.
 The crates.io histories come from the database dump when more than a hundred crates are uncached (one streaming pass),
 and from the API otherwise.
+The dump reader refuses a table that is cut off inside a quoted field,
+has text after a closing quote or a quote inside a bare field,
+has a row of another width than its header,
+or has a field, row or crate history over the bounds in `csv.rs` and `dump.rs`,
+and nothing is cached from a table it refused.
+The bounds are chosen ceilings, not measured on a real dump.
+Only crates.io is supported:
+a package from any other registry (`registry+` or `sparse+` with another URL) is refused by name,
+because every lookup asks crates.io and would approve it by an unrelated release of the same name and version.
+The owner list of a crate is asked whenever it can change a trust verdict (an earlier release or the checked one ranks as a first-time publisher without it).
+A full update whose strict release-age cutoff cannot resolve (a manifest needs a young release of a crate in `minimumReleaseAgeExclude`)
+resolves without the cutoff and then holds every crate that is not exempt to it, setting its young releases aside or refusing.
 After a floor raise the order is the pnpm one:
 edit the catalog (`cargo-shadow update` and `mise run catalog:tighten`),
  render the manifests (`mise run sync:files`),
@@ -423,19 +471,40 @@ and an HTTP 429 is retried after its `Retry-After`.
 - A workspace that has no lockfile is passed through,
   and cargo creates one with its own resolver;
   `cargo generate-lockfile` through the shadow creates it under the policy instead.
+- Linux only,
+  by the owner's word ("Ignore Win and mac until I say so."):
+  the crate does not compile elsewhere,
+  because the journal reads `/proc/<pid>` to tell a killed run from a running one.
+  A reused process id reads as alive, which only delays a recovery.
 - Lockfile writes are lock-free,
   as the owner asked ("never discard user data",
   "use as few locks as possible").
   The pinned nightly has no `--lockfile-path` (checked 2026-11-03),
   so cargo writes the live lockfile.
-  A restore replaces a lockfile only if it still holds what the run produced,
+  A restore replaces a lockfile only if it still holds what this run's cargo wrote,
   through a sibling file and an atomic rename;
-   a lockfile another process wrote meanwhile is left alone with a warning.
-  The snapshots are journaled under `.cache/cargo-shadow/journal/`;
+  a lockfile another process wrote meanwhile,
+  and a root this run never wrote,
+  is left alone with a warning.
+  Each lockfile is recorded as this run's output the moment its cargo call returned,
+  so a failure halfway never guesses.
+  The snapshots are journaled under `.cache/cargo-shadow/journal/`,
+  and a journal that cannot be started stops the run before cargo runs;
   if a run is killed,
   the next run keeps the leftover lockfile when its new versions pass the policy,
-   and otherwise saves it as `Cargo.lock.refused` before putting the snapshot back.
-  The window between reading and renaming is not locked.
+  and otherwise saves it as `Cargo.lock.refused` (or the first free `Cargo.lock.refused.N`,
+  so an earlier copy is never replaced) before putting the snapshot back,
+  after reading the lockfile again right before the replacement.
+  The journal is deleted only when every root it lists was settled;
+  an unreadable journal or lockfile and a failed step keep it.
+  The window between the last read and the rename is not locked.
+- Until the checks pass,
+  cargo's output is in the live lockfile,
+  so a plain cargo that is not the shadow can build on it.
+  A second shadow call never takes that lockfile for approved:
+  only a remembered pass of the exact text approves it,
+  so the second call checks it itself.
+  A private lockfile that the checks approve before it is published is not possible with the pinned nightly.
 - The step needs the network only for the policy checks of newly locked versions and for a frozen install's verification of a lockfile it has not seen;
   the lock check and the update run offline (the check drops `--offline` in CI,
   where no registry index is cached).

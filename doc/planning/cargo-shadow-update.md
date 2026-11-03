@@ -87,9 +87,8 @@ commit `c7b46ae`).
   "I also said to remove the Mise tasks that would then be handled via the wrapper."
   Workflows never use mise ("Workflows should never use mise at all."),
   so `advisory-core.yml` calls `cargo-shadow` directly.
-- A failed or refused install step warns and runs the command anyway,
-  with `--locked` added once,
-  before any `--`.
+- An operational failure of the install step (no network, a registry lookup that fails, a cargo error) warns and runs the
+  command anyway, with `--locked` added once, before any `--`.
   pnpm:
   "If that install fails,
   for example because the store is read-only or there is no network,
@@ -98,7 +97,40 @@ commit `c7b46ae`).
   pnpm can do that because `pnpm run` never rewrites the lockfile;
   cargo does,
   hence `--locked`.
-  Replaces the fail-closed behavior built first.
+  A frozen check (CI, or the user's own `--locked`) that refuses keeps this behavior too: "CI keeps the frozen behavior already
+  recorded (the 2026-10-29 trustLockfile amendment)".
+  Replaces the fail-closed behavior built first,
+  and, for a policy refusal of a local install, is replaced in turn by the next two decisions.
+- A local (not frozen) install sets a release under `minimumReleaseAge` aside instead of refusing it.
+  The owner, 2026-11-03 (question tool, verbatim):
+  "Try asking better. pnpm nowadays just warn and runs when a dep could be updated to something published within a day."
+  pnpm 12.16.1 resolves to the newest release older than the cutoff
+  (`resolving/npm-resolver/src/pickMatchingVersion.ts`, `pickRespectingMinReleaseAge`)
+  and the coordinator found no message printed for it in the source.
+  The install step that runs before a resolving cargo command therefore moves a version it newly needs, and that is under the
+  age limit, to the newest older release in range that passes the policy (the set-aside `cargo update` already does),
+  prints one line naming the held-back release and the one it used, and runs cargo.
+  Only when no release in range passes does the refusal stand (`minimumReleaseAgeStrict = true`, as pnpm's strict mode).
+  The owner can still veto this.
+- A committed lockfile that holds a refused release is changed to an older one on a local run, and the command stops only when none fits.
+  Both answers are "Set it back, build (Recommended)" (question tool, 2026-11-03).
+  Case 1, release age only:
+  a merge brings a Cargo.lock holding serde 1.0.230, published 3 hours ago; the limit is one day;
+  1.0.229 is nine days old and fits the range; the person runs `cargo build` locally.
+  Answer: the shadow changes serde in Cargo.lock from 1.0.230 to 1.0.229, prints one line naming both, and builds.
+  If no older release fits the range, it stops.
+  Case 2, trust downgrade:
+  Cargo.lock holds foo 2.3.1, from an account with no earlier releases, while 2.3.0 came from the crate's trusted CI publisher.
+  Answer: the shadow changes foo to 2.3.0 in Cargo.lock, prints one line naming the publisher change, and builds.
+  If no earlier release with the earlier trust level fits the range, it stops.
+  Both rest on pnpm's effect:
+  the lockfile check runs before any download, the refused release never runs, and the script runs on the older copy.
+  The questions shown to the owner were scoped to local runs, so CI keeps the frozen behavior already recorded.
+  An operational failure keeps warn-and-run-with-`--locked`.
+  Which entries are checked follows `trustLockfile`:
+  all of them when false (pnpm's default), the ones new since the base revision when true (the repository's setting).
+  The set-aside goes through the same transaction and ownership rules as the review findings below, so it never overwrites
+  another writer's lockfile.
 - The crates.io database dump path is ported (`dump.rs`,
   `csv.rs`),
   because the owner moved the whole tool into the shadow;
@@ -163,3 +195,46 @@ commit `c7b46ae`).
    resolving into a private lockfile was not possible.
 - The launcher test is bounded by a nesting counter in the environment and a 20-second deadline.
   With the spawn guard removed from `cargo_run.rs` it fails within seconds (GFP).
+
+## Review findings fixed (cross-vendor review of 2026-11-03T13:26:08Z)
+
+The review ("Do not rely on this implementation as a policy-enforcement boundary yet.") was a static reading of the diff;
+each finding was reproduced with a failing test before it was fixed (the commits are on `feat/cargo-shadow-cli`).
+What changed, and what each rests on:
+
+- Linux only:
+  the owner's "Ignore Win and mac until I say so."
+  The journal's `/proc` liveness probe is valid only there, so the crate refuses to compile elsewhere (`lib.rs`).
+- Refused lockfile copies get collision-free names,
+  recovery errors keep the journal,
+  and unknown ownership never authorizes a restore:
+  "never discard user data" and "Fix even pre-existing issues of the pkgs you own."
+  Each lockfile a run writes is recorded as the run's own output right after its cargo call returned,
+  and a restore replaces only that.
+- Unknown or malformed timestamps never grant an age exemption (`trustPolicyIgnoreAfter`),
+  and the owner list is asked whenever it can change a trust verdict.
+- Unsupported registries are refused by name, because registry identity is not carried end to end.
+- The freshness stamp certifies manifest consistency only;
+  the policy check has its own remembered pass keyed by lockfile text, settings, mode and base spelling.
+  Measured cost of the fast path was not repeated after this change.
+- A local install checks existing entries (pnpm's `startLockfileVerification` is not gated on frozen).
+- `--breaking` edits the manifests, so they are part of the transaction.
+  The catalog write and the `file-enforcer` sync stay after the commit point;
+  a sync failure is still a warning (open question to the owner, below).
+- Update arguments are read in every supported spelling, before and after the command word, and an unmapped option is refused.
+- The CSV reader refuses malformed tables and bounds fields, rows and histories.
+- A full update whose strict cutoff cannot resolve a crate that `minimumReleaseAgeExclude` exempts resolves without the cutoff and
+  then holds the other crates to it.
+  This is the one shape cargo's `--publish-time` (no per-crate form) allows, and it is open to the owner's veto.
+- Set-aside candidates are bounded by what cargo accepts for the manifests, not by the caret class,
+  honor the exemptions and the strictness, and are judged with the owner list.
+
+Open, asked of the owner:
+
+- Cargo's output sits in the live lockfile until the checks pass,
+  so a plain cargo that is not the shadow can build on it in that window.
+  The pinned nightly has no `--lockfile-path`.
+- The read-then-rename window of a restore is not locked.
+- A sync failure after the catalog write of `--breaking` is a warning;
+  the transactional reading would restore the catalog.
+- A killed `--breaking` run is recovered for the lockfiles, not for the manifests (the journal holds lockfiles only).
