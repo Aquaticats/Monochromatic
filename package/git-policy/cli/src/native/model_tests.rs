@@ -148,3 +148,19 @@ mod model_observe_tests;
 #[cfg(feature = "test-seams")]
 #[path = "commit_seam_tests.rs"]
 mod commit_seam_tests;
+
+/// Revision 11, rule B for the foreground wait: W1 against P2 and the decision race.
+#[path = "model_w1_p2.rs"]
+mod model_w1_p2;
+
+/// The controls of W1 against P2.
+#[path = "model_w1_p2_tests.rs"]
+mod model_w1_p2_tests;
+
+/// Revision 11, rule B: the register of waits.
+#[path = "model_register.rs"]
+mod model_register;
+
+/// The controls of the register.
+#[path = "model_register_tests.rs"]
+mod model_register_tests;

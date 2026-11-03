@@ -447,6 +447,30 @@ pub fn explore_bounded<S: Clone + Eq + Hash>(
     bound: usize,
     limits: Limits,
 ) -> Report {
+    return explore_bounded_by(initials, successors, invariant, waiting, |label| { return !is_environment(label); }, bound, limits);
+}
+
+/// What:
+///  `explore_bounded` with the steps that count toward the bound chosen by the model: `counts(label)` says whether a step is one of
+///  the waiting process's own. A wait with no step of the protocol's own at all (`!is_environment`) is still reported.
+///  `fn(&str) -> bool` is a plain function value, so a closure that captures nothing can be passed.
+/// Why:
+///  The bound of a wait is the waiting process's own clock: another lane's retries are not steps of this wait, but the waiting
+///  process's own step (the bound reached, then the action) must always be available.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exploreBoundedBy<S>(..., counts: (label: string) => boolean, ...): Report;
+/// ```
+pub fn explore_bounded_by<S: Clone + Eq + Hash>(
+    initials: Vec<S>,
+    successors: fn(&S) -> Vec<(String, S)>,
+    invariant: fn(&S) -> Option<String>,
+    waiting: fn(&S) -> bool,
+    counts: fn(&str) -> bool,
+    bound: usize,
+    limits: Limits,
+) -> Report {
     let mut nodes: Vec<Node<(S, usize)>> = Vec::new();
     let mut seen: HashMap<(S, usize), usize> = HashMap::new();
     let mut exhausted: bool = true;
@@ -484,7 +508,7 @@ pub fn explore_bounded<S: Clone + Eq + Hash>(
         for (label, after) in steps {
             let new_count: usize = if !waiting(&after) {
                 0
-            } else if is_environment(label.as_str()) {
+            } else if !counts(label.as_str()) {
                 count
             } else {
                 count + 1
