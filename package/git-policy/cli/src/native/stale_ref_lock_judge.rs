@@ -2,7 +2,9 @@
 //!  How one reference lock is judged: too new, held, stale on a proof, or unproven.
 //! Why:
 //!  Git writes no holder into a lock, so only a few facts prove a holder gone; everything else is left alone. The order of
-//!  the checks and the reason for each are in `SPEC.md`, "Reference locks left by a Git that was killed".
+//!  the checks and the reason for each are in `SPEC.md`, "Reference locks left by a Git that was killed". A time stamp is not
+//!  among the proofs: a correction of the wall clock moves every time that a lock and the boot are compared by (finding S-2 of
+//!  the cross-vendor review of 2026-11-03T11:33:50-05:00).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,6 +16,7 @@ use super::pid_namespace::current_pid_namespace;
 use super::process_start::{ProcessStart, linux_start, now_ms};
 use super::process_use::{UseScan, UseTarget, processes_using_through};
 use super::stale_ref_lock_found::PidFile;
+use super::stale_ref_lock_nested_numbers::nested_holders_of;
 use super::stopped_git_locks::pid_named_by;
 use super::stale_ref_lock_walk::pid_file_beside;
 pub use super::stale_ref_lock_identity::{Identity, identity_of};
@@ -44,27 +47,18 @@ pub const MARGIN: Duration = Duration::from_secs((LONGEST_LIVE_REF_STEP.as_milli
 /// The kernel's name for the initial PID namespace, where every process of the machine has the number it is seen by.
 const INITIAL_PID_NAMESPACE: &str = "pid:[4026531836]";
 
+/// The mount point of the process table the judge reads.
+const PROC_MOUNT_POINT: &str = "/proc";
+
+/// The start of the mount option that hides other accounts' processes from this account.
+const HIDEPID_OPTION: &str = "hidepid=";
+
+/// The values of `hidepid` that hide nothing.
+const HIDEPID_OFF: [&str; 2] = ["0", "off"];
+
 /// The file system types a lock may sit on: disks and memory of this machine. A network or user-space file system can be
 ///  written by a Git on another machine, whose process numbers mean nothing here.
 const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
-
-/// One hour: the step a daylight-saving change gives a clock that follows local time. The step measured below fell on the day clocks
-///  went back, 2026-11-01.
-pub const ZONE_OFFSET: Duration = Duration::from_secs(3600);
-
-/// The hour-scale clock step measured on this host: `chronyd` logged "System clock was stepped by -3599.507590 seconds" at
-///  2026-11-01T10:09:47-05:00 (`journalctl -u chronyd`, 19 boots since 2026-10-06). It is 0.49 s short of `ZONE_OFFSET`, so a step in the
-///  other direction can be as far over it.
-pub const MEASURED_ZONE_STEP: Duration = Duration::from_millis(3_599_508);
-
-/// How much older than the boot a lock must be for the boot proof. `btime` of `/proc/stat` is the wall clock minus the
-///  uptime, so it moves when the clock is stepped after boot (a hardware clock that is hours off until the network time
-///  arrives); a lock a live Git made in the first seconds could then look older than the boot. A real lock from before a
-///  reboot is old by more than this. `ZONE_OFFSET` covers the hour-scale steps; the same journal also shows a step of 2,934,868 s
-///  (34 days, 2026-10-17) that no slack can cover without refusing every real reboot, and that case is the one left.
-///  The hour plus `MARGIN` (more than the 0.49 s the measured step was off the hour). The coordinator's pick under the
-///  owner's delegation, open to the owner's veto.
-pub const BOOT_SLACK: Duration = Duration::from_secs(ZONE_OFFSET.as_secs() + MARGIN.as_secs());
 
 /// How far after the lock's birth a process must have started to count as a later user of the same number, beyond the
 ///  clock's resolution. Measured: the start time derived from `/proc/<pid>/stat`, `/proc/uptime` and the clock read together
@@ -88,8 +82,6 @@ pub enum Proof {
         /// The command name of the process that has it now.
         command: String,
     },
-    /// The lock was born before the current boot of the machine.
-    BeforeBoot,
     /// The staging file `packed-refs.new` has no lock beside it, and Git creates it only while holding that lock.
     OrphanStaging,
 }
@@ -116,7 +108,8 @@ pub struct Judge {
     pub margin: Duration,
     /// Whether the process numbers read here mean the same processes as in the pid files.
     pub pid_view_complete: bool,
-    /// When the machine booted, where known.
+    /// When the machine booted by the wall clock, where known. Used only to say that a lock looks older than the boot,
+    ///  never as a proof: a correction of the clock moves it.
     pub boot: Option<SystemTime>,
     /// The file system types a lock may sit on.
     pub local_file_systems: Vec<String>,
@@ -137,12 +130,12 @@ pub struct Examined {
 
 impl Judge {
     /// The judge of this process: the real process table, the real boot time, and a complete view of the process numbers
-    ///  only where this process runs in the initial PID namespace.
+    ///  only where this process runs in the initial PID namespace and its process table hides no process.
     pub fn here() -> Self {
         return Self {
-            proc_root: PathBuf::from("/proc"),
+            proc_root: PathBuf::from(PROC_MOUNT_POINT),
             margin: MARGIN,
-            pid_view_complete: current_pid_namespace().as_deref() == Some(INITIAL_PID_NAMESPACE),
+            pid_view_complete: current_pid_namespace().as_deref() == Some(INITIAL_PID_NAMESPACE) && proc_hides_no_process(),
             boot: boot_time(),
             local_file_systems: LOCAL_FILE_SYSTEMS.iter().map(|name| { return String::from(*name); }).collect(),
         };
@@ -175,12 +168,32 @@ impl Judge {
     }
 
     /// What the pid file's process is now: gone, a program that is not Git, a Git, or not known.
+    ///  A number that is gone or reused here proves the writer gone only when no process of the table has that number
+    ///  inside a PID namespace of its own, because the pid file holds the number its writer had in the writer's namespace.
     fn judge_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
         if !self.pid_view_complete {
             return Verdict::Unproven(format!(
-                "the pid file beside it names process {pid}, but this process runs in a PID namespace of its own and cannot see every process of the machine, so it cannot tell whether {pid} is gone"
+                "the pid file beside it names process {pid}, but this process runs in a PID namespace of its own, or cannot see every process of the machine, so it cannot tell whether {pid} is gone"
             ));
         }
+        let verdict: Verdict = self.judge_listed_pid(pid, lock_born);
+        if !matches!(verdict, Verdict::Stale(_)) {
+            return verdict;
+        }
+        return match nested_holders_of(self.proc_root.as_path(), pid) {
+            Ok(holders) if holders.is_empty() => verdict,
+            Ok(holders) => Verdict::Unproven(format!(
+                "the pid file beside it names process {pid}, and process {} is process {pid} of a PID namespace of its own, so the writer may be that process",
+                holders.first().copied().unwrap_or_default()
+            )),
+            Err(reason) => Verdict::Unproven(format!(
+                "the pid file beside it names process {pid}, and the processes could not be searched for one that is process {pid} of a PID namespace of its own: {reason}"
+            )),
+        };
+    }
+
+    /// What the pid file's process is in the process table as listed: gone, a program that is not Git, a Git, or not known.
+    fn judge_listed_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
         return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
             ProcessStart::Missing => Verdict::Stale(Proof::PidGone(pid)),
             ProcessStart::Unknown(reason) => Verdict::Unproven(format!("the pid file beside it names process {pid}, which could not be looked at: {reason}")),
@@ -199,14 +212,14 @@ impl Judge {
         };
     }
 
-    /// Whether the machine booted after the lock was last written, and the lock born.
-    fn before_boot(&self, born: Option<SystemTime>, identity: &Identity) -> bool {
+    /// Whether the lock looks older than the boot by the wall clock. Only words the notice: a forward correction of the clock
+    ///  during the boot makes a lock that a live Git holds look older than the boot, so no lock is removed on it.
+    fn looks_older_than_boot(&self, born: Option<SystemTime>, identity: &Identity) -> bool {
         let Some(boot) = self.boot else {
             return false;
         };
         let modified: SystemTime = nanoseconds_to_time(identity.modified_ns);
-        let slack: Duration = BOOT_SLACK.max(self.margin);
-        return born.is_some_and(|at| { return at + slack < boot; }) && modified + slack < boot;
+        return born.is_some_and(|at| { return at < boot; }) && modified < boot;
     }
 
     /// The first process of this account that the scan could not look into and that is a Git (or whose name cannot be read
@@ -278,15 +291,27 @@ impl Judge {
         if let PidFile::Names(pid) = pid_file {
             return finish(self.judge_pid(pid, born));
         }
-        if self.before_boot(born, &identity) {
-            return finish(Verdict::Stale(Proof::BeforeBoot));
-        }
-        let why: String = match pid_file {
+        let mut why: String = match pid_file {
             PidFile::Older(pid) => format!("the pid file beside it (process {pid}) is older than the lock, so it belongs to an earlier holder"),
             _ => String::from("no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open"),
         };
+        if self.looks_older_than_boot(born, &identity) {
+            why.push_str("; its times are earlier than the start of this boot, which a reboot would explain, but so would a correction of the clock, so the times alone prove nothing");
+        }
         return finish(Verdict::Unproven(why));
     }
+}
+
+/// Whether the mount of `/proc` shows this account every process: it has no `hidepid` option, or one that hides nothing.
+///  A table that hides processes lists fewer than exist, so a number missing from it is no proof. Where the mount cannot be
+///  read the answer is no.
+fn proc_hides_no_process() -> bool {
+    let Ok(Some(mount)) = read_mount_facts(Path::new(PROC_MOUNT_POINT)) else {
+        return false;
+    };
+    return !mount.mount_options.iter().chain(mount.super_options.iter()).any(|option| {
+        return option.strip_prefix(HIDEPID_OPTION).is_some_and(|value| { return !HIDEPID_OFF.contains(&value); });
+    });
 }
 
 /// A time given as nanoseconds since the epoch.

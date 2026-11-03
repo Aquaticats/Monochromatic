@@ -84,7 +84,6 @@ fn proof_text(proof: &Proof) -> String {
         Proof::PidGone(pid) => format!("process {pid}, named by the pid file beside it, has ended"),
         Proof::PidReused { pid, command } => format!("process {pid}, named by the pid file beside it, has ended and the number now belongs to `{command}`"),
         Proof::OrphanStaging => String::from("Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone"),
-        Proof::BeforeBoot => String::from("it was made before this boot of the machine, so no process that exists now can hold it"),
     };
 }
 

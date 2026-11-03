@@ -46,6 +46,12 @@ fn scenario_for_file(name: &str, file: &OsStr, prepared_second: &str, prepared_e
     return (root, base, current, prepared);
 }
 
+/// The conflicted paths of a merge that conflicted.
+fn conflict_paths(merged: &ReplayMerge) -> Vec<Vec<u8>> {
+    let ReplayMerge::Conflict { paths, .. } = merged else { panic!("expected a conflict") };
+    return paths.clone();
+}
+
 /// Non-overlapping hunks in one file merge cleanly and the merged tree holds both edits.
 #[test]
 fn non_overlapping_hunks_merge_into_one_tree() {
@@ -69,7 +75,7 @@ fn overlapping_hunks_conflict_and_name_their_paths() {
     let repo: PathBuf = root.join("repo");
     let merged: ReplayMerge = merge_replay_tree(&git_context(), repo.join(".git").as_path(), repo.as_path(), &base, &current, &prepared)
         .expect("merge");
-    assert_eq!(merged, ReplayMerge::Conflict { paths: vec![b"c.txt".to_vec()] });
+    assert_eq!(conflict_paths(&merged), vec![b"c.txt".to_vec()]);
     remove(root.as_path());
 }
 
@@ -82,7 +88,7 @@ fn a_conflict_over_a_name_that_is_not_utf8_reports_its_exact_bytes() {
     let repo: PathBuf = root.join("repo");
     let merged: ReplayMerge = merge_replay_tree(&git_context(), repo.join(".git").as_path(), repo.as_path(), &base, &current, &prepared)
         .expect("merge");
-    assert_eq!(merged, ReplayMerge::Conflict { paths: vec![b"caf\xe9.txt".to_vec()] });
+    assert_eq!(conflict_paths(&merged), vec![b"caf\xe9.txt".to_vec()]);
     remove(root.as_path());
 }
 
@@ -113,9 +119,6 @@ fn conflicting_names_are_sorted_by_their_bytes() {
     let current: String = rev(repo.as_path(), "HEAD");
     let merged: ReplayMerge = merge_replay_tree(&git_context(), repo.join(".git").as_path(), repo.as_path(), &base, &current, &prepared)
         .expect("merge");
-    assert_eq!(
-        merged,
-        ReplayMerge::Conflict { paths: vec![b"a.txt".to_vec(), b"caf\xe9.txt".to_vec(), b"z.txt".to_vec()] }
-    );
+    assert_eq!(conflict_paths(&merged), vec![b"a.txt".to_vec(), b"caf\xe9.txt".to_vec(), b"z.txt".to_vec()]);
     remove(root.as_path());
 }

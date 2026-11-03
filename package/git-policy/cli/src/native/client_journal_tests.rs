@@ -63,3 +63,16 @@ fn a_unit_test_without_a_stand_in_reaches_nothing() {
         assert!(!record_entry(Priority::Warning, "never sent", &[]));
     }
 }
+
+/// An entry sent as the service carries the service's identifier, and the same send as the client keeps the client's.
+#[test]
+fn an_entry_can_carry_the_services_identifier() {
+    let (socket, target) = receiver("service");
+    assert!(send_entry_as(&target, crate::journald_native::IDENTIFIER, Priority::Warning, "from the service", &[]));
+    let mut buffer: Vec<u8> = vec![0; 4096];
+    let length: usize = socket.recv(buffer.as_mut_slice()).expect("an entry");
+    assert_eq!(parsed(&buffer[..length]).get("SYSLOG_IDENTIFIER").map(String::as_str), Some("cli-git-service"));
+    assert!(send_entry(&target, Priority::Warning, "from the wrapper", &[]));
+    let second: usize = socket.recv(buffer.as_mut_slice()).expect("an entry");
+    assert_eq!(parsed(&buffer[..second]).get("SYSLOG_IDENTIFIER").map(String::as_str), Some("cli-git"));
+}

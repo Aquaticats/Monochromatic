@@ -870,6 +870,21 @@ pub mod landing_location;
 ///  the landing lock held while real Git runs as a child.
 pub mod index_writer_forward;
 
+/// The three-way merge by line and by word that resolves a conflict Git's line merge reports.
+pub mod word_merge;
+
+/// The conflicted files a merge left, which of them the word pass may re-merge, and the lines that list each merged part.
+pub mod merge_second_pass;
+
+/// The word-level second pass for merges computed from objects, and the attribute tree those merges read.
+pub mod merge_second_pass_tree;
+
+/// The word-level second pass after a forwarded merge, rebase, cherry-pick or revert that Git stopped with a conflict.
+pub mod merge_second_pass_worktree;
+
+/// The finish of a stopped operation, like a clean run, after the second pass resolved every conflicted file.
+pub mod merge_second_pass_finish;
+
 /// The `git merge` command lines the wrapper completes in isolation, and those it leaves to native Git.
 pub mod merge_options;
 
@@ -887,6 +902,9 @@ pub mod merge_isolation_recovery;
 
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
+
+/// A pull that merges, read as its fetch and its merge of `FETCH_HEAD`.
+pub mod pull_isolation;
 
 /// The refusal findings of an isolated merge.
 pub mod merge_isolation_report;
@@ -944,6 +962,9 @@ pub mod stale_ref_lock_judge;
 
 /// Removal of a proven stale lock with its companions.
 pub mod stale_ref_lock_retire;
+
+/// The processes that carry a number inside a PID namespace nested in the reader's, which a pid file may name.
+pub mod stale_ref_lock_nested_numbers;
 
 /// The wrapper's own fetch and push, started after the stale reference locks of their repository are cleared.
 pub mod push_lock_clearing;
@@ -1338,6 +1359,12 @@ pub mod service_hold_retry;
 
 /// The commit command's path through the commit service.
 pub mod service_commit;
+
+/// The marker lines a committed file still holds, and the line about an operation a commit left open.
+pub mod conflict_markers;
+
+/// The stash and conflict stages Git's apply of an autostash left in the commit's scratch repository, carried back.
+pub mod autostash_carry;
 
 /// The service's memory of when the bytes of the commits it landed were captured, per worktree.
 pub mod service_captures;

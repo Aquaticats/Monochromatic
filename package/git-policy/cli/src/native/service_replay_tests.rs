@@ -201,3 +201,143 @@ fn both_endings_are_one_core_finding_with_status_one() {
         assert!(matches!(result.events.as_slice(), [PolicyEvent::CoreFinding { core_id: "concurrent-commit", .. }]));
     }
 }
+
+//region word-level second pass and attribute source
+// What: the replay merge falls back to the word-level pass for a path Git's line merge and the subsumption rules leave in
+//  conflict, and honours the committed `.gitattributes` of the landed tip when the worktree has none.
+// Why: the owner decided on 2026-11-03 that the wrapper's unattended merges use the same second pass, and that the union line
+//  of `.gitattributes` applies in the merges the wrapper computes from objects.
+
+/// A stored corpus file of the word-level merge.
+fn corpus(name: &str, extension: &str) -> Vec<u8> {
+    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/word_merge_corpus").join(format!("{name}.{extension}"))).expect("a corpus file");
+}
+
+/// A repository whose first commit holds `path` as the corpus input's base, with the branch left on it.
+fn corpus_world(name: &str, input: &str, path: &str) -> World {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::create_dir_all(repo.join(path).parent().expect("a parent")).expect("directories");
+    std::fs::write(repo.join(path), corpus(input, "base")).expect("file");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::create_dir(root.join("scratch")).expect("scratch");
+    return World { root, repo, context: git_context(), base };
+}
+
+/// The captured tree of a side branch that holds the corpus input's `theirs` text, and the landed commit with its `ours` text.
+fn corpus_sides(world: &World, input: &str, path: &str) -> Captured {
+    git(world.repo.as_path(), &["checkout", "--quiet", "-b", "mine", world.base.as_str()]);
+    std::fs::write(world.repo.join(path), corpus(input, "theirs")).expect("captured text");
+    git(world.repo.as_path(), &["commit", "--quiet", "--all", "--message=mine"]);
+    let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
+    std::fs::write(world.repo.join(path), corpus(input, "ours")).expect("landed text");
+    git(world.repo.as_path(), &["commit", "--quiet", "--all", "--message=landed"]);
+    return Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new() };
+}
+
+/// An edit and an insertion right after it, which Git's line merge reports as a conflict, merge by word into one tree.
+#[test]
+fn an_adjacent_edit_and_insertion_merge_by_word() {
+    let world: World = corpus_world("replay-word", "md1b", "notes.md");
+    let mine: Captured = corpus_sides(&world, "md1b", "notes.md");
+    let Merged::Combined { tree, files } = merge(&world, &mine) else { panic!("expected the word pass to merge the adjacent edits") };
+    assert_eq!(files.len(), 1, "the one merged file is reported");
+    assert_eq!(files[0].path, b"notes.md".to_vec());
+    let blob: String = git_text(world.repo.as_path(), &["show", format!("{tree}:notes.md").as_str()]) + "\n";
+    assert_eq!(blob.as_bytes(), corpus("md1b", "word.out").as_slice());
+    remove(world.root.as_path());
+}
+
+/// Two sections appended at one point stay a conflict: the word pass never invents an order.
+#[test]
+fn two_sections_appended_at_one_point_stay_a_conflict() {
+    let world: World = corpus_world("replay-word-append", "md2", "notes.md");
+    let mine: Captured = corpus_sides(&world, "md2", "notes.md");
+    assert!(matches!(merge(&world, &mine), Merged::Conflict(paths) if paths == vec![b"notes.md".to_vec()]));
+    remove(world.root.as_path());
+}
+
+/// The union line of the landed tip's `.gitattributes` applies although the worktree holds no such file.
+#[test]
+fn the_union_attribute_of_the_landed_tip_applies_without_a_worktree_file() {
+    let world: World = corpus_world("replay-union", "md2", "doc/handover/log.md");
+    std::fs::write(world.repo.join(".gitattributes"), "doc/handover/*.md merge=union\n").expect("attributes");
+    git(world.repo.as_path(), &["add", "--all"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=attributes"]);
+    let attributed: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let attributed_world: World = World { base: attributed, ..world };
+    let mine: Captured = corpus_sides(&attributed_world, "md2", "doc/handover/log.md");
+    // The checkout the merge runs from does not hold the attributes file (another branch, or a deletion not yet committed).
+    std::fs::remove_file(attributed_world.repo.join(".gitattributes")).expect("remove the attributes file");
+    git(attributed_world.repo.as_path(), &["rm", "--quiet", "--cached", ".gitattributes"]);
+    let Merged::Tree(tree) = merge(&attributed_world, &mine) else { panic!("expected the union driver of the landed tip to merge the appends") };
+    let blob: String = git_text(attributed_world.repo.as_path(), &["show", format!("{tree}:doc/handover/log.md").as_str()]);
+    assert!(blob.contains("Ours risk.") && blob.contains("Theirs question."), "{blob}");
+    remove(attributed_world.root.as_path());
+}
+
+/// The notice for a replayed commit lists every merged part and is absent when nothing was merged by word.
+#[test]
+fn the_notice_lists_each_merged_part_and_is_absent_without_one() {
+    use crate::merge_second_pass::{Conflict, Merged as MergedFile};
+    use crate::word_merge::{LineSpan, MergedPart};
+    assert_eq!(word_merge_notice(&[]), None);
+    let span = LineSpan { first: 2, count: 1 };
+    let file = MergedFile {
+        path: b"notes.md".to_vec(),
+        mode: 0o100_644,
+        bytes: Vec::new(),
+        parts: vec![MergedPart { base: span, ours: span, theirs: span, merged: b"joined\n".to_vec() }],
+        stages: Conflict { path: b"notes.md".to_vec(), base: None, ours: None, theirs: None },
+    };
+    let Some(PolicyEvent::WordMerged { lines }) = word_merge_notice(&[file]) else { panic!("expected the event") };
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].contains("word-level merge") && lines[0].contains("notes.md") && lines[0].contains("joined"), "{lines:?}");
+}
+
+/// A merge-driver attribute of a path below a directory is honoured when the commit was run from a subdirectory of the
+/// worktree: the second pass reads attribute paths from the top, so the driver's refusal stands and nothing is merged by word.
+#[test]
+fn a_driver_attribute_below_a_directory_is_honoured_from_a_subdirectory() {
+    let world: World = corpus_world("replay-subdirectory-driver", "md1b", "docs/notes.md");
+    std::fs::write(world.repo.join(".gitattributes"), "docs/*.md merge=binary\n").expect("attributes");
+    git(world.repo.as_path(), &["add", "--all"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=attributes"]);
+    let attributed: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let driven: World = World { base: attributed, ..world };
+    let mine: Captured = corpus_sides(&driven, "md1b", "docs/notes.md");
+    let tip: String = git_text(driven.repo.as_path(), &["rev-parse", "HEAD"]);
+    let common: PathBuf = driven.repo.join(".git");
+    let scratch: PathBuf = driven.root.join("scratch");
+    let subdirectory: PathBuf = driven.repo.join("docs");
+    let site: MergeSite<'_> =
+        MergeSite { context: &driven.context, cwd: subdirectory.as_path(), common_dir: common.as_path(), object_directory: &common.join("objects"), scratch: scratch.as_path() };
+    let merged: Merged = merge_captured(&site, &mine, tip.as_str(), 1).expect("the merge runs");
+    assert!(matches!(merged, Merged::Conflict(_)), "{merged:?}");
+    remove(driven.root.as_path());
+}
+
+/// A person's `attr.tree` is respected: a configured tree without the union line is the one Git reads, so the appends conflict
+///  although the landed tip has the line.
+#[test]
+fn a_configured_attribute_tree_is_not_overridden() {
+    let world: World = corpus_world("replay-attr-tree", "md2", "doc/handover/log.md");
+    let without_attributes: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(world.repo.join(".gitattributes"), "doc/handover/*.md merge=union\n").expect("attributes");
+    git(world.repo.as_path(), &["add", "--all"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=attributes"]);
+    let attributed: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let attributed_world: World = World { base: attributed, ..world };
+    let mine: Captured = corpus_sides(&attributed_world, "md2", "doc/handover/log.md");
+    std::fs::remove_file(attributed_world.repo.join(".gitattributes")).expect("remove the attributes file");
+    git(attributed_world.repo.as_path(), &["rm", "--quiet", "--cached", ".gitattributes"]);
+    git(attributed_world.repo.as_path(), &["config", "attr.tree", without_attributes.as_str()]);
+    assert!(matches!(merge(&attributed_world, &mine), Merged::Conflict(_)), "the person's attribute tree has no union line");
+    git(attributed_world.repo.as_path(), &["config", "--unset", "attr.tree"]);
+    assert!(matches!(merge(&attributed_world, &mine), Merged::Tree(_)), "with none configured the tip's line applies");
+    remove(attributed_world.root.as_path());
+}
+//endregion

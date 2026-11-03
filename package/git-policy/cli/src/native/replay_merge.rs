@@ -9,6 +9,12 @@
 //! await mergeReplayTree({ gitPath, shadowPath, mergeBase, current, prepared, worktreeRoot });
 //! ```
 
+/// The conflicts of a merge tree, with their stages, for the word-level second pass.
+use super::merge_second_pass::{Conflict, conflicts_of_merge_tree};
+/// The attribute tree a merge from objects reads.
+use super::child_environment::environment_with_overlay;
+use super::merge_second_pass::ContextRunner;
+use super::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables};
 /// Shadow runs and the raw runner for a merge whose exit status matters.
 use super::shadow_git::shadow_request;
 use super::transaction_git::{GitContext, GitFailure, GitRequest, run_git};
@@ -38,6 +44,10 @@ pub enum ReplayMerge {
     Conflict {
         /// Conflicting paths in Git path byte order, each once, as the exact bytes Git reported.
         paths: Vec<Vec<u8>>,
+        /// The tree Git wrote, holding the conflicted files with markers.
+        tree_oid: String,
+        /// The conflicted paths with their stages, for the word-level second pass.
+        conflicts: Vec<Conflict>,
     },
 }
 
@@ -79,19 +89,24 @@ pub fn merge_replay_tree(
     prepared: &str,
 ) -> Result<ReplayMerge, ReplayMergeError> {
     let merge_base_argument: String = format!("--merge-base={merge_base}");
-    let request: GitRequest = shadow_request(
+    let mut request: GitRequest = shadow_request(
         shadow,
         worktree_root,
         &[
             "merge-tree",
             "--write-tree",
-            "--name-only",
             "-z",
             merge_base_argument.as_str(),
             current,
             prepared,
         ],
     );
+    // No worktree is read, so the landed tip's `.gitattributes` is the one the merge applies (the `union` line included).
+    let process_environment: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
+    let variables = environment_with_overlay(process_environment.as_slice(), context.overlay.as_slice());
+    let probing = ContextRunner { context, cwd: worktree_root, without_prefix: true, object_directory: None, environment: Vec::new() };
+    let probe = AttributeProbe { directory: worktree_root, global_prefix: &[], variables: variables.as_slice(), runner: &probing };
+    request.environment.extend(attribute_tree_variables(current, &probe));
     let output = run_git(context, &request).map_err(|error| {
         return ReplayMergeError::Git(GitFailure(format!("git merge-tree could not start: {error}")));
     })?;
@@ -102,24 +117,16 @@ pub fn merge_replay_tree(
             String::from_utf8_lossy(&output.stderr).trim()
         ))));
     }
-    // The first field is the tree; on a conflict the conflicted paths follow up to an empty record.
+    // The first field is the tree; on a conflict the stages of the conflicted paths follow up to an empty field.
     // The paths stay bytes: a name that is not UTF-8 is reported with its exact bytes.
-    let mut fields = output.stdout.split(|byte| { return *byte == 0; });
-    let tree_oid: String = String::from_utf8_lossy(fields.next().unwrap_or_default()).into_owned();
+    let (tree_oid, conflicts) = conflicts_of_merge_tree(output.stdout.as_slice());
     if code == Some(0) {
         return Ok(ReplayMerge::Merged { tree_oid });
     }
-    let mut paths: Vec<Vec<u8>> = Vec::new();
-    for field in fields {
-        if field.is_empty() {
-            break;
-        }
-        if !paths.iter().any(|known| { return known.as_slice() == field; }) {
-            paths.push(field.to_vec());
-        }
-    }
+    let mut paths: Vec<Vec<u8>> = conflicts.iter().map(|conflict| { return conflict.path.clone(); }).collect();
     paths.sort();
-    return Ok(ReplayMerge::Conflict { paths });
+    paths.dedup();
+    return Ok(ReplayMerge::Conflict { paths, tree_oid, conflicts });
 }
 
 #[cfg(test)]

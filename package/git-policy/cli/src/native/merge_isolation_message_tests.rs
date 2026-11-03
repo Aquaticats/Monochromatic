@@ -70,3 +70,16 @@ fn cleanup_matches_a_commit_that_opens_no_editor() {
     assert_eq!(cleaned, b"subject\n\nbody\n".to_vec());
     assert_eq!(clean_message(&context, b"one").expect("cleaned"), b"one\n".to_vec());
 }
+
+/// Only the lines of `FETCH_HEAD` with two tabs after a full name are heads to merge, as `handle_fetch_head` reads them.
+#[test]
+fn only_the_for_merge_lines_of_fetch_head_are_heads() {
+    let merged: String = "a".repeat(40);
+    let other: String = "b".repeat(40);
+    let wide: String = "c".repeat(64);
+    let text: String = format!(
+        "{merged}\t\tbranch 'main' of /remote\n{other}\tnot-for-merge\tbranch 'side' of /remote\n{wide}\t\tbranch 'wide' of /remote\nnot a name\t\tx\n"
+    );
+    assert_eq!(fetch_head_merge_heads(text.as_str()), vec![merged, wide], "40 and 64 digit names, for-merge lines only");
+    assert_eq!(fetch_head_merge_heads(""), Vec::<String>::new(), "an empty file lists nothing");
+}

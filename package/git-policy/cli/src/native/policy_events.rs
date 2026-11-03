@@ -145,7 +145,7 @@ pub enum EngineFailureHint {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PolicyEvent = FindingEvent | ConfigurationWarningEvent | CoreFindingEvent | EngineFailureEvent | FixSummaryEvent;
+/// type PolicyEvent = FindingEvent | ConfigurationWarningEvent | CoreFindingEvent | EngineFailureEvent | FixSummaryEvent | CommitLandedEvent | WordMergedEvent;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PolicyEvent {
@@ -205,6 +205,12 @@ pub enum PolicyEvent {
         /// The exact landed commit object ID.
         oid: String,
     },
+    /// A commit replayed over a branch that moved had files merged by word where Git's line merge reported a conflict.
+    ///  The event lists each merged part, so the person sees what was combined.
+    WordMerged {
+        /// One line per merged part, each naming the file and the part.
+        lines: Vec<String>,
+    },
 }
 
 /// What:
@@ -227,7 +233,8 @@ pub fn event_blocks(event: &PolicyEvent) -> bool {
         PolicyEvent::WarnUnsafe { .. }
         | PolicyEvent::EngineFailure { .. }
         | PolicyEvent::FixSummary { .. }
-        | PolicyEvent::CommitLanded { .. } => return false,
+        | PolicyEvent::CommitLanded { .. }
+        | PolicyEvent::WordMerged { .. } => return false,
     }
 }
 
@@ -445,6 +452,7 @@ fn event_type(event: &PolicyEvent) -> &'static str {
         PolicyEvent::EngineFailure { .. } => return "engine-failure",
         PolicyEvent::FixSummary { .. } => return "fix-summary",
         PolicyEvent::CommitLanded { .. } => return "commit-landed",
+        PolicyEvent::WordMerged { .. } => return "word-merged",
     }
 }
 
@@ -538,6 +546,10 @@ pub fn render_policy_event(sequence: u64, event: &PolicyEvent) -> String {
                     .as_str(),
             );
             push_hint_field(&mut line, Some(POST_COMMIT_BLOCKED_HINT));
+        }
+        PolicyEvent::WordMerged { lines } => {
+            push_text_field(&mut line, "outcome", "word-merged");
+            push_text_field(&mut line, "message", lines.join("\n").as_str());
         }
     }
     line.push_str("}\n");

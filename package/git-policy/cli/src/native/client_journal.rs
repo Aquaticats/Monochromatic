@@ -46,8 +46,21 @@ fn target() -> Option<Target> {
 /// const sent = recordEntry({ priority: 'warning', message, fields: [['CLI_GIT_WORKTREE', path]] });
 /// ```
 pub fn record_entry(priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+    return record_entry_as(CLIENT_IDENTIFIER, priority, message, fields);
+}
+
+/// What:
+///  Send one entry under the identifier of the sender: the wrapper's, or the service's when the code runs inside the service.
+/// Why:
+///   An entry belongs next to the others of the program that sent it (`journalctl --identifier=cli-git-service`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sent = recordEntryAs('cli-git-service', { priority: 'warning', message, fields });
+/// ```
+pub fn record_entry_as(identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
     let Some(found) = target() else { return false };
-    return send_entry(&found, priority, message, fields);
+    return send_entry_as(&found, identifier, priority, message, fields);
 }
 
 /// What:
@@ -60,6 +73,19 @@ pub fn record_entry(priority: Priority, message: &str, fields: &[(&str, String)]
 /// const sent = sendEntry(target, 'warning', message, fields);
 /// ```
 pub fn send_entry(target: &Target, priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+    return send_entry_as(target, CLIENT_IDENTIFIER, priority, message, fields);
+}
+
+/// What:
+///  Send one entry to `target` under `identifier`; whether the socket took it.
+/// Why:
+///   The same send for the wrapper and for code that runs inside the service.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sent = sendEntryAs(target, 'cli-git-service', 'warning', message, fields);
+/// ```
+pub fn send_entry_as(target: &Target, identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
     let Some(address) = target.address() else {
         debug(TAG, format!("the journal address {target:?} does not fit a socket name; no entry is sent").as_str());
         return false;
@@ -75,7 +101,7 @@ pub fn send_entry(target: &Target, priority: Priority, message: &str, fields: &[
         debug(TAG, format!("the journal socket cannot be made non-blocking ({error}); no entry is sent").as_str());
         return false;
     }
-    return match socket.send_to_addr(datagram_as(CLIENT_IDENTIFIER, priority, message, fields).as_slice(), &address) {
+    return match socket.send_to_addr(datagram_as(identifier, priority, message, fields).as_slice(), &address) {
         Ok(_) => true,
         Err(error) => {
             debug(TAG, format!("the journal took no entry ({error})").as_str());

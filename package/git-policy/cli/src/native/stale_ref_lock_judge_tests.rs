@@ -16,10 +16,3 @@ fn the_margin_is_the_multiple_of_the_measurement_rounded_up_to_a_whole_second() 
     assert!(MARGIN >= wanted, "{MARGIN:?} must cover {wanted:?}");
     assert!(MARGIN - wanted < Duration::from_secs(1), "{MARGIN:?} is a second or more over {wanted:?}");
 }
-
-/// A step in the opposite direction of the one measured can be as far over the hour as the measured one is under it.
-#[test]
-fn the_boot_slack_covers_an_hour_step_with_the_error_measured() {
-    let error: Duration = ZONE_OFFSET - MEASURED_ZONE_STEP;
-    assert!(BOOT_SLACK >= ZONE_OFFSET + error, "{BOOT_SLACK:?} must cover {ZONE_OFFSET:?} plus {error:?}");
-}

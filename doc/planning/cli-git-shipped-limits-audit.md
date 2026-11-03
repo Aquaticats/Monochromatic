@@ -1660,6 +1660,12 @@ by content" and the path is not judged clean; an over-large index makes the guar
   1 ms (`CONFIG_HZ=1000`).
 
 - After the follow-up pick on the margin: `BOOT_SLACK` follows `MARGIN`, so it is 3607 s.
+- Retired (the branch of this fix, `fix/git-policy-cli-never-removes-a-live-lock`): the boot proof, `BOOT_SLACK`,
+  `ZONE_OFFSET` and `MEASURED_ZONE_STEP` are gone.
+  No slack makes a wall-clock comparison a proof, because a forward correction of the clock during the boot moves `btime`
+  and every file time alike (cross-vendor review finding S-2).
+  A lock that looks older than the boot is now left, and the notice says so beside the command that clears it.
+  `REUSE_SLACK_MS` and its measurement stay.
 
 ### Empty-lock settle time, one second
 
@@ -1680,6 +1686,13 @@ by content" and the path is not judged clean; an over-large index makes the guar
   clock read (1.729 ms in two runs of 10,000).
   The load average of 80 to 145 that the commit-timeouts record names was not present during the runs, so the factors
   are not a proof for it.
+
+- Retired (the branch of this fix, `fix/git-policy-cli-never-removes-a-live-lock`): `EMPTY_LOCK_SETTLE` and
+  `COARSE_CLOCK_SLACK` are gone with the removal of an empty lock without a pid file.
+  A live writer of another Git holds such a lock with no descriptor open for as long as its transaction lasts, so no settle
+  time, however long, tells it from a left one (cross-vendor review finding S-1).
+  The sweep after a stop now removes a lock only on the proofs of `SPEC.md`, "Reference locks left by a Git that was
+  killed".
 
 ## In-process readers, parsers and chunking
 
