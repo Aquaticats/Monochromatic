@@ -64,3 +64,14 @@ fn the_fixture_root_is_not_the_system_temporary_directory() {
         assert!(!root.starts_with(&directory), "{} is under the system temporary directory {}", root.display(), directory.display());
     }
 }
+
+/// A process a test starts cannot write a core dump: tests make services abort or kill them on purpose, and every dump costs
+///  the system's core-dump handler processor time and disk writes on a disk other sessions share (several hundred dumps of
+///  `cli-git-service` from test runs on 2026-11-03). The limit is the harness's, set where fixtures are made; the product
+///  sets none.
+#[test]
+fn a_process_a_test_starts_may_not_write_a_core_dump() {
+    let _root: PathBuf = fixture("core-limit");
+    let output = std::process::Command::new("sh").args(["-c", "ulimit -c; ulimit -H -c"]).output().expect("sh runs");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).split_whitespace().collect::<Vec<&str>>(), vec!["0", "0"]);
+}

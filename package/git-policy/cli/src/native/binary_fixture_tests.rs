@@ -234,3 +234,14 @@ fn a_fixture_service_starts_after_an_earlier_service_that_is_still_dying() {
         "the new service must greet, said {greeting:?}"
     );
 }
+
+/// A process the binary tests start (a service that is killed, a wrapper that aborts) may not write a core dump: each dump
+///  costs the system's core-dump handler processor time and disk writes on a shared disk. The harness sets the limit; the
+///  product sets none.
+#[test]
+fn a_process_a_binary_test_starts_may_not_write_a_core_dump() {
+    let fixture: Fixture = fixture("core-limit");
+    let output = std::process::Command::new("sh").args(["-c", "ulimit -c; ulimit -H -c"]).output().expect("sh runs");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).split_whitespace().collect::<Vec<&str>>(), vec!["0", "0"]);
+    drop(fixture);
+}
