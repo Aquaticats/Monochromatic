@@ -775,6 +775,29 @@ main checkout again (two tests), and the handler following a link at the trash n
 - Dry run of the fixed build on the real repository: 160 worktrees, 94 already subvolumes, 65 would convert, 1 skipped
   (`package/forbidden-strings/core/Cargo.lock` really differs from the committed content).
 
+### Round 4: the cross-vendor reviews of the content proof and the conversion
+
+Every finding was checked against the Git source of the installed version (`attr.c` at `v2.56.0`) before it was fixed.
+
+- System attributes (`attr.c`, `git_attr_system_file`): `system_path(ETC_GITATTRIBUTES)`, independent of
+  `GIT_CONFIG_SYSTEM`, off under `GIT_ATTR_NOSYSTEM`. The path is now asked of the executable with `git var GIT_ATTR_SYSTEM`
+  (cached per executable identity beside the system configuration path) and an unknown place refuses.
+- Lexing (`attr.c`, `parse_attr_line`): the blanks are `" \t\r\n"` only, a line is a C string (NUL ends it), and
+  `read_attr_from_file` skips a UTF-8 byte order mark on its first line; none of this was modelled. Paths, patterns and
+  directory keys are bytes now, with ASCII folding. A quoted pattern keeps all its tokens and counts as applying.
+- Reads: `worktree_clean_content.rs` opens every file and every `.gitattributes` below a held root with `openat2` and no link
+  followed, judges type and mode on the handle, compares the state before and after the read, and bounds the read at the limit
+  plus one byte. A `.gitattributes` that is a link is a refusal (Git opens it without following).
+- Conversion: the journal is created and replaced only through exclusive files, records the identity of the stage, and is
+  guarded by a `flock` per administrative directory; `Synced` is provisional; the old tree is removed beneath a pinned
+  descriptor; nested registrations are read from the common directory; refusals have kinds; a failed refresh keeps the old tree.
+- What the cleanliness proof is for: the conversion copies the whole tree, untracked and ignored files included, so a modified
+  tracked file would survive the conversion. The proof is a policy (do not rebuild a worktree someone is in the middle of), and
+  the data is protected by the copy, the second pass, the identity checks, and the update-only pass before the removal.
+- What stays open: a write that keeps the size and modification time of the copy is invisible to the second pass and to the
+  update-only pass; a process that writes and exits in the window before the exchange is found only by the update-only pass; a
+  system attributes file under a prefix other than the executable's is not read.
+
 ## Assumptions and limits
 
 - The fixture is `git clone --shared` of the main checkout in `/var/home/user/.cache/main-ignored-copy`, with the main
