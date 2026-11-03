@@ -146,6 +146,7 @@ impl PrivateCopy {
                 let mut made: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(copy.path.as_path()).map_err(|error| { return storage_failure(&error); })?;
                 std::io::copy(&mut source, &mut made).map_err(|error| { return storage_failure(&error); })?;
                 made.sync_all().map_err(|error| { return storage_failure(&error); })?;
+                crate::service_fault::note("sync-private-copy");
                 std::fs::set_permissions(copy.path.as_path(), live_permissions).map_err(|error| { return storage_failure(&error); })?;
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}

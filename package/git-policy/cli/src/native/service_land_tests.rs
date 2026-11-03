@@ -1095,6 +1095,37 @@ fn the_installed_index_and_the_finished_batch_are_made_durable_before_what_depen
     remove(world.root.as_path());
 }
 
+/// The syncs a landing waits for, in order. The person waits for each of them (the commit is answered after the last), so the
+/// list is the foreground cost that native Git does not have: its commit forces nothing to disk by default (measured: no
+/// `fsync` in a strace of native `git commit` on a 20,740-file repository), and every entry here is a flush that a loaded disk
+/// can stall for seconds. A sync that protects nothing is not on the list: the private copy of the index is replaced by a new
+/// file that is synced itself before it is renamed over the copy, so the copy's own flush made nothing durable.
+#[test]
+fn a_landing_waits_for_no_sync_that_protects_nothing() {
+    let world: World = world("service-land-syncs");
+    crate::service_fault::hooks::take_events();
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
+    let syncs: Vec<&str> = events.iter().map(String::as_str).filter(|event| { return event.starts_with("sync-"); }).collect();
+    // Positive control: the list is not empty, so a landing that stopped reporting its syncs would fail here and not pass.
+    assert!(!syncs.is_empty(), "the landing reports its syncs: {events:?}");
+    let expected: Vec<&str> = vec![
+        "sync-intent-file",
+        "sync-intent-dir",
+        "sync-lock-marker",
+        "sync-start-file",
+        "sync-start-dir",
+        "sync-index-publish",
+        "sync-index-dir",
+        "sync-indexed-file",
+        "sync-indexed-dir",
+        "sync-journal-dir",
+    ];
+    assert_eq!(syncs, expected, "the syncs of one landing: {events:?}");
+    remove(world.root.as_path());
+}
+
 /// A completion record that cannot be read is not the same as none: a restart that cannot tell whether the index was installed
 /// leaves the batch open and the index alone, instead of replaying over whatever was staged since.
 #[test]

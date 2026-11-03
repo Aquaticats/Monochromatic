@@ -203,8 +203,11 @@ pub fn write_intent(dir: &Path, intent: &Intent) -> std::io::Result<()> {
     let mut file: File = File::create(&temporary)?;
     file.write_all(intent_text(intent).as_bytes())?;
     file.sync_all()?;
+    crate::service_fault::note("sync-intent-file");
     fs::rename(&temporary, batch_path(dir, intent.seq, OPEN_EXTENSION))?;
-    return File::open(dir)?.sync_all();
+    let synced: std::io::Result<()> = File::open(dir)?.sync_all();
+    crate::service_fault::note("sync-intent-dir");
+    return synced;
 }
 
 /// The extension of the record that a batch's index update is installed.
@@ -226,9 +229,12 @@ pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
     let mut file: File = File::create(&temporary)?;
     file.write_all(format!("{new}\n").as_bytes())?;
     file.sync_all()?;
+    crate::service_fault::note("sync-indexed-file");
     fs::rename(&temporary, batch_path(dir, seq, INDEXED_EXTENSION))?;
     crate::service_fault::note("indexed-recorded");
-    return File::open(dir)?.sync_all();
+    let synced: std::io::Result<()> = File::open(dir)?.sync_all();
+    crate::service_fault::note("sync-indexed-dir");
+    return synced;
 }
 
 /// The extension of the record of the index entries a batch started from.
@@ -249,8 +255,11 @@ pub fn write_start(dir: &Path, seq: u64, entries: &[StartEntry]) -> std::io::Res
     let mut file: File = File::create(&temporary)?;
     file.write_all(format!("{}\n", encode(entries)).as_bytes())?;
     file.sync_all()?;
+    crate::service_fault::note("sync-start-file");
     fs::rename(&temporary, batch_path(dir, seq, START_EXTENSION))?;
-    return File::open(dir)?.sync_all();
+    let synced: std::io::Result<()> = File::open(dir)?.sync_all();
+    crate::service_fault::note("sync-start-dir");
+    return synced;
 }
 
 /// What a batch's start record says.

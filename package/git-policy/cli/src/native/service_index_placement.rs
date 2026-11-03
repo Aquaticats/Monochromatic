@@ -84,7 +84,9 @@ pub const SYSTEM: Platform<'static> = Platform {
 };
 
 pub fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
-    return file.sync_all();
+    let synced: std::io::Result<()> = file.sync_all();
+    crate::service_fault::note("sync-lock-marker");
+    return synced;
 }
 
 fn link_file(from: &Path, to: &Path) -> std::io::Result<()> {
