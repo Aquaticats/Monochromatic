@@ -297,8 +297,8 @@ impl Journal {
             phase: Phase::parse(field("phase").ok_or_else(bad)?.as_str()).ok_or_else(bad)?,
             token: field("token").ok_or_else(bad)?,
             path: unhex(field("path").ok_or_else(bad)?.as_str()).ok_or_else(bad)?,
-            old_device: field("old_device").and_then(|text: String| { return text.parse().ok(); }).ok_or_else(bad)?,
-            old_inode: field("old_inode").and_then(|text: String| { return text.parse().ok(); }).ok_or_else(bad)?,
+            old_device: field("old_device").and_then(|digits: String| { return digits.parse().ok(); }).ok_or_else(bad)?,
+            old_inode: field("old_inode").and_then(|digits: String| { return digits.parse().ok(); }).ok_or_else(bad)?,
             git_file: unhex(field("git_file").ok_or_else(bad)?.as_str()).ok_or_else(bad)?,
         });
     }

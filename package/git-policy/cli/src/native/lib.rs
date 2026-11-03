@@ -1380,3 +1380,7 @@ pub mod worktree_convert_arguments;
 /// `git cli-git convert-worktree-to-subvolume`: the worktrees to cover and the report.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_command;
+
+/// Setting aside what a snapshot of the main checkout leaves out, and having the commit service empty it.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash;

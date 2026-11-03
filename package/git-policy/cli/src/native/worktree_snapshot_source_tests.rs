@@ -55,7 +55,14 @@ fn btrfs_each_condition_that_rules_a_source_out_is_refused_with_its_reason() {
     tracked(repo.as_path(), ".gitignore", b"ignored/\nnested/\n");
     commit_all(repo.as_path(), "ignore nested");
     git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "nested", "nested/wt"]);
-    let nested: String = refusal(repo.as_path());
+    // A snapshot of the main checkout sets such a worktree aside (`worktree_trash.rs`), so it no longer blocks the main checkout;
+    //  it still blocks a snapshot of a linked worktree that holds one.
+    let plan = plan_to(std::fs::canonicalize(root.join("topic")).unwrap_or_else(|_missing| { return root.join("topic"); }));
+    let source = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("the main checkout is a source");
+    assert_eq!(snapshot_blocker(&source), None);
+    let mut as_linked = source.clone();
+    as_linked.git_dir = repo.join(".git/worktrees/wt");
+    let nested: String = snapshot_blocker(&as_linked).expect("a linked source is blocked");
     assert!(nested.contains("inside the source is an ordinary directory"), "{nested}");
     remove(root.as_path());
 }

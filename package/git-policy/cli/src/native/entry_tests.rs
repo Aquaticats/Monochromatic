@@ -596,10 +596,10 @@ fn a_main_checkout_without_a_rules_file_is_settled_for_a_creation() {
     assert!(facts.creates_or_moves);
     assert!(facts.add_plan.is_none(), "the ladder does not serve a forced add");
     let served: Vec<&str> = vec!["worktree", "add", "--quiet", "-b", "second", "../second"];
-    let facts = settled_facts(plan_invocation(in_directory(repo.as_path(), served.as_slice()).as_slice(), &[], &resolution));
-    assert!(facts.creates_or_moves);
-    assert!(matches!(facts.identity, crate::worktree_identity::WorktreeIdentity::MainWorktree { .. }));
-    let plan = facts.add_plan.expect("the ladder serves this form");
+    let served_facts = settled_facts(plan_invocation(in_directory(repo.as_path(), served.as_slice()).as_slice(), &[], &resolution));
+    assert!(served_facts.creates_or_moves);
+    assert!(matches!(served_facts.identity, crate::worktree_identity::WorktreeIdentity::MainWorktree { .. }));
+    let plan = served_facts.add_plan.expect("the ladder serves this form");
     assert_eq!(plan.destination, std::fs::canonicalize(root.as_path()).expect("canonical").join("second"));
     remove(root.as_path());
 }

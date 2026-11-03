@@ -25,6 +25,11 @@ fn run(platform: &dyn Platform, worktree: &Path, options: ConvertOptions, interr
     return (verdict, lines);
 }
 
+/// Run one conversion and ignore its lines.
+fn run_quiet(platform: &dyn Platform, worktree: &Path, options: ConvertOptions, interrupt: &Interrupt) -> Result<Verdict, MigrateError> {
+    return run(platform, worktree, options, interrupt).0;
+}
+
 /// The administrative directory of a worktree.
 fn admin_of(worktree: &Path) -> PathBuf {
     return inspect(worktree).expect("registered").admin;
@@ -67,7 +72,7 @@ fn a_worktree_is_converted_in_place() {
     assert_ne!(std::fs::metadata(&worktree).expect("new").ino(), old_inode, "the path names a new directory");
     assert_eq!(std::fs::read(parent.join("foreign")).expect("foreign"), b"keep", "nothing foreign was touched");
     // A second run finds the subvolume and does nothing.
-    let (again, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    let again = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(again.expect("skipped"), Verdict::AlreadySubvolume);
     remove(parent.as_path());
 }
@@ -77,7 +82,7 @@ fn a_worktree_is_converted_in_place() {
 fn a_dry_run_changes_nothing() {
     let (parent, _root, worktree) = quiet_worktree("convert-dry");
     let platform: PlainPlatform = PlainPlatform::new();
-    let (verdict, _lines) = run(&platform, worktree.as_path(), ConvertOptions { dry_run: true, abandon: false }, &Interrupt::never());
+    let verdict = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: true, abandon: false }, &Interrupt::never());
     assert_eq!(verdict.expect("dry"), Verdict::WouldConvert);
     assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"));
     assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists());
@@ -101,8 +106,8 @@ fn each_refusal_leaves_the_worktree_untouched() {
     let (parent, root, worktree) = quiet_worktree("convert-refusals");
     let platform: PlainPlatform = PlainPlatform::new();
     let admin: PathBuf = admin_of(worktree.as_path());
-    let untouched = |platform: &PlainPlatform| {
-        assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"));
+    let untouched = |checked: &PlainPlatform| {
+        assert!(!checked.is_subvolume_root(worktree.as_path()).expect("examined"));
         assert!(!admin.join(JOURNAL_NAME).exists(), "no journal was written");
     };
     // Locked.
@@ -148,7 +153,7 @@ fn a_kill_at_every_phase_is_finished_by_a_rerun() {
         let platform: PlainPlatform = PlainPlatform::new();
         let git_file: Vec<u8> = std::fs::read(worktree.join(".git")).expect(".git");
         std::fs::write(parent.join("foreign"), b"keep").expect("foreign file");
-        let (killed, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::at(point, 0));
+        let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at(point, 0));
         assert_eq!(killed.expect_err("killed"), MigrateError::Interrupted(String::from(point)), "{point}");
         let (resumed, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
         assert_eq!(resumed.expect("finished"), Verdict::Resumed, "{point}: {lines:#?}");
@@ -164,24 +169,24 @@ fn a_kill_at_every_phase_is_finished_by_a_rerun() {
 fn abandon_undoes_before_the_swap_and_refuses_after() {
     let (parent, _root, worktree) = quiet_worktree("convert-abandon");
     let platform: PlainPlatform = PlainPlatform::new();
-    let (killed, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0));
+    let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0));
     assert!(killed.is_err());
     assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_ok(), "the copy exists");
-    let (undone, _lines) = run(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
+    let undone = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
     assert_eq!(undone.expect("abandoned"), Verdict::Abandoned);
     assert_nothing_left(worktree.as_path());
     assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"));
     assert_eq!(std::fs::read(worktree.join("README.md")).expect("original intact"), b"readme\n");
     // Nothing to abandon without a journal.
-    let (nothing, _lines) = run(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
+    let nothing = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
     skipped_with(nothing, "nothing to abandon");
     // Past the swap the abandon refuses and deletes nothing.
-    let (past, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0));
+    let past = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0));
     assert!(past.is_err());
-    let (refused, _lines) = run(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
+    let refused = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
     skipped_with(refused, "past the swap");
     assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_ok(), "the old tree is still there");
-    let (finished, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    let finished = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(finished.expect("finished"), Verdict::Resumed);
     remove(parent.as_path());
 }
@@ -192,7 +197,7 @@ fn abandon_undoes_before_the_swap_and_refuses_after() {
 fn a_directory_that_is_not_the_recorded_old_tree_is_never_removed() {
     let (parent, _root, worktree) = quiet_worktree("convert-foreign-old");
     let platform: PlainPlatform = PlainPlatform::new();
-    let (killed, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::at("refreshed", 0));
+    let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("refreshed", 0));
     assert!(killed.is_err());
     let converting: PathBuf = converting_path(worktree.as_path());
     let kept: PathBuf = parent.join("old-tree-kept");
@@ -212,14 +217,14 @@ fn a_directory_that_is_not_the_recorded_old_tree_is_never_removed() {
 fn a_process_inside_stops_the_swap_of_a_resumed_conversion() {
     let (parent, _root, worktree) = quiet_worktree("convert-process");
     let platform: PlainPlatform = PlainPlatform::new();
-    let (killed, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0));
+    let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0));
     assert!(killed.is_err());
     let mut child: std::process::Child = std::process::Command::new("sleep").arg("30").current_dir(&worktree).spawn().expect("sleep");
     skipped_with(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0, "working directory or an open file");
     assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "nothing was swapped");
     child.kill().expect("kill");
     child.wait().expect("wait");
-    let (finished, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    let finished = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(finished.expect("finished"), Verdict::Resumed);
     remove(parent.as_path());
 }
@@ -237,7 +242,7 @@ fn a_change_during_the_copy_is_caught_before_the_swap() {
             }
         }
     }));
-    let (verdict, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    let verdict = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::never());
     let message: String = verdict.expect_err("the proving pass refuses").to_string();
     assert!(message.contains("changed while it was copied"), "{message}");
     assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "nothing was swapped");
@@ -250,8 +255,8 @@ fn a_change_during_the_copy_is_caught_before_the_swap() {
 fn a_real_conversion_makes_a_subvolume_and_clones_file_data() {
     use crate::fs_btrfs_test_support::btrfs_fixture;
     use crate::subvolume_platform::LinuxPlatform;
-    let Some(parent) = btrfs_fixture("convert-real") else { return };
-    remove(parent.as_path());
+    let Some(probe) = btrfs_fixture("convert-real") else { return };
+    remove(probe.as_path());
     let (parent, root, worktree) = quiet_worktree("convert-real");
     let git_file: Vec<u8> = std::fs::read(worktree.join(".git")).expect(".git");
     let (verdict, lines) = run(&LinuxPlatform, worktree.as_path(), RUN, &Interrupt::never());

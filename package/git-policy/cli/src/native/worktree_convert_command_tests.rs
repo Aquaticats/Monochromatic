@@ -41,13 +41,13 @@ fn all_worktrees_are_listed_then_converted() {
     assert!(!platform.is_subvolume_root(root.join("wt").as_path()).expect("examined"), "a dry run converts nothing");
     std::fs::remove_file(root.join(".git/worktrees/second/locked")).expect("unlock");
     let real: ConvertArguments = ConvertArguments { all: true, ..ConvertArguments::default() };
-    let (code, lines) = run(&platform, &real, root.as_path());
-    assert_eq!(code, 0, "{lines:#?}");
+    let (real_code, real_lines) = run(&platform, &real, root.as_path());
+    assert_eq!(real_code, 0, "{real_lines:#?}");
     assert!(platform.is_subvolume_root(root.join("wt").as_path()).expect("examined"));
     assert!(platform.is_subvolume_root(root.join("second").as_path()).expect("examined"));
-    let (code, lines) = run(&platform, &real, root.as_path());
-    assert_eq!(code, 0);
-    assert_eq!(lines.iter().filter(|line: &&String| { return line.contains("already a subvolume"); }).count(), 2, "{lines:#?}");
+    let (again_code, again_lines) = run(&platform, &real, root.as_path());
+    assert_eq!(again_code, 0);
+    assert_eq!(again_lines.iter().filter(|line: &&String| { return line.contains("already a subvolume"); }).count(), 2, "{again_lines:#?}");
     remove(parent.as_path());
 }
 
@@ -62,13 +62,13 @@ fn a_refused_named_worktree_is_status_one_and_a_failure_is_status_two() {
     assert_eq!(code, REFUSED_EXIT_CODE, "{lines:#?}");
     assert!(lines.iter().any(|line: &String| { return line.contains("index.lock"); }), "{lines:#?}");
     let missing: ConvertArguments = ConvertArguments { paths: vec![std::ffi::OsString::from("nowhere")], ..ConvertArguments::default() };
-    let (code, lines) = run(&platform, &missing, root.as_path());
-    assert_eq!(code, REFUSED_EXIT_CODE, "{lines:#?}");
+    let (missing_code, missing_lines) = run(&platform, &missing, root.as_path());
+    assert_eq!(missing_code, REFUSED_EXIT_CODE, "{missing_lines:#?}");
     std::fs::remove_file(root.join(".git/worktrees/wt/index.lock")).expect("unlock");
     let killed: i32 = execute(&platform, &named, root.as_path(), &Interrupt::at("created", 0), &mut |_text: &str| {});
     assert_eq!(killed, FAILED_EXIT_CODE);
-    let (code, lines) = run(&platform, &named, root.as_path());
-    assert_eq!(code, 0, "{lines:#?}");
+    let (finished_code, finished_lines) = run(&platform, &named, root.as_path());
+    assert_eq!(finished_code, 0, "{finished_lines:#?}");
     remove(parent.as_path());
 }
 

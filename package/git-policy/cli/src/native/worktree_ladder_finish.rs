@@ -84,6 +84,8 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     for note in settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice()) {
         warn(TAG, format!("cli-git: {note}").as_str());
     }
+    // What a snapshot of the main checkout set aside is emptied by the service; nothing is set aside for a linked worktree.
+    super::worktree_trash::dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), &mut std::io::stderr());
     return Ok(target.line);
 }
 
