@@ -10329,3 +10329,11 @@ by the coordinator at merge.
   says "0 converted or completed" beside "would convert" lines; it should count what would convert. 0.5.22 stack
   rerun gate passed (3970 run, 3970 passed, `gate-exit-status=0`) and is merged into main; release after the
   0.5.21 add check (new worktree's `node_modules` resolve) returns.
+- 2026-11-03T04:00:40-05:00: 0.5.21 add check from main (throwaway worktree, removed): snapshot route; `node_modules/.bin/oxlint`
+  runs and `typescript` resolves through the global store, so the package repair works. But the add took 60493
+  ms: pnpm relink 7.0 s, Cargo (32 build directories cloned, own crates cleaned) 46.1 s, toolchain links 1.4 s;
+  and one clone failed on a file a test left unreadable
+  (`.../debug/build/wg-quicker-exempt/test-scratch/.../cmdline`, `EACCES`), for which the add printed the remaining
+  `cargo clean` step. Sent to the add-speed agent (split the Cargo step, parallelism, reflink across filesystems,
+  deferral options within the owner's decision, and finishing a clone past an unreadable file). 0.5.22 dispatched
+  (run 41607520853).
