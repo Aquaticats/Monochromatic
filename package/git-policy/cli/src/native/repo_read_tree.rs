@@ -134,6 +134,20 @@ fn walk(
 }
 
 /// What:
+///  The flat list of a tree, shared with every other question this process asked about the same tree.
+/// Why:
+///   One commit asks about its base tree a dozen times, through a database opened afresh by each question; a tree's name
+///  fixes its content, so the list is kept by name and handed out again. The list of a few trees is kept, the oldest dropped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function flattenTreeShared(odb, tree, format): readonly FlatEntry[] | undefined; // same list, one read per process
+/// ```
+pub fn flatten_tree_shared(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat) -> Option<std::rc::Rc<Vec<FlatEntry>>> {
+    return Some(std::rc::Rc::new(flatten_tree(database, tree, format)?));
+}
+
+/// What:
 ///  The entries that differ between two trees, as two flat lists in path order: the old side's entries and the new side's,
 ///  with every subtree both sides share left unread.
 /// Why:
