@@ -202,7 +202,7 @@ Read-only commands,
    subvolumes). A snapshot of the main checkout does not decline for one: it sets those worktrees, other checkouts, caches
    and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards.
   The line reads like `cli-git: this worktree was not made as a snapshot, so it took longer, because the main checkout has
-   uncommitted changes in 2 paths (for example pnpm-lock.yaml). Commit or stash them, and the next add is a snapshot that
+   uncommitted changes in 2 paths (for example notes.md). Commit or stash them, and the next add is a snapshot that
    takes seconds.` It tells uncommitted changes, a running Git command, an unfinished operation, an index that cannot yet
    vouch for its files (`git status` once fixes it), a source that is no subvolume, and a snapshot that started and failed;
    `journalctl --identifier=cli-git` finds the same entry afterwards, with the fields `CLI_GIT_WORKTREE`,
