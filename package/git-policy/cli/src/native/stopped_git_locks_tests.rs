@@ -229,3 +229,30 @@ fn locks_that_are_not_reference_locks_stay() {
 }
 
 //endregion
+
+//region The wrapper's own reaped child, in a process table that is not the machine's
+// The container gate showed `git_stop_lock_tests::a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own` failing
+// there: a container has a PID namespace of its own, so the judge cannot tell a gone number from one of another namespace.
+
+/// A judge with the view a container has: the process numbers it reads are not known to be the machine's.
+fn container_judge() -> crate::stale_ref_lock_judge::Judge {
+    return crate::stale_ref_lock_judge::Judge { pid_view_complete: false, ..crate::stale_ref_lock_killed_git::judge() };
+}
+
+/// The wrapper started the child, stopped it and saw it end, so the number in the pid file the child wrote is a number of
+///  the wrapper's own namespace and names a process that is gone, whatever view the judge has of the machine.
+#[test]
+fn a_lock_named_by_an_ended_child_of_the_wrapper_goes_in_a_container_view() {
+    let repo: Repo = repo("stopped-locks-container-view");
+    let mut command: Command = Command::new("git");
+    command.current_dir(repo.root.as_path());
+    let ledger: LockLedger = LockLedger::before_start(&command).with_judge(container_judge());
+    let member: TreeMember = ended_member();
+    std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the lock the child held");
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    assert_eq!(ledger.sweep(), vec![lock_of(&repo, "main")]);
+    assert!(!lock_of(&repo, "main").exists() && !pid_file_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+//endregion
