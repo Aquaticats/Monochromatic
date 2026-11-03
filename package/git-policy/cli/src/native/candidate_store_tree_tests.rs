@@ -103,6 +103,29 @@ fn a_failed_listing_is_reported() {
     remove(root.as_path());
 }
 
+/// A commit's files are listed by Git once in a process, whichever store asks: the commit hook of the wrapper builds a store for
+/// the policies before the commit and another for the gate after it, both over the same base commit, and each listing is a Git
+/// start that reads every tree of a repository with tens of thousands of files (measured: 41 ms warm for 20,740 files). The
+/// second store is answered with the first one's records; removing the tree object between the two asks makes a listing by Git
+/// fail, so an answer proves that Git was not asked again.
+#[test]
+fn a_commit_listed_by_one_store_is_not_listed_again_by_another() {
+    let root: PathBuf = fixture("store-head-tree-once");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    write(repo.as_path(), b"file.txt", b"content\n");
+    git(repo.as_path(), &["add", "file.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=file"]);
+    let mut first: CandidateStore = store(repo.as_path());
+    let listed: Vec<TreeRecord> = first.head_tree_records().expect("first listing");
+    assert_eq!(listed.len(), 1, "the commit holds one file");
+    let head: String = String::from_utf8(git(repo.as_path(), &["rev-parse", "HEAD:"]).stdout).expect("tree name");
+    let tree: &str = head.trim();
+    std::fs::remove_file(repo.join(".git/objects").join(&tree[..2]).join(&tree[2..])).expect("remove the tree object");
+    let mut second: CandidateStore = store(repo.as_path());
+    assert_eq!(second.head_tree_records().expect("answered without Git"), listed);
+    remove(root.as_path());
+}
+
 /// A pushed tree lists a name that is not UTF-8 by its exact bytes.
 #[test]
 fn a_pushed_tree_lists_a_name_that_is_not_utf8_exactly() {
