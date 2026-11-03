@@ -2125,7 +2125,9 @@ Removed:
 - The mutex-guarded table of landed captures (`service_captures.rs`):
   the serve loop that lands commits and answers clients owns it, and passes it down.
 - The mutex on the review credentials (`service_work.rs`):
-  the work thread that remembers, reads and forgets them owns the map.
+  the work thread that remembers, reads and forgets them owned the map (commit `52f06fbe12`); since the work consumer drains
+  repositories side by side, a round makes a read-only copy of the handlers that holds the round's credentials as values, the
+  workers only read it, and it is dropped when the round ends, so the map has no owner to wait for and no lock.
 - The mutexes and the condition variable of the claim renewal (`service_claim_renewal.rs`):
   see "Leases of claimed work".
 - The long hold of Git's `index.lock`:
@@ -2143,6 +2145,21 @@ Kept, each with its reason in the code and here:
   rename-based, no lock file; a lease is how a later instance learns that a killed holder abandoned a claim (see "Leases of claimed work").
 
 Init-once cells (`OnceLock`) hold values read at first use (a boot ID, the machine ID, the Git release, the process identity) and wait for nothing after.
+
+### Repositories of a round run side by side
+
+The after-commit work of the service (pushes, upkeep, reviews, trash) is drained one repository at a time in releases before this
+one, by the single work thread that commit `52f06fbe12` made the owner of the review credentials.
+The repository owner's answer of 2026-11-03 to whether the service's independent work should run side by side was
+"Parallelize, no locks (Recommended)", so a round of wakes now drains its repositories on workers within the host budget
+(`src/native/service_round.rs`): the threads the process may run less a margin, and the memory free in its control group.
+Inside the commit service's unit, which allows two CPUs and one gibibyte, that is two repositories at once.
+The retry list is reported in the order the directories were named, whichever drain finishes first.
+The directories of one repository (a common directory and its linked worktrees' Git directories) are one lane and are drained one
+after another, because they share a work directory and its upkeep.
+Nothing is shared mutably: the handlers are read-only, every claim is still made by an atomic rename, each drain keeps its own
+renewal of its own claims, and `service_lock_inventory_tests.rs` still forbids a lock in these sources.
+Within one repository the items still run in the order the drain gave them: pushes grouped by branch, then upkeep, trash, reviews.
 
 ### The service's hold on the index lock
 
