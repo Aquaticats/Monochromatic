@@ -191,6 +191,35 @@ Done since the last list:
   Review inputs ready:
   `commit-components-4.diff` with `components-r4-*.rs`,
   and `commit-models-2a.diff`/`2b.diff`.
+- Fourth components review (`commit-components-sol-4.txt`,
+  2026-11-03T18:32:34Z):
+  "Ready after named fixes".
+  P1:
+  `init_root` can accept a symlinked root whose target ancestry is not durable.
+  P2s:
+  standalone `repair_tail` lacks its ancestry and ownership contract;
+  amendment parent names are not a recoverable closure;
+  gitlink refusal needs a working native fallback;
+  resends write a duplicate temporary before finding the identical final file (fails on a full disk);
+  every ledger append rescans the whole ledger,
+  and replay's prefix check is quadratic in paths.
+  Its sync count:
+  2n + 20 syncs before acceptance for n paths (22 for one path),
+  2n + 27 through retirement,
+  before native Git's own work;
+  sent to the revision 12 agent,
+  since that many waited-for syncs cannot meet the 5 s rule under pressure.
+- First models review,
+  part one (`commit-models-sol-2a.txt`,
+  2026-11-03T18:23Z start):
+  P1,
+  `explore_bounded_by` (`model_explore.rs:494-523`) can report a wait bounded when another process's retry loop is its only successor,
+  so current green reports do not approve revision 11.
+  Part two is running (`commit-models-sol-2b.txt`).
+- Queued for the next free agent slot:
+  the components fixes from the fourth review;
+  the explorer fix and the rest of the models review's findings (independent of revision 12),
+  then the models for revision 12.
 
 Older entries,
 from the 2026-11-03T10:00-05:00 list,
