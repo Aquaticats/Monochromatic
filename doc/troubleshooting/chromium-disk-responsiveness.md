@@ -1,6 +1,6 @@
 # Chromium 156.0.8078.73 synchronous disk dependencies can delay UI and rendering
 
-## Audit status at 2026-11-03T03:19:35-05:00
+## Audit status at 2026-11-03T03:43:41-05:00
 
 The audit found direct browser-UI file operations,
 renderer waits for storage services,
@@ -22,10 +22,12 @@ The supporting evidence is split by the affected execution path:
 - [Desktop UI and profile paths](chromium-disk-responsiveness/desktop-ui.md).
 - [Mapped metrics, resources, fonts, and dictionaries](chromium-disk-responsiveness/mapped-files.md).
 - [Renderer storage, mobile UI, and lifecycle paths](chromium-disk-responsiveness/mobile-renderer-lifecycle.md).
+- [Runtime dependencies and their Chromium callers](chromium-disk-responsiveness/dependencies.md).
 - [Machine-readable scan results](chromium-disk-responsiveness/scan-summary.json)
   and [candidate inventory](chromium-disk-responsiveness/candidates.jsonl.gz).
 
-Source-link browser checks and dependency-result consolidation are in progress.
+The complete-tree searches are finished;
+the inventory is not an exhaustive proof of every reachable operation in every Chromium dependency.
 
 ## Symptom boundaries
 
@@ -128,6 +130,15 @@ Compressed packs that were expanded into owned memory are a distinct branch.
 
 ### Font and spelling cache misses retain synchronous file dependencies
 
+[Browser font creation](chromium-disk-responsiveness/dependencies.md#browser-ui-fonts-use-synchronous-skia-file-access-under-a-shared-manager-lock)
+calls Skia's Linux font manager synchronously.
+On a cache miss,
+that manager holds its mutex while opening and mapping a font file.
+The browser's font service also uses that manager,
+so worker-side loading can create a lock dependency for a concurrent UI font miss.
+This is a possible contention path,
+not a measured lock wait.
+
 [Font lookup](chromium-disk-responsiveness/mapped-files.md#font-misses-synchronously-await-disk-work-then-retain-file-mappings-for-rendering)
 uses a synchronous service call from layout on a cache miss.
 The service opens the font on a worker,
@@ -138,6 +149,11 @@ The legacy font loader also explicitly waits for its worker.
 maps `.bdic` files and retains their bytes for synchronous checks and suggestions.
 These are page responsiveness risks during layout or editing;
 they are not new measurements of a whole-window freeze.
+
+[PDF substitute fonts](chromium-disk-responsiveness/dependencies.md#pdf-substitute-font-reads-run-synchronously-in-the-renderer-callback)
+also use synchronous `fstat` and `pread` in Chromium's Linux font callback.
+The normal PDF document-byte path instead uses the custom document loader;
+upstream PDFium file helpers alone do not establish disk reads during normal document rendering.
 
 ### Parked strings and images are synchronously read back from disk
 
@@ -250,6 +266,13 @@ and feature gates for each flag:
   and mobile foreground/background transitions.
 - Configured NetLog or TLS key logging synchronously opens files when the network service is created.
 - External ICU data and V8 snapshot loading have startup file opens and mapped-data dependencies.
+- With renderer-side audio processing,
+  stopping an enabled WebRTC echo-cancellation dump waits on the renderer main thread
+  for queued file writes to finish.
+  This is a diagnostic-feature teardown path.
+- ANGLE and Dawn synchronously load native libraries in selected initialization branches.
+  These can delay graphics readiness;
+  a browser-main-thread caller was not established for those loader branches.
 - Browser teardown waits for outstanding `BLOCK_SHUTDOWN` work,
   including atomic bookmark writes with a flush.
   The end-session preference-write rundown has a separate timed wait.
@@ -257,6 +280,8 @@ and feature gates for each flag:
 See [desktop evidence](chromium-disk-responsiveness/desktop-ui.md),
 [mobile and lifecycle evidence](chromium-disk-responsiveness/mobile-renderer-lifecycle.md),
 and [external data evidence](chromium-disk-responsiveness/mapped-files.md#external-v8-snapshots-and-icu-data-retain-startup-and-cold-page-dependencies).
+The [dependency evidence](chromium-disk-responsiveness/dependencies.md)
+also traces the echo-cancellation dump and native-library loaders.
 
 ## Verification and coverage
 
@@ -269,6 +294,8 @@ enumerated in [the symlink inventory](chromium-disk-responsiveness/symlinks.json
 No untracked files entered the primary scan.
 Git internals were excluded;
 hidden and ignored source files were included.
+Ripgrep's binary-file detection remained active;
+this is a text-source search rather than an exhaustive search of binary assets.
 
 The [search patterns](chromium-disk-responsiveness/patterns.txt)
 cover explicit blocking allowances,
@@ -302,6 +329,15 @@ their counts must not be summed as distinct operations or defects.
 The [supplementary summary](chromium-disk-responsiveness/supplemental-summary.json)
 and [patterns](chromium-disk-responsiveness/supplemental-patterns.txt) are retained.
 
+A [native-library-loader pass](chromium-disk-responsiveness/loader-raw.jsonl.gz)
+searched the same core files and found `371` matching lines in `226` files.
+Its [patterns](chromium-disk-responsiveness/loader-patterns.txt)
+and [summary](chromium-disk-responsiveness/loader-summary.json) are retained separately.
+The [inventory verification](chromium-disk-responsiveness/scan-verification.json)
+recounts the compressed primary artifact,
+checks its distinct-file total,
+and confirms named source positive controls plus a non-matching declaration control.
+
 The first primary-scan attempt rejected ripgrep's base64 representation for a non-UTF-8 text line.
 That parser was corrected and the complete scan rerun successfully.
 Only the completed run supplies the counts in this report.
@@ -313,12 +349,98 @@ platform-library internals,
 and dependencies not checked out.
 It also cannot detect arbitrary executable-page or swapped-anonymous-memory faults from a file-API search.
 
+### Dependency coverage
+
+The pinned V8,
+Skia,
+ANGLE,
+Dawn,
+PDFium,
+ICU,
+LevelDB,
+SQLite,
+and WebRTC repositories were also acquired and scanned.
+Together they contribute `144,427` regular tracked files,
+`1,229,036,005` searched bytes,
+and `17,752` matching lines after adding named dependency file helpers.
+The original core patterns match `17,166` of those lines.
+A separate library-loader pass found `191` matching lines;
+it overlaps the main dependency scan.
+
+The other `264` top-level gitlinks were not populated by this audit.
+The selected dependencies also contain `148` nested gitlinks and a symlink that were inventoried,
+not traversed.
+Build-time downloads,
+generated output,
+private Chrome code,
+OS implementations,
+and proprietary graphics or printer drivers are outside the inspected source corpus.
+The [top-level gitlink manifest](chromium-disk-responsiveness/gitlinks.json)
+retains their exact paths and revisions.
+The [dependency manifest](chromium-disk-responsiveness/dependencies/summary.json)
+and [combined dependency candidates](chromium-disk-responsiveness/dependencies/dependencies-candidates.jsonl.gz)
+retain the selected repositories' results.
+The core and selected dependency scans together cover `649,500` files.
+This scope is broader than a Chromium-directory keyword search,
+but it is not a complete audit of the transitive dependency universe.
+
+### Browser-validation resource limit
+
+The first disposable citation browser ran with `TasksMax=128`.
+Its cgroup recorded `pids.events` value `max 100`,
+while its memory limit and OOM counters remained zero.
+`agent-browser 0.41.0` reported
+`Operation timed out. The page may still be loading or the element may not exist.`
+and a later probe reported
+`Failed to read: Resource temporarily unavailable (os error 11)`.
+No failed navigation was counted as a verified citation.
+
+Closing that owned session and relaunching the same browser with `TasksMax=512`
+loaded the same GitHub source selection successfully.
+A second validation session measured `176` live tasks with `pids.events max 0`
+after the corrected launch.
+The source scans retained their own lower task bounds.
+This is evidence that the validation task budget was insufficient;
+it is not evidence that each browser error had the same immediate cause.
+
 No Chromium build,
 device latency test,
 feature-toggle experiment,
 or new browser stall reproduction was performed.
 No runtime flags or profile files were changed for this audit.
-The three delegated source passes used the same model vendor and are not independent reviews.
+The delegated source passes used the same model vendor and are not independent reviews.
+
+### Reproducing the lexical search
+
+The primary scan used the invocation in this excerpt from a fresh top-level checkout,
+before separately versioned dependencies were populated.
+Its pattern file is committed with this report.
+Populated dependency directories must be excluded to reproduce the core-only counts;
+the supplemental scans used exclusions generated from `gitlinks.json`.
+
+```sh
+# From the pinned Chromium checkout, with AUDIT_DIR naming this report's companion directory.
+systemd-run --user --scope \
+  --property=CPUQuota=200% --property=MemoryMax=6G \
+  --property=TasksMax=128 --property=IOWeight=10 \
+  rg --json --hidden --no-ignore --glob '!.git/**' \
+  --file "${AUDIT_DIR}/patterns.txt" .
+```
+
+The JSON records expose path,
+line,
+and matched text.
+The committed compressed inventory adds categories and a filename-based triage label.
+Rendering is reproducible with `mise run verify:markdown`
+from `doc/troubleshooting/chromium-disk-responsiveness`.
+
+All `131` external source-selection URLs in the overview and evidence documents
+were opened in disposable browser sessions.
+The selected anchors and source excerpts were compared with the pinned checkouts.
+The [validation summary](chromium-disk-responsiveness/validation-summary.json)
+checks that every cited URL has a successful verification record.
+Full records retain failed attempts separately;
+browser DOM blank-line and trailing-whitespace differences were normalized for comparison.
 
 ## What does not establish a UI disk stall
 

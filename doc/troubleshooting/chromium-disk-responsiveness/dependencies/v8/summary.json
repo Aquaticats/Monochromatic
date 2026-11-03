@@ -1,0 +1,22 @@
+{
+  "dependency": "v8",
+  "revision": "235050a0df6db2c9d92a419af2b72fbf3b2dd73b",
+  "date": "2026-11-03T08:18:38.813Z",
+  "trackedEntries": 19826,
+  "regularFilesScanned": 19826,
+  "omitted": [],
+  "matches": 1778,
+  "originalPatternMatches": 1775,
+  "wrapperMatches": 5,
+  "matchedFiles": 459,
+  "productionLooking": 561,
+  "searchedBytes": 156072135,
+  "perFamily": {
+    "file": 96,
+    "posix": 916,
+    "managed": 146,
+    "mapping": 197,
+    "wait": 428,
+    "dependency-wrapper": 5
+  }
+}

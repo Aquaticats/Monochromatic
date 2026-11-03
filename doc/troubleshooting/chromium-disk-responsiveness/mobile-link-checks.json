@@ -1,0 +1,3457 @@
+{
+  "startedAt": "2026-11-03T08:28:03.733Z",
+  "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+  "session": "chromium-audit-platform-links",
+  "method": "Open each exact GitHub selection URL; compare rendered LC anchor and up to five following lines with pinned local source. Trailing whitespace is ignored. Require anchor in viewport. Missing virtualized lines are recorded, never matched as empty.",
+  "references": 56,
+  "priorAttempts": [
+    {
+      "host": "github.com",
+      "reference": "storage-get-item",
+      "status": "failed",
+      "tasksMax": 128,
+      "error": "Operation timed out. The page may still be loading or the element may not exist.",
+      "attempts": 2,
+      "subsequentPage": "about:blank",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/storage_area.cc#L113-L119"
+    },
+    {
+      "host": "chromium.googlesource.com",
+      "reference": "storage-get-item",
+      "status": "failed",
+      "tasksMax": 128,
+      "error": "Navigation failed: net::ERR_SOCKET_NOT_CONNECTED",
+      "url": "https://chromium.googlesource.com/chromium/src/+/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/storage_area.cc#113"
+    },
+    {
+      "command": "eval",
+      "status": "outcome_unknown",
+      "tasksMax": 128,
+      "error": "Failed to read: Resource temporarily unavailable (os error 11)",
+      "cgroup": {
+        "pidsMax": 128,
+        "pidsCurrent": 55,
+        "pidsEventsMax": 37,
+        "oom": 0
+      }
+    },
+    {
+      "host": "chromium.googlesource.com",
+      "reference": "storage-get-item",
+      "status": "http_error_page",
+      "tasksMax": 512,
+      "title": "Error 503 (Service Unavailable)!!1",
+      "url": "https://chromium.googlesource.com/chromium/src/+/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/storage_area.cc#113"
+    }
+  ],
+  "cgroupBefore": {
+    "pid": "1795855",
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-monochromatic\\x2dupdates.slice/wg-quicker-update-app.slice-run\\x2dp1795723\\x2di39556311.scope.scope",
+    "values": {
+      "pids.max": "512",
+      "pids.current": "173",
+      "pids.events": "max 0",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0"
+    }
+  },
+  "results": [
+    {
+      "reference": "storage-get-item",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/storage_area.cc#L113-L119",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "third_party/blink/renderer/modules/storage/storage_area.cc",
+      "firstLine": 113,
+      "lastLine": 119,
+      "anchor": "#L113-L119",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:04.027Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "String StorageArea::getItem(const String& key,\n                            ExceptionState& exception_state) const {\n  if (!CanAccessStorage()) {\n    exception_state.ThrowSecurityError(StorageArea::kAccessDeniedMessage);\n    return String();",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L113-L119",
+        "lines": [
+          {
+            "line": 113,
+            "present": true,
+            "text": "String StorageArea::getItem(const String& key,"
+          },
+          {
+            "line": 114,
+            "present": true,
+            "text": "                            ExceptionState& exception_state) const {"
+          },
+          {
+            "line": 115,
+            "present": true,
+            "text": "  if (!CanAccessStorage()) {"
+          },
+          {
+            "line": 116,
+            "present": true,
+            "text": "    exception_state.ThrowSecurityError(StorageArea::kAccessDeniedMessage);"
+          },
+          {
+            "line": 117,
+            "present": true,
+            "text": "    return String();"
+          }
+        ],
+        "rect": {
+          "bottom": 368,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 348,
+          "width": 843,
+          "x": 420,
+          "y": 348
+        },
+        "title": "chromium/third_party/blink/renderer/modules/storage/storage_area.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/storage_area.cc#L113-L119",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "cache-get-item",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/cached_storage_area.cc#L69-L71",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "third_party/blink/renderer/modules/storage/cached_storage_area.cc",
+      "firstLine": 69,
+      "lastLine": 71,
+      "anchor": "#L69-L71",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:06.448Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "String CachedStorageArea::GetItem(const String& key) {\n  EnsureLoaded();\n  return map_->GetItem(key);",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L69-L71",
+        "lines": [
+          {
+            "line": 69,
+            "present": true,
+            "text": "String CachedStorageArea::GetItem(const String& key) {"
+          },
+          {
+            "line": 70,
+            "present": true,
+            "text": "  EnsureLoaded();"
+          },
+          {
+            "line": 71,
+            "present": true,
+            "text": "  return map_->GetItem(key);"
+          }
+        ],
+        "rect": {
+          "bottom": 409,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 389,
+          "width": 843,
+          "x": 420,
+          "y": 389
+        },
+        "title": "chromium/third_party/blink/renderer/modules/storage/cached_storage_area.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/cached_storage_area.cc#L69-L71",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "cache-load",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/cached_storage_area.cc#L615-L633",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "third_party/blink/renderer/modules/storage/cached_storage_area.cc",
+      "firstLine": 615,
+      "lastLine": 633,
+      "anchor": "#L615-L633",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:07.801Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void CachedStorageArea::EnsureLoaded() {\n  if (map_)\n    return;\n  if (!remote_area_)\n    BindStorageArea();",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L615-L633",
+        "lines": [
+          {
+            "line": 615,
+            "present": true,
+            "text": "void CachedStorageArea::EnsureLoaded() {"
+          },
+          {
+            "line": 616,
+            "present": true,
+            "text": "  if (map_)"
+          },
+          {
+            "line": 617,
+            "present": true,
+            "text": "    return;"
+          },
+          {
+            "line": 618,
+            "present": true,
+            "text": "  if (!remote_area_)"
+          },
+          {
+            "line": 619,
+            "present": true,
+            "text": "    BindStorageArea();"
+          }
+        ],
+        "rect": {
+          "bottom": 483,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 463,
+          "width": 843,
+          "x": 420,
+          "y": 463
+        },
+        "title": "chromium/third_party/blink/renderer/modules/storage/cached_storage_area.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/cached_storage_area.cc#L615-L633",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "storage-sync",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/public/mojom/dom_storage/storage_area.mojom#L134-L139",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "third_party/blink/public/mojom/dom_storage/storage_area.mojom",
+      "firstLine": 134,
+      "lastLine": 139,
+      "anchor": "#L134-L139",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:09.625Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "  // Returns all key/value pairs and optionally adds a new StorageAreaObserver\n  // which will observe all events on the StorageArea which occur after the\n  // returned snapshot.\n  [Sync]\n  GetAll(pending_remote<StorageAreaObserver>? new_observer)",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L134-L139",
+        "lines": [
+          {
+            "line": 134,
+            "present": true,
+            "text": "  // Returns all key/value pairs and optionally adds a new StorageAreaObserver"
+          },
+          {
+            "line": 135,
+            "present": true,
+            "text": "  // which will observe all events on the StorageArea which occur after the"
+          },
+          {
+            "line": 136,
+            "present": true,
+            "text": "  // returned snapshot."
+          },
+          {
+            "line": 137,
+            "present": true,
+            "text": "  [Sync]"
+          },
+          {
+            "line": 138,
+            "present": true,
+            "text": "  GetAll(pending_remote<StorageAreaObserver>? new_observer)"
+          }
+        ],
+        "rect": {
+          "bottom": 421,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 401,
+          "width": 843,
+          "x": 420,
+          "y": 401
+        },
+        "title": "chromium/third_party/blink/public/mojom/dom_storage/storage_area.mojom at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/public/mojom/dom_storage/storage_area.mojom#L134-L139",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "storage-service-load",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/storage_area_impl.cc#L504-L521",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "components/services/storage/dom_storage/storage_area_impl.cc",
+      "firstLine": 504,
+      "lastLine": 521,
+      "anchor": "#L504-L521",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:12.215Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void StorageAreaImpl::GetAll(\n    mojo::PendingRemote<blink::mojom::StorageAreaObserver> new_observer,\n    GetAllCallback callback) {\n  // If the map is keys-only and empty, then no loading is necessary.\n  if (IsMapLoadedAndEmpty()) {",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L504-L521",
+        "lines": [
+          {
+            "line": 504,
+            "present": true,
+            "text": "void StorageAreaImpl::GetAll("
+          },
+          {
+            "line": 505,
+            "present": true,
+            "text": "    mojo::PendingRemote<blink::mojom::StorageAreaObserver> new_observer,"
+          },
+          {
+            "line": 506,
+            "present": true,
+            "text": "    GetAllCallback callback) {"
+          },
+          {
+            "line": 507,
+            "present": true,
+            "text": "  // If the map is keys-only and empty, then no loading is necessary."
+          },
+          {
+            "line": 508,
+            "present": true,
+            "text": "  if (IsMapLoadedAndEmpty()) {"
+          }
+        ],
+        "rect": {
+          "bottom": 434,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 414,
+          "width": 843,
+          "x": 420,
+          "y": 414
+        },
+        "title": "chromium/components/services/storage/dom_storage/storage_area_impl.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/storage_area_impl.cc#L504-L521",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "storage-read-map",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/storage_area_impl.cc#L569-L606",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "components/services/storage/dom_storage/storage_area_impl.cc",
+      "firstLine": 569,
+      "lastLine": 606,
+      "anchor": "#L569-L606",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:12.730Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void StorageAreaImpl::LoadMap(OnLoadCompleteTask completion_task) {\n  DCHECK_NE(map_state_, MapState::LOADED_KEYS_AND_VALUES);\n  DCHECK(keys_values_map_.empty());\n\n  // Current commit batch needs to be applied before re-loading the map. The",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L569-L606",
+        "lines": [
+          {
+            "line": 569,
+            "present": true,
+            "text": "void StorageAreaImpl::LoadMap(OnLoadCompleteTask completion_task) {"
+          },
+          {
+            "line": 570,
+            "present": true,
+            "text": "  DCHECK_NE(map_state_, MapState::LOADED_KEYS_AND_VALUES);"
+          },
+          {
+            "line": 571,
+            "present": true,
+            "text": "  DCHECK(keys_values_map_.empty());"
+          },
+          {
+            "line": 572,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 573,
+            "present": true,
+            "text": "  // Current commit batch needs to be applied before re-loading the map. The"
+          }
+        ],
+        "rect": {
+          "bottom": 424,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 404,
+          "width": 843,
+          "x": 420,
+          "y": 404
+        },
+        "title": "chromium/components/services/storage/dom_storage/storage_area_impl.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/storage_area_impl.cc#L569-L606",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "storage-db-read",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/async_dom_storage_database.cc#L90-L112",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "components/services/storage/dom_storage/async_dom_storage_database.cc",
+      "firstLine": 90,
+      "lastLine": 112,
+      "anchor": "#L90-L112",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:14.760Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void AsyncDomStorageDatabase::ReadMapKeyValues(\n    DomStorageDatabase::MapLocator map_locator,\n    ReadMapKeyValuesCallback callback) {\n  CHECK(is_database_opened_);\n",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L90-L112",
+        "lines": [
+          {
+            "line": 90,
+            "present": true,
+            "text": "void AsyncDomStorageDatabase::ReadMapKeyValues("
+          },
+          {
+            "line": 91,
+            "present": true,
+            "text": "    DomStorageDatabase::MapLocator map_locator,"
+          },
+          {
+            "line": 92,
+            "present": true,
+            "text": "    ReadMapKeyValuesCallback callback) {"
+          },
+          {
+            "line": 93,
+            "present": true,
+            "text": "  CHECK(is_database_opened_);"
+          },
+          {
+            "line": 94,
+            "present": true,
+            "text": ""
+          }
+        ],
+        "rect": {
+          "bottom": 420,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 400,
+          "width": 843,
+          "x": 420,
+          "y": 400
+        },
+        "title": "chromium/components/services/storage/dom_storage/async_dom_storage_database.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/async_dom_storage_database.cc#L90-L112",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "storage-leveldb",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/leveldb/local_storage_leveldb.cc#L178-L181",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "components/services/storage/dom_storage/leveldb/local_storage_leveldb.cc",
+      "firstLine": 178,
+      "lastLine": 181,
+      "anchor": "#L178-L181",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:16.902Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "StatusOr<std::map<DomStorageDatabase::Key, DomStorageDatabase::Value>>\nLocalStorageLevelDB::ReadMapKeyValues(MapLocator map_locator) {\n  CHECK_EQ(map_locator.session_ids().size(), 0u);\n  return leveldb_->GetMapKeyValues(GetMapPrefix(map_locator.storage_key()));",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L178-L181",
+        "lines": [
+          {
+            "line": 178,
+            "present": true,
+            "text": "StatusOr<std::map<DomStorageDatabase::Key, DomStorageDatabase::Value>>"
+          },
+          {
+            "line": 179,
+            "present": true,
+            "text": "LocalStorageLevelDB::ReadMapKeyValues(MapLocator map_locator) {"
+          },
+          {
+            "line": 180,
+            "present": true,
+            "text": "  CHECK_EQ(map_locator.session_ids().size(), 0u);"
+          },
+          {
+            "line": 181,
+            "present": true,
+            "text": "  return leveldb_->GetMapKeyValues(GetMapPrefix(map_locator.storage_key()));"
+          }
+        ],
+        "rect": {
+          "bottom": 454,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 434,
+          "width": 843,
+          "x": 420,
+          "y": 434
+        },
+        "title": "chromium/components/services/storage/dom_storage/leveldb/local_storage_leveldb.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/leveldb/local_storage_leveldb.cc#L178-L181",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "storage-leveldb-read",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/leveldb/dom_storage_database_leveldb.cc#L242-L260",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "components/services/storage/dom_storage/leveldb/dom_storage_database_leveldb.cc",
+      "firstLine": 242,
+      "lastLine": 260,
+      "anchor": "#L242-L260",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:19.246Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "DomStorageDatabaseLevelDB::GetMapKeyValues(KeyView prefix) {\n  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);\n  if (!db_) {\n    return base::unexpected(DbStatus::IOError(kInvalidDatabaseMessage));\n  }",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L242-L260",
+        "lines": [
+          {
+            "line": 242,
+            "present": true,
+            "text": "DomStorageDatabaseLevelDB::GetMapKeyValues(KeyView prefix) {"
+          },
+          {
+            "line": 243,
+            "present": true,
+            "text": "  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);"
+          },
+          {
+            "line": 244,
+            "present": true,
+            "text": "  if (!db_) {"
+          },
+          {
+            "line": 245,
+            "present": true,
+            "text": "    return base::unexpected(DbStatus::IOError(kInvalidDatabaseMessage));"
+          },
+          {
+            "line": 246,
+            "present": true,
+            "text": "  }"
+          }
+        ],
+        "rect": {
+          "bottom": 477,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 457,
+          "width": 843,
+          "x": 420,
+          "y": 457
+        },
+        "title": "chromium/components/services/storage/dom_storage/leveldb/dom_storage_database_leveldb.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/leveldb/dom_storage_database_leveldb.cc#L242-L260",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "storage-sqlite",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/sqlite/local_storage_sqlite.cc#L154-L173",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "components/services/storage/dom_storage/sqlite/local_storage_sqlite.cc",
+      "firstLine": 154,
+      "lastLine": 173,
+      "anchor": "#L154-L173",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:21.814Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "StatusOr<std::map<DomStorageDatabase::Key, DomStorageDatabase::Value>>\nLocalStorageSqlite::ReadMapKeyValues(MapLocator map_locator) {\n  CHECK_EQ(map_locator.session_ids().size(), 0u);\n\n  sql::Transaction transaction(database_.get());",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L154-L173",
+        "lines": [
+          {
+            "line": 154,
+            "present": true,
+            "text": "StatusOr<std::map<DomStorageDatabase::Key, DomStorageDatabase::Value>>"
+          },
+          {
+            "line": 155,
+            "present": true,
+            "text": "LocalStorageSqlite::ReadMapKeyValues(MapLocator map_locator) {"
+          },
+          {
+            "line": 156,
+            "present": true,
+            "text": "  CHECK_EQ(map_locator.session_ids().size(), 0u);"
+          },
+          {
+            "line": 157,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 158,
+            "present": true,
+            "text": "  sql::Transaction transaction(database_.get());"
+          }
+        ],
+        "rect": {
+          "bottom": 482,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 462,
+          "width": 843,
+          "x": 420,
+          "y": 462
+        },
+        "title": "chromium/components/services/storage/dom_storage/sqlite/local_storage_sqlite.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/sqlite/local_storage_sqlite.cc#L154-L173",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "storage-sql-query",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/sqlite/map_entries_table.cc#L42-L65",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "components/services/storage/dom_storage/sqlite/map_entries_table.cc",
+      "firstLine": 42,
+      "lastLine": 65,
+      "anchor": "#L42-L65",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:23.283Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "MapEntriesTable::GetMapKeyValues(int64_t map_id) {\n  constexpr const char kSelectMapEntries[] =\n      \"SELECT key, value_compression_type, value \"\n      \"FROM map_entries WHERE map_id = ?\";\n",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L42-L65",
+        "lines": [
+          {
+            "line": 42,
+            "present": true,
+            "text": "MapEntriesTable::GetMapKeyValues(int64_t map_id) {"
+          },
+          {
+            "line": 43,
+            "present": true,
+            "text": "  constexpr const char kSelectMapEntries[] ="
+          },
+          {
+            "line": 44,
+            "present": true,
+            "text": "      \"SELECT key, value_compression_type, value \""
+          },
+          {
+            "line": 45,
+            "present": true,
+            "text": "      \"FROM map_entries WHERE map_id = ?\";"
+          },
+          {
+            "line": 46,
+            "present": true,
+            "text": ""
+          }
+        ],
+        "rect": {
+          "bottom": 489,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 469,
+          "width": 843,
+          "x": 420,
+          "y": 469
+        },
+        "title": "chromium/components/services/storage/dom_storage/sqlite/map_entries_table.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/storage/dom_storage/sqlite/map_entries_table.cc#L42-L65",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "legacy-restore",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java#L717-L757",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java",
+      "firstLine": 717,
+      "lastLine": 757,
+      "anchor": "#L717-L757",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:26.032Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    private void restoreTab(TabRestoreDetails tabToRestore, boolean setAsActive) {\n        // As we do this in startup, and restoring the active tab's state is critical, we permit\n        // this read in the event that the prefetch task is not available. Either:\n        // 1. The user just upgraded, has not yet set the new active tab id pref yet. Or\n        // 2. restoreTab is used to preempt async queue and restore immediately on the UI thread.",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L717-L757",
+        "lines": [
+          {
+            "line": 717,
+            "present": true,
+            "text": "    private void restoreTab(TabRestoreDetails tabToRestore, boolean setAsActive) {"
+          },
+          {
+            "line": 718,
+            "present": true,
+            "text": "        // As we do this in startup, and restoring the active tab's state is critical, we permit"
+          },
+          {
+            "line": 719,
+            "present": true,
+            "text": "        // this read in the event that the prefetch task is not available. Either:"
+          },
+          {
+            "line": 720,
+            "present": true,
+            "text": "        // 1. The user just upgraded, has not yet set the new active tab id pref yet. Or"
+          },
+          {
+            "line": 721,
+            "present": true,
+            "text": "        // 2. restoreTab is used to preempt async queue and restore immediately on the UI thread."
+          }
+        ],
+        "rect": {
+          "bottom": 499,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 479,
+          "width": 843,
+          "x": 420,
+          "y": 479
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java#L717-L757",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "tab-state-read",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java#L381-L422",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java",
+      "firstLine": 381,
+      "lastLine": 422,
+      "anchor": "#L381-L422",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:28.581Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "     * @param cipherFactory The {@link CipherFactory} used for encrypting and decrypting files. Does\n     *     not need to be provided for non-encrypted files.\n     * @return TabState that has been restored, or null if it failed.\n     */\n    private static @Nullable TabState readState(",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L381-L422",
+        "lines": [
+          {
+            "line": 381,
+            "present": true,
+            "text": "     * @param cipherFactory The {@link CipherFactory} used for encrypting and decrypting files. Does"
+          },
+          {
+            "line": 382,
+            "present": true,
+            "text": "     *     not need to be provided for non-encrypted files."
+          },
+          {
+            "line": 383,
+            "present": true,
+            "text": "     * @return TabState that has been restored, or null if it failed."
+          },
+          {
+            "line": 384,
+            "present": true,
+            "text": "     */"
+          },
+          {
+            "line": 385,
+            "present": true,
+            "text": "    private static @Nullable TabState readState("
+          }
+        ],
+        "rect": {
+          "bottom": 513,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 493,
+          "width": 843,
+          "x": 420,
+          "y": 493
+        },
+        "title": "chromium/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java#L381-L422",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "tab-flatbuffer-read",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java#L584-L619",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java",
+      "firstLine": 584,
+      "lastLine": 619,
+      "anchor": "#L584-L619",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:29.525Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "        FileInputStream fileInputStream = null;\n        CipherInputStream cipherInputStream = null;\n        DataInputStream dataInputStream = null;\n        try {\n            maybeAssertCipherFactoryPresent(encrypted, cipherFactory);",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L584-L619",
+        "lines": [
+          {
+            "line": 584,
+            "present": true,
+            "text": "        FileInputStream fileInputStream = null;"
+          },
+          {
+            "line": 585,
+            "present": true,
+            "text": "        CipherInputStream cipherInputStream = null;"
+          },
+          {
+            "line": 586,
+            "present": true,
+            "text": "        DataInputStream dataInputStream = null;"
+          },
+          {
+            "line": 587,
+            "present": true,
+            "text": "        try {"
+          },
+          {
+            "line": 588,
+            "present": true,
+            "text": "            maybeAssertCipherFactoryPresent(encrypted, cipherFactory);"
+          }
+        ],
+        "rect": {
+          "bottom": 479,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 459,
+          "width": 843,
+          "x": 420,
+          "y": 459
+        },
+        "title": "chromium/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java#L584-L619",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "new-store-cache",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabStateStore.java#L618-L624",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabStateStore.java",
+      "firstLine": 618,
+      "lastLine": 624,
+      "anchor": "#L618-L624",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:32.160Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    private void loadCachedActiveTab(boolean incognito) {\n        assertInitialized();\n\n        LoadedTabState tabState = mActiveTabCache.getPreLoadedActiveTabOrLoad(incognito);\n        if (tabState == null) return;",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L618-L624",
+        "lines": [
+          {
+            "line": 618,
+            "present": true,
+            "text": "    private void loadCachedActiveTab(boolean incognito) {"
+          },
+          {
+            "line": 619,
+            "present": true,
+            "text": "        assertInitialized();"
+          },
+          {
+            "line": 620,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 621,
+            "present": true,
+            "text": "        LoadedTabState tabState = mActiveTabCache.getPreLoadedActiveTabOrLoad(incognito);"
+          },
+          {
+            "line": 622,
+            "present": true,
+            "text": "        if (tabState == null) return;"
+          }
+        ],
+        "rect": {
+          "bottom": 484,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 464,
+          "width": 843,
+          "x": 420,
+          "y": 464
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabStateStore.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabStateStore.java#L618-L624",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "active-cache-ui",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/ActiveTabCache.java#L100-L103",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/ActiveTabCache.java",
+      "firstLine": 100,
+      "lastLine": 103,
+      "anchor": "#L100-L103",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:38.975Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public @Nullable LoadedTabState getPreLoadedActiveTabOrLoad(boolean incognito) {\n        assertOnUiThread();\n        TabCacheKey key = incognito ? mIncognitoTabCacheKey : mRegularTabCacheKey;\n        return mTabCache.getPreLoadedTabOrLoad(key);",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L100-L103",
+        "lines": [
+          {
+            "line": 100,
+            "present": true,
+            "text": "    public @Nullable LoadedTabState getPreLoadedActiveTabOrLoad(boolean incognito) {"
+          },
+          {
+            "line": 101,
+            "present": true,
+            "text": "        assertOnUiThread();"
+          },
+          {
+            "line": 102,
+            "present": true,
+            "text": "        TabCacheKey key = incognito ? mIncognitoTabCacheKey : mRegularTabCacheKey;"
+          },
+          {
+            "line": 103,
+            "present": true,
+            "text": "        return mTabCache.getPreLoadedTabOrLoad(key);"
+          }
+        ],
+        "rect": {
+          "bottom": 388,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 368,
+          "width": 843,
+          "x": 420,
+          "y": 368
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/ActiveTabCache.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/ActiveTabCache.java#L100-L103",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "new-cache-read",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabCache.java#L158-L185",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabCache.java",
+      "firstLine": 158,
+      "lastLine": 185,
+      "anchor": "#L158-L185",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:41.471Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public @Nullable LoadedTabState getPreLoadedTabOrLoad(TabCacheKey key) {\n        assertOnUiThread();\n        FutureTask<@Nullable LoadedTabState> task = mPreloadTasks.remove(key);\n        if (task != null && !task.isCancelled()) {\n            try {",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L158-L185",
+        "lines": [
+          {
+            "line": 158,
+            "present": true,
+            "text": "    public @Nullable LoadedTabState getPreLoadedTabOrLoad(TabCacheKey key) {"
+          },
+          {
+            "line": 159,
+            "present": true,
+            "text": "        assertOnUiThread();"
+          },
+          {
+            "line": 160,
+            "present": true,
+            "text": "        FutureTask<@Nullable LoadedTabState> task = mPreloadTasks.remove(key);"
+          },
+          {
+            "line": 161,
+            "present": true,
+            "text": "        if (task != null && !task.isCancelled()) {"
+          },
+          {
+            "line": 162,
+            "present": true,
+            "text": "            try {"
+          }
+        ],
+        "rect": {
+          "bottom": 469,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 449,
+          "width": 843,
+          "x": 420,
+          "y": 449
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabCache.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabCache.java#L158-L185",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "activity-save",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java#L1811-L1823",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java",
+      "firstLine": 1811,
+      "lastLine": 1823,
+      "anchor": "#L1811-L1823",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:43.876Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public void onStopWithNative() {\n        super.onStopWithNative();\n\n        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.UMA_SESSION_CORRECTNESS_FIXES)) {\n            saveState();",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L1811-L1823",
+        "lines": [
+          {
+            "line": 1811,
+            "present": true,
+            "text": "    public void onStopWithNative() {"
+          },
+          {
+            "line": 1812,
+            "present": true,
+            "text": "        super.onStopWithNative();"
+          },
+          {
+            "line": 1813,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 1814,
+            "present": true,
+            "text": "        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.UMA_SESSION_CORRECTNESS_FIXES)) {"
+          },
+          {
+            "line": 1815,
+            "present": true,
+            "text": "            saveState();"
+          }
+        ],
+        "rect": {
+          "bottom": 459,
+          "height": 20,
+          "left": 420,
+          "right": 689.28125,
+          "top": 439,
+          "width": 269.28125,
+          "x": 420,
+          "y": 439
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java#L1811-L1823",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "activity-delegate",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java#L5763-L5764",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java",
+      "firstLine": 5763,
+      "lastLine": 5764,
+      "anchor": "#L5763-L5764",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:44.401Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public void saveState() {\n        mTabModelOrchestrator.saveState();",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L5763-L5764",
+        "lines": [
+          {
+            "line": 5763,
+            "present": true,
+            "text": "    public void saveState() {"
+          },
+          {
+            "line": 5764,
+            "present": true,
+            "text": "        mTabModelOrchestrator.saveState();"
+          }
+        ],
+        "rect": {
+          "bottom": 459,
+          "height": 20,
+          "left": 420,
+          "right": 638.875,
+          "top": 439,
+          "width": 218.875,
+          "x": 420,
+          "y": 439
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java#L5763-L5764",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "orchestrator-save",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabModelOrchestrator.java#L163-L174",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabModelOrchestrator.java",
+      "firstLine": 163,
+      "lastLine": 174,
+      "anchor": "#L163-L174",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:46.322Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "     * Save the current state of the tab model. Usage of this method is discouraged due to it\n     * writing to disk.\n     */\n    public void saveState() {\n        assertInitialized();",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L163-L174",
+        "lines": [
+          {
+            "line": 163,
+            "present": true,
+            "text": "     * Save the current state of the tab model. Usage of this method is discouraged due to it"
+          },
+          {
+            "line": 164,
+            "present": true,
+            "text": "     * writing to disk."
+          },
+          {
+            "line": 165,
+            "present": true,
+            "text": "     */"
+          },
+          {
+            "line": 166,
+            "present": true,
+            "text": "    public void saveState() {"
+          },
+          {
+            "line": 167,
+            "present": true,
+            "text": "        assertInitialized();"
+          }
+        ],
+        "rect": {
+          "bottom": 426,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 406,
+          "width": 843,
+          "x": 420,
+          "y": 406
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabModelOrchestrator.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabModelOrchestrator.java#L163-L174",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "legacy-save",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java#L411-L483",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java",
+      "firstLine": 411,
+      "lastLine": 483,
+      "anchor": "#L411-L483",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:48.257Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public void saveState() {\n        // Temporarily allowing disk access. TODO: Fix. See http://b/5518024\n        StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskWrites();\n        try {\n            // Clear out any in-flight migration.",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L411-L483",
+        "lines": [
+          {
+            "line": 411,
+            "present": true,
+            "text": "    public void saveState() {"
+          },
+          {
+            "line": 412,
+            "present": true,
+            "text": "        // Temporarily allowing disk access. TODO: Fix. See http://b/5518024"
+          },
+          {
+            "line": 413,
+            "present": true,
+            "text": "        StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskWrites();"
+          },
+          {
+            "line": 414,
+            "present": true,
+            "text": "        try {"
+          },
+          {
+            "line": 415,
+            "present": true,
+            "text": "            // Clear out any in-flight migration."
+          }
+        ],
+        "rect": {
+          "bottom": 442,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 422,
+          "width": 843,
+          "x": 420,
+          "y": 422
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java#L411-L483",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "tab-save-dispatch",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java#L643-L668",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java",
+      "firstLine": 643,
+      "lastLine": 668,
+      "anchor": "#L643-L668",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:50.137Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public static void saveState(\n            File directory,\n            TabState tabState,\n            int tabId,\n            boolean isEncrypted,",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L643-L668",
+        "lines": [
+          {
+            "line": 643,
+            "present": true,
+            "text": "    public static void saveState("
+          },
+          {
+            "line": 644,
+            "present": true,
+            "text": "            File directory,"
+          },
+          {
+            "line": 645,
+            "present": true,
+            "text": "            TabState tabState,"
+          },
+          {
+            "line": 646,
+            "present": true,
+            "text": "            int tabId,"
+          },
+          {
+            "line": 647,
+            "present": true,
+            "text": "            boolean isEncrypted,"
+          }
+        ],
+        "rect": {
+          "bottom": 439,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 419,
+          "width": 843,
+          "x": 420,
+          "y": 419
+        },
+        "title": "chromium/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java#L643-L668",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "tab-atomic-save",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java#L804-L879",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java",
+      "firstLine": 804,
+      "lastLine": 879,
+      "anchor": "#L804-L879",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:50.974Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    private static void saveStateFlatBuffer(\n            File file,\n            TabState state,\n            boolean encrypted,\n            @Nullable CipherFactory cipherFactory,",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L804-L879",
+        "lines": [
+          {
+            "line": 804,
+            "present": true,
+            "text": "    private static void saveStateFlatBuffer("
+          },
+          {
+            "line": 805,
+            "present": true,
+            "text": "            File file,"
+          },
+          {
+            "line": 806,
+            "present": true,
+            "text": "            TabState state,"
+          },
+          {
+            "line": 807,
+            "present": true,
+            "text": "            boolean encrypted,"
+          },
+          {
+            "line": 808,
+            "present": true,
+            "text": "            @Nullable CipherFactory cipherFactory,"
+          }
+        ],
+        "rect": {
+          "bottom": 477,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 457,
+          "width": 843,
+          "x": 420,
+          "y": 457
+        },
+        "title": "chromium/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/browser/tabpersistence/android/java/src/org/chromium/chrome/browser/tabpersistence/TabStateFileManager.java#L804-L879",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "new-store-save",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabStateStore.java#L290-L306",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabStateStore.java",
+      "firstLine": 290,
+      "lastLine": 306,
+      "anchor": "#L290-L306",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:52.509Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public void saveState() {\n        assertInitialized();\n\n        // All mutations to the collection tree should already be queue to the DB thread so no\n        // additional work is required for that.",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L290-L306",
+        "lines": [
+          {
+            "line": 290,
+            "present": true,
+            "text": "    public void saveState() {"
+          },
+          {
+            "line": 291,
+            "present": true,
+            "text": "        assertInitialized();"
+          },
+          {
+            "line": 292,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 293,
+            "present": true,
+            "text": "        // All mutations to the collection tree should already be queue to the DB thread so no"
+          },
+          {
+            "line": 294,
+            "present": true,
+            "text": "        // additional work is required for that."
+          }
+        ],
+        "rect": {
+          "bottom": 453,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 433,
+          "width": 843,
+          "x": 420,
+          "y": 433
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabStateStore.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabStateStore.java#L290-L306",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "store-selection",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabPersistentStoreFactory.java#L74-L106",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabPersistentStoreFactory.java",
+      "firstLine": 74,
+      "lastLine": 106,
+      "anchor": "#L74-L106",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:55.691Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "        @StoreType int storeType = migrationManager.getAuthoritativeStoreType();\n        recordStoreTypeHistogram(\"Tabs.TabPersistentStore.AuthoritativeStoreType\", storeType);\n        if (storeType == StoreType.LEGACY) {\n            TabPersistentStoreImpl legacyStore =\n                    new TabPersistentStoreImpl(",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L74-L106",
+        "lines": [
+          {
+            "line": 74,
+            "present": true,
+            "text": "        @StoreType int storeType = migrationManager.getAuthoritativeStoreType();"
+          },
+          {
+            "line": 75,
+            "present": true,
+            "text": "        recordStoreTypeHistogram(\"Tabs.TabPersistentStore.AuthoritativeStoreType\", storeType);"
+          },
+          {
+            "line": 76,
+            "present": true,
+            "text": "        if (storeType == StoreType.LEGACY) {"
+          },
+          {
+            "line": 77,
+            "present": true,
+            "text": "            TabPersistentStoreImpl legacyStore ="
+          },
+          {
+            "line": 78,
+            "present": true,
+            "text": "                    new TabPersistentStoreImpl("
+          }
+        ],
+        "rect": {
+          "bottom": 467,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 447,
+          "width": 843,
+          "x": 420,
+          "y": 447
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabPersistentStoreFactory.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/app/tabmodel/TabPersistentStoreFactory.java#L74-L106",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "history-submenu",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/HistoryItemBuilder.java#L388-L399",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/HistoryItemBuilder.java",
+      "firstLine": 388,
+      "lastLine": 399,
+      "anchor": "#L388-L399",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:28:58.297Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    private ListItem buildClosedWindowMenuItem(RecentlyClosedWindow window) {\n        Supplier<List<ListItem>> submenuItemsSupplier =\n                () -> {\n                    List<ListItem> submenuItems = new ArrayList<>();\n                    submenuItems.add(buildRestoreWindowMenuItem(window));",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L388-L399",
+        "lines": [
+          {
+            "line": 388,
+            "present": true,
+            "text": "    private ListItem buildClosedWindowMenuItem(RecentlyClosedWindow window) {"
+          },
+          {
+            "line": 389,
+            "present": true,
+            "text": "        Supplier<List<ListItem>> submenuItemsSupplier ="
+          },
+          {
+            "line": 390,
+            "present": true,
+            "text": "                () -> {"
+          },
+          {
+            "line": 391,
+            "present": true,
+            "text": "                    List<ListItem> submenuItems = new ArrayList<>();"
+          },
+          {
+            "line": 392,
+            "present": true,
+            "text": "                    submenuItems.add(buildRestoreWindowMenuItem(window));"
+          }
+        ],
+        "rect": {
+          "bottom": 473,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 453,
+          "width": 843,
+          "x": 420,
+          "y": 453
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/HistoryItemBuilder.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/HistoryItemBuilder.java#L388-L399",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "history-read",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/RecentlyClosedEntriesManager.java#L709-L724",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/RecentlyClosedEntriesManager.java",
+      "firstLine": 709,
+      "lastLine": 724,
+      "anchor": "#L709-L724",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:00.949Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public List<RecentlyClosedTab> getTabsForClosedWindow(RecentlyClosedWindow window) {\n        int instanceId = window.getInstanceId();\n        List<RecentlyClosedTab> cachedTabs = mCachedTabsForClosedWindows.get(instanceId);\n        if (cachedTabs != null) {\n            return cachedTabs;",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L709-L724",
+        "lines": [
+          {
+            "line": 709,
+            "present": true,
+            "text": "    public List<RecentlyClosedTab> getTabsForClosedWindow(RecentlyClosedWindow window) {"
+          },
+          {
+            "line": 710,
+            "present": true,
+            "text": "        int instanceId = window.getInstanceId();"
+          },
+          {
+            "line": 711,
+            "present": true,
+            "text": "        List<RecentlyClosedTab> cachedTabs = mCachedTabsForClosedWindows.get(instanceId);"
+          },
+          {
+            "line": 712,
+            "present": true,
+            "text": "        if (cachedTabs != null) {"
+          },
+          {
+            "line": 713,
+            "present": true,
+            "text": "            return cachedTabs;"
+          }
+        ],
+        "rect": {
+          "bottom": 439,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 419,
+          "width": 843,
+          "x": 420,
+          "y": 419
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/RecentlyClosedEntriesManager.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/RecentlyClosedEntriesManager.java#L709-L724",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "closed-window-file",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java#L2254-L2275",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java",
+      "firstLine": 2254,
+      "lastLine": 2275,
+      "anchor": "#L2254-L2275",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:03.044Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public static List<ClosedWindowTabInfo> getTabListForClosedWindow(int instanceId) {\n        List<ClosedWindowTabInfo> tabs = new ArrayList<>();\n        File file =\n                new File(\n                        TabStateDirectory.getOrCreateTabbedModeStateDirectory(),",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L2254-L2275",
+        "lines": [
+          {
+            "line": 2254,
+            "present": true,
+            "text": "    public static List<ClosedWindowTabInfo> getTabListForClosedWindow(int instanceId) {"
+          },
+          {
+            "line": 2255,
+            "present": true,
+            "text": "        List<ClosedWindowTabInfo> tabs = new ArrayList<>();"
+          },
+          {
+            "line": 2256,
+            "present": true,
+            "text": "        File file ="
+          },
+          {
+            "line": 2257,
+            "present": true,
+            "text": "                new File("
+          },
+          {
+            "line": 2258,
+            "present": true,
+            "text": "                        TabStateDirectory.getOrCreateTabbedModeStateDirectory(),"
+          }
+        ],
+        "rect": {
+          "bottom": 405,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 385,
+          "width": 843,
+          "x": 420,
+          "y": 385
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java#L2254-L2275",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "tab-id-scan",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java#L1255-L1307",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java",
+      "firstLine": 1255,
+      "lastLine": 1307,
+      "anchor": "#L1255-L1307",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:04.383Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    private void checkAndUpdateMaxTabId() throws IOException {\n        if (ChromeSharedPreferences.getInstance()\n                .readBoolean(ChromePreferenceKeys.TABMODEL_HAS_COMPUTED_MAX_ID, false)) {\n            return;\n        }",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L1255-L1307",
+        "lines": [
+          {
+            "line": 1255,
+            "present": true,
+            "text": "    private void checkAndUpdateMaxTabId() throws IOException {"
+          },
+          {
+            "line": 1256,
+            "present": true,
+            "text": "        if (ChromeSharedPreferences.getInstance()"
+          },
+          {
+            "line": 1257,
+            "present": true,
+            "text": "                .readBoolean(ChromePreferenceKeys.TABMODEL_HAS_COMPUTED_MAX_ID, false)) {"
+          },
+          {
+            "line": 1258,
+            "present": true,
+            "text": "            return;"
+          },
+          {
+            "line": 1259,
+            "present": true,
+            "text": "        }"
+          }
+        ],
+        "rect": {
+          "bottom": 146,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 126,
+          "width": 843,
+          "x": 420,
+          "y": 126
+        },
+        "title": "chromium/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java#L1255-L1307",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "webview-lock-caller",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/java/src/org/chromium/android_webview/StartupTasks.java#L111-L117",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "android_webview/java/src/org/chromium/android_webview/StartupTasks.java",
+      "firstLine": 111,
+      "lastLine": 117,
+      "anchor": "#L111-L117",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:06.130Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public static void preBrowserProcessStartStepTwo() {\n        ThreadUtils.assertOnUiThread();\n        try (DualTraceEvent e1 =\n                DualTraceEvent.scoped(\"StartupTasks.preBrowserProcessStartStepTwo\")) {\n            final Context appContext = ContextUtils.getApplicationContext();",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L111-L117",
+        "lines": [
+          {
+            "line": 111,
+            "present": true,
+            "text": "    public static void preBrowserProcessStartStepTwo() {"
+          },
+          {
+            "line": 112,
+            "present": true,
+            "text": "        ThreadUtils.assertOnUiThread();"
+          },
+          {
+            "line": 113,
+            "present": true,
+            "text": "        try (DualTraceEvent e1 ="
+          },
+          {
+            "line": 114,
+            "present": true,
+            "text": "                DualTraceEvent.scoped(\"StartupTasks.preBrowserProcessStartStepTwo\")) {"
+          },
+          {
+            "line": 115,
+            "present": true,
+            "text": "            final Context appContext = ContextUtils.getApplicationContext();"
+          }
+        ],
+        "rect": {
+          "bottom": 451,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 431,
+          "width": 843,
+          "x": 420,
+          "y": 431
+        },
+        "title": "chromium/android_webview/java/src/org/chromium/android_webview/StartupTasks.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/java/src/org/chromium/android_webview/StartupTasks.java#L111-L117",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "webview-constructor-lock",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/glue/java/src/com/android/webview/chromium/WebViewChromium.java#L221-L225",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "android_webview/glue/java/src/com/android/webview/chromium/WebViewChromium.java",
+      "firstLine": 221,
+      "lastLine": 225,
+      "anchor": "#L221-L225",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:12.075Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "            if (shouldEnableStartupNonBlockingWebViewConstructor()) {\n                // We call `lock()` during Chromium startup, but if we are going to not\n                // synchronously run Chromium startup as part of WebView construction, then attempt\n                // to lock here as well to maintain the same locking behavior as before.\n                AwDataDirLock.lock(ContextUtils.getApplicationContext());",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L221-L225",
+        "lines": [
+          {
+            "line": 221,
+            "present": true,
+            "text": "            if (shouldEnableStartupNonBlockingWebViewConstructor()) {"
+          },
+          {
+            "line": 222,
+            "present": true,
+            "text": "                // We call `lock()` during Chromium startup, but if we are going to not"
+          },
+          {
+            "line": 223,
+            "present": true,
+            "text": "                // synchronously run Chromium startup as part of WebView construction, then attempt"
+          },
+          {
+            "line": 224,
+            "present": true,
+            "text": "                // to lock here as well to maintain the same locking behavior as before."
+          },
+          {
+            "line": 225,
+            "present": true,
+            "text": "                AwDataDirLock.lock(ContextUtils.getApplicationContext());"
+          }
+        ],
+        "rect": {
+          "bottom": 388,
+          "height": 20,
+          "left": 420,
+          "right": 926.90625,
+          "top": 368,
+          "width": 506.90625,
+          "x": 420,
+          "y": 368
+        },
+        "title": "chromium/android_webview/glue/java/src/com/android/webview/chromium/WebViewChromium.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/glue/java/src/com/android/webview/chromium/WebViewChromium.java#L221-L225",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "webview-lock-open",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/java/src/org/chromium/android_webview/AwDataDirLock.java#L67-L92",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "android_webview/java/src/org/chromium/android_webview/AwDataDirLock.java",
+      "firstLine": 67,
+      "lastLine": 92,
+      "anchor": "#L67-L92",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:13.690Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "\n    public static void lock(final Context appContext) {\n        try (DualTraceEvent e1 = DualTraceEvent.scoped(\"AwDataDirLock.lock\");\n                StrictModeContext ignored = StrictModeContext.allowDiskWrites()) {\n            if (sExclusiveFileLock != null) {",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L67-L92",
+        "lines": [
+          {
+            "line": 67,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 68,
+            "present": true,
+            "text": "    public static void lock(final Context appContext) {"
+          },
+          {
+            "line": 69,
+            "present": true,
+            "text": "        try (DualTraceEvent e1 = DualTraceEvent.scoped(\"AwDataDirLock.lock\");"
+          },
+          {
+            "line": 70,
+            "present": true,
+            "text": "                StrictModeContext ignored = StrictModeContext.allowDiskWrites()) {"
+          },
+          {
+            "line": 71,
+            "present": true,
+            "text": "            if (sExclusiveFileLock != null) {"
+          }
+        ],
+        "rect": {
+          "bottom": 466,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 446,
+          "width": 843,
+          "x": 420,
+          "y": 446
+        },
+        "title": "chromium/android_webview/java/src/org/chromium/android_webview/AwDataDirLock.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/java/src/org/chromium/android_webview/AwDataDirLock.java#L67-L92",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "webview-lock-retry",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/java/src/org/chromium/android_webview/AwDataDirLock.java#L134-L182",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "android_webview/java/src/org/chromium/android_webview/AwDataDirLock.java",
+      "firstLine": 134,
+      "lastLine": 182,
+      "anchor": "#L134-L182",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:14.237Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "                    sExclusiveFileLock = sLockFile.getChannel().tryLock();\n                } catch (IOException e) {\n                    // Older versions of Android incorrectly throw IOException when the flock()\n                    // call fails with EAGAIN, instead of returning null. Just ignore the exception\n                    // and continue as if it did return null.",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L134-L182",
+        "lines": [
+          {
+            "line": 134,
+            "present": true,
+            "text": "                    sExclusiveFileLock = sLockFile.getChannel().tryLock();"
+          },
+          {
+            "line": 135,
+            "present": true,
+            "text": "                } catch (IOException e) {"
+          },
+          {
+            "line": 136,
+            "present": true,
+            "text": "                    // Older versions of Android incorrectly throw IOException when the flock()"
+          },
+          {
+            "line": 137,
+            "present": true,
+            "text": "                    // call fails with EAGAIN, instead of returning null. Just ignore the exception"
+          },
+          {
+            "line": 138,
+            "present": true,
+            "text": "                    // and continue as if it did return null."
+          }
+        ],
+        "rect": {
+          "bottom": 424,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 404,
+          "width": 843,
+          "x": 420,
+          "y": 404
+        },
+        "title": "chromium/android_webview/java/src/org/chromium/android_webview/AwDataDirLock.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/java/src/org/chromium/android_webview/AwDataDirLock.java#L134-L182",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "webview-cookie-api",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/glue/java/src/com/android/webview/chromium/CookieManagerAdapter.java#L222-L227",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "android_webview/glue/java/src/com/android/webview/chromium/CookieManagerAdapter.java",
+      "firstLine": 222,
+      "lastLine": 227,
+      "anchor": "#L222-L227",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:16.268Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    public void flush() {\n        try (TraceEvent event =\n                TraceEvent.scoped(\"WebView.APICall.Framework.COOKIE_MANAGER_FLUSH\")) {\n            ApiCallLogger.recordWebViewApiCall(\n                    ApiCall.COOKIE_MANAGER_FLUSH, ApiCallUserAction.COOKIE_MANAGER_FLUSH);",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L222-L227",
+        "lines": [
+          {
+            "line": 222,
+            "present": true,
+            "text": "    public void flush() {"
+          },
+          {
+            "line": 223,
+            "present": true,
+            "text": "        try (TraceEvent event ="
+          },
+          {
+            "line": 224,
+            "present": true,
+            "text": "                TraceEvent.scoped(\"WebView.APICall.Framework.COOKIE_MANAGER_FLUSH\")) {"
+          },
+          {
+            "line": 225,
+            "present": true,
+            "text": "            ApiCallLogger.recordWebViewApiCall("
+          },
+          {
+            "line": 226,
+            "present": true,
+            "text": "                    ApiCall.COOKIE_MANAGER_FLUSH, ApiCallUserAction.COOKIE_MANAGER_FLUSH);"
+          }
+        ],
+        "rect": {
+          "bottom": 459,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 439,
+          "width": 843,
+          "x": 420,
+          "y": 439
+        },
+        "title": "chromium/android_webview/glue/java/src/com/android/webview/chromium/CookieManagerAdapter.java at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/glue/java/src/com/android/webview/chromium/CookieManagerAdapter.java#L222-L227",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "webview-cookie-flush",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/browser/cookie_manager.cc#L776-L790",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "android_webview/browser/cookie_manager.cc",
+      "firstLine": 776,
+      "lastLine": 790,
+      "anchor": "#L776-L790",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:19.086Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void CookieManager::FlushCookieStore(JNIEnv* env) {\n  ExecCookieTaskSync(base::BindOnce(&CookieManager::FlushCookieStoreAsyncHelper,\n                                    base::Unretained(this)));\n}\n",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L776-L790",
+        "lines": [
+          {
+            "line": 776,
+            "present": true,
+            "text": "void CookieManager::FlushCookieStore(JNIEnv* env) {"
+          },
+          {
+            "line": 777,
+            "present": true,
+            "text": "  ExecCookieTaskSync(base::BindOnce(&CookieManager::FlushCookieStoreAsyncHelper,"
+          },
+          {
+            "line": 778,
+            "present": true,
+            "text": "                                    base::Unretained(this)));"
+          },
+          {
+            "line": 779,
+            "present": true,
+            "text": "}"
+          },
+          {
+            "line": 780,
+            "present": true,
+            "text": ""
+          }
+        ],
+        "rect": {
+          "bottom": 412,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 392,
+          "width": 843,
+          "x": 420,
+          "y": 392
+        },
+        "title": "chromium/android_webview/browser/cookie_manager.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/browser/cookie_manager.cc#L776-L790",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "webview-cookie-wait",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/browser/cookie_manager.cc#L248-L255",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "android_webview/browser/cookie_manager.cc",
+      "firstLine": 248,
+      "lastLine": 255,
+      "anchor": "#L248-L255",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:20.417Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void CookieManager::ExecCookieTaskSync(\n    base::OnceCallback<void(base::OnceClosure)> task) {\n  WaitableEvent completion(base::WaitableEvent::ResetPolicy::AUTOMATIC,\n                           base::WaitableEvent::InitialState::NOT_SIGNALED);\n  ExecCookieTask(",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L248-L255",
+        "lines": [
+          {
+            "line": 248,
+            "present": true,
+            "text": "void CookieManager::ExecCookieTaskSync("
+          },
+          {
+            "line": 249,
+            "present": true,
+            "text": "    base::OnceCallback<void(base::OnceClosure)> task) {"
+          },
+          {
+            "line": 250,
+            "present": true,
+            "text": "  WaitableEvent completion(base::WaitableEvent::ResetPolicy::AUTOMATIC,"
+          },
+          {
+            "line": 251,
+            "present": true,
+            "text": "                           base::WaitableEvent::InitialState::NOT_SIGNALED);"
+          },
+          {
+            "line": 252,
+            "present": true,
+            "text": "  ExecCookieTask("
+          }
+        ],
+        "rect": {
+          "bottom": 240,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 220,
+          "width": 843,
+          "x": 420,
+          "y": 220
+        },
+        "title": "chromium/android_webview/browser/cookie_manager.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/android_webview/browser/cookie_manager.cc#L248-L255",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "cookie-monster-flush",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/net/cookies/cookie_monster.cc#L513-L521",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "net/cookies/cookie_monster.cc",
+      "firstLine": 513,
+      "lastLine": 521,
+      "anchor": "#L513-L521",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:23.004Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void CookieMonster::FlushStore(base::OnceClosure callback) {\n  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);\n\n  if (initialized_ && store_.get()) {\n    store_->Flush(std::move(callback));",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L513-L521",
+        "lines": [
+          {
+            "line": 513,
+            "present": true,
+            "text": "void CookieMonster::FlushStore(base::OnceClosure callback) {"
+          },
+          {
+            "line": 514,
+            "present": true,
+            "text": "  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);"
+          },
+          {
+            "line": 515,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 516,
+            "present": true,
+            "text": "  if (initialized_ && store_.get()) {"
+          },
+          {
+            "line": 517,
+            "present": true,
+            "text": "    store_->Flush(std::move(callback));"
+          }
+        ],
+        "rect": {
+          "bottom": 461,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 441,
+          "width": 843,
+          "x": 420,
+          "y": 441
+        },
+        "title": "chromium/net/cookies/cookie_monster.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/net/cookies/cookie_monster.cc#L513-L521",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "cookie-db-flush",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/net/extras/sqlite/sqlite_persistent_store_backend_base.cc#L226-L233",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "net/extras/sqlite/sqlite_persistent_store_backend_base.cc",
+      "firstLine": 226,
+      "lastLine": 233,
+      "anchor": "#L226-L233",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:24.963Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void SQLitePersistentStoreBackendBase::FlushAndNotifyInBackground(\n    base::OnceClosure callback) {\n  DCHECK(background_task_runner_->RunsTasksInCurrentSequence());\n\n  Commit();",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L226-L233",
+        "lines": [
+          {
+            "line": 226,
+            "present": true,
+            "text": "void SQLitePersistentStoreBackendBase::FlushAndNotifyInBackground("
+          },
+          {
+            "line": 227,
+            "present": true,
+            "text": "    base::OnceClosure callback) {"
+          },
+          {
+            "line": 228,
+            "present": true,
+            "text": "  DCHECK(background_task_runner_->RunsTasksInCurrentSequence());"
+          },
+          {
+            "line": 229,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 230,
+            "present": true,
+            "text": "  Commit();"
+          }
+        ],
+        "rect": {
+          "bottom": 473,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 453,
+          "width": 843,
+          "x": 420,
+          "y": 453
+        },
+        "title": "chromium/net/extras/sqlite/sqlite_persistent_store_backend_base.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/net/extras/sqlite/sqlite_persistent_store_backend_base.cc#L226-L233",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "cookie-db-commit",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/net/extras/sqlite/sqlite_persistent_cookie_store.cc#L1444-L1447",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "net/extras/sqlite/sqlite_persistent_cookie_store.cc",
+      "firstLine": 1444,
+      "lastLine": 1447,
+      "anchor": "#L1444-L1447",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:27.611Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "  bool commit_ok = transaction.Commit();\n  if (!commit_ok) {\n    RecordCookieCommitProblem(CookieCommitProblem::kTransactionCommit);\n  }",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L1444-L1447",
+        "lines": [
+          {
+            "line": 1444,
+            "present": true,
+            "text": "  bool commit_ok = transaction.Commit();"
+          },
+          {
+            "line": 1445,
+            "present": true,
+            "text": "  if (!commit_ok) {"
+          },
+          {
+            "line": 1446,
+            "present": true,
+            "text": "    RecordCookieCommitProblem(CookieCommitProblem::kTransactionCommit);"
+          },
+          {
+            "line": 1447,
+            "present": true,
+            "text": "  }"
+          }
+        ],
+        "rect": {
+          "bottom": 430,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 410,
+          "width": 843,
+          "x": 420,
+          "y": 410
+        },
+        "title": "chromium/net/extras/sqlite/sqlite_persistent_cookie_store.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/net/extras/sqlite/sqlite_persistent_cookie_store.cc#L1444-L1447",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "ios-session-design",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/sessions/model/session_restoration_service_impl.mm#L320-L339",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "ios/chrome/browser/sessions/model/session_restoration_service_impl.mm",
+      "firstLine": 320,
+      "lastLine": 339,
+      "anchor": "#L320-L339",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:30.011Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "// As can be seen from the API, SessionRestorationServiceImpl allow to load the\n// data from disk synchronously but save all data on a background sequence. To\n// ensure this is safe, WebStateListInfo store a boolean that records whether\n// any file modification have been scheduled on the background sequence for the\n// Browser or whether the session has already been loaded.",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L320-L339",
+        "lines": [
+          {
+            "line": 320,
+            "present": true,
+            "text": "// As can be seen from the API, SessionRestorationServiceImpl allow to load the"
+          },
+          {
+            "line": 321,
+            "present": true,
+            "text": "// data from disk synchronously but save all data on a background sequence. To"
+          },
+          {
+            "line": 322,
+            "present": true,
+            "text": "// ensure this is safe, WebStateListInfo store a boolean that records whether"
+          },
+          {
+            "line": 323,
+            "present": true,
+            "text": "// any file modification have been scheduled on the background sequence for the"
+          },
+          {
+            "line": 324,
+            "present": true,
+            "text": "// Browser or whether the session has already been loaded."
+          }
+        ],
+        "rect": {
+          "bottom": 466,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 446,
+          "width": 843,
+          "x": 420,
+          "y": 446
+        },
+        "title": "chromium/ios/chrome/browser/sessions/model/session_restoration_service_impl.mm at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/sessions/model/session_restoration_service_impl.mm#L320-L339",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "ios-session-load",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/sessions/model/session_restoration_service_impl.mm#L407-L429",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "ios/chrome/browser/sessions/model/session_restoration_service_impl.mm",
+      "firstLine": 407,
+      "lastLine": 429,
+      "anchor": "#L407-L429",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:30.512Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void SessionRestorationServiceImpl::LoadSession(Browser* browser) {\n  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);\n  DCHECK(infos_.contains(browser->GetWebStateList()));\n  WebStateListInfo& info = *infos_[browser->GetWebStateList()];\n  DCHECK(!info.is_backup());",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L407-L429",
+        "lines": [
+          {
+            "line": 407,
+            "present": true,
+            "text": "void SessionRestorationServiceImpl::LoadSession(Browser* browser) {"
+          },
+          {
+            "line": 408,
+            "present": true,
+            "text": "  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);"
+          },
+          {
+            "line": 409,
+            "present": true,
+            "text": "  DCHECK(infos_.contains(browser->GetWebStateList()));"
+          },
+          {
+            "line": 410,
+            "present": true,
+            "text": "  WebStateListInfo& info = *infos_[browser->GetWebStateList()];"
+          },
+          {
+            "line": 411,
+            "present": true,
+            "text": "  DCHECK(!info.is_backup());"
+          }
+        ],
+        "rect": {
+          "bottom": 513,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 493,
+          "width": 843,
+          "x": 420,
+          "y": 493
+        },
+        "title": "chromium/ios/chrome/browser/sessions/model/session_restoration_service_impl.mm at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/sessions/model/session_restoration_service_impl.mm#L407-L429",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "ios-session-metadata",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/sessions/model/session_loading.mm#L206-L217",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "ios/chrome/browser/sessions/model/session_loading.mm",
+      "firstLine": 206,
+      "lastLine": 217,
+      "anchor": "#L206-L217",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:32.570Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "ios::proto::WebStateListStorage LoadSessionStorage(\n    const base::FilePath& directory) {\n  const base::FilePath session_metadata_file =\n      directory.Append(kSessionMetadataFilename);\n",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L206-L217",
+        "lines": [
+          {
+            "line": 206,
+            "present": true,
+            "text": "ios::proto::WebStateListStorage LoadSessionStorage("
+          },
+          {
+            "line": 207,
+            "present": true,
+            "text": "    const base::FilePath& directory) {"
+          },
+          {
+            "line": 208,
+            "present": true,
+            "text": "  const base::FilePath session_metadata_file ="
+          },
+          {
+            "line": 209,
+            "present": true,
+            "text": "      directory.Append(kSessionMetadataFilename);"
+          },
+          {
+            "line": 210,
+            "present": true,
+            "text": ""
+          }
+        ],
+        "rect": {
+          "bottom": 459,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 439,
+          "width": 843,
+          "x": 420,
+          "y": 439
+        },
+        "title": "chromium/ios/chrome/browser/sessions/model/session_loading.mm at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/sessions/model/session_loading.mm#L206-L217",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "ios-tab-readers",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/sessions/model/session_restoration_service_impl.mm#L65-L105",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "ios/chrome/browser/sessions/model/session_restoration_service_impl.mm",
+      "firstLine": 65,
+      "lastLine": 105,
+      "anchor": "#L65-L105",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:33.515Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "std::optional<web::proto::WebStateStorage> LoadWebStateStorage(\n    const base::FilePath& path) {\n  web::proto::WebStateStorage storage;\n  if (ios::sessions::ParseProto(path, storage)) {\n    RecordLoadingWebStateStorageStatus(WebStateStorageStatus::kSuccess);",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L65-L105",
+        "lines": [
+          {
+            "line": 65,
+            "present": true,
+            "text": "std::optional<web::proto::WebStateStorage> LoadWebStateStorage("
+          },
+          {
+            "line": 66,
+            "present": true,
+            "text": "    const base::FilePath& path) {"
+          },
+          {
+            "line": 67,
+            "present": true,
+            "text": "  web::proto::WebStateStorage storage;"
+          },
+          {
+            "line": 68,
+            "present": true,
+            "text": "  if (ios::sessions::ParseProto(path, storage)) {"
+          },
+          {
+            "line": 69,
+            "present": true,
+            "text": "    RecordLoadingWebStateStorageStatus(WebStateStorageStatus::kSuccess);"
+          }
+        ],
+        "rect": {
+          "bottom": 381,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 361,
+          "width": 843,
+          "x": 420,
+          "y": 361
+        },
+        "title": "chromium/ios/chrome/browser/sessions/model/session_restoration_service_impl.mm at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/sessions/model/session_restoration_service_impl.mm#L65-L105",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "ios-tab-shown",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/web/web_state/web_state_impl.mm#L632-L634",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "ios/web/web_state/web_state_impl.mm",
+      "firstLine": 632,
+      "lastLine": 634,
+      "anchor": "#L632-L634",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:36.015Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void WebStateImpl::WasShown() {\n  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);\n  RealizedState()->WasShown();",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L632-L634",
+        "lines": [
+          {
+            "line": 632,
+            "present": true,
+            "text": "void WebStateImpl::WasShown() {"
+          },
+          {
+            "line": 633,
+            "present": true,
+            "text": "  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);"
+          },
+          {
+            "line": 634,
+            "present": true,
+            "text": "  RealizedState()->WasShown();"
+          }
+        ],
+        "rect": {
+          "bottom": 501,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 481,
+          "width": 843,
+          "x": 420,
+          "y": 481
+        },
+        "title": "chromium/ios/web/web_state/web_state_impl.mm at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/web/web_state/web_state_impl.mm#L632-L634",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "ios-realized-state",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/web/web_state/web_state_impl.mm#L1077-L1084",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "ios/web/web_state/web_state_impl.mm",
+      "firstLine": 1077,
+      "lastLine": 1084,
+      "anchor": "#L1077-L1084",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:37.339Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "WebStateImpl::RealizedWebState* WebStateImpl::RealizedState() {\n  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);\n  if (!IsRealized()) [[unlikely]] {\n    std::ignore = ForceRealized();\n  }",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L1077-L1084",
+        "lines": [
+          {
+            "line": 1077,
+            "present": true,
+            "text": "WebStateImpl::RealizedWebState* WebStateImpl::RealizedState() {"
+          },
+          {
+            "line": 1078,
+            "present": true,
+            "text": "  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);"
+          },
+          {
+            "line": 1079,
+            "present": true,
+            "text": "  if (!IsRealized()) [[unlikely]] {"
+          },
+          {
+            "line": 1080,
+            "present": true,
+            "text": "    std::ignore = ForceRealized();"
+          },
+          {
+            "line": 1081,
+            "present": true,
+            "text": "  }"
+          }
+        ],
+        "rect": {
+          "bottom": 477,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 457,
+          "width": 843,
+          "x": 420,
+          "y": 457
+        },
+        "title": "chromium/ios/web/web_state/web_state_impl.mm at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/web/web_state/web_state_impl.mm#L1077-L1084",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "ios-tab-realize",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/web/web_state/web_state_impl.mm#L562-L567",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "ios/web/web_state/web_state_impl.mm",
+      "firstLine": 562,
+      "lastLine": 567,
+      "anchor": "#L562-L567",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:41.769Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    // code should be able to observe the WebStateImpl with both `saved_`\n    // and `pimpl_` set.\n    pimpl_->InitWithProto(saved->GetBrowserState(), saved->GetLastActiveTime(),\n                          saved->GetTitle(), saved->GetVisibleURL(),\n                          saved->GetFaviconStatus(), saved->LoadStorage(),",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L562-L567",
+        "lines": [
+          {
+            "line": 562,
+            "present": true,
+            "text": "    // code should be able to observe the WebStateImpl with both `saved_`"
+          },
+          {
+            "line": 563,
+            "present": true,
+            "text": "    // and `pimpl_` set."
+          },
+          {
+            "line": 564,
+            "present": true,
+            "text": "    pimpl_->InitWithProto(saved->GetBrowserState(), saved->GetLastActiveTime(),"
+          },
+          {
+            "line": 565,
+            "present": true,
+            "text": "                          saved->GetTitle(), saved->GetVisibleURL(),"
+          },
+          {
+            "line": 566,
+            "present": true,
+            "text": "                          saved->GetFaviconStatus(), saved->LoadStorage(),"
+          }
+        ],
+        "rect": {
+          "bottom": 368,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 348,
+          "width": 843,
+          "x": 420,
+          "y": 348
+        },
+        "title": "chromium/ios/web/web_state/web_state_impl.mm at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/web/web_state/web_state_impl.mm#L562-L567",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "ios-load-callback",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/web/web_state/web_state_impl_serialized_data.mm#L70-L73",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "ios/web/web_state/web_state_impl_serialized_data.mm",
+      "firstLine": 70,
+      "lastLine": 73,
+      "anchor": "#L70-L73",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:43.791Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "proto::WebStateStorage WebStateImpl::SerializedData::LoadStorage() {\n  if (std::optional<proto::WebStateStorage> storage =\n          std::move(storage_loader_).Run()) {\n    return std::move(storage).value();",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L70-L73",
+        "lines": [
+          {
+            "line": 70,
+            "present": true,
+            "text": "proto::WebStateStorage WebStateImpl::SerializedData::LoadStorage() {"
+          },
+          {
+            "line": 71,
+            "present": true,
+            "text": "  if (std::optional<proto::WebStateStorage> storage ="
+          },
+          {
+            "line": 72,
+            "present": true,
+            "text": "          std::move(storage_loader_).Run()) {"
+          },
+          {
+            "line": 73,
+            "present": true,
+            "text": "    return std::move(storage).value();"
+          }
+        ],
+        "rect": {
+          "bottom": 368,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 348,
+          "width": 843,
+          "x": 420,
+          "y": 348
+        },
+        "title": "chromium/ios/web/web_state/web_state_impl_serialized_data.mm at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/web/web_state/web_state_impl_serialized_data.mm#L70-L73",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "ios-file-read",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/sessions/model/session_internal_util.mm#L162-L165",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "ios/chrome/browser/sessions/model/session_internal_util.mm",
+      "firstLine": 162,
+      "lastLine": 165,
+      "anchor": "#L162-L165",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:53.392Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "// Reads content of `filename` and returns it as a `NSData*` or nil on error.\n[[nodiscard]] NSData* ReadFile(NSString* filename) {\n  return [NSData dataWithContentsOfFile:filename options:0 error:nil];\n}",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L162-L165",
+        "lines": [
+          {
+            "line": 162,
+            "present": true,
+            "text": "// Reads content of `filename` and returns it as a `NSData*` or nil on error."
+          },
+          {
+            "line": 163,
+            "present": true,
+            "text": "[[nodiscard]] NSData* ReadFile(NSString* filename) {"
+          },
+          {
+            "line": 164,
+            "present": true,
+            "text": "  return [NSData dataWithContentsOfFile:filename options:0 error:nil];"
+          },
+          {
+            "line": 165,
+            "present": true,
+            "text": "}"
+          }
+        ],
+        "rect": {
+          "bottom": 368,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 348,
+          "width": 843,
+          "x": 420,
+          "y": 348
+        },
+        "title": "chromium/ios/chrome/browser/sessions/model/session_internal_util.mm at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/sessions/model/session_internal_util.mm#L162-L165",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "ios-profile-dirs",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/profile/model/profile_ios_impl.mm#L169-L208",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "ios/chrome/browser/profile/model/profile_ios_impl.mm",
+      "firstLine": 169,
+      "lastLine": 208,
+      "anchor": "#L169-L208",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:55.306Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "ProfileIOSDirectoryBuilder::CreateDirectories(const base::FilePath& state_path,\n                                              const base::FilePath& otr_path) {\n  // Create the profile directory synchronously otherwise we would need to\n  // sequence every otherwise independent I/O operation inside the profile\n  // directory with this operation. base::CreateDirectory() should be a",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L169-L208",
+        "lines": [
+          {
+            "line": 169,
+            "present": true,
+            "text": "ProfileIOSDirectoryBuilder::CreateDirectories(const base::FilePath& state_path,"
+          },
+          {
+            "line": 170,
+            "present": true,
+            "text": "                                              const base::FilePath& otr_path) {"
+          },
+          {
+            "line": 171,
+            "present": true,
+            "text": "  // Create the profile directory synchronously otherwise we would need to"
+          },
+          {
+            "line": 172,
+            "present": true,
+            "text": "  // sequence every otherwise independent I/O operation inside the profile"
+          },
+          {
+            "line": 173,
+            "present": true,
+            "text": "  // directory with this operation. base::CreateDirectory() should be a"
+          }
+        ],
+        "rect": {
+          "bottom": 435,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 415,
+          "width": 843,
+          "x": 420,
+          "y": 415
+        },
+        "title": "chromium/ios/chrome/browser/profile/model/profile_ios_impl.mm at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ios/chrome/browser/profile/model/profile_ios_impl.mm#L169-L208",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "shutdown-allow",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/content/browser/browser_main_loop.cc#L1199-L1216",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "content/browser/browser_main_loop.cc",
+      "firstLine": 1199,
+      "lastLine": 1216,
+      "anchor": "#L1199-L1216",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:57.906Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "  // Teardown may start in PostMainMessageLoopRun, and during teardown we\n  // need to be able to perform IO.\n  base::PermanentThreadAllowance::AllowBlocking();\n  GetIOThreadTaskRunner({})->PostTask(\n      FROM_HERE, base::BindOnce(base::IgnoreResult(",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L1199-L1216",
+        "lines": [
+          {
+            "line": 1199,
+            "present": true,
+            "text": "  // Teardown may start in PostMainMessageLoopRun, and during teardown we"
+          },
+          {
+            "line": 1200,
+            "present": true,
+            "text": "  // need to be able to perform IO."
+          },
+          {
+            "line": 1201,
+            "present": true,
+            "text": "  base::PermanentThreadAllowance::AllowBlocking();"
+          },
+          {
+            "line": 1202,
+            "present": true,
+            "text": "  GetIOThreadTaskRunner({})->PostTask("
+          },
+          {
+            "line": 1203,
+            "present": true,
+            "text": "      FROM_HERE, base::BindOnce(base::IgnoreResult("
+          }
+        ],
+        "rect": {
+          "bottom": 475,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 455,
+          "width": 843,
+          "x": 420,
+          "y": 455
+        },
+        "title": "chromium/content/browser/browser_main_loop.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/content/browser/browser_main_loop.cc#L1199-L1216",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "shutdown-pool",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/content/browser/browser_main_loop.cc#L1301-L1306",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "content/browser/browser_main_loop.cc",
+      "firstLine": 1301,
+      "lastLine": 1306,
+      "anchor": "#L1301-L1306",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:29:58.502Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "\n  GetContentClient()->browser()->ThreadPoolWillTerminate();\n  {\n    TRACE_EVENT0(\"shutdown\", \"BrowserMainLoop::Subsystem:ThreadPool\");\n    base::ThreadPoolInstance::Get()->Shutdown();",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L1301-L1306",
+        "lines": [
+          {
+            "line": 1301,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 1302,
+            "present": true,
+            "text": "  GetContentClient()->browser()->ThreadPoolWillTerminate();"
+          },
+          {
+            "line": 1303,
+            "present": true,
+            "text": "  {"
+          },
+          {
+            "line": 1304,
+            "present": true,
+            "text": "    TRACE_EVENT0(\"shutdown\", \"BrowserMainLoop::Subsystem:ThreadPool\");"
+          },
+          {
+            "line": 1305,
+            "present": true,
+            "text": "    base::ThreadPoolInstance::Get()->Shutdown();"
+          }
+        ],
+        "rect": {
+          "bottom": 447,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 427,
+          "width": 843,
+          "x": 420,
+          "y": 427
+        },
+        "title": "chromium/content/browser/browser_main_loop.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/content/browser/browser_main_loop.cc#L1301-L1306",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "shutdown-tracker",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/base/task/thread_pool/thread_pool_impl.cc#L425-L450",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "base/task/thread_pool/thread_pool_impl.cc",
+      "firstLine": 425,
+      "lastLine": 450,
+      "anchor": "#L425-L450",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:30:01.156Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "  task_tracker_->StartShutdown();\n\n  // Allow all tasks to run. Done after initiating shutdown to ensure that non-\n  // BLOCK_SHUTDOWN tasks don't get a chance to run and that BLOCK_SHUTDOWN\n  // tasks run with a normal thread priority.",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L425-L450",
+        "lines": [
+          {
+            "line": 425,
+            "present": true,
+            "text": "  task_tracker_->StartShutdown();"
+          },
+          {
+            "line": 426,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 427,
+            "present": true,
+            "text": "  // Allow all tasks to run. Done after initiating shutdown to ensure that non-"
+          },
+          {
+            "line": 428,
+            "present": true,
+            "text": "  // BLOCK_SHUTDOWN tasks don't get a chance to run and that BLOCK_SHUTDOWN"
+          },
+          {
+            "line": 429,
+            "present": true,
+            "text": "  // tasks run with a normal thread priority."
+          }
+        ],
+        "rect": {
+          "bottom": 445,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 425,
+          "width": 843,
+          "x": 420,
+          "y": 425
+        },
+        "title": "chromium/base/task/thread_pool/thread_pool_impl.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/base/task/thread_pool/thread_pool_impl.cc#L425-L450",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "shutdown-wait",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/base/task/thread_pool/task_tracker.cc#L235-L247",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "base/task/thread_pool/task_tracker.cc",
+      "firstLine": 235,
+      "lastLine": 247,
+      "anchor": "#L235-L247",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:30:03.164Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void TaskTracker::CompleteShutdown() {\n  // It is safe to access |shutdown_event_| without holding |lock_| because the\n  // pointer never changes after being set by StartShutdown(), which must\n  // happen-before this.\n  DCHECK(TS_UNCHECKED_READ(shutdown_event_));",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L235-L247",
+        "lines": [
+          {
+            "line": 235,
+            "present": true,
+            "text": "void TaskTracker::CompleteShutdown() {"
+          },
+          {
+            "line": 236,
+            "present": true,
+            "text": "  // It is safe to access |shutdown_event_| without holding |lock_| because the"
+          },
+          {
+            "line": 237,
+            "present": true,
+            "text": "  // pointer never changes after being set by StartShutdown(), which must"
+          },
+          {
+            "line": 238,
+            "present": true,
+            "text": "  // happen-before this."
+          },
+          {
+            "line": 239,
+            "present": true,
+            "text": "  DCHECK(TS_UNCHECKED_READ(shutdown_event_));"
+          }
+        ],
+        "rect": {
+          "bottom": 509,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 489,
+          "width": 843,
+          "x": 420,
+          "y": 489
+        },
+        "title": "chromium/base/task/thread_pool/task_tracker.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/base/task/thread_pool/task_tracker.cc#L235-L247",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "bookmark-runner",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/bookmarks/browser/bookmark_storage.cc#L181-L195",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "components/bookmarks/browser/bookmark_storage.cc",
+      "firstLine": 181,
+      "lastLine": 195,
+      "anchor": "#L181-L195",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:30:04.951Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "    : model_(model),\n      backend_task_runner_(base::ThreadPool::CreateSequencedTaskRunner(\n          {base::MayBlock(), base::TaskPriority::BEST_EFFORT,\n           base::TaskShutdownBehavior::BLOCK_SHUTDOWN})),\n      permanent_node_selection_(permanent_node_selection),",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L181-L195",
+        "lines": [
+          {
+            "line": 181,
+            "present": true,
+            "text": "    : model_(model),"
+          },
+          {
+            "line": 182,
+            "present": true,
+            "text": "      backend_task_runner_(base::ThreadPool::CreateSequencedTaskRunner("
+          },
+          {
+            "line": 183,
+            "present": true,
+            "text": "          {base::MayBlock(), base::TaskPriority::BEST_EFFORT,"
+          },
+          {
+            "line": 184,
+            "present": true,
+            "text": "           base::TaskShutdownBehavior::BLOCK_SHUTDOWN})),"
+          },
+          {
+            "line": 185,
+            "present": true,
+            "text": "      permanent_node_selection_(permanent_node_selection),"
+          }
+        ],
+        "rect": {
+          "bottom": 490,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 470,
+          "width": 843,
+          "x": 420,
+          "y": 470
+        },
+        "title": "chromium/components/bookmarks/browser/bookmark_storage.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/bookmarks/browser/bookmark_storage.cc#L181-L195",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "important-post",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/base/files/important_file_writer.cc#L463-L478",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "base/files/important_file_writer.cc",
+      "firstLine": 463,
+      "lastLine": 478,
+      "anchor": "#L463-L478",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:30:07.364Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "void ImportantFileWriter::WriteNowWithBackgroundDataProducer(\n    BackgroundDataProducerCallback background_data_producer) {\n  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);\n\n  OnceClosure write_task = BindOnce(&ProduceAndWriteStringToFileAtomically,",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L463-L478",
+        "lines": [
+          {
+            "line": 463,
+            "present": true,
+            "text": "void ImportantFileWriter::WriteNowWithBackgroundDataProducer("
+          },
+          {
+            "line": 464,
+            "present": true,
+            "text": "    BackgroundDataProducerCallback background_data_producer) {"
+          },
+          {
+            "line": 465,
+            "present": true,
+            "text": "  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);"
+          },
+          {
+            "line": 466,
+            "present": true,
+            "text": ""
+          },
+          {
+            "line": 467,
+            "present": true,
+            "text": "  OnceClosure write_task = BindOnce(&ProduceAndWriteStringToFileAtomically,"
+          }
+        ],
+        "rect": {
+          "bottom": 452,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 432,
+          "width": 843,
+          "x": 420,
+          "y": 432
+        },
+        "title": "chromium/base/files/important_file_writer.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/base/files/important_file_writer.cc#L463-L478",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    },
+    {
+      "reference": "important-flush",
+      "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/base/files/important_file_writer.cc#L310-L342",
+      "commit": "2f9a11097447f226133bc1a31c787291a5eeab98",
+      "path": "base/files/important_file_writer.cc",
+      "firstLine": 310,
+      "lastLine": 342,
+      "anchor": "#L310-L342",
+      "status": "verified",
+      "checkedAt": "2026-11-03T08:30:08.071Z",
+      "urlMatch": true,
+      "excerptMatch": true,
+      "expectedExcerpt": "  FilePath tmp_file_path;\n  File tmp_file = CreateAndOpenTemporaryFileInDir(\n      path.DirName(), &tmp_file_path, /*additional_flags=*/0,\n      path.BaseName().value());\n  if (!tmp_file.IsValid()) {",
+      "rendered": {
+        "anchorFound": true,
+        "anchorInViewport": true,
+        "hash": "#L310-L342",
+        "lines": [
+          {
+            "line": 310,
+            "present": true,
+            "text": "  FilePath tmp_file_path;"
+          },
+          {
+            "line": 311,
+            "present": true,
+            "text": "  File tmp_file = CreateAndOpenTemporaryFileInDir("
+          },
+          {
+            "line": 312,
+            "present": true,
+            "text": "      path.DirName(), &tmp_file_path, /*additional_flags=*/0,"
+          },
+          {
+            "line": 313,
+            "present": true,
+            "text": "      path.BaseName().value());"
+          },
+          {
+            "line": 314,
+            "present": true,
+            "text": "  if (!tmp_file.IsValid()) {"
+          }
+        ],
+        "rect": {
+          "bottom": 242,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 222,
+          "width": 843,
+          "x": 420,
+          "y": 222
+        },
+        "title": "chromium/base/files/important_file_writer.cc at 2f9a11097447f226133bc1a31c787291a5eeab98 · chromium/chromium · GitHub",
+        "url": "https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/base/files/important_file_writer.cc#L310-L342",
+        "viewportHeight": 577
+      },
+      "openSucceeded": true,
+      "evaluationSucceeded": true
+    }
+  ],
+  "finishedAt": "2026-11-03T08:30:08.291Z",
+  "cgroupAfter": {
+    "pid": "1795855",
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-monochromatic\\x2dupdates.slice/wg-quicker-update-app.slice-run\\x2dp1795723\\x2di39556311.scope.scope",
+    "values": {
+      "pids.max": "512",
+      "pids.current": "173",
+      "pids.events": "max 0",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0"
+    }
+  },
+  "close": {
+    "commandSucceeded": true,
+    "response": {
+      "success": true,
+      "data": {
+        "closed": true,
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": false,
+            "engine": "chrome",
+            "launchHash": null
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": false,
+          "saveStatus": "not_configured"
+        },
+        "restoreStatus": "not_configured",
+        "saveStatus": "not_configured"
+      },
+      "error": null
+    }
+  },
+  "cleanup": {
+    "checkedAt": "2026-11-03T08:30:51.045Z",
+    "daemonStillExists": false,
+    "cgroupStillExists": false,
+    "sessionPidFileExists": false
+  }
+}

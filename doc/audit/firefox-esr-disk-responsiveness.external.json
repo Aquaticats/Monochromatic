@@ -1,0 +1,45 @@
+{
+  "observedAt": "2026-11-03T08:41:52.942Z",
+  "receipts": [
+    {
+      "url": "https://github.com/fontconfig/fontconfig/blob/b6cf4b270c42b13347a4012cdceb9bbc3d2e8f32/src/fcinit.c#L303",
+      "expected": "FcInitBringUptoDate (void)",
+      "actual": {
+        "text": "FcInitBringUptoDate (void)",
+        "url": "https://github.com/fontconfig/fontconfig/blob/b6cf4b270c42b13347a4012cdceb9bbc3d2e8f32/src/fcinit.c#L303"
+      },
+      "verified": true,
+      "context": "FcInitBringUptoDate (void)\n{\n    FcConfig *config = FcConfigReference (NULL);\n    FcBool    ret = FcTrue;\n    time_t    now;\n\n    if (!config)\n\treturn FcFalse;\n    /*\n     * rescanInterval == 0 disables automatic up to date\n     */\n    if (config->rescanInterval == 0)\n\tgoto bail;\n    /*\n     * Check no more often than rescanInterval seconds\n     */\n    now = time (0);\n    if (config->rescanTime + config->rescanInterval - now > 0)\n\tgoto bail;\n    /*\n     * If up to date, don't reload configuration\n     */\n    if (FcConfigUptoDate (0))\n\tgoto bail;\n    ret = FcInitReinitialize();\nbail:\n    FcConfigDestroy (config);\n\n    return ret;\n}\n"
+    },
+    {
+      "url": "https://github.com/fontconfig/fontconfig/blob/b6cf4b270c42b13347a4012cdceb9bbc3d2e8f32/src/fccfg.c#L253",
+      "expected": "FcConfigNewestFile (FcStrSet *files)",
+      "actual": {
+        "text": "FcConfigNewestFile (FcStrSet *files)",
+        "url": "https://github.com/fontconfig/fontconfig/blob/b6cf4b270c42b13347a4012cdceb9bbc3d2e8f32/src/fccfg.c#L253"
+      },
+      "verified": true,
+      "context": "FcConfigNewestFile (FcStrSet *files)\n{\n    FcStrList  *list = FcStrListCreate (files);\n    FcFileTime  newest = { 0, FcFalse };\n    FcChar8    *file;\n    struct stat statb;\n\n    if (list) {\n\twhile ((file = FcStrListNext (list)))\n\t    if (FcStat (file, &statb) == 0)\n\t\tif (!newest.set || statb.st_mtime - newest.time > 0) {\n\t\t    newest.set = FcTrue;\n\t\t    newest.time = statb.st_mtime;\n\t\t}\n\tFcStrListDone (list);\n    }\n    return newest;\n}\n\nFcBool\nFcConfigUptoDate (FcConfig *config)\n{\n    FcFileTime config_time, config_dir_time, font_time, app_fonts_time;\n    time_t     now = time (0);\n    FcBool     ret = FcTrue;\n\n    config = FcConfigReference (config);\n    if (!config)\n\treturn FcFalse;\n\n    config_time = FcConfigNewestFile (config->configFiles);"
+    },
+    {
+      "url": "https://github.com/GNOME/gtk/blob/bac4a949b151eedada8bc60a97429d2176b0b28b/gtk/gtksettings.c#L2154",
+      "expected": "case PROP_THEME_NAME:",
+      "actual": {
+        "text": "case PROP_THEME_NAME:",
+        "url": "https://github.com/GNOME/gtk/blob/bac4a949b151eedada8bc60a97429d2176b0b28b/gtk/gtksettings.c#L2154"
+      },
+      "verified": true,
+      "context": "    case PROP_THEME_NAME:\n    case PROP_APPLICATION_PREFER_DARK_THEME:\n      settings_update_theme (settings);\n      break;\n    case PROP_XFT_DPI:\n      settings_update_resolution (settings);\n      /* This is a hack because with gtk_rc_reset_styles() doesn't get\n       * widgets with gtk_widget_style_set(), and also causes more\n       * recomputation than necessary.\n       */\n      gtk_style_context_reset_widgets (priv->screen);\n      break;\n    case PROP_XFT_ANTIALIAS:\n    case PROP_XFT_HINTING:\n    case PROP_XFT_HINTSTYLE:\n    case PROP_XFT_RGBA:\n      settings_update_font_options (settings);\n      gtk_style_context_reset_widgets (priv->screen);\n      break;\n    case PROP_FONTCONFIG_TIMESTAMP:\n      if (settings_update_fontconfig (settings))\n        gtk_style_context_reset_widgets (priv->screen);\n      break;\n    case PROP_ENABLE_ANIMATIONS:\n      gtk_style_context_reset_widgets (priv->screen);\n      break;\n    case PROP_CURSOR_THEME_NAME:\n    case PROP_CURSOR_THEME_SIZE:\n      settings_update_cursor_theme (settings);\n      break;\n    }"
+    },
+    {
+      "url": "https://github.com/GNOME/gtk/blob/bac4a949b151eedada8bc60a97429d2176b0b28b/gtk/gtkcssprovider.c#L2123",
+      "expected": "_gtk_css_provider_load_named (GtkCssProvider *provider,",
+      "actual": {
+        "text": "_gtk_css_provider_load_named (GtkCssProvider *provider,",
+        "url": "https://github.com/GNOME/gtk/blob/bac4a949b151eedada8bc60a97429d2176b0b28b/gtk/gtkcssprovider.c#L2123"
+      },
+      "verified": true,
+      "context": "_gtk_css_provider_load_named (GtkCssProvider *provider,\n                              const gchar    *name,\n                              const gchar    *variant)\n{\n  gchar *path;\n  gchar *resource_path;\n\n  g_return_if_fail (GTK_IS_CSS_PROVIDER (provider));\n  g_return_if_fail (name != NULL);\n\n  gtk_css_provider_reset (provider);\n\n  /* try loading the resource for the theme. This is mostly meant for built-in\n   * themes.\n   */\n  if (variant)\n    resource_path = g_strdup_printf (\"/org/gtk/libgtk/theme/%s/gtk-%s.css\", name, variant);\n  else\n    resource_path = g_strdup_printf (\"/org/gtk/libgtk/theme/%s/gtk.css\", name);\n\n  if (g_resources_get_info (resource_path, 0, NULL, NULL, NULL))\n    {\n      gtk_css_provider_load_from_resource (provider, resource_path);\n      g_free (resource_path);\n      return;\n    }\n  g_free (resource_path);\n\n  /* Next try looking for files in the various theme directories. */\n  path = _gtk_css_find_theme (name, variant);\n  if (path)"
+    }
+  ]
+}

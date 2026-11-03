@@ -10266,3 +10266,49 @@ by the coordinator at merge.
   fix + main (package repair, subvolume claims, service locks); gate `release-0.5.21-candidate` launched; on a pass,
   merge and release 0.5.21, install, verify, then convert the 18 skipped worktrees. The deadline agent was resumed
   for the no-progress push limit on `feat/git-policy-cli-push-stops-on-no-progress`.
+- 2026-11-03T03:24:55-05:00: deadline-stop gate `gpc-gate-deadline-stop-with-main-20261103T030559-0500` FAILED: 3959 run, 3956
+  passed, 3 failed. In the container only, `git_stop_lock_tests::a_push_stop_of_a_responsive_holder_leaves_no_lock`
+  and `..._unresponsive_holder_leaves_no_lock` left `refs/remotes/origin/main.lock`
+  (`git_stop_lock_tests.rs:128`), and `supervisor_guard::a_loop_is_ended_by_the_processor_budget_and_reported`
+  aborted after 96.3 s ("a command the supervisor ended was never reported by its test"; no earlier sighting in
+  this handover). Sent back to the deadline agent (fix on its branch, red first, cause with evidence). The first
+  0.5.21 candidate (deadline-stop + conversion + main) was stopped, since it carries those failures.
+  Coordinator tool defect found: `~/temp/agent/gate/launch-gate.ts` starts collected units, and `systemctl show` on
+  a collected unit reports `Result=success`/status 0 whatever happened, so the waiter's "success" line never
+  meant a pass. Every merge so far was also checked against the log's nextest summary, and the three gates merged
+  on today (package repair, subvolume-only, service and subvolume) end with their last stage finished and no
+  failed task. Fixed: the launcher now writes `gate-exit-status=<n>` as the log's last line, and verdicts read
+  that. New candidate: conversion fix + main, gate `gpc-gate-release-0.5.21-conversion-candidate-20261103T032431-0500`.
+- 2026-11-03T03:36:07-05:00: settlement branch finished (host 3353 and binary 573 passed, clippy clean): main merged
+  (`e9211c0ffa`; the package repair runs after the copy for exactly the confirmed destination, control
+  `the_repair_is_handed_exactly_the_confirmed_destination`); in-place notes added to the decision and planning docs
+  that called the lock current; the owner's "read more forms" built from Git 2.56.0's `parse-options.c:520-593`
+  rules (unique prefix, exact name wins, `no-` negation, `--end-of-options`) with one option table checked
+  against real `git worktree add -h` both ways; a destination below missing directories is now read; forms Git
+  rejects keep Git's error and get no copy (`git worktree --verbose add` is "unknown option" in Git itself).
+  Stacked candidate `integrate/git-policy-cli-conversion-and-lock-free-add` = conversion candidate + settlement
+  (doc conflicts in the README lock-wait sentence and the planning doc's two appended sections, resolved by keeping
+  both in time order); gate `gpc-gate-release-0.5.22-lock-free-add-candidate-20261103T033514-0500` running.
+  Plan: 0.5.21 = conversion candidate when its gate passes; 0.5.22 = this stack. Add-speed lane started on
+  `perf/git-policy-cli-fast-snapshot-add` from the stack (split the add's steps without strace, judge the two walks
+  and the parent fsync against the kernel source; also why an add from main took the full copy route at
+  2026-11-03T03:29:01-05:00, "copied 140294 ignored filesystem entries").
+- 2026-11-03T03:42:03-05:00: word-level second merge pass built (branch `feat/git-policy-cli-word-level-second-merge-pass`, host
+  3340 and binary 557 passed, clippy clean; own merge `word_merge.rs` on `similar` 3.2.1 Myers, matching
+  Jujutsu 0.46.0 on 41 stored corpus inputs; runs in a person's merge/rebase/cherry-pick/revert, the isolated
+  merge, the auto-push reconcile merge and the commit replay; `native:perf` commit +1.7 ms inside the run-median
+  spread of 40.3 to 57.0 ms). Owner answer (question tool): a fully resolved merge "Finish like a clean merge
+  (Recommended)", honouring `--no-commit`, `--squash`, `--edit` and similar. Adopted unasked from standing
+  decisions and sent to the agent with it: cover `git pull` (a merge a person runs), respect a person's
+  `attr.tree` as Git does, derive the candidate size bounds from Git's own constants, and give service-sent
+  journal entries the service's identifier. The agent first merges the 0.5.22 stack into its branch.
+- 2026-11-03T03:45:35-05:00: 0.5.21 candidate gate `gpc-gate-release-0.5.21-conversion-candidate-20261103T032431-0500` passed (3957
+  run, 3957 passed, 6 skipped, `gate-exit-status=0`); conversion fix merged into main; release 0.5.21 dispatched.
+  Disk-weight branch `fix/star-containers-at-lowest-disk-weight` merged into main after reading its diff: all six
+  packages pass `--blkio-weight=10 --cgroup-conf=io.weight=10` from a named constant or mise variable (ide/app and
+  mutation-test/cli own helpers, forbidden-strings/cli reuses `diskWeightArguments()`, vm-builder a constant plus a
+  mise var tied by a unit test, two inline-script constants). Evidence: argv recorded through a stand-in `podman`
+  replayed into small containers read 10/10 on `io.bfq.weight` and `io.weight` (controls read default 100); the
+  packages' real images were not built. Open for the owner: about twenty other packages and two workflows start
+  containers at the default weight; the constant has several copies; vm-builder's rootful privileged
+  bootc-image-builder run has no CPU, memory or process limits (HXR asks for them).

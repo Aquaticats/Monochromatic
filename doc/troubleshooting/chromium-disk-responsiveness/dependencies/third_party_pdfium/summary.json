@@ -1,0 +1,22 @@
+{
+  "dependency": "third_party/pdfium",
+  "revision": "fa4d5f8fbd89ea07273529daf9fd24fe1c7f6b9a",
+  "date": "2026-11-03T08:19:26.566Z",
+  "trackedEntries": 5440,
+  "regularFilesScanned": 5440,
+  "omitted": [],
+  "matches": 208,
+  "originalPatternMatches": 207,
+  "wrapperMatches": 1,
+  "matchedFiles": 70,
+  "productionLooking": 93,
+  "searchedBytes": 40593884,
+  "perFamily": {
+    "file": 31,
+    "posix": 168,
+    "mapping": 2,
+    "managed": 3,
+    "dependency-wrapper": 1,
+    "wait": 3
+  }
+}

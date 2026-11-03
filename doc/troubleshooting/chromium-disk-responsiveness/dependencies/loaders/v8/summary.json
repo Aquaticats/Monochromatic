@@ -1,0 +1,17 @@
+{
+  "dependency": "v8",
+  "revision": "235050a0df6db2c9d92a419af2b72fbf3b2dd73b",
+  "date": "2026-11-03T08:26:33.005Z",
+  "trackedEntries": 19826,
+  "regularFilesScanned": 19826,
+  "omitted": [],
+  "matches": 6,
+  "originalPatternMatches": 6,
+  "wrapperMatches": 0,
+  "matchedFiles": 4,
+  "productionLooking": 4,
+  "searchedBytes": 156072135,
+  "perFamily": {
+    "native-library": 6
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-11-03T08:44:06.177Z",
+  "renderer": "pandoc 3.13",
+  "results": [
+    {
+      "path": "doc/audit/firefox-esr-disk-responsiveness.md",
+      "sha256": "2cd10ee74009786247e3f39cbc4e56219239a8eabc4c88836c5114e6897360c4",
+      "headings": 57,
+      "links": 225,
+      "htmlBytes": 116022
+    },
+    {
+      "path": "doc/handover/firefox-esr-disk-responsiveness-audit.md",
+      "sha256": "5ef4efa04f5617e1f8e226027c963ba31f35b579446148807850f712e8e1ddc3",
+      "headings": 5,
+      "links": 4,
+      "htmlBytes": 7175
+    },
+    {
+      "path": "doc/troubleshooting/agent-browser-eagain.md",
+      "sha256": "cc5fe0c5be8d9f36be93da9495f01ae50490618cd45e6944f50336b6d3af1169",
+      "headings": 24,
+      "links": 13,
+      "htmlBytes": 24369
+    }
+  ]
+}
