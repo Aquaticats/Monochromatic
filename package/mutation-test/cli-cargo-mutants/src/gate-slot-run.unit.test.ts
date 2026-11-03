@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import {
   mkdir,
   readdir,
@@ -34,9 +35,39 @@ import {
   runInSlot,
   takeAnySlot,
 } from './gate-slot-run.ts';
-import { noticeGraceMs } from './constants.ts';
+import {
+  flockProgram,
+  noticeGraceMs,
+  slotConflictExitCode,
+} from './constants.ts';
 import { liveOwnerOf } from './owner-claim.ts';
 import { readBootId } from './process-identity.ts';
+
+/**
+ Try the kernel lock on a path as a waiting gate of the earlier release does on each of its polls (it creates a missing file
+ and takes the lock without waiting), and give it straight back.
+
+ @param path - the lock file
+
+ @returns the status of `flock`: zero when the lock was free, the conflict status when someone holds it
+
+ @example
+ ```ts
+ legacyPollStatus('/l/slot-1.lock');
+ ```
+ */
+function legacyPollStatus(path: string): number | null {
+  return spawnSync(
+    flockProgram,
+    [
+      '--nonblock',
+      '--exclusive',
+      `--conflict-exit-code=${String(slotConflictExitCode)}`,
+      path,
+      'true',
+    ],
+  ).status;
+}
 
 /**
  Path of the module the holder children import.
@@ -237,7 +268,7 @@ await describe({
           },
         }),
         it({
-          name: 'respects a gate of the earlier release that holds the kernel lock on a slot file, then removes the file once it ended',
+          name: 'respects a gate of the earlier release that holds the kernel lock on a slot file, then takes the slot once it ended and keeps the file',
           fn: async () => {
             await using directory = await gateDirectory('gate-legacy-');
             const options = gateOptions({ lockDirectory: directory.path });
@@ -266,7 +297,7 @@ await describe({
             await holder.kill();
             const freed = await takeAnySlot({ options });
             expect(freed.kind === 'taken' ? freed.slot : 0).toBe(1);
-            expect((await readdir(directory.path)).includes('slot-1.lock')).toBe(false);
+            expect((await readdir(directory.path)).includes('slot-1.lock')).toBe(true);
           },
         }),
       ],
@@ -532,7 +563,58 @@ await describe({
           },
         }),
         it({
-          name: 'does not wait for a slot file of an earlier release that nothing holds: it removes the file of the slot it takes and runs',
+          name: 'keeps the kernel lock of its slot while the command runs, so a waiting gate of the earlier release that polls the slot is refused, and gives it back after',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-legacy-waiter-');
+            const lockFile = slotLockPath({
+              lockDirectory: directory.path,
+              slot: 1,
+            });
+            const seen: (number | null)[] = [];
+            await runInSlot({
+              options: gateOptions({ lockDirectory: directory.path }),
+              runCommand: async () => {
+                seen.push(legacyPollStatus(lockFile));
+                return 0;
+              },
+              write: () => {},
+            });
+            expect(seen).toEqual([slotConflictExitCode]);
+            expect(legacyPollStatus(lockFile)).toBe(0);
+          },
+        }),
+        it({
+          name: 'names a peer that holds a slot as that process, though the peer holds the kernel lock of the slot too',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-legacy-peer-');
+            const options = gateOptions({
+              lockDirectory: directory.path,
+              slotCount: 1,
+            });
+            await using holder = await runClaimHolder({
+              claimModule,
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+            });
+            // The peer holds the kernel lock of the slot file too, as a gate of this release does while its command runs.
+            await using lockHolder = await startOldHolder(slotLockPath({
+              lockDirectory: directory.path,
+              slot: 1,
+            }));
+            expect(await takeAnySlot({ options })).toEqual({
+              kind: 'full',
+              holders: [
+                {
+                  kind: 'process',
+                  slot: 1,
+                  pid: holder.pid,
+                },
+              ],
+            });
+          },
+        }),
+        it({
+          name: 'does not wait for a slot file of an earlier release that nothing holds: it keeps the file and runs',
           fn: async () => {
             await using directory = await gateDirectory('gate-legacy-free-');
             await mkdir(directory.path, { recursive: true });
@@ -551,8 +633,9 @@ await describe({
               write: () => {},
             });
             expect(status).toBe(0);
-            // The gate took slot one, so only that slot's leftover was probed and retired; slot two's is probed when tried.
-            expect((await readdir(directory.path)).filter((name) => name.endsWith('.lock'))).toEqual(['slot-2.lock']);
+            // The files stay: a gate of the earlier release that polls a slot must find the file it locks, and removing it would
+            // let a probe delete a file such a gate has just created and locked.
+            expect((await readdir(directory.path)).filter((name) => name.endsWith('.lock'))).toEqual(['slot-1.lock', 'slot-2.lock']);
           },
         }),
       ],
