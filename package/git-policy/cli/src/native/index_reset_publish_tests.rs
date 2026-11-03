@@ -215,3 +215,21 @@ fn the_published_mode_under_a_real_umask_is_gits() {
     }
     remove(root.as_path());
 }
+
+/// A write that is interrupted by a signal is tried again, as `write_all` does, and the whole file is published.
+#[test]
+fn an_interrupted_write_is_tried_again() {
+    let (root, _live, built) = directory("publish-interrupted");
+    let tries: RefCell<u32> = RefCell::new(0);
+    let write = |file: &mut std::fs::File, part: &[u8]| -> std::io::Result<usize> {
+        *tries.borrow_mut() += 1;
+        if *tries.borrow() % 2 == 1 {
+            return Err(std::io::Error::from(std::io::ErrorKind::Interrupted));
+        }
+        return (SYSTEM.write)(file, &part[..part.len().min(4)]);
+    };
+    publish_with(&Steps { write: &write, ..SYSTEM }, built.as_path(), b"a payload that needs several writes", 0).expect("published");
+    assert_eq!(std::fs::read(&built).expect("target"), b"a payload that needs several writes".to_vec());
+    assert!(*tries.borrow() > 4);
+    remove(root.as_path());
+}
