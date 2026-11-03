@@ -76,9 +76,13 @@ and removing them is open (see "Housekeeping").
 
 ### Agents and gates running
 
-At 2026-11-03T09:53:24-05:00 (the owner's cap is five delegate agents at once):
-- The follow-up index written in process (task 140),
-  branch `perf/git-policy-cli-follow-up-index-in-process`.
+At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
+- Shipped-limits pick 1's classing with the measured citations 7,
+  8,
+  13,
+  14 and 15,
+  branch `fix/git-policy-cli-limits-cite-measurements`,
+  worktree `.claude/worktrees/limits-cite-measurements`.
 - The fsmonitor troubleshooting doc,
   `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
 - cargo-shadow follow-ups on `feat/cargo-shadow-cli` (tip `679ccce734` before them):
@@ -92,24 +96,30 @@ At 2026-11-03T09:53:24-05:00 (the owner's cap is five delegate agents at once):
 - Shipped-limits picks 10 and 11,
   branch `feat/git-policy-cli-saved-copies-and-audit-generations-measured`,
   worktree `.claude/worktrees/saved-copies-audit-generations`.
-- Not an agent:
+- Not agents:
   the sixth cross-vendor design review (`pi`,
-  output `~/temp/agent/reviews/commits-never-fail-sol-6.txt`).
+  output `~/temp/agent/reviews/commits-never-fail-sol-6.txt`);
+  the cross-vendor review of the in-process index change (`pi`,
+  output `~/temp/agent/reviews/follow-up-index-sol.txt`,
+  diff `follow-up-index-in-process.diff` beside it);
+  the gate of the 0.5.27 candidate,
+  unit `gpc-gate-candidate-0-5-27-index-in-process-20261103T095813-0500.service`,
+  log `~/temp/agent/gate/gpc-gate-candidate-0-5-27-index-in-process-20261103T095813-0500.log`.
 Queued,
 in this order:
 the cargo-shadow second cross-vendor review once its follow-ups land;
-shipped-limits pick 1's classing with the measured citations 7,
-8,
-13,
-14 and 15 (off the commit path,
-first free slot);
-picks 4 and 9,
+shipped-limits picks 4 and 9,
 then 2 and 6,
-after the follow-up index branch lands,
-because both change the commit path it is changing.
+each from the 0.5.27 candidate tip,
+as slots free.
 
-The 0.5.27 candidate is `integrate/git-policy-cli-plain-commit-no-quiet-index-in-process` (tip `00259fff5e`,
+The 0.5.27 candidate is `integrate/git-policy-cli-plain-commit-no-quiet-index-in-process` (tip `3848f9581d`,
 worktree `.claude/worktrees/integrate-plain-commit-no-quiet-index`):
+the follow-up `reset` and `diff-tree` and the `diff-index --cached --quiet` checks in process
+(`perf/git-policy-cli-follow-up-index-in-process` `48d6abb28c`;
+on a throwaway copy of main's shape the wrapped commit took a median 139 ms against 137 ms before and 38 ms native;
+the remaining Git `reset` calls pass `--no-refresh`;
+merge conflict with the no-`--quiet` branch resolved as `reset --no-refresh` with both branches' tests kept),
 plain commit over unmerged files,
 no inner `--quiet`,
 the service unit without limits,
@@ -117,9 +127,8 @@ the audit rotation fix,
 the flaky-test fixes,
 the doctor fsmonitor line (`072ac84868`)
 and main up to `a9e81617a1`.
-It waits for the follow-up index branch,
-then the gate,
-the release and a measurement on main against native Git.
+It waits for the gate and the index review,
+then the release and a measurement on main against native Git.
 
 ## Open work
 
