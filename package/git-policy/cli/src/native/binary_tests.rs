@@ -195,6 +195,10 @@ mod worktree_slow_route;
 #[path = "binary_worktree_dirty_snapshot_tests.rs"]
 mod worktree_dirty_snapshot;
 
+/// The checkout of a new worktree gets Git's parallel checkout only where the person's configuration sets no `checkout.workers`.
+#[path = "binary_worktree_checkout_workers_tests.rs"]
+mod worktree_checkout_workers;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;
