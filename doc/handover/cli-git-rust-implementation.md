@@ -10279,3 +10279,17 @@ by the coordinator at merge.
   on today (package repair, subvolume-only, service and subvolume) end with their last stage finished and no
   failed task. Fixed: the launcher now writes `gate-exit-status=<n>` as the log's last line, and verdicts read
   that. New candidate: conversion fix + main, gate `gpc-gate-release-0.5.21-conversion-candidate-20261103T032431-0500`.
+- 2026-11-03T03:36:07-05:00: settlement branch finished (host 3353 and binary 573 passed, clippy clean): main merged
+  (`e9211c0ffa`; the package repair runs after the copy for exactly the confirmed destination, control
+  `the_repair_is_handed_exactly_the_confirmed_destination`); in-place notes added to the decision and planning docs
+  that called the lock current; the owner's "read more forms" built from Git 2.56.0's `parse-options.c:520-593`
+  rules (unique prefix, exact name wins, `no-` negation, `--end-of-options`) with one option table checked
+  against real `git worktree add -h` both ways; a destination below missing directories is now read; forms Git
+  rejects keep Git's error and get no copy (`git worktree --verbose add` is "unknown option" in Git itself).
+  Stacked candidate `integrate/git-policy-cli-conversion-and-lock-free-add` = conversion candidate + settlement
+  (doc conflicts in the README lock-wait sentence and the planning doc's two appended sections, resolved by keeping
+  both in time order); gate `gpc-gate-release-0.5.22-lock-free-add-candidate-20261103T033514-0500` running.
+  Plan: 0.5.21 = conversion candidate when its gate passes; 0.5.22 = this stack. Add-speed lane started on
+  `perf/git-policy-cli-fast-snapshot-add` from the stack (split the add's steps without strace, judge the two walks
+  and the parent fsync against the kernel source; also why an add from main took the full copy route at 03:3x
+  today, "copied 140294 ignored filesystem entries").
