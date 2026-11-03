@@ -61,6 +61,8 @@ while this process has no active regular-file-backed `BrowserMetrics` mapping.
 The patch should not disable histogram recording,
 alter UMA sample types,
 or replace the global allocator after installation.
+Anonymous memory can still encounter swap or memory-pressure stalls;
+the proposed property concerns regular-filesystem-backed live recording.
 
 The limitation must be explicit in the patch title and description:
 this candidate addresses unbranded processes whose reporting policy discards the persisted files.
@@ -99,7 +101,7 @@ not a mechanical reuse of the unbranded condition.
 ### Delayed spare creation
 
 [Chrome's later cleanup call][cleanup-call] is currently unconditional.
-[Persistent histogram cleanup][cleanup] schedules spare-file creation after `90` seconds on desktop.
+[Persistent histogram cleanup][cleanup] uses a [desktop delay][cleanup-delay] of `90` seconds for spare creation.
 Choosing `LocalMemory` alone therefore leaves that background file operation in place.
 
 If the first patch suppresses spare creation for a deliberately RAM-only mode,
@@ -250,7 +252,6 @@ The narrow candidate needs a testable early policy boundary and real-browser cov
   Cover explicit force-reporting and test overrides without sending telemetry to public servers.
 - Cover recording-only mode,
   mapped-allocation failure followed by local fallback,
-  unsupported storage input,
   and the delayed spare behavior selected by the patch.
 - Keep the existing consent-disabled and sampled-out cleanup tests passing.
   Revoke consent after startup and ensure no new persistence path recreates deleted files.
@@ -323,14 +324,15 @@ No Chromium C++ file was changed by this research pass.
 [startup]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/chrome/app/chrome_main_delegate.cc#L1803-L1825
 [reporting-policy]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/metrics_service_accessor.cc#L33-L48
 [disabled-deletion]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/file_metrics_provider.cc#L291-L322
-[browser-source]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/chrome/browser/metrics/chrome_metrics_service_client.cc#L276-L305
+[browser-source]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/chrome/browser/metrics/chrome_metrics_service_client.cc#L280-L303
 [local-mode]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/persistent_histograms.cc#L175-L235
 [local-backing]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/base/metrics/persistent_memory_allocator.cc#L1063-L1102
-[reporting-switches]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/metrics_switches.cc#L11-L19
+[reporting-switches]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/metrics_switches.cc#L12-L20
 [chrome-accessor]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/chrome/browser/metrics/chrome_metrics_service_accessor.cc#L35-L56
 [backup-consent]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/chrome/installer/util/google_update_settings_posix.cc#L30-L36
 [cleanup-call]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/chrome/app/chrome_main_delegate.cc#L939-L946
 [cleanup]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/persistent_histograms.cc#L274-L300
+[cleanup-delay]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/persistent_histograms.cc#L24-L38
 [delete-location]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/base/metrics/persistent_histogram_allocator.cc#L1067-L1080
 [allocator-lifetime]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/base/metrics/persistent_histogram_allocator.cc#L967-L990
 [allocator-creation]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/base/metrics/persistent_histogram_allocator.cc#L740-L756
@@ -343,10 +345,10 @@ No Chromium C++ file was changed by this research pass.
 [crashpad-handoff]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/crash/core/app/crashpad_linux.cc#L260-L268
 [stream-writer]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/crash/core/common/shared_memory_user_stream_writer.h#L20-L53
 [stream-consumer]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/crash/core/app/shared_memory_user_stream_data_source.cc#L56-L75
-[profile-flush]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/metrics_service.cc#L1512-L1541
+[profile-flush]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/metrics_service.cc#L1517-L1553
 [shutdown]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/metrics_shutdown.cc#L13-L25
 [browser-file-tests]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/chrome/browser/metrics/metrics_service_browsertest.cc#L330-L505
-[provider-tests]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/file_metrics_provider_unittest.cc#L1336-L1402
+[provider-tests]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/components/metrics/file_metrics_provider_unittest.cc#L1343-L1402
 [base-test-target]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/base/BUILD.gn#L3973-L3979
 [metrics-owners]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/base/metrics/OWNERS#L1-L8
 [startup-owners]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/chrome/app/OWNERS#L1-L7
