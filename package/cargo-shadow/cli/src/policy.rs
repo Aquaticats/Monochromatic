@@ -147,10 +147,102 @@ fn is_prerelease(version: &str) -> bool {
     return without_build.contains('-');
 }
 
-/// Publish time in milliseconds;
-/// an unreadable time sorts first.
-fn created_millis(record: &VersionRecord) -> i64 {
-    return parse_rfc3339_millis(&record.created_at).unwrap_or(0);
+/// What:
+/// `fn created_millis(record) -> Option<i64>` reads a release's publish time in milliseconds,
+/// and is `None` when the time is missing or not RFC 3339.
+/// Why:
+/// An unknown time must never establish eligibility for the `trustPolicyIgnoreAfter` age exemption,
+/// so the caller has to see the unknown case instead of a zero that reads as "very old".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const createdMillis = (record: VersionRecord): number | undefined => parseRfc3339Millis(record.createdAt);
+/// ```
+fn created_millis(record: &VersionRecord) -> Option<i64> {
+    return parse_rfc3339_millis(&record.created_at);
+}
+
+/// What:
+/// `fn ordering_millis(record) -> i64` reads a release's publish time for ordering only,
+/// and an unreadable time sorts first.
+/// Why:
+/// An undated earlier release then still counts as earlier history,
+/// which can only make the downgrade check stricter, never grant an exemption.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const orderingMillis = (record: VersionRecord): number => parseRfc3339Millis(record.createdAt) ?? 0;
+/// ```
+fn ordering_millis(record: &VersionRecord) -> i64 {
+    return created_millis(record).unwrap_or(0);
+}
+
+/// What:
+/// `fn earlier_releases(history, record_millis) -> Vec<VersionRecord>` lists the releases published before a given time,
+/// oldest first.
+/// Why:
+/// Both the trust decision and the question "can the owner list change this decision" need the same set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const earlierReleases = (history: VersionRecord[], recordMillis: number) =>
+///   history.filter((entry) => orderingMillis(entry) < recordMillis).sort(byOrderingMillis);
+/// ```
+fn earlier_releases(history: &[VersionRecord], record_millis: i64) -> Vec<VersionRecord> {
+    // Keeps the releases published strictly before the given time (a TS `filter`).
+    let mut earlier: Vec<VersionRecord> = Vec::new();
+    for entry in history {
+        if ordering_millis(entry) < record_millis {
+            earlier.push(entry.clone());
+        }
+    }
+    // `sort_by_key` orders by the key function's number, oldest first (a TS `sort((a, b) => a - b)`).
+    earlier.sort_by_key(ordering_millis);
+    return earlier;
+}
+
+/// What:
+/// `pub fn owners_can_change_verdict(...) -> bool` says whether the crate's owner list could turn a clean ownerless
+/// trust evaluation into a refusal for any of `versions`.
+/// Why:
+/// Owners only raise levels. A refusal needs an earlier release ranked above the checked one, so the owner list can matter
+/// only for a checked release that ranks as a first-time publisher without owners and has earlier releases.
+/// The registry call for owners is rate limited, so it is asked only when it can change the answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function ownersCanChangeVerdict(name, versions, history, settings, now): boolean
+/// ```
+pub fn owners_can_change_verdict(name: &str, versions: &[String], history: &[VersionRecord], settings: &Settings, now: i64) -> bool {
+    if settings.trust_policy == TrustPolicy::Off {
+        return false;
+    }
+    for version in versions {
+        if is_excluded(&settings.trust_policy_exclude, name, version) {
+            continue;
+        }
+        let record: &VersionRecord = match version_record_of(history, version) {
+            Some(found) => found,
+            None => continue,
+        };
+        let record_millis: i64 = match created_millis(record) {
+            Some(found) => found,
+            None => continue,
+        };
+        if let Some(ignore_after) = settings.trust_policy_ignore_after
+            && record_millis + (ignore_after as i64) * MS_PER_MINUTE <= now
+        {
+            continue;
+        }
+        let earlier: Vec<VersionRecord> = earlier_releases(history, record_millis);
+        if earlier.is_empty() {
+            continue;
+        }
+        if trust_level(record, &earlier, &BTreeSet::new()) == FIRST_TIME_PUBLISHER_LEVEL {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -252,19 +344,21 @@ pub fn trust_problems(
             )];
         }
     };
+    // An unknown publish time cannot be ordered against the earlier releases and never grants the age exemption.
+    let record_millis: i64 = match created_millis(record) {
+        Some(found) => found,
+        None => {
+            return vec![format!(
+                "{name}@{version} has no readable publish time in the crates.io version list, so its trust cannot be ordered against earlier releases; add it to trustPolicyExclude if it is expected"
+            )];
+        }
+    };
     if let Some(ignore_after) = settings.trust_policy_ignore_after
-        && created_millis(record) + (ignore_after as i64) * MS_PER_MINUTE <= now
+        && record_millis + (ignore_after as i64) * MS_PER_MINUTE <= now
     {
         return Vec::new();
     }
-    let record_millis: i64 = created_millis(record);
-    let mut earlier: Vec<VersionRecord> = Vec::new();
-    for entry in history {
-        if created_millis(entry) < record_millis {
-            earlier.push(entry.clone());
-        }
-    }
-    earlier.sort_by_key(created_millis);
+    let earlier: Vec<VersionRecord> = earlier_releases(history, record_millis);
     let mut problems: Vec<String> = Vec::new();
     let level: u8 = trust_level(record, &earlier, owner_ids);
     let mut best: u8 = 0;

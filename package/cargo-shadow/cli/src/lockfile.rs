@@ -61,8 +61,27 @@ use crate::adapt::text_of;
 /// ```
 use toml_edit::Item;
 
-/// The start of a `source` value for a crates.io-style registry package.
+/// The start of a `source` value for a registry package of the index-style spelling.
 const REGISTRY_SOURCE_PREFIX: &str = "registry+";
+
+/// The start of a `source` value for a registry package of the sparse spelling.
+const SPARSE_SOURCE_PREFIX: &str = "sparse+";
+
+/// What:
+/// The `source` values that mean crates.io:
+/// the index URL cargo writes for crates.io whichever protocol it used,
+/// and the sparse index URL spelled out.
+/// Why:
+/// Every lookup of the policy checks goes to crates.io,
+/// so a package may be checked only when its identity is crates.io;
+/// the registry is not carried through the comparisons and caches,
+/// so any other registry is refused by name instead of being approved by an unrelated crates.io entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const CRATES_IO_SOURCES = ['registry+https://github.com/rust-lang/crates.io-index', 'sparse+https://index.crates.io/'] as const;
+/// ```
+const CRATES_IO_SOURCES: [&str; 2] = ["registry+https://github.com/rust-lang/crates.io-index", "sparse+https://index.crates.io/"];
 
 /// One registry crate version.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -113,9 +132,17 @@ pub fn parse_registry_versions(source: &str) -> Result<Vec<LockedVersion>, Strin
         let name: Option<&str> = package.get("name").and_then(Item::as_str);
         let version: Option<&str> = package.get("version").and_then(Item::as_str);
         let source_text: &str = package.get("source").and_then(Item::as_str).unwrap_or("");
-        if let (Some(found_name), Some(found_version)) = (name, version)
-            && source_text.starts_with(REGISTRY_SOURCE_PREFIX)
-        {
+        let from_registry: bool = source_text.starts_with(REGISTRY_SOURCE_PREFIX) || source_text.starts_with(SPARSE_SOURCE_PREFIX);
+        if !from_registry {
+            continue;
+        }
+        if let (Some(found_name), Some(found_version)) = (name, version) {
+            // Registry identity is not carried end to end, so a registry other than crates.io is refused explicitly.
+            if !CRATES_IO_SOURCES.contains(&source_text) {
+                return Err(format!(
+                    "{found_name}@{found_version} comes from the registry {source_text}, which the policy checks do not support: they ask crates.io only, so they would approve it by an unrelated crates.io release of the same name and version. Use crates.io, or a path or git dependency"
+                ));
+            }
             versions.push(LockedVersion { name: found_name.to_string(), version: found_version.to_string() });
         }
     }

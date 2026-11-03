@@ -30,6 +30,7 @@ fn settings() -> Settings {
 struct OneCrate {
     history: Vec<VersionRecord>,
     owners: BTreeSet<String>,
+    owner_lookups: std::cell::Cell<u32>,
 }
 
 impl Registry for OneCrate {
@@ -43,6 +44,7 @@ impl Registry for OneCrate {
         return Ok(self.history.clone());
     }
     fn owners(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        self.owner_lookups.set(self.owner_lookups.get() + 1);
         return Ok(self.owners.clone());
     }
 }
@@ -65,10 +67,28 @@ fn an_owner_who_raises_the_earlier_release_makes_a_later_release_by_a_stranger_a
     let registry: OneCrate = OneCrate {
         history: vec![record("1.0.0", "2024-01-01T00:00:00Z", "1"), record("1.0.1", "2025-01-01T00:00:00Z", "2")],
         owners: ["1".to_string()].into_iter().collect(),
+        owner_lookups: std::cell::Cell::new(0),
     };
     let candidate: Vec<LockedVersion> = vec![LockedVersion { name: "dep".to_string(), version: "1.0.1".to_string() }];
 
     let messages = check_trust(&candidate, &settings(), &registry, 0).expect("checks");
 
     assert_eq!(messages.len(), 1, "{messages:?}");
+}
+
+/// The lookup stays lazy where the owner list cannot matter: a release by an account that already published an earlier
+/// release ranks as a known publisher without owners, so no owner can change the verdict and the rate-limited call is skipped.
+#[test]
+fn the_owner_list_is_not_asked_when_it_cannot_change_the_verdict() {
+    let registry: OneCrate = OneCrate {
+        history: vec![record("1.0.0", "2024-01-01T00:00:00Z", "1"), record("1.0.1", "2025-01-01T00:00:00Z", "1")],
+        owners: BTreeSet::new(),
+        owner_lookups: std::cell::Cell::new(0),
+    };
+    let candidate: Vec<LockedVersion> = vec![LockedVersion { name: "dep".to_string(), version: "1.0.1".to_string() }];
+
+    let messages = check_trust(&candidate, &settings(), &registry, 0).expect("checks");
+
+    assert!(messages.is_empty(), "{messages:?}");
+    assert_eq!(registry.owner_lookups.get(), 0);
 }

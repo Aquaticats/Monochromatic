@@ -65,7 +65,7 @@ use crate::http::RegistryError;
 /// ```
 use crate::lockfile::LockedVersion;
 /// What:
-/// `use crate::policy::{release_age_problems, trust_problems};` imports `release_age_problems`,
+/// `use crate::policy::{owners_can_change_verdict, release_age_problems, trust_problems};` imports `release_age_problems`,
 /// `trust_problems` from another module of this crate so this file can name them unqualified.
 /// Why:
 /// `release_age_problems` is used by `check_release_age`;
@@ -75,7 +75,7 @@ use crate::lockfile::LockedVersion;
 /// ```ts
 /// import { release_age_problems, trust_problems } from 'crate/policy';
 /// ```
-use crate::policy::{release_age_problems, trust_problems};
+use crate::policy::{owners_can_change_verdict, release_age_problems, trust_problems};
 /// What:
 /// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -449,7 +449,9 @@ pub fn trust_refusals(
         // Borrow `&name`: lends the value without copying or giving it away.
         // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
         let without_owners = crate_trust_refusals(&name, &name_versions, &history, settings, now, &BTreeSet::new());
-        if without_owners.is_empty() {
+        // The owner list only raises levels, so it can add a refusal as well as remove one: it is asked for whenever the
+        // ownerless evaluation refused, or could be wrong because an earlier release might be raised above the checked one.
+        if without_owners.is_empty() && !owners_can_change_verdict(&name, &name_versions, &history, settings, now) {
             continue;
         }
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.

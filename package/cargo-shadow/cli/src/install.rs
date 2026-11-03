@@ -652,7 +652,7 @@ pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError
 /// const invalidLockToml = (message: string) => new InstallError(`a Cargo.lock is not valid TOML: ${message}`);
 /// ```
 fn invalid_lock_toml(message: String) -> InstallError {
-    return InstallError::Io { message: format!("a Cargo.lock is not valid TOML: {message}") };
+    return InstallError::Io { message: format!("a Cargo.lock could not be read for its registry versions: {message}") };
 }
 
 /// The transaction body:
@@ -754,7 +754,7 @@ pub fn policy_findings(settings: &Settings, registry: &dyn Registry, now: i64, b
         Ok(found) => found,
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `vec!`: builds or prints text (or a list) from a template.
-        Err(message) => return vec![format!("a Cargo.lock is not valid TOML: {message}")],
+        Err(message) => return vec![format!("a Cargo.lock could not be read for its registry versions: {message}")],
     };
     if added.is_empty() {
         // Constructor `Vec::new()`: an empty owned collection or a boxed value.
