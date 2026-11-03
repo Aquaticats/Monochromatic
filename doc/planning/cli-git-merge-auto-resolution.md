@@ -1522,47 +1522,99 @@ and scratch may not survive a reboot.
 
 ## 2026-11-03T02:08:29-05:00: merge-code options measured, and the owner's last two decisions
 
-Asked where the merge code should come from, the owner first answered "Do the measurements first then ask.".
-A same-vendor agent (rule IRW: a second pass, not an independent review) measured three options against the
+Asked where the merge code should come from,
+the owner first answered "Do the measurements first then ask.".
+A same-vendor agent (rule IRW:
+a second pass,
+not an independent review) measured three options against the
 `jj` 0.46.0 binary as the reference.
-Evidence, in scratch that may not survive a reboot: `~/temp/agent/merge-code-options/`
-(`results/correctness.txt`, `differential.txt`, `builds.jsonl`, `bench.log`, `bench-extra.txt`; arms `arm-a`,
-`arm-b`, `arm-c`, `arm-c-myers`).
+Evidence,
+in scratch that may not survive a reboot:
+`~/temp/agent/merge-code-options/`
+(`results/correctness.txt`,
+`differential.txt`,
+`builds.jsonl`,
+`bench.log`,
+`bench-extra.txt`;
+arms `arm-a`,
+`arm-b`,
+`arm-c`,
+`arm-c-myers`).
 
 ### Correctness
 
-- 44 inputs: the two real conflicted files of this repository, the measured shapes, and the Rust, Markdown,
-  TypeScript, TOML, YAML, JSON and JSONC fixtures.
-  Every option gave the reference's verdict on all 44, and every resolved output was byte-identical to it:
+- 44 inputs:
+  the two real conflicted files of this repository,
+  the measured shapes,
+  and the Rust,
+  Markdown,
+  TypeScript,
+  TOML,
+  YAML,
+  JSON and JSONC fixtures.
+  Every option gave the reference's verdict on all 44,
+  and every resolved output was byte-identical to it:
   23 resolve and 21 stay conflicted.
-- Word level resolves 11 inputs that line level leaves conflicted, among them the README conflict of `14601b28d3`,
+- Word level resolves 11 inputs that line level leaves conflicted,
+  among them the README conflict of `14601b28d3`,
   whose merged output equals the committed resolution byte for byte.
-- 600 seeded random edit pairs on real README and `lib.rs` text: the port of Jujutsu and the `similar` version
-  with the Myers diff agreed on all 600; the `similar` version with the Patience diff differed in one verdict.
+- 600 seeded random edit pairs on real README and `lib.rs` text:
+  the port of Jujutsu and the `similar` version
+  with the Myers diff agreed on all 600;
+  the `similar` version with the Patience diff differed in one verdict.
 
 ### Cost
 
-- Port of Jujutsu's code: about 1270 lines (943 of code) from `diff.rs`, `files.rs` and `merge.rs`, 7 small crates
-  (no new package name in the wrapper's lockfile), +107,200 bytes stripped, about 2 s clean build; its upstream
+- Port of Jujutsu's code:
+  about 1270 lines (943 of code) from `diff.rs`,
+  `files.rs` and `merge.rs`,
+  7 small crates
+  (no new package name in the wrapper's lockfile),
+  +107,200 bytes stripped,
+  about 2 s clean build;
+  its upstream
   tests are not ported.
-- `jj-lib` 0.46.0: 127 compiled crates, 111 new lockfile entries (71 new names), about 60 s clean build,
+- `jj-lib` 0.46.0:
+  127 compiled crates,
+  111 new lockfile entries (71 new names),
+  about 60 s clean build,
   +447,648 bytes stripped.
-- Own merge on `similar` 3.2.1 with Myers: about 150 lines, 1 new package name, about 10 s clean build,
-  +141,560 bytes stripped, merge about 2.5 to 3 times faster than the other two.
-- Every option adds about 30 to 55 microseconds to a process start and exit, below the run-to-run spread of the
-  baseline (interquartile range about 100 to 180 microseconds); a merge of a 170 KB file takes 0.5 to 1.6 ms.
-- Licence: Jujutsu and `similar` are Apache-2.0 and neither ships a NOTICE file; a port must keep the copyright
+- Own merge on `similar` 3.2.1 with Myers:
+  about 150 lines,
+  1 new package name,
+  about 10 s clean build,
+  +141,560 bytes stripped,
+  merge about 2.5 to 3 times faster than the other two.
+- Every option adds about 30 to 55 microseconds to a process start and exit,
+  below the run-to-run spread of the
+  baseline (interquartile range about 100 to 180 microseconds);
+  a merge of a 170 KB file takes 0.5 to 1.6 ms.
+- Licence:
+  Jujutsu and `similar` are Apache-2.0 and neither ships a NOTICE file;
+  a port must keep the copyright
   headers and mark modified files (Apache-2.0 section 4).
 
 ### Decisions
 
-- Where the merge code comes from, owner's choice (question tool, 2026-11-03): "Own merge on similar
-  (Recommended)", that is, a word-level three-way merge of the wrapper's own on `similar` 3.2.1 with the Myers diff,
+- Where the merge code comes from,
+  owner's choice (question tool,
+  2026-11-03):
+  "Own merge on similar
+  (Recommended)",
+  that is,
+  a word-level three-way merge of the wrapper's own on `similar` 3.2.1 with the Myers diff,
   kept equal to Jujutsu's results on the measured corpus by tests.
-- Which files get the union driver, owner's choice: "doc/handover/*.md only (Recommended)".
-  Done in `.gitattributes` (`8ecbb0b188`); `git check-attr merge` shows `union` for a handover log and
+- Which files get the union driver,
+  owner's choice:
+  "doc/handover/*.md only (Recommended)".
+  Done in `.gitattributes` (`8ecbb0b188`);
+  `git check-attr merge` shows `union` for a handover log and
   `unspecified` for this planning document.
-- With the earlier answers (a word-level second pass for merges a person runs, and the same pass in the wrapper's
-  unattended merges with every merged part logged), every decision of this proposal is now made.
-  Still to design inside the implementation: which tree supplies attributes to `git merge-tree` in the wrapper's
-  object-only merges, so that the union line also applies there.
+- With the earlier answers (a word-level second pass for merges a person runs,
+  and the same pass in the wrapper's
+  unattended merges with every merged part logged),
+  every decision of this proposal is now made.
+  Still to design inside the implementation:
+  which tree supplies attributes to `git merge-tree` in the wrapper's
+  object-only merges,
+  so that the union line also applies there.
