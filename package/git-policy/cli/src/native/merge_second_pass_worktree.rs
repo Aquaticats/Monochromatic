@@ -20,7 +20,7 @@ use super::conflict_side_state::conflicted_paths;
 use super::diagnostic_log::{debug, warn};
 use super::index_writer_forward::CoordinatedForward;
 use super::merge_second_pass::{Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
-use super::merge_second_pass_finish::{autostash_blocks_finish, finish, plan_finish, split_cmdline};
+use super::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
 use super::journald_native::CLIENT_IDENTIFIER;
 use super::merge_second_pass_tree::announce;
 use super::path_bytes::path_message_text;
@@ -261,14 +261,6 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     let planned = if remaining == 0 {
         branch_merge_options(&runner, layout.git_dir.as_path(), &forward.command)
             .and_then(|configured| { return plan_finish(&forward.command, forward.environment.as_slice(), layout.git_dir.as_path(), configured.as_slice()); })
-            .filter(|plan| {
-                // An autostash that would conflict on apply is not finished here: the commit would lose the stash entry.
-                let blocked: bool = autostash_blocks_finish(&runner, plan);
-                if blocked {
-                    debug(TAG, "the finish is not made: the autostash would conflict when the ending commit applies it");
-                }
-                return !blocked;
-            })
     } else {
         None
     };

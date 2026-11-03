@@ -28,8 +28,6 @@ use super::child_environment::{CHILD_SET_PREFIX, environment_value};
 use super::entry::run_process;
 use super::forwarded_command::ResolvedCommand;
 use super::merge_isolation::{editor_would_open, stdin_and_stdout_are_one_terminal};
-/// The runner of the dry run of the stash apply.
-use super::merge_second_pass::GitRunner;
 use std::ffi::OsString;
 use std::io::{IsTerminal, Write};
 use std::path::Path;
@@ -417,38 +415,6 @@ pub fn plan_finish(command: &ResolvedCommand, environment: &[(OsString, OsString
         }
     }
     return Some(Finish { operation, stops, git_dir: git_dir.to_path_buf() });
-}
-
-/// What:
-///  Whether the finish would commit a merge that carries an autostash whose apply would conflict, or whose apply cannot be tried.
-/// Why:
-///   The ending `git commit` applies `MERGE_AUTOSTASH` (`builtin/commit.c` line 1982) in the commit's scratch repository, so a stash
-///  that conflicts there is stored in the scratch repository's `refs/stash` and its unmerged entries stay in its private index: the
-///  person's stash entry would be lost. The apply is tried first as the three-way merge `git stash apply` makes (base `<stash>^1`,
-///  ours the tree the commit will have, theirs the stash), and the finish is not made when it conflicts or cannot be tried, so the
-///  merge stays stopped with the work still in `MERGE_AUTOSTASH`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function autostashWouldConflict(runner, finish): Promise<boolean>;
-/// ```
-pub fn autostash_blocks_finish(runner: &dyn GitRunner, plan: &Finish) -> bool {
-    // Only a merge that commits applies the stash; a stop for `--no-commit` or `--squash` leaves it to the person's commit.
-    if plan.operation != Operation::Merge || plan.stops.no_commit || plan.stops.squash {
-        return false;
-    }
-    let Ok(recorded) = std::fs::read_to_string(plan.git_dir.join("MERGE_AUTOSTASH")) else { return false };
-    let stash: &str = recorded.trim();
-    // The tree the ending commit will have is the index as the pass left it.
-    let Ok(written) = runner.run(&["write-tree"], None, None) else { return true };
-    if written.code != Some(0) {
-        return true;
-    }
-    let tree: String = String::from_utf8_lossy(&written.stdout).trim().to_owned();
-    let base: String = format!("--merge-base={stash}^1");
-    let Ok(merged) = runner.run(&["merge-tree", "--write-tree", base.as_str(), tree.as_str(), stash], None, None) else { return true };
-    // Status 0 is a clean apply; 1 is a conflict; anything else is an apply that could not be tried.
-    return merged.code != Some(0);
 }
 
 /// The invocation's global options followed by `words`.
