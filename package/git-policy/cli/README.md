@@ -189,8 +189,10 @@ Read-only commands,
   without any lock: the destination comes from the command line, the copy is a transaction of its own whose journal and
   stage claim name the process that owns them, and a copy a dead process left is recovered by the next command.
   Concurrent adds in one repository never wait for one another, and each worktree receives exactly its own copy.
-  A form of `git worktree add` whose destination the wrapper does not read (an abbreviated long option, `--git-dir`,
-   `--work-tree`) is made by Git alone; one line on standard error says the worktree received no copy.
+  The wrapper reads the destination of every form Git's option parser accepts (abbreviated long options resolved as Git
+   resolves them, bundled short options, `--git-dir` and `--work-tree`, a destination below directories Git creates);
+   a form Git rejects keeps Git's own error, and a form the wrapper cannot read is made by Git alone with one line on
+   standard error saying the worktree received no copy.
   `git worktree add` in the plain forms (`-b <branch>`, `--detach`, `--quiet`, `--lock`, `--reason`, one path and at most
    one commit-ish) is served by the first rung of a ladder that applies and otherwise falls to the next; when the add
    succeeds without being a snapshot, one line on standard error (unless `--quiet`) and one journal entry say why, in plain

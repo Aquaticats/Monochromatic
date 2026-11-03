@@ -1446,6 +1446,34 @@ The trash hand-off wakes the new worktree's own service, whose provisioning belo
 - Not changed here, for the coordinator: `doc/decision/cli-git-concurrent-commits.md`, `doc/decision/cli-git-policies-platform.md`
   and `doc/planning/cli-git-btrfs-worktree.md` still describe the settlement lock as the current design.
 
+### 2026-11-03T03:10:41-05:00: the owner's decision to read more forms of the add
+
+- Owner decision of 2026-11-03, on the side effects of the lock-free add: "Accept, read more forms (Recommended)". The design
+  stays lock-free, and the wrapper also reads abbreviated long options (unique prefix, as Git's parse-options does) and the
+  global `--git-dir` and `--work-tree`, so fewer adds skip the copy.
+- The rules were taken from Git 2.56.0 (clone at `/var/home/user/temp/agent/git-2026-11-03`), not recalled:
+  - `parse-options.c`, `parse_long_opt` (lines 520 to 593): a leading `no-` negates; a second one is accepted by no option
+    here; an exact name returns at once (line 560 to 563), so it wins over prefixes seen earlier; otherwise each option whose
+    name starts with the text is registered as an abbreviation (lines 566 to 567), a second registration makes it ambiguous
+    (`register_abbrev`, lines 497 to 518, with `is_alias` false because `git worktree add` declares no alias group), and an
+    ambiguous text is the error at lines 578 to 587.
+  - `parse-options.c`, `do_get_value` (line 136): a value on a negated form or on a flag (`PARSE_OPT_NOARG`) is an error.
+    Measured with Git 2.56.0: `--track=direct` and `--no-track=x` are errors, so `--track` takes no value; the earlier
+    reading that accepted `--track=direct` was wrong and is corrected.
+  - `parse-options.c`, lines 1113 to 1121: `--` and `--end-of-options` end the options.
+  - `builtin/worktree.c`, `cmd_worktree` (parse of the subcommand): no option is accepted between `worktree` and `add`
+    (measured: `git worktree --verbose add` is "unknown option"), so that form is Git's error.
+  - `git.c`, `handle_options`: the global options and which take a value; `setup.c`, lines 1222 to 1231: with `--work-tree`
+    the working directory decides, so a relative destination lies against it in both the inside and the outside case.
+- One table (`ADD_OPTIONS` in `worktree_add_plan.rs`) serves every reading of the options of the add, and the control
+  `the_option_table_matches_what_git_prints_for_dash_h` compares it with the output of `git worktree add -h`, so it cannot
+  drift from Git.
+- Found when the main merge brought the package-manager repair tests: a destination below directories that do not exist yet
+  (`.claude/worktrees/nested`) was unreadable, because the reading canonicalized the parent. Git creates the parents; the
+  destination is now the real path of the nearest existing ancestor with the rest as written.
+- Controls, red first (commit `binary_worktree_copy_forms_tests.rs`): abbreviations, a negated abbreviation, `--git-dir` with
+  `--work-tree`, and missing parents failed; the ambiguous prefix and the forms Git rejects kept Git's error and no copy.
+
 ## Review requests
 
 - The stamp argument under "What FICLONE guarantees and how a concurrent writer is detected", and the 20 ms settled

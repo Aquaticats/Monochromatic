@@ -168,7 +168,15 @@ fn the_copy_destination_is_read_from_every_documented_form() {
         (vec!["worktree", "add", "-dq", "topic"], 0),
         (vec!["worktree", "add", "--orphan", "-b", "feature", "topic"], 0),
         (vec!["worktree", "add", "--track", "--guess-remote", "--relative-paths", "topic"], 0),
-        (vec!["worktree", "add", "--track=direct", "--no-track", "--no-guess-remote", "topic"], 0),
+        (vec!["worktree", "add", "--no-track", "--no-guess-remote", "topic"], 0),
+        (vec!["worktree", "add", "--det", "topic"], 0),
+        (vec!["worktree", "add", "--lock", "--reas", "why", "topic"], 0),
+        (vec!["worktree", "add", "--lock", "--reas=why", "topic"], 0),
+        (vec!["worktree", "add", "--no-che", "--qu", "topic"], 0),
+        (vec!["worktree", "add", "--end-of-options", "-odd"], 0),
+        (vec!["--git-dir=/g", "--work-tree=/w", "worktree", "add", "topic"], 2),
+        (vec!["--git-dir", "/g", "--work-tree", "/w", "--namespace", "n", "worktree", "add", "topic"], 6),
+        (vec!["--bare", "--attr-source=HEAD", "worktree", "add", "topic"], 2),
         (vec!["worktree", "add", "--lock", "--reason=why", "topic"], 0),
         (vec!["worktree", "add", "--no-lock", "--no-reason", "--quiet", "--no-quiet", "topic"], 0),
         (vec!["worktree", "add", "topic", "--detach", "main"], 0),
@@ -184,13 +192,24 @@ fn the_copy_destination_is_read_from_every_documented_form() {
     remove(root.as_path());
 }
 
-/// A form the reading does not know leaves the destination unknown: an abbreviated long option, a missing value, a wrong
-/// operand count, another word, and an option between `worktree` and `add`.
+/// A form Git rejects, or the reading does not know, leaves the destination unknown: an ambiguous or unknown option, a value
+/// on a flag, a missing value, a wrong operand count, another word, and an option between `worktree` and `add`.
 #[test]
 fn a_copy_destination_that_is_not_read_stays_unknown() {
     let root: PathBuf = fixture("copy-destination-unknown");
     for (values, index) in [
-        (vec!["worktree", "add", "--detac", "topic"], 0),
+        (vec!["worktree", "add", "--detac", "--", "-x", "y", "z"], 0),
+        (vec!["worktree", "add", "--re", "topic"], 0),
+        (vec!["worktree", "add", "--n", "topic"], 0),
+        (vec!["worktree", "add", "--no-", "topic"], 0),
+        (vec!["worktree", "add", "--no-no-checkout", "topic"], 0),
+        (vec!["worktree", "add", "--detach=yes", "topic"], 0),
+        (vec!["worktree", "add", "--track=direct", "topic"], 0),
+        (vec!["worktree", "add", "--no-reason=x", "topic"], 0),
+        (vec!["worktree", "add", "--reason"], 0),
+        (vec!["worktree", "add", "-d=x", "topic"], 0),
+        (vec!["worktree", "add", "-h"], 0),
+        (vec!["worktree", "add", "--help", "topic"], 0),
         (vec!["worktree", "add", "-b"], 0),
         (vec!["worktree", "add", "topic", "-b"], 0),
         (vec!["worktree", "add", "-bx"], 0),
@@ -206,16 +225,17 @@ fn a_copy_destination_that_is_not_read_stays_unknown() {
     remove(root.as_path());
 }
 
-/// The directory a destination is read against moves with `-C` and with nothing else; a global option that changes how Git
-/// finds the repository leaves it unknown.
+/// The directory a destination is read against moves with `-C` and with nothing else; `--git-dir` and `--work-tree` leave it
+/// where it is, as Git does, and an option the reading does not know leaves it unknown.
 #[test]
 fn only_dash_c_capital_moves_the_start_of_a_copy_destination() {
     let start: &Path = Path::new("/work");
     assert_eq!(copy_start_directory(os_arguments(&["-C", "sub", "-C", "deeper"]).as_slice(), start), Some(PathBuf::from("/work/sub/deeper")));
     assert_eq!(copy_start_directory(os_arguments(&["-c", "a.b=c", "--no-pager", "-P"]).as_slice(), start), Some(PathBuf::from("/work")));
     assert_eq!(copy_start_directory(os_arguments(&["--config-env=a.b=C"]).as_slice(), start), Some(PathBuf::from("/work")));
+    assert_eq!(copy_start_directory(os_arguments(&["--git-dir=/g", "--work-tree", "/w", "--bare", "--exec-path=/x"]).as_slice(), start), Some(PathBuf::from("/work")));
     assert_eq!(copy_start_directory(os_arguments(&["-C", ""]).as_slice(), start), Some(PathBuf::from("/work")));
-    for refused in [vec!["--git-dir", "x"], vec!["--work-tree=x"], vec!["--namespace=x"], vec!["-C"], vec!["-c"]] {
+    for refused in [vec!["--unknown"], vec!["--git-dir"], vec!["-C"], vec!["-c"], vec!["--exec-path"]] {
         assert_eq!(copy_start_directory(os_arguments(refused.as_slice()).as_slice(), start), None, "{refused:?}");
     }
 }
@@ -239,4 +259,119 @@ fn real_git_registers_the_destination_the_copy_reading_names() {
         assert_eq!(named.parent(), Some(canonical.as_path()));
     }
     remove(root.as_path());
+}
+
+/// Long options resolve as Git's `parse_long_opt` does: an exact name wins over longer names, a unique prefix is the option,
+/// the `--no-` form negates, and two candidates, a prefix of `no-` and a double negation resolve to nothing.
+#[test]
+fn a_long_option_resolves_the_way_gits_parser_does() {
+    let name = |text: &str| -> Option<(&'static str, bool, Option<String>)> {
+        return resolve_long(text).map(|found| { return (found.option.long.unwrap_or("-"), found.unset, found.attached.map(String::from)); });
+    };
+    assert_eq!(name("detach"), Some(("detach", false, None)));
+    assert_eq!(name("det"), Some(("detach", false, None)), "a unique prefix");
+    assert_eq!(name("d"), Some(("detach", false, None)));
+    assert_eq!(name("no-che"), Some(("checkout", true, None)), "a negated prefix");
+    assert_eq!(name("no-checkout"), Some(("checkout", true, None)));
+    assert_eq!(name("reas=why"), Some(("reason", false, Some(String::from("why")))), "a prefix with its value");
+    assert_eq!(name("reason="), Some(("reason", false, Some(String::new()))), "an empty value is a value");
+    assert_eq!(name("re"), None, "reason and relative-paths");
+    assert_eq!(name("rel"), Some(("relative-paths", false, None)));
+    assert_eq!(name("f"), Some(("force", false, None)));
+    assert_eq!(name("g"), Some(("guess-remote", false, None)));
+    assert_eq!(name("l"), Some(("lock", false, None)));
+    assert_eq!(name("o"), Some(("orphan", false, None)));
+    assert_eq!(name("t"), Some(("track", false, None)));
+    assert_eq!(name("n"), None, "a prefix of no- abbreviates every negation");
+    assert_eq!(name("no"), None);
+    assert_eq!(name("no-"), None);
+    assert_eq!(name("no-no-checkout"), None, "a double negation");
+    assert_eq!(name("nonsense"), None);
+    assert_eq!(name("detachx"), None, "a longer text than the name is not a prefix");
+    assert_eq!(name("c"), Some(("checkout", false, None)));
+}
+
+/// A value on a flag or on a negated option, and a missing value, are errors in Git and leave the operands unread.
+#[test]
+fn values_are_taken_as_gits_parser_takes_them() {
+    let region = |values: &[&str]| -> Option<usize> { return copy_add_operands(os_arguments(values).as_slice()).map(|operands| { return operands.len(); }); };
+    assert_eq!(region(&["--reason", "why", "topic"]), Some(1), "a value in the next token");
+    assert_eq!(region(&["--no-reason", "topic"]), Some(1), "a negated option takes none");
+    assert_eq!(region(&["--no-reason=x", "topic"]), None);
+    assert_eq!(region(&["--quiet=1", "topic"]), None, "a flag takes no value");
+    assert_eq!(region(&["-qf", "topic"]), Some(1));
+    assert_eq!(region(&["-fbname", "topic"]), Some(1), "the rest of a token is the value");
+    assert_eq!(region(&["-fb", "name", "topic"]), Some(1), "the next token is the value");
+    assert_eq!(region(&["-fb"]), None);
+    assert_eq!(region(&["topic", "--detach", "main"]), Some(2), "options may follow operands");
+    assert_eq!(region(&["--", "--detach", "x"]), Some(2), "after -- everything is an operand");
+}
+
+/// A destination whose parent directories do not exist yet is the real path of the nearest existing ancestor and the rest as
+/// written; a link, a `..` below the missing part and a bare `.` are declined.
+#[test]
+fn a_destination_below_missing_directories_is_read_without_them() {
+    let root: PathBuf = fixture("copy-destination-missing");
+    let canonical: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical");
+    let link: PathBuf = root.join("link");
+    std::os::unix::fs::symlink(canonical.join("real"), link.as_path()).expect("link");
+    std::fs::create_dir(canonical.join("real")).expect("real");
+    let read = |operand: &str| -> Option<PathBuf> { return creating_destination(root.as_path(), OsStr::new(operand)); };
+    assert_eq!(read(".claude/worktrees/topic"), Some(canonical.join(".claude/worktrees/topic")));
+    assert_eq!(read("real/inner/topic"), Some(canonical.join("real/inner/topic")));
+    assert_eq!(read("link/inner/topic"), Some(canonical.join("real/inner/topic")), "a link in the existing part resolves");
+    assert_eq!(read("link"), None, "a destination that is a link is declined");
+    assert_eq!(read("missing/../topic"), None);
+    assert_eq!(read("missing/./topic"), Some(canonical.join("missing/topic")));
+    assert_eq!(read("."), None);
+    assert_eq!(read("a/.."), None);
+    remove(root.as_path());
+}
+
+/// The table of options is the list `git worktree add -h` prints, so it cannot drift from Git: every option Git lists is in
+/// the table with the same letter, name and value, and the table lists nothing Git does not.
+#[test]
+fn the_option_table_matches_what_git_prints_for_dash_h() {
+    let output: Output = std::process::Command::new(crate::test_support::REAL_GIT)
+        .args(["worktree", "add", "-h"])
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .output()
+        .expect("git runs");
+    // `-h` prints the usage on standard output with status 129, and the option lines follow a blank line.
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned() + String::from_utf8_lossy(output.stderr.as_slice()).as_ref();
+    let listed: Vec<(Option<u8>, Option<String>, bool)> = text
+        .lines()
+        .skip_while(|line| { return !line.is_empty(); })
+        .filter(|line| { return line.starts_with("    -"); })
+        .map(|line| {
+            // The spelling is dash words and `<placeholder>` words; the description starts at the first other word.
+            let mut short: Option<u8> = None;
+            let mut long: Option<String> = None;
+            let mut takes: bool = false;
+            for word in line.split_whitespace() {
+                let head: &str = word.trim_end_matches(',');
+                if let Some(rest) = head.strip_prefix("--") {
+                    long = Some(rest.replace("[no-]", ""));
+                } else if let Some(letter) = head.strip_prefix('-') {
+                    short = letter.bytes().next();
+                } else if head.starts_with('<') {
+                    takes = true;
+                } else {
+                    break;
+                }
+            }
+            return (short, long, takes);
+        })
+        .collect();
+    let table: Vec<(Option<u8>, Option<String>, bool)> = ADD_OPTIONS
+        .iter()
+        .map(|option| { return (option.short, option.long.map(String::from), option.takes == Takes::Required); })
+        .collect();
+    assert!(!listed.is_empty(), "the usage lists options: {text}");
+    for entry in &listed {
+        assert!(table.contains(entry), "Git lists {entry:?}, which the table lacks: {text}");
+    }
+    for entry in &table {
+        assert!(listed.contains(entry), "the table lists {entry:?}, which Git does not: {text}");
+    }
 }

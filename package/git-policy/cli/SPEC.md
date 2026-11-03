@@ -433,12 +433,27 @@ A hook that runs `git worktree add` through the wrapper is itself an applicable 
 into its own worktree, and the add that started the hook copies into its own worktree only.
 
 Destination of an add:
-the wrapper reads the destination from the resolved command line (aliases expanded), for every option `git worktree add -h`
-lists (`-f`, `--force`, `-b` and `-B` with a value attached or in the next token, `--orphan`, `-d`, `--detach`, `--checkout`,
-`--lock`, `--reason`, `-q`, `--quiet`, `--track`, `--guess-remote`, `--relative-paths` and their `--no-` forms, short options
-bundled), after the global options `-C`, `-c`, `--config-env` and Git's neutral flags.
-A form it does not read (an abbreviated long option, `--git-dir`, `--work-tree`, an option between `worktree` and `add`)
-leaves the destination unknown: real Git runs as it would without the wrapper, no copy is made,
+the wrapper reads the destination from the resolved command line (aliases expanded) exactly as Git's own option parser would
+(`parse_long_opt` and `parse_short_opt` of `parse-options.c`, Git 2.56.0).
+One table lists the options of `git worktree add` (`-f`, `-b`, `-B`, `--orphan`, `-d`, `--checkout`, `--lock`, `--reason`,
+`-q`, `--track`, `--guess-remote`, `--relative-paths`, each long option also as its `--no-` form), and a control compares it with
+what `git worktree add -h` prints, so it cannot drift from Git.
+A long option is its exact name, which wins over any prefix; otherwise the unique prefix of one name, with or without `--no-`;
+a prefix of two names is Git's "ambiguous option" error, and the wrapper does not guess.
+A value on a flag or on a negated option, a missing value, an unknown option and a double negation are Git's errors too, so
+their destination stays unknown.
+Short options bundle, and `-b` and `-B` take the rest of the token or the next token.
+`--` and `--end-of-options` end the options.
+The global options before `worktree` are `-C` (the only one that moves a relative destination), `-c`, `--config-env`,
+`--git-dir`, `--work-tree`, `--namespace`, `--attr-source` and Git's neutral flags: a relative destination lies against the
+working directory whatever `--git-dir` and `--work-tree` say, because Git changes into the work tree and prefixes the operand
+when the working directory is inside it, and leaves both alone when it is outside (`setup.c`).
+Git accepts no option between `worktree` and `add`, so such a command is Git's error and no copy is made.
+The parent directories of the destination need not exist: Git creates them, and the destination is the real path of the nearest
+existing ancestor with the rest as written.
+A form the reading does not know or Git rejects (an unknown option, an ambiguous prefix, a value on a flag, `--exec-path`
+without a value) leaves the destination unknown:
+real Git runs as it would without the wrapper, no copy is made,
 and when Git succeeded one line on standard error says that the worktree received no ignored-state copy and how to name it so
 that it does.
 This is the answer for the forms the wrapper cannot know a destination for;
