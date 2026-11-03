@@ -354,7 +354,20 @@ async function waitForChange({
 }
 
 /**
- Look at the slots until one is taken, waiting between looks.
+ What one look at the slots, and the wait after it, came to.
+ */
+type LookResult = {
+  readonly kind: 'taken';
+  readonly taken: SlotTaken
+} | {
+  readonly kind: 'again';
+  readonly clock: WaitClock
+};
+
+/**
+ Look at the slots once and, when all are held, write the notice if one is due and wait for a change or the timeout.
+
+ The watch lives only inside this call, so a long wait never holds more than one.
 
  @param options - slot settings
  
@@ -362,14 +375,14 @@ async function waitForChange({
  
  @param clock - when the wait began and when the next notice is due
 
- @returns the slot taken
+ @returns the slot taken, or the clock for the next look
 
  @example
  ```ts
- await acquireSlot({ options, environment, clock });
+ await lookOnce({ options, environment, clock });
  ```
  */
-async function acquireSlot({
+async function lookOnce({
   options,
   environment,
   clock,
@@ -377,7 +390,7 @@ async function acquireSlot({
   readonly options: GateSlotOptions;
   readonly environment: Required<Omit<GateEnvironment, 'runCommand'>>;
   readonly clock: WaitClock;
-}): Promise<SlotTaken> {
+}): Promise<LookResult> {
   // The watch starts before the slots are looked at: a release between the look and the wait is then an event, not a lost wake.
   /**
    The watch on the slot directory, closed when this look ends.
@@ -388,7 +401,10 @@ async function acquireSlot({
    */
   const attempt = await takeAnySlot({ options });
   if (attempt.kind === 'taken')
-    return attempt;
+    return {
+      kind: 'taken',
+      taken: attempt,
+    };
   /**
    The time now.
    */
@@ -418,14 +434,55 @@ async function acquireSlot({
       ),
     ),
   });
-  return await acquireSlot({
-    options,
-    environment,
+  return {
+    kind: 'again',
     clock: {
       startedAt: clock.startedAt,
       nextNoticeAt,
       noticed: clock.noticed || due,
     },
+  };
+}
+
+/**
+ Look at the slots until one is taken, waiting between looks.
+
+ @param options - slot settings
+ 
+ @param environment - the watch, the notice sink and the clock
+ 
+ @param clock - when the wait began and when the next notice is due
+
+ @returns the slot taken
+
+ @example
+ ```ts
+ await acquireSlot({ options, environment, clock });
+ ```
+ */
+async function acquireSlot({
+  options,
+  environment,
+  clock,
+}: {
+  readonly options: GateSlotOptions;
+  readonly environment: Required<Omit<GateEnvironment, 'runCommand'>>;
+  readonly clock: WaitClock;
+}): Promise<SlotTaken> {
+  /**
+   What this look came to.
+   */
+  const result = await lookOnce({
+    options,
+    environment,
+    clock,
+  });
+  if (result.kind === 'taken')
+    return result.taken;
+  return await acquireSlot({
+    options,
+    environment,
+    clock: result.clock,
   });
 }
 
