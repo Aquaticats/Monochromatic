@@ -265,3 +265,61 @@ Each finding was checked against the code on main before it was fixed.
   and the container gate stays the authority.
 - The three equivalents will appear in `missed.txt` again on a rerun;
   this file is their disposition record.
+
+## Index lock round 4, pass-2 survivors (branch `test/git-policy-cli-index-lock-survivors`)
+
+The mutation campaign over the 0.5.14 index lock scored 215 mutants; pass 1 left 26 missed and pass 2, which reran
+those against the whole suite, left 9 (`~/temp/agent/mut-q/index-lock-r4-survivors.txt`).
+No campaign was rerun; each survivor was mapped to the code on main, a control was written, and the mutant was applied
+by hand as one text replacement (script `~/temp/agent/ils/plants.py`), run against the control alone (red), and restored
+(the control is green in the full library set: 2880 passed, 5 skipped; clippy with `-D warnings` clean; no lint finding
+on any added line).
+
+### What was changed so the guards can be reached
+
+Production behaviour is unchanged; only seams were added.
+- `process_identity.rs`: the guard of `linux_identity` is `record_is_gone`, and the read is passed in as
+  `linux_identity_read_by`, so `EACCES`, `EIO` and `EISDIR` on `/proc/<pid>/stat` can be shown to it.
+- `service_index_identity.rs`: `scope_of_link` (text of `/proc/self/ns/pid`) and `procfs_agrees_with` (result of reading
+  `/proc/self/stat`) are the decisions that `current_pid_scope` and `current_procfs_agrees` remember.
+- `service_index_placement.rs`: `rename_unsupported` and `links_unsupported` are `pub` for the tests.
+
+### Killed
+
+- `process_identity.rs` guard to `true` and `==` to `!=` (ESRCH): `a_failure_to_read_the_record_is_an_exit_only_when_it_says_so`
+  and `only_a_missing_record_or_an_exit_during_the_read_says_the_process_is_gone`. The host cannot be made to return
+  `ESRCH` or `EACCES` for a `/proc/<pid>/stat` read, so the injected read is the only way.
+- `service_index_marker.rs` `!birth.is_empty()` to `true`: `a_marker_with_an_empty_identity_is_no_marker`.
+- `service_index_identity.rs` `&&` to `||` in the scope parse: `only_a_pid_link_with_a_number_names_a_scope` (`pid:[]` is
+  no scope).
+- `service_index_identity.rs` `current_procfs_agrees` to `true`: `a_new_pid_namespace_over_the_old_proc_is_told_from_the_view`
+  starts the test binary under `unshare --user --map-root-user --pid --fork`, where the old `/proc` numbers the process
+  differently, so the real `ReaderView::current()` must say it disagrees and name a new scope. The outer half skips with
+  a printed reason when the host refuses unprivileged namespaces; the inner half is checked to have run (`1 passed`).
+  `a_proc_agrees_only_when_its_record_names_the_process` covers the decision with unreadable, empty and foreign records.
+- `service_index_hold.rs` `ownership`, delete `!`: `a_check_is_repeated_only_while_it_cannot_be_made` counts the calls of
+  an injected check: a final answer is asked once, an unreadable one `SETTLE_LOOKS` times, unreadable then owned twice.
+- `sync_file` to `Ok(())`: `the_flush_of_the_marker_is_the_operating_systems` calls it on a pipe end, where the real
+  `fsync` fails with `EINVAL`. Durability itself is not observable without a crash; what is shown is that the call is
+  made and its answer is returned, not swallowed.
+- `rename_unsupported` to `true`, and the `links_unsupported` and `place_marked` guard mutants of the same lines:
+  `only_an_unsupported_rename_falls_back_to_a_link` and `only_an_unsupported_link_ends_as_unsupported` inject the
+  rename and the link. `EEXIST`, `EIO`, `EACCES`, `ENOSPC` and `EXDEV` end the placement with their own error and make no
+  link; `EINVAL`, `ENOSYS` and `EOPNOTSUPP` fall back to a link; `EPERM` and `EOPNOTSUPP` on the link give `Unsupported`.
+
+### Equivalent on Linux
+
+`service_index_placement.rs:112` `rename_noreplace` to `Ok(())` is the `#[cfg(not(target_os = "linux"))]` variant, which
+returns `Unsupported`. On Linux it is not compiled: replacing its body with `compile_error!` leaves
+`mise run //package/git-policy/cli:native:check` passing, while the same replacement in the Linux variant fails the build.
+The Linux variant's mutant (`Ok(())` without the rename) is killed by
+`the_rename_that_does_not_replace_places_the_file_and_refuses_a_held_lock`, which finds the staged name still present
+and the lock missing. Why nothing else noticed: `place_marked` takes the rename's `Ok` as the placement and every other
+test of it injects `rename`, so only a test of the real call sees that the file moved. On macOS and Windows the
+non-Linux variant is not exercised by this suite; `native:clippy:windows` could not be run here because the
+`x86_64-pc-windows-gnu` standard library is not installed.
+
+### Observed flake, not caused by this branch
+
+`an_ended_watch_is_dropped_before_the_next_is_set` failed once (`a second watch was set`, left 1, right 2) in a 100-test
+run under load and passed on the three reruns alone and in the full set; it was not investigated further.

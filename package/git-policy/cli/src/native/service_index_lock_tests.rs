@@ -1321,6 +1321,8 @@ fn a_check_is_repeated_only_while_it_cannot_be_made() {
         let built: PathBuf = index.with_file_name("index.built");
         std::fs::write(&built, "new index").expect("built");
         let _released = lock.release_with(&built);
+        // A check that cannot be made leaves the lock for the restart; the next measurement starts without it.
+        let _removed = std::fs::remove_file(lock_path_of(&index));
         return CHECKS.with(Cell::get);
     };
     assert_eq!(measure(counted_owned), 1, "a final answer is asked for once");
@@ -1419,6 +1421,7 @@ fn only_an_unsupported_link_ends_as_unsupported() {
 /// and a second rename onto the lock fails with `AlreadyExists`
 /// and leaves both files as they were.
 #[test]
+#[cfg(target_os = "linux")]
 fn the_rename_that_does_not_replace_places_the_file_and_refuses_a_held_lock() {
     let (root, index) = index_in("index-lock-rename-real");
     let lock_path: PathBuf = lock_path_of(&index);
@@ -1438,6 +1441,7 @@ fn the_rename_that_does_not_replace_places_the_file_and_refuses_a_held_lock() {
 
 /// Environment variable that makes the test below run its inner half:
 /// the number of the PID namespace the outer half left.
+#[cfg(target_os = "linux")]
 const OUTSIDE_SCOPE: &str = "INDEX_LOCK_TEST_OUTSIDE_PID_SCOPE";
 
 /// A process in a PID namespace of its own,
@@ -1449,6 +1453,7 @@ const OUTSIDE_SCOPE: &str = "INDEX_LOCK_TEST_OUTSIDE_PID_SCOPE";
 /// The outer half starts the inner half through `unshare`;
 /// the inner half only runs when started that way.
 #[test]
+#[cfg(target_os = "linux")]
 #[allow(
     clippy::disallowed_methods,
     reason = "starts this test binary, not the wrapper, under `unshare`; the ban on `current_exe` guards the wrapper's own start"
