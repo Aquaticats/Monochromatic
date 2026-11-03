@@ -2,6 +2,8 @@
 # .config/mise/conf.d/ in name order beside the root mise.toml. The gitignored 10-bin.local.toml sorts before this file;
 # file-enforcer writes it (rule `mise-bin-list` in file-enforcer.config.jsonc) and it lists the package bin directories
 # pnpm created, so this file keeps only the entries whose position in PATH matters or that exist on every clone.
+# The gitignored 30-toolchain-env.local.toml sorts after this file; `mpm-shadow install` writes it from the `env` blocks of
+# toolchain.lock.json (ANDROID_HOME, ANDROID_SDK_ROOT, JAVA_HOME, RUSTUP_TOOLCHAIN), so the tool variables are not set here.
 [env]
 # Secrets live in the age-encrypted .env.local.json (sops backend), gitignored
 # via the *.local.* pattern and decrypted at runtime by mise's built-in rops

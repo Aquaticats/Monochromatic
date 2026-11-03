@@ -597,6 +597,7 @@ llama-cpu-cli \
   then installs every locked tool that is not at its locked version,
   makes the postinstall links,
   rebuilds the exposure directory,
+  writes the tool environment for mise (see "Tool environment"),
   runs the postinstall commands
   and then retires the old copies of this repository's tools
   (see "Old copies of this repository's tools").
@@ -625,6 +626,53 @@ and names `mpm-shadow install --lockfile-only --offline` or `mpm-shadow update <
 `install` does the same when frozen,
 and otherwise updates the lock itself:
 it resolves the new entries and writes the plan's other declaration changes.
+
+### Tool environment
+
+A tool's `env` block names environment variables the tool needs in every process that uses it:
+`RUSTUP_TOOLCHAIN` for the Rust toolchain,
+`JAVA_HOME` for the JDK,
+`ANDROID_HOME` and `ANDROID_SDK_ROOT` for the Android SDK.
+Nothing exports them by itself:
+`install` writes them into a generated mise configuration fragment,
+and mise, which runs every task and shell of the repository, reads that fragment.
+
+- The repository scope writes `.config/mise/conf.d/30-toolchain-env.local.toml` in the worktree.
+  The `.local.` part keeps it out of git through the `*.local.*` ignore pattern,
+  the way file-enforcer's `10-bin.local.toml` is.
+  The machine-global scope (`install --global`) writes
+  `<config home>/mise/conf.d/30-toolchain-env.toml`
+  (`$XDG_CONFIG_HOME/mise/conf.d`, or `~/.config/mise/conf.d`),
+  beside the global `config.toml`, which is hand-written and never edited.
+- Mise reads every file of a `conf.d` directory in name order, so no committed file points at the fragment.
+  An `include` of the generated file from a committed one would make mise fail on a fresh clone,
+  before the first `install`, because mise refuses an include of a file that is missing.
+- A value with a `/` is relative to the toolchain root of the scope
+  (`<data home>/monochromatic-dev/toolchain`, or `toolchain-global` with `--global`)
+  and is written as an absolute path:
+  `android-sdk/23.0` becomes `<toolchain root>/android-sdk/23.0`.
+  The lock holds the value with `{version}` already replaced,
+  so a version bump moves the path on the next `install`.
+  Any other value is a literal (`nightly-2026-11-01`).
+  A literal that itself contains a `/` would be read as a path;
+  no tool declares one.
+- The fragment is rewritten whole from the lock on every full `install`,
+  so a tool removed from the lock loses its variables,
+  and a lock with no `env` leaves no fragment.
+  `update` and other partial syncs leave it alone.
+  Tools for another OS family are skipped.
+- A name that is not a plain identifier,
+  a relative value that is absolute or holds an empty, `.` or `..` segment,
+  a value with a control character, a brace or a dollar sign,
+  and one name declared with two values are refused.
+  Mise reads every value as a Tera template (`{{ }}`, `{% %}`, `{# #}`) and expands `$NAME`,
+  so these are not escaped but refused.
+  The refusal fails the `install` with the tool, the variable and the remedy,
+  and leaves the fragment of the last good run as it was.
+  Quotes and backslashes are escaped, since mise reads them back as they were.
+- The variables reach mise only through directory activation,
+  so a process started from outside the worktree (and outside any activated shell) does not have them.
+  `mise exec`, `mise run` and an activated shell in the worktree do.
 
 ### Updating named tools
 
