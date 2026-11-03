@@ -503,3 +503,7 @@ fn the_doctor_names_the_limits_the_configuration_sets() {
     assert!(said.contains("older than 90 days") && said.contains("past 2048 bytes"), "{said}");
     remove(&fixture);
 }
+
+/// Command lines that look like one conflicted file to the guard and are more to Git, found by a cross-vendor review.
+#[path = "binary_conflict_side_hardening_tests.rs"]
+mod hardening;
