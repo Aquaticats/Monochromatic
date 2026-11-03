@@ -55,14 +55,14 @@ and reduces unrelated symbol output:
 `v8_symbol_level=0`,
 `use_siso=true`,
 and `use_remoteexec=false`.
-The symbol settings and component-build behavior are documented in the Linux guide.
+The [symbol settings][symbols] and component-build behavior are documented in the Linux guide.
 This configuration is for validation;
 any timing comparison needs a baseline built with the same arguments.
 
 [The checked Siso configuration][siso-args] requires generated checkout configuration,
 including `.sisoenv` and `gclient_args.gni`.
 [Remote execution defaults off][remote-args].
-The pinned `autoninja.py` explicitly invokes `siso ninja --offline`
+The [pinned `autoninja.py`][autoninja-local] explicitly invokes `siso ninja --offline`
 when remote execution is disabled.
 It converts `-j` to the local-job limit when the requested value does not exceed the detected CPU count.
 Google RBE authentication and API keys are unnecessary for this local workflow.
@@ -78,15 +78,15 @@ They are not a hand-maintained replacement for the complete dependency graph.
 Chromium [pins depot_tools][depot-pin] to
 `816da11f80777dcf8c10bdaa84df18450dcba12a`.
 Use that source revision for `gclient` and `autoninja`.
-The pinned updater checks `DEPOT_TOOLS_UPDATE=0` and skips automatic updating.
+The [pinned updater][depot-updater] checks `DEPOT_TOOLS_UPDATE=0` and skips automatic updating.
 Keep this setting confined to the container workflow.
 
-The depot-tools bootstrap also carries a committed CIPD client pin and digest:
+The depot-tools bootstrap also carries a committed [CIPD client pin and digest][depot-client-digest]:
 
 - Client revision: `43615ea9acdcc6c1c213c5c7a30a568fdeb7c3dc`.
 - Linux amd64 client SHA-256:
   `7296d878d6ef509e59838769b79b29d7cc76a4a97f0678c5376ac26190924ec7`.
-- `cipd_manifest.txt` references `cipd_manifest.versions`,
+- [The tool manifest][depot-bootstrap] references `cipd_manifest.versions`,
   whose resolved instances are committed to reduce reliance on mutable server-side resolution.
 - `vpython3` is pinned to
   `git_revision:1fe128e81d74b6aec15277bc535e57af04bc3209`.
@@ -96,21 +96,36 @@ none of these upstream scripts or binaries was executed by this research pass.
 
 ### Generator and executor
 
+The [tool versions][executor-pins] and [package destinations][tool-packages]
+are declared in DEPS.
+Public CIPD `ResolveVersion` requests succeeded for the selected Linux packages
+and returned the instance SHA-256 values recorded here.
+
 - GN package: `gn/gn/linux-amd64`.
   Version: `git_revision:ed7fee04cb30b96ed40ef188acfad5417349e399`.
+  Instance SHA-256:
+  `2bd2c2f10aafea72fa875f8c2d5b87d098031e17f470d4c1b77f2f1ebaf23a75`.
 - Siso package: `build/siso/linux-amd64`.
   Version: `git_revision:c508213533aa5cd425b69cb0f66e53522d77022d`.
+  Instance SHA-256:
+  `6c12d0e0ea8216d6b7687869c0426b1865327c6101baafa99aa4e986fb147367`.
 - Ninja remains a declared dependency:
   `infra/3pp/tools/ninja/linux-amd64`,
   version `version:3@1.12.1.chromium.4`.
+  Instance SHA-256:
+  `3f1f1cc0f69a1bcfdf67fb6c2bc7419b1dd812bb8d0e79afa9bfa8a3553b5082`.
   The selected workflow uses Siso through `autoninja`.
 - Chromium's hermetic CPython package is `infra/3pp/tools/cpython3/linux-amd64`,
   version `version:3@3.11.9.chromium.38`.
+  Instance SHA-256:
+  `b7b8a0a6d171b8918fda51aee1d6ffeb0c8a14c791fb1d0bc5d7454c8c9d949b`.
 
 ### Compiler and Rust
 
 The GCS bucket is `chromium-browser-clang`.
-The [compiler entries][compiler-artifacts] specify:
+The [Clang entry][compiler-artifacts],
+[Rust entry][rust-artifacts],
+and [Rust libclang entry][libclang-artifact] specify:
 
 - Clang object:
   `Linux_x64/clang-llvmorg-24-init-14453-ge063be79-1.tar.xz`.
@@ -141,9 +156,9 @@ generation `1792192152972543`.
 The x64 checkout also declares the i386 sysroot;
 do not remove declared inputs solely because the final target is x64.
 
-The [WebUI toolchain entries][node-inputs] include a Chromium-owned Node archive
+The [Node entry][node-inputs] includes a Chromium-owned archive
 with SHA-256 `bdea62a6857735d62165ec97242d79a693564c72d551890c4d009d2355abf14c`
-and a matching `node_modules` archive
+and the [matching `node_modules` archive][node-modules]
 with SHA-256 `5b5e38c58094ee898b1eceb29df7d3a2a2e6b07add6a05b4c554eef0dfb56465`.
 Retain these build inputs instead of substituting the host's newer Node installation.
 
@@ -161,13 +176,14 @@ the downloader still must verify the declared SHA-256 before executing any retri
 ## Dependency acquisition and provenance
 
 Keep the complete checkout at a stable container path such as `/work/src`.
-The inspected `gclient` parser supports `config --name`,
+The [inspected `gclient` parser][gclient-sync] supports `config --name`,
 `config --unmanaged`,
 `sync --revision src@<commit>`,
 `sync --nohooks`,
 `sync --no-history`,
 and `sync --output-json`.
-It also supports `revinfo --actual --output-json` for the resolved dependency record.
+It also supports [the resolved dependency record][gclient-revinfo]
+through `revinfo --actual --output-json`.
 These are source-checked invocation shapes,
 not a claim that sync has already run.
 
@@ -319,17 +335,29 @@ Podman help,
 and selected artifact metadata were inspected.
 Source citations and rendered Markdown checks remain to be completed for this document.
 
-[linux-build]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/docs/linux/build_instructions.md?plain=1#L206-L228
+[linux-build]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/docs/linux/build_instructions.md?plain=1#L194-L218
+[symbols]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/docs/linux/build_instructions.md?plain=1#L399-L413
 [clang]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/docs/clang.md?plain=1#L1-L7
 [chrome-test-sets]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/chrome/browser/metrics/BUILD.gn#L559-L570
 [components-tests]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/components/BUILD.gn#L260-L265
 [siso-args]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/build/toolchain/siso.gni#L5-L20
 [remote-args]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/build/toolchain/rbe.gni#L8-L21
 [deps-tools]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/DEPS#L570-L581
+[executor-pins]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/DEPS#L284-L288
+[tool-packages]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/DEPS#L2783-L2802
 [depot-pin]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/DEPS#L2228-L2229
 [compiler-artifacts]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/DEPS#L946-L952
+[rust-artifacts]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/DEPS#L1102-L1117
+[libclang-artifact]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/DEPS#L1140-L1154
 [sysroot-policy]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/docs/linux/sysroot.md?plain=1#L1-L14
 [sysroot-pin]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/DEPS#L640-L652
 [node-inputs]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/DEPS#L833-L850
-[arch-deps]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/docs/linux/build_instructions.md?plain=1#L638-L648
+[node-modules]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/DEPS#L897-L912
+[arch-deps]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/docs/linux/build_instructions.md?plain=1#L643-L651
 [histogram-startup]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/chrome/app/chrome_main_delegate.cc#L1803-L1825
+[depot-client-digest]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/cipd_client_version.digests#18
+[depot-bootstrap]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/cipd_manifest.txt#21
+[depot-updater]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/update_depot_tools#105
+[autoninja-local]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/autoninja.py#489
+[gclient-sync]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/gclient.py#4719
+[gclient-revinfo]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/gclient.py#5106
