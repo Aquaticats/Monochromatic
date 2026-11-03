@@ -28,8 +28,17 @@ use super::wait_progress::{Cadence, ChildWaitFacts, Ticker, child_wait_line};
 use std::process::{Child, Command, Output, Stdio};
 /// The sink a notice goes to.
 use std::io::Write;
-/// Shared state between the waiting thread and the watcher.
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+/// The flag the watcher raises when a wait crossed the bound, read by the waiting thread.
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+/// The marks the waiting thread sends the watcher; the watcher owns every other piece of state.
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
+/// The lock files a stopped step leaves.
+use super::stopped_git_locks::LockLedger;
+/// How long a stopped step may take to end after the polite request.
+use super::bounded_push::STOP_GRACE;
+/// The processes below the step, and the identity checks that make signalling them safe.
+use super::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
 /// The watcher thread.
 use std::thread::JoinHandle;
 /// Time spans and the monotonic clock.
@@ -94,74 +103,108 @@ pub fn grace_for(class: ChildClass, interval: Duration, limit: Duration) -> Dura
 }
 
 /// What:
-///  What the watcher thread shares with the waiting thread, behind one lock.
+///  What the waiting thread tells the watcher: a wait began at a moment, or the wait ended.
 /// Why:
-///   The waiting thread marks a wait's start and end; the watcher reads the marks and the clock.
+///   The watcher owns the marks it acts on (when the wait began, when its next notice is due, how many notices went out),
+///  so no state is shared and no lock is held: the waiting thread only sends, and the watcher reads at its own pace.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WatchState = { since?: number; ticker: Ticker; printed: number; stopped: boolean };
+/// type Mark = { kind: 'begin'; at: number } | { kind: 'end' };
 /// ```
-struct WatchState {
+enum Mark {
+    /// A wait on the child began at this moment.
+    Begin(Instant),
+    /// The wait ended.
+    End,
+}
+
+/// How often a stopped step is looked at while it ends.
+const STOP_POLL: Duration = Duration::from_millis(10);
+
+/// The marks of the wait the watcher is watching, kept by the watcher thread alone.
+struct Marks {
     /// When the current wait began, or nothing between waits.
     since: Option<Instant>,
     /// When the current wait's next notice is due.
     ticker: Ticker,
     /// How many notices the current wait printed.
     printed: u32,
-    /// Whether the watch was dropped.
-    stopped: bool,
-    /// Whether a wait crossed the bound and the child was stopped.
-    expired: bool,
 }
 
-/// The lock and the signal the two threads share.
-struct Shared {
-    /// The marks.
-    state: Mutex<WatchState>,
-    /// Signalled when a wait begins or ends or the watch stops.
-    wake: Condvar,
-}
-
-/// Take the lock, ignoring poison: the state is plain marks that stay valid after a panic elsewhere.
-fn locked(shared: &Shared) -> MutexGuard<'_, WatchState> {
-    return shared.state.lock().unwrap_or_else(PoisonError::into_inner);
+impl Marks {
+    /// Take one mark from the waiting thread into account.
+    fn apply(&mut self, mark: Mark, cadence: Cadence) {
+        match mark {
+            Mark::Begin(at) => {
+                self.since = Some(at);
+                self.ticker = Ticker::new(cadence);
+                self.printed = 0;
+            }
+            Mark::End => self.since = None,
+        }
+    }
 }
 
 /// What:
-///  Ends a process the way a watched wait does when it crosses its bound.
+///  Ends a process the way a watched wait does when it crosses its bound: a catchable request first, a bounded grace,
+///  then the kill, and then the removal of the lock files it could not remove itself.
 /// Why:
-///   The blocked read or wait on that process then returns, and the waiting thread reports the bound. The processes the
-///  child started end with it.
+///   Git removes its lock files only when it is asked to end with a signal it catches, so a step that is killed at once
+///  leaves its `.lock` files and every later Git command on the same files fails. A step that answers the request ends
+///  in the grace; one that does not (it was stopped by the kernel in an uninterruptible call) is killed, and its locks are
+///  swept after it is gone. The blocked read or wait on that process then returns, and the waiting thread reports the
+///  bound. The processes the child started end with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// process.kill(pid, 'SIGKILL');
+/// process.kill(pid, 'SIGTERM'); await Promise.race([exited, delay(graceMs)]) || process.kill(pid, 'SIGKILL'); locks.sweep(tree);
 /// ```
 #[cfg(unix)]
-fn stop_process(pid: u32) {
+fn stop_process(pid: u32, locks: &LockLedger, incoming: &Receiver<Mark>) {
     let Ok(raw) = i32::try_from(pid) else {
         return;
     };
     // The processes below the child are read before it is stopped, because a process's link to its parent is gone once the
     // parent has exited; a step's helpers (a transport, a hook) would otherwise outlive it and hold its output open, and the
     // wait for that output would outlast the bound by as long as they live.
-    let below: Vec<super::process_tree::TreeMember> = super::process_tree::descendants_of(raw);
+    let below: Vec<TreeMember> = descendants_of(raw);
+    let mut tree: Vec<TreeMember> = member_of(raw).into_iter().collect();
+    tree.extend(below.iter().cloned());
     // SAFETY: `kill` takes no pointers. The watcher fires only while a wait is marked, and the waiting thread reaps
     // the child only after it ends the mark, except for the window between a one-shot run's `wait_with_output`
     // returning and its `end` call (microseconds), where a reaped identifier could in principle be reused by another
     // process before the signal lands; the bound is far longer than that window, so a stop in it needs a wait that
     // crossed the bound in the same instant.
     unsafe {
+        libc::kill(raw, libc::SIGTERM);
+    }
+    terminate_members(below.as_slice());
+    let asked: Instant = Instant::now();
+    while asked.elapsed() < STOP_GRACE && tree.iter().any(still_running) {
+        std::thread::sleep(STOP_POLL);
+    }
+    // SAFETY: as above; a process that ended in the grace is gone or a zombie, and a zombie takes the signal harmlessly.
+    unsafe {
         libc::kill(raw, libc::SIGKILL);
     }
-    super::process_tree::kill_members(below.as_slice());
+    kill_members(below.as_slice());
+    // The waiting thread reaps the child, so the watcher only looks. A step in an uninterruptible call ends when the kernel
+    // lets it go, which can be long after the bound; the locks it creates on the way out are swept then, or when the watch
+    // is dropped, whichever comes first.
+    while tree.iter().any(still_running) {
+        match incoming.recv_timeout(STOP_POLL) {
+            Err(RecvTimeoutError::Disconnected) => break,
+            Ok(_) | Err(RecvTimeoutError::Timeout) => {}
+        }
+    }
+    locks.sweep(tree.as_slice());
 }
 
 /// A platform without signals cannot end the child from the watcher; the wait is only announced.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-fn stop_process(_pid: u32) {}
+fn stop_process(_pid: u32, _locks: &LockLedger, _incoming: &Receiver<Mark>) {}
 
 /// What:
 ///  The watcher of one child process.
@@ -175,65 +218,62 @@ fn stop_process(_pid: u32) {}
 /// class ChildWatch implements Disposable { begin(); end(); get expired(): boolean }
 /// ```
 pub struct ChildWatch {
-    /// The state shared with the watcher thread.
-    shared: Arc<Shared>,
+    /// Where the marks go; dropped first when the watch is dropped, which tells the watcher thread to end.
+    marks: Option<Sender<Mark>>,
+    /// Whether a wait crossed the bound and the child was stopped; raised by the watcher before it signals the child.
+    expired: Arc<AtomicBool>,
     /// The watcher thread, joined when the watch is dropped.
     thread: Option<JoinHandle<()>>,
     /// The bound a wait may last.
     limit: Duration,
-    /// When the notices of each wait are due.
-    cadence: Cadence,
 }
 
 impl ChildWatch {
-    /// Start watching `pid`:
-    ///  waits marked with `begin` and `end` are announced as waiting for `waiting_for` and bounded by the terms' limit.
-    ///  A watch whose thread cannot start watches nothing, and the waits it marks run unannounced and unbounded.
+    /// Start watching `pid`, a child that holds no Git lock: see `start_with_locks`.
     pub fn start(waiting_for: &str, pid: u32, terms: WatchTerms) -> Self {
-        let shared: Arc<Shared> = Arc::new(Shared {
-            state: Mutex::new(WatchState {
-                since: None,
-                ticker: Ticker::new(terms.cadence),
-                printed: 0,
-                stopped: false,
-                expired: false,
-            }),
-            wake: Condvar::new(),
-        });
-        let watcher: Arc<Shared> = Arc::clone(&shared);
+        return Self::start_with_locks(waiting_for, pid, terms, LockLedger::none());
+    }
+
+    /// Start watching `pid`:
+    ///  waits marked with `begin` and `end` are announced as waiting for `waiting_for` and bounded by the terms' limit,
+    ///  and the lock files the child leaves when it is stopped are swept by `locks`.
+    ///  A watch whose thread cannot start watches nothing, and the waits it marks run unannounced and unbounded.
+    pub fn start_with_locks(waiting_for: &str, pid: u32, terms: WatchTerms, locks: LockLedger) -> Self {
+        let (marks, incoming): (Sender<Mark>, Receiver<Mark>) = channel();
+        let expired: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+        let raised: Arc<AtomicBool> = Arc::clone(&expired);
         let subject: String = String::from(waiting_for);
         let limit: Duration = terms.limit;
-        let cadence: Cadence = terms.cadence;
         let thread: Option<JoinHandle<()>> = std::thread::Builder::new()
             .name(String::from("cli-git-child-watch"))
             .spawn(move || {
-                watch_loop(&watcher, subject.as_str(), pid, terms);
+                watch_loop(&incoming, raised.as_ref(), subject.as_str(), pid, terms, &locks);
             })
             .ok();
-        return Self { shared, thread, limit, cadence };
+        return Self { marks: Some(marks), expired, thread, limit };
+    }
+
+    /// Send one mark; a watcher that is gone has nothing to be told.
+    fn send(&self, mark: Mark) {
+        if let Some(marks) = &self.marks {
+            // A watcher whose thread did not start, or that panicked, dropped its receiver; the wait runs unwatched.
+            let _sent = marks.send(mark);
+        }
     }
 
     /// Mark the start of a wait on the child.
     pub fn begin(&self) {
-        let mut state: MutexGuard<'_, WatchState> = locked(&self.shared);
-        state.since = Some(Instant::now());
-        state.ticker = Ticker::new(self.cadence);
-        state.printed = 0;
-        drop(state);
-        self.shared.wake.notify_all();
+        self.send(Mark::Begin(Instant::now()));
     }
 
     /// Mark the end of the wait.
     pub fn end(&self) {
-        let mut state: MutexGuard<'_, WatchState> = locked(&self.shared);
-        state.since = None;
-        drop(state);
-        self.shared.wake.notify_all();
+        self.send(Mark::End);
     }
 
     /// Whether a wait crossed the bound and the child was stopped.
     pub fn expired(&self) -> bool {
-        return locked(&self.shared).expired;
+        return self.expired.load(Ordering::Acquire);
     }
 
     /// The bound a wait may last.
@@ -245,8 +285,7 @@ impl ChildWatch {
 /// Stops the watcher thread and waits for it.
 impl Drop for ChildWatch {
     fn drop(&mut self) {
-        locked(&self.shared).stopped = true;
-        self.shared.wake.notify_all();
+        drop(self.marks.take());
         if let Some(thread) = self.thread.take() {
             // A watcher that panicked has nothing left to report; the wait it watched is over.
             let _joined = thread.join();
@@ -257,41 +296,42 @@ impl Drop for ChildWatch {
 /// What:
 ///  The watcher thread's loop: sleep until the next notice or the bound is due, print or stop, repeat.
 /// Why:
-///   Between waits the thread sleeps without a timeout, so an idle watch costs nothing.
+///   Between waits the thread blocks on the next mark without a timeout, so an idle watch costs nothing, and a dropped
+///  watch ends it because its sender is gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// while (!stopped) { if (since === undefined) await signal(); else if (elapsed >= limit) stop(pid); else if (ticker.due(elapsed)) notice(); else await sleep(next); }
+/// for await (const mark of marksUntilTimeout()) { if (since === undefined) continue; if (elapsed >= limit) stop(pid); else if (ticker.due(elapsed)) notice(); }
 /// ```
-fn watch_loop(shared: &Shared, waiting_for: &str, pid: u32, mut terms: WatchTerms) {
-    let mut state: MutexGuard<'_, WatchState> = locked(shared);
+fn watch_loop(incoming: &Receiver<Mark>, expired: &AtomicBool, waiting_for: &str, pid: u32, mut terms: WatchTerms, locks: &LockLedger) {
+    let mut marks: Marks = Marks { since: None, ticker: Ticker::new(terms.cadence), printed: 0 };
     loop {
-        if state.stopped {
-            return;
-        }
-        let Some(since) = state.since else {
-            state = shared.wake.wait(state).unwrap_or_else(PoisonError::into_inner);
+        let Some(since) = marks.since else {
+            match incoming.recv() {
+                Ok(mark) => marks.apply(mark, terms.cadence),
+                Err(_) => return,
+            }
             continue;
         };
         let mut waited: Duration = since.elapsed();
         // A notice that is due goes out before the bound is checked, so a child stopped at its bound was announced.
-        if state.ticker.due(waited) {
+        if marks.ticker.due(waited) {
             let line: String = child_wait_line(&ChildWaitFacts {
                 waiting_for,
                 pid,
                 waited,
                 limit: terms.limit,
                 limit_note: " (CLI_GIT_CHILD_WAIT_SECONDS changes this)",
-                repeat: state.printed > 0,
+                repeat: marks.printed > 0,
             });
-            state.printed += 1;
-            // The lock is not held while writing: a slow terminal must not hold up the waiting thread's marks.
-            drop(state);
+            marks.printed += 1;
             // Terminal output error: a notice is advisory; a failed write must not stop the watch.
             let _written = writeln!(terms.notices, "{line}");
-            state = locked(shared);
             // The wait may have ended, or another begun, while the line was written.
-            if state.stopped || state.since != Some(since) {
+            while let Ok(mark) = incoming.try_recv() {
+                marks.apply(mark, terms.cadence);
+            }
+            if marks.since != Some(since) {
                 continue;
             }
             // The bound is checked right after a notice, however long the notice took, so printing can never keep a
@@ -299,19 +339,20 @@ fn watch_loop(shared: &Shared, waiting_for: &str, pid: u32, mut terms: WatchTerm
             waited = since.elapsed();
         }
         if waited >= terms.limit {
-            state.expired = true;
-            state.since = None;
-            stop_process(pid);
+            // Raised before the child is signalled, so the waiting thread that its end releases reads it as true.
+            expired.store(true, Ordering::Release);
+            marks.since = None;
+            stop_process(pid, locks, incoming);
             continue;
         }
-        let until_notice: Duration = state.ticker.next_in(waited);
+        let until_notice: Duration = marks.ticker.next_in(waited);
         let until_bound: Duration = terms.limit.saturating_sub(waited);
         let sleep: Duration = until_notice.min(until_bound).max(SHORTEST_SLEEP);
-        state = shared
-            .wake
-            .wait_timeout(state, sleep)
-            .unwrap_or_else(PoisonError::into_inner)
-            .0;
+        match incoming.recv_timeout(sleep) {
+            Ok(mark) => marks.apply(mark, terms.cadence),
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => return,
+        }
     }
 }
 
@@ -363,8 +404,10 @@ pub fn watched_timeout_text(waiting_for: &str, limit: Duration) -> String {
 /// ```
 pub fn output_watched(command: &mut Command, waiting_for: &str, terms: WatchTerms) -> std::io::Result<Output> {
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    // Taken before the child starts, so a lock born earlier is never taken for the child's.
+    let locks: LockLedger = LockLedger::before_start(command);
     let child: Child = command.spawn_retrying()?;
-    let watch: ChildWatch = ChildWatch::start(waiting_for, child.id(), terms);
+    let watch: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks);
     watch.begin();
     let output: std::io::Result<Output> = child.wait_with_output();
     watch.end();

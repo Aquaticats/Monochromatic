@@ -870,6 +870,9 @@ pub mod bounded_query;
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
 
+/// The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
+pub mod stopped_git_locks;
+
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 

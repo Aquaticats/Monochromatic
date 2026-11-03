@@ -1167,9 +1167,35 @@ in-process reader can) gives every value of the multi-valued keys.
   a zero,
   negative,
   fractional or non-numeric value is ignored.
-  Past the deadline the push is asked to end,
+  Past the deadline the push is asked to end with `SIGTERM` (its helpers and hooks too),
   killed after a five second grace,
   and reported as failed with exit code 124 whose output ends with a line naming the deadline.
+  The same stop (a catchable request, five seconds, then the kill) ends every Git child the wrapper stops:
+  the push, its read-only queries, the reconcile fetch, the Git LFS upload and a Git step of a commit
+  that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
+  A stopped Git child leaves none of Git's lock files behind.
+  Git removes its own `.lock` files when it ends or is asked to end with a signal it catches,
+  so a child that answers the request cleans up after itself.
+  A child that does not answer in the grace (it sits in an uninterruptible call such as a stalled disk,
+  where the request waits and the kill wins) cannot,
+  and neither can one whose signal arrives between creating a lock and registering it for removal
+  (`tempfile.c` of Git 2.56.0, `create_tempfile_mode` and `activate_tempfile`).
+  Once the child and everything it started are gone, the wrapper removes the lock files that child left,
+  and only these:
+  a lock whose `~pid.lock` file (Git writes it beside every lock under `core.lockfilePid`, which the wrapper turns on for
+  every Git it starts) names a process of the stopped tree, together with that pid file;
+  and an empty lock with no pid file that was born after the child started,
+  while the whole stopped tree has ended, because a child can die between creating the lock and writing the pid file,
+  and an empty file holds nothing.
+  A lock whose pid file names any other process, a lock with content and no pid file, a lock older than the child
+  and a lock while any process of the tree still runs are left alone.
+  The repository is the one of the child's working directory or its `GIT_DIR`; both its Git directory and its common
+  Git directory are searched, except `hooks` and the loose-object directories.
+  A child that the kernel does not release within the grace after the kill is collected on a thread of its own,
+  and its locks are removed when it has ended; the push is reported at its deadline and does not wait for it.
+  The removal takes no lock of its own: it looks at files the stopped child created and removes only those.
+  A lock that another Git process makes in the same moment under a name the rules match is that process's race,
+  which the wrapper does not arbitrate.
   A push whose output grows past 4 MiB is stopped the same way, and only the first 4 MiB are kept.
   The commit stays saved.
   Git's low-speed abort is added to the push's environment

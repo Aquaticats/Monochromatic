@@ -338,3 +338,22 @@ fn a_program_that_cannot_start_is_a_start_failure() {
     .expect_err("no such program");
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");
 }
+
+/// A child the kernel releases only after the push was reported has its lock swept when it ends, on a thread of its own.
+#[cfg(unix)]
+#[test]
+fn a_child_released_late_has_its_lock_swept_when_it_ends() {
+    let root: std::path::PathBuf = crate::test_support::fixture("sweep-after-exit");
+    let heads: std::path::PathBuf = root.join(".git").join("refs").join("heads");
+    std::fs::create_dir_all(heads.as_path()).expect("ref directory");
+    let lock: std::path::PathBuf = heads.join("late.lock");
+    let mut command: Command = shell(": > \"$LOCK\"; exec sleep 1");
+    command.current_dir(root.as_path()).env("LOCK", lock.as_os_str());
+    let locks: LockLedger = LockLedger::before_start(&command);
+    let child: Child = command.spawn().expect("start the child");
+    let member: TreeMember = member_of(i32::try_from(child.id()).expect("pid")).expect("a running child");
+    let sweeper = sweep_after_exit(child, vec![member], locks, Duration::from_secs(2)).expect("the sweeping thread starts");
+    sweeper.join().expect("the sweeping thread ends");
+    assert!(!lock.exists(), "the lock the child left is swept once it ended");
+    crate::test_support::remove(root.as_path());
+}
