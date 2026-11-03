@@ -88,8 +88,9 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   14 and 15,
   branch `fix/git-policy-cli-limits-cite-measurements`,
   worktree `.claude/worktrees/limits-cite-measurements`.
-- The fsmonitor troubleshooting doc,
-  `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+- Shipped-limits picks 4 and 9,
+  branch `feat/git-policy-cli-steps-end-only-on-no-progress` from the 0.5.28 base `f58510c538`,
+  worktree `.claude/worktrees/steps-end-only-on-no-progress`.
 - The in-process index review fixes,
   the agent that wrote `perf/git-policy-cli-follow-up-index-in-process`.
 - The wrapper never runs itself as Git,
@@ -127,10 +128,8 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   the gate of 0.5.27 (named under its branch below).
 Queued,
 in this order:
-shipped-limits picks 4 and 9,
-then 2 and 6,
-each from the 0.5.27 candidate tip,
-as slots free.
+shipped-limits picks 2 and 6 from the 0.5.28 base,
+as a slot frees.
 
 0.5.27 ships without the in-process index work
 (coordinator's pick under the delegation,
@@ -1251,9 +1250,18 @@ and stopped all 261 running daemons (253 with `git fsmonitor--daemon stop`,
 8 with SIGTERM,
 none left;
 `~/temp/agent/tools/fsmonitor-stop-all.ts`).
-Agents running:
-the doctor check and the README and SPEC update (branch `feat/git-policy-cli-doctor-says-fsmonitor-is-off`),
-and `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+Done:
+the doctor line (`feat/git-policy-cli-doctor-says-fsmonitor-is-off` `072ac84868`,
+shipping in 0.5.27)
+and `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md` with a prototype patch beside it
+(`7ea0414e80` to `da42fdb07b`;
+the waiting `fsmonitor--daemon start` busy-spins,
+concurrent clients each start a daemon,
+a cold start measured 1.88 s at 100,000 directories and 0.013 s patched,
+`t7527` passed 69 with 6 skipped;
+the upstream draft is not for filing as is,
+because Git's `SubmittingPatches` rejects AI-generated patches and needs a human sign-off;
+filing is the owner's decision).
 The earlier statements stay in `package/git-policy/cli/README.md`,
 "Git's own fsmonitor",
 as history.
