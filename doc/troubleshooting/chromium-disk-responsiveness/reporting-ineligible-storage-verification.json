@@ -1212,5 +1212,47 @@
     "This run does not validate Google-branded builds or other operating systems.",
     "No latency comparison or artificial filesystem delay was used.",
     "Existing spare-file work and legacy-file cleanup remain outside the no-live-mapping property."
-  ]
+  ],
+  "deliveryChecks": {
+    "recordedAt": "2026-11-03T20:19:14.644Z",
+    "markdownLint": "passed",
+    "typescriptChecks": "passed",
+    "markdownRendering": "inspected",
+    "sourceHashes": [
+      {
+        "sha256": "57a30501ab2cba3fb21d815b0a750f5ce3c50d596a6ea154fd41bc28914e2a18",
+        "path": "doc/troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage.patch"
+      },
+      {
+        "sha256": "75df644b17a5537022f4ef15a3636c1fd952de39918bcade4d4e1c9c58557fe9",
+        "path": "doc/troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage.md"
+      },
+      {
+        "sha256": "f2c17456cf6e3d5f0ff5fb7f2df9573b29ed8ce831ff7aab1a69d0a5d801f626",
+        "path": "doc/troubleshooting/chromium-disk-responsiveness/native-validation.md"
+      },
+      {
+        "sha256": "c5d85c0493a7dc501beb83bcbbcbad4ae9114424ed99766dda0106e91cb4474d",
+        "path": "doc/planning/browser-disk-responsiveness/chromium-metrics-patch-comment.md"
+      },
+      {
+        "sha256": "051e468007c9053254e9d684755450363c3a748f9f40e40ae0e2c5722372127b",
+        "path": "doc/handover/chromium-live-histogram-contribution.md"
+      },
+      {
+        "sha256": "ac27b75d287019589248a8df504fed52f25bbeedb844d029196400c449b0c24c",
+        "path": "doc/troubleshooting/agent-browser-eagain.md"
+      }
+    ],
+    "ownedBuildAndTestContainersRemaining": 0,
+    "ownedSourceBrowsersRemaining": 0,
+    "issueWatcher": {
+      "checks": 97,
+      "lastSuccessAt": "2026-11-03T20:04:54.513Z",
+      "endsAt": "2026-11-04T12:07:36.851Z",
+      "error": null,
+      "complete": false,
+      "serviceActive": true
+    }
+  }
 }
