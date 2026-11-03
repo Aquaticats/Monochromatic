@@ -376,9 +376,9 @@ const tasks: Record<string, TaskDefinition> = {
     description: 'Update every first-party Cargo.lock under rust-catalog.toml\'s release-age and trust policy (pnpm -r --no-save update)',
     run: 'node package/dependency-catalog/cli-rust-update/src/cli.ts',
   },
-  'rust:reconcile': {
-    description: 'After sync:files, make every Cargo.lock satisfy its manifests again, offline and moving only what the manifests force (add -- --dry-run to report stale locks)',
-    run: 'node package/dependency-catalog/cli-rust-update/src/cli.ts --reconcile',
+  'rust:install': {
+    description: 'pnpm install for Cargo.lock files: update the lockfiles that no longer satisfy their manifests, offline and moving only what the manifests force; frozen (fails naming them) in CI or with --frozen-lockfile',
+    run: 'node package/dependency-catalog/cli-rust-update/src/cli.ts install',
   },
   'rust:verify': {
     description: 'Check Rust registry versions locked since a base revision (default HEAD; CI passes --base) against rust-catalog.toml\'s trust policy',

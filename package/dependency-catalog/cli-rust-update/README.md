@@ -4,7 +4,7 @@ Recursive no-save update of every first-party `Cargo.lock`,
  the Cargo counterpart of `pnpm --recursive --no-save update`,
  under the release-age and trust policy in the repository's `rust-catalog.toml`.
 It also has a CI mode that checks newly locked versions against the trust policy,
- and a lock-only mode that makes every lockfile satisfy its manifests again after a floor raise.
+ and `install`, the counterpart of `pnpm install`, that makes every lockfile satisfy its manifests after a floor raise.
 
 Design and decisions:
  [`doc/decision/rust-dependency-catalog.md`](../../../doc/decision/rust-dependency-catalog.md)
@@ -18,8 +18,10 @@ Run from the repository root:
 # package/dependency-catalog/cli-rust-update/README.md
 mise run rust:update              # update and keep the result if every check passes
 mise run rust:update -- --dry-run # report what would change, then restore every Cargo.lock
-mise run rust:reconcile           # after sync:files: make every Cargo.lock satisfy its manifests, offline
-mise run rust:reconcile -- --dry-run  # report which lockfiles are stale, then restore every Cargo.lock
+mise run rust:install             # after sync:files: update stale Cargo.lock files offline; in CI fail naming them instead
+mise run rust:install -- --frozen-lockfile     # fail naming the stale roots, write nothing (the default in CI)
+mise run rust:install -- --no-frozen-lockfile  # update stale lockfiles even in CI
+mise run rust:install -- --dry-run             # report which lockfiles are stale, then restore every Cargo.lock
 mise run rust:verify              # check versions no lockfile held at HEAD (uncommitted changes)
 mise run rust:verify -- --base <rev>  # CI: the same against another revision
 ```
@@ -36,12 +38,49 @@ The full update workflow is:
 1.  `mise run rust:update` refreshes the lockfiles.
 2.  `mise run catalog:tighten` raises each `rust-catalog.toml` floor to the highest locked version.
 3.  `mise run sync:files` renders the new floors into each crate's generated `[workspace.dependencies]` table.
-4.  `mise run rust:reconcile` makes the lockfiles of the crates that locked a lower release satisfy the raised floors.
+4.  `mise run rust:install` makes the lockfiles of the crates that locked a lower release satisfy the raised floors.
 
 The update never edits manifests or catalog floors.
 It edits `rust-catalog.toml` only to prune stale exclude selectors when the matching prune setting is on.
 
-## What a floor raise leaves behind, and the reconcile
+## Mapping to pnpm
+
+The Rust catalog tooling follows pnpm's commands, flags and lockfile rules (pnpm 12, [install][pnpm-install],
+ [update][pnpm-update], [add][pnpm-add] and [catalogs][pnpm-catalogs] pages, read 2026-11-03).
+pnpm has no separate command that repairs a lockfile, so neither does this tool: the lockfile is kept current by the commands
+ whose pnpm counterparts write it.
+
+- `mise run rust:update` is `pnpm --recursive --no-save update`:
+   it moves every lockfile to the newest releases that fit, under the release-age and trust policy, and writes only lockfiles.
+  `--dry-run` writes nothing.
+- `mise run catalog:tighten` is the catalog half of `pnpm update`, which writes the new range to the entry in `pnpm-workspace.yaml`
+   instead of `package.json` for a dependency that uses `catalog:`.
+  It raises each `>=` floor to the highest locked version and writes only `rust-catalog.toml`.
+- `mise run sync:files` (file-enforcer's `rust-catalog` kind) is what `pnpm install` does when it replaces a `catalog:` reference
+   with the catalog's range, done ahead of time because Cargo cannot read a catalog.
+  It renders `[workspace.dependencies]` and path-crate versions into manifests, and writes no lockfile.
+  Its adoption of `cargo add` literals is `pnpm add --save-catalog`, and its pruning is `catalogPrune`.
+- `mise run rust:install` is `pnpm install`: it brings each `Cargo.lock` in line with the manifests as they now stand.
+  The flags keep pnpm's names and meaning:
+  - Outside CI a stale lockfile is updated (`--no-frozen-lockfile`, "allows lockfile updates during installation").
+  - In CI, where `CI` is set to anything but empty, `0` or `false`, or with `--frozen-lockfile`, a stale lockfile fails the command,
+     which names every stale root and writes nothing (pnpm: "fails to install if the lockfile is out of sync with the manifest").
+  - `--dry-run` reports what an install would update and writes nothing.
+  - There is no `--lockfile-only`, because there is nothing like `node_modules` to write: this install is always lockfile-only,
+     and it never builds or downloads a crate.
+    It is also always offline (pnpm's `--offline`), because Cargo reads the local index and cache.
+- `mise run rust:verify` is `--trust-lockfile` at CI: it checks only the registry versions that no lockfile held at a base revision.
+
+The order after a floor raise is therefore the same as with pnpm: edit the catalog (`rust:update` and `catalog:tighten`, or by hand),
+ let the manifests follow (`sync:files`), then install (`rust:install`) so the lockfiles satisfy them.
+Neither the tightener nor the file-enforcer sync writes a lockfile, as in pnpm where the catalog edit and `pnpm install` are separate steps.
+
+[pnpm-install]: https://pnpm.io/cli/install
+[pnpm-update]: https://pnpm.io/cli/update
+[pnpm-add]: https://pnpm.io/cli/add
+[pnpm-catalogs]: https://pnpm.io/catalogs
+
+## What a floor raise leaves behind, and the install
 
 The catalog's one-version premise makes `catalog:tighten` raise a floor to the highest release any consuming crate locks.
 `sync:files` then writes that floor into every consuming crate, and also writes a path crate's new `package.version`
@@ -49,26 +88,27 @@ The catalog's one-version premise makes `catalog:tighten` raise a floor to the h
 A crate whose lockfile held a lower release, or the old path-crate version, now has a lockfile that its own manifest refuses:
  `cargo metadata --locked --offline` exits 101 with "cannot update the lock file", and every later `cargo` run
  rewrites the lockfile in whichever worktree ran it.
-Tighten never writes lockfiles and the file-enforcer sync is a pure renderer, so before `rust:reconcile` no step repaired this.
-The update does not either: it runs before the floors move and re-resolves from scratch.
+The update does not repair that: it runs before the floors move and re-resolves from scratch.
+`rust:install` does.
 
-`mise run rust:reconcile` is that step.
 It covers every first-party crate root that has a `Cargo.lock`, found with the same globs as the update and as file-enforcer's
  Rust catalog sync (standalone roots, `.fuzz` and `.bench` sidecars, virtual workspaces, and roots with a path dependency).
 For each root, offline:
 
 1.  `cargo update --workspace --locked --offline` asks whether the lockfile already satisfies the manifests.
     It reads only the index and writes nothing, so a consistent lockfile stays byte-for-byte as committed.
-2.  A refusal means the lockfile is stale, so `cargo update --workspace --offline` re-locks the workspace members and the
-     packages their changed requirements force, and keeps every other locked release.
+2.  A refusal means the lockfile is stale.
+    A frozen install stops after checking every root and fails, naming the stale ones.
+    Otherwise `cargo update --workspace --offline` re-locks the workspace members and the
+     packages their changed requirements force, and keeps every other locked release,
+     as pnpm keeps "unchanged direct dependencies in other projects" at their locked versions.
     It is not a full re-resolution (`rust:update` is), so unrelated packages do not move.
 3.  `cargo metadata --locked --offline` confirms the result.
 
-Like the update it is one transaction.
+An updating install is one transaction, like the update.
 Any cargo failure, or a refusal by the release-age or trust policy for a registry version that no lockfile held before
  (a version some other lockfile already holds passed the policy when it arrived and costs no registry request),
  restores every lockfile.
-With `--dry-run` it reports the stale roots and restores everything.
 Because cargo runs offline, it can only pick releases that the local registry index and cache hold:
  when one is missing, cargo's message is reported with the remedy (fetch it once online, or run `rust:update`).
 Run `mise run rust:verify` afterwards to check the newly locked versions against the trust policy.
@@ -144,7 +184,7 @@ Those crates,
 
 ## Limits
 
-- The reconcile cannot apply the release-age cutoff, because `cargo update` has no `--publish-time`:
+- The install cannot apply the release-age cutoff, because `cargo update` has no `--publish-time`:
    offline cargo picks the newest release in the local index and cache, which can be younger than `minimumReleaseAge`.
   The post-check refuses such a version (restoring every lockfile) when no other lockfile held it before.
 - The update needs a nightly cargo for `-Zunstable-options`.
@@ -168,13 +208,13 @@ Those crates,
 mise run //package/dependency-catalog/cli-rust-update:lint:types
 mise run //package/dependency-catalog/cli-rust-update:lint:oxlint
 node package/dependency-catalog/cli-rust-update/src/update.unit.test.ts
-node package/dependency-catalog/cli-rust-update/src/reconcile.unit.test.ts
+node package/dependency-catalog/cli-rust-update/src/install.unit.test.ts
 ```
 
 Most tests use fake cargo runners,
  a fake registry,
  and disposable repositories,
  so they need neither the network nor cargo.
-The reconcile test also runs the real cargo (the repository's pinned one on `PATH`) against a directory source that stands
+The install test also runs the real cargo (the repository's pinned one on `PATH`) against a directory source that stands
  in for crates.io, so it needs cargo but not the network;
  without cargo on `PATH` those two tests report a skip with the reason and the rest still run.

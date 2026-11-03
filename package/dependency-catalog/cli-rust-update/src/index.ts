@@ -32,6 +32,7 @@ export {
   groupByName,
 } from './checks.ts';
 export {
+  isContinuousIntegration,
   main,
   parseMode,
   RustCatalogPolicyError,
@@ -65,10 +66,11 @@ export {
 } from './http.ts';
 export { pruneExcludes, } from './prune.ts';
 export {
-  CargoReconcileError,
-  type ReconcileReport,
-  reconcileRustLockfiles,
-} from './reconcile.ts';
+  CargoInstallError,
+  type InstallReport,
+  installRustLockfiles,
+  StaleLockfilesError,
+} from './install.ts';
 export {
   API_MIN_INTERVAL_MS,
   createRegistry,

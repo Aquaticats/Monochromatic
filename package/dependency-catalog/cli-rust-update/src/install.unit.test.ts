@@ -968,7 +968,7 @@ await describe({
     it({
       name: 'selects install like pnpm install, with --frozen-lockfile, --no-frozen-lockfile and --dry-run, and rejects other combinations',
       fn: async () => {
-        expect(parseMode(['install',],),).toEqual({ mode: 'install', base: 'HEAD', frozenLockfile: undefined, dryRun: false, },);
+        expect(parseMode(['install',],),).toEqual({ mode: 'install', base: 'HEAD', dryRun: false, },);
         expect(parseMode(['install', '--frozen-lockfile',],),).toEqual({ mode: 'install', base: 'HEAD', frozenLockfile: true, dryRun: false, },);
         expect(parseMode(['install', '--no-frozen-lockfile', '--dry-run',],),).toEqual({ mode: 'install', base: 'HEAD', frozenLockfile: false, dryRun: true, },);
         expect(function conflicting(): void {
@@ -991,12 +991,11 @@ await describe({
     it({
       name: 'is true for a CI variable other than empty, 0 or false, as pnpm defaults --frozen-lockfile in CI',
       fn: async () => {
-        expect(isContinuousIntegration({ CI: 'true', },),).toBe(true,);
-        expect(isContinuousIntegration({ CI: '1', },),).toBe(true,);
-        expect(isContinuousIntegration({},),).toBe(false,);
-        expect(isContinuousIntegration({ CI: '', },),).toBe(false,);
-        expect(isContinuousIntegration({ CI: 'false', },),).toBe(false,);
-        expect(isContinuousIntegration({ CI: '0', },),).toBe(false,);
+        expect(isContinuousIntegration('true',),).toBe(true,);
+        expect(isContinuousIntegration('1',),).toBe(true,);
+        expect(isContinuousIntegration('',),).toBe(false,);
+        expect(isContinuousIntegration('FALSE',),).toBe(false,);
+        expect(isContinuousIntegration('0',),).toBe(false,);
       },
     },),
   ],
