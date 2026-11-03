@@ -2464,8 +2464,10 @@ and a line the socket does not take (the journal restarting, a full queue) is wr
 prefixed `<priority>` when standard error is the journal's stream.
 That write never waits:
 on a socket it is `MSG_DONTWAIT`,
-on a pipe or file a test or a redirection put there it happens only after a poll shows room and in pieces of at most a page.
-A line the stream took only in part is kept (its rest is written first, before any other line), so two lines never run together.
+on a pipe or file a test or a redirection put there it happens only after a poll shows room,
+in pieces of at most a page.
+A line the stream took only in part is kept:
+its rest is written first, before any other line, so two lines never run together.
 A line that finds no room is dropped and counted;
 the next entry that gets through says how many were dropped,
 as `CLI_GIT_LOG_DROPPED` on a native entry or as a warning line on the stream.
@@ -2678,7 +2680,8 @@ and everything is read and removed through that descriptor, never through a path
 A non-blocking exclusive lock on the folder lets one pass run at a time; a pass that finds it held does nothing.
 A directory is removed only when, opened by name without following a link,
 it is still the directory the listing saw (device, inode and change time):
-its files go through its descriptor, files of a directory before its subdirectories, then the empty directory is removed by inode,
+its files go through its descriptor, files of a directory before its subdirectories,
+then the empty directory is removed by inode,
 so a replacement under the same name is never touched.
 A link inside a save is removed as a link and never entered; a tree deeper than 128 levels is kept.
 The pass reads only directories whose names are a save time

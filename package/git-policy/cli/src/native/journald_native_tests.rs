@@ -449,3 +449,14 @@ fn a_stream_socket_with_room_for_part_returns_what_it_took_without_waiting() {
     assert!(took > 0 && took < big.len(), "took {took}");
     assert_eq!(writer.write(big.as_slice()).expect_err("then no room").kind(), std::io::ErrorKind::WouldBlock);
 }
+
+/// Two entries that each said the same count of dropped ones leave the count at zero, never wrapped below it.
+#[test]
+fn counting_the_same_dropped_entries_twice_stops_at_zero() {
+    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-twice-{}", std::process::id()));
+    let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
+    sink.lost.store(3, Ordering::Relaxed);
+    sink.forgive(3);
+    sink.forgive(3);
+    assert_eq!(sink.lost.load(Ordering::Relaxed), 0);
+}

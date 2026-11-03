@@ -352,11 +352,22 @@ impl Sink {
                 all.push((LOST_FIELD, lost.to_string()));
             }
             if socket.send_to_addr(datagram(priority, message, all.as_slice()).as_slice(), address).is_ok() {
-                self.lost.fetch_sub(lost, Ordering::Relaxed);
+                self.forgive(lost);
                 return Delivery::Native;
             }
         }
         return self.fall_back(priority, line, stderr);
+    }
+
+    /// Takes `count` off the dropped-entry count without going below zero.
+    ///
+    /// Two threads can each have said the same count (one on the native path, one on the stream), so the second
+    /// subtraction must find less than it expects and stop at zero instead of wrapping.
+    fn forgive(&self, count: u64) {
+        let mut current: u64 = self.lost.load(Ordering::Relaxed);
+        while let Err(seen) = self.lost.compare_exchange_weak(current, current.saturating_sub(count), Ordering::Relaxed, Ordering::Relaxed) {
+            current = seen;
+        }
     }
 
     /// What:
@@ -398,7 +409,7 @@ impl Sink {
             return Delivery::Dropped;
         }
         // The note, if any, is now in the stream or in `pending` ahead of the rest of the line, so it is not owed again.
-        self.lost.fetch_sub(lost, Ordering::Relaxed);
+        self.forgive(lost);
         pending.extend_from_slice(&bytes[written..]);
         return Delivery::Stderr;
     }

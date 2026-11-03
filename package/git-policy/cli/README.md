@@ -540,9 +540,10 @@ The folder is bounded, because it would otherwise grow for as long as the reposi
  Only directories named like the wrapper's own (`2026-11-02T14-01-07`) are touched.
  No commit waits for this, and two passes never run at once.
  The folder is never followed through a link: if `.git/cli-git` or `.git/cli-git/discarded` is a symbolic link,
- nothing is removed and the command's notice and `git cli-git doctor` say so; make it a real directory to apply the limits again.
- A save that cannot be read, a directory replaced while the pass ran, a removal that fails part way and an audit file that
- cannot be written are all kept and named the same way, never counted as removed.
+ nothing is removed, and the command's notice and `git cli-git doctor` say so;
+ make it a real directory to apply the limits again.
+ A save that cannot be read, a directory replaced while the pass ran, a removal that fails part way
+ and an audit file that cannot be written are all kept and named the same way, never counted as removed.
  Each removed save leaves one line in `cli-git-audit.jsonl`
  (`"outcome":"pruned"`, with the time, `path`, `bytes`, `reason` `age` or `size`,
  the `limit` it was judged against and the names of the copies in it).
@@ -1758,8 +1759,10 @@ When the journal is not listening or the machine's socket queue is full,
 the line goes to standard error instead,
 prefixed with its priority as `<n>` for the stream to read,
 and a service run by hand writes plain lines to the terminal.
-A value with a newline in it reaches the journal as written (the protocol's length-prefixed form); the line on standard error is one line.
-The write to standard error never waits for room: a line the stream took only in part is finished before the next one starts,
+A value with a newline in it reaches the journal as written (the protocol's length-prefixed form);
+the line on standard error is one line.
+The write to standard error never waits for room:
+a line the stream took only in part is finished before the next one starts,
 and a line that finds no room is dropped and counted, and the next entry that gets through says how many
 (`CLI_GIT_LOG_DROPPED` on a native entry, a warning line on the stream).
 Every line ends with `at_ms=<milliseconds since the epoch>`, the time of its event, on both paths.
