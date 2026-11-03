@@ -55,6 +55,11 @@ struct Slot {
     work: JoinHandle<std::io::Result<Prestaged>>,
 }
 
+/// Whether a commit has begun to wait for the marker being made,
+/// so a control can hold the flush until a commit is waiting for it instead of racing a timer against the flush.
+#[cfg(test)]
+pub static COMMIT_WAITING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 thread_local! {
     /// The service's one pre-staged marker.
     /// Per thread,
@@ -161,6 +166,8 @@ fn remove_unused(slot: Slot) {
 /// ```
 pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
     let slot: Slot = SLOT.with(|slot| { return slot.borrow_mut().take(); })?;
+    #[cfg(test)]
+    COMMIT_WAITING.store(true, std::sync::atomic::Ordering::SeqCst);
     if slot.lock != lock_path_of(index) || slot.seq != seq {
         remove_unused(slot);
         return None;

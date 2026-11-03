@@ -1,7 +1,7 @@
 //! Controls for the gateway client against a loopback mock. No test reaches a real host or sends a real key.
 
 use super::*;
-use crate::standards_review_mock::{Answer, Mock, http_reply};
+use crate::standards_review_mock::{Answer, Mock, SILENT_AT_MOST, http_reply};
 use std::time::Instant;
 
 /// A stand-in credential; it names no real key.
@@ -65,9 +65,10 @@ fn a_redirect_is_not_followed() {
 }
 
 /// A server that never answers ends the call at the deadline with the timeout wording, not later.
+/// The server holds the connection until the call closes it, so only the deadline can end the call in time.
 #[test]
 fn a_silent_server_ends_at_the_deadline() {
-    let mock: Mock = Mock::start(Answer::Silent(SHORT * 4));
+    let mock: Mock = Mock::start(Answer::Silent(SILENT_AT_MOST));
     let url: String = mock.url.clone();
     let started: Instant = Instant::now();
     let failure: String = post_decision(&gateway(url.as_str(), SHORT), "{}").expect_err("timeout");

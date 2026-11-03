@@ -285,7 +285,9 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected });
         }
         Ok(ClientMessage::Commit(request)) => {
+            let id: String = request.id.clone();
             let _queued = queue.send(Job::Commit(request, stream, Arrival { accepted, read: accepted.elapsed() }));
+            super::service_fault::queued(id.as_str());
         }
         Ok(ClientMessage::Retire) => {
             log(retire_line(release).as_str());

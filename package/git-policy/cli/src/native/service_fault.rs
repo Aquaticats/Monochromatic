@@ -36,3 +36,26 @@ pub fn reach(point: &str) {
         std::process::exit(137);
     }
 }
+
+/// Environment variable naming a directory in which the service leaves one file for each commit request it has queued.
+pub const QUEUED_DIRECTORY_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DIRECTORY";
+
+/// What:
+///  Leaves a file named for request `id` in the directory the variable names, when it is armed.
+/// Why:
+///   A control that sends requests in a set order needs to know that the service holds one before it sends the next; a pause
+///  of its own can only guess. The file appears after the request is in the queue, so what the control sees is the service's own
+///  state. Only the explicit variable arms it, as with the fault points.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (process.env.CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DIRECTORY) writeFile(join(dir, safe(id)), '')
+/// ```
+pub fn queued(id: &str) {
+    let Some(directory) = std::env::var_os(QUEUED_DIRECTORY_VARIABLE) else { return };
+    let name: String = id.chars().map(|character| { return if character.is_ascii_alphanumeric() { character } else { '_' }; }).collect();
+    let path: std::path::PathBuf = std::path::Path::new(&directory).join(format!("queued-{name}"));
+    if let Err(error) = std::fs::write(&path, b"") {
+        crate::service_warn!("cannot leave the queued-request file {}: {error}", path.display());
+    }
+}

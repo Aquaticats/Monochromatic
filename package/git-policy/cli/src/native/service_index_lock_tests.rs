@@ -142,12 +142,16 @@ fn a_lock_that_is_not_released_leaves_the_index_as_it_was() {
 
 /// A foreign holder that lets go while the service waits is followed at once by the service's own lock, long before the
 ///  repetition of the notice; the wait makes a handful of attempts, not one per event it causes itself.
+/// The holder lets go a while after the wait's first notice, so the wait idles on the watch for that while however long
+///  the marker's flush took before it.
 #[test]
 fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     let (root, index) = index_in("index-lock-wait");
     std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
     let foreign: PathBuf = lock_path_of(&index);
+    let (looked, looking) = std::sync::mpsc::channel::<()>();
     let release = std::thread::spawn(move || {
+        looking.recv_timeout(Duration::from_secs(60)).expect("the wait looked at the lock");
         std::thread::sleep(Duration::from_millis(400));
         std::fs::remove_file(foreign).expect("the foreign holder lets go");
     });
@@ -159,11 +163,16 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     };
     let platform: Platform = Platform { rename: &counting, ..SYSTEM };
     let began: Instant = Instant::now();
-    let lock = acquire_on(&platform, &index, 2, Duration::from_secs(30), &|note| { heard.lock().expect("lock").push(note); }).expect("taken after the wait");
+    let lock = acquire_on(&platform, &index, 2, Duration::from_secs(30), &|note| {
+        let _sent = looked.send(());
+        heard.lock().expect("lock").push(note);
+    }).expect("taken after the wait");
     let waited: Duration = began.elapsed();
     let attempts: usize = attempts_made.get();
     release.join().expect("thread");
+    // The holder let go 400 ms after the wait's first look, and the wait followed it by the event, not by the notice's timer.
     assert!(waited >= Duration::from_millis(300) && waited < NOTICE_EVERY, "{waited:?}");
+    assert!(!heard.lock().expect("lock").is_empty(), "the wait said that it waits");
     // A wait woken by its own files tries thousands of times in 400 ms; one woken only by the lock tries a few times.
     assert!(attempts < 20, "{attempts} attempts in {waited:?}");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(2));
@@ -806,10 +815,14 @@ fn a_release_whose_check_cannot_be_made_keeps_the_lock_and_the_old_index() {
 /// with the quota of inotify instances used up by that one,
 /// the second is created at all.
 /// The closure plays a quota of one by refusing a watch while the first is open.
+/// The foreign holder lets go inside the second call, once the quota has been checked,
+/// so no clock decides whether the lock is still held when the wait looks at it (a slow staging flush, as under load,
+/// changes nothing).
 #[test]
 fn an_ended_watch_is_dropped_before_the_next_is_set() {
     let (root, index) = index_in("index-lock-watch-quota");
-    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let foreign: PathBuf = lock_path_of(&index);
+    std::fs::write(&foreign, "foreign").expect("foreign lock");
     let decoy: PathBuf = root.join("decoy");
     std::fs::create_dir(&decoy).expect("decoy");
     let calls: Cell<u32> = Cell::new(0);
@@ -823,17 +836,30 @@ fn an_ended_watch_is_dropped_before_the_next_is_set() {
         if crate::service_index_watch::live_watches_on_this_thread() > 0 {
             return None;
         }
+        std::fs::remove_file(&foreign).expect("the foreign holder lets go");
         return Watch::on(directory);
     };
-    let platform: Platform = Platform { watch: &quota_of_one, ..SYSTEM };
-    let foreign: PathBuf = lock_path_of(&index);
-    let release = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(300));
-        std::fs::remove_file(foreign).expect("the foreign holder lets go");
-    });
+    let slow_flush = |_: &std::fs::File| -> std::io::Result<()> { std::thread::sleep(Duration::from_millis(600)); return Ok(()); };
+    let platform: Platform = Platform { watch: &quota_of_one, sync: &slow_flush, ..SYSTEM };
     let lock = acquire_on(&platform, &index, 90, Duration::from_secs(30), &|_| {}).expect("taken once the foreign holder let go");
-    release.join().expect("thread");
     assert_eq!(calls.get(), 2, "a second watch was set");
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// A lock that is free at the first attempt needs no second watch:
+/// the wait is for a held lock, and the watch set before the attempt is the only one.
+#[test]
+fn a_lock_free_at_the_first_attempt_sets_one_watch() {
+    let (root, index) = index_in("index-lock-watch-free");
+    let calls: Cell<u32> = Cell::new(0);
+    let counting = |directory: &Path| -> Option<Watch> {
+        calls.set(calls.get() + 1);
+        return Watch::on(directory);
+    };
+    let platform: Platform = Platform { watch: &counting, ..SYSTEM };
+    let lock = acquire_on(&platform, &index, 92, Duration::from_secs(1), &|_| {}).expect("taken");
+    assert_eq!(calls.get(), 1, "one watch, set before the attempt");
     drop(lock);
     remove(root.as_path());
 }

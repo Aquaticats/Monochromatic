@@ -517,16 +517,16 @@ fn an_idle_service_exits_with_success() {
     }
     // That connection was the service's last activity; it must still be alive just after it.
     assert!(child.try_wait().expect("status").is_none(), "alive just after a connection");
-    let waited: Instant = Instant::now();
     let status = loop {
         if let Some(status) = child.try_wait().expect("status") {
             break status;
         }
-        assert!(waited.elapsed() < PATIENCE, "the idle service never exited");
+        assert!(began.elapsed() < PATIENCE, "the idle service never exited");
         std::thread::sleep(Duration::from_millis(50));
     };
     assert!(status.success(), "{status:?}");
-    assert!(waited.elapsed() >= idle / 2, "it did not leave at once");
+    // Measured from before the connection that was its last activity, so a control delayed after it cannot shorten the time.
+    assert!(began.elapsed() >= idle / 2, "it did not leave at once");
     finish(&fixture, runtime.as_path());
 }
 
