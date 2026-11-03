@@ -13,6 +13,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  defaultContainerLimits,
+  diskWeightArguments,
+  lowestDiskWeight,
+  runLimitArguments,
+} from './container-limits.ts';
+import {
   gatePassedRecord,
   passingGateEvidence,
 } from './native-gate-proof.ts';
@@ -34,9 +40,10 @@ const gateLimits = [
   '--rm',
   '--init',
   '--network=none',
-  '--memory=2g',
-  '--cpus=2',
-  '--pids-limit=512',
+  ...runLimitArguments({
+    limits: defaultContainerLimits,
+    withPidsLimit: true,
+  }),
 ];
 
 /**
@@ -443,6 +450,49 @@ await describe({
               image,
               limits: { memory: '64g', pidsLimit: 100_000 },
             })).toEqual([]);
+          },
+        }),
+        it({
+          name: 'reads the disk-weight arguments the runners write, and records made before them, but not another weight',
+          fn: async () => {
+            /**
+             Arguments of a gate that ran before the runners wrote a disk weight.
+             */
+            const beforeWeight = gateLimits.filter(function isNotWeight(argument) {
+              return !diskWeightArguments().includes(argument);
+            });
+            expect(beforeWeight.length).toBeLessThan(gateLimits.length);
+            /**
+             Arguments with a disk weight above the lowest, which the runners never write.
+             */
+            const otherWeight = [
+              ...beforeWeight,
+              `--blkio-weight=${String(lowestDiskWeight + 1)}`,
+            ];
+            /**
+             Gate arguments, and whether the gate that recorded them proves the image.
+             */
+            const cases = [
+              { limits: gateLimits, proves: true },
+              { limits: beforeWeight, proves: true },
+              { limits: otherWeight, proves: false },
+            ];
+            await Promise.all(cases.map(async function checkCase({ limits, proves }) {
+              await using root = await evidenceRoot();
+              await writeGateDirectory({
+                root: root.path,
+                name: 'native-run',
+                files: {
+                  'manifest.json': manifestOf(image, limits),
+                  'passed.json': JSON.stringify(gatePassedRecord(image)),
+                },
+              });
+              expect(await passingGateEvidence({
+                evidenceRoot: root.path,
+                image,
+                limits: campaignLimits,
+              })).toEqual(proves ? [join(root.path, 'native-run')] : []);
+            }));
           },
         }),
         it({

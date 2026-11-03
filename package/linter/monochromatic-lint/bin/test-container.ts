@@ -13,7 +13,10 @@ import {
   resolve,
 } from 'node:path';
 
-import { runCaptured } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+import {
+  diskWeightArguments,
+  runCaptured,
+} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 // The gate image runs the suite with the runner the git-policy/cli gate pins by version and checksum.
 import { copyNextest } from '../../../git-policy/cli/bin/native-nextest-snapshot.ts';
@@ -209,6 +212,7 @@ async function buildAndRun({
       '--memory=2g',
       '--cpus=2',
       '--pids-limit=128',
+      ...diskWeightArguments(),
       testImage,
       ...(filter === undefined ? [] : [
         'cargo',

@@ -10,7 +10,8 @@ and `nvme0n1` using `bfq`.
 `modinfo bfq` reported `filename: (builtin)`.
 No module installation or bootloader change was needed.
 
-The installed policy is `/etc/udev/rules.d/99-bfq.rules`:
+The initial policy was `/etc/udev/rules.d/99-bfq.rules`.
+The low-latency configuration record documents its current contents.
 
 ```udev
 # /etc/udev/rules.d/99-bfq.rules
@@ -43,6 +44,60 @@ the encrypted devices' underlying physical disks use BFQ.
 Host-managed zoned disks are excluded to preserve the requirement expressed in
 `/usr/lib/udev/rules.d/64-btrfs-zoned.rules`.
 Neither currently attached physical disk is zoned.
+
+## Low-latency configuration recorded at 2026-11-03T01:18:00-05:00
+
+The user requested:
+"Disable bfq low latency and make it permanent."
+Before the change,
+both `sda` and `nvme0n1` selected BFQ and exposed `queue/iosched/low_latency` as `1`.
+The current `/etc/udev/rules.d/99-bfq.rules` selects BFQ and then disables that mode:
+
+```udev
+# /etc/udev/rules.d/99-bfq.rules
+# Prefer BFQ for every disk that offers it, including future hotplug devices.
+# Read sysfs directly: earlier scheduler assignments replace udev's cached value.
+# Preserve the distribution's scheduler requirement for host-managed zoned disks.
+# Disable BFQ low-latency heuristics after selecting the scheduler.
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", \
+  TEST=="queue/scheduler", ATTR{queue/zoned}!="host-managed", \
+  PROGRAM=="/usr/bin/grep --quiet --word-regexp bfq /sys%p/queue/scheduler", \
+  ATTR{queue/scheduler}="bfq", ATTR{queue/iosched/low_latency}="0"
+```
+
+The previous rule is backed up at
+`/var/backups/bfq-low-latency-20261103T061727Z/99-bfq.rules`.
+The installed replacement retains `root:root`,
+mode `0644`,
+and SELinux type `udev_rules_t`.
+
+`udevadm verify` accepted the candidate and installed rule.
+Candidate simulations for `sda` addition and `nvme0n1` change recorded
+`queue/scheduler : bfq` and `queue/iosched/low_latency : 0`.
+Those simulations skipped sysfs writes and the capability-check program;
+the real daemon application provided the runtime evidence.
+After rule reload and settled change events for the physical disks,
+live readback showed `[bfq]` and `low_latency:0` for both.
+A newly observed `loop0` also exposed BFQ with `low_latency:1`;
+applying a settled change event to it changed the value to `0`.
+
+The final read-only check was:
+
+```sh
+# Read active schedulers and BFQ low-latency settings
+grep --with-filename . /sys/block/*/queue/scheduler /sys/block/*/queue/iosched/low_latency
+```
+
+It showed `[bfq]` and `low_latency:0` for `sda`,
+`nvme0n1`,
+and `loop0`.
+The local rule covers device addition and change;
+the active `systemd-udev-trigger.service` invokes `udevadm trigger --type=all --action=add` at boot.
+Persistence is configured through that boot path;
+no reboot or physical hotplug was performed.
+The active TuneD `balanced-bazzite` profile and its inherited `balanced` configuration
+contain no scheduler or low-latency override.
+No throughput or application-latency effect was measured.
 
 ## Symptom
 

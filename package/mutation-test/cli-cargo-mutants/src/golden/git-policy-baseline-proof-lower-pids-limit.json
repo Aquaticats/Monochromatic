@@ -49,6 +49,8 @@
       "--memory=2g",
       "--cpus=2",
       "--pids-limit=128",
+      "--blkio-weight=10",
+      "--cgroup-conf=io.weight=10",
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "cargo",
       "mutants",
