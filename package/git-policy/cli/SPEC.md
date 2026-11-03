@@ -2950,6 +2950,16 @@ or `restoreDirty`, `exchange`, `settleDisplaced`, `disposeTrash`, `markComplete`
 is work that ran side by side.
 `notes` names the rung taken (`route`) and the cause when the add was not a snapshot (`slowRoute`).
 
+The completion marker (`markCompleteFile`) is written by rename without a flush to disk, by the owner's decision of
+2026-11-03 ("Drop the fsync (Recommended)").
+The rename and the subvolume swap before it land in one btrfs transaction, so a crash keeps both or neither: never a half-made
+worktree, and nothing of the user's is lost.
+A flush here made the add durable before the next periodic commit, but because the swap renamed a subvolume, btrfs turned that
+one flush into a full filesystem commit that waited on every other writer (Linux `fs/btrfs/inode.c` rename-exchange sets the
+log-full-commit flag; `fs/btrfs/file.c` then commits), measured at 1.2 to 18 seconds per add.
+A power loss within one periodic commit of an add can therefore undo that add; the next invocation finds no marker and prints a
+notice, and running the add again recreates it.
+
 A slow commit is split by phase from logs that exist without verbose mode.
 Neither log reaches the person's terminal,
 neither starts a process or flushes to disk,
