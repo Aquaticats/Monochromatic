@@ -877,6 +877,9 @@ pub mod bounded_push;
 /// The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
 pub mod stopped_git_locks;
 
+/// The bytes a push and its processes move, sampled, and the clock that stops it on a stall or at its ceiling.
+pub mod push_progress;
+
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 

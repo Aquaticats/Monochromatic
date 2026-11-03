@@ -17,7 +17,9 @@ use super::auto_push_single_flight::{PushAttempt, SingleFlightError};
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::debug;
 /// How to allow a push longer, in the words of the program that runs it.
-use super::push_deadline_advice::extend_clause;
+use super::push_deadline_advice::{extend_ceiling_clause, extend_clause};
+/// The clock that stops a push on a stall or at its ceiling.
+use super::push_progress::Clock;
 /// The helpers and hooks a stopped push leaves running.
 use super::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
 /// The lock files a stopped push leaves, and the ledger that finds them.
@@ -416,37 +418,47 @@ fn read_output(file: &mut File) -> Result<String, SingleFlightError> {
     return Ok(String::from_utf8_lossy(&bytes).into_owned());
 }
 
+/// What a stop reports: the limit that was hit, what the push had moved and how long it had run.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StopReport {
+    /// The limit that was hit: the stall window or the ceiling.
+    pub limit: Duration,
+    /// The bytes the push and everything it started had read and written.
+    pub moved: u64,
+    /// How long the push had run.
+    pub elapsed: Duration,
+}
+
 /// Why a push or query was stopped.
 pub enum StopCause {
-    /// The deadline passed.
+    /// The fixed deadline passed.
     Deadline,
+    /// The push moved no data for the stall window.
+    Stalled(StopReport),
+    /// The push was still running, moving data, at the ceiling.
+    Ceiling(StopReport),
     /// The output grew past the cap.
     Flood,
 }
 
 /// What:
 ///  Look at a running push until it ends,
-///  its deadline passes or its output floods.
+///  stalls, passes its ceiling or deadline, or floods its output.
 /// Why:
 ///   `std` has no timed wait,
 ///  so the parent looks with `try_wait`,
-///  which never blocks.
+///  which never blocks; the clock reads the bytes the push moves a few times a second.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await Promise.race([exited, deadline, flood]);
+/// await Promise.race([exited, stalled, ceiling, flood]);
 /// ```
 pub fn wait_until_done(
     child: &mut Child,
     outputs: &[&File],
     patience: Patience,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    // Until progress is measured, a progress patience is its stall window as a fixed bound.
-    let deadline: Duration = match patience {
-        Patience::Fixed(limit) => limit,
-        Patience::Progress { stall, .. } => stall,
-    };
-    let started: Instant = Instant::now();
+    let mut clock: Clock = Clock::start(child.id(), patience);
     loop {
         if let Some(status) = child.try_wait().map_err(SingleFlightError::Start)? {
             return Ok(Ok(status));
@@ -460,11 +472,10 @@ pub fn wait_until_done(
                 return Ok(Err(StopCause::Flood));
             }
         }
-        let elapsed: Duration = started.elapsed();
-        if elapsed >= deadline {
-            return Ok(Err(StopCause::Deadline));
+        if let Some(cause) = clock.check() {
+            return Ok(Err(cause));
         }
-        std::thread::sleep(POLL_PAUSE.min(deadline.saturating_sub(elapsed)));
+        std::thread::sleep(POLL_PAUSE);
     }
 }
 
@@ -511,7 +522,7 @@ pub fn run_bounded_push(
         Err(cause) => {
             let reason: String = match cause {
                 StopCause::Deadline => format!(
-                    "cli-git: git push did not finish within {} seconds and was stopped; \
+                    "cli-git: git push did not finish within {} seconds and was stopped (limit=deadline); \
                      {}. Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
                     match patience {
@@ -519,6 +530,24 @@ pub fn run_bounded_push(
                         Patience::Progress { stall, .. } => stall.as_secs(),
                     },
                     extend_clause()
+                ),
+                StopCause::Stalled(report) => format!(
+                    "cli-git: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
+                     elapsed_seconds={}); {}. Hint: if you were pushing over a slow or \
+                     offline connection, your commit is already saved; push again when the connection works.",
+                    report.limit.as_secs(),
+                    report.moved,
+                    report.elapsed.as_secs(),
+                    extend_clause()
+                ),
+                StopCause::Ceiling(report) => format!(
+                    "cli-git: git push was still running after {} seconds, though it kept moving data, and was stopped \
+                     (limit=ceiling, bytes_moved={}, elapsed_seconds={}); {}. Hint: your commit is already saved; \
+                     push again when the connection is faster.",
+                    report.limit.as_secs(),
+                    report.moved,
+                    report.elapsed.as_secs(),
+                    extend_ceiling_clause()
                 ),
                 StopCause::Flood => format!(
                     "cli-git: git push wrote more than {MAX_PUSH_OUTPUT} bytes of output and was stopped. Hint: if a hook or the \
