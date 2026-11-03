@@ -895,14 +895,45 @@ in this order:
   Not fixed:
   the system config path is assumed to be `/etc/gitconfig`;
   power loss is untested.
-  Running,
-  not agents:
-  the third cross-vendor review in three parts (`~/temp/agent/reviews/cargo-shadow-sol-3a.txt`,
-  `-3b.txt`,
-  `-3c.txt`;
-  diffs of 265,
-  268 and 204 KB;
-  split again if one times out).
+  The third cross-vendor review,
+  in three parts (all finished within the hour):
+  3a,
+  the Git reader (`~/temp/agent/reviews/cargo-shadow-sol-3a.txt`):
+  "still not equivalent to Git";
+  P1s:
+  a symbolic-link `HEAD` is read as detached,
+  remote `"."` is not the merge spelling returned literally;
+  P2s:
+  trailing path characters,
+  the object reader proves a type marker rather than a readable commit,
+  a fatal batch error can drop an existing upstream,
+  configuration validation narrower than Git's,
+  the system config path,
+  Git's dubious-ownership rejection bypassed;
+  P3 an unreaped child on a pipe-write failure.
+  3b,
+  journal and ownership (`-3b.txt`):
+  seven P1s
+  (the undo deletes an inode another writer can have open;
+  per-root manifest recovery fails open;
+  `begin` can truncate an earlier transaction's only snapshots;
+  a `/proc` lookup failure can call a live owner dead;
+  claim-by-rename does not stop directory-name reuse or a live transaction;
+  durability ordering incomplete;
+  a missing manifest index still authorizes deleting manifest snapshots);
+  P2s:
+  `ctime` cannot establish ownership,
+  `atomic_write` uses a non-exclusive temporary,
+  a concurrent deletion is undone.
+  3c,
+  install and policy (`-3c.txt`):
+  "not ready for 0.1.0";
+  fix the refusal-preservation path,
+  the verification scope of ordinary updates and the placeholder race first.
+- Queued for the next free slot:
+  cargo-shadow's fourth fix round from the three third-review parts,
+  resuming its agent,
+  with the owner's "nothing should ever wait forever or indefinitely" applied to its waits.
 - Gate the 0.5.28 base once the index round and the lock-deletion fix are merged into it
   (and the word-level merge pass,
   if it is ready by then;
@@ -2329,18 +2360,33 @@ not yet in SPEC):
 "nothing should ever wait forever or indefinitely".
 The owner added that they are not completely back,
 so the delegation continues.
-Coordinator's reading,
-under the delegation (veto open):
-every wait gets a bound;
-at the bound the wait ends without failing what the never-fail rules cover
-(the work is already saved durably,
-the command returns with a line saying what is still pending and how it finishes,
-and the work completes later),
-so "Commits should never fail." still holds.
-It is newer than,
-and conflicts with,
-the owner's "Wait while connected" (pushes with no stall window while connected)
-and these coordinator picks:
+What happens at a bound,
+answered by the owner through the question tool at about 2026-11-03T12:45-05:00:
+"Return with an error"
+(the option read:
+"The command stops waiting and exits non-zero,
+naming what blocked it;
+the saved work stays saved."),
+then,
+asked whether the saved commit should still land by itself later,
+"No,
+keep it for a retry (Recommended)"
+(the option read:
+"Nothing lands later by itself.
+Your staged changes stay staged,
+and the commit is also kept on a side ref.
+The error names the blocker and the command to run again.").
+This replaces the coordinator's first reading (return as success and land later),
+and the owner chose it over "Commits should never fail." for a command that hits a bound.
+Pushes,
+same question tool:
+"Bound it,
+keep retrying (Recommended)"
+(a connected push with no progress for a measured time is ended,
+the service's retry plan keeps it,
+the command says it is queued),
+replacing "Wait while connected".
+The rule also overrides these coordinator picks:
 pick 2 (a proven-alive index-lock holder waited for with no bound),
 its follow-up (an unproven owner waited for with no bound,
 built in `82633304d0` and merged into the 0.5.28 base),
@@ -2348,8 +2394,6 @@ pick 6 (no client wall-clock bound on the service),
 `update-ref` waited for,
 and the design's B-hand,
 P-wait and R-never.
-The newer rule is treated as governing;
-the conflict with "Wait while connected" is for the owner on return.
 0.5.28 does not ship until every wait in it has a bound.
 
 ### Never fail, and what is outside our control
