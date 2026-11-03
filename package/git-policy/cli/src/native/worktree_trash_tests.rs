@@ -321,3 +321,7 @@ fn a_service_of_an_earlier_release_is_replaced_before_trash_is_handed_over() {
     assert!(pending.exists(), "the item waits for the current service to claim it");
     remove(root.as_path());
 }
+
+/// Controls for the findings of the cross-vendor review of the leave-out and its disposal.
+#[path = "worktree_trash_safety_tests.rs"]
+mod safety;
