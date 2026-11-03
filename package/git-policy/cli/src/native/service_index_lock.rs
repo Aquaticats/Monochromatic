@@ -101,7 +101,7 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
     let marker: String = match marker_text(seq, platform.identity) {
         Ok(text) => text,
         Err(error) => {
-            crate::service_log!("cannot take the index lock {}: this process has no birth identity to name in the lock ({error})", lock.display());
+            crate::service_error!("cannot take the index lock {}: this process has no birth identity to name in the lock ({error})", lock.display());
             return None;
         }
     };
@@ -241,7 +241,7 @@ fn acquire_placing(
             let marker: String = match marker_text(seq, platform.identity) {
                 Ok(text) => text,
                 Err(error) => {
-                    crate::service_log!("cannot take the index lock {}: this process has no birth identity to name in the lock ({error})", lock.display());
+                    crate::service_error!("cannot take the index lock {}: this process has no birth identity to name in the lock ({error})", lock.display());
                     return Err(LockFailure { code: FailureCode::Unavailable });
                 }
             };

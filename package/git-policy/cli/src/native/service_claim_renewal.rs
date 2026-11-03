@@ -237,7 +237,7 @@ impl ClaimRenewal {
                 held.renew(work_dir.as_path(), &ClaimTime::read());
             }
         })
-        .map_err(|error| { crate::service_log!("no thread to renew claims: {error}"); })
+        .map_err(|error| { crate::service_error!("no thread to renew claims: {error}"); })
         .ok();
         return ClaimRenewal { stop, worker };
     }

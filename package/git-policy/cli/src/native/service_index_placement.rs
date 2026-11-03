@@ -210,7 +210,7 @@ pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io:
 /// ```
 pub fn log_placement_failure(lock: &Path, error: &std::io::Error) {
     if let Some(text) = placement_failure_text(lock, error) {
-        crate::service_log!("{text}");
+        crate::service_error!("{text}");
     }
 }
 
@@ -258,7 +258,7 @@ pub fn reclaim(platform: &Platform, lock: &Path) -> bool {
         Ok(()) => true,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
         Err(error) => {
-            crate::service_log!("the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
+            crate::service_error!("the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
                  remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays",
                 lock.display()
             );

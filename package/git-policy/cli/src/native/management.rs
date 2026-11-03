@@ -266,6 +266,7 @@ fn run_direct_command(
     // `.clone()` copies the scanner and Markdown options the configuration chose.
     checks.scanner_settings.options = loaded.config.policies.forbidden_strings.clone();
     checks.markdown.options = loaded.config.policies.markdown_autofix.clone();
+    checks.discarded_limits = loaded.config.discarded;
     let trigger: Trigger = if fix {
         Trigger::DirectFix
     } else {

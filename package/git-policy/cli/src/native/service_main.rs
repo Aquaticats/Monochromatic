@@ -32,7 +32,7 @@ fn main() {
     git_policy_cli::push_deadline_advice::mark_service_process();
     let arguments: Vec<String> = std::env::args().collect();
     let Some(journal) = option(&arguments, "--journal").map(PathBuf::from) else {
-        git_policy_cli::service_log!("--journal <directory> is required");
+        git_policy_cli::service_error!("--journal <directory> is required");
         std::process::exit(2);
     };
     let git: PathBuf = option(&arguments, "--git").map_or_else(|| { return PathBuf::from("/usr/bin/git"); }, PathBuf::from);
@@ -42,13 +42,13 @@ fn main() {
         (None, None) => Bind::Inherited,
     };
     if let Err(error) = std::fs::create_dir_all(&journal) {
-        git_policy_cli::service_log!("cannot create the journal directory {}: {error}", journal.display());
+        git_policy_cli::service_error!("cannot create the journal directory {}: {error}", journal.display());
         std::process::exit(2);
     }
     let listener = match bind(&address) {
         Ok(listener) => listener,
         Err(error) => {
-            git_policy_cli::service_log!("cannot listen: {error}");
+            git_policy_cli::service_error!("cannot listen: {error}");
             std::process::exit(3);
         }
     };
@@ -67,6 +67,8 @@ fn main() {
     }
     // The unit instance names the worktree this service is for; a message about any other worktree is refused.
     settings.instance = option(&arguments, "--instance");
+    // Every later entry carries the release and the instance.
+    git_policy_cli::service_timing::set_context(settings.release.as_str(), settings.instance.as_deref());
     // Before the recovery of the batches an earlier service left open, so the time from this line to `ready` is that recovery.
     log(started_line(settings.release.as_str(), PROTOCOL_VERSION, settings.instance.as_deref()).as_str());
     // The single service of the earlier releases kept one journal above every instance's own: this worktree's open batches in

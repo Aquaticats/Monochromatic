@@ -268,3 +268,50 @@ fn a_log_line_states_its_own_time_at_its_end() {
     assert_eq!(line, format!("{LOG_PREFIX}answered request=\"r\" total_ms=3 at_ms=1793648794987\n"));
     assert_eq!(line.matches('\n').count(), 1);
 }
+
+/// What a push, a review or a server said can name a remote with a password in it; the entry carries the URL without it,
+/// in the message and in a field, and the other words are as they were.
+#[test]
+fn the_userinfo_of_a_url_never_reaches_an_entry() {
+    use crate::service_timing::capture::entries_of;
+    let secret_url: &str = "https://robot:hunter2@example.invalid/r.git";
+    let entries = entries_of(|| {
+        crate::service_warn!("the review of abc failed: could not reach {secret_url} (status 401)");
+        let _delivery = super::log_entry(crate::journald_native::Priority::Info, "x", &[("CLI_GIT_URL", secret_url.to_string())]);
+    });
+    assert_eq!(entries.len(), 2);
+    for entry in &entries {
+        assert!(!entry.message.contains("hunter2") && entry.fields.iter().all(|(_, value)| { return !value.contains("hunter2"); }), "{entry:?}");
+    }
+    assert!(entries[0].message.starts_with("the review of abc failed: could not reach https://<credentials>@example.invalid/r.git (status 401) at_ms="), "{}", entries[0].message);
+    assert!(entries[1].fields.contains(&(String::from("CLI_GIT_URL"), String::from("https://<credentials>@example.invalid/r.git"))), "{:?}", entries[1].fields);
+}
+
+/// The macros write at the priority their name says, and the plain one at `info`.
+#[test]
+fn the_macros_write_at_the_priority_their_name_says() {
+    use crate::journald_native::Priority;
+    let entries = crate::service_timing::capture::entries_of(|| {
+        crate::service_log!("a");
+        crate::service_warn!("b");
+        crate::service_error!("c");
+    });
+    assert_eq!(entries.iter().map(|entry| { return entry.priority; }).collect::<Vec<_>>(), vec![Priority::Info, Priority::Warning, Priority::Error]);
+}
+
+/// A message with a newline in it is one entry on one line, so it cannot start a second line on standard error.
+#[test]
+fn a_message_with_a_newline_is_one_line() {
+    let entries = crate::service_timing::capture::entries_of(|| { crate::service_log!("first\nsecond"); });
+    assert!(entries[0].message.starts_with("first second at_ms="), "{}", entries[0].message);
+}
+
+/// A cut that falls just before the `@` of a URL's userinfo must not leave the password: the text is masked whole, then cut.
+#[test]
+fn a_cut_just_before_the_at_sign_leaves_no_password() {
+    use crate::journald_native::MESSAGE_LIMIT;
+    let url_start: &str = "https://u:TOPSECRET";
+    let padding: String = "p".repeat(MESSAGE_LIMIT - url_start.len());
+    let entries = crate::service_timing::capture::entries_of(|| { crate::service_log!("{padding}{url_start}@host/ tail"); });
+    assert!(!entries[0].message.contains("TOPSECRET"), "{}", &entries[0].message[entries[0].message.len().saturating_sub(80)..]);
+}

@@ -12,11 +12,12 @@
 //! for await (const batch of queue.batches()) { const outcomes = await landBatch(batch); for (...) reply(outcome); }
 //! ```
 
-use super::service_journal::{DONE_RETAINED, landed_commits, prune_done};
+use super::service_journal::{DONE_RETAINED, Recovery, landed_commits, prune_done};
 use super::service_index_lock::{Announce, unsettled_locks};
 use super::service_index_prestage::{PrestageGuard, start as start_prestage};
 use super::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
-use super::service_timing::{Answered, Arrival, ExitReason, LandTiming, answered_line, exit_line, log, retire_line};
+use super::journald_native::Priority;
+use super::service_timing::{Answered, Arrival, ExitReason, LandTiming, answered_line, exit_line, log, log_entry, retire_line};
 use super::private_storage::remove_tree;
 use super::service_instance::instance_of;
 use super::claim_time::ClaimTime;
@@ -243,7 +244,7 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
 ///  without its acceptor or its work thread answers no one, while an ended service is started again by the manager.
 fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
     if let Err(error) = std::thread::Builder::new().spawn(body) {
-        crate::service_log!("cannot start the thread for {what}: {error}");
+        crate::service_error!("cannot start the thread for {what}: {error}");
         std::process::exit(4);
     }
 }
@@ -276,11 +277,11 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
     let foreign = |git_dir: &std::path::Path| -> bool { return instance.is_some_and(|mine| { return instance_of(git_dir) != mine; }); };
     match decode_client(line.trim_end_matches('\n')) {
         Ok(ClientMessage::Commit(request)) if foreign(request.git_dir.as_path()) => {
-            crate::service_log!("refused a commit for {}, which another instance serves", request.git_dir.display());
+            crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
             send(&stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Rejected });
         }
         Ok(ClientMessage::Scratch { git_dir, .. } | ClientMessage::Work { git_dir, .. }) if foreign(git_dir.as_path()) => {
-            crate::service_log!("refused a message for {}, which another instance serves", git_dir.display());
+            crate::service_warn!("refused a message for {}, which another instance serves", git_dir.display());
             send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected });
         }
         Ok(ClientMessage::Commit(request)) => {
@@ -304,7 +305,7 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             let _touched = queue.send(Job::Activity);
         }
         Err(reason) => {
-            crate::service_log!("refused a request line: {reason}");
+            crate::service_warn!("refused a request line: {reason}");
             send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected });
         }
     }
@@ -312,10 +313,19 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
 
 /// Finishes the open batches this instance owns: those of its worktree when it serves one, all of them in a development run.
 fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<super::service_land::RecoveryReport> {
-    return match instance {
+    let reports: Vec<super::service_land::RecoveryReport> = match instance {
         Some(mine) => recover_instance(context, mine),
         None => recover(context),
     };
+    // An open batch means an earlier service stopped between its intent and its end; each one settled is said.
+    for report in &reports {
+        log_entry(
+            Priority::Warning,
+            format!("settled the batch an earlier service left open batch={} decision={}", report.seq, if report.decision == Recovery::Finish { "finish" } else { "drop" }).as_str(),
+            &[("CLI_GIT_BATCH", report.seq.to_string())],
+        );
+    }
+    return reports;
 }
 
 /// The times of one batch that every request of it shares,
@@ -353,7 +363,7 @@ impl BatchTimes {
 /// from the acceptance of its connection to the answer.
 fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, position: usize, outcome: &str) {
     let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
-    log(answered_line(&Answered {
+    let line: String = answered_line(&Answered {
         request: request.id.as_str(),
         reference: request.reference.as_str(),
         outcome,
@@ -367,8 +377,16 @@ fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, po
         land_total: times.land_total,
         answer: times.landed_at.elapsed(),
         total: arrival.accepted.elapsed(),
-    })
-    .as_str());
+    });
+    // A request that was answered with a failure is a warning, so `journalctl --priority=warning` finds the commits that failed.
+    let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };
+    let fields: [(&str, String); 4] = [
+        ("CLI_GIT_REQUEST_ID", request.id.clone()),
+        ("CLI_GIT_BRANCH", request.reference.clone()),
+        ("CLI_GIT_OUTCOME", outcome.to_string()),
+        ("CLI_GIT_BATCH", times.batch.to_string()),
+    ];
+    log_entry(priority, line.as_str(), &fields);
 }
 
 /// Lands one group of jobs that share a branch, and answers each client.
@@ -536,7 +554,7 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             let notice: Option<UnixStream> = connection.try_clone().ok();
             let spawned = std::thread::Builder::new().spawn(move || { handle_connection(connection, &queue, &work, &counted, release.as_str(), mine.as_deref()); });
             if let Err(error) = spawned {
-                crate::service_log!("no thread for a connection, which is closed after telling the client: {error}");
+                crate::service_error!("no thread for a connection, which is closed after telling the client: {error}");
                 if let Some(stream) = notice {
                     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(announced_release.clone()) });
                     send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Unavailable });
@@ -605,12 +623,12 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         }
         // A lock this thread could not settle names this process: the restart reclaims it once this process is gone.
         if unsettled_locks() > 0 {
-            crate::service_log!("ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
+            crate::service_error!("ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
             return;
         }
         for path in releases {
             if let Err(error) = remove_tree(path.as_path()) {
-                crate::service_log!("the scratch directory {} could not be removed: {error}", path.display());
+                crate::service_warn!("the scratch directory {} could not be removed: {error}", path.display());
             }
         }
     }

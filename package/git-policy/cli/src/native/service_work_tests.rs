@@ -11,6 +11,7 @@ use std::time::Duration;
 const OID: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_OID: &str = "89abcdef0123456789abcdef0123456789abcdef";
 const BRANCH: &str = "refs/heads/main";
+const THIRD_OID: &str = "456789abcdef0123456789abcdef0123456789ab";
 
 /// Handlers that record the calls and answer from a fixed verdict.
 struct Recorder {
@@ -795,6 +796,45 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     assert!(!written.contains(SECRET));
     assert_eq!(std::fs::read_to_string(log.as_path()).expect("tracked log"), "# Log\n", "the tracked log is never written");
     remove(parent.as_path());
+}
+
+/// The `message` of the first captured entry that starts with `start`.
+fn entry_starting<'a>(entries: &'a [crate::service_timing::capture::Captured], start: &str) -> &'a crate::service_timing::capture::Captured {
+    return entries.iter().find(|entry| { return entry.message.starts_with(start); }).unwrap_or_else(|| { panic!("no entry starting {start:?} in {entries:?}") });
+}
+
+/// Every push the service runs leaves one entry with the branch, the commit, how many items it covered and how it ended,
+/// at the priority that fits: `info` for a push that went through, `warning` for one that failed, with Git's words after it.
+#[test]
+fn every_push_leaves_an_entry_that_names_the_branch_and_how_it_ended() {
+    use crate::journald_native::Priority;
+    let repo: Repo = repo("work-push-entry");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH), item(&repo, WorkKind::Push, OTHER_OID, BRANCH)]);
+    let done = crate::service_timing::capture::entries_of(|| { drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read()); });
+    let pushed = entry_starting(done.as_slice(), "pushed ");
+    assert_eq!(pushed.priority, Priority::Info);
+    assert!(pushed.message.contains(format!("branch={BRANCH:?} oid={OTHER_OID} items=2 outcome=done push_ms=").as_str()), "{}", pushed.message);
+    assert!(pushed.fields.contains(&(String::from("CLI_GIT_BRANCH"), String::from(BRANCH))) && pushed.fields.contains(&(String::from("CLI_GIT_OUTCOME"), String::from("done"))), "{:?}", pushed.fields);
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, THIRD_OID, BRANCH)]);
+    let failed = crate::service_timing::capture::entries_of(|| {
+        drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(String::from("remote: permission denied"))), &ClaimTime::read());
+    });
+    let entry = entry_starting(failed.as_slice(), "pushed ");
+    assert_eq!(entry.priority, Priority::Warning);
+    assert!(entry.message.contains("outcome=failed") && entry.message.contains(": remote: permission denied"), "{}", entry.message);
+    remove(repo.root.as_path());
+}
+
+/// Upkeep that ran and a review that finished each leave an entry too, so a quiet repository is told from a service that did
+/// nothing.
+#[test]
+fn upkeep_and_review_that_ran_leave_entries() {
+    let repo: Repo = repo("work-upkeep-entry");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Maintenance, OID, BRANCH), item(&repo, WorkKind::Review, OTHER_OID, BRANCH)]);
+    let entries = crate::service_timing::capture::entries_of(|| { drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read()); });
+    assert!(entry_starting(entries.as_slice(), "automatic maintenance ran maintenance_ms=").message.contains(" at_ms="));
+    assert!(entry_starting(entries.as_slice(), format!("the review of {OTHER_OID} is done review_ms=").as_str()).message.contains(" at_ms="));
+    remove(repo.root.as_path());
 }
 
 /// The production lease is two minutes and the holder renews every third of it,
