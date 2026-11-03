@@ -68,6 +68,10 @@ mod announced;
 #[path = "binary_resolution_tests.rs"]
 mod resolution;
 
+/// The wrapper never starts itself as Git: launchers, links, copies and other releases behind counting stand-ins.
+#[path = "binary_never_self_start_tests.rs"]
+mod never_self_start;
+
 /// Configuration loading and the read-only fast path.
 #[path = "binary_policy_tests.rs"]
 mod policy;

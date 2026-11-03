@@ -76,13 +76,110 @@ and removing them is open (see "Housekeeping").
 
 ### Agents and gates running
 
-No `gpc-*`,
-`release-*` or `cli-git-*` systemd unit and no cargo-mutants or nextest process was running at
-2026-11-03T08:16:08-05:00.
-The delegate agents are the ones whose branches show commits at 08:14 to 08:15;
-the list of running delegates is not stored in any file,
-so the coordinator session holds it.
-The owner's cap is five delegate agents at once.
+At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
+- Shipped-limits pick 1's classing with the measured citations 7,
+  8,
+  13,
+  14 and 15,
+  branch `fix/git-policy-cli-limits-cite-measurements`,
+  worktree `.claude/worktrees/limits-cite-measurements`.
+- The fsmonitor troubleshooting doc,
+  `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+- cargo-shadow follow-ups on `feat/cargo-shadow-cli` (tip `679ccce734` before them):
+  resolve the trust base in process instead of one `git` start per cargo call (measured 7 ms median),
+  full comment blocks,
+  a test for the double-publish restore branch,
+  and `file-enforcer write` output instead of the hand-written `Cargo.toml` line.
+- Shipped-limits picks 5 and 12,
+  branch `feat/git-policy-cli-pushes-wait-while-connected-lfs-5xx`,
+  worktree `.claude/worktrees/pushes-wait-lfs-5xx`.
+- Shipped-limits picks 10 and 11,
+  branch `feat/git-policy-cli-saved-copies-and-audit-generations-measured`,
+  worktree `.claude/worktrees/saved-copies-audit-generations`.
+- Not agents:
+  the sixth cross-vendor design review (`pi`,
+  output `~/temp/agent/reviews/commits-never-fail-sol-6.txt`);
+  the gate of 0.5.27 (named under its branch below).
+Queued,
+in this order:
+the in-process index review fixes (below),
+resuming the agent that wrote that branch;
+the cargo-shadow second cross-vendor review once its follow-ups land;
+shipped-limits picks 4 and 9,
+then 2 and 6,
+each from the 0.5.27 candidate tip,
+as slots free.
+
+0.5.27 ships without the in-process index work
+(coordinator's pick under the delegation,
+veto open:
+the cross-vendor review of it,
+2026-11-03T10:09:59-05:00,
+`~/temp/agent/reviews/follow-up-index-sol.txt`,
+says "safe after named fixes,
+not safe as-is",
+and its measured wall-clock gain was nil,
+a median 139 ms against 137 ms before and 38 ms native on a throwaway copy of main's shape,
+so holding back the rest of 0.5.27 for it buys nothing).
+Its branch is `integrate/git-policy-cli-0-5-27-without-index-in-process` at `00259fff5e`,
+worktree `.claude/worktrees/integrate-0-5-27-without-index`,
+gate unit `gpc-gate-release-0-5-27-without-index-20261103T101115-0500.service`
+(log `~/temp/agent/gate/gpc-gate-release-0-5-27-without-index-20261103T101115-0500.log`).
+The gate on the combined tip `3848f9581d` was stopped by the coordinator at 3908 of 4338 tests passed.
+
+The review's findings on `perf/git-policy-cli-follow-up-index-in-process` (`48d6abb28c`),
+queued first for the next free slot,
+with red tests first:
+- P1:
+  `index_reset_file.rs` writes every run to the same `<file>.cli-git-reset` name and removes it unconditionally,
+  so two runs can publish each other's partial file;
+  the writer takes no `index.lock`,
+  so the outer protocol must be shown to hold the live `index.lock` from the read through the install.
+- P2:
+  an intent-to-add entry whose blob equals the tree's (an empty file) is kept with its flag,
+  where `git reset --no-refresh` writes an ordinary entry (`index_reset.rs` 212-215).
+- P2:
+  `path_is_plain` accepts names Git refuses under `core.protectNTFS`
+  (for example `.gitmodules::$DATA` as a link);
+  port Git's checks or decline those settings and names.
+- P2:
+  a malformed EWAH bitmap of a few bytes expands without a bound and can exhaust memory before the fallback
+  (`index_ewah.rs` 175-224);
+  validate and bound by entry or directory count.
+- P2:
+  the rewritten file takes the process umask,
+  losing `core.sharedRepository` modes.
+- P3 (non-Linux test builds,
+  paused by the owner's "Ignore Win and mac until I say so."):
+  Linux-only fixture imports.
+- Also asked:
+  SHA-1 reference vectors (empty,
+  `abc`,
+  lengths around block edges,
+  over 512 MiB),
+  and tests of later `status` and `diff` after `--no-refresh` and zero stat data.
+It found no mismatch in the quiet check for ordinary entries,
+and no SHA-1 arithmetic or padding defect.
+
+The combined branch `integrate/git-policy-cli-plain-commit-no-quiet-index-in-process` (tip `3848f9581d`,
+worktree `.claude/worktrees/integrate-plain-commit-no-quiet-index`) becomes the 0.5.28 base once those fixes land.
+It adds to 0.5.27's content
+the follow-up `reset` and `diff-tree` and the `diff-index --cached --quiet` checks in process
+(the remaining Git `reset` calls pass `--no-refresh`;
+merge conflict with the no-`--quiet` branch resolved as `reset --no-refresh` with both branches' tests kept).
+0.5.27's content:
+plain commit over unmerged files,
+no inner `--quiet`,
+the service unit without limits,
+the audit rotation fix,
+the flaky-test fixes,
+the doctor fsmonitor line (`072ac84868`)
+and main up to `a9e81617a1`.
+0.5.27 waits for its gate,
+then merges into main,
+is released,
+installed,
+and measured on main against native Git.
 
 ## Open work
 
@@ -985,6 +1082,12 @@ on `fix/git-policy-cli-commits-never-fail`.
    the hook may post twice).
 4. The instant inside Git's `checkout` between the index write and the `HEAD` change:
    A (accept a rare staged change on the new branch).
+
+### Release contents
+
+- 0.5.27 ships without the in-process index work,
+  which waits for its review's fixes and ships in 0.5.28;
+  reasons under "Agents and gates running".
 
 ### cargo-shadow (agent's nine questions)
 

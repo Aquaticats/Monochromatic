@@ -25,6 +25,11 @@
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path of raw OS bytes.
 use std::path::Path;
+/// What:
+///  The marker every real-Git start carries, and the two ways a start can be made.
+/// Why:
+///   A cli-git executable that is started as "Git" finds the marker and stops instead of starting one more wrapper.
+use super::started_as_git::{StartMode, mark_real_git_start};
 /// Starts that ride out a short shortage of processes.
 #[cfg(unix)]
 use super::start_retry::exec_retrying;
@@ -90,6 +95,8 @@ pub fn git_command(
     for (name, value) in overlay {
         command.env(name, value);
     }
+    // Every real-Git start says it is one, so a cli-git executable that arrives as "Git" stops (`started_as_git.rs`).
+    mark_real_git_start(&mut command, StartMode::Child);
     return command;
 }
 
@@ -226,8 +233,11 @@ pub fn replace_process_with_real_git(
 ) -> std::io::Error {
     #[cfg(unix)]
     {
+        let mut command: Command = git_command(real_git, arguments, overlay);
+        // The program replaces this very process, so the marker says "replace" instead of the builder's "child".
+        mark_real_git_start(&mut command, StartMode::Replace);
         // `exec_retrying` replaces this process like `.exec()` and tries again when the start is refused.
-        return exec_retrying(&mut git_command(real_git, arguments, overlay));
+        return exec_retrying(&mut command);
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]

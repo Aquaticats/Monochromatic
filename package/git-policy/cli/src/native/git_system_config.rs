@@ -60,15 +60,17 @@ fn ask_git_attributes(real_git: &Path) -> Option<Vec<u8>> {
 
 /// Start the executable at `real_git` with `var <variable>` and the environment's overrides removed.
 fn ask_git_var(real_git: &Path, variable: &str) -> Option<Vec<u8>> {
-    let output = std::process::Command::new(real_git)
+    let mut command = std::process::Command::new(real_git);
+    command
         .args(["var", variable])
         .env_clear()
         .env("LC_ALL", "C")
         .current_dir("/")
         .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
+        .stderr(std::process::Stdio::null());
+    // The environment was cleared, so the marker of this start is added after it (`started_as_git.rs`).
+    super::started_as_git::mark_real_git_start(&mut command, super::started_as_git::StartMode::Child);
+    let output = command.output().ok()?;
     return if output.status.success() { Some(output.stdout) } else { None };
 }
 
