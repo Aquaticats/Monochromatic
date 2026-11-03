@@ -247,6 +247,7 @@ pub fn fix_failure(
         arguments: arguments.to_vec(),
         events: vec![PolicyEvent::EngineFailure {
             code,
+            hint: crate::policy_events::EngineFailureHint::OfCode,
             message: String::from(message),
             trigger: Some(Trigger::DirectFix),
             // `None`: the fix itself failed, not one policy, and no file is named.

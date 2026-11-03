@@ -178,6 +178,7 @@ fn pathless_commit_asks_for_the_sequencer_state() {
             arguments: os_arguments(&["commit", "-m", "x"]),
             events: vec![PolicyEvent::EngineFailure {
                 code: EngineFailureCode::CoreIncomplete,
+                hint: crate::policy_events::EngineFailureHint::OfCode,
                 message: String::from("no sequencer answer"),
                 trigger: None,
                 policy: None,

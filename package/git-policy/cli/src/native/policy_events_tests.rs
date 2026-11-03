@@ -34,6 +34,7 @@ fn a_hinted_event_carries_the_hint_as_its_own_field() {
         0,
         &PolicyEvent::EngineFailure {
             code: EngineFailureCode::FixCycle,
+            hint: crate::policy_events::EngineFailureHint::OfCode,
             message: String::from("cycle"),
             trigger: None,
             policy: None,
@@ -150,6 +151,7 @@ fn engine_failure_prints_optional_fields_in_order() {
             0,
             &PolicyEvent::EngineFailure {
                 code: EngineFailureCode::CoreIncomplete,
+                hint: crate::policy_events::EngineFailureHint::OfCode,
                 message: String::from("transform failed"),
                 trigger: None,
                 policy: None,
@@ -164,6 +166,7 @@ fn engine_failure_prints_optional_fields_in_order() {
             7,
             &PolicyEvent::EngineFailure {
                 code: EngineFailureCode::ContentUnavailable,
+                hint: crate::policy_events::EngineFailureHint::OfCode,
                 message: String::from("unreadable"),
                 trigger: Some(Trigger::DirectFix),
                 policy: Some(PolicyId::LinkedWorktreeOnly),
@@ -199,6 +202,7 @@ fn engine_failure_prints_optional_fields_in_order() {
             0,
             &PolicyEvent::EngineFailure {
                 code: EngineFailureCode::FixCycle,
+                hint: crate::policy_events::EngineFailureHint::OfCode,
                 message: String::from("m"),
                 trigger,
                 policy,
@@ -319,6 +323,7 @@ fn only_errors_and_core_findings_block() {
     }));
     assert!(!event_blocks(&PolicyEvent::EngineFailure {
         code: EngineFailureCode::CoreIncomplete,
+        hint: crate::policy_events::EngineFailureHint::OfCode,
         message: String::from("m"),
         trigger: None,
         policy: None,
@@ -365,6 +370,7 @@ fn an_engine_failure_about_a_name_that_is_not_utf8_adds_path_bytes() {
             1,
             &PolicyEvent::EngineFailure {
                 code: EngineFailureCode::PolicyIncomplete,
+                hint: crate::policy_events::EngineFailureHint::OfCode,
                 message: String::from("m"),
                 trigger: Some(Trigger::DirectCheck),
                 policy: Some(PolicyId::MarkdownAutofix),

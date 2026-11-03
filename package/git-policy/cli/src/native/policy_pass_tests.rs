@@ -260,6 +260,7 @@ fn a_transform_rejection_or_failure_ends_the_pass() {
                 arguments: os_arguments(&["commit", "-m", "x"]),
                 events: vec![PolicyEvent::EngineFailure {
                     code: EngineFailureCode::CoreIncomplete,
+                    hint: crate::policy_events::EngineFailureHint::OfCode,
                     message: String::from("no sequencer answer"),
                     trigger: None,
                     policy: None,
@@ -316,6 +317,7 @@ fn content_policies_read_fail_or_refuse_in_registry_order() {
             arguments: os_arguments(&["add", "file"]),
             events: vec![PolicyEvent::EngineFailure {
                 code: EngineFailureCode::ContentUnavailable,
+                hint: crate::policy_events::EngineFailureHint::OfCode,
                 message: String::from("the scripted facts prepare no candidates"),
                 trigger: Some(Trigger::PreForward),
                 policy: Some(PolicyId::FinalNewline),

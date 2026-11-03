@@ -327,7 +327,7 @@ fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
 /// The probe error displays its message.
 #[test]
 fn the_probe_error_displays_its_message() {
-    assert_eq!(probe_error(String::from("why")).to_string(), "why");
+    assert_eq!(probe_error(ManualPushCause::SelfExplained, String::from("why")).to_string(), "why");
 }
 
 /// `-u`, `--set-upstream` and `push.autoSetupRemote` add a line to Git's own report; the probe still reads the update

@@ -357,6 +357,7 @@ pub fn run_policy_stage(
             } => {
                 events.push(PolicyEvent::EngineFailure {
                     code,
+                    hint: crate::policy_events::EngineFailureHint::OfCode,
                     message,
                     // `Some(x)` is the "present" case of `Option`.
                     trigger: Some(request.trigger),

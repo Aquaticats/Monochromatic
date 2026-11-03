@@ -283,6 +283,7 @@ fn run_direct_command(
                 first_sequence,
                 &[PolicyEvent::EngineFailure {
                     code: EngineFailureCode::TransactionFailed,
+                    hint: crate::policy_events::EngineFailureHint::OfCode,
                     message: error.message,
                     // `Some(x)` is the "present" case of `Option`.
                     trigger: Some(trigger),

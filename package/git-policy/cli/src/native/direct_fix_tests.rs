@@ -318,6 +318,7 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
             arguments: os_arguments(&["kept"]),
             events: vec![PolicyEvent::EngineFailure {
                 code: EngineFailureCode::FixCycle,
+                hint: crate::policy_events::EngineFailureHint::OfCode,
                 message: String::from(DIRECT_FIX_CYCLE_MESSAGE),
                 trigger: Some(Trigger::DirectFix),
                 policy: None,

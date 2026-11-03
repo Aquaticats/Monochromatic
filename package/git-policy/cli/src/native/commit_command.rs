@@ -109,6 +109,7 @@ fn report_stop(stop: TransactionStop) -> CommitEnding {
         TransactionStop::Failed { code, message } => {
             let event: PolicyEvent = PolicyEvent::EngineFailure {
                 code,
+                hint: crate::policy_events::EngineFailureHint::OfCode,
                 message,
                 trigger: Some(Trigger::PreForward),
                 policy: None,

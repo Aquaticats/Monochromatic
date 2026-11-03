@@ -252,6 +252,7 @@ fn the_pushed_scope_lists_commit_deltas_and_tree_blobs() {
 fn the_range_error_displays_its_message() {
     let error = ManualPushRangeError {
         message: String::from("the range query failed"),
+        cause: ManualPushCause::SelfExplained,
     };
     assert_eq!(error.to_string(), "the range query failed");
 }

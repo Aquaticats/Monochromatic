@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 const NAME: &str = "0123456789abcdef0123456789abcdef01234567";
 
 fn failure(code: EngineFailureCode, message: &str) -> PolicyEvent {
-    return PolicyEvent::EngineFailure { code, message: message.to_string(), trigger: None, policy: None, path: None };
+    return PolicyEvent::EngineFailure { code, hint: crate::policy_events::EngineFailureHint::OfCode, message: message.to_string(), trigger: None, policy: None, path: None };
 }
 
 /// The failure a policy raises for a missing object is the removed-content signal; the same code with another cause, and

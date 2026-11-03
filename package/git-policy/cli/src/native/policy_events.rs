@@ -115,6 +115,24 @@ pub struct FindingEvent {
 }
 
 /// What:
+///  Which hint follows an engine failure's message.
+/// Why:
+///   The code's hint is a guess that holds for most failures of that code; a failure that knows its cause chooses its own
+///  hint, or none, so the hint is never one that is untrue for the case.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type EngineFailureHint = { kind: 'of-code' } | { kind: 'chosen'; hint?: string };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EngineFailureHint {
+    /// The hint of the failure's code.
+    OfCode,
+    /// The failure's own hint, or none.
+    Chosen(Option<&'static str>),
+}
+
+/// What:
 ///  Every event a policy pass can produce.
 ///  An `enum` is a closed set of named
 ///       alternatives;
@@ -156,6 +174,8 @@ pub enum PolicyEvent {
     EngineFailure {
         /// The stable cause.
         code: EngineFailureCode,
+        /// Which hint follows the message.
+        hint: EngineFailureHint,
         /// The explanation for the person who ran the command.
         message: String,
         /// The lifecycle point,
@@ -473,6 +493,7 @@ pub fn render_policy_event(sequence: u64, event: &PolicyEvent) -> String {
         }
         PolicyEvent::EngineFailure {
             code,
+            hint,
             message,
             trigger,
             policy,
@@ -481,7 +502,13 @@ pub fn render_policy_event(sequence: u64, event: &PolicyEvent) -> String {
             let code_name: &str = engine_failure_code_name(*code);
             push_text_field(&mut line, "code", code_name);
             push_text_field(&mut line, "message", message.as_str());
-            push_hint_field(&mut line, engine_failure_hint(code_name));
+            push_hint_field(
+                &mut line,
+                match hint {
+                    EngineFailureHint::OfCode => engine_failure_hint(code_name),
+                    EngineFailureHint::Chosen(chosen) => *chosen,
+                },
+            );
             if let Some(found) = trigger {
                 push_text_field(&mut line, "trigger", trigger_name(*found));
             }
