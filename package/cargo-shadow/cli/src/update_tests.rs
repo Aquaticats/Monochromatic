@@ -805,3 +805,47 @@ fn breaking_update_that_passes() -> (World, Result<UpdateReport, UpdateError>) {
     let result = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args });
     return (world, result);
 }
+
+/// A sync that fails, the way `file-enforcer write` fails when it is not installed.
+struct FailingSyncer;
+
+impl Syncer for FailingSyncer {
+    fn sync(&self, _root: &Path) -> Result<String, String> {
+        return Err("could not start file-enforcer".to_string());
+    }
+}
+
+/// Delegated pick 7 (2026-11-03): a sync failure after the catalog write makes the breaking update transactional, so the
+/// catalog goes back with the manifests and the lockfiles instead of being left raised and unrendered.
+#[test]
+fn a_sync_failure_after_the_catalog_write_restores_the_catalog_the_manifests_and_the_lockfiles() {
+    let catalog_text: &str = "[catalog]\ndep = \">=0.9.0\"\n";
+    let world = world(&lock_with("0.9.0"), catalog_text);
+    let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
+    let cargo = cargo_that_edits_the_manifest(directory);
+    let trusted: Vec<VersionRecord> = vec![trusted_publish("0.9.0", "2026-01-01T00:00:00Z"), trusted_publish("1.0.1", "2026-02-01T00:00:00Z")];
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), trusted)]) };
+    let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &FailingSyncer,
+        prune_catalog: false,
+    };
+
+    let report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
+
+    assert!(!report.written);
+    assert!(report.problems.iter().any(|problem| { return problem.contains("file-enforcer"); }), "{:?}", report.problems);
+    assert_eq!(fs::read_to_string(&world.catalog).expect("catalog"), catalog_text);
+    assert_eq!(manifest_of(&world), OLD_REQUIREMENT_MANIFEST);
+    assert_eq!(lock_of(&world), lock_with("0.9.0"));
+}
