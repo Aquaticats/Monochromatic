@@ -23,6 +23,7 @@ pub(crate) mod walk;
 #[path = "source_scan_checks_tests.rs"]
 mod checks;
 
+pub(crate) use declaration::module_name;
 pub(crate) use tree::{CrateRoot, SourceFile, classified_sources, manifest_roots, module_tree};
 
 /// The source root every identity is relative to, as the manifest spells it.

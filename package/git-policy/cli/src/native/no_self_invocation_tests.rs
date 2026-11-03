@@ -6,74 +6,33 @@
 //!  `std::env::current_exe` (`clippy.toml`) covers the typed call, and this covers the spellings clippy cannot see.
 //! Explanations come from the parent process that owns a child; see `doc/planning/cli-git-no-self-invocation.md`.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// The forbidden texts and the justified exceptions.
 #[path = "no_self_invocation_rules_tests.rs"]
 mod rules;
 use rules::{ALLOWED, Allowed, RULES, Rule};
 
-use crate::source_scan_tests::{CrateRoot, real_roots, source_root};
+use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source_root};
 
 /// Filesystem-backed controls of this scan on nested layouts.
 #[path = "no_self_invocation_fixture_tests.rs"]
 mod fixtures;
 
-/// One rule match: the source file, the rule that matched, and the line number.
+/// One rule match: the source file as a path relative to `src/native`, the rule that matched, and the line number.
 type Finding = (String, &'static str, usize);
 
-/// The modules `lib.rs` of `root` compiles for tests only: a `#[cfg(test)]` attribute with no blank line before the
-///  `mod` line.
-fn test_only_modules(root: &Path) -> Vec<String> {
-    let text: String = std::fs::read_to_string(root.join("lib.rs")).expect("lib.rs");
-    let mut names: Vec<String> = Vec::new();
-    let mut test_only: bool = false;
-    for line in text.lines() {
-        let trimmed: &str = line.trim();
-        if trimmed.is_empty() {
-            test_only = false;
-        } else if trimmed.starts_with("#[cfg(test)]") {
-            test_only = true;
-        } else if let Some(name) = trimmed
-            .strip_prefix("pub mod ")
-            .or_else(|| {
-                return trimmed.strip_prefix("pub(crate) mod ");
-            })
-            .or_else(|| {
-                return trimmed.strip_prefix("mod ");
-            })
-            && test_only
-        {
-            names.push(name.trim_end_matches(';').to_owned());
+/// The release source files under `root`, as `/`-separated paths relative to it: every file the module tree reaches
+///  from a crate root through declarations that no `cfg(test)` gates. Test sidecars, binary-level controls and support
+///  that only tests compile are told apart by the declarations that reach them, never by file name, so a nested file
+///  keeps its own classification; a tree that cannot be fully classified is an error.
+fn release_sources_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<String>, String> {
+    let mut found: Vec<String> = Vec::new();
+    for file in classified_sources(root, roots)? {
+        if !file.test_only {
+            found.push(file.path);
         }
     }
-    return names;
-}
-
-/// The release source files: every `.rs` file under `root` except test sidecars, binary-level controls and support
-///  that only tests compile.
-fn release_sources_in(root: &Path, _roots: &[CrateRoot]) -> Result<Vec<PathBuf>, String> {
-    let test_only: Vec<String> = test_only_modules(root);
-    let mut found: Vec<PathBuf> = Vec::new();
-    let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
-    while let Some(directory) = pending.pop() {
-        for entry in std::fs::read_dir(&directory).expect("source directory").flatten() {
-            let path: PathBuf = entry.path();
-            if path.is_dir() {
-                pending.push(path);
-                continue;
-            }
-            let name: String = entry.file_name().to_string_lossy().into_owned();
-            let release: bool = name.ends_with(".rs")
-                && !name.ends_with("_tests.rs")
-                && !name.starts_with("binary_")
-                && !test_only.contains(&name.trim_end_matches(".rs").to_owned());
-            if release {
-                found.push(path);
-            }
-        }
-    }
-    found.sort();
     return Ok(found);
 }
 
@@ -94,12 +53,12 @@ fn code_lines(text: &str) -> Vec<(usize, String, String)> {
     return code;
 }
 
-/// Every `(file name, rule id, line number)` the rules find in the release sources of `root`.
+/// Every `(relative path, rule id, line number)` the rules find in the release sources of `root`.
 fn findings_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<Finding>, String> {
     let mut found: Vec<Finding> = Vec::new();
-    for path in release_sources_in(root, roots)? {
-        let name: String = path.file_name().expect("file name").to_string_lossy().into_owned();
-        let text: String = std::fs::read_to_string(&path).expect("source file");
+    for name in release_sources_in(root, roots)? {
+        let text: String = std::fs::read_to_string(root.join(name.as_str()))
+            .map_err(|error| return format!("cannot read {name}: {error}"))?;
         for (number, line, joined) in code_lines(text.as_str()) {
             for rule in RULES {
                 if (rule.matches)(line.as_str(), joined.as_str()) {
@@ -174,17 +133,17 @@ fn every_justified_exception_still_matches_code() {
 /// The scan reads the release files, and no release code defines a hook command at all.
 #[test]
 fn the_scan_reads_the_release_sources_and_no_hook_command_is_defined() {
-    let sources: Vec<PathBuf> =
-        release_sources_in(&source_root(), &real_roots()).expect("the crate's release sources");
+    let root = source_root();
+    let sources: Vec<String> = release_sources_in(&root, &real_roots()).expect("the crate's release sources");
     assert!(sources.iter().any(|path| {
-        return path.ends_with("lfs_pre_push.rs");
+        return Path::new(path).ends_with("lfs_pre_push.rs");
     }));
     assert!(sources.iter().all(|path| {
-        return !path.to_string_lossy().ends_with("_tests.rs");
+        return !path.ends_with("_tests.rs");
     }));
     let mut definitions: Vec<String> = Vec::new();
     for path in sources {
-        let text: String = std::fs::read_to_string(&path).expect("source file");
+        let text: String = std::fs::read_to_string(root.join(path)).expect("source file");
         for (_, line, _) in code_lines(text.as_str()) {
             if line.contains(".command=") {
                 definitions.push(line);

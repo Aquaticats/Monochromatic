@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use crate::source_scan_tests::{CrateRoot, real_roots, source_root};
+use crate::source_scan_tests::{CrateRoot, classified_sources, module_name, real_roots, source_root};
 
 /// Filesystem-backed controls of this scan on nested layouts.
 #[path = "standards_review_boundary_fixture_tests.rs"]
@@ -26,23 +26,37 @@ fn may_name_service_modules(file: &str) -> bool {
         || SERVICE_ONLY_MODULES.iter().any(|module| return file.starts_with(module));
 }
 
-/// The source files of this crate that ship in the executable or its library: every `.rs` file of the native directory
-/// with its text.
-fn native_sources_in(root: &Path, _roots: &[CrateRoot]) -> Result<Vec<(String, String)>, String> {
+/// The source files of this crate that ship in the executable or its library, or are compiled for its tests: every
+/// `.rs` file under `root` with its text, keyed by its `/`-separated path relative to `root`. The listing is the module
+/// tree proven against a strict walk, so a file in a subdirectory is read at its own path and a file the listing
+/// could not account for is an error, never a gap.
+fn native_sources_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<(String, String)>, String> {
     let mut sources: Vec<(String, String)> = Vec::new();
-    for entry in std::fs::read_dir(root).expect("the native source directory").flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(".rs") {
-            sources.push((name, std::fs::read_to_string(entry.path()).expect("a source file")));
-        }
+    for file in classified_sources(root, roots)? {
+        let text: String = std::fs::read_to_string(root.join(file.path.as_str()))
+            .map_err(|error| return format!("cannot read {}: {error}", file.path))?;
+        sources.push((file.path, text));
     }
-    sources.sort();
     return Ok(sources);
 }
 
 /// The sources of this crate's own native directory.
 fn native_sources() -> Vec<(String, String)> {
     return native_sources_in(&source_root(), &real_roots()).expect("the crate's own sources");
+}
+
+/// The text without the bare `mod <service-only module>;` lines: a module file registers its own members, which is
+/// declaring them and not using them.
+fn without_declarations(text: &str) -> String {
+    let mut kept: Vec<&str> = Vec::new();
+    for line in text.lines() {
+        let declares_service_module: bool =
+            module_name(line).is_some_and(|name| return SERVICE_ONLY_MODULES.contains(&name));
+        if !declares_service_module {
+            kept.push(line);
+        }
+    }
+    return kept.join("\n");
 }
 
 /// The violations in a set of sources: a file that names the HTTP library but is not the client, and a file that names
@@ -55,7 +69,7 @@ fn violations(sources: &[(String, String)]) -> Vec<String> {
             found.push(format!("{file} names the HTTP library"));
         }
         // The credential type is shared with the client path on purpose; only the handler module is service-only.
-        let scanned: String = text.replace("service_review_key", "");
+        let scanned: String = without_declarations(text).replace("service_review_key", "");
         if !may_name_service_modules(file) && SERVICE_ONLY_MODULES.iter().any(|module| return scanned.contains(module)) {
             found.push(format!("{file} names a service-only module"));
         }
