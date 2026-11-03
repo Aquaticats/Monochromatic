@@ -171,3 +171,58 @@ The container has a `12h` ceiling and removes itself on exit.
 The Chromium clone has an intentionally disabled push URL.
 Its local branch now uses push remote `.` so the auto-push service can skip it.
 Do not enable upstream pushes from this prototype.
+
+## Network pre-allowance at 2026-11-03T15:35:59+00:00
+
+The user instructed:
+"Make sure you pre-allow all relevant processes network in opensnitch."
+
+The installed OpenSnitch daemon is `1.8.0`,
+running as `opensnitch.service`.
+The authorized precedence allowance is
+`/etc/opensnitchd/rules/000-allow-chromium-contribution-network.json`.
+It covers the rootless container network helpers,
+Git HTTP helpers,
+Python,
+curl,
+the package manager,
+and the build's Node/CIPD paths.
+The existing managed toolchain-root allowances remain in place.
+The new rule is root-owned with mode `0600`;
+its SHA-256 is `16ed85d6d526bd613ca3f9e44c596248073f827302124e02d70700b0f969be89`.
+The daemon logged its ruleset reload at `2026-11-03T15:35:59Z`.
+The [existing OpenSnitch record](../troubleshooting/opensnitch-1-8-auto-reject-blocks-toolchain-updates.md)
+documents the precedence and direct-write reload behavior used here.
+
+This does not establish OpenSnitch as the cause of the fetch stall.
+The file named `reject-always-simple-usr-bin-pasta-avx2.json` actually had `action: allow`.
+The original `gclient` attempt emitted
+`STALL DETECTED: gclient has been silent for 5 minutes.`
+Its Git HTTPS process was still present without any pack files at `2026-11-03T15:10:37Z`.
+The cause remained unknown.
+
+The owned build container was stopped before retrying.
+Podman escalated from `SIGTERM` to `SIGKILL` after its `10` second stop window;
+that intentional stop produced exit `137`,
+not a native C++ test result.
+The checkout and logs remain in the named build volume.
+The installed-dependency image is
+`0585ba53e6d9ce0898bf7aaeb1b3bc3116a8f25f58698f9cb78cd08a2e58b567`.
+The retry uses `--init` and retains the same resource bounds.
+
+The local build configuration now has `network:probe`,
+`sync:runtime`,
+and `build:retry-acquisition` tasks.
+Verify live access with Node,
+Git,
+the hermetic Python launcher,
+curl,
+and CIPD before restarting acquisition.
+The retry archives the interrupted checkout and logs,
+keeps the exact Chromium revision,
+and enables verbose `gclient` output.
+Native build,
+test-name checks,
+the failing startup control,
+and live browser mapping/sample checks remain outstanding.
+Forced-reporting browser checks use `--network=none`.
