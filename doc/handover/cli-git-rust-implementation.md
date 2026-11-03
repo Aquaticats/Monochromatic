@@ -10048,3 +10048,25 @@ by the coordinator at merge.
   answered, verbatim: "Do the measurements first then ask." An agent is measuring A, B and C on the same fixtures
   (correctness against `jj` 0.46.0, port size, crates added, build time, binary size, start cost and merge time with
   spread, licence duties), report to `~/temp/agent/merge-code-options/report.md`. Then ask again.
+- 2026-11-03T01:35:00-05:00, release 0.5.20 assembly: container disk-weight fix merged to main (`d5a3b2e77c`:
+  `diskWeightArguments()` in `package/mutation-test/cli-cargo-mutants/src/container-limits.ts` adds
+  `--blkio-weight=10 --cgroup-conf=io.weight=10` to every runner `run`/`create`; real-container check showed
+  `io.weight` and `io.bfq.weight` both 10; no workflow runs these runners) plus the linter `mise.toml` inline
+  container starts (`f84121558c`, import checked by running the anchor task up to the missing image). Containers
+  still at the default weight belong to other packages (`package/ide/app`, `search-shadow/cli`,
+  `nested-wayland-session/cli`, `forbidden-strings/cli`, `mutation-test/cli`; `vm-builder/cli` passes 25): not
+  changed, to raise with the owner. Two gates run side by side: conversion with main
+  (`gpc-gate-conversion-with-main-20261103T012855-0500`, branch head `e0b6d03f19`) and the combination of main,
+  conversion and the dirty-main snapshot (`gpc-gate-dirty-snapshot-with-conversion-20261103T013458-0500`, head
+  `d919cb6f49`; host clippy clean, unit 3304, binary 550; the 19-minute foreground trash emptying is gone on the
+  merged build, add returned in 35.1 s). Plan: if the combination passes, merge it (it carries the conversion
+  branch) and release; if only the conversion gate passes, release that.
+- Package-manager branch (`feat/git-policy-cli-package-manager-aware-worktree-copy`, last code `6f91ba7635`): pnpm
+  offline frozen install, Cargo build-dir clone plus `cargo clean -p` (lock restored byte for byte), toolchain
+  repair; host unit 3205, binary 538. Adopted from standing instructions (veto open): failure lines stay visible
+  under `--quiet` (Git's own convention), repairs move out of the settlement lock ("Use as few locks as possible."),
+  uv waits for a uv project. Owner answers 2026-11-03: main `pnpm install`: "Run it now (Recommended)" (running);
+  online toolchain install during an add: "Install online during the add", against the offered ranking, with the
+  retire-other-checkouts consequence stated to the owner; `--ignore-scripts`: "Run scripts as allowBuilds says
+  (Recommended)"; symlink fallback: "No fallback rule (Recommended)". Being measured before asking: which pnpm
+  binary (shadow or direct), the absolute stub link into main, the ten stale `Cargo.lock` files.
