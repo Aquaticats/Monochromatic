@@ -270,10 +270,11 @@ const testRunEnv = () => {
 // so the processor count alone can start more test files than the limit allows. The numbers mirror
 // package/mutation-test/cli-cargo-mutants/src/process-limits.ts: a test file's own tasks (16) plus one heavy case (30),
 // planned at 80 percent of the nearest limit.
+// `String.fromCharCode(10)` below: a newline escape would be consumed by TOML before JavaScript sees it.
 const nearestPidsLimit = (directory) => {
   if (!directory.startsWith('/sys/fs/cgroup')) { return undefined }
   let limit = Number.NaN
-  try { limit = Number(readFileSync(`${directory}/pids.max`, 'utf8').trim()) } catch (error) { console.error(`Cannot read ${directory}/pids.max: ${String(error)}`) }
+  try { limit = Number(readFileSync(`${directory}/pids.max`, 'utf8').trim()) } catch (error) { if (error.code !== 'ENOENT') { console.error(`Cannot read ${directory}/pids.max: ${String(error)}`) } }
   if (Number.isInteger(limit) && limit > 0) { return limit }
   return directory === '/sys/fs/cgroup' ? undefined : nearestPidsLimit(dirname(directory))
 }
@@ -281,7 +282,7 @@ const ownPidsLimit = () => {
   try {
     const line = readFileSync('/proc/self/cgroup', 'utf8').split(String.fromCharCode(10)).find((entry) => entry.startsWith('0::'))
     return line === undefined ? undefined : nearestPidsLimit(`/sys/fs/cgroup${line.slice(3)}`)
-  } catch (error) { console.error(`Cannot read /proc/self/cgroup: ${String(error)}`); return undefined }
+  } catch (error) { if (error.code !== 'ENOENT') { console.error(`Cannot read /proc/self/cgroup: ${String(error)}`) } return undefined }
 }
 const fileWorkerLimit = (fileCount) => {
   const processors = Math.max(1, Math.min(availableParallelism(), fileCount))

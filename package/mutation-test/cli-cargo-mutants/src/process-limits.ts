@@ -11,6 +11,8 @@ import { readFile } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { dirname } from 'node:path';
 
+import { isMissing } from './fs-guards.ts';
+
 /**
  Root of the control group file system.
  */
@@ -71,7 +73,9 @@ async function readSetting(path: string): Promise<readonly string[]> {
       .trim()];
   }
   catch (error) {
-    console.error(`Cannot read ${path}: ${String(error)}`);
+    // A group without the setting (the root group has no `pids.max`) or a host without control groups is not an error.
+    if (!isMissing(error))
+      console.error(`Cannot read ${path}: ${String(error)}`);
     return [];
   }
 }

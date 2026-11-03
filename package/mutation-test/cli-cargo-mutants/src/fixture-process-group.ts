@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { Socket } from 'node:net';
 
+import { mentionsProcessLimit } from './process-limits.ts';
+
 /**
  Tell whether an error says that the process or group is not there.
 
@@ -82,10 +84,30 @@ function tellReaper(line: string): void {
       ],
     },
   );
-  watchers.set(
-    'reaper',
-    reaper,
-  );
+  if (!watchers.has('reaper')) {
+    watchers.set(
+      'reaper',
+      reaper,
+    );
+    // A watcher that cannot start (the process limit is the usual reason) must say so, not crash the test file with a bare
+    // `spawn ... EAGAIN`; programs are still killed with their group when they end, only a hard kill of this process is not covered.
+    reaper.once(
+      'error',
+      function reportWatcher(error: unknown): void {
+        console.error(`The fixture watcher could not run, so fixture programs are not killed if this process is: ${String(error)}.${mentionsProcessLimit(String(error)) ? ' The process limit was reached: raise the limit (systemd TasksMax=) or lower the number of test files that run at once.' : ''}`);
+      },
+    );
+    /**
+     The watcher's input pipe.
+     */
+    const { stdin } = reaper;
+    stdin?.once(
+      'error',
+      function reportPipe(error: unknown): void {
+        console.error(`The fixture watcher's pipe failed: ${String(error)}`);
+      },
+    );
+  }
   // Neither the watcher nor its pipe keeps this process alive; the watcher ends on its own when the pipe closes.
   reaper.unref();
   if (reaper.stdin instanceof Socket) {
