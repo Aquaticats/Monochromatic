@@ -10152,3 +10152,9 @@ by the coordinator at merge.
   `gpc-gate-package-repair-pnpm-in-image-20261103T022517-0500` running. That branch is 130 commits ahead of its
   remote copy because its auto-pushes keep stopping at the 30 s LFS push deadline (input for the deadline agent).
   The queued second-pass merge work started on `feat/git-policy-cli-word-level-second-merge-pass`.
+- 2026-11-03T02:39:15-05:00: package-manager branch merged to main as `f93bd82ff6`. Gate
+  `gpc-gate-package-repair-pnpm-in-image-20261103T022517-0500` passed on branch head `a60b5318bb` (3914 run, 3914
+  passed, 6 skipped). Main had moved since; the only new main commits under the wrapper were the 0.5.20 version
+  bump (`ad89623dd7`) and the handover union line (`8ecbb0b188`), and `git merge-tree` found no conflict, so the
+  gate result stands without a combined rerun. Ships in 0.5.21. Owner questions still open from this lane: the
+  hand-made absolute stub link into main, the stale `Cargo.lock` files, and other packages' container disk weight.
