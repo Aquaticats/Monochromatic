@@ -9762,3 +9762,19 @@ by the coordinator at merge.
   original questions (recovered from the transcript into each folder's `question.txt`) and each wrote its session file
   at once. The conversion and trash review now reads the conversion branch's `worktree_convert.rs` and
   `worktree_trash.rs`. The content-check review (`review-convert-content`) is running too.
+- pnpm store change, user-visible: in the main checkout `pnpm update -r --no-save` stopped with
+  `ERR_PNPM_UNEXPECTED_STORE` because main's `node_modules` was still linked from `node_modules/.pnpm-store/v11` (the
+  relink of main had been deferred, and the comment on `storeDir` said only that the next install relinks). By
+  23:22:56 main's `node_modules/.modules.yaml` named the shared store, so a `pnpm install` had run (not by this
+  session). The comment now says other commands stop until that install (`91e5e8cd58`). That commit also swept in the
+  user's concurrent catalog bumps (pi-* `>=1.5.0`, `hb-subset-wasm` `>=0.5.0`, `unbash` `>=6.0.3`) without their
+  `pnpm-lock.yaml`, which stays uncommitted and is the user's; corrective comment:
+  https://github.com/Aquaticats/Monochromatic/commit/91e5e8cd58f5fe5db0cf6db1f2a001673ea96ab5#commitcomment-207870800
+  The old in-tree store `node_modules/.pnpm-store` is still on disk and no longer used.
+- Branch-name cleanup: 13 merged branches from this effort with nondescript names (`fix-push-semantics`,
+  `fix-review-log-common`, `fix-takeover-hook-race`, `integ-20261101`, `follow-ups-059`, `normal-conditions-gaps`,
+  `fix-service-queue`, `integrate/cli-git-native-command-parser`, `perf-harness-service`, `test-hang-bounds`,
+  `fix-lfs-hermetic-20261101`, `integrate-slices`, `lint-lockfiles`); deleting them locally and on origin was refused
+  by the auto-mode classifier ("Git Destructive"), so it waits for the owner. `e2e-trace-diagnosis-20261101` is
+  unmerged and stays. The other 88 nonconforming branches belong to other work (audit:
+  `~/temp/agent/branch-name-audit.txt`).
