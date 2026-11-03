@@ -245,9 +245,9 @@ fn serve_earlier_release(name: &str, retires: bool) -> FixtureService {
                 let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(release) });
                 greeting.push('\n');
                 let _sent = std::io::Write::write_all(&mut &stream, greeting.as_bytes());
-                let mut line: String = String::new();
-                let _read = std::io::BufReader::new(&stream).read_line(&mut line);
-                let line: String = line.trim_end().to_string();
+                let mut raw: String = String::new();
+                let _read = std::io::BufReader::new(&stream).read_line(&mut raw);
+                let line: String = raw.trim_end().to_string();
                 if line == encode_client(&ClientMessage::Retire) && retires {
                     replaced = true;
                 }
