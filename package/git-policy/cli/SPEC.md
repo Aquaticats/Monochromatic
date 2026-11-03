@@ -632,6 +632,23 @@ A snapshot of the main checkout does not print the copy summary, because no copy
 line to standard error saying the worktree was made as a snapshot of the main checkout and that nested worktrees, caches and
 run records were left out.
 
+Parallel checkout of the new worktree:
+when Git's own checkout makes the new worktree (the person's `git worktree add` run as Git's checkout, and the `git reset --hard`
+that completes a worktree after a snapshot or clone attempt failed), the wrapper puts `-c checkout.workers=0` (one worker per
+logical CPU) before the subcommand, after the global options already there, only when nothing the person controls sets
+`checkout.workers`.
+Anything counts as setting it: an entry of any scope in the configuration Git reads (system, global, local, worktree, `include`d
+files), a `GIT_CONFIG_KEY_<n>` or `GIT_CONFIG_PARAMETERS` variable that names the key, and a `-c` or `--config-env` the person
+typed before the subcommand, whatever the value.
+Then nothing is added and Git uses the person's value.
+The files are read through the one configuration read the wrapper makes for the add (answered in process where the readers
+know the command line); a configuration that cannot be read adds nothing.
+The snapshot and clone rungs run no Git checkout of the whole tree and are not changed.
+Owner decision, 2026-11-03 (question tool, chosen against the coordinator's recommendation): "Pass only if unset".
+Basis: Git's parallel checkout made a 20,000-file checkout faster in all three paired runs another agent measured
+(36.9 s to 4.5 s, 3.1 to 2.3, 7.2 to 1.75).
+`core.fsmonitor` and its daemon are left alone, as everywhere in the wrapper.
+
 Telling why an add was not made as a snapshot:
 when a `git worktree add` that the ladder serves succeeds without being made as a snapshot, and the person could change
 the cause, the wrapper writes one line to standard error unless `--quiet` is given, after Git's own words and before the

@@ -18,12 +18,16 @@ use super::support::{Fixture, Observed, bounded, executable, fixture, git, obser
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
-/// The text the recorded command line must contain for the wrapper's parallel-checkout option, before the subcommand.
-const ADDED: &str = "-c checkout.workers=0 worktree add";
+/// The option the wrapper adds, which opens the recorded command line: the wrapper puts its own hook-switching options after the
+///  person's leading global options and before the subcommand.
+const ADDED: &str = "-c checkout.workers=0 ";
 
 /// A repository and a stand-in Git ahead of real Git that appends every command line it receives to a log, then runs real Git.
+///  The repository holds an untracked file and is no subvolume, so neither the clone rung nor the snapshot rung serves an add
+///  from it: Git's own checkout does, which is the run these controls watch.
 fn recorded_repository(fixture: &Fixture) -> (PathBuf, PathBuf) {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("untracked.txt"), b"untracked\n").expect("untracked file");
     std::fs::create_dir(fixture.root.join("shim")).expect("shim directory");
     executable(fixture.root.join("shim/git").as_path(), b"#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$CLI_GIT_TEST_SPAWN_LOG\"\nexec /usr/bin/git \"$@\"\n");
     let log: PathBuf = fixture.root.join("spawn.log");
@@ -62,7 +66,7 @@ fn an_unset_checkout_workers_gets_parallel_checkout_before_the_subcommand() {
     let (observed, lines) = run_recorded(&fixture, repo.as_path(), log.as_path(), &["worktree", "add", "-b", "topic", "../topic"], &[]);
     assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
     let line: String = add_line(&lines, &observed);
-    assert!(line.contains(ADDED), "{line}");
+    assert!(line.starts_with(ADDED) && line.contains(" worktree add "), "{line}\n{}", stderr_of(&observed));
     assert!(fixture.root.join("topic/.git").exists(), "the worktree was made");
     remove(&fixture);
 }
