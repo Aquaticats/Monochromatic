@@ -254,6 +254,30 @@ fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child> {
     return answer.recv().expect("the spawner thread answers");
 }
 
+/// How long a fixture waits for an ended service's socket to stop answering before it says the service is still there.
+const SOCKET_RELEASE_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// What:
+///  Waits until nothing answers at `socket`: the file is absent, or it is a stale socket whose listener is gone.
+/// Why:
+///   Ending a service that runs under a tracer reaps the tracer, and the traced service dies a moment later, so its socket can
+///  still answer after the fixture counts the service as ended. A new service cannot take such a socket, and a readiness poll
+///  that connects to it reports a service that is not the new one.
+///
+/// # Panics
+/// When something still answers after `SOCKET_RELEASE_PATIENCE`, which is a service the fixture did not end.
+fn wait_until_nothing_listens(socket: &Path) {
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        match std::os::unix::net::UnixStream::connect(socket) {
+            Err(error) if matches!(error.kind(), std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::NotFound) => return,
+            Ok(_) | Err(_) => {}
+        }
+        assert!(began.elapsed() < SOCKET_RELEASE_PATIENCE, "something still answers at {} although the fixture ended its service", socket.display());
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
 impl FixtureService {
     /// What:
     ///  Starts the service of the worktree whose own Git directory is `git_dir`, listening at the socket the wrapper looks for,
@@ -269,6 +293,9 @@ impl FixtureService {
             return;
         }
         let socket: PathBuf = git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path());
+        // A service ended a moment ago may still hold the socket; the new one would end with its address in use while the poll below
+        //  connected to the old one and called the new one ready.
+        wait_until_nothing_listens(&socket);
         let launch: ServiceLaunch = fixture.service_launch.lock().expect("the service launch").clone();
         let mut command: Command = match launch.prefix.split_first() {
             Some((program, rest)) => {
@@ -353,8 +380,10 @@ impl FixtureService {
     ///  what the user manager does when a service has gone.
     pub fn stop_all(&self) {
         let mut children = self.children.lock().expect("the fixture's services");
-        for child in children.values_mut() {
+        for (key, child) in children.iter_mut() {
             kill_with_everything_it_started(child);
+            // Reaping the child is not the service's end when a tracer is the child: the socket answers until the service is gone.
+            wait_until_nothing_listens(git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path()).as_path());
         }
         children.clear();
     }
