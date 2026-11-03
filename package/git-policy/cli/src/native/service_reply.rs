@@ -1,86 +1,85 @@
 //! What:
-//!  The service's side of one waiting client: the connection the answer will be written to, and the beat that tells the
-//!  client the service is alive until the answer is written.
+//!  The service's side of one waiting client: the queue of messages the landing thread answers with, and the loop that writes
+//!  them to the client's connection together with a heartbeat while nothing else is to say.
 //! Why:
 //!  A client waits for its answer with no clock of its own (`service_client.rs`), so the only thing that ends its wait is
-//!  silence. The beat comes from the thread that read the request, which has nothing else to do while the request is queued
-//!  or landing, so a long batch, a long queue or a slow disk in front of the landing never reads as a dead service. The
-//!  landing thread writes the same connection, so the two take turns on it: a line is written whole or not at all.
+//!  silence. The thread that read the request has nothing else to do while the request is queued or landing, so it writes
+//!  the heartbeats, and a long batch, a long queue or a slow disk in front of the landing never reads as a dead service. The
+//!  landing thread hands its messages to that same thread through a channel instead of writing the connection itself, so the
+//!  connection has one writer, a line is written whole, and no lock guards it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const reply = new Reply(socket); queue.push({ request, reply }); await beatWhileHeld(reply.weak(), HEARTBEAT_EVERY);
+//! const [reply, messages] = makeReply(); queue.push({ request, reply }); await writeUntilAnswered(socket, messages, HEARTBEAT_EVERY);
 //! ```
 
 use super::service_protocol::{ServiceMessage, encode_service};
 use std::io::Write;
 use std::os::unix::net::UnixStream;
-use std::sync::{Arc, Mutex, PoisonError, Weak};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::time::Duration;
 
 /// What:
-///  The connection of one queued request, shared by the thread that beats and the thread that answers.
+///  The landing thread's end of one client's messages.
 /// Why:
-///   The lock covers one write of one line and nothing else: a heartbeat and an answer from two threads must not interleave
-///  their bytes on one stream, and a line of the answer can be longer than one kernel buffer segment. No other lock is held
-///  while it is taken, so nothing can wait on it for longer than one write.
+///   Dropping it is what answering the request ends with: the writer sees the channel closed, writes what is left, and closes
+///  the connection.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class Reply { constructor(private socket: Mutex<Socket>) {} send(message) { ... } }
+/// class Reply { constructor(private queue: Channel<ServiceMessage>) {} send(message) { this.queue.push(message) } }
 /// ```
 pub struct Reply {
-    /// The connection; dropping the last strong holder closes it.
-    stream: Arc<Mutex<UnixStream>>,
+    /// Where the messages for the client go.
+    sender: Sender<ServiceMessage>,
 }
 
 impl Reply {
-    /// The reply over `stream`.
-    pub fn new(stream: UnixStream) -> Self {
-        return Self { stream: Arc::new(Mutex::new(stream)) };
+    /// A reply and the end the writer loop reads.
+    pub fn new() -> (Self, Receiver<ServiceMessage>) {
+        let (sender, receiver) = channel();
+        return (Self { sender }, receiver);
     }
 
-    /// Writes `message` as one line; a client that went away has nothing to be told.
+    /// Queues `message` for the client; a client that went away has nothing to be told.
     pub fn send(&self, message: &ServiceMessage) {
-        write_line(&self.stream, message);
-    }
-
-    /// A handle that does not keep the connection open, for the thread that beats.
-    pub fn beat_handle(&self) -> Weak<Mutex<UnixStream>> {
-        return Arc::downgrade(&self.stream);
+        let _queued = self.sender.send(message.clone());
     }
 }
 
-/// Writes `message` and a newline to the stream behind `shared`, as one write.
-fn write_line(shared: &Mutex<UnixStream>, message: &ServiceMessage) {
+/// Writes `message` and a newline to `stream` as one write; false when the client is gone.
+fn write_line(stream: &UnixStream, message: &ServiceMessage) -> bool {
     let mut line: String = encode_service(message);
     line.push('\n');
-    // A poisoned lock means another writer panicked between two writes of its own; this line is still whole.
-    let stream = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    let mut writer: &UnixStream = &stream;
-    let _written = writer.write_all(line.as_bytes());
+    let mut writer: &UnixStream = stream;
+    return writer.write_all(line.as_bytes()).is_ok();
 }
 
 /// What:
-///  Sends a heartbeat every `every` until the reply is gone or the client is.
+///  Writes each queued message to the client, and a heartbeat whenever `every` passes with nothing queued, until the reply is
+///  dropped or the client is gone.
 /// Why:
-///   The reply is gone when the request has been answered, so the beat ends with the answer and needs no flag; a write
-///  that fails means the client closed its end.
+///   The heartbeat is the proof of life the client's wait rests on; the queued messages come first, in order, so a beat never
+///  stands between a notice and the answer that follows it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// while (true) { await sleep(every); const reply = weak.deref(); if (!reply || !reply.tryWrite(heartbeat)) return; }
+/// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (!write(m ?? heartbeat)) return; }
 /// ```
-pub fn beat_while_held(handle: &Weak<Mutex<UnixStream>>, every: Duration) {
+pub fn write_until_answered(stream: &UnixStream, messages: &Receiver<ServiceMessage>, every: Duration) {
     loop {
-        std::thread::sleep(every);
-        let Some(shared) = handle.upgrade() else { return };
-        let mut line: String = encode_service(&ServiceMessage::Heartbeat);
-        line.push('\n');
-        let stream = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        let mut writer: &UnixStream = &stream;
-        if writer.write_all(line.as_bytes()).is_err() {
-            return;
+        match messages.recv_timeout(every) {
+            Ok(message) => {
+                if !write_line(stream, &message) {
+                    return;
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                if !write_line(stream, &ServiceMessage::Heartbeat) {
+                    return;
+                }
+            }
+            Err(RecvTimeoutError::Disconnected) => return,
         }
     }
 }

@@ -25,7 +25,7 @@ use super::claim_time::ClaimTime;
 use super::service_retry::RetrySchedule;
 use super::push_retry::{PLAN_DIRECTORY, PushRetries};
 use super::service_work::{GitHandlers, Wake, run_round};
-use super::service_reply::{Reply, beat_while_held};
+use super::service_reply::{Reply, write_until_answered};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
 };
@@ -289,12 +289,12 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
         }
         Ok(ClientMessage::Commit(request)) => {
             let id: String = request.id.clone();
-            let reply: Reply = Reply::new(stream);
-            let beat: std::sync::Weak<std::sync::Mutex<UnixStream>> = reply.beat_handle();
+            let (reply, messages) = Reply::new();
             let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
             super::service_fault::queued(id.as_str());
-            // This thread has nothing else to do until the request is answered, so it keeps the client told that the service lives.
-            beat_while_held(&beat, HEARTBEAT_EVERY);
+            // This thread has nothing else to do until the request is answered, so it writes the answers the landing thread
+            //  queues and keeps the client told that the service lives.
+            write_until_answered(&stream, &messages, HEARTBEAT_EVERY);
         }
         Ok(ClientMessage::Retire) => {
             log(retire_line(release).as_str());
