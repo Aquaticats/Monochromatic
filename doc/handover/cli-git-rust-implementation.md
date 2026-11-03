@@ -9418,3 +9418,27 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   and can block on a full pipe; concurrent prune passes; impossible calendar dates accepted as stamps; the 24-hour
   floor measured from the start of the stamped second; unchecked size and age arithmetic; traversal, removal and
   audit failures reported as success. `config_discarded.rs`: no findings.
+- 0.5.16 PUBLISHED (crates.io 2026-11-03T03:05:45Z, built from `a0c5ad2cc4`) and installed (lock commit `89eadbab68`):
+  sample commit wall 1491 ms (`provisionMs` 674: the 0.5.15 service retired and 0.5.16 started for this commit),
+  service `landing_ms=70`. New service lines `started` and `ready` carry distinct journal times 270 µs apart, the
+  native-datagram transport at work; the retiring 0.5.15 lines still share one stream timestamp.
+- Fault-limits flake fixed (`fix/git-policy-cli-fault-limits-service-listen`, `9c3e62339e` red, `c16c6f48b1` fix): the
+  probe counted any `connect` during the about 1 ms a starved service lived (it binds, cannot start its acceptor thread
+  under `RLIMIT_AS`, exits 4) as a start, and the fixture then polled a dead service for 60 s. Now a start counts only
+  with a greeting, and the fixture fails at once when the child has exited. No product change (the service already
+  exits loudly). Gate 59 running.
+- Timer-race audit done on `fix/git-policy-cli-ended-watch-order` (`41e2faf1c0`, `f029ed4a09`, `3caa3279fc`,
+  `ebff8fe9c5`): about 70 test files read; race-dependent releasers converted to product-side release points (a
+  600 ms injected stall before the wait's first look turned the old tests red). Its first binary run had one failure
+  whose name was not captured; a `--no-fail-fast` rerun passed 474 of 474. Gate 60 running on it to name any recurrence.
+  Two residual races (`binary_service_replay_tests.rs` `run_one_batch` 300 ms sleep; the supervisor's 600 ms window)
+  sent back to the same agent.
+- Campaign lock round 8 fixed (`fix/mutation-test-cli-cargo-mutants-campaign-lock`, `c4d7d0b305` to `d5e5911ba1`): the
+  campaign process opens the evidence directory and lends the descriptor to a short `flock --nonblock`, so the lock
+  lives exactly as long as the campaign process; start evidence is tri-state, and a markerless attempt without a
+  `campaign-protocol.json` record is unknown and rejected. Consequence: legacy evidence directories with such attempts
+  now fail reconcile as invalid. Main merged into it; unit suites running before the merge to main.
+- QUEUED for the next free agent slot: the mutation-test package's `test:unit` times out and hits ENOENT under
+  `TasksMax=300` (campaign-passes, -resume, -baseline suites), and killed runs left about 40 orphaned
+  `campaign-fixture.ts` processes.
+- Journal-logging review fixes assigned (`fix/git-policy-cli-journal-and-prune-review`).
