@@ -7,7 +7,10 @@ The user requested:
 Flag any blockers."
 They subsequently required collecting missing fresh upstream reproduction evidence now,
 rather than treating its absence as a reason to stop.
-No upstream message has been sent.
+The user filed [Chromium issue 581090722](https://issues.chromium.org/issues/581090722).
+Its public page was verified to contain the report,
+the `Internals>Metrics` component,
+and the sanitized JSON attachment.
 
 ## Work items
 
@@ -93,14 +96,35 @@ The bundled Browser plugin and its browser-control server are disabled in user c
 A fresh uncached local app-server catalog confirmed no Browser skills.
 The approved agent rules and generated copy are committed.
 
-The remaining upstream step requires the user's normal signed-in browser.
-Nothing has been posted.
+The initial upstream report is posted.
 For the live form,
 the advised role is `Chromium Contributor`
 and the advised template is `Defect on Linux`;
 the user supplied those exact available choices.
-Submit the prepared report and sanitized JSON under `Internals>Metrics`,
-then record the issue URL here.
 Do not request sign-in through a testing browser.
 Human maintainer feedback requires a human reply.
-No telemetry redesign or Chromium source patch is queued by this task.
+
+## Active follow-up work
+
+- The user requested a script to watch the issue for at least the next `24` hours.
+  Anonymous read-only HTTP requests used by the public page have passed live checks.
+  The watcher is running under `${HOME}/.local/state/chromium-issue-watch/581090722`.
+  Its saved deadline is `2026-11-04T12:07:36.851Z`,
+  with checks every `5` minutes.
+  The [watch record and retained sources](chromium-issue-581090722-watch.md)
+  document the active service,
+  successful live reads,
+  resource bounds,
+  and functional/type checks.
+- The user then asked why no patch had been prepared and attached.
+  Prepare and test a candidate patch.
+  The [source assessment](../planning/browser-disk-responsiveness/chromium-metrics-patch.md)
+  recommends initial local-memory allocation for reporting-ineligible unbranded processes,
+  preserving forced-reporting and test overrides.
+  No C++ implementation or test result is claimed yet.
+- The user approved the `HQP` readiness-check addition to the troubleshooting skill.
+  It requires an attempted authorized fix prototype before a filing handoff,
+  with explicit report-only scope or a concrete prototype blocker as the alternatives.
+  The source rule is edited and generated copies are synchronized.
+  Markdown lint passed;
+  the first narrowly targeted skill-lint invocation checked no files and does not count.
