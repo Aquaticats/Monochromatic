@@ -395,8 +395,34 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   B3 with path-set changes (R9-9),
   undefined exits (R9-10);
   P3 rule S's arithmetic (R9-11).
-- Design revision 10 for the ninth review,
-  its agent resumed with the review and the step-1 models' C4 `EEXIST` finding.
+- Done:
+  design revision 10,
+  `7afb60a024` to `dc6e809eca` (2026-11-03T12:22:02-05:00 to 12:27:13),
+  answering all of the ninth review;
+  new rule D (whoever relies on a visible name makes it durable first),
+  rule N (the lane removes only names no foreign program creates),
+  a recovery helper for C0,
+  delta merge installs with attachment authority,
+  a hold ref rooting each recovery copy,
+  E1 by exit status first,
+  amendments as fresh identities,
+  a `resume` point on every waiting request,
+  a durable hook result file.
+  It states that shipped code should stop removing reference locks until a primitive that cannot revoke a replacement lock is shown;
+  that is the open owner question in "Shipped lock removal".
+  Its five choices picked in `eed561efaa` (see "Commits never fail,
+  revision 10").
+  Running,
+  not an agent:
+  the tenth cross-vendor review (`~/temp/agent/reviews/commits-never-fail-sol-10.txt`).
+  Running:
+  step 1,
+  third round (revision 10 models,
+  the ninth review's controls,
+  the components re-review's fixes and the four left from the first review,
+  the comment-density pass;
+  it writes `commit-components-3.diff`,
+  `components-r3-` files and `commit-models-1.diff`).
 - Done,
   not merged anywhere:
   step 1,
@@ -764,16 +790,11 @@ in this order:
 - A gate after the regression fix,
   the index round 4 and the waits follow-ups merge,
   then release 0.5.28.
-- After revision 10:
-  resume the step-1 agent to model it,
-  build the ninth review's section-5 controls and the section-4 controls still missing
-  (rule S over every mutation,
-  C1 starvation,
-  M1 per-path outcomes,
-  a multi-file merge),
-  fix the components re-review's findings and the four left from the first review,
-  and do the comment-density pass;
-  then a cross-vendor review of the models.
+- After step 1's third round:
+  the components' third review from `commit-components-3.diff`,
+  and the models' first cross-vendor review from `commit-models-1.diff` (split if it exceeds about 250 KB).
+- After the tenth design review:
+  revision 11 if it needs one.
 - The third cross-vendor review of cargo-shadow,
   three parts,
   once its fix round writes the diffs.
@@ -2007,6 +2028,34 @@ B-hand and B-restart.
    then swap (M-A),
    over swap first,
    whose window lets a plain commit capture the reverse of the merge ("never discard user data").
+
+### Commits never fail, revision 10 (five choices)
+
+In `doc/planning/cli-git-commits-never-fail.md`,
+"Questions for the owner",
+on `fix/git-policy-cli-commits-never-fail` (`eed561efaa`).
+
+1. A stranded `index.lock` the lane's own dead process made:
+   never removed (R-never),
+   reported with the incarnation that made it,
+   over pinning the inode and unlinking,
+   which keeps the pathname race of the shipped sweeper.
+2. A merge that touches a path the person has staged:
+   it changes nothing and waits (P-wait,
+   Git itself refuses this merge),
+   over turning the staging into an unstaged edit.
+3. A `git switch` finishing between the merge's guard and its file writes:
+   detect after and restore from pinned files (W-detect),
+   over never writing merge files automatically,
+   because of "Auto merging should never fail."
+4. Keeping the recovery copy against a late `git gc`:
+   a hold ref (G-root),
+   over making maintenance wait on a live lane;
+   the prune view including `refs/cli-git/*` must pass as a step-1 experiment first.
+5. Merge order:
+   check out first,
+   then swap (M-A),
+   kept after the ninth review's repairs.
 
 ### Shipped lock removal (four questions)
 
