@@ -9051,3 +9051,31 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   count and oldest save. Also folded in its own cross-vendor review (non-blocking journal fallback, redaction before the
   cut, write-only appender open, signal fallback priority prefix). Correction sent: my brief named Git config keys, but the
   wrapper's settings live in `cli-git.config.jsonc`; the two limits move there.
+- DECIDED BY THE OWNER (2026-11-02, question tool): "Keep LFS on the fast path (Recommended)". The ladder's fast rungs keep
+  the exception for the standard Git LFS filter when its definition is identical in both contexts; any other filter
+  declines to Git's checkout.
+- Ladder round-2 fixes DONE (`btrfs-worktree-ladder` `43df6aa391`, `07c96ab1a5`, plus a measurement docs commit; all 14,
+  none rejected): planned records delete nothing, `bind_registration` captures both directory identities, deletion only
+  of objects with recorded identity via quarantine rename, ordered config comparison, non-LFS filters decline, success
+  only after the completion marker, `openat2` with RESOLVE_BENEATH, NO_SYMLINKS, NO_XDEV, NO_MAGICLINKS. On btrfs:
+  library 2949 of 2949, binary 467 of 467. Wall times under load average 39 to 41 do not separate builds; CPU per add 0.17
+  to 0.20 s (was 0.10 to 0.12); peak memory about 20 MB vs 495 MB for 0.5.14; 5 process starts vs 21.
+- `claim-lease-load` DONE (`dc39558554`, from `integrate-074`): the test drives renewal with an injected clock at the
+  production 120 s lease; production renews every 40 s, so a claim is lost only after an 80 s stall; real gap closed: the
+  holder now checks its claim file on disk right before acting (`HeldClaims::is_held_on_disk`).
+- `bound-supervisor-r2` DONE (`7e4d573f40`): pidfd pins with start-time checks and `pidfd_send_signal`, no process-group
+  kills, kill record published before the first signal and claimed before cleanup, exit handler fails a process with an
+  unclaimed kill, per-task states, explicit holds for test-controlled waits, zombie root finished, syscall counts out,
+  child page faults as a sign of life; double-forked escapees documented as a limit. Library 2826, binary 475.
+- `logging-quality` `eb6012af3b`: the pruning limits live in `cli-git.config.jsonc` as `discardedCopies.maxAgeDays` and
+  `discardedCopies.maxSize`; a bad value fails the command with exit 2 like every other bad value in that file (accepted:
+  it matches the file's validation and the owner's "loud, clear failure").
+- `main-ignored-copy` DONE (`f538c41379`, from main `0966fa439b`): a main-sourced add carries main's ignored state minus
+  nested checkouts, caches and run records (`worktree_copy_prune.rs`, `COPY_RUN_RECORDS = false`); FICLONE copies verified
+  by stamp; parallel stage, install and removal. Cost: about 32 s at load 7.5 (26.8 s of it the copy, 190,087 entries),
+  median about 89 s under load 16 to 38; without the copy (0.5.14) median 26.2 s. Above the owner's "not so heavy"; the
+  snapshot route (2 to 3 s) declines today because 48 of 139 nested worktrees are ordinary directories. Also found: a
+  worktree that is its own subvolume makes pnpm pick a per-project store, and `--offline` then fails
+  (`ERR_PNPM_NO_OFFLINE_TARBALL`); `--store-dir <main>/.pnpm-store` works. Not merged until the cost is put to the owner.
+- Three cross-vendor reviews timed out at 3600 s with no output (planted-control round 8, conflict-side attempt 3, and the
+  earlier two); checking the reviewer's health before relaunching.
