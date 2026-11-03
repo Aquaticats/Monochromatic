@@ -62,7 +62,7 @@ So item 7 of the starting list is now: policy errors, an empty message and an un
 A named conflicted path commits with a warning, and a failing signer is outside.
 `SPEC.md` says so.
 
-Items 1 to 6 are designed out.
+Items 1 to 6 are designed out where the design below removes the failure, and listed as waits where it only moves it ("What is guaranteed to complete, and what may wait"); no wait is called designed out.
 Item 4's moved-head questions were put to the owner and are decided (below).
 
 ## What the code shows about why these fail
@@ -152,6 +152,150 @@ the disk, both ran inside the lock hold, and the design below removes both from 
 A child that took a few seconds longer than its 60 s class bound would have been stopped, and the stop ends the commit
 (before the branch moves) or leaves the index update undone (after).
 
+## Transaction model
+
+The cross-vendor review (below, "Answers to the review") found the central gap: the first version removed failure returns one
+step at a time and never defined the whole transaction.
+This section is that definition.
+It is a design to be checked, not a proof: the claims marked "to test" need fault-injection controls before any code ships.
+
+### States of a request
+
+A request is a durable record with a state, written by atomic rename, one file per request under the worktree's service
+directory (the journal's directory today).
+The states, in order:
+
+- `captured`: the client has read the worktree and index and written the immutable inputs (below).
+  The client owns it. A client that dies in this state (its process identity, pid plus start time, is gone) abandons it, and the
+  lane removes the record and its retention.
+- `handed-over`: the client has marked the record complete; from here the record belongs to the lane and survives the death
+  of the client and of the connection (the owner: work already handed over stays on disk and the next run finishes it).
+- `published`: the commit exists on the branch. The record names the commit and the ref value it replaced.
+- `materialized`: the index entries (and, for merges, the worktree files) are brought to the new head by the rules below.
+- `closed`: the client acknowledged, or no client waits any more; retention is released.
+
+### Immutable captured inputs
+
+At capture the client writes, outside the object store's collectible storage, a spool directory named by the request id:
+the bytes of every captured file (not only their object names), the paths, modes, the expected pre-commit index entry of
+every path (stage, mode, object), the captured base, the message, the identities, the options that decide the commit, and for
+a merge, a revert or an amend the captured base, the captured resolved tree and the original parents.
+Nothing after capture reads the worktree again for this request: the worktree is not the request's source of truth, the spool is.
+The lane imports the spool into the object store with one `fast-import` stream that also creates the hold ref
+`refs/worktree/cli-git-hold/<id>`; if a prune removes any of those objects at any time before `closed`, the lane imports them
+again from the spool, so the bytes committed are the captured ones and never a later edit.
+
+### Request identity, ownership and fencing
+
+- The request id is a random 128-bit value made by the client and written in the record; a resend carries it, and every
+  answer is a function of the record's state, so a lost answer is recovered by asking again.
+- One lane per worktree publishes requests. Ownership is an epoch: a worker (the service, or a client that finds no live
+  service) becomes the owner by creating `lane/epoch-<n+1>` exclusively (`O_EXCL`), where `<n>` is the highest epoch present;
+  the file records the worker's process identity. The highest epoch is the owner. No lock is held.
+- A worker takes over from an owner only when the owner's progress counter has not advanced for a lease period and the owner
+  process shows no sign of work (the push meter of `push_progress.rs`). The counter is written by the worker's landing task
+  after each phase of the work (objects imported, intent written, ref published, entries installed), never by a timer
+  thread, so a live heartbeat with a wedged landing is not mistaken for progress.
+- Every publication follows one order, which excludes the same request landing twice at successive heads:
+  1. read the branch tip `h`;
+  2. check that this worker's epoch is the highest and that the record is not `published`;
+  3. compare-and-swap the ref from `h` to the new commit.
+  If another worker published the request before step 1, its epoch claim came before its swap, so step 2 fails. If it
+  publishes after step 1, the tip is no longer `h` and step 3 fails. A worker whose step 2 or 3 fails never rebuilds on the new
+  head without checking step 2 again. (To test: a model of two workers with every interleaving of the three steps, and a
+  fault-injection control that stops the older worker between each pair of steps.)
+- The journal's numbering is per request (`<id>.<epoch>`), so no shared counter is contended.
+
+### Publication
+
+The compare-and-swap of the ref is the publication, and nothing else is: it is the one atomic point at which the commit
+exists.
+The record is marked `published` immediately after; recovery decides `published` from the ref (the commit named by the record is
+the tip or an ancestor of it), so a crash between the swap and the mark loses nothing.
+A commit Git must build (signed, hooked, editor) is built after the person's message is fixed, inside a branch turn: the
+client asks the lane for the turn (an epoch-fenced lease on the branch, held for the build and the swap only), and a build begun
+before the turn is built again in it.
+
+### Materialization with provenance
+
+Commits.
+The index entries are brought to the new head by a conditional install per path, never by snapshot equality.
+For each path the record holds the expected pre-commit entry `E_pre` (from capture) and the commit's entry `E_commit`.
+Under the index lock, for each path with the current entry `E_now`:
+- `E_now == E_pre` (or the entry an earlier request of this lane installed): install `E_commit`;
+- `E_now == E_commit`: nothing to do;
+- anything else (another program staged different content, or changed stages): keep `E_now`, and report the path.
+So a foreign program's staged content is never replaced by ours, and the check is per entry, made while the lock is held.
+Unmerged stages follow the same rule. Open intents are applied in publication order. The reconciler never blocks the next
+batch: it already uses a single try for the lock (`try_acquire`) and leaves the intent open for the next round.
+The worktree files of a plain path commit are not touched by the commit; files a policy rewrote are installed after the commit
+by the existing checked install.
+
+Merges.
+The checkout cannot be deferred past the check that protects the person's edits, and a checkout after publication cannot be
+rolled back safely once another commit descends from the merge.
+So a merge keeps Git's order: the worktree and index are materialized first, by Git's own two-way tree update under
+`index.lock` (which checks each path against the index immediately before it writes it, the check Git itself makes), and the
+ref is swapped last; a swap that loses is followed by the existing restore of the merge's paths, which restores only paths still
+holding the old, merged or moved-head content. The merge does not move the ref first. (This answers review finding 1.)
+
+### Acknowledgement
+
+The lane answers `Landed` after `published` is durable; a client that did not get the answer asks again and receives the same
+answer.
+The wrapper's own index commands wait for open intents of this worktree before they run (`service_hold_retry.rs`), so a person
+using the wrapper sees a consistent index.
+
+### Recovery
+
+At start, at each takeover, and before each batch the lane scans the records:
+- `captured` whose client is gone: remove;
+- `handed-over`, not published: decide from the ref; if the owner is gone, import from the spool and publish under the order
+  above, parents set to the current tip by replay of the captured change (below);
+- `published`, not `materialized`: apply the conditional install;
+- `closed`: remove spool and hold.
+Every step is idempotent, and every record file is replaced by atomic rename.
+
+### Replay of the captured change on a moved head (owner's choice: stack on the new head)
+
+The result is built from the captured change, not from the captured tree.
+Let `B` be the captured base, `T` the captured resulting tree (or resolved tree for a conclusion), and `C` the new head. The new
+tree is the result of a three-way merge with base `B`, ours `C` and theirs `T`
+(`git merge-tree --write-tree --merge-base=B C T`, or the in-process equivalent that matches it), so whatever `C` added
+(the lexer) stays and the person's change (the amend, the manual resolution, the revert's edits) is applied on top.
+A conflict in this replay is an allowed outcome: the replay stops with the conflict recorded and the captured inputs kept.
+The commit's parents are `C` (and `T`'s other parent for a conclusion).
+
+## What is guaranteed to complete, and what may wait
+
+No wait below is called designed out.
+A wait that can last for ever when a live foreign program never lets go is listed as such.
+
+Guaranteed to complete (no wait on another program, no cap, no retry count):
+- capture and handover: local reads and one spool write; they fail only for the causes the owner listed as outside
+  (a full disk, I/O errors);
+- starting without the service: the client can become the lane owner;
+- a request's answer after a crash: asking again returns the state;
+- retention of captured bytes until `closed`;
+- the merge-free path commit's own publication, when no foreign program holds the branch's ref lock and none keeps moving
+  the branch.
+
+May wait (with a notice naming what is waited for and the holder):
+- publication while a live foreign program holds the branch's ref lock: `update-ref` waits only 100 ms by default
+  (`refs.c:996-997`) and then fails (`refs/files-backend.c:846-860`); the lane waits for the release. If that program never
+  lets go there is no safe transition: the lane cannot remove a live lock, and cannot publish without it.
+  Open question for the owner (put to the owner by the coordinator).
+- publication of one request against a foreign writer that wins immediately before every swap: lane-routed requests are served
+  first in, first out, and the foreign writer's commits are each progress for the repository, but a compare-and-swap is not
+  starvation-free for one request. The notice names the foreign tip each round.
+- materialization of the index while a foreign program holds `index.lock` (commits: off the commit's path; merges: before the
+  swap). The record stays open and the wrapper's own index commands wait for it.
+- the remaining Git children (`fast-import`, `commit-tree`, `update-ref`, `merge-tree`) if one hangs: the idempotent ones are
+  stopped and started again after a stall (the retry-based attempt on this branch, kept for exactly this containment of a Git
+  bug); `update-ref` is never stopped, so a hung `update-ref` waits.
+- local hooks, required clean filters and a merge that would overwrite unsaved edits (`merge-isolation/paths-in-use`):
+  not classified. Open questions for the owner; this record leaves them open.
+
 ## Item 1: a Git step of the commit crosses its class bound
 
 Root cause: the commit path starts many Git children (the quick class, 60 s, includes `diff-tree`; the bulk class, 300 s)
@@ -208,53 +352,41 @@ can cost data, so the commit waits with a notice every interval that names the p
 owner) ends it.
 The retry-based attempt on the branch (stop a read-only step that shows no sign of work, start it again with a doubled
 window) can serve this residue for steps that only read; the owner decides whether it stays.
+It also serves as the containment of a Git bug in a retained child that is safe to run twice (a hung `fast-import` or `commit-tree`);
+a hung `update-ref` is never stopped and waits (review finding 7, accepted).
 
 ## Item 2: the service does not start within `START_WAIT`
 
 Root cause: the commit depends on a second process that the manager must start, and the client gives it ten seconds.
-The commit's own work is complete before the service is asked: the client has built the commit, or the change list,
-and the objects.
+The commit's own work is complete before the service is asked.
 
-Change that removes it: the client does not need the service to land.
-The landing is a function of the library (`land_batch`), and it is correct without a service because its atomic steps are
-Git's own (a compare-and-swap of the ref, Git's index lock protocol) and the journal records it.
-When no service greets within the first window, the client lands the commit itself with the same function and the same
-journal, instead of failing.
-The service keeps its role as the single batcher and the owner of after-commit work; it is a speed-up, never a
-dependency.
-The client still asks the manager to start the instance (the socket is the manager's) so the next commit finds it.
+Change: the service stops being a correctness dependency.
+The client hands the request over by writing the record (state `handed-over`) and then asks the manager to start the instance.
+If no live owner of the lane answers, the client claims the next epoch and acts as the lane owner for this worktree under the
+ownership order of "Transaction model", with the same code and the same record, until the service takes over by claiming a
+higher epoch.
+No second coordinator exists: ownership is the epoch, and the three-step publication order fences the older owner (review
+finding 3, accepted).
 
-Needed for this to be safe, to settle in the build: a landing by the client and a landing by a service that starts
-a moment later must not both write the same batch number or the same request.
-The request identity already makes a resend idempotent (`already` in `Landed`), and the ref compare-and-swap decides any
-race.
-
-Residue: a platform with no service manager and no way to land in process.
-None exists on Linux; the in-process landing covers Windows-like hosts the crate does not build for.
-Failures about the machine's setup (another account's service, a program that is missing, a unit file in the way) stop
-being commit failures too, because the client no longer needs the service: they become notices that the service is not
-running.
+Residue: none that ends a commit.
+Failures about the machine's setup (another account's service, a program that is missing, a unit file in the way) become
+notices that the service is not running.
 
 ## Item 3: the service does not answer within `COMMIT_WAIT`
 
-Root cause: the client treats silence as a fault and a read timeout of ten minutes decides.
-A service that is landing a slow commit says nothing, and a queue behind slow commits is progress made by others.
-Liveness is not observable from the client, so the client guessed with a clock.
+Root cause: silence is read as a fault, and a read timeout decides.
 
-Change that removes it: make liveness observable and drop the clock.
-The service sends a heartbeat line at a fixed short interval while it holds a request (it already sends `Position` and
-`Waiting` lines), and the client reads with a timeout of a few heartbeats.
-Heartbeats arriving means alive and working: the client waits, prints a notice naming the service process and the queue
-position, and no cap applies.
-A closed connection means the service died: the client resends the same request (identity makes it idempotent) or,
-with item 2, lands it itself.
-Heartbeats stopping while the connection stays open means a wedged service: the client lands it itself as in item 2,
-the ref compare-and-swap keeping a late service from doing it twice.
-`WaitedTooLong` and `RECONNECTS` leave the commit path because a dead or wedged service is never a reason to fail
-when the client can land.
+Change: the commit waits on the record, not on a connection or a clock.
+The client reads the request's state (the service pushes it on the open connection and the client re-reads the record if
+the connection closes).
+The service's progress counter (written by the landing task after each phase, "Transaction model") replaces the heartbeat:
+a heartbeat shows that the sender runs, not that the request moves (review finding 7, accepted).
+A closed connection is a resend with the same id.
+A lane whose counter has not advanced for a lease period and whose process shows no sign of work is taken over by a higher
+epoch, so a wedged service neither fails the commit nor lands it twice.
+`WaitedTooLong` and `RECONNECTS` leave the commit path.
 
-Residue: none that ends a commit.
-A service that is alive and slow makes the commit slow, and the notice says why.
+May wait: a service that is alive and slow makes the commit slow, and the notice names the phase and the process.
 
 ## Item 4: the branch keeps changing; a commit cannot replay onto a moved head
 
@@ -269,24 +401,22 @@ the parents.
 
 Change that removes it:
 
-- Remove the counts.
-  A commit built by the service from a change list is rebuilt on the new tip inside the serialized step with no cost to
-  the person (`fast-import` from the current tip; only a path that changed on the branch goes back to be prepared again, as
-  now), and the rounds end because each lost round is another commit landing.
+- Remove the counts, and say honestly what remains.
+  A commit built by the lane from a change list is rebuilt on the new tip with no cost to the person, and each lost
+  compare-and-swap is another writer's commit.
+  That is system-wide progress, not progress for this request: a compare-and-swap is not starvation-free (review finding 7).
 - Make the moves rare.
-  The service of a worktree is the one writer of that worktree's branch: the commits, the push's reconcile merge and the
-  merges the wrapper completes all become items of the same lane (the wrapper already hands them over), so the head moves
-  under a landing only for a foreign program that writes the ref with real Git directly.
-- For a commit Git must build (signed, hooked, editor) the client asks the service for the branch's turn first
-  (a reservation: while it is held, the service lands nothing else on that branch), builds, and lands in that turn.
-  A reservation held while a person types in an editor would make everyone wait, so it is taken after the message is
-  fixed and held only for the build and the landing; a build that was begun before the turn is built again in the turn.
-- A conclusion, an amend or a revert whose head moved while the person worked (their editor was open, other commits
-  landed) is a question of meaning, which the owner has decided: the result is stacked on the new head (below).
+  The lane of a worktree is the one writer of that worktree's branch: its commits, the push's reconcile merge and the merges
+  it completes are items of the same lane, served first in, first out, so the head moves under a landing only for a foreign
+  program that writes the ref with real Git directly.
+- For a commit Git must build (signed, hooked, editor) the client takes a branch turn (an epoch-fenced lease, "Transaction
+  model") after the message is fixed and holds it for the build and the swap only.
+- A conclusion, an amend or a revert whose head moved while the person worked is built by replaying the captured change on
+  the new head (owner's choice, below).
 
-Residue: a foreign program that writes the branch with real Git directly, faster than a commit can be built.
-Real Git offers only the compare-and-swap for a ref, so that program's progress cannot be excluded; each lost round
-is that program's commit, and the commit is built again on it with a notice.
+May wait: a foreign program that writes the branch with real Git directly, faster than a commit can be built.
+Real Git offers only the compare-and-swap for a ref, so that program cannot be excluded; each lost round is that program's
+commit, and the request is built again on it with a notice that names the foreign tip. Not starvation-free for one request.
 
 ### Decided: stack the result on the new head
 
@@ -299,133 +429,158 @@ Setting: `main` is at commit `B`; another session lands `C` on `main` while this
 An amend.
 The person typed `git commit --amend -m "fix the parser"` on top of `B`, whose message was "parse the file".
 Before: `A <- B (parse the file)`; the other session lands `C (add the lexer)`: `A <- B <- C`.
-After: `A <- B <- C <- D (fix the parser)`, where `D` carries the amend's tree change and message on `C`.
+After: `A <- B <- C <- D (fix the parser)`, where `D` is the amend's captured change (`B` to the amend's tree) replayed on `C`,
+so the lexer that `C` added is still in `D`'s tree.
 `B` and `C` stay as they are, so no commit another session landed is rewritten.
 Standard error says why: the branch moved, so the amend was made as a new commit on the new head.
 
 A conclusion.
 The person finished a merge of `topic` (tip `T`) into `main` on `B` with `git commit`; the other session lands `C`.
-After: `A <- B <- C <- M`, where `M` has parents `C` and `T` and the merge result computed on `C`.
-A content conflict that the merge on `C` cannot settle stops it as any merge does, with the conflict recorded.
+After: `A <- B <- C <- M`, where `M` has parents `C` and `T` and its tree is the person's captured resolution (`B`'s merge with
+`T`, with their manual choices) replayed on `C`; the resolution is not recomputed from scratch, so the person's choices are kept.
+A content conflict that the replay on `C` cannot settle stops it as any merge does, with the conflict recorded.
 
 A revert.
 The person ran `git revert B` and then `git commit`; the other session lands `C`.
-After: `A <- B <- C <- R`, where `R` reverts `B` on `C`.
-The result is stacked on `C`, and stderr names the new head.
+After: `A <- B <- C <- R`, where `R` is the captured revert (`B` to the revert's tree, with any edits the person made while
+preparing it) replayed on `C`, and stderr names the new head.
 
 What the owner's choice leaves: an amend on a moved head is no longer an amend (`B` stays and `D` is added), so the person sees
 two commits where they asked for one, and stderr says so.
 This is the one place where the commit does not do what the words of the command mean, chosen by the owner.
-The commit is built inside the worktree's lane, from the amend's captured tree and message, so no extra round trips are
-needed.
+The commit is built inside the worktree's lane from the captured inputs, not from the worktree.
 
 ## Item 5: `index.lock` is refused after the service's wait
 
-Root cause: the landing needs the real index lock to install the updated index, and a foreign program (a person's
-`git add`, an editor commit, a script) can hold it for as long as it likes; after 1800 s, or at once when no inotify
-watch can be set, the commit fails although the commit itself did not need the index at all.
-The commit is durable when the ref moves.
+Root cause: the landing needs the real index lock to install the updated index, and a foreign program can hold it for as long as
+it likes; after 1800 s, or at once when no inotify watch can be set, the commit fails although the commit itself did not need
+the index.
 
-Change that removes it: move the ref without the lock, and finish the index afterwards.
-The landing does not take `index.lock` before the move.
-It writes the intent to the journal, moves the ref by compare-and-swap, answers `Landed`, and then reconciles the index
-as a separate step: it builds the new index beside the real one (no lock), takes the lock when it is free (watching
-for its release, not polling), checks that the real index is the one it copied, installs, and marks the intent done.
-A foreign holder delays the reconciliation, never the commit.
-The wrapper's own index commands already wait for an open intent before they run (`service_hold_retry.rs`, the index writers
-wait for the service), so a person using the wrapper sees a consistent index; recovery before each batch and at start
-already finishes open intents.
-This also removes the 119 s hold: Git work no longer runs under the lock.
+Change: the commit's publication does not take `index.lock`.
+The ref is swapped (the publication), and the index is brought to the new head afterwards by the conditional per-entry install
+of "Transaction model, materialization": an entry is replaced only if it still holds the entry captured before the commit or
+the commit's own entry, so another program's staged content is never erased (review finding 2, accepted).
+The new index is built beside the real one with no lock, the lock is taken with a single try when it is free (the wait is a
+watch on the lock path set before the try, re-checked on every wake, with a periodic re-check when the watch fails, so a
+missed event or a replaced file cannot stall it), and the installed file is checked against the entry rule above.
+The reconciler never blocks the next batch.
 
-Other programs' locks are not outside our control, so the reconciliation does not stop at a foreign lock either:
-- A lock whose holder is proven dead (Git's own lock PID file, when `core.lockfilePid` is on, `lockfile.c:90,184`, or the
-  evidence the wrapper already gathers in `index_lock_evidence.rs`) holds only a partial index of a process that is gone, so the
-  reconciler removes it, logs that it did, and goes on.
-  The real index file is untouched by Git until the rename, so nothing the person had is lost.
-- A lock that cannot be attributed is waited for by the reconciler, off the commit's path, with a notice that names the file
-  once per interval.
-  The commit is already on the branch.
-- The same holds for a ref lock: `update-ref` waits for a held `refs/heads/<name>.lock` only 100 ms by default
-  (`refs.c:996-997`, `core.filesRefLockTimeout`) and then fails (`refs/files-backend.c:846-860`), which the landing
-  today turns into a failed round.
-  The landing waits for the release of the ref lock by watching the file, as it does for `index.lock`, and treats a proven-dead
-  holder's lock the same way.
+No foreign lock is ever removed (review finding 4, accepted; the earlier text that removed a lock whose holder was "proven dead"
+is withdrawn).
+A PID or an open descriptor does not prove that the pathname still names the abandoned lock (it may have been replaced by a live
+writer's lock since), and a dead writer's lock can hold a complete index not yet installed, which is the person's data.
+`core.lockfilePid` (`lockfile.c:90,184`) records an owner but does not prove the pathname is unchanged.
+A lock that nobody releases is waited for with a notice naming the file and what is known of its holder.
 
-Residue: while a foreign program holds the lock, the index lags the branch for the paths of the commit (a raw
-`git status` shows them as staged changes against the new head).
-That is the same state Git leaves between its own ref update and index write, extended in time; it ends when the foreign
-holder releases the lock, and the service finishes the intent at once.
-If the foreign holder is dead and left a stale lock, the index never catches up until the person removes the lock, which
-Git itself requires for every index write; the commit is on the branch and nothing is lost.
-Nothing foreign is ever removed.
-The alternative the owner may prefer, writing a new index and renaming it over the old one with no lock, can lose a
-foreign writer's update, which Git's lock exists to prevent, so it is not proposed.
+May wait: the reconciliation of a commit's index, for as long as a foreign program holds the lock, and the commands of the
+wrapper that need a settled index.
+The commit is on the branch and acknowledged; the index lags for the paths of the commit (a raw `git status` shows them as
+staged changes against the new head) until the lock is released.
+If the holder never releases it the lag is permanent; that is the live-foreign-lock question below.
 
 ## Item 6: `ContentPruned`
 
 Root cause: the objects a commit captured are unreferenced until the branch moves, and `git gc --prune=now` deletes every
-unreferenced object at once (the Git manual says this risks failures when another process writes at the same moment).
-The commit holds nothing that keeps them.
+unreferenced object at once; the commit holds nothing that keeps them.
 
-Change that removes it: keep them reachable from the moment they exist.
-The preparation writes the captured blobs and trees, and the same step makes a hold ref, `refs/worktree/cli-git-hold/<id>`,
-that points at a commit whose tree contains every captured blob.
-The ref is per worktree, so it is not pushed, and it is removed when the landing is done or the command ends; the service
-also removes holds whose client is gone, as it does with scratch directories (the connection is the signal).
-`gc`, `prune` and `repack -A` keep what a ref reaches, `--prune=now` included.
-The existing checks stay as assertions that now cannot fire.
+Change: the bytes are not in collectible storage until the commit is published (review finding 6, accepted).
+The spool holds the captured bytes (immutable inputs); the lane imports them into the object store with a hold ref made in the same
+`fast-import` stream; any prune before `closed` is repaired by importing again from the spool, so the committed bytes are the
+captured ones.
+The earlier plan to prepare again from the worktree is withdrawn: it would commit a later edit.
+The hold is owned by the record, not by the connection: it lasts until the record is `closed`, so a client that disconnects after
+handover does not release it.
+To verify before relying on it: that `refs/worktree/*` holds are kept by `gc` in every linked worktree, and that a push with an
+explicit or mirror refspec does not send them (Git's source, `refs.c` per-worktree ref handling, and a control).
 
-Residue: the interval between a blob being written and the hold ref being created.
-Writing the blobs through one `fast-import` stream that ends by updating the hold ref makes that interval the stream's
-last instant, and nothing can be designed tighter, because Git creates objects before it can reference them;
-Git's own manual calls `--prune=now` unsafe for exactly this window.
-If a prune lands in it anyway, the commit is prepared again from the worktree (nothing is lost, the person's files are
-untouched), with a notice naming the cleanup.
+Residue: none for pruning.
+The spool itself is on the same disk, so a full disk or an I/O error while writing it is one of the owner's outside causes.
 
 ## Merges, by the same lens (design only)
 
-The merge-fixes branch waits for any `index.lock` holder before the merge, and computes the merge again on a moved head up to
+The merge-fixes branch waits for any `index.lock` holder before the merge and computes the merge again on a moved head up to
 twenty rounds (`merge_isolation_moved.rs`).
+The first version proposed publishing the merge first and checking out afterwards.
+The review showed that a deferred checkout can overwrite an edit made after the check, and that a rollback after another commit
+descends from the merge would rewrite someone's work (finding 1, accepted).
+So the order stays Git's: materialize under the index lock with Git's own per-path check, then swap the ref.
 
-- The wait for `index.lock`.
-  The merge tree is computed with `merge-tree --write-tree` and the commit with `commit-tree`, none of which uses the
-  index; only the checkout (`merge --ff-only`) does.
-  By construction there is nothing to wait for if the merge, like the commit, is durable when the ref moves: move the ref
-  by compare-and-swap first, and let the service bring the worktree and index to the new head afterwards
-  (the files to change are known: the diff between the old and new head).
-  The paths the person has unsaved changes in stay in the existing refusal (`merge-isolation/paths-in-use`): that one is
-  never data loss, because the merge is not applied there and the person's files stay as they are; it is a question of
-  meaning, not of racing.
-- The twenty rounds.
-  A lost compare-and-swap is another writer making progress, so the count is as artificial as the landing count of item 4.
-  Run the merge as an item in the worktree's lane (the same serialized owner as commits and the push), so the head moves
-  under it only for a foreign real-Git writer, and remove the count.
-- The residue is the same as for commits: a foreign writer of the ref or of the index lock, both delaying and never failing.
+- The wait for `index.lock` before the checkout stays, and is a wait that can last as long as a live foreign program holds the
+  lock (open owner question below).
+- The twenty rounds: a lost swap is another writer's commit, so the count is artificial; run the merge as an item of the
+  worktree's lane (first in, first out with commits and the push), so the head moves under it only for a foreign real-Git
+  writer, and remove the count. Not starvation-free against a foreign writer.
+- `merge-isolation/paths-in-use` (a merge that would overwrite unsaved edits): unclassified; open owner question. It is not data
+  loss: the merge is not applied.
 
-## Residues that are designed out
+## Residues, by class
 
 - A malformed request.
-  The client and the service share one protocol library, and a request is built from typed values, so a request the
-  service calls malformed means a client and a service of different protocol versions.
-  The welcome line already names the version.
-  With item 2, a client that meets a service it cannot talk to lands the commit itself with its own release's code, so
-  the commit does not depend on the service's reading of it, and the version mismatch becomes a notice.
-- An object format this release cannot read.
-  The in-process readers cover SHA-1 and SHA-256 repositories; a repository whose layout the readers do not cover
-  (a reftable ref store, an extension) is already routed to Git, which builds the commit (`needs_native`).
-  The design makes that the rule: an unreadable layout means the commit is made by Git in the scratch repository and landed
-  by the lane, never refused by the wrapper.
+  Structural errors in a request are detected before the record is written (the client builds it from typed values and validates
+  it), and a record written by a different release carries a format version: a worker that does not know it does not process it
+  and yields ownership to a worker that does (the newer release wins the epoch). A request that is well-formed but means
+  something the lane cannot do is a policy decision, classified below.
+- An object format or layout this release cannot read.
+  Every in-process port is gated by eligibility (files ref backend, SHA-1 or SHA-256, no sparse index, no split index or unknown
+  index extension, attributes and filters covered by the port), and every operation has a Git-command implementation that is
+  complete for all layouts: the landing, the reconciliation and the recovery all run through Git when the gate says no.
+  Reftable repositories land through `update-ref --stdin` (backend-agnostic) with no lock watcher, using Git's own lock handling.
+  The ports (hashing with the repository's conversions, index entry writing, `update_index_from_diff`) are correctness
+  boundaries, not optimizations: each needs differential controls against Git on attribute precedence, required filters,
+  encodings, line endings, index flags and stage handling, and an unsupported case must run Git, never produce different bytes.
+- Local hooks, required clean filters, remaining native Git failures.
+  Each retained Git child's reachable `die` and `error` exits are to be enumerated from the 2.56.0 source and assigned to a
+  class: outside list (clear message), designed out, or a refusal. Any exit not assigned stays nonzero and is reported to the owner.
+  A required filter that fails locally fails in Git too, so falling back to Git does not remove it; it is an open owner question
+  (with local hooks).
+
+## Answers to the review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol.txt`, with a decision.
+
+- Critical 1, deferred merge checkout overwrites later edits: accepted. The merge keeps Git's order, materialize then swap
+  (Merges).
+- Critical 2, index reconcile erases a foreign program's staged content: accepted. Per-entry conditional install with the
+  expected pre-commit entry as provenance (Item 5, Transaction model).
+- Critical 3, client fallback is a second coordinator: accepted. One lane, ownership by epoch, a three-step publication order
+  that excludes the same request landing twice, a progress counter in place of a heartbeat, and per-request journal names
+  (Transaction model, Items 2 and 3). To test with a two-worker interleaving model and fault injection.
+- Critical 4, reclaiming a "proven dead" lock: accepted. Reclamation is withdrawn entirely; no foreign lock is removed
+  (Item 5). The contradiction in the text is gone.
+- High, stacking must replay the captured change: accepted. Three-way replay with the captured base (Transaction model,
+  Decided).
+- High, hold refs leave a window and end with the connection: accepted. The spool is the source of truth; the hold lasts until
+  `closed`; the original bytes, not the worktree's, are re-imported (Item 6).
+- High, unbounded waits: accepted in part. A heartbeat is replaced by a phase-written progress counter; compare-and-swap
+  rounds are not starvation-free and the record says so; a live foreign lock may never release and the record does not call it
+  designed out; the section "What is guaranteed to complete" lists each. Rejected in part: the claim that waiting off the
+  commit's path "moves the wait" onto the next batch; recovery uses a single try for the lock and never blocks a batch
+  (`service_land.rs`, `recover_selected` calls `try_acquire` and leaves the intent open), which is evidence in the code.
+- High, the native fallback is not end to end: accepted. Every operation has a Git implementation complete for all layouts; ports
+  are gated (Residues).
+- High, hooks, required filters and `paths-in-use` unclassified: accepted. Listed as open owner questions; the exit inventory
+  is a design task.
+- Git source qualifications: accepted. "One `lstat` per tracked file" is too categorical (`refresh_index` skips entries by
+  flags); a failed `update-ref` must be classified by its error and by re-reading the ref before it is called a moved head;
+  the lock watcher is files-backend only; the `core.lockfilePid` claim is limited to what it records; the hold ref's
+  non-transmission and linked-worktree retention are to be verified; the port of `update_index_from_diff` needs differential
+  tests for stages, flags, stat invalidation and extensions; the sibling worktree's fast landing does not isolate the cause of
+  the slow ones.
 
 ## Exits that stay nonzero
 
 - Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
-  conflict recorded).
-- A commit or merge that names a conflicted path does not stay here: it commits with a warning.
-- The causes the owner listed as outside our control, with a clear message, and work already handed over finished by the
-  next run: network down, the remote refusing, a full disk or quota, disk I/O errors, a cap set by someone else, a kill or
-  power loss, a corrupt repository caused by a disk fault or another tool, the person's signer failing.
+  conflict recorded, and a replay conflict keeps the captured inputs).
+- A commit or merge that names a conflicted path, or a plain commit with unmerged files, does not stay here: it commits with a
+  warning (owner).
+- The causes the owner listed as outside our control, with a clear message, and work already handed over finished by the next
+  run.
+- Open with the owner: a live foreign program that holds the branch's ref lock (or `index.lock`) indefinitely; local hooks and
+  required filters; a merge that would overwrite unsaved edits.
 
 ## Verification plan
 
-Each item keeps its red control, then the change, then a guard shown red once.
-Nothing past the red controls is built until the owner chooses.
+Nothing past the red controls and the two conflicted-file changes is built.
+Before building: the two-worker interleaving model of the publication order; differential controls for each port; the
+enumeration of Git's exits per retained child; measured times of each step with `strace`.
+Each item then keeps its red control, then the change, then a guard shown red once.
