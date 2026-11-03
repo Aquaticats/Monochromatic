@@ -57,7 +57,8 @@ pub const BASE_VARIABLE: &str = "CARGO_SHADOW_TRUST_BASE";
 /// The base used when the variable is absent or empty.
 pub const DEFAULT_BASE: &str = "HEAD";
 
-/// The upstream branch of the current branch, the first base a local run tries.
+/// The upstream branch of the current branch,
+/// the first base a local run tries.
 const UPSTREAM_BASE: &str = "@{upstream}";
 
 /// The remote default branches a local run tries when the current branch has no upstream.
@@ -80,9 +81,13 @@ fn git_start_failure(error: std::io::Error) -> String {
 /// How a trust base was chosen and what it resolved to.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TrustBase {
-    /// How the base is spelled (`CARGO_SHADOW_TRUST_BASE`, `@{upstream}`, `origin/main`, `HEAD`).
+    /// How the base is spelled (`CARGO_SHADOW_TRUST_BASE`,
+    /// `@{upstream}`,
+    /// `origin/main`,
+    /// `HEAD`).
     pub spelling: String,
-    /// The commit it names, or why it names none.
+    /// The commit it names,
+    /// or why it names none.
     pub commit: Result<String, String>,
     /// How many Git processes were started to choose it (none when the files answered).
     pub git_starts: u32,
@@ -91,7 +96,9 @@ pub struct TrustBase {
 /// What:
 /// `fn resolve_commit(root, base) -> Result<String, String>` is the commit a revision names in the repository at `root`.
 /// Why:
-/// A remembered pass is keyed by the commit, not by how the base is spelled, so a base that moves is a different base.
+/// A remembered pass is keyed by the commit,
+/// not by how the base is spelled,
+/// so a base that moves is a different base.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -114,7 +121,8 @@ fn resolve_commit(root: &Path, base: &str, starts: &Cell<u32>) -> Result<String,
 /// What:
 /// `pub fn not_a_commit_message(base: &str) -> String` is the text that says a base names no commit.
 /// Why:
-/// Git and the file reader report the same failure, so they use the same words.
+/// Git and the file reader report the same failure,
+/// so they use the same words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,7 +138,8 @@ pub fn not_a_commit_message(base: &str) -> String {
 /// `pub fn resolve_trust_base(root, in_ci, explicit) -> TrustBase` chooses the revision whose lockfiles count as trusted,
 /// reading the running process's environment.
 /// Why:
-/// The shadow calls this; the tests call `resolve_trust_base_with` with a disposable environment.
+/// The shadow calls this;
+/// the tests call `resolve_trust_base_with` with a disposable environment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -142,12 +151,21 @@ pub fn resolve_trust_base(root: &Path, in_ci: bool, explicit: Option<&str>) -> T
 
 /// What:
 /// `pub fn resolve_trust_base_with(root, in_ci, explicit, environment) -> TrustBase` chooses the revision whose lockfiles count
-/// as trusted: an explicit `CARGO_SHADOW_TRUST_BASE` wins; otherwise CI compares with `HEAD` and a local run with `@{upstream}`,
-/// else `origin/main`, else `origin/master`, else `HEAD`.
+/// as trusted:
+/// an explicit `CARGO_SHADOW_TRUST_BASE` wins;
+/// otherwise CI compares with `HEAD` and a local run with `@{upstream}`,
+/// else `origin/main`,
+/// else `origin/master`,
+/// else `HEAD`.
 /// Why:
-/// The choice is read from the repository's files (`git_refs.rs`) without starting Git, by the owner's rule "Invoke real git as
-/// rarely as possible."; a layout or setting the reader does not answer exactly (`git_refs::native_base` returns `Err`), and an
-/// explicit base, which Git must verify, are asked of Git.
+/// The choice is read from the repository's files (`git_refs.rs`) without starting Git,
+/// by the owner's rule "Invoke real git as
+/// rarely as possible.";
+/// a layout or setting the reader does not answer exactly (`git_refs::native_base` returns `Err`),
+/// and an
+/// explicit base,
+/// which Git must verify,
+/// are asked of Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -187,7 +205,8 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
 /// `pub fn git_lock_reader_at(root, commit) -> LockReader` reads one crate root's lockfile text at a commit
 /// (empty when the lockfile did not exist there).
 /// Why:
-/// The base is resolved once, so every read names the same commit.
+/// The base is resolved once,
+/// so every read names the same commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -206,10 +225,12 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
 }
 
 /// What:
-/// `pub fn explicit_base_from_environment() -> Option<String>` is the base named by `CARGO_SHADOW_TRUST_BASE`, when it is set
+/// `pub fn explicit_base_from_environment() -> Option<String>` is the base named by `CARGO_SHADOW_TRUST_BASE`,
+/// when it is set
 /// and not blank.
 /// Why:
-/// CI sets it to the pushed range's previous commit or the pull request's base; it wins over every default.
+/// CI sets it to the pushed range's previous commit or the pull request's base;
+/// it wins over every default.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

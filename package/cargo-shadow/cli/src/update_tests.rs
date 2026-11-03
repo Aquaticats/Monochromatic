@@ -196,8 +196,10 @@ fn a_passing_update_keeps_the_lockfiles_uses_the_publish_time_cutoff_and_prunes_
     );
 }
 
-/// The older release (`0.9.0`) passes the policy, but cargo refuses to move to it (it is outside what the manifests allow,
-/// which only cargo knows), so the finding stands and every lockfile is restored.
+/// The older release (`0.9.0`) passes the policy,
+/// but cargo refuses to move to it (it is outside what the manifests allow,
+/// which only cargo knows),
+/// so the finding stands and every lockfile is restored.
 #[test]
 fn a_refused_version_whose_older_releases_cargo_refuses_restores_every_lockfile() {
     let world = world(&lock_with("0.9.0"), "");
@@ -429,8 +431,11 @@ fn an_update_of_some_workspaces_never_prunes_the_catalog_because_other_lockfiles
     assert!(fs::read_to_string(&world.catalog).expect("catalog").contains("needed-elsewhere@1.0.0"));
 }
 
-/// Review finding (early-error rollback): cargo fails before anything of this run was recorded as produced, and another
-/// writer published the lockfile meanwhile. The rollback must leave that lockfile alone.
+/// Review finding (early-error rollback):
+/// cargo fails before anything of this run was recorded as produced,
+/// and another
+/// writer published the lockfile meanwhile.
+/// The rollback must leave that lockfile alone.
 #[test]
 fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_writers_lock() {
     let world = world(&lock_with("0.9.0"), "");
@@ -478,8 +483,14 @@ fn set_aside_outcome(history: Vec<VersionRecord>, resolved_version: &str, catalo
     return (report, lock_of(&world));
 }
 
-/// Review finding (caret class as boundary): the manifest requires `>=1.0.0`, the selected `2.0.0` is refused, and `1.9.9`
-/// passes. The replacement boundary is what the manifest allows, which cargo checks on `--precise`, not the caret class of
+/// Review finding (caret class as boundary):
+/// the manifest requires `>=1.0.0`,
+/// the selected `2.0.0` is refused,
+/// and `1.9.9`
+/// passes.
+/// The replacement boundary is what the manifest allows,
+/// which cargo checks on `--precise`,
+/// not the caret class of
 /// the refused version.
 #[test]
 fn a_refused_release_may_be_replaced_by_an_older_release_of_an_earlier_major_version() {
@@ -495,7 +506,8 @@ fn a_refused_release_may_be_replaced_by_an_older_release_of_an_earlier_major_ver
     assert_eq!(lock, lock_with("1.9.9"));
 }
 
-/// Review finding (cutoff applied unconditionally): a crate exempt from the release age may be replaced by a young release.
+/// Review finding (cutoff applied unconditionally):
+/// a crate exempt from the release age may be replaced by a young release.
 #[test]
 fn a_candidate_younger_than_the_cutoff_is_allowed_for_a_crate_exempt_from_the_release_age() {
     let history: Vec<VersionRecord> = vec![
@@ -512,7 +524,8 @@ fn a_candidate_younger_than_the_cutoff_is_allowed_for_a_crate_exempt_from_the_re
     assert_eq!(lock, lock_with("1.0.1"));
 }
 
-/// Review finding: with `minimumReleaseAgeStrict = false` the age is not a condition of the choice either.
+/// Review finding:
+/// with `minimumReleaseAgeStrict = false` the age is not a condition of the choice either.
 #[test]
 fn a_candidate_younger_than_the_cutoff_is_allowed_when_the_release_age_is_not_strict() {
     let history: Vec<VersionRecord> = vec![
@@ -529,7 +542,8 @@ fn a_candidate_younger_than_the_cutoff_is_allowed_when_the_release_age_is_not_st
     assert_eq!(lock, lock_with("1.0.1"));
 }
 
-/// Review finding (unknown timestamps): a candidate whose publish time cannot be read does not pass the age condition.
+/// Review finding (unknown timestamps):
+/// a candidate whose publish time cannot be read does not pass the age condition.
 #[test]
 fn a_candidate_with_an_unreadable_publish_time_is_skipped_under_a_strict_release_age() {
     let history: Vec<VersionRecord> = vec![
@@ -544,7 +558,8 @@ fn a_candidate_with_an_unreadable_publish_time_is_skipped_under_a_strict_release
     assert_eq!(lock, lock_with("1.0.0"));
 }
 
-/// A registry with owners, so the candidate trust evaluation can be compared with the final one.
+/// A registry with owners,
+/// so the candidate trust evaluation can be compared with the final one.
 struct RegistryWithOwners {
     inner: FakeRegistry,
     owners: BTreeSet<String>,
@@ -565,8 +580,11 @@ impl Registry for RegistryWithOwners {
     }
 }
 
-/// Review finding (owners omitted from candidate trust): `1.0.1` by a stranger ranks below `1.0.0` by a listed owner once the
-/// owners are known, so it must not be chosen as the replacement; the final check would refuse it.
+/// Review finding (owners omitted from candidate trust):
+/// `1.0.1` by a stranger ranks below `1.0.0` by a listed owner once the
+/// owners are known,
+/// so it must not be chosen as the replacement;
+/// the final check would refuse it.
 #[test]
 fn a_candidate_that_the_final_check_would_refuse_for_its_owners_is_not_chosen() {
     let world = world(&lock_with("0.9.0"), "");
@@ -601,9 +619,13 @@ fn cargo_needing_a_young_release(lock_path: PathBuf, young_lock: String) -> impl
     };
 }
 
-/// Review finding (the global cutoff defeats exemptions): the manifest needs a young release of a crate listed in
-/// `minimumReleaseAgeExclude`. Resolving under the strict cutoff cannot succeed, but the exemption means the young release is
-/// allowed, so the resolution must not fail before the exemption is applied.
+/// Review finding (the global cutoff defeats exemptions):
+/// the manifest needs a young release of a crate listed in
+/// `minimumReleaseAgeExclude`.
+/// Resolving under the strict cutoff cannot succeed,
+/// but the exemption means the young release is
+/// allowed,
+/// so the resolution must not fail before the exemption is applied.
 #[test]
 fn a_young_release_that_a_manifest_needs_resolves_when_the_crate_is_exempt_from_the_release_age() {
     let world = world(&lock_with("0.9.0"), "");
@@ -632,7 +654,8 @@ fn a_young_release_that_a_manifest_needs_resolves_when_the_crate_is_exempt_from_
     assert_eq!(lock_of(&world), lock_with("1.0.0"));
 }
 
-/// Without an exemption the strict cutoff still stops the resolution, as before.
+/// Without an exemption the strict cutoff still stops the resolution,
+/// as before.
 #[test]
 fn a_young_release_that_a_manifest_needs_still_fails_a_strict_resolution_without_an_exemption() {
     let world = world(&lock_with("0.9.0"), "");
@@ -658,7 +681,8 @@ fn a_young_release_that_a_manifest_needs_still_fails_a_strict_resolution_without
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }
 
-/// The unconstrained resolution that an exemption allows does not let a crate that is not exempt through: the final check
+/// The unconstrained resolution that an exemption allows does not let a crate that is not exempt through:
+/// the final check
 /// still refuses its young release and the lockfile is restored.
 #[test]
 fn a_crate_that_is_not_exempt_is_still_held_to_the_cutoff_after_the_unconstrained_resolution() {
@@ -692,8 +716,10 @@ fn a_crate_that_is_not_exempt_is_still_held_to_the_cutoff_after_the_unconstraine
 const OLD_REQUIREMENT_MANIFEST: &str = "[package]\nname = \"u\"\nversion = \"0.1.0\"\n\n[dependencies]\ndep = \">=0.9.0\"\n";
 const NEW_REQUIREMENT_MANIFEST: &str = "[package]\nname = \"u\"\nversion = \"0.1.0\"\n\n[dependencies]\ndep = \">=1.0.1\"\n";
 
-/// A cargo whose `update --breaking` edits the manifest's requirement and locks `dep@1.0.1`, and whose `metadata` lists the
-/// manifest, the way cargo's own breaking update rewrites `Cargo.toml`.
+/// A cargo whose `update --breaking` edits the manifest's requirement and locks `dep@1.0.1`,
+/// and whose `metadata` lists the
+/// manifest,
+/// the way cargo's own breaking update rewrites `Cargo.toml`.
 fn cargo_that_edits_the_manifest(directory: PathBuf) -> impl Fn(&Path, &[String]) -> Result<CargoOutcome, String> {
     return move |_cwd: &Path, args: &[String]| -> Result<CargoOutcome, String> {
         if args[0] == "metadata" {
@@ -741,8 +767,11 @@ fn manifest_of(world: &World) -> String {
     return fs::read_to_string(world.root.path().join(CRATE_DIR).join("Cargo.toml")).expect("read the manifest");
 }
 
-/// Review finding (`--breaking` edits outside the transaction): cargo's breaking update rewrites the manifests. When the
-/// policy then refuses the release and nothing can be set aside, the manifests go back with the lockfiles.
+/// Review finding (`--breaking` edits outside the transaction):
+/// cargo's breaking update rewrites the manifests.
+/// When the
+/// policy then refuses the release and nothing can be set aside,
+/// the manifests go back with the lockfiles.
 #[test]
 fn a_refused_breaking_update_puts_the_edited_manifests_back_with_the_lockfiles() {
     let (world, result) = breaking_update_without_a_way_out();
@@ -806,7 +835,8 @@ fn breaking_update_that_passes() -> (World, Result<UpdateReport, UpdateError>) {
     return (world, result);
 }
 
-/// A sync that fails, the way `file-enforcer write` fails when it is not installed.
+/// A sync that fails,
+/// the way `file-enforcer write` fails when it is not installed.
 struct FailingSyncer;
 
 impl Syncer for FailingSyncer {
@@ -815,7 +845,9 @@ impl Syncer for FailingSyncer {
     }
 }
 
-/// Delegated pick 7 (2026-11-03): a sync failure after the catalog write makes the breaking update transactional, so the
+/// Delegated pick 7 (2026-11-03):
+/// a sync failure after the catalog write makes the breaking update transactional,
+/// so the
 /// catalog goes back with the manifests and the lockfiles instead of being left raised and unrendered.
 #[test]
 fn a_sync_failure_after_the_catalog_write_restores_the_catalog_the_manifests_and_the_lockfiles() {

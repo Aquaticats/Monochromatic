@@ -261,7 +261,8 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
 /// What:
 /// `fn package_name(spec) -> String` is the crate name of a package spec (`name` or `name@version`).
 /// Why:
-/// The plan counts and checks names; the version part belongs to cargo.
+/// The plan counts and checks names;
+/// the version part belongs to cargo.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

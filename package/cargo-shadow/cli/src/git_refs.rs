@@ -1,15 +1,23 @@
 //! What:
-//! A reader of a Git repository's `HEAD`, branch configuration and references (loose files and `packed-refs`),
+//! A reader of a Git repository's `HEAD`,
+//! branch configuration and references (loose files and `packed-refs`),
 //! for the plain file layouts only,
 //! and the choice of the trust base made from them without starting Git.
 //! Why:
-//! The shadow runs before every cargo command, and the owner's rules are "Invoke real git as rarely as possible." and
+//! The shadow runs before every cargo command,
+//! and the owner's rules are "Invoke real git as rarely as possible."
+//! and
 //! "embed instead of spawning" (`package/git-policy/cli/SPEC.md`).
 //! Every function answers `Err(reason)` for a layout or setting it cannot read exactly:
-//! the reftable reference format, a worktree-specific configuration, a configuration `include` or `includeIf`,
-//! a symbolic reference where a commit was expected, an ambiguous short name, and the `GIT_*` variables that move the
+//! the reftable reference format,
+//! a worktree-specific configuration,
+//! a configuration `include` or `includeIf`,
+//! a symbolic reference where a commit was expected,
+//! an ambiguous short name,
+//! and the `GIT_*` variables that move the
 //! repository or the configuration.
-//! The caller then asks Git once, as it did before this reader existed.
+//! The caller then asks Git once,
+//! as it did before this reader existed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,8 +30,10 @@ use std::path::{Path, PathBuf};
 
 use crate::git_config::{ParsedConfig, parse_config};
 
-/// The environment variables that move the repository, its references or its configuration;
-/// when one is set the answer is Git's, not this reader's.
+/// The environment variables that move the repository,
+/// its references or its configuration;
+/// when one is set the answer is Git's,
+/// not this reader's.
 const BLOCKING_VARIABLES: [&str; 14] = [
     "GIT_DIR",
     "GIT_COMMON_DIR",
@@ -41,16 +51,20 @@ const BLOCKING_VARIABLES: [&str; 14] = [
     "GIT_REPLACE_REF_BASE",
 ];
 
-/// Where Git looks for configuration besides the repository's own file, and whether the process environment forbids this reader.
+/// Where Git looks for configuration besides the repository's own file,
+/// and whether the process environment forbids this reader.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NativeEnvironment {
-    /// The home directory (`~/.gitconfig`, `~/.config/git/config`).
+    /// The home directory (`~/.gitconfig`,
+    /// `~/.config/git/config`).
     pub home: Option<PathBuf>,
-    /// `XDG_CONFIG_HOME`, when set and not empty.
+    /// `XDG_CONFIG_HOME`,
+    /// when set and not empty.
     pub xdg_config_home: Option<PathBuf>,
     /// The system configuration file (`/etc/gitconfig`).
     pub system_config: PathBuf,
-    /// The name of a `GIT_*` variable that moves the repository or the configuration, when one is set.
+    /// The name of a `GIT_*` variable that moves the repository or the configuration,
+    /// when one is set.
     pub blocking_variable: Option<String>,
 }
 
@@ -90,33 +104,41 @@ impl NativeEnvironment {
 pub struct GitLayout {
     /// The directory holding this working tree's `HEAD` (a linked worktree's own directory under the common one).
     pub git_dir: PathBuf,
-    /// The directory holding `config`, `packed-refs` and `refs/` (the same as `git_dir` unless this is a linked worktree).
+    /// The directory holding `config`,
+    /// `packed-refs` and `refs/` (the same as `git_dir` unless this is a linked worktree).
     pub common_dir: PathBuf,
 }
 
 /// What `HEAD` names.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Head {
-    /// A branch: the full reference name, such as `refs/heads/main`.
+    /// A branch:
+    /// the full reference name,
+    /// such as `refs/heads/main`.
     Branch(String),
-    /// A detached commit: its object name in hexadecimal.
+    /// A detached commit:
+    /// its object name in hexadecimal.
     Detached(String),
 }
 
-/// The base chosen without Git: how it is spelled and what it names.
+/// The base chosen without Git:
+/// how it is spelled and what it names.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NativeBase {
     /// How the base is spelled.
     pub spelling: String,
-    /// The commit it names, or why it names none.
+    /// The commit it names,
+    /// or why it names none.
     pub commit: Result<String, String>,
 }
 
 /// What:
 /// `fn is_object_name(text: &str) -> bool` says whether a text is a full hexadecimal object name
-/// (40 digits for SHA-1, 64 for SHA-256).
+/// (40 digits for SHA-1,
+/// 64 for SHA-256).
 /// Why:
-/// A reference file holds exactly an object name and a newline, or `ref: <name>` for a symbolic reference;
+/// A reference file holds exactly an object name and a newline,
+/// or `ref: <name>` for a symbolic reference;
 /// anything else is not read as a commit.
 ///
 /// In TS you'd write (pseudocode):
@@ -129,10 +151,15 @@ fn is_object_name(text: &str) -> bool {
 
 /// What:
 /// `pub fn find_layout(root, environment) -> Result<GitLayout, String>` finds the repository whose working tree is `root`:
-/// `root/.git` as a directory, or as a file `gitdir: <path>` (a linked worktree or a submodule), following `commondir`.
+/// `root/.git` as a directory,
+/// or as a file `gitdir: <path>` (a linked worktree or a submodule),
+/// following `commondir`.
 /// Why:
-/// Git would search the parent directories as well; the shadow's root is where `rust-catalog.toml` is, normally the top of the
-/// working tree, and anything else is Git's to answer.
+/// Git would search the parent directories as well;
+/// the shadow's root is where `rust-catalog.toml` is,
+/// normally the top of the
+/// working tree,
+/// and anything else is Git's to answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -171,12 +198,16 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
 }
 
 /// What:
-/// `pub fn read_config(layout, environment) -> Result<ParsedConfig, String>` reads the system, user and repository
+/// `pub fn read_config(layout, environment) -> Result<ParsedConfig, String>` reads the system,
+/// user and repository
 /// configuration files in Git's order (later overrides earlier) and refuses what it cannot read exactly.
 /// Why:
 /// `branch.<name>.merge` and `remote.<name>.fetch` can be set at any of those levels.
-/// An `include`, an `includeIf`, a reftable reference store (`extensions.refStorage`) or a worktree-specific configuration
-/// (`extensions.worktreeConfig`) change what a key means, so each makes the answer Git's.
+/// An `include`,
+/// an `includeIf`,
+/// a reftable reference store (`extensions.refStorage`) or a worktree-specific configuration
+/// (`extensions.worktreeConfig`) change what a key means,
+/// so each makes the answer Git's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,9 +249,11 @@ pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Resul
 }
 
 /// What:
-/// `pub fn read_head(layout) -> Result<Head, String>` reads `HEAD`: `ref: refs/heads/<branch>` or a detached object name.
+/// `pub fn read_head(layout) -> Result<Head, String>` reads `HEAD`:
+/// `ref: refs/heads/<branch>` or a detached object name.
 /// Why:
-/// The current branch decides which `branch.<name>.*` keys apply, and a detached `HEAD` has no upstream.
+/// The current branch decides which `branch.<name>.*` keys apply,
+/// and a detached `HEAD` has no upstream.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -242,7 +275,8 @@ pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
 /// What:
 /// `fn check_ref_name(name: &str) -> Result<(), String>` refuses a reference name that could leave the repository directory.
 /// Why:
-/// Names come from configuration files; a `..` component or an absolute name must never become a file path.
+/// Names come from configuration files;
+/// a `..` component or an absolute name must never become a file path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -257,10 +291,13 @@ fn check_ref_name(name: &str) -> Result<(), String> {
 
 /// What:
 /// `pub fn lookup_ref(layout, name) -> Result<Option<String>, String>` is the object name a full reference holds:
-/// the loose file `<common>/<name>` first, then a line of `<common>/packed-refs`.
-/// `Ok(None)` means the reference does not exist; `Err` means it exists in a form this reader does not follow.
+/// the loose file `<common>/<name>` first,
+/// then a line of `<common>/packed-refs`.
+/// `Ok(None)` means the reference does not exist;
+/// `Err` means it exists in a form this reader does not follow.
 /// Why:
-/// This is how Git's files backend resolves a reference, and a symbolic reference (`ref: ...`) is left to Git.
+/// This is how Git's files backend resolves a reference,
+/// and a symbolic reference (`ref: ...`) is left to Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -304,11 +341,16 @@ pub fn lookup_ref(layout: &GitLayout, name: &str) -> Result<Option<String>, Stri
 
 /// What:
 /// `pub fn lookup_short(layout, name) -> Result<Option<String>, String>` resolves a short name such as `origin/main` the way
-/// `git rev-parse` does for a name that is not a full reference: the first of `refs/<name>`, `refs/tags/<name>`,
-/// `refs/heads/<name>`, `refs/remotes/<name>` that exists.
+/// `git rev-parse` does for a name that is not a full reference:
+/// the first of `refs/<name>`,
+/// `refs/tags/<name>`,
+/// `refs/heads/<name>`,
+/// `refs/remotes/<name>` that exists.
 /// Why:
-/// A tag or branch that shadows the remote-tracking branch decides the answer in Git; this reader answers only when the name
-/// is unshadowed, and a shadowing reference makes the answer Git's.
+/// A tag or branch that shadows the remote-tracking branch decides the answer in Git;
+/// this reader answers only when the name
+/// is unshadowed,
+/// and a shadowing reference makes the answer Git's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -330,10 +372,13 @@ pub fn lookup_short(layout: &GitLayout, name: &str) -> Result<Option<String>, St
 
 /// What:
 /// `fn map_refspec(spec: &str, merge: &str) -> Result<Option<String>, String>` applies one `remote.<name>.fetch` refspec to a
-/// branch's `merge` reference and returns the local reference it is stored in, if the spec covers it.
+/// branch's `merge` reference and returns the local reference it is stored in,
+/// if the spec covers it.
 /// Why:
-/// `+refs/heads/*:refs/remotes/origin/*` maps `refs/heads/main` to `refs/remotes/origin/main`; this is how Git finds the
-/// remote-tracking branch of `@{upstream}`. A negative refspec (`^...`) is Git's to apply.
+/// `+refs/heads/*:refs/remotes/origin/*` maps `refs/heads/main` to `refs/remotes/origin/main`;
+/// this is how Git finds the
+/// remote-tracking branch of `@{upstream}`.
+/// A negative refspec (`^...`) is Git's to apply.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -368,10 +413,13 @@ fn map_refspec(spec: &str, merge: &str) -> Result<Option<String>, String> {
 
 /// What:
 /// `pub fn tracking_ref(config, branch) -> Result<Option<String>, String>` is the local reference that `@{upstream}` of a
-/// branch names, from `branch.<name>.remote`, `branch.<name>.merge` and `remote.<remote>.fetch`.
+/// branch names,
+/// from `branch.<name>.remote`,
+/// `branch.<name>.merge` and `remote.<remote>.fetch`.
 /// `Ok(None)` is "no upstream".
 /// Why:
-/// With the remote `.` the upstream is another local branch; otherwise the first fetch refspec that covers the merge
+/// With the remote `.` the upstream is another local branch;
+/// otherwise the first fetch refspec that covers the merge
 /// reference gives the remote-tracking name.
 ///
 /// In TS you'd write (pseudocode):
@@ -407,9 +455,11 @@ pub fn tracking_ref(config: &ParsedConfig, branch: &str) -> Result<Option<String
 }
 
 /// What:
-/// `fn head_base(layout) -> NativeBase` is `HEAD` as a base: its spelling and the commit it names.
+/// `fn head_base(layout) -> NativeBase` is `HEAD` as a base:
+/// its spelling and the commit it names.
 /// Why:
-/// CI compares with `HEAD`, and a local run falls back to it when no upstream or remote default branch exists.
+/// CI compares with `HEAD`,
+/// and a local run falls back to it when no upstream or remote default branch exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -429,11 +479,18 @@ fn head_base(layout: &GitLayout) -> Result<NativeBase, String> {
 
 /// What:
 /// `pub fn native_base(root, in_ci, environment) -> Result<NativeBase, String>` chooses the trust base without Git:
-/// in CI `HEAD`; locally `@{upstream}`, else `origin/main`, else `origin/master`, else `HEAD`.
+/// in CI `HEAD`;
+/// locally `@{upstream}`,
+/// else `origin/main`,
+/// else `origin/master`,
+/// else `HEAD`.
 /// `Err(reason)` means Git must answer.
 /// Why:
-/// This is the choice `git_base::resolve_trust_base` makes with `git rev-parse`, made from the files (delegated pick of
-/// 2026-11-03, with the owner's rule "Invoke real git as rarely as possible." from 2026-11-01).
+/// This is the choice `git_base::resolve_trust_base` makes with `git rev-parse`,
+/// made from the files (delegated pick of
+/// 2026-11-03,
+/// with the owner's rule "Invoke real git as rarely as possible."
+/// from 2026-11-01).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

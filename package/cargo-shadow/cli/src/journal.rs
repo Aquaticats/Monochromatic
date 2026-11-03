@@ -83,7 +83,9 @@ use std::io::Write;
 /// import { Path, PathBuf } from 'std/path';
 /// ```
 use std::path::{Path, PathBuf};
-/// Imports `rustix`'s safe wrapper of `renameat2`: the flags, and the current directory as the base of relative names.
+/// Imports `rustix`'s safe wrapper of `renameat2`:
+/// the flags,
+/// and the current directory as the base of relative names.
 use rustix::fs::{CWD, RenameFlags, renameat_with};
 
 /// What:
@@ -112,7 +114,8 @@ use crate::constants::LOCKFILE_NAME;
 /// import { LockSnapshot, read_locks } from 'crate/crates';
 /// ```
 use crate::crates::{LockSnapshot, read_locks};
-/// Imports `ManifestEdit`, one manifest a `--breaking` run may rewrite.
+/// Imports `ManifestEdit`,
+/// one manifest a `--breaking` run may rewrite.
 use crate::manifest_edit::ManifestEdit;
 
 /// Where journals live,
@@ -150,10 +153,12 @@ pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
 pub enum ReplaceOutcome {
     /// The file held what was expected and now holds the new text.
     Replaced,
-    /// The file held something else, or held it only for a moment and was put back:
+    /// The file held something else,
+    /// or held it only for a moment and was put back:
     /// another writer's file is where it was.
     LeftAlone,
-    /// Another writer published twice in the gap, so a file was displaced and could not be put back;
+    /// Another writer published twice in the gap,
+    /// so a file was displaced and could not be put back;
     /// it was kept under this name.
     Preserved(PathBuf),
 }
@@ -162,8 +167,11 @@ pub enum ReplaceOutcome {
 /// `fn exchange(first, second) -> io::Result<()>` swaps two paths in one step (`renameat2` with `RENAME_EXCHANGE`,
 /// through `rustix`'s safe wrapper).
 /// Why:
-/// After the call `first` names what `second` named and the other way round, with no moment at which either path is missing,
-/// so the file that was displaced can be read and, if it was not the expected one, swapped back.
+/// After the call `first` names what `second` named and the other way round,
+/// with no moment at which either path is missing,
+/// so the file that was displaced can be read and,
+/// if it was not the expected one,
+/// swapped back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -176,9 +184,13 @@ fn exchange(first: &Path, second: &Path) -> io::Result<()> {
 
 /// What:
 /// `fn preserve(displaced, target) -> io::Result<PathBuf>` moves a file to the first free `<name>.displaced`,
-/// `<name>.displaced.1`, ... next to the target, without replacing anything.
+/// `<name>.displaced.1`,
+/// ... next to the target,
+/// without replacing anything.
 /// Why:
-/// A file that could not be put back must not be deleted; a hard link fails when the name exists, so two runs never share one.
+/// A file that could not be put back must not be deleted;
+/// a hard link fails when the name exists,
+/// so two runs never share one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -203,13 +215,22 @@ fn preserve(displaced: &Path, target: &Path) -> io::Result<PathBuf> {
 
 /// What:
 /// `pub fn replace_if_holds(path, expected, new_text, between) -> io::Result<ReplaceOutcome>` puts `new_text` in `path` only if
-/// `path` holds `expected`, comparing and replacing in one atomic step.
+/// `path` holds `expected`,
+/// comparing and replacing in one atomic step.
 /// Why:
-/// Review finding and delegated pick (2026-11-03): reading a file and then renaming over it leaves a gap in which another writer
-/// can publish a lockfile that the rename then destroys. The new text is written to a sibling file and exchanged with `path`
-/// atomically; the file that came out is read, and when it is not the expected one the exchange is undone, so no writer's
-/// file is ever lost and no lock is taken. A filesystem that cannot exchange falls back to a second comparison right before
-/// an ordinary rename. `between` runs after the first comparison, so a test can publish a file exactly in the gap.
+/// Review finding and delegated pick (2026-11-03):
+/// reading a file and then renaming over it leaves a gap in which another writer
+/// can publish a lockfile that the rename then destroys.
+/// The new text is written to a sibling file and exchanged with `path`
+/// atomically;
+/// the file that came out is read,
+/// and when it is not the expected one the exchange is undone,
+/// so no writer's
+/// file is ever lost and no lock is taken.
+/// A filesystem that cannot exchange falls back to a second comparison right before
+/// an ordinary rename.
+/// `between` runs after the first comparison,
+/// so a test can publish a file exactly in the gap.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -221,9 +242,11 @@ pub fn replace_if_holds(path: &Path, expected: &str, new_text: &str, between: &d
 
 /// What:
 /// `pub fn replace_if_holds_with_hooks(path, expected, new_text, between, after_exchange)` is `replace_if_holds` with a second
-/// hook that runs right after the exchange, before the displaced file is read.
+/// hook that runs right after the exchange,
+/// before the displaced file is read.
 /// Why:
-/// The second gap is where a writer publishes a file between the swap and the swap back; the hook lets a test publish one there,
+/// The second gap is where a writer publishes a file between the swap and the swap back;
+/// the hook lets a test publish one there,
 /// to show that the file displaced twice is kept and not deleted.
 ///
 /// In TS you'd write (pseudocode):
@@ -296,7 +319,8 @@ fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a
 /// replacing it would discard
 /// that change,
 /// so it is left alone and named in a warning.
-/// A root that `produced` does not list was never written by this run, so unknown ownership never authorizes a restore.
+/// A root that `produced` does not list was never written by this run,
+/// so unknown ownership never authorizes a restore.
 /// One that already equals the snapshot needs nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -387,11 +411,17 @@ pub fn note_produced(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSn
 
 /// What:
 /// `fn save_aside(target, text) -> io::Result<PathBuf>` writes `text` to a new file next to `target`
-/// named `target`, then `target.1`, `target.2`, ... , the first name that does not exist yet, and returns the path.
+/// named `target`,
+/// then `target.1`,
+/// `target.2`,
+/// ... ,
+/// the first name that does not exist yet,
+/// and returns the path.
 /// Why:
 /// A refused lockfile is evidence the user may need;
 /// a later refusal must never replace an earlier saved copy,
-/// and `create_new` makes the claim of a name atomic, so two runs never pick the same one.
+/// and `create_new` makes the claim of a name atomic,
+/// so two runs never pick the same one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -428,10 +458,15 @@ const MANIFEST_INDEX_FILE: &str = "manifests.txt";
 
 /// What:
 /// `pub fn add_manifests(root, edits) -> io::Result<()>` records the manifests a `--breaking` run may rewrite in this process's
-/// journal, with their text before the run.
+/// journal,
+/// with their text before the run.
 /// Why:
-/// Delegated pick (2026-11-03): cargo's breaking update rewrites manifests as well as the lockfile, so a killed run must be
-/// able to put them back too. A path with a line feed cannot be listed one per line, so it stops the run before cargo runs.
+/// Delegated pick (2026-11-03):
+/// cargo's breaking update rewrites manifests as well as the lockfile,
+/// so a killed run must be
+/// able to put them back too.
+/// A path with a line feed cannot be listed one per line,
+/// so it stops the run before cargo runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -494,19 +529,25 @@ fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>> {
 }
 
 /// Whether a process with this id exists.
-/// It reads Linux `/proc`, and the crate refuses to compile on other systems (`lib.rs`), so a missing `/proc` cannot make a
+/// It reads Linux `/proc`,
+/// and the crate refuses to compile on other systems (`lib.rs`),
+/// so a missing `/proc` cannot make a
 /// running process look dead;
-/// a reused id reads as alive, which only delays a recovery.
+/// a reused id reads as alive,
+/// which only delays a recovery.
 pub fn process_exists(pid: u32) -> bool {
     return Path::new("/proc").join(pid.to_string()).exists();
 }
 
 /// What:
 /// `fn recover_manifests(directory, between, messages) -> bool` puts back the manifests a killed `--breaking` run journaled,
-/// saving the text it replaces as `<name>.refused` (or the first free `<name>.refused.N`), and says whether all were settled.
+/// saving the text it replaces as `<name>.refused` (or the first free `<name>.refused.N`),
+/// and says whether all were settled.
 /// Why:
-/// A journaled manifest that differs from its text before the run was rewritten by the killed run (or edited since, which the
-/// saved copy keeps), and a manifest that cannot be put back keeps the journal.
+/// A journaled manifest that differs from its text before the run was rewritten by the killed run (or edited since,
+/// which the
+/// saved copy keeps),
+/// and a manifest that cannot be put back keeps the journal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -560,11 +601,13 @@ fn recover_manifests(directory: &Path, between: &dyn Fn(&Path), messages: &mut V
 /// a live lock equal to its snapshot needs nothing;
 /// a live lock the `judge` finds acceptable (no policy
 /// findings for the versions it added) is kept;
-/// otherwise the live lock is saved as `Cargo.lock.refused` (or the first free `Cargo.lock.refused.N`, so an earlier copy
+/// otherwise the live lock is saved as `Cargo.lock.refused` (or the first free `Cargo.lock.refused.N`,
+/// so an earlier copy
 /// is never replaced) and the snapshot goes back by atomic rename,
 /// after the live lock was read again and found to be still the judged one.
 /// The journal is removed only when every root it lists was settled;
-/// an unreadable journal or lockfile and a failed step keep it, because it holds the only copy of the original.
+/// an unreadable journal or lockfile and a failed step keep it,
+/// because it holds the only copy of the original.
 /// A message says what happened.
 ///
 /// In TS you'd write (pseudocode):
@@ -579,7 +622,8 @@ pub fn recover(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[Loc
 /// `pub fn recover_with(root, is_alive, judge, between) -> Vec<String>` is `recover` with a hook that runs after the last
 /// comparison of a lockfile and before it is replaced.
 /// Why:
-/// The same gap as in `restore_if_unchanged_with`, for the recovery of a killed run.
+/// The same gap as in `restore_if_unchanged_with`,
+/// for the recovery of a killed run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -146,7 +146,8 @@ const CRATES_ENTRY: &str = "/data/crates.csv";
 const VERSIONS_ENTRY: &str = "/data/versions.csv";
 
 /// The most releases kept for one crate while the versions table streams past.
-/// A chosen ceiling far above the release count of any crate on crates.io (a guess, not measured on a real dump);
+/// A chosen ceiling far above the release count of any crate on crates.io (a guess,
+/// not measured on a real dump);
 /// the retained history is bounded by this times the number of crates asked for.
 pub const MAX_VERSIONS_PER_CRATE: usize = 100_000;
 

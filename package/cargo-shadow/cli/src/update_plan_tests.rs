@@ -85,7 +85,9 @@ fn names_of(words: &[&str]) -> Vec<String> {
     }
 }
 
-/// Review finding (`--package=foo`): the attached spelling names the package like `--package foo` does, and the plan must not
+/// Review finding (`--package=foo`):
+/// the attached spelling names the package like `--package foo` does,
+/// and the plan must not
 /// widen into a full update.
 #[test]
 fn the_attached_and_short_spellings_of_package_name_the_package() {
@@ -94,14 +96,17 @@ fn the_attached_and_short_spellings_of_package_name_the_package() {
     assert_eq!(names_of(&["update", "-pfoo"]), vec!["foo".to_string()]);
 }
 
-/// Review finding (global options before the verb): `--locked` before the verb asks for the frozen check, as after it.
+/// Review finding (global options before the verb):
+/// `--locked` before the verb asks for the frozen check,
+/// as after it.
 #[test]
 fn a_locked_or_frozen_before_the_verb_is_the_frozen_check() {
     assert_eq!(plan(&["--locked", "update"]).expect("plans").plan, UpdatePlan::FrozenCheck);
     assert_eq!(plan(&["+nightly", "--frozen", "update"]).expect("plans").plan, UpdatePlan::FrozenCheck);
 }
 
-/// Review finding: cargo-only options before the verb are forwarded to every cargo call the procedure makes.
+/// Review finding:
+/// cargo-only options before the verb are forwarded to every cargo call the procedure makes.
 #[test]
 fn cargo_only_options_before_the_verb_are_forwarded_too() {
     let planned = plan(&["--offline", "--color", "never", "update"]).expect("plans");
@@ -109,7 +114,9 @@ fn cargo_only_options_before_the_verb_are_forwarded_too() {
     assert_eq!(planned.forward, vec!["--offline".to_string(), "--color".to_string(), "never".to_string()]);
 }
 
-/// Review finding (reject, do not broaden): an option the shadow cannot map to pnpm update is refused by name.
+/// Review finding (reject,
+/// do not broaden):
+/// an option the shadow cannot map to pnpm update is refused by name.
 #[test]
 fn an_option_the_shadow_cannot_answer_is_refused_by_name_and_not_dropped() {
     let message: String = plan(&["update", "--bogus"]).expect_err("an unknown option must be refused");

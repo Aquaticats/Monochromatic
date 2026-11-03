@@ -47,7 +47,10 @@
 //! ```
 
 /// What:
-/// `use std::cell::RefCell;` imports `RefCell`, a value that can be changed through a shared reference (sibling: `&mut`, which needs exclusive access).
+/// `use std::cell::RefCell;` imports `RefCell`,
+/// a value that can be changed through a shared reference (sibling:
+/// `&mut`,
+/// which needs exclusive access).
 /// Why:
 /// The record of what this run's cargo calls wrote (`produced`) grows while the transaction body holds a shared reference to it.
 ///
@@ -56,7 +59,11 @@
 /// // TS objects are mutable through any reference; no import is needed.
 /// ```
 use std::cell::RefCell;
-/// Imports `BTreeSet`, an ordered set (sibling: `HashSet`, unordered), which collects the versions to check once each.
+/// Imports `BTreeSet`,
+/// an ordered set (sibling:
+/// `HashSet`,
+/// unordered),
+/// which collects the versions to check once each.
 use std::collections::BTreeSet;
 /// What:
 /// `use std::fmt;` imports `fmt` from the standard library so this file can name it unqualified.
@@ -197,7 +204,8 @@ use crate::lockfile::{LockedVersion, added_versions};
 /// import { Registry } from 'crate/registry';
 /// ```
 use crate::registry::Registry;
-/// Imports the set-aside round, which moves a refused release to the newest older one that passes.
+/// Imports the set-aside round,
+/// which moves a refused release to the newest older one that passes.
 use crate::set_aside::{SetAsideRequest, set_aside_until_clean};
 /// What:
 /// `use crate::verify::{ALL_ENTRIES_SCOPE, is_verified, mark_verified, verify_added_since_base, verify_locked_entries};` imports
@@ -207,8 +215,10 @@ use crate::set_aside::{SetAsideRequest, set_aside_until_clean};
 /// `verify_added_since_base`,
 /// `verify_locked_entries` from another module of this crate so this file can name them unqualified.
 /// Why:
-/// The frozen check, the remembered passes and their scope names live in `verify.rs`;
-/// `install_rust_lockfiles`, `update_stale_roots` and `verification_cached` use them.
+/// The frozen check,
+/// the remembered passes and their scope names live in `verify.rs`;
+/// `install_rust_lockfiles`,
+/// `update_stale_roots` and `verification_cached` use them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -498,20 +508,27 @@ pub struct InstallRequest<'a> {
     pub registry: &'a dyn Registry,
     /// Makes the reader of one crate's lockfile text at the base revision (empty when absent there);
     /// an install under `trustLockfile` checks only the versions this reader's lockfiles did not hold.
-    /// A factory, not a reader, because resolving the base starts git, which a call whose checks are all remembered must not pay for.
+    /// A factory,
+    /// not a reader,
+    /// because resolving the base starts git,
+    /// which a call whose checks are all remembered must not pay for.
     pub lock_base: Option<LockBaseFactory<'a>>,
-    /// How the base revision is spelled (`CARGO_SHADOW_TRUST_BASE`, or `HEAD`);
-    /// part of the key of a remembered pass under `trustLockfile`, so a pass against one base is never taken for another.
+    /// How the base revision is spelled (`CARGO_SHADOW_TRUST_BASE`,
+    /// or `HEAD`);
+    /// part of the key of a remembered pass under `trustLockfile`,
+    /// so a pass against one base is never taken for another.
     pub trust_base: &'a str,
     /// The freshness stamp already showed that every lockfile satisfies its manifests,
-    /// so the staleness check (a cargo call) is skipped; the policy checks are not.
+    /// so the staleness check (a cargo call) is skipped;
+    /// the policy checks are not.
     pub known_consistent: bool,
 }
 
 /// A reader of one crate root's lockfile text at the base revision.
 pub type LockBaseReader = Box<dyn Fn(&str) -> String>;
 
-/// Makes a `LockBaseReader`, or says why the base cannot be read.
+/// Makes a `LockBaseReader`,
+/// or says why the base cannot be read.
 pub type LockBaseFactory<'a> = &'a dyn Fn() -> Result<LockBaseReader, String>;
 
 /// What:
@@ -690,8 +707,10 @@ fn invalid_lock_toml(message: String) -> InstallError {
 /// What:
 /// `pub fn verification_scope(settings, frozen, trust_base) -> String` names the check a remembered pass belongs to.
 /// Why:
-/// A pass of the frozen check says nothing about the local check (which also sets refused releases aside), and a pass
-/// against one base revision says nothing about another, so the remembered passes are keyed by this text as well as by the
+/// A pass of the frozen check says nothing about the local check (which also sets refused releases aside),
+/// and a pass
+/// against one base revision says nothing about another,
+/// so the remembered passes are keyed by this text as well as by the
 /// lockfile and the settings.
 ///
 /// In TS you'd write (pseudocode):
@@ -711,9 +730,11 @@ pub fn verification_scope(settings: &Settings, frozen: bool, trust_base: &str) -
 
 /// What:
 /// `pub fn verification_cached(root, crate_dirs, settings, frozen, trust_base) -> bool` says whether every lockfile already
-/// passed the policy check of this mode, under these settings and this base.
+/// passed the policy check of this mode,
+/// under these settings and this base.
 /// Why:
-/// The freshness stamp answers "do the lockfiles satisfy the manifests"; this answers "were they checked against the policy".
+/// The freshness stamp answers "do the lockfiles satisfy the manifests";
+/// this answers "were they checked against the policy".
 /// A call may take the fast path only when both are true.
 ///
 /// In TS you'd write (pseudocode):
@@ -737,7 +758,8 @@ pub fn verification_cached(root: &Path, crate_dirs: &[String], settings: &Settin
 /// What:
 /// `fn base_reader(request) -> Result<LockBaseReader, InstallError>` makes the base-revision lockfile reader.
 /// Why:
-/// An install under `trustLockfile = true` compares with the base, and without a reader nothing can be trusted.
+/// An install under `trustLockfile = true` compares with the base,
+/// and without a reader nothing can be trusted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -757,9 +779,13 @@ fn base_reader(request: &InstallRequest) -> Result<LockBaseReader, InstallError>
 /// refuses (among the versions `baseline` did not hold) aside for the newest older release that passes,
 /// prints one line per move and returns the lines.
 /// Why:
-/// pnpm resolves to the newest release older than the cutoff instead of refusing, and the owner decided (2026-11-03) that a
-/// local install does the same for a committed lockfile: the refused release never runs, the older copy does.
-/// The moves go through the transaction (`produced` records each lockfile this run wrote), so another writer's lockfile is
+/// pnpm resolves to the newest release older than the cutoff instead of refusing,
+/// and the owner decided (2026-11-03) that a
+/// local install does the same for a committed lockfile:
+/// the refused release never runs,
+/// the older copy does.
+/// The moves go through the transaction (`produced` records each lockfile this run wrote),
+/// so another writer's lockfile is
 /// never replaced.
 ///
 /// In TS you'd write (pseudocode):
@@ -793,9 +819,15 @@ fn set_aside_pass(request: &InstallRequest, baseline: &[String], produced: &RefC
 /// then check what is left;
 /// restoring on refusal is the caller's.
 /// Why:
-/// Three sets of versions are held to the policy: the ones this update newly locked, and, unless a remembered pass covers
-/// them, the existing entries (all of them, or under `trustLockfile = true` the ones new since the base revision).
-/// A refused one is set aside for the newest older release that passes; only a refusal with no such release stands.
+/// Three sets of versions are held to the policy:
+/// the ones this update newly locked,
+/// and,
+/// unless a remembered pass covers
+/// them,
+/// the existing entries (all of them,
+/// or under `trustLockfile = true` the ones new since the base revision).
+/// A refused one is set aside for the newest older release that passes;
+/// only a refusal with no such release stands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

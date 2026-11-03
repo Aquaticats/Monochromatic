@@ -34,8 +34,11 @@ fn a_locked_after_the_double_dash_belongs_to_the_program_and_does_not_count() {
     assert_eq!(with_locked(&arguments(&["run", "--", "--locked"])), arguments(&["run", "--locked", "--", "--locked"]));
 }
 
-/// The owner's rule of 2026-11-03: a local policy refusal that no older release can settle stops the command, an operational
-/// failure (and a frozen refusal) still warns and runs it with `--locked`, and everything else runs it as typed.
+/// The owner's rule of 2026-11-03:
+/// a local policy refusal that no older release can settle stops the command,
+/// an operational
+/// failure (and a frozen refusal) still warns and runs it with `--locked`,
+/// and everything else runs it as typed.
 #[test]
 fn a_refusal_stops_the_command_and_a_failure_runs_it_locked() {
     use crate::install_step::StepOutcome;

@@ -533,11 +533,15 @@ fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, fo
 
 /// What:
 /// `pub fn run_with_placeholder_lock(lock_path, dry_run, body) -> i32` runs `body` with a stand-in lockfile in place when the
-/// crate root has none, and removes the stand-in again if the update is refused or was a dry run.
+/// crate root has none,
+/// and removes the stand-in again if the update is refused or was a dry run.
 /// Why:
-/// The transaction needs a lockfile to snapshot; a root without one is created by the update itself.
-/// The stand-in is created exclusively (`create_new`), so a lockfile another writer published first is never truncated,
-/// and it is removed only while it still holds the stand-in text, so a lockfile another writer published during the update
+/// The transaction needs a lockfile to snapshot;
+/// a root without one is created by the update itself.
+/// The stand-in is created exclusively (`create_new`),
+/// so a lockfile another writer published first is never truncated,
+/// and it is removed only while it still holds the stand-in text,
+/// so a lockfile another writer published during the update
 /// is never deleted.
 ///
 /// In TS you'd write (pseudocode):

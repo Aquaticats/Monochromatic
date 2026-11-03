@@ -195,20 +195,26 @@ fn read_all(text: &str) -> std::io::Result<Vec<Vec<String>>> {
     return Ok(rows);
 }
 
-/// Review finding (malformed EOF): a stream that ends inside a quoted field is cut off, not finished.
+/// Review finding (malformed EOF):
+/// a stream that ends inside a quoted field is cut off,
+/// not finished.
 #[test]
 fn a_stream_that_ends_inside_a_quoted_field_is_an_error() {
     assert!(read_all("a,b\n1,\"never closed").is_err());
 }
 
-/// Review finding (malformed quoting): text after a closing quote, and a quote inside a bare field, are not CSV.
+/// Review finding (malformed quoting):
+/// text after a closing quote,
+/// and a quote inside a bare field,
+/// are not CSV.
 #[test]
 fn text_after_a_closing_quote_and_a_quote_inside_a_bare_field_are_errors() {
     assert!(read_all("a,b\n\"x\"y,2\n").is_err());
     assert!(read_all("a,b\nx\"y,2\n").is_err());
 }
 
-/// Review finding (bounded memory): one field larger than the bound is refused instead of grown.
+/// Review finding (bounded memory):
+/// one field larger than the bound is refused instead of grown.
 #[test]
 fn a_field_over_the_bound_is_refused() {
     let text: String = format!("a\n\"{}\"\n", "x".repeat(crate::csv::MAX_FIELD_BYTES + 1));
@@ -224,7 +230,9 @@ fn a_row_over_the_field_bound_is_refused() {
     assert!(read_all(&text).is_err());
 }
 
-/// Review finding (padding of short rows): a row narrower than the header is a damaged table, and nothing may be cached
+/// Review finding (padding of short rows):
+/// a row narrower than the header is a damaged table,
+/// and nothing may be cached
 /// from it.
 #[test]
 fn a_short_row_refuses_the_table_and_nothing_is_cached() {
@@ -238,7 +246,8 @@ fn a_short_row_refuses_the_table_and_nothing_is_cached() {
     assert!(!cache.path().join("wanted.json").exists());
 }
 
-/// Review finding: a versions table cut off inside a quoted field caches nothing.
+/// Review finding:
+/// a versions table cut off inside a quoted field caches nothing.
 #[test]
 fn a_versions_table_cut_off_inside_a_quote_caches_nothing() {
     let cache = scratch();
@@ -251,7 +260,8 @@ fn a_versions_table_cut_off_inside_a_quote_caches_nothing() {
     assert!(!cache.path().join("wanted.json").exists());
 }
 
-/// Review finding (retained history): one crate's history is bounded.
+/// Review finding (retained history):
+/// one crate's history is bounded.
 #[test]
 fn more_releases_of_one_crate_than_the_bound_are_refused() {
     let cache = scratch();

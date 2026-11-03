@@ -59,9 +59,14 @@ fn record(num: &str, created_at: &str, publisher_id: &str) -> VersionRecord {
     };
 }
 
-/// Review finding (lazy owner lookup): without the owner list both releases rank as first-time publishers, so the
-/// ownerless evaluation finds nothing; with it the earlier release (account 1 is a listed owner) ranks higher than the
-/// candidate (account 2 is not), which is a downgrade. The owners must be asked even when the ownerless pass is clean.
+/// Review finding (lazy owner lookup):
+/// without the owner list both releases rank as first-time publishers,
+/// so the
+/// ownerless evaluation finds nothing;
+/// with it the earlier release (account 1 is a listed owner) ranks higher than the
+/// candidate (account 2 is not),
+/// which is a downgrade.
+/// The owners must be asked even when the ownerless pass is clean.
 #[test]
 fn an_owner_who_raises_the_earlier_release_makes_a_later_release_by_a_stranger_a_downgrade() {
     let registry: OneCrate = OneCrate {
@@ -76,8 +81,10 @@ fn an_owner_who_raises_the_earlier_release_makes_a_later_release_by_a_stranger_a
     assert_eq!(messages.len(), 1, "{messages:?}");
 }
 
-/// The lookup stays lazy where the owner list cannot matter: a release by an account that already published an earlier
-/// release ranks as a known publisher without owners, so no owner can change the verdict and the rate-limited call is skipped.
+/// The lookup stays lazy where the owner list cannot matter:
+/// a release by an account that already published an earlier
+/// release ranks as a known publisher without owners,
+/// so no owner can change the verdict and the rate-limited call is skipped.
 #[test]
 fn the_owner_list_is_not_asked_when_it_cannot_change_the_verdict() {
     let registry: OneCrate = OneCrate {

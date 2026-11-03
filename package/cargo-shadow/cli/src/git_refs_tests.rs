@@ -1,4 +1,5 @@
-//! The unit tests of the plain-file reader of references and branch configuration, over hand-made repository directories.
+//! The unit tests of the plain-file reader of references and branch configuration,
+//! over hand-made repository directories.
 
 use std::fs;
 use std::path::{Path, PathBuf};

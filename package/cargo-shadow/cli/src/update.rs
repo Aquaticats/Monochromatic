@@ -37,7 +37,9 @@
 //! export async function updateRustLockfiles({ root, dryRun, now, runCargo, registry }): Promise<UpdateReport>
 //! ```
 
-/// Imports `RefCell`, a list or value that can be changed through a shared reference; it holds the record of the lockfiles this run wrote.
+/// Imports `RefCell`,
+/// a list or value that can be changed through a shared reference;
+/// it holds the record of the lockfiles this run wrote.
 use std::cell::RefCell;
 /// What:
 /// `use std::fmt;` imports `fmt` from the standard library so this file can name it unqualified.
@@ -165,7 +167,8 @@ use crate::install::policy_findings;
 /// import { begin, finish, note_produced, process_exists, recover, restore_if_unchanged } from 'crate/journal';
 /// ```
 use crate::journal::{add_manifests, begin, finish, note_produced, process_exists, recover, restore_if_unchanged};
-/// Imports the manifest transaction that `--breaking` needs: cargo rewrites `Cargo.toml` as well as the lockfile.
+/// Imports the manifest transaction that `--breaking` needs:
+/// cargo rewrites `Cargo.toml` as well as the lockfile.
 use crate::manifest_edit::{ManifestEdit, record_manifest_output, restore_manifests, snapshot_manifests};
 /// Imports the manifest list of a `cargo metadata` answer.
 use crate::stamp::manifests_from_metadata;
@@ -839,9 +842,11 @@ fn raised_floor_warning(change: &str) -> String {
 
 /// What:
 /// `fn workspace_manifests(request, crate_dir) -> Result<Vec<PathBuf>, UpdateError>` lists the manifests of the Cargo workspace
-/// at a crate root, from `cargo metadata --no-deps`.
+/// at a crate root,
+/// from `cargo metadata --no-deps`.
 /// Why:
-/// The `--breaking` transaction has to know every file cargo may rewrite before cargo runs; if the list cannot be made,
+/// The `--breaking` transaction has to know every file cargo may rewrite before cargo runs;
+/// if the list cannot be made,
 /// nothing has been mutated yet and the update stops.
 ///
 /// In TS you'd write (pseudocode):
@@ -868,7 +873,8 @@ fn workspace_manifests(request: &UpdateRequest, crate_dir: &str) -> Result<Vec<P
 /// Why:
 /// The caller restores on an error or a refusal;
 /// `produced` records each lockfile the moment this run's cargo wrote it,
-/// so the restore can tell a concurrent writer from this run, and a root this run never wrote is never restored.
+/// so the restore can tell a concurrent writer from this run,
+/// and a root this run never wrote is never restored.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

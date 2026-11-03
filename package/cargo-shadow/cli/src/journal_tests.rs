@@ -119,8 +119,10 @@ fn finish_removes_this_processs_journal() {
     assert!(!root.path().join(JOURNAL_DIR).join(std::process::id().to_string()).exists());
 }
 
-/// Review finding (recovery destroys the remaining recovery copies): a second refusal must not overwrite the first saved
-/// lockfile, so every saved copy gets its own name.
+/// Review finding (recovery destroys the remaining recovery copies):
+/// a second refusal must not overwrite the first saved
+/// lockfile,
+/// so every saved copy gets its own name.
 #[test]
 fn a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives() {
     let root = repository("first unchecked output");
@@ -143,8 +145,12 @@ fn a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives
     assert_eq!(saved, vec!["first unchecked output".to_string(), "second unchecked output".to_string()]);
 }
 
-/// Review finding: a recovery that could not finish keeps the journal, because the journal holds the only copy of the
-/// original lockfile. Here the crate directory cannot be written, so neither the refused copy nor the restore can happen.
+/// Review finding:
+/// a recovery that could not finish keeps the journal,
+/// because the journal holds the only copy of the
+/// original lockfile.
+/// Here the crate directory cannot be written,
+/// so neither the refused copy nor the restore can happen.
 #[test]
 fn a_recovery_that_fails_keeps_the_journal() {
     use std::os::unix::fs::PermissionsExt;
@@ -160,7 +166,8 @@ fn a_recovery_that_fails_keeps_the_journal() {
     assert!(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists(), "the journal of a failed recovery was deleted");
 }
 
-/// Review finding: a live lockfile that cannot be read keeps the journal.
+/// Review finding:
+/// a live lockfile that cannot be read keeps the journal.
 #[test]
 fn an_unreadable_live_lock_keeps_the_journal() {
     let root = repository("whatever");
@@ -172,7 +179,8 @@ fn an_unreadable_live_lock_keeps_the_journal() {
     assert!(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists(), "the journal was deleted with the live lock unread");
 }
 
-/// Review finding: a journal that cannot be read in full keeps its directory.
+/// Review finding:
+/// a journal that cannot be read in full keeps its directory.
 #[test]
 fn an_unreadable_journal_is_kept() {
     let root = repository("whatever");
@@ -184,8 +192,11 @@ fn an_unreadable_journal_is_kept() {
     assert!(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists(), "a damaged journal was deleted");
 }
 
-/// Review finding (compare-before-replace): the policy judgement is slow, and another writer can publish a lockfile while
-/// it runs. Recovery must compare again right before it replaces the file.
+/// Review finding (compare-before-replace):
+/// the policy judgement is slow,
+/// and another writer can publish a lockfile while
+/// it runs.
+/// Recovery must compare again right before it replaces the file.
 #[test]
 fn recovery_leaves_a_lock_that_another_writer_published_while_the_policy_was_judged() {
     let root = repository("unchecked output of the killed run");
@@ -202,7 +213,8 @@ fn recovery_leaves_a_lock_that_another_writer_published_while_the_policy_was_jud
     assert!(messages[0].contains("another process"), "{messages:?}");
 }
 
-/// Review finding (unknown ownership): a lockfile this run never produced is not restored.
+/// Review finding (unknown ownership):
+/// a lockfile this run never produced is not restored.
 #[test]
 fn a_lock_the_run_never_produced_is_left_alone_even_when_it_differs_from_the_snapshot() {
     let root = repository("written by someone else");
@@ -213,9 +225,12 @@ fn a_lock_the_run_never_produced_is_left_alone_even_when_it_differs_from_the_sna
     assert_eq!(warnings.len(), 1);
 }
 
-/// Delegated pick 5 (2026-11-03): a restore compares and replaces in one atomic step (`renameat2` with `RENAME_EXCHANGE`) and
-/// undoes the swap when the file it displaced is not the one it expected. Another writer publishes a lockfile in the gap
-/// between the comparison and the replacement; that lockfile must survive.
+/// Delegated pick 5 (2026-11-03):
+/// a restore compares and replaces in one atomic step (`renameat2` with `RENAME_EXCHANGE`) and
+/// undoes the swap when the file it displaced is not the one it expected.
+/// Another writer publishes a lockfile in the gap
+/// between the comparison and the replacement;
+/// that lockfile must survive.
 #[test]
 fn a_lockfile_published_between_the_comparison_and_the_replacement_is_not_lost() {
     use crate::journal::restore_if_unchanged_with;
@@ -228,7 +243,8 @@ fn a_lockfile_published_between_the_comparison_and_the_replacement_is_not_lost()
     assert_eq!(warnings.len(), 1, "{warnings:?}");
 }
 
-/// The recovery of a killed run replaces the same way: a lockfile published after it was judged survives.
+/// The recovery of a killed run replaces the same way:
+/// a lockfile published after it was judged survives.
 #[test]
 fn recovery_does_not_replace_a_lock_published_in_the_gap_after_the_last_comparison() {
     use crate::journal::recover_with;
@@ -283,8 +299,12 @@ fn manifest(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.toml")).expect("read the manifest");
 }
 
-/// Delegated pick 8 (2026-11-03): a killed `--breaking` run is recovered for the manifests it rewrote. When the lockfile it left
-/// holds refused versions, the lockfile and the manifest both go back, and the text that was replaced is kept aside.
+/// Delegated pick 8 (2026-11-03):
+/// a killed `--breaking` run is recovered for the manifests it rewrote.
+/// When the lockfile it left
+/// holds refused versions,
+/// the lockfile and the manifest both go back,
+/// and the text that was replaced is kept aside.
 #[test]
 fn a_killed_breaking_run_whose_lock_is_refused_gets_its_manifest_back_too() {
     let root = repository("unchecked output of the killed run");
@@ -300,7 +320,8 @@ fn a_killed_breaking_run_whose_lock_is_refused_gets_its_manifest_back_too() {
     assert!(!root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists());
 }
 
-/// When the lockfile it left passes the policy, the manifest edit that goes with it is kept.
+/// When the lockfile it left passes the policy,
+/// the manifest edit that goes with it is kept.
 #[test]
 fn a_killed_breaking_run_whose_lock_passes_keeps_its_manifest_edit() {
     let root = repository("good output");
@@ -313,7 +334,9 @@ fn a_killed_breaking_run_whose_lock_passes_keeps_its_manifest_edit() {
     assert_eq!(manifest(root.path()), "edited by cargo");
 }
 
-/// A run killed before cargo wrote the lockfile but after it rewrote a manifest: the lockfile is unchanged, the manifest goes back.
+/// A run killed before cargo wrote the lockfile but after it rewrote a manifest:
+/// the lockfile is unchanged,
+/// the manifest goes back.
 #[test]
 fn a_killed_breaking_run_that_only_rewrote_the_manifest_gets_it_back() {
     let root = repository("original");
@@ -325,8 +348,12 @@ fn a_killed_breaking_run_that_only_rewrote_the_manifest_gets_it_back() {
     assert_eq!(manifest(root.path()), "manifest before");
 }
 
-/// A file displaced twice: one writer publishes in the gap before the exchange, another between the exchange and its undo.
-/// Neither file is lost: the first is back at the path, the second is kept as `Cargo.lock.displaced`.
+/// A file displaced twice:
+/// one writer publishes in the gap before the exchange,
+/// another between the exchange and its undo.
+/// Neither file is lost:
+/// the first is back at the path,
+/// the second is kept as `Cargo.lock.displaced`.
 #[test]
 fn a_file_displaced_twice_is_kept_as_displaced_and_the_first_writers_file_is_put_back() {
     use crate::journal::{ReplaceOutcome, replace_if_holds_with_hooks};

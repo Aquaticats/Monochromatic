@@ -411,10 +411,15 @@ fn a_launcher_that_leads_back_to_the_shadow_is_skipped_by_the_install_step_and_t
     assert!(runs <= 6, "the launcher ran {runs} times: the install step must not lead back into the shadow");
 }
 
-/// Review finding (recursion guard kind): `cargo add` and `cargo remove` are started as a child
-/// (the shadow stays alive to warn afterwards), so the guard it leaves must be the spawn kind.
+/// Review finding (recursion guard kind):
+/// `cargo add` and `cargo remove` are started as a child
+/// (the shadow stays alive to warn afterwards),
+/// so the guard it leaves must be the spawn kind.
 /// With the exec kind a launcher that execs the shadow again has a different process id than the
-/// guard names, the guard is ignored, the hop count restarts, and the chain never reaches the cap.
+/// guard names,
+/// the guard is ignored,
+/// the hop count restarts,
+/// and the chain never reaches the cap.
 #[test]
 fn a_launcher_that_leads_back_to_the_shadow_is_skipped_for_add_which_the_shadow_starts_as_a_child() {
     let world = make_world();

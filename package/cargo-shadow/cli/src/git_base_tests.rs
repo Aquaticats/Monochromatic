@@ -1,4 +1,5 @@
-//! The unit tests of the choice of the trust base, against real throwaway git repositories.
+//! The unit tests of the choice of the trust base,
+//! against real throwaway git repositories.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -6,7 +7,9 @@ use std::process::Command;
 use crate::git_base::{git_lock_reader_at, resolve_trust_base};
 use crate::test_scratch::scratch;
 
-/// The system git, not the `git` on PATH: that one may be a policy wrapper that refuses a bare `git commit` in a fixture.
+/// The system git,
+/// not the `git` on PATH:
+/// that one may be a policy wrapper that refuses a bare `git commit` in a fixture.
 const SYSTEM_GIT: &str = "/usr/bin/git";
 
 fn git(directory: &Path, arguments: &[&str]) -> String {
@@ -21,7 +24,8 @@ fn git(directory: &Path, arguments: &[&str]) -> String {
 }
 
 /// A repository whose branch `main` tracks a bare remote at its first commit and has one more commit that was not pushed.
-/// Returns the working directory, the pushed commit and the local-only commit.
+/// Returns the working directory,
+/// the pushed commit and the local-only commit.
 fn repository_ahead_of_its_upstream() -> (tempfile::TempDir, PathBuf, String, String) {
     let root = scratch();
     let remote: PathBuf = root.path().join("remote.git");
@@ -42,8 +46,11 @@ fn repository_ahead_of_its_upstream() -> (tempfile::TempDir, PathBuf, String, St
     return (root, work, pushed, local);
 }
 
-/// Delegated pick 1 (2026-11-03): a local run compares with the upstream branch, so a lockfile that arrived with a commit that is
-/// not on the upstream yet is new since the base. The remembered pass is keyed by the commit.
+/// Delegated pick 1 (2026-11-03):
+/// a local run compares with the upstream branch,
+/// so a lockfile that arrived with a commit that is
+/// not on the upstream yet is new since the base.
+/// The remembered pass is keyed by the commit.
 #[test]
 fn a_local_run_compares_with_the_upstream_branch_not_head() {
     let (_root, work, pushed, local) = repository_ahead_of_its_upstream();
@@ -55,7 +62,8 @@ fn a_local_run_compares_with_the_upstream_branch_not_head() {
     assert_eq!(base.spelling, "@{upstream}");
 }
 
-/// CI keeps `HEAD`, and an explicit `CARGO_SHADOW_TRUST_BASE` wins everywhere.
+/// CI keeps `HEAD`,
+/// and an explicit `CARGO_SHADOW_TRUST_BASE` wins everywhere.
 #[test]
 fn ci_compares_with_head_and_an_explicit_base_wins() {
     let (_root, work, pushed, local) = repository_ahead_of_its_upstream();
@@ -65,7 +73,8 @@ fn ci_compares_with_head_and_an_explicit_base_wins() {
     assert_eq!(resolve_trust_base(&work, true, Some(&pushed)).commit, Ok(pushed));
 }
 
-/// Without an upstream the base falls back to the remote's default branch, and without that to `HEAD`.
+/// Without an upstream the base falls back to the remote's default branch,
+/// and without that to `HEAD`.
 #[test]
 fn without_an_upstream_the_base_is_origin_main_and_without_a_remote_it_is_head() {
     let (_root, work, pushed, local) = repository_ahead_of_its_upstream();
@@ -81,7 +90,8 @@ fn without_an_upstream_the_base_is_origin_main_and_without_a_remote_it_is_head()
     assert_eq!(alone.spelling, "HEAD");
 }
 
-/// The reader names a commit and reads the lockfile text there, empty when it did not exist.
+/// The reader names a commit and reads the lockfile text there,
+/// empty when it did not exist.
 #[test]
 fn the_reader_reads_a_lockfile_at_the_commit_and_an_absent_one_as_empty() {
     let (_root, work, pushed, _local) = repository_ahead_of_its_upstream();
@@ -91,7 +101,8 @@ fn the_reader_reads_a_lockfile_at_the_commit_and_an_absent_one_as_empty() {
     assert_eq!(read("package/a/two"), "");
 }
 
-/// A base that names no commit is an error naming it, not a panic.
+/// A base that names no commit is an error naming it,
+/// not a panic.
 #[test]
 fn a_base_that_names_no_commit_is_an_error() {
     let (_root, work, _pushed, _local) = repository_ahead_of_its_upstream();
@@ -108,7 +119,10 @@ fn a_base_that_names_no_commit_is_an_error() {
 use crate::git_base::{TrustBase, resolve_trust_base_with};
 use crate::git_refs::NativeEnvironment;
 
-/// A disposable environment: an empty home, no system configuration, no blocking variable.
+/// A disposable environment:
+/// an empty home,
+/// no system configuration,
+/// no blocking variable.
 fn isolated_environment(root: &Path) -> NativeEnvironment {
     let home: PathBuf = root.join("home");
     std::fs::create_dir_all(&home).expect("home");
@@ -180,7 +194,8 @@ fn a_linked_worktree_reads_its_own_head_and_the_shared_configuration_and_referen
     assert_eq!(oracle(&linked, "@{upstream}"), pushed);
 }
 
-/// Each layout or setting the reader cannot answer exactly costs one Git start, and the answer is still Git's.
+/// Each layout or setting the reader cannot answer exactly costs one Git start,
+/// and the answer is still Git's.
 fn assert_asked_git(base: &TrustBase, expected: &str) {
     assert!(base.git_starts >= 1, "the files should not have answered: {base:?}");
     assert_eq!(base.commit, Ok(expected.to_string()));

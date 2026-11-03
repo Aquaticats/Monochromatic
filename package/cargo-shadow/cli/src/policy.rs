@@ -167,7 +167,8 @@ fn created_millis(record: &VersionRecord) -> Option<i64> {
 /// and an unreadable time sorts first.
 /// Why:
 /// An undated earlier release then still counts as earlier history,
-/// which can only make the downgrade check stricter, never grant an exemption.
+/// which can only make the downgrade check stricter,
+/// never grant an exemption.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -205,9 +206,12 @@ fn earlier_releases(history: &[VersionRecord], record_millis: i64) -> Vec<Versio
 /// `pub fn owners_can_change_verdict(...) -> bool` says whether the crate's owner list could turn a clean ownerless
 /// trust evaluation into a refusal for any of `versions`.
 /// Why:
-/// Owners only raise levels. A refusal needs an earlier release ranked above the checked one, so the owner list can matter
+/// Owners only raise levels.
+/// A refusal needs an earlier release ranked above the checked one,
+/// so the owner list can matter
 /// only for a checked release that ranks as a first-time publisher without owners and has earlier releases.
-/// The registry call for owners is rate limited, so it is asked only when it can change the answer.
+/// The registry call for owners is rate limited,
+/// so it is asked only when it can change the answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -246,10 +250,14 @@ pub fn owners_can_change_verdict(name: &str, versions: &[String], history: &[Ver
 }
 
 /// What:
-/// `fn publisher_text(record) -> String` says who published a release, as far as the registry reports it:
-/// the trusted-publishing repository, else the account id, else that it is unknown.
+/// `fn publisher_text(record) -> String` says who published a release,
+/// as far as the registry reports it:
+/// the trusted-publishing repository,
+/// else the account id,
+/// else that it is unknown.
 /// Why:
-/// A trust downgrade is a change of publisher, and the finding should name both ends of the change.
+/// A trust downgrade is a change of publisher,
+/// and the finding should name both ends of the change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

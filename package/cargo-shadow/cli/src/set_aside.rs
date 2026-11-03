@@ -18,7 +18,9 @@
 //! export async function setAsideUntilClean(args): Promise<string[]>  // warnings
 //! ```
 
-/// Imports `RefCell`, a list or value that can be changed through a shared reference; it holds the record of the lockfiles this run wrote.
+/// Imports `RefCell`,
+/// a list or value that can be changed through a shared reference;
+/// it holds the record of the lockfiles this run wrote.
 use std::cell::RefCell;
 /// What:
 /// `use std::collections::BTreeSet;` imports `BTreeSet` from the standard library so this file can name it unqualified.
@@ -95,7 +97,8 @@ use crate::checks::{TrustRefusal, group_by_name, trust_refusals};
 /// import { LockSnapshot, read_locks } from 'crate/crates';
 /// ```
 use crate::crates::{LockSnapshot, read_locks};
-/// Imports `note_produced`, which records a lockfile this run's cargo wrote.
+/// Imports `note_produced`,
+/// which records a lockfile this run's cargo wrote.
 use crate::journal::note_produced;
 /// What:
 /// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
@@ -214,7 +217,8 @@ pub struct SetAsideRequest<'a> {
     /// ...).
     pub forward: &'a [String],
     /// The record of the lockfiles this run wrote;
-    /// every successful `--precise` move is added, so a rollback knows the root is this run's own.
+    /// every successful `--precise` move is added,
+    /// so a rollback knows the root is this run's own.
     pub produced: &'a RefCell<Vec<LockSnapshot>>,
 }
 
@@ -349,10 +353,14 @@ fn age_refusals(added: &[LockedVersion], request: &SetAsideRequest) -> Result<Ve
 /// What:
 /// `fn age_allows(record, refused, request) -> bool` says whether a release passes the release-age condition of the choice.
 /// Why:
-/// The final check (`check_release_age`) refuses only under `minimumReleaseAgeStrict`, skips crates listed in
-/// `minimumReleaseAgeExclude`, and refuses a release with no readable publish time unless
-/// `minimumReleaseAgeIgnoreMissingTime` is set. A candidate is judged by the same function,
-/// so a release the final check accepts is never rejected here, and one it would refuse is never chosen.
+/// The final check (`check_release_age`) refuses only under `minimumReleaseAgeStrict`,
+/// skips crates listed in
+/// `minimumReleaseAgeExclude`,
+/// and refuses a release with no readable publish time unless
+/// `minimumReleaseAgeIgnoreMissingTime` is set.
+/// A candidate is judged by the same function,
+/// so a release the final check accepts is never rejected here,
+/// and one it would refuse is never chosen.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -380,7 +388,8 @@ fn age_allows(record: &VersionRecord, refused: &TrustRefusal, request: &SetAside
 /// not already rejected,
 /// pass the release-age condition as the final check applies it,
 /// and be a prerelease only when the refused version is one.
-/// Whether it fits the manifest's range is decided by cargo, which refuses `--precise` for a version outside it.
+/// Whether it fits the manifest's range is decided by cargo,
+/// which refuses `--precise` for a version outside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -409,9 +418,12 @@ fn is_candidate(record: &VersionRecord, refused: &TrustRefusal, prerelease_allow
 /// not already rejected,
 /// pass the release-age condition,
 /// and
-/// pass the trust policy against the full history with the crate's owners, as the final check does.
-/// Cargo takes the first one that fits the manifest's requirements, so the order puts the least surprising ones first;
-/// the caret class is a preference, not a boundary.
+/// pass the trust policy against the full history with the crate's owners,
+/// as the final check does.
+/// Cargo takes the first one that fits the manifest's requirements,
+/// so the order puts the least surprising ones first;
+/// the caret class is a preference,
+/// not a boundary.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

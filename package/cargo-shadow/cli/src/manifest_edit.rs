@@ -6,8 +6,10 @@
 //! Why:
 //! `cargo update --breaking` edits version requirements in `Cargo.toml` as well as the lockfile,
 //! so a refusal or a dry run that restored only the lockfiles would leave the new requirements behind.
-//! The restore follows the lockfile rule: a manifest is replaced only while it still holds what this run's cargo wrote,
-//! through a sibling file and an atomic rename, and one that another process changed is left alone with a warning.
+//! The restore follows the lockfile rule:
+//! a manifest is replaced only while it still holds what this run's cargo wrote,
+//! through a sibling file and an atomic rename,
+//! and one that another process changed is left alone with a warning.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,14 +35,16 @@ pub struct ManifestEdit {
     /// Its text before the run.
     pub before: String,
     /// Its text right after this run's cargo call returned;
-    /// `None` until then, and a manifest without it is never restored.
+    /// `None` until then,
+    /// and a manifest without it is never restored.
     pub produced: Option<String>,
 }
 
 /// What:
 /// `pub fn snapshot_manifests(paths, edits) -> io::Result<()>` reads each manifest and adds it to `edits`.
 /// Why:
-/// The text must be taken before cargo runs; a manifest that cannot be read stops the run before anything is mutated.
+/// The text must be taken before cargo runs;
+/// a manifest that cannot be read stops the run before anything is mutated.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -57,7 +61,9 @@ pub fn snapshot_manifests(paths: &[PathBuf], edits: &RefCell<Vec<ManifestEdit>>)
 /// What:
 /// `pub fn record_manifest_output(edits)` reads each manifest again and stores the text as this run's output.
 /// Why:
-/// Called right after cargo returned, success or failure, so the restore can tell cargo's own edit from another writer's.
+/// Called right after cargo returned,
+/// success or failure,
+/// so the restore can tell cargo's own edit from another writer's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +80,9 @@ pub fn record_manifest_output(edits: &RefCell<Vec<ManifestEdit>>) {
 /// `pub fn restore_manifests(edits) -> io::Result<Vec<String>>` puts each manifest back that still holds this run's output
 /// and returns a warning for each one it left alone.
 /// Why:
-/// Unknown ownership never authorizes a restore: a manifest with no recorded output, or one that differs from it,
+/// Unknown ownership never authorizes a restore:
+/// a manifest with no recorded output,
+/// or one that differs from it,
 /// belongs to another process.
 ///
 /// In TS you'd write (pseudocode):

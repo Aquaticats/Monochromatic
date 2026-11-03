@@ -115,13 +115,17 @@ const CARRIAGE_RETURN: u8 = b'\r';
 const CHUNK_BYTES: usize = 64 * 1024;
 
 /// The most bytes one field may hold.
-/// The chunk size bounds the read buffer, not the field being built, so without this a quoted field that never ends
+/// The chunk size bounds the read buffer,
+/// not the field being built,
+/// so without this a quoted field that never ends
 /// would grow until the process is killed.
-/// A chosen ceiling far above any metadata field of the crates.io tables read here (a guess, not measured on a real dump).
+/// A chosen ceiling far above any metadata field of the crates.io tables read here (a guess,
+/// not measured on a real dump).
 pub const MAX_FIELD_BYTES: usize = 16 * 1024 * 1024;
 
 /// The most fields one row may hold.
-/// A chosen ceiling far above the column count of the crates.io tables read here (a guess, not measured on a real dump).
+/// A chosen ceiling far above the column count of the crates.io tables read here (a guess,
+/// not measured on a real dump).
 pub const MAX_ROW_FIELDS: usize = 1024;
 
 /// The parser state between bytes.

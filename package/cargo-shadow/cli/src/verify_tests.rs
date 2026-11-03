@@ -179,7 +179,8 @@ impl Registry for YoungRegistry {
     }
 }
 
-/// Delegated pick 2 (2026-11-03): the release age and the trust policy both apply to the versions new since the base,
+/// Delegated pick 2 (2026-11-03):
+/// the release age and the trust policy both apply to the versions new since the base,
 /// on the frozen path as on the local one.
 #[test]
 fn since_the_base_the_release_age_is_checked_as_well_as_the_trust() {

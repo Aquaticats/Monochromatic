@@ -41,8 +41,10 @@ fn locked_and_frozen_assert_the_lock() {
     assert!(!asserts_lock(&arguments(&["check", "--offline"])));
 }
 
-/// Review finding (supported spellings): `cargo update -m <path>` is the short spelling of `--manifest-path` (shown by
-/// `cargo update --help`), so the workspace it selects is the one in the path.
+/// Review finding (supported spellings):
+/// `cargo update -m <path>` is the short spelling of `--manifest-path` (shown by
+/// `cargo update --help`),
+/// so the workspace it selects is the one in the path.
 #[test]
 fn the_short_manifest_path_of_update_selects_the_workspace() {
     assert_eq!(manifest_path(&arguments(&["update", "-m", "../b/Cargo.toml"])), Some(PathBuf::from("../b/Cargo.toml")));

@@ -231,8 +231,11 @@ fn downgrading_registry() -> FakeRegistry {
     return FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
 }
 
-/// Review finding (the freshness stamp bypasses the policy checks): the stamp certifies that the lockfile satisfies its
-/// manifests, nothing about the policy. A pass under a lenient trust policy must not let a later frozen call under a stricter
+/// Review finding (the freshness stamp bypasses the policy checks):
+/// the stamp certifies that the lockfile satisfies its
+/// manifests,
+/// nothing about the policy.
+/// A pass under a lenient trust policy must not let a later frozen call under a stricter
 /// policy skip the verification of the locked entries.
 #[test]
 fn a_stamp_recorded_under_a_lenient_policy_does_not_skip_the_verification_under_a_stricter_one() {
@@ -252,7 +255,8 @@ fn a_stamp_recorded_under_a_lenient_policy_does_not_skip_the_verification_under_
     }
 }
 
-/// The lockfile used by the base tests: it holds the refused `dep@1.0.1`.
+/// The lockfile used by the base tests:
+/// it holds the refused `dep@1.0.1`.
 fn refused_lock() -> String {
     return format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
 }
@@ -266,7 +270,8 @@ fn step_with_base(start: &Path, frozen: bool, runner: &FakeCargo, registry: &Fak
     return run_install_step(&StepRequest { start_dir: start, frozen, offline: true, now: 0, runner, registry, lock_base: Some(&factory), trust_base });
 }
 
-/// Review finding (the stamp bypasses the base-revision check): a pass against one base must not let a frozen call against
+/// Review finding (the stamp bypasses the base-revision check):
+/// a pass against one base must not let a frozen call against
 /// another base skip `verify_added_since_base`.
 #[test]
 fn a_pass_against_one_trust_base_does_not_stand_for_another_base() {
@@ -285,7 +290,9 @@ fn a_pass_against_one_trust_base_does_not_stand_for_another_base() {
     }
 }
 
-/// The same base and settings do take the fast path, with no cargo call and no git: the saving the stamp exists for.
+/// The same base and settings do take the fast path,
+/// with no cargo call and no git:
+/// the saving the stamp exists for.
 #[test]
 fn the_same_base_and_settings_take_the_fast_path() {
     let root = repository(&refused_lock());
@@ -310,8 +317,11 @@ fn the_same_base_and_settings_take_the_fast_path() {
     assert_eq!(runner.commands.borrow().len(), before);
 }
 
-/// A local install under `trustLockfile = true` holds only the versions new since the base to the policy: an entry the base
-/// already held is trusted, one it did not is set aside (cargo here refuses every move, so the install stops).
+/// A local install under `trustLockfile = true` holds only the versions new since the base to the policy:
+/// an entry the base
+/// already held is trusted,
+/// one it did not is set aside (cargo here refuses every move,
+/// so the install stops).
 #[test]
 fn a_local_install_under_trust_lockfile_checks_only_what_is_new_since_the_base() {
     let root = repository(&refused_lock());
@@ -329,8 +339,11 @@ fn a_local_install_under_trust_lockfile_checks_only_what_is_new_since_the_base()
     }
 }
 
-/// Delegated pick 3 (2026-11-03): a frozen check that finds a policy refusal stops the command, as pnpm's frozen install fails
-/// on a rejected lockfile entry before any fetch. A stale lockfile in a frozen check stays a warning plus `--locked`.
+/// Delegated pick 3 (2026-11-03):
+/// a frozen check that finds a policy refusal stops the command,
+/// as pnpm's frozen install fails
+/// on a rejected lockfile entry before any fetch.
+/// A stale lockfile in a frozen check stays a warning plus `--locked`.
 #[test]
 fn a_frozen_policy_refusal_stops_the_command_and_a_frozen_stale_lock_does_not() {
     let root = repository(&refused_lock());

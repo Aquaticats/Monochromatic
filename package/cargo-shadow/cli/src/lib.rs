@@ -66,10 +66,12 @@ pub mod dump;
 /// Reads the lockfiles of a base revision with git.
 pub mod git_base;
 
-/// The reader of the few Git configuration keys the trust base needs, without Git.
+/// The reader of the few Git configuration keys the trust base needs,
+/// without Git.
 pub mod git_config;
 
-/// The plain-file reader of `HEAD`, branch configuration and references that chooses the trust base without Git.
+/// The plain-file reader of `HEAD`,
+/// branch configuration and references that chooses the trust base without Git.
 pub mod git_refs;
 
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `cargo`.
@@ -233,7 +235,8 @@ mod dump_tests;
 /// the attribute compiles it only for test builds (a TS test file that production code never imports).
 /// Why:
 /// Its header says:
-/// "The unit tests of the choice of the trust base, against real throwaway git repositories."
+/// "The unit tests of the choice of the trust base,
+/// against real throwaway git repositories."
 /// so the behavior of `git_base` is pinned where a change shows up as a red test.
 ///
 /// In TS you'd write (pseudocode):
@@ -263,7 +266,8 @@ mod git_config_tests;
 /// the attribute compiles it only for test builds (a TS test file that production code never imports).
 /// Why:
 /// Its header says:
-/// "The unit tests of the plain-file reader of references and branch configuration, over hand-made repository directories."
+/// "The unit tests of the plain-file reader of references and branch configuration,
+/// over hand-made repository directories."
 /// so the behavior of `git_refs` is pinned where a change shows up as a red test.
 ///
 /// In TS you'd write (pseudocode):

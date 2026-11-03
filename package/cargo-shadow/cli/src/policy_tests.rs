@@ -180,7 +180,8 @@ fn a_version_missing_from_the_history_cannot_be_checked_and_is_reported() {
     assert!(problems[0].contains("is not in the crates.io version list"));
 }
 
-/// Review finding (invalid publish timestamps): a record whose `created_at` cannot be read must not look old enough to
+/// Review finding (invalid publish timestamps):
+/// a record whose `created_at` cannot be read must not look old enough to
 /// skip the trust check when `trustPolicyIgnoreAfter` is set.
 #[test]
 fn a_release_with_an_unreadable_publish_time_never_gets_the_ignore_after_exemption() {
@@ -211,8 +212,11 @@ fn a_release_with_an_empty_publish_time_never_gets_the_ignore_after_exemption() 
     assert!(!problems.is_empty(), "a missing publish time granted the age exemption");
 }
 
-/// Delegated pick 9 (2026-11-03): the trust-downgrade finding names the new publisher account and the earlier release with its
-/// publisher (the account, or the trusted-publishing repository), as well as the trust levels.
+/// Delegated pick 9 (2026-11-03):
+/// the trust-downgrade finding names the new publisher account and the earlier release with its
+/// publisher (the account,
+/// or the trusted-publishing repository),
+/// as well as the trust levels.
 #[test]
 fn a_trust_downgrade_names_the_earlier_and_the_new_publisher() {
     let history: Vec<VersionRecord> = vec![

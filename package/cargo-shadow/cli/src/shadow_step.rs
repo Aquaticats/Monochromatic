@@ -384,7 +384,8 @@ pub struct Prepared {
     /// present under `trustLockfile`;
     /// git is started only when a check that is not remembered needs the reader.
     pub lock_base: Option<OwnedLockBaseFactory>,
-    /// How the base revision is spelled (`CARGO_SHADOW_TRUST_BASE`, or `HEAD`).
+    /// How the base revision is spelled (`CARGO_SHADOW_TRUST_BASE`,
+    /// or `HEAD`).
     pub trust_base: String,
     /// Whether the install step keeps cargo offline:
     /// always,
@@ -614,11 +615,19 @@ pub type OwnedLockBaseFactory = Box<dyn Fn() -> Result<LockBaseReader, String>>;
 
 /// What:
 /// `pub fn trust_base_setup(catalog_root, document, in_ci) -> (String, Option<OwnedLockBaseFactory>)` chooses the trust base
-/// under `trustLockfile = true` and returns the key a remembered pass is filed under, with the maker of the lockfile reader.
+/// under `trustLockfile = true` and returns the key a remembered pass is filed under,
+/// with the maker of the lockfile reader.
 /// Why:
-/// Delegated pick (2026-11-03): a local run compares with the upstream branch, CI keeps its base, and the key is the resolved
-/// commit, not how the base is spelled, so a base that moves is a different base. A base that names no commit yields the
-/// key `unresolved:<spelling>` and a factory that says why, so only a check that needs the base fails.
+/// Delegated pick (2026-11-03):
+/// a local run compares with the upstream branch,
+/// CI keeps its base,
+/// and the key is the resolved
+/// commit,
+/// not how the base is spelled,
+/// so a base that moves is a different base.
+/// A base that names no commit yields the
+/// key `unresolved:<spelling>` and a factory that says why,
+/// so only a check that needs the base fails.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -650,9 +659,17 @@ pub fn trust_base_setup(catalog_root: &Path, document: &CatalogDocument, in_ci: 
 /// `pub enum Preflight { Failed(String), Refused(String) }` is what the install step tells the shim when the user's command
 /// should not simply run.
 /// Why:
-/// `Failed` is an operational problem (no network, a cargo error, a stale lockfile under a frozen check): the shim warns and
-/// runs the command with `--locked`, as recorded in `doc/planning/cargo-shadow-update.md`. `Refused` is a policy refusal with
-/// no older release that passes (local, and by the delegated pick of 2026-11-03 frozen too): the command stops, because a
+/// `Failed` is an operational problem (no network,
+/// a cargo error,
+/// a stale lockfile under a frozen check):
+/// the shim warns and
+/// runs the command with `--locked`,
+/// as recorded in `doc/planning/cargo-shadow-update.md`.
+/// `Refused` is a policy refusal with
+/// no older release that passes (local,
+/// and by the delegated pick of 2026-11-03 frozen too):
+/// the command stops,
+/// because a
 /// refused release must never run.
 ///
 /// In TS you'd write (pseudocode):
@@ -662,7 +679,8 @@ pub fn trust_base_setup(catalog_root: &Path, document: &CatalogDocument, in_ci: 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Preflight {
     /// An operational problem or a stale lockfile under a frozen check:
-    /// warn, then run with `--locked`.
+    /// warn,
+    /// then run with `--locked`.
     Failed(String),
     /// A policy refusal:
     /// stop.
@@ -716,7 +734,8 @@ pub fn before_cargo(arguments: &[OsString]) -> Option<Preflight> {
 
 /// What:
 /// `pub fn preflight_of(outcome: StepOutcome) -> Option<Preflight>` turns what the install step did into what the shim must do:
-/// `None` runs the user's command as typed, `Some(Preflight::Failed)` warns and runs it with `--locked`,
+/// `None` runs the user's command as typed,
+/// `Some(Preflight::Failed)` warns and runs it with `--locked`,
 /// `Some(Preflight::Refused)` stops.
 /// Why:
 /// The decision whether a refusal stops the command is the one place the owner's rule of 2026-11-03 lives,

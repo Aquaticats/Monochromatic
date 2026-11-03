@@ -31,12 +31,16 @@
 //! so an unchanged lockfile costs
 //! nothing the next time;
 //! a failing one is never remembered.
-//! Which of the two checks runs is the catalog setting `trustLockfile` (default false, as in pnpm;
+//! Which of the two checks runs is the catalog setting `trustLockfile` (default false,
+//! as in pnpm;
 //! the repository's `rust-catalog.toml` sets it true by the owner's decision of 2026-10-29),
-//! read by the caller (`install.rs`), not here.
+//! read by the caller (`install.rs`),
+//! not here.
 //! A remembered pass is keyed by a scope string as well
-//! (the install mode, and for `trustLockfile = true` the base spelling),
-//! so a pass under one mode, policy or base is never taken for a pass under another.
+//! (the install mode,
+//! and for `trustLockfile = true` the base spelling),
+//! so a pass under one mode,
+//! policy or base is never taken for a pass under another.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -179,10 +183,14 @@ pub const ALL_ENTRIES_SCOPE: &str = "frozen-all-entries";
 
 /// What:
 /// `pub fn cache_key(snapshot, settings, scope) -> String` is the cache key of one lockfile under one policy and one check:
-/// a digest of the text, of every setting and of the scope.
+/// a digest of the text,
+/// of every setting and of the scope.
 /// Why:
-/// A lockfile that passed one check (for example every entry, or only what is new since one base) says nothing about another
-/// check, another base or another policy, so each of those gets its own key.
+/// A lockfile that passed one check (for example every entry,
+/// or only what is new since one base) says nothing about another
+/// check,
+/// another base or another policy,
+/// so each of those gets its own key.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,7 +210,8 @@ pub fn cache_key(snapshot: &LockSnapshot, settings: &Settings, scope: &str) -> S
 /// `fn cache_file(root, snapshot, settings, scope) -> PathBuf` is the marker file for one lockfile under one policy and check.
 /// Why:
 /// The lookup before a check and the write after a pass must agree on the name,
-/// which holds the crate directory and the digest of the lockfile text, settings and scope.
+/// which holds the crate directory and the digest of the lockfile text,
+/// settings and scope.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -216,7 +225,8 @@ fn cache_file(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: 
 /// `pub fn is_verified(root, snapshot, settings, scope) -> bool` says whether this lockfile text passed this check under this
 /// policy before.
 /// Why:
-/// An unchanged, already verified lockfile costs one file lookup instead of registry requests.
+/// An unchanged,
+/// already verified lockfile costs one file lookup instead of registry requests.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -229,7 +239,8 @@ pub fn is_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, sc
 /// What:
 /// `pub fn mark_verified(root, snapshot, settings, scope)` remembers that this lockfile text passed this check.
 /// Why:
-/// Only a pass is ever written; a failing lockfile is checked again each time.
+/// Only a pass is ever written;
+/// a failing lockfile is checked again each time.
 /// A write that fails only costs the next check.
 ///
 /// In TS you'd write (pseudocode):

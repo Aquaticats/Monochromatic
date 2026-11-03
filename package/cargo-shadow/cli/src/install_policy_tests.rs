@@ -1,6 +1,7 @@
 //! The unit tests of the policy checks of a local (not frozen) install:
 //! a committed lockfile that holds a release under the age limit or a trust downgrade is changed to the newest older release
-//! that passes, and the install stops when none does.
+//! that passes,
+//! and the install stops when none does.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -25,7 +26,10 @@ fn now() -> i64 {
     return parse_rfc3339_millis("2026-10-29T12:00:00Z").expect("a fixed time");
 }
 
-/// One day of release age, strict, trust policy on, every locked entry checked.
+/// One day of release age,
+/// strict,
+/// trust policy on,
+/// every locked entry checked.
 fn settings() -> Settings {
     return Settings {
         catalog_prune: false,
@@ -160,8 +164,14 @@ fn install(root: &Path, dirs: &[String], runner: &FakeCargo, registry: &FakeRegi
 const OLD_ENOUGH: &str = "2026-10-20T00:00:00Z";
 const THREE_HOURS_AGO: &str = "2026-10-29T09:00:00Z";
 
-/// Owner case 1: a merge brings a lockfile holding a release published 3 hours ago, the limit is one day, the release before
-/// it is nine days old and fits the range. The lockfile changes to the older release, one line names both, the install goes on.
+/// Owner case 1:
+/// a merge brings a lockfile holding a release published 3 hours ago,
+/// the limit is one day,
+/// the release before
+/// it is nine days old and fits the range.
+/// The lockfile changes to the older release,
+/// one line names both,
+/// the install goes on.
 #[test]
 fn a_committed_lock_holding_a_release_under_the_age_limit_is_changed_to_the_newest_older_release() {
     let (root, dirs) = repository(&lock_with("1.0.1"));
@@ -179,7 +189,9 @@ fn a_committed_lock_holding_a_release_under_the_age_limit_is_changed_to_the_newe
     );
 }
 
-/// Owner case 1, when nothing older fits: the install stops with the finding and the lockfile is left as it was.
+/// Owner case 1,
+/// when nothing older fits:
+/// the install stops with the finding and the lockfile is left as it was.
 #[test]
 fn a_committed_lock_holding_a_young_release_with_no_older_release_that_fits_stops_the_install() {
     let (root, dirs) = repository(&lock_with("1.0.1"));
@@ -193,8 +205,10 @@ fn a_committed_lock_holding_a_young_release_with_no_older_release_that_fits_stop
     assert_eq!(lock_text(root.path()), lock_with("1.0.1"));
 }
 
-/// Owner case 2: the lockfile holds `1.0.1` from an account with no earlier releases while `1.0.0` came from the trusted
-/// publisher. The lockfile changes to `1.0.0`.
+/// Owner case 2:
+/// the lockfile holds `1.0.1` from an account with no earlier releases while `1.0.0` came from the trusted
+/// publisher.
+/// The lockfile changes to `1.0.0`.
 #[test]
 fn a_committed_lock_holding_a_trust_downgrade_is_changed_to_the_earlier_release_with_the_earlier_trust_level() {
     let (root, dirs) = repository(&lock_with("1.0.1"));
@@ -208,7 +222,9 @@ fn a_committed_lock_holding_a_trust_downgrade_is_changed_to_the_earlier_release_
     assert!(report.warnings.iter().any(|line| { return line.contains("dep@1.0.1") && line.contains("1.0.0"); }), "{:?}", report.warnings);
 }
 
-/// Owner case 2, when no earlier release fits the range (cargo refuses every move): the install stops.
+/// Owner case 2,
+/// when no earlier release fits the range (cargo refuses every move):
+/// the install stops.
 #[test]
 fn a_committed_trust_downgrade_with_no_earlier_release_that_fits_stops_the_install() {
     let (root, dirs) = repository(&lock_with("1.0.1"));
@@ -221,8 +237,11 @@ fn a_committed_trust_downgrade_with_no_earlier_release_that_fits_stops_the_insta
     assert_eq!(lock_text(root.path()), lock_with("1.0.1"));
 }
 
-/// The adopted rule for a version the install itself newly needs: a stale lockfile is updated offline, the update picks a
-/// release under the age limit, and that release is set aside for the newest older one that passes instead of being refused.
+/// The adopted rule for a version the install itself newly needs:
+/// a stale lockfile is updated offline,
+/// the update picks a
+/// release under the age limit,
+/// and that release is set aside for the newest older one that passes instead of being refused.
 #[test]
 fn a_release_the_update_newly_needs_under_the_age_limit_is_set_aside_instead_of_refused() {
     let (root, dirs) = repository(STALE);
@@ -235,7 +254,9 @@ fn a_release_the_update_newly_needs_under_the_age_limit_is_set_aside_instead_of_
     assert_eq!(lock_text(root.path()), lock_with("1.0.0"));
 }
 
-/// CI keeps the frozen behavior: a frozen install never changes the lockfile, so a refused entry is a finding and no
+/// CI keeps the frozen behavior:
+/// a frozen install never changes the lockfile,
+/// so a refused entry is a finding and no
 /// `--precise` move is attempted.
 #[test]
 fn a_frozen_install_reports_the_refused_entry_and_changes_nothing() {
@@ -250,7 +271,10 @@ fn a_frozen_install_reports_the_refused_entry_and_changes_nothing() {
     assert!(!runner.commands.borrow().iter().any(|command| { return command.contains("--precise"); }));
 }
 
-/// A registry that, the first time the policy check asks it anything, runs a second install over the same root, the way a
+/// A registry that,
+/// the first time the policy check asks it anything,
+/// runs a second install over the same root,
+/// the way a
 /// second shadow invocation would while the first one waits for crates.io.
 struct RegistryThatRunsASecondInstall {
     inner: FakeRegistry,
@@ -280,9 +304,14 @@ impl Registry for RegistryThatRunsASecondInstall {
     }
 }
 
-/// Review finding (unapproved lockfiles are visible to concurrent consumers): cargo writes the live lockfile before the
-/// registry checks approve it, so a second invocation can start from that intermediate lockfile. It must not take it for
-/// approved: the only approval is a remembered pass of that exact text, so the second invocation checks it itself and never
+/// Review finding (unapproved lockfiles are visible to concurrent consumers):
+/// cargo writes the live lockfile before the
+/// registry checks approve it,
+/// so a second invocation can start from that intermediate lockfile.
+/// It must not take it for
+/// approved:
+/// the only approval is a remembered pass of that exact text,
+/// so the second invocation checks it itself and never
 /// builds on the refused release.
 #[test]
 fn a_second_install_does_not_take_the_first_ones_unapproved_lockfile_for_approved() {

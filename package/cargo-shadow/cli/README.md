@@ -78,20 +78,28 @@ The install step:
   one line names both releases,
   and cargo runs.
   This is what pnpm does with `minimumReleaseAge` (its resolver picks the newest release older than the cutoff;
-  `resolving/npm-resolver/src/pickMatchingVersion.ts`, `pickRespectingMinReleaseAge`),
+  `resolving/npm-resolver/src/pickMatchingVersion.ts`,
+  `pickRespectingMinReleaseAge`),
   and the owner's decision of 2026-11-03 for a committed lockfile:
   a merge that brings `serde 1.0.230` published three hours ago under a one day limit gives `serde 1.0.229` in `Cargo.lock`,
   and a trust downgrade gives the earlier release with the earlier trust level.
-  The refused release never runs; the older copy does.
+  The refused release never runs;
+  the older copy does.
   Under `trustLockfile = true` this fires for the versions new since the base revision;
-  a local run's base is the upstream branch of the current branch (`@{upstream}`, else `origin/main`, else `origin/master`,
-  else `HEAD`), so a merge that is committed but not pushed is still new,
-  and CI keeps `HEAD` (or `CARGO_SHADOW_TRUST_BASE`, which wins everywhere).
-  The release age and the trust policy both apply to those versions, on the local and the frozen path.
+  a local run's base is the upstream branch of the current branch (`@{upstream}`,
+  else `origin/main`,
+  else `origin/master`,
+  else `HEAD`),
+  so a merge that is committed but not pushed is still new,
+  and CI keeps `HEAD` (or `CARGO_SHADOW_TRUST_BASE`,
+  which wins everywhere).
+  The release age and the trust policy both apply to those versions,
+  on the local and the frozen path.
 - If no older release passes and fits,
   the refusal stands:
   nothing is left changed and your cargo command is not run.
-  That is the only case in which the step stops the command because of the policy, local or frozen.
+  That is the only case in which the step stops the command because of the policy,
+  local or frozen.
 - In CI (`CI` set to anything but empty,
   `0` or `false`),
   or when the user's own command carries `--locked` or `--frozen`,
@@ -144,8 +152,13 @@ a change to `.cargo/config.toml` `[patch]` tables or to a manifest outside the r
 and the remembered pass is keyed by the commit the base resolves to,
 so a base that moves is a different base.
 Resolving it starts git once per call under `trustLockfile = true` (a median of 7 ms for `git rev-parse` on this machine through the
-`git` on PATH, 20 runs, no control arm, so the spread is unknown),
-which the figures below, measured before this change, do not include.
+`git` on PATH,
+20 runs,
+no control arm,
+so the spread is unknown),
+which the figures below,
+measured before this change,
+do not include.
 
 Measured on 2026-11-03 in a throwaway worktree (release build,
 up-to-date workspaces,
@@ -323,8 +336,10 @@ Each flag maps to the nearest pnpm behavior:
   so the manifests are part of the transaction:
   a refusal or a dry run puts them back with the lockfiles,
   while a manifest another process changed meanwhile is left alone with a warning;
-  the manifests are journaled, so a killed run is recovered for them too;
-  and a failure of the `file-enforcer` sync after the catalog write restores the catalog, the manifests and the lockfiles),
+  the manifests are journaled,
+  so a killed run is recovered for them too;
+  and a failure of the `file-enforcer` sync after the catalog write restores the catalog,
+  the manifests and the lockfiles),
   then the policy decides,
   and then the same thing pnpm does with a `catalog:` dependency happens.
   In pnpm 12.16.1 the resolver collects the updated range of every catalog dependency of an update that saves
@@ -370,10 +385,12 @@ Each flag maps to the nearest pnpm behavior:
   so `--offline` makes cargo offline,
   not the checks.
   Global options are read before the command word as well as after it
-  (`cargo --locked update` is the frozen check, `cargo --offline update` forwards `--offline`),
+  (`cargo --locked update` is the frozen check,
+  `cargo --offline update` forwards `--offline`),
   and `-m <path>` selects the workspace like `--manifest-path`.
   An option that has no mapping is refused by name instead of being dropped from a full update or passed on to a targeted one,
-  and `--package=<name>`, `--package <name>` and `-p<name>` all name the package.
+  and `--package=<name>`,
+  `--package <name>` and `-p<name>` all name the package.
 - `cargo generate-lockfile` is `pnpm install --lockfile-only`:
   with a lockfile present it is the install step (locked versions kept,
   not re-resolved from scratch);
@@ -416,7 +433,10 @@ which `rust-catalog.toml` carries with pnpm's name (default false):
   The base is the environment variable `CARGO_SHADOW_TRUST_BASE`:
   CI sets the pushed range's previous commit or the pull request's base,
   and without it the base is `HEAD` in CI.
-  A local run without it compares with the upstream branch (`@{upstream}`, else `origin/main`, else `origin/master`, else `HEAD`),
+  A local run without it compares with the upstream branch (`@{upstream}`,
+  else `origin/main`,
+  else `origin/master`,
+  else `HEAD`),
   so the lockfile changes that are not pushed yet are the ones checked.
   A lockfile that did not exist at the base counts as new in full.
   This is the base check the former `rust:verify --base` made,
@@ -434,15 +454,18 @@ and from the API otherwise.
 The dump reader refuses a table that is cut off inside a quoted field,
 has text after a closing quote or a quote inside a bare field,
 has a row of another width than its header,
-or has a field, row or crate history over the bounds in `csv.rs` and `dump.rs`,
+or has a field,
+row or crate history over the bounds in `csv.rs` and `dump.rs`,
 and nothing is cached from a table it refused.
-The bounds are chosen ceilings, not measured on a real dump.
+The bounds are chosen ceilings,
+not measured on a real dump.
 Only crates.io is supported:
 a package from any other registry (`registry+` or `sparse+` with another URL) is refused by name,
 because every lookup asks crates.io and would approve it by an unrelated release of the same name and version.
 The owner list of a crate is asked whenever it can change a trust verdict (an earlier release or the checked one ranks as a first-time publisher without it).
 A full update whose strict release-age cutoff cannot resolve (a manifest needs a young release of a crate in `minimumReleaseAgeExclude`)
-resolves without the cutoff and then holds every crate that is not exempt to it, setting its young releases aside or refusing.
+resolves without the cutoff and then holds every crate that is not exempt to it,
+setting its young releases aside or refusing.
 After a floor raise the order is the pnpm one:
 edit the catalog (`cargo-shadow update` and `mise run catalog:tighten`),
  render the manifests (`mise run sync:files`),
@@ -486,7 +509,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   by the owner's word ("Ignore Win and mac until I say so."):
   the crate does not compile elsewhere,
   because the journal reads `/proc/<pid>` to tell a killed run from a running one.
-  A reused process id reads as alive, which only delays a recovery.
+  A reused process id reads as alive,
+  which only delays a recovery.
 - Lockfile writes are lock-free,
   as the owner asked ("never discard user data",
   "use as few locks as possible").
@@ -508,10 +532,15 @@ and an HTTP 429 is retried after its `Retry-After`.
   after reading the lockfile again right before the replacement.
   The journal is deleted only when every root it lists was settled;
   an unreadable journal or lockfile and a failed step keep it.
-  The comparison and the replacement are one atomic step (`renameat2` with `RENAME_EXCHANGE`, through `rustix`):
-  the new text is exchanged with the lockfile, the file that came out is read, and when it is not the one expected the exchange
-  is undone, so no writer's file is lost and no lock is taken.
-  Where the filesystem cannot exchange, a second comparison right before an ordinary rename is the fallback.
+  The comparison and the replacement are one atomic step (`renameat2` with `RENAME_EXCHANGE`,
+  through `rustix`):
+  the new text is exchanged with the lockfile,
+  the file that came out is read,
+  and when it is not the one expected the exchange
+  is undone,
+  so no writer's file is lost and no lock is taken.
+  Where the filesystem cannot exchange,
+  a second comparison right before an ordinary rename is the fallback.
   A file displaced twice is kept as `Cargo.lock.displaced`.
 - Until the checks pass,
   cargo's output is in the live lockfile,
@@ -520,7 +549,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   only a remembered pass of the exact text approves it,
   so the second call checks it itself.
   A private lockfile that the checks approve before it is published is not possible with the pinned nightly,
-  and the window is accepted and documented here (owner rule "Use as few locks as possible"; delegated pick of 2026-11-03).
+  and the window is accepted and documented here (owner rule "Use as few locks as possible";
+  delegated pick of 2026-11-03).
 - The step needs the network only for the policy checks of newly locked versions and for a frozen install's verification of a lockfile it has not seen;
   the lock check and the update run offline (the check drops `--offline` in CI,
   where no registry index is cached).

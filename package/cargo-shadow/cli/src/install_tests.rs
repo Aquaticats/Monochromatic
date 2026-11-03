@@ -369,7 +369,9 @@ fn a_check_that_may_use_the_network_does_not_pass_offline() {
     assert_eq!(*cargo.commands.borrow(), vec!["one :: update --workspace --locked".to_string()]);
 }
 
-/// What the other writer publishes: a lockfile that still holds the refused release, so the checks still refuse it.
+/// What the other writer publishes:
+/// a lockfile that still holds the refused release,
+/// so the checks still refuse it.
 const OTHER_WRITERS_LOCK: &str = "# written by another process\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n";
 
 /// A registry that,
@@ -564,8 +566,11 @@ impl CargoRunner for CargoWithAConcurrentWriter {
     }
 }
 
-/// Review finding (early-error rollback): cargo fails in the first root before anything was produced, and another writer
-/// updates the second root meanwhile. The rollback must not read the second root's new content and call it its own output.
+/// Review finding (early-error rollback):
+/// cargo fails in the first root before anything was produced,
+/// and another writer
+/// updates the second root meanwhile.
+/// The rollback must not read the second root's new content and call it its own output.
 #[test]
 fn a_failure_before_anything_was_produced_does_not_restore_over_another_writers_lock() {
     let (root, dirs) = repository(&[("package/a/one", STALE), ("package/a/two", SATISFIED)]);
@@ -591,7 +596,9 @@ fn a_failure_before_anything_was_produced_does_not_restore_over_another_writers_
     assert_eq!(lock_text(root.path(), "package/a/two"), "published by another writer meanwhile");
 }
 
-/// Review finding (failed begin): without a complete recovery record nothing may be mutated, so a journal that cannot be
+/// Review finding (failed begin):
+/// without a complete recovery record nothing may be mutated,
+/// so a journal that cannot be
 /// started stops the install before cargo runs.
 #[test]
 fn an_install_whose_journal_cannot_be_started_runs_no_cargo_and_changes_nothing() {

@@ -65,7 +65,9 @@ fn direct_dependencies_are_the_names_the_sourceless_packages_depend_on() {
     assert_eq!(names, vec!["dep".to_string(), "twice".to_string()]);
 }
 
-/// Review finding (registry identity): a package from any registry other than crates.io must be refused by name, because
+/// Review finding (registry identity):
+/// a package from any registry other than crates.io must be refused by name,
+/// because
 /// every lookup goes to crates.io and would approve an unrelated crate of the same name and version.
 #[test]
 fn a_package_from_another_registry_is_refused_naming_the_package_and_its_source() {

@@ -213,10 +213,13 @@ pub enum StepOutcome {
     /// the caller must not run the user's command.
     /// Carries the message to show.
     Refused(
-        /// The findings, as text (`String`, owned).
+        /// The findings,
+        /// as text (`String`,
+        /// owned).
         String,
     ),
-    /// The step failed (cargo or the registry could not be asked, or a frozen check found a stale lockfile),
+    /// The step failed (cargo or the registry could not be asked,
+    /// or a frozen check found a stale lockfile),
     /// with the message to show.
     Failed(
         /// What:
@@ -252,7 +255,8 @@ pub struct StepRequest<'a> {
     pub registry: &'a dyn Registry,
     /// The maker of the base-revision lockfile reader an install needs under `trustLockfile`.
     pub lock_base: Option<LockBaseFactory<'a>>,
-    /// How the base revision is spelled (`CARGO_SHADOW_TRUST_BASE`, or `HEAD`):
+    /// How the base revision is spelled (`CARGO_SHADOW_TRUST_BASE`,
+    /// or `HEAD`):
     /// part of the key of a remembered policy pass.
     pub trust_base: &'a str,
 }

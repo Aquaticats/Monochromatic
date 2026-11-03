@@ -1,9 +1,13 @@
 //! What:
 //! A reader of Git configuration files for the few keys the trust base needs
-//! (`branch.<name>.remote`, `branch.<name>.merge`, `remote.<name>.fetch`, `extensions.*`),
+//! (`branch.<name>.remote`,
+//! `branch.<name>.merge`,
+//! `remote.<name>.fetch`,
+//! `extensions.*`),
 //! written without starting Git.
 //! Why:
-//! The owner's rules are "Invoke real git as rarely as possible." and "embed instead of spawning"
+//! The owner's rules are "Invoke real git as rarely as possible."
+//! and "embed instead of spawning"
 //! (`package/git-policy/cli/SPEC.md`),
 //! and the shadow runs before every cargo command.
 //! The reader answers only what it reads exactly:
@@ -32,29 +36,40 @@
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigEntry {
-    /// The section name, lowercased (Git compares section names without case).
+    /// The section name,
+    /// lowercased (Git compares section names without case).
     pub section: String,
-    /// The subsection name when the header had one, exactly as written (Git compares subsections with case).
+    /// The subsection name when the header had one,
+    /// exactly as written (Git compares subsections with case).
     pub subsection: Option<String>,
-    /// The key, lowercased (Git compares key names without case).
+    /// The key,
+    /// lowercased (Git compares key names without case).
     pub key: String,
-    /// The value after quoting, escapes and comments were applied.
+    /// The value after quoting,
+    /// escapes and comments were applied.
     pub value: String,
 }
 
-/// The entries of one file, in file order, and whether the file asks Git to read another file.
+/// The entries of one file,
+/// in file order,
+/// and whether the file asks Git to read another file.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ParsedConfig {
-    /// Every `key = value` line, in file order.
+    /// Every `key = value` line,
+    /// in file order.
     pub entries: Vec<ConfigEntry>,
-    /// A section named `include` or `includeIf` appeared, so this file's meaning depends on files not read here.
+    /// A section named `include` or `includeIf` appeared,
+    /// so this file's meaning depends on files not read here.
     pub has_include: bool,
 }
 
 impl ParsedConfig {
     /// What:
     /// `pub fn values(&self, ...) -> Vec<&str>` lists every value of one key in file order.
-    /// `&self` borrows the parsed file read-only; the returned `&str` values borrow from it (sibling: `String`, which would copy).
+    /// `&self` borrows the parsed file read-only;
+    /// the returned `&str` values borrow from it (sibling:
+    /// `String`,
+    /// which would copy).
     /// Why:
     /// A key such as `remote.origin.fetch` may appear several times and Git keeps all of them.
     ///
@@ -101,10 +116,12 @@ impl ParsedConfig {
     }
 
     /// What:
-    /// `pub fn last(&self, ...) -> Option<&str>` is the final value of one key, or `None` when the key never appears.
+    /// `pub fn last(&self, ...) -> Option<&str>` is the final value of one key,
+    /// or `None` when the key never appears.
     /// `Option<&str>` is "a borrowed text or nothing" (a TS `string | undefined`).
     /// Why:
-    /// For a single-valued key Git uses the last assignment, so a later file or line overrides an earlier one.
+    /// For a single-valued key Git uses the last assignment,
+    /// so a later file or line overrides an earlier one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -115,7 +132,9 @@ impl ParsedConfig {
         return self.values(section, subsection, key).last().copied();
     }
 
-    /// Appends the entries of a later file, which override earlier single-valued keys, and keeps the include flag.
+    /// Appends the entries of a later file,
+    /// which override earlier single-valued keys,
+    /// and keeps the include flag.
     pub fn extend_with(&mut self, later: ParsedConfig) {
         self.entries.extend(later.entries);
         self.has_include = self.has_include || later.has_include;
@@ -124,10 +143,14 @@ impl ParsedConfig {
 
 /// What:
 /// `fn read_header(rest: &str) -> Result<(String, Option<String>, &str), String>` reads a section header after its `[`:
-/// the section name, the subsection if any, and the text after the closing `]`.
-/// `Result<T, String>` is "a value, or an error message" (the Rust form of a function that throws).
+/// the section name,
+/// the subsection if any,
+/// and the text after the closing `]`.
+/// `Result<T, String>` is "a value,
+/// or an error message" (the Rust form of a function that throws).
 /// Why:
-/// Git writes `[branch "main"]`; the older `[branch.main]` spelling means the same with a lowercased subsection.
+/// Git writes `[branch "main"]`;
+/// the older `[branch.main]` spelling means the same with a lowercased subsection.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -193,7 +216,10 @@ fn read_header(rest: &str) -> Result<(String, Option<String>, &str), String> {
 
 /// What:
 /// `fn read_value(raw: &str) -> Result<String, String>` turns the text after `=` into a value:
-/// whitespace trimmed, double quotes grouping, backslash escapes applied, and an unquoted `#` or `;` starting a comment.
+/// whitespace trimmed,
+/// double quotes grouping,
+/// backslash escapes applied,
+/// and an unquoted `#` or `;` starting a comment.
 /// Why:
 /// A value such as `+refs/heads/*:refs/remotes/origin/*` must come out exactly as Git reads it.
 ///
@@ -238,7 +264,8 @@ fn read_value(raw: &str) -> Result<String, String> {
 /// Why:
 /// The caller needs the entries of `.git/config` and of the user's configuration files,
 /// and needs to know whether any of them includes another file.
-/// A line continued with a trailing backslash is joined to the next, as Git does.
+/// A line continued with a trailing backslash is joined to the next,
+/// as Git does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
