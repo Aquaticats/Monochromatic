@@ -10346,3 +10346,14 @@ by the coordinator at merge.
   package repair (32 Cargo workspaces, pnpm, Cargo and toolchain repairs) and then a package-wide audit of loops
   over independent items (conversion `--all`, migration, prune, recovery, service drains). Orchestration: five
   delegate agents run at once (the owner's cap); gates and long jobs run beside them as their own units.
+- 2026-11-03T04:04:53-05:00: parallelism inventory, first pass: the package repair already runs pnpm and toolchain beside Cargo
+  (`package_repair.rs:178`) and the Cargo workspaces on scoped threads (`package_repair_cargo.rs:385`), so the
+  46.1 s needs the add-speed agent's split; conversion `--all` converts worktrees one after another
+  (`worktree_convert_command.rs:65`; the 48-worktree run took about 25 minutes). QUEUED for the next free delegate
+  slot, in order: (1) package-wide parallelism audit and fix (conversion `--all`, migration, prune, recovery
+  sweeps, service drains, every loop over independent items), within a CPU and disk budget derived from the host;
+  (2) reconcile the old in-progress tasks against this handover and Git state: the linter cutover (task 24), the
+  slice 6 convergence mutation rerun (25), the post-cutover non-core mutation campaigns (29), and the unmerged
+  `planted-control-cache` branch ("Not merging `planted-control-cache` to main until a round finds no P1").
+  Closed now with evidence: the gate-33 campaign queue (cross-checked in `ae73ff8a8a`, survivors bundle merged)
+  and the conflict-side cross-vendor review (returned; fixes merged).
