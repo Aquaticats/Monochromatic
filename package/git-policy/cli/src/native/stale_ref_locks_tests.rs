@@ -168,11 +168,11 @@ fn a_lock_inside_the_margin_stays_and_goes_once_it_is_older() {
     held.kill();
     let before: Vec<PathBuf> = leftovers(&stage);
     let strict: Judge = Judge { margin: Duration::from_secs(3600), ..judge() };
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &strict);
-    assert!(!outcome.cleared_any() && outcome.left.is_empty(), "a lock inside the margin is left without a word: {outcome:?}");
+    let young: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &strict);
+    assert!(!young.cleared_any() && young.left.is_empty(), "a lock inside the margin is left without a word: {young:?}");
     assert_eq!(leftovers(&stage), before);
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
-    assert!(outcome.cleared_any(), "{outcome:?}");
+    let aged: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert!(aged.cleared_any(), "{aged:?}");
     stage.finish();
 }
 
@@ -243,13 +243,13 @@ fn a_lock_older_than_the_boot_goes_when_no_pid_file_names_a_holder() {
     plant_lock(&stage, PLANTED_REF, None);
     let after: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
     let before: Judge = Judge { boot: Some(SystemTime::now() - Duration::from_secs(3600)), ..judge() };
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &before);
-    assert!(!outcome.cleared_any(), "a lock younger than the boot stays: {outcome:?}");
+    let younger: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &before);
+    assert!(!younger.cleared_any(), "a lock younger than the boot stays: {younger:?}");
     let within: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK / 2), ..judge() };
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &within);
-    assert!(!outcome.cleared_any(), "a lock older than the boot by less than the slack stays, the clock may have stepped: {outcome:?}");
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
-    assert_eq!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::BeforeBoot)), "{outcome:?}");
+    let slack: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &within);
+    assert!(!slack.cleared_any(), "a lock older than the boot by less than the slack stays, the clock may have stepped: {slack:?}");
+    let older: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
+    assert_eq!(verdict_of(&older, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::BeforeBoot)), "{older:?}");
     assert!(!stage.lock_of(PLANTED_REF).exists());
     stage.finish();
 }

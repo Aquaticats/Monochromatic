@@ -77,11 +77,10 @@ pub fn remove_if_unchanged(root: &Path, lock: &Path, judged: &Identity, outcome:
 /// function judgeAndClear(candidate: Candidate, judge: Judge, outcome: Outcome): void;
 /// ```
 pub fn judge_and_clear(candidate: &Candidate, judge: &Judge, outcome: &mut Outcome) {
-    let examined: Option<Examined> = if candidate.orphan_staging { judge.examine_staging(candidate.lock.as_path()) } else { judge.examine(candidate.lock.as_path()) };
-    let Some(examined) = examined else {
+    let maybe: Option<Examined> = if candidate.orphan_staging { judge.examine_staging(candidate.lock.as_path()) } else { judge.examine(candidate.lock.as_path()) };
+    let Some(Examined { verdict, pid_file, identity, born }) = maybe else {
         return;
     };
-    let Examined { verdict, pid_file, identity, born } = examined;
     let mut found: Found = Found {
         lock: candidate.lock.clone(),
         verdict: verdict.clone(),
