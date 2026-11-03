@@ -136,10 +136,11 @@ fn a_trash_directory_that_was_replaced_is_not_emptied() {
     let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-replaced", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     std::fs::rename(&trash, worktree.join(TRASH_PARENT).join("moved-away")).expect("move the real one away");
-    put(trash.as_path(), "d0/precious", b"somebody else's directory under the same name\n");
+    // An empty directory under the same name: nothing inside it could stop the removal, only its identity can.
+    std::fs::create_dir(&trash).expect("somebody else's directory under the same name");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
     assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains(&name)), "{verdict:?}");
-    assert!(trash.join("d0/precious").exists(), "the replacement is untouched");
+    assert!(trash.is_dir(), "the replacement is untouched");
     remove(root.as_path());
 }
 
@@ -155,7 +156,7 @@ fn a_trash_entry_that_was_replaced_by_a_link_is_not_followed() {
     std::fs::remove_dir_all(trash.join("d0")).expect("remove the first entry");
     std::os::unix::fs::symlink(&outside, trash.join("d0")).expect("link in its place");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
-    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("d0")), "{verdict:?}");
+    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains(format!("{name}/d0").as_str())), "{verdict:?}");
     assert!(outside.join("precious").exists(), "what the link points at is untouched");
     assert!(!trash.join("d1").exists(), "the entry that was still the recorded object is emptied");
     remove(root.as_path());
@@ -171,7 +172,7 @@ fn a_trash_entry_that_was_replaced_by_another_directory_is_not_emptied() {
     std::fs::rename(trash.join("d0"), worktree.join("moved-away")).expect("move the real entry away");
     put(trash.as_path(), "d0/precious", b"somebody else's directory under the same name\n");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
-    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("d0")), "{verdict:?}");
+    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains(format!("{name}/d0").as_str())), "{verdict:?}");
     assert!(trash.join("d0/precious").exists(), "the replacement is untouched");
     assert!(!trash.join("d1").exists(), "the entry that was still the recorded object is emptied");
     remove(root.as_path());
@@ -181,12 +182,12 @@ fn a_trash_entry_that_was_replaced_by_another_directory_is_not_emptied() {
 #[test]
 fn something_in_the_trash_that_was_not_moved_there_stays() {
     let name: String = "3".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-stranger", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-extra", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
-    put(trash.as_path(), "stranger/file", b"not ours\n");
+    put(trash.as_path(), "unrecorded/file", b"not ours\n");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
-    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("stranger")), "{verdict:?}");
-    assert!(trash.join("stranger/file").exists(), "the stranger is untouched");
+    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("unrecorded") && reason.contains("did not put there")), "{verdict:?}");
+    assert!(trash.join("unrecorded/file").exists(), "the unrecorded entry is untouched");
     assert!(!trash.join("d0").exists(), "the recorded entry is emptied");
     remove(root.as_path());
 }
