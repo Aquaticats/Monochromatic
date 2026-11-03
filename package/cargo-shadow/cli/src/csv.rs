@@ -209,19 +209,24 @@ impl State {
     /// ```ts
     /// endField(): void { this.row.push(decode(this.field)); this.field = []; }
     /// ```
-    fn end_field(&mut self) {
+    fn end_field(&mut self) -> io::Result<()> {
+        // A row wider than the bound is refused instead of grown, so one hostile row cannot exhaust memory.
+        if self.row.len() >= MAX_ROW_FIELDS {
+            return Err(malformed(format!("a row has more than {MAX_ROW_FIELDS} fields")));
+        }
         self.row.push(String::from_utf8_lossy(&self.field).to_string());
         self.field.clear();
+        return Ok(());
     }
 
     /// Hands the finished row to the callback;
     /// `false` from the callback stops the read.
-    fn end_row(&mut self, on_row: &mut dyn FnMut(&[String]) -> bool) -> bool {
-        self.end_field();
+    fn end_row(&mut self, on_row: &mut dyn FnMut(&[String]) -> bool) -> io::Result<bool> {
+        self.end_field()?;
         let keep_going: bool = on_row(&self.row);
         self.row.clear();
         self.row_started = false;
-        return keep_going;
+        return Ok(keep_going);
     }
 
     /// What:
@@ -236,10 +241,29 @@ impl State {
     /// ```ts
     /// pushByte(byte: number): void { this.field.push(byte); this.rowStarted = true; }
     /// ```
-    fn push_byte(&mut self, byte: u8) {
+    fn push_byte(&mut self, byte: u8) -> io::Result<()> {
+        // A field longer than the bound is refused instead of grown, so a quote that never closes cannot exhaust memory.
+        if self.field.len() >= MAX_FIELD_BYTES {
+            return Err(malformed(format!("a field is longer than {MAX_FIELD_BYTES} bytes")));
+        }
         self.field.push(byte);
         self.row_started = true;
+        return Ok(());
     }
+}
+
+/// What:
+/// `fn malformed(message) -> io::Error` builds the error of a stream that is not well-formed CSV.
+/// Why:
+/// A damaged table must stop the read with a named reason instead of yielding rows that look complete;
+/// the kind `InvalidData` says the bytes were read fine but are wrong.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const malformed = (message: string) => new Error(`malformed CSV: ${message}`);
+/// ```
+fn malformed(message: String) -> io::Error {
+    return io::Error::new(io::ErrorKind::InvalidData, format!("malformed CSV: {message}"));
 }
 
 /// What:
@@ -252,6 +276,10 @@ impl State {
 /// ends a field,
 /// a line feed ends a row,
 /// and a carriage return is dropped.
+/// A stream that ends inside quotes,
+/// text after a closing quote other than a comma or a line break,
+/// a quote inside a bare field and a field or row over the bound are errors,
+/// so a cut-off or hostile table never passes for a finished one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -271,38 +299,48 @@ pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool
                 if state.quote_seen {
                     state.quote_seen = false;
                     if byte == QUOTE {
-                        state.push_byte(QUOTE);
+                        state.push_byte(QUOTE)?;
                         continue;
                     }
                     state.in_quotes = false;
+                    // Only a field or row separator may follow a closing quote.
+                    if byte != COMMA && byte != LINE_FEED && byte != CARRIAGE_RETURN {
+                        return Err(malformed("text follows a closing quote".to_string()));
+                    }
                 } else if byte == QUOTE {
                     state.quote_seen = true;
                     continue;
                 } else {
-                    state.push_byte(byte);
+                    state.push_byte(byte)?;
                     continue;
                 }
             }
             if byte == QUOTE && state.field.is_empty() {
                 state.in_quotes = true;
                 state.row_started = true;
+            } else if byte == QUOTE {
+                return Err(malformed("a quote appears inside a bare field".to_string()));
             } else if byte == COMMA {
                 state.row_started = true;
-                state.end_field();
+                state.end_field()?;
             } else if byte == LINE_FEED {
-                if !state.end_row(on_row) {
+                if !state.end_row(on_row)? {
                     return Ok(());
                 }
             } else if byte != CARRIAGE_RETURN {
-                state.push_byte(byte);
+                state.push_byte(byte)?;
             }
         }
     }
     if state.in_quotes && state.quote_seen {
         state.in_quotes = false;
     }
+    // A stream that ends inside an unclosed quote was cut off.
+    if state.in_quotes {
+        return Err(malformed("the stream ends inside a quoted field".to_string()));
+    }
     if state.row_started || !state.field.is_empty() || !state.row.is_empty() {
-        state.end_row(on_row);
+        state.end_row(on_row)?;
     }
     return Ok(());
 }

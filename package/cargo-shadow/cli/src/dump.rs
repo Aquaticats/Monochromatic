@@ -210,16 +210,31 @@ fn history_json(history: &[VersionRecord]) -> String {
 fn read_table(entry: &mut dyn Read, columns: &[&str], on_row: &mut dyn FnMut(&[String]) -> Result<(), DumpFormatError>) -> Result<(), DumpFormatError> {
     let mut positions: Option<Vec<usize>> = None;
     let mut failure: Option<DumpFormatError> = None;
+    // The header's field count and the number of the row being read (the header is row 1), for the width check below.
+    let mut header_width: usize = 0;
+    let mut row_number: usize = 0;
     let outcome = read_csv(entry, &mut |row: &[String]| {
+        row_number += 1;
         match &positions {
             None => match column_indexes(row, columns) {
-                Ok(found) => positions = Some(found),
+                Ok(found) => {
+                    header_width = row.len();
+                    positions = Some(found);
+                }
                 Err(error) => {
                     failure = Some(error);
                     return false;
                 }
             },
             Some(found) => {
+                // Review finding (padded short rows): a row that is not as wide as the header is a damaged table, so it
+                // stops the read instead of being completed with empty fields.
+                if row.len() != header_width {
+                    failure = Some(DumpFormatError {
+                        message: format!("row {row_number} of a crates.io dump table has {} fields, but its header has {header_width}", row.len()),
+                    });
+                    return false;
+                }
                 let picked: Vec<String> = found.iter().map(|index| { return row.get(*index).cloned().unwrap_or_default(); }).collect();
                 if let Err(error) = on_row(&picked) {
                     failure = Some(error);
@@ -312,6 +327,11 @@ pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>
                     Some(found) => found,
                     None => return Ok(()),
                 };
+                // The retained history of one crate is bounded.
+                let kept: usize = histories.get(name).map(Vec::len).unwrap_or(0);
+                if kept >= MAX_VERSIONS_PER_CRATE {
+                    return Err(DumpFormatError { message: format!("the crates.io dump lists more than {MAX_VERSIONS_PER_CRATE} releases of {name}") });
+                }
                 histories.entry(name.clone()).or_default().push(VersionRecord {
                     num: row[1].clone(),
                     created_at: dump_timestamp(&row[2])?,
