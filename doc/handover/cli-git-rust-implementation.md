@@ -471,8 +471,44 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   P2s include a recovery helper that can wait without end (R10-5)
   and P-wait being possibly indefinite,
   both now against the owner's no-unbounded-wait rule.
+  Done:
+  design revision 11,
+  `eed561efaa` to `1430d7ddfa` (2026-11-03T12:48:49-05:00 to 12:54:14),
+  answering the tenth review and applying the owner's bound answers:
+  rule B registers every blocked process with its bound;
+  W1 at a command's bound withdraws the request durably,
+  keeps the commit on `refs/cli-git/<instance>/withdrawn/<id>`,
+  leaves staging alone and exits non-zero;
+  P2 is `update-ref --stdin` prepare,
+  decide,
+  commit,
+  and W1 races the decision by `link` to `lane/decision/<id>`,
+  so a request with a client lands or never lands;
+  bounds START,
+  FOREGROUND,
+  MARKER,
+  ACQUIRE,
+  REAP,
+  KILL,
+  COMMITTING,
+  STALL and PUSH start from shipped constants,
+  labelled unmeasured.
+  Its choices (`9c2b2ec0ab`,
+  `e6199d4e4f`):
+  the owner decided P-carry ("Merge anyway,
+  unstage x") and W-detect with its residue ("Allow the rare leftover");
+  the coordinator picked G-order,
+  N-silent and H-episode.
+  Running,
+  not an agent:
+  the eleventh cross-vendor review (`commits-never-fail-sol-11.txt`).
   Running:
-  design revision 11 for the tenth review and that rule.
+  step 1,
+  fifth round (revision 11 models with `explore_bounded` over every registered wait,
+  the W1-versus-P2 race,
+  the tenth review's controls,
+  the components' third-review fixes,
+  the per-site comment pass).
 - Done,
   not merged:
   step 1,
@@ -505,8 +541,7 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   a fully canonical manifest syntax or an accurate claim (P3),
   deterministic filesystem-ordering tests,
   and bumping `REQUEST_VERSION` for the new mandatory line.
-  Queued for the step-1 agent's next free slot,
-  with the real per-site comment pass.
+  In step 1's fifth round.
   Done:
   step 1,
   fourth round (`bc3ff62cd4`,
@@ -2231,6 +2266,37 @@ B-hand and B-restart.
    then swap (M-A),
    over swap first,
    whose window lets a plain commit capture the reverse of the merge ("never discard user data").
+
+### Commits never fail, revision 11 (five choices)
+
+On `fix/git-policy-cli-commits-never-fail` (`9c2b2ec0ab`,
+dated in `e6199d4e4f`).
+
+1. A merge touching a path the person has staged:
+   decided by the owner (question tool,
+   answered before 12:56:51-05:00):
+   "Merge anyway,
+   unstage x" (P-carry;
+   the staged content becomes an unstaged edit merged onto the result),
+   over refusing at once like Git.
+2. A `git switch` finishing after the lane's last check during merge file writes:
+   decided by the owner:
+   "Allow the rare leftover" (W-detect;
+   the owner was told a `git commit -a` in that window could commit the merge's files to the wrong branch).
+3. Retention against late maintenance:
+   G-order (the connectivity check,
+   then a re-read of the maintenance registry,
+   then the release;
+   the hold ref only as extra protection),
+   coordinator's pick.
+4. A live owner's retry after a proven store failure:
+   N-silent (no notice on an ordinary held-lock retry),
+   coordinator's pick,
+   recorded as a concession.
+5. A hook rerun after repeated owner deaths:
+   H-episode (one rerun per recovery episode,
+   with a notice),
+   coordinator's pick.
 
 ### Commits never fail, revision 10 (five choices)
 
