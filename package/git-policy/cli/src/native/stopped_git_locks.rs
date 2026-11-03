@@ -23,8 +23,6 @@
 use super::diagnostic_log::warn;
 /// The processes of the stopped tree and whether each still runs.
 use super::process_tree::{TreeMember, still_running};
-/// The common directory a linked worktree's Git directory names.
-use super::service_review::common_dir_of;
 /// Owned OS strings of a command's environment.
 use std::ffi::OsStr;
 /// Paths of the repository.
@@ -71,6 +69,26 @@ pub struct LockLedger {
     roots: Vec<PathBuf>,
     /// The wall-clock time read before the child started.
     since: SystemTime,
+}
+
+/// The common Git directory a linked worktree's Git directory names in its `commondir` file, or the directory itself.
+///  The few lines are repeated here because the module that reads it belongs to the service run, which the client path
+///  may not name (`standards_review_boundary_tests.rs`); a path that cannot be resolved is used as written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// existsSync(join(gitDir, 'commondir')) ? realpath(resolve(gitDir, readFile(...).trimEnd())) : gitDir
+/// ```
+fn common_dir_for(git_dir: &Path) -> PathBuf {
+    let Ok(text) = std::fs::read_to_string(git_dir.join("commondir")) else {
+        return git_dir.to_path_buf();
+    };
+    let named: &str = text.trim_end_matches(['\r', '\n']);
+    if named.is_empty() {
+        return git_dir.to_path_buf();
+    }
+    let joined: PathBuf = git_dir.join(named);
+    return std::fs::canonicalize(&joined).unwrap_or(joined);
 }
 
 /// Where the Git directory of a working directory is: `.git` as a directory, a `gitdir:` file, or a bare repository.
@@ -122,7 +140,7 @@ impl LockLedger {
         let git_dir: Option<PathBuf> = named.or_else(|| { return git_directory_of(working.as_path()); });
         let mut roots: Vec<PathBuf> = Vec::new();
         if let Some(directory) = git_dir {
-            let common: PathBuf = common_dir_of(directory.as_path());
+            let common: PathBuf = common_dir_for(directory.as_path());
             roots.push(directory.clone());
             if common != directory {
                 roots.push(common);
