@@ -544,20 +544,32 @@ fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, fo
 }
 
 /// What:
-/// `pub fn run_with_placeholder_lock(lock_path, _dry_run, body) -> i32` runs `body` with a stand-in lockfile in place when the
-/// crate root has none, and removes the stand-in again if the update is refused.
+/// `pub fn run_with_placeholder_lock(lock_path, dry_run, body) -> i32` runs `body` with a stand-in lockfile in place when the
+/// crate root has none, and removes the stand-in again if the update is refused or was a dry run.
 /// Why:
 /// The transaction needs a lockfile to snapshot; a root without one is created by the update itself.
+/// The stand-in is created exclusively (`create_new`), so a lockfile another writer published first is never truncated,
+/// and it is removed only while it still holds the stand-in text, so a lockfile another writer published during the update
+/// is never deleted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function runWithPlaceholderLock(lockPath: string, dryRun: boolean, body: () => number): number
 /// ```
-pub fn run_with_placeholder_lock(lock_path: &Path, _dry_run: bool, body: &mut dyn FnMut() -> i32) -> i32 {
-    let created_placeholder: bool = !lock_path.is_file() && std::fs::write(lock_path, EMPTY_LOCK).is_ok();
+pub fn run_with_placeholder_lock(lock_path: &Path, dry_run: bool, body: &mut dyn FnMut() -> i32) -> i32 {
+    // `create_new(true)` fails with `AlreadyExists` instead of truncating (the exclusive-create flag `wx` of Node), so the
+    // check and the creation are one step another writer cannot slip into.
+    let created_placeholder: bool = match std::fs::OpenOptions::new().write(true).create_new(true).open(lock_path) {
+        Ok(mut file) => file.write_all(EMPTY_LOCK.as_bytes()).is_ok(),
+        Err(_) => false,
+    };
     let code: i32 = body();
-    if created_placeholder && code != 0 {
-        let _ = std::fs::remove_file(lock_path);
+    if created_placeholder && (code != 0 || dry_run) {
+        // Remove the stand-in only if it is still the stand-in.
+        let still_placeholder: bool = std::fs::read_to_string(lock_path).map(|text| { return text == EMPTY_LOCK; }).unwrap_or(false);
+        if still_placeholder {
+            let _ = std::fs::remove_file(lock_path);
+        }
     }
     return code;
 }
