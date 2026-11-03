@@ -245,6 +245,9 @@ fn a_lock_older_than_the_boot_goes_when_no_pid_file_names_a_holder() {
     let before: Judge = Judge { boot: Some(SystemTime::now() - Duration::from_secs(3600)), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &before);
     assert!(!outcome.cleared_any(), "a lock younger than the boot stays: {outcome:?}");
+    let within: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK / 2), ..judge() };
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &within);
+    assert!(!outcome.cleared_any(), "a lock older than the boot by less than the slack stays, the clock may have stepped: {outcome:?}");
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     assert_eq!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::BeforeBoot)), "{outcome:?}");
     assert!(!stage.lock_of(PLANTED_REF).exists());
