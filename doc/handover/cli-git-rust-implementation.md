@@ -10302,3 +10302,13 @@ by the coordinator at merge.
   decisions and sent to the agent with it: cover `git pull` (a merge a person runs), respect a person's
   `attr.tree` as Git does, derive the candidate size bounds from Git's own constants, and give service-sent
   journal entries the service's identifier. The agent first merges the 0.5.22 stack into its branch.
+- 2026-11-03T03:45:35-05:00: 0.5.21 candidate gate `gpc-gate-release-0.5.21-conversion-candidate-20261103T032431-0500` passed (3957
+  run, 3957 passed, 6 skipped, `gate-exit-status=0`); conversion fix merged into main; release 0.5.21 dispatched.
+  Disk-weight branch `fix/star-containers-at-lowest-disk-weight` merged into main after reading its diff: all six
+  packages pass `--blkio-weight=10 --cgroup-conf=io.weight=10` from a named constant or mise variable (ide/app and
+  mutation-test/cli own helpers, forbidden-strings/cli reuses `diskWeightArguments()`, vm-builder a constant plus a
+  mise var tied by a unit test, two inline-script constants). Evidence: argv recorded through a stand-in `podman`
+  replayed into small containers read 10/10 on `io.bfq.weight` and `io.weight` (controls read default 100); the
+  packages' real images were not built. Open for the owner: about twenty other packages and two workflows start
+  containers at the default weight; the constant has several copies; vm-builder's rootful privileged
+  bootc-image-builder run has no CPU, memory or process limits (HXR asks for them).
