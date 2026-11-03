@@ -65,9 +65,36 @@ fn branch_moved(ready: &Ready) -> TransactionStop {
     return TransactionStop::Message(render(&ClientFailure::BranchMoved { branch }));
 }
 
+/// What:
+///  The words of the command line after the subcommand: the options and the paths of the command itself.
+/// Why:
+///   The subcommand's own name is not one of them, and a command line that ends at the subcommand has none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// arguments.slice(subcommandIndex + 1)
+/// ```
+fn arguments_after_subcommand(arguments: &[OsString], subcommand_index: usize) -> &[OsString] {
+    return arguments.get(subcommand_index + 1..).unwrap_or(&[]);
+}
+
+/// What:
+///  How a branch is named to the person when the worktree switched under a commit: a detached head by those words, any other
+///  reference by its branch name.
+/// Why:
+///   `HEAD` is not a branch name, and the full reference of a branch is not what the person typed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// reference === 'HEAD' ? 'a detached head' : reference.replace(/^refs\/heads\//, '')
+/// ```
+fn switched_branch_name(reference: &str) -> String {
+    return if reference == "HEAD" { String::from("a detached head") } else { reference.trim_start_matches("refs/heads/").to_string() };
+}
+
 /// The standard input of the command when a pathspec file is read from it, read once.
 fn standard_input_for(invocation: &CommitInvocation<'_>) -> Result<Option<Vec<u8>>, TransactionStop> {
-    let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
+    let after: &[OsString] = arguments_after_subcommand(invocation.arguments, invocation.subcommand_index);
     let Some(value) = invocation.region.pathspec_from_file else { return Ok(None) };
     if super::command_options_query::value_bytes(after, value) != b"-" {
         return Ok(None);
@@ -138,7 +165,7 @@ pub fn service_commit<F: RepositoryFacts>(
     // From here on the commit is recorded; one that stopped above, on a machine with no way to start a service, took no time
     //  worth splitting and leaves no record (nothing it does changes the repository).
     timing.place_at(git_dir.as_path());
-    let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
+    let after: &[OsString] = arguments_after_subcommand(invocation.arguments, invocation.subcommand_index);
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
     let standard_input: Option<Vec<u8>> = standard_input_for(invocation)?;
     let mut provisioned: bool = false;
@@ -210,10 +237,9 @@ pub fn service_commit<F: RepositoryFacts>(
         }
         let first_branch: &str = first_reference.get_or_insert_with(|| { return ready.reference.clone(); });
         if first_branch != ready.reference {
-            let named = |reference: &str| -> String { return if reference == "HEAD" { String::from("a detached head") } else { reference.trim_start_matches("refs/heads/").to_string() }; };
             let failure: ClientFailure = ClientFailure::BranchSwitched {
-                branch: named(first_branch),
-                now: named(ready.reference.as_str()),
+                branch: switched_branch_name(first_branch),
+                now: switched_branch_name(ready.reference.as_str()),
                 file: fixed_message.as_ref().map(|file| { return file.display().to_string(); }),
             };
             return Err(TransactionStop::Message(render(&failure)));

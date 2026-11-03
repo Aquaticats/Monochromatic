@@ -1,6 +1,8 @@
 //! Controls for the unit templates the wrapper provisions.
 
+use super::{arguments_after_subcommand, switched_branch_name};
 use crate::service_provision::{OWN_MARKERS, SERVICE_UNIT, SOCKET_UNIT};
+use std::ffi::OsString;
 use crate::service_instance::SOCKET_DIRECTORY;
 
 
@@ -32,4 +34,28 @@ fn the_templates_carry_the_marker_on_the_first_line() {
         let first: &str = text.lines().next().expect("a first line");
         assert!(first.starts_with('#') && first.contains(OWN_MARKERS[0]), "{first}");
     }
+}
+
+/// The command's own words start after the subcommand, whatever stands before it, and a command line that ends at the
+/// subcommand, or at which the subcommand is not, has none.
+#[test]
+fn the_words_of_the_command_start_after_the_subcommand() {
+    let line: Vec<OsString> = ["-C", "somewhere", "commit", "-m", "message", "--", "file"].iter().map(OsString::from).collect();
+    let after: Vec<OsString> = ["-m", "message", "--", "file"].iter().map(OsString::from).collect();
+    assert_eq!(arguments_after_subcommand(line.as_slice(), 2), after.as_slice());
+    assert_eq!(arguments_after_subcommand(line.as_slice(), 6), &[] as &[OsString], "the subcommand is the last word");
+    assert_eq!(arguments_after_subcommand(line.as_slice(), 40), &[] as &[OsString], "no such word");
+    let bare: Vec<OsString> = vec![OsString::from("commit"), OsString::from("-a")];
+    assert_eq!(arguments_after_subcommand(bare.as_slice(), 0), &bare[1..], "a subcommand in first place leaves everything after it, and not itself");
+}
+
+/// A branch that switched under a commit is named as the person knows it: a detached head by those words, a branch without the
+/// `refs/heads/` of its reference, and any other reference as it is.
+#[test]
+fn a_switched_branch_is_named_as_the_person_knows_it() {
+    assert_eq!(switched_branch_name("HEAD"), "a detached head");
+    assert_eq!(switched_branch_name("refs/heads/main"), "main");
+    assert_eq!(switched_branch_name("refs/heads/topic/deep"), "topic/deep");
+    assert_eq!(switched_branch_name("refs/tags/v1"), "refs/tags/v1");
+    assert_ne!(switched_branch_name("HEADS"), "a detached head", "only the word HEAD is a detached head");
 }
