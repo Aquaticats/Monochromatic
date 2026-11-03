@@ -193,6 +193,7 @@ use crate::journal::{KeepAs, QUARANTINE_DIR};
 /// import { LockedVersion, added_versions, parse_registry_versions, registry_versions } from 'crate/lockfile';
 /// ```
 use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};
+use crate::precise_target::precise_targets;
 /// What:
 /// `use crate::prune::prune_excludes;` imports `prune_excludes` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -879,7 +880,16 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // Borrow `&before_sources`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `added: Vec<LockedVersion>`.
-    let added: Vec<LockedVersion> = added_versions(&before_sources, &after).map_err(other)?;
+    let mut added: Vec<LockedVersion> = added_versions(&before_sources, &after).map_err(other)?;
+    // Review finding (2c 3): the release a `--precise` names is judged even when it was already locked.
+    if let UpdateKind::Targeted { cargo_args } = kind {
+        let locked: Vec<LockedVersion> = registry_versions(&after).map_err(other)?;
+        for named in precise_targets(cargo_args, &locked) {
+            if !added.contains(&named) {
+                added.push(named);
+            }
+        }
+    }
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&added`: lends the value without copying or giving it away.
