@@ -226,7 +226,8 @@ that lane's owner), the release intents `releases/`, and the maintenance registr
 than one appender: a binding or a registry entry is a file created once by `link`, and a ledger is appended by exactly one lane.
 
 Request states: `drafted` (client only) -> `bound` -> `accepted` -> `adopted` -> (`held` | `ready`) -> `publishing` -> (`published` |
-`pending` | `landing` | `rewritten-away`) -> (`materialized` | `voided`) -> `retired`; a hook may end a request as `refused`. A request
+`pending` | `landing` | `rewritten-away`) -> (`materialized` | `voided`) -> `retired`; a hook may end a request as `refused`; an obsolete
+version of a held request ends as `superseded` (B3); a merge request has the extra states `merge-ready` and `checked-out` (MG1 to MG6). A request
 that a client abandons before `bound` is removed by the lane after the client's process identity is gone; a `bound` request is never removed
 as abandoned, because C3's recovery obligation is to complete it.
 
@@ -270,8 +271,8 @@ Lane transitions (the owner and its incarnation)
 - L7 restart a quiet owner (client-triggered; shipped only with the measured interval; same pid namespace only). Pre: the owner's
   recorded pid-namespace identity equals this process's; no progress for the measured interval. Do: (1) open a pidfd on the recorded
   process and check its start time; (2) take `lane/gate` exclusively without waiting, abort if not taken; (3) re-read
-  `lane/incarnation`, abort if it changed; (4) create `lane/restart-intent` naming the incarnation (fsync); (5) end the owner through
-  the pidfd; (6) hold the gate until the owner is dead. Crash: before (4) nothing happened; after (4) the owner, when it next reaches an
+  `lane/incarnation`, abort if it changed; (4) create `lane/restart-intent` naming the incarnation (fsync); (5) end the owner through the pidfd with an uncatchable signal (`pidfd_send_signal` of SIGKILL: a wedged owner can be ignoring or
+  blocking the terminate signal, so a catchable one proves nothing); (6) hold the gate until the owner is dead. Crash: before (4) nothing happened; after (4) the owner, when it next reaches an
   admission point (L6) and finds the intent, admits nothing and exits, so the gate failing open cannot admit a program; a later
   restarter may complete (5). No manager stop request is used, so no request can outlive the restarter. There is no restart without the exclusive gate: a restarter
   that cannot take it ends nothing, because a process-tree sample cannot show that no program will be dispatched a moment later. The
@@ -378,7 +379,9 @@ Build and publication (lane)
 - Recovery classes for an attempt, in this order. R1 a durable `published`: published. R2 the new commit is the tip or an ancestor of
   it: published. R3 a reflog entry after the anchor whose own recorded old value is the new commit: `rewritten-away` (saved, not
   republished); this is checked before any `swap-failed`, because a failed invocation does not say the request was never satisfied.
-  R4 a recorded `swap-failed` and no R1 to R3 evidence: replay on the tip. R5 anything else: `landing`, owner decision 3: replay and
+  R4 a recorded `swap-failed` and no R1 to R3 evidence, and the reflog after the anchor is intact (its line count and last line match the journal's
+  record of the anchor): replay on the tip; if the post-anchor reflog lines are missing or were rewritten, R4 does not apply, because the missing lines
+  could be the evidence of R3, and the attempt is class R5. R5 anything else: `landing`, owner decision 3: replay and
   land with a message naming the commit and the command to drop it.
 
 Materialization and retirement
@@ -437,6 +440,31 @@ Materialization and retirement
   by the swap keeps the object for the person's own reflog expiry. A handshake that makes the registry and the intent visible to each other
   (G1 reads the intents after publishing its reservation and defers while one is open; T1 withdraws on seeing a reservation) was considered and not
   adopted: it makes an automatic maintenance run wait on a dead lane's intent.
+Merges (a merge is a request of the same lane, in the same order as commits and pushes; this replaces the narrative's phrase "twenty rounds")
+- MG1 compute. Pre: adopted, the merge request. Do: compute the merge commit `M` from the logical tail and the other side with `merge-tree`
+  (an object write; no ref, index or worktree change; X1 may cancel it); record `merge-ready <id> <M> <base>` in one S1 replacement.
+  Crash: repeated.
+- MG2 take the index lock. Pre: MG1. Do: one try, by the `linkat` method of M1, of a complete index file for `M`; if a foreign program holds
+  `index.lock` the request becomes `pending` with `M` on the side ref and the command answers exit 0 with the notice; Q1 repeats MG2.
+  Crash: as M1 (identity of our file only).
+- MG3 check out. Pre: MG2 holds `index.lock`. Do: under the marker `materializing`, for every path the merge changes, install `M`'s content in the
+  worktree by the carry-forward protocol of the narrative (journaled in `lane/carry/<path-id>`, identity-based, a displaced inode is kept under
+  `saved/`), including the person's concurrent edits, then rename the lock over the index, then release `index.lock`; record `checked-out <id>
+  <base> <M>` and, for each path, the journaled inode of `R`, the saved inodes, and the index entry before. The lock is not held across MG4.
+  Crash: L4 completes or rolls back each path from its journal by the identity rule; the request stays `merge-ready` until `checked-out` is
+  recorded.
+- MG4 swap. Pre: `checked-out`. Do: P1 to P3 with `old = base` and `new = M`, classified by E1.
+- MG5 retarget. Pre: MG4 ended in P4 and the tip moved (lost swap). Do: the worktree and index hold `M`'s content plus the person's later
+  edits; recompute `M'` on the new tip (MG1 on the new tip), install the difference from `M` to `M'` per path by the carry-forward protocol
+  with `M`'s content as the old side (so edits made after the checkout merge in, as for any edit), then MG4 on the new tip. A lock-held
+  swap makes the request `pending` first (the side ref names `M`), and Q1 repeats MG4.
+- MG6 restore. Pre: MG4 ended `refused` (a person's hook refused). Do: the "changes nothing" promise is kept by running the carry-forward in
+  reverse, per path: the content of the old tip's tree is installed with `M`'s content as the old side, so a concurrent edit made since the
+  checkout merges in and a file the person wrote through a still open descriptor lands in a saved file; the index entries equal to
+  the checkout's entries are returned to their `before` values, other entries are left; every displaced inode is kept under `saved/`; the
+  request ends `refused` with the hook's message and the paths that were not restored (those where the person's file differs, which stay
+  as the person has them). Crash: as MG3. Nothing is ever deleted except an inode the lane created and journaled.
+
 Cancellation
 - X1 cancel a stalled child. Pre: the child makes no progress for the measured interval, and its command kind is incapable of dispatching
   a protected program (a hook, a filter, a signer or a helper): the classification is by the kind of command, fixed in the retained-child
@@ -755,6 +783,16 @@ The held case: B3 gives an obsolete version a durable terminal outcome (`superse
 the active version without releasing them, and ties the release of its spool to the end of its discarded hook execution.
 
 The wrapper's own index commands do not wait for the lane's intents behind a foreign lock.
+
+### Merge order and restoration (R8-8, revision 9; the state machine governs)
+
+The narrative of the section "Merges, by the same lens" stays the explanation of the carry-forward protocol itself. The state machine now
+carries its transitions MG1 to MG6: compute, take the index lock, check out, swap, retarget after a lost swap, and restore after a refusal.
+Two orders were considered for a merge. The order here, check out first and swap second, keeps the worktree and the branch in step at
+every point a plain commit could capture them, at the cost of the restoration transition MG6. The other order, swap first and check out
+after as M1 does, needs no restoration but leaves the branch at the merge while the worktree is still the old head, so a plain commit built
+in that window would capture the reverse of the merge. The choice is recorded for the coordinator under the owner questions (option M-A is
+the transitions here).
 
 ### The side ref for a held branch lock, or a branch a foreign program keeps moving
 
@@ -1648,6 +1686,16 @@ H. Hook runs when a held request is replayed (new in revision 9; for the coordin
    - Ranking: H-version > H-build. H-version beats H-build because the owner's rules are that nothing is waited for without end and a
      person's program is not repeated, and the loss (a combination check by the hook) is the same loss every ordinary Git commit has when
      a pre-commit hook ran before a later merge.
+M. Merge order (new in revision 9; for the coordinator to pick).
+   Case: a merge whose hook refuses after the files were already written, while an editor keeps saving one of the merged files.
+   - Option M-A, check out first, swap second, with restoration (MG6) and retargeting (MG5). Pros: branch and worktree are never apart, so
+     no plain commit can capture the reverse of the merge; the refusal path is defined. Cons: more machinery; a refused merge needs a
+     reverse carry-forward, which can leave saved files beside the person's.
+   - Option M-B, swap first, then check out by the per-path rule of M1. Pros: a refusal changes nothing because nothing was written; no
+     reverse path. Cons: while the checkout waits for a foreign `index.lock`, the worktree is the old head and the branch is the merge, so
+     a plain commit in that window reverts the merge unless every capture is also taught to subtract it; the first review withdrew this.
+   - Ranking: M-A > M-B. M-A beats M-B because M-B's window can lose the merge's content in a later commit, which the owner's "never discard
+     user data" excludes, while M-A's cost is machinery and saved files, both recoverable.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
