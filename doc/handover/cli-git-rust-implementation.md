@@ -10785,4 +10785,25 @@ by the coordinator at merge.
   - Owner, verbatim, on a commit naming a conflicted path: "Committing a conflicted path is fine. Warn and
     commit anyway, even if conflict markers will be committed." This REVERSES `d8bcd95218` (merge-fixes branch,
     in the 0.5.26 candidate), which keeps Git's refusal for a named unmerged path; it must change before 0.5.26
-    ships.
+    ships. Sent to the commits agent as `fix/git-policy-cli-commit-conflicted-path-warns` from `5c0b660c27`.
+  - Moved head under an amend, a merge conclusion or a revert (question tool): "Stack on the new head
+    (Recommended)": the result lands as a new commit on the new head and stderr says why; an amend that raced
+    becomes an extra commit (`A <- B <- C <- D`), a conclusion lands as the merge of the topic into the new head, a
+    revert lands as the revert on the new head; nothing another session landed is rewritten.
+  Commits agent design (`fix/git-policy-cli-commits-never-fail`, `e716f07ff6`,
+  `doc/planning/cli-git-commits-never-fail.md`): remove the class-bound kill and move the slow follow-up steps
+  in process; the client lands a commit itself when the service is absent (the service a speed-up, not a
+  dependency); heartbeats instead of `COMMIT_WAIT`; no landing counts, the service the one writer of its
+  worktree's branch, Git-built commits take a short branch turn; move the ref first and reconcile the index
+  when the lock is free (no Git work under the lock); a per-worktree hold ref keeps captured blobs from
+  pruning. 120 s case explained: two Git children of about 60 s each (`diff-tree` 59.4 s, `reset -q
+  --pathspec-from-file` 60.0 s) inside a 119 s `index.lock` hold; why each took 60 s is unexplained. Next: fold
+  the settled list, then a cross-vendor review, then build.
+  Stale-ref-locks agent done (`fix/git-policy-cli-clear-stale-ref-locks-of-killed-git`, tip `cc9faef3e5`, host
+  3508, binary 588, clippy clean): ref locks are cleared before the wrapper's fetch and push and a forwarded
+  fetch or push only when the holder is proven gone (pid file born at or after the lock and its process gone,
+  or reused by a non-Git started later; or no pid file and older than boot by over an hour); never
+  `index.lock`. It never ran the `pkill` string. For the 0.5.26 gate: confirm the container branch of
+  `a_fetch_after_a_killed_fetch_clears_the_locks_where_the_holder_is_provably_gone`.
+  0.5.26 candidate contents once the retry-plan fix builds: perf + merge-fixes (in the integration branch),
+  then merge test-helpers, stale-ref-locks and conflicted-path-warns.
