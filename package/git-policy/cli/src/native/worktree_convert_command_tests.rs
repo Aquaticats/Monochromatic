@@ -1,0 +1,80 @@
+//! The command over several worktrees: `--all`, a dry run that lists reasons, exit statuses and the lines printed.
+
+use super::*;
+use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_worktree};
+use crate::test_support::{git, remove};
+
+/// A checkout with two quiet linked worktrees, `wt` and `second`, both inside it.
+fn two_worktrees(name: &str) -> (PathBuf, PathBuf) {
+    let (parent, root) = checkout_with_worktree(name);
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "second"]);
+    let exclude: PathBuf = root.join(".git/info/exclude");
+    let mut text: String = std::fs::read_to_string(&exclude).unwrap_or_default();
+    text.push_str("/second/\n");
+    std::fs::write(&exclude, text).expect("exclude");
+    for worktree in ["wt", "second"] {
+        backdate(root.join(worktree).as_path());
+        git(root.join(worktree).as_path(), &["update-index", "--refresh"]);
+    }
+    return (parent, root);
+}
+
+/// Run the command and return its status and lines.
+fn run(platform: &dyn Platform, arguments: &ConvertArguments, cwd: &Path) -> (i32, Vec<String>) {
+    let mut lines: Vec<String> = Vec::new();
+    let code: i32 = execute(platform, arguments, cwd, &Interrupt::never(), &mut |text: &str| { lines.push(String::from(text)); });
+    return (code, lines);
+}
+
+/// `--all --dry-run` lists every worktree with what it would do or why it is skipped, and changes nothing; the real run
+///  then converts both, and a second run reports them as subvolumes.
+#[test]
+fn all_worktrees_are_listed_then_converted() {
+    let (parent, root) = two_worktrees("convert-command-all");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let dry: ConvertArguments = ConvertArguments { dry_run: true, all: true, ..ConvertArguments::default() };
+    std::fs::write(root.join(".git/worktrees/second/locked"), b"").expect("lock the second");
+    let (code, lines) = run(&platform, &dry, root.as_path());
+    assert_eq!(code, 0, "{lines:#?}");
+    assert!(lines.iter().any(|line: &String| { return line.trim() == "would convert"; }), "{lines:#?}");
+    assert!(lines.iter().any(|line: &String| { return line.contains("skipped:") && line.contains("locked"); }), "{lines:#?}");
+    assert!(!platform.is_subvolume_root(root.join("wt").as_path()).expect("examined"), "a dry run converts nothing");
+    std::fs::remove_file(root.join(".git/worktrees/second/locked")).expect("unlock");
+    let real: ConvertArguments = ConvertArguments { all: true, ..ConvertArguments::default() };
+    let (code, lines) = run(&platform, &real, root.as_path());
+    assert_eq!(code, 0, "{lines:#?}");
+    assert!(platform.is_subvolume_root(root.join("wt").as_path()).expect("examined"));
+    assert!(platform.is_subvolume_root(root.join("second").as_path()).expect("examined"));
+    let (code, lines) = run(&platform, &real, root.as_path());
+    assert_eq!(code, 0);
+    assert_eq!(lines.iter().filter(|line: &&String| { return line.contains("already a subvolume"); }).count(), 2, "{lines:#?}");
+    remove(parent.as_path());
+}
+
+/// A named worktree that is refused ends the command with status 1 and a reason; a path that is no worktree is refused too.
+#[test]
+fn a_refused_named_worktree_is_status_one_and_a_failure_is_status_two() {
+    let (parent, root) = two_worktrees("convert-command-named");
+    let platform: PlainPlatform = PlainPlatform::new();
+    std::fs::write(root.join(".git/worktrees/wt/index.lock"), b"another git").expect("lock");
+    let named: ConvertArguments = ConvertArguments { paths: vec![std::ffi::OsString::from("wt")], ..ConvertArguments::default() };
+    let (code, lines) = run(&platform, &named, root.as_path());
+    assert_eq!(code, REFUSED_EXIT_CODE, "{lines:#?}");
+    assert!(lines.iter().any(|line: &String| { return line.contains("index.lock"); }), "{lines:#?}");
+    let missing: ConvertArguments = ConvertArguments { paths: vec![std::ffi::OsString::from("nowhere")], ..ConvertArguments::default() };
+    let (code, lines) = run(&platform, &missing, root.as_path());
+    assert_eq!(code, REFUSED_EXIT_CODE, "{lines:#?}");
+    std::fs::remove_file(root.join(".git/worktrees/wt/index.lock")).expect("unlock");
+    let killed: i32 = execute(&platform, &named, root.as_path(), &Interrupt::at("created", 0), &mut |_text: &str| {});
+    assert_eq!(killed, FAILED_EXIT_CODE);
+    let (code, lines) = run(&platform, &named, root.as_path());
+    assert_eq!(code, 0, "{lines:#?}");
+    remove(parent.as_path());
+}
+
+/// Help is status 0 on standard output.
+#[test]
+fn help_is_printed() {
+    let action: Action = convert_action(&ConvertArguments { help: true, ..ConvertArguments::default() }, Path::new("."));
+    assert!(matches!(action, Action::Exit { code: 0, ref stdout, .. } if stdout.contains("--abandon")));
+}

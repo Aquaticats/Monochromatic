@@ -307,16 +307,17 @@ fn untracked_file(context: &GitContext, root: &Path) -> Result<Option<String>, S
 }
 
 /// What:
-///  Check that the worktree at `root`, whose Git directory is `git_dir` and whose shared directory is `common_dir`, is
-///  clean; return what its `HEAD` names, or the reason it cannot be proven clean.
+///  The checks of `check_clean` that read no untracked file: no operation in progress, an index equal to the tree of `HEAD`,
+///  and every tracked file with the size, times and inode its index entry recorded.
 /// Why:
-///   The caller turns a refusal into a quiet fall to the next rung (or to Git's own removal) and logs the reason.
+///   A caller that copies the whole worktree, untracked files included (the conversion of a worktree into a subvolume),
+///  needs a quiet and unmodified tracked state but has no reason to refuse for an untracked file, and needs no Git process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function checkClean(args: { context: GitContext; root: string; gitDir: string; commonDir: string }): Promise<CleanSource>; // throws a reason
+/// function checkCleanTracked(root: string, gitDir: string, commonDir: string): CleanSource; // throws the reason
 /// ```
-pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, String> {
+pub fn check_clean_tracked(root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, String> {
     if let Some(name) = operation_in_progress(git_dir) {
         return Err(format!("{name} exists in {}", git_dir.display()));
     }
@@ -347,13 +348,28 @@ pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir
     if let Some(reason) = tree_differs_from_index(root, stats.as_slice(), index_seconds) {
         return Err(reason);
     }
-    if let Some(name) = untracked_file(context, root)? {
-        return Err(format!("{name} is untracked and not ignored"));
-    }
     return Ok(CleanSource { head_commit: commit, head_tree: commit_fields.tree, tracked: entries.len(), index_seconds, hash_length, attribute_blobs, index_bytes: bytes });
 }
 
 /// Cleanliness controls stay out of the release executable.
+/// What:
+///  Check that the worktree at `root`, whose Git directory is `git_dir` and whose shared directory is `common_dir`, is
+///  clean; return what its `HEAD` names, or the reason it cannot be proven clean.
+/// Why:
+///   The caller turns a refusal into a quiet fall to the next rung (or to Git's own removal) and logs the reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function checkClean(args: { context: GitContext; root: string; gitDir: string; commonDir: string }): Promise<CleanSource>; // throws a reason
+/// ```
+pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, String> {
+    let clean: CleanSource = check_clean_tracked(root, git_dir, common_dir)?;
+    if let Some(name) = untracked_file(context, root)? {
+        return Err(format!("{name} is untracked and not ignored"));
+    }
+    return Ok(clean);
+}
+
 #[cfg(test)]
 #[path = "worktree_clean_tests.rs"]
 mod tests;

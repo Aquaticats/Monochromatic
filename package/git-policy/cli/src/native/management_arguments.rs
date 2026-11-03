@@ -26,6 +26,7 @@
 use std::ffi::OsString;
 /// The grammar of the subvolume migration command, parsed apart.
 use super::subvolume_arguments::{MigrateArguments, parse_migrate_arguments};
+use super::worktree_convert_arguments::{ConvertArguments, parse_convert_arguments};
 
 /// What:
 ///  The complete grammar shown when an invocation is refused.
@@ -43,6 +44,7 @@ Usage: git cli-git check (--all | -- <pathspec>...) [--policy <id>]...
        git cli-git fix (--all | -- <pathspec>...) [--policy <id>]...
        git cli-git doctor
        git cli-git migrate-to-subvolume [--dry-run | --rollback | --remove-old]
+       git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)
        git cli-git --help
 ";
 
@@ -61,6 +63,8 @@ Commands:
            1 when any other hook is found, 2 outside a repository.
   migrate-to-subvolume
            Convert the main checkout into a btrfs subvolume (see `git cli-git migrate-to-subvolume --help`).
+  convert-worktree-to-subvolume
+           Convert linked worktrees that are ordinary directories into subvolumes (see its `--help`).
 
 Scope (exactly one):
   --all             The whole repository.
@@ -128,6 +132,8 @@ pub enum ManagementAction {
     Doctor,
     /// `migrate-to-subvolume`: the parsed options, or the reason they were refused.
     MigrateToSubvolume(Result<MigrateArguments, String>),
+    /// `convert-worktree-to-subvolume`: the parsed options, or the reason they were refused.
+    ConvertWorktree(Result<ConvertArguments, String>),
     /// `service status`: whether the commit service answers (a diagnostic; the wrapper sets the service up itself).
     ServiceStatus,
     /// `check` or `fix` over exactly one scope.
@@ -416,6 +422,9 @@ pub fn parse_management_arguments(
     }
     if name == "migrate-to-subvolume" {
         return Ok(ManagementAction::MigrateToSubvolume(parse_migrate_arguments(rest)));
+    }
+    if name == "convert-worktree-to-subvolume" {
+        return Ok(ManagementAction::ConvertWorktree(parse_convert_arguments(rest)));
     }
     if name == "service" {
         return match rest {
