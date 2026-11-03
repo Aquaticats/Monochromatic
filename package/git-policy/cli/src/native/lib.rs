@@ -1460,6 +1460,12 @@ pub mod worktree_convert_arguments;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_command;
 
+/// How many workers independent items may use together, from the CPUs allowed, the memory free and a measured ceiling.
+pub mod parallel_budget;
+
+/// Independent items on a bounded number of threads, reported in input order with no lock.
+pub mod parallel_runner;
+
 /// Setting aside what a snapshot of the main checkout leaves out, and having the commit service empty it.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash;
