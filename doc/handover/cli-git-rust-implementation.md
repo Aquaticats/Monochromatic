@@ -10011,3 +10011,30 @@ by the coordinator at merge.
   An agent is adding both options on `fix/mutation-test-cli-cargo-mutants-container-disk-weight` (worktree
   `.claude/worktrees/container-disk-weight`), with a real-container check. The combined main gate waits for it:
   merge main into that branch, gate it, merge, release 0.5.20, install, verify a commit.
+- Owner decisions 2026-11-03 on resolving conflicts whose changes only touch (question tool; option labels as
+  chosen): merges a person runs: "Word-level second pass (Recommended)" (after Git stops, re-merge only the
+  conflicted parts word by word, Jujutsu's method; accept a file only when every part resolves; list each merged
+  part on stderr and in the journal). The wrapper's unattended merges (auto-push reconciliation, commit replay):
+  "Second pass there too", against the offered ranking, which recommended keeping Git's result there; every merged
+  part is logged with the commit. Append-only documents: "union for named append-only files", against the offered
+  ranking (no union); which files are named is still open. Where the merge code comes from (port Jujutsu's
+  algorithm on `similar` or `imara-diff`, or link `jj-core` 0.46.0 with 22 required dependencies): "Re-ask this
+  specific question when the agent returns", the agent being the one checking whether `jj-core` exposes its merge
+  publicly; it is also writing `doc/planning/cli-git-merge-auto-resolution.md` from the research report
+  (`~/temp/agent/research/merge-auto-resolution.md`, evidence `~/temp/agent/mergiraf-eval/`). Implementation waits
+  for that answer (rule GXD: dependencies first).
+- Conversion third round done (`fix/git-policy-cli-convert-content-third-review`, commits `5513295bdb` red,
+  `c9e65e8bf4` fixes, `34910352b9` docs): clippy clean, library 3222/3222, binary 528/528, 24 guards each shown red.
+  Dry run on the real repository: 169 worktrees, 103 already subvolumes, 64 would convert, 2 skipped (the real
+  `Cargo.lock` difference, and a worktree a `kopia` process holds). Main merged in; the planning doc's two appended
+  sections (both after the 2026-11-02T23:51:49 section) were kept in time order. The real conversion still waits
+  for this branch's gate and release.
+- Dirty-main snapshot (option B) built on `feat/git-policy-cli-snapshot-dirty-main` (`3a62188647` red,
+  `a7d983512a`, `6d9c8f8403`, `14d2edd4b4`, `f006034334`): clippy clean, unit 3221, binary 539; structured
+  `CleanRefusal` kinds; restore by `read-tree --reset -u` plus `clean` in the stage, proven before the swap; main
+  never written. Measured in btrfs copies of the real main: restore proven at 43.5 s (reset 1103 ms), against the
+  slow route at 142.3 s. Open finding to check against current main: every snapshot add in those runs printed that
+  the trash could not be handed to the service and emptied it in the foreground, and the first add returned after
+  19 min 26 s although the worktree was proven at 61.3 s. The branch started from `692dcb9f48`, before the trash
+  fixes merged in `14601b28d3`, so whether current main still does this is not yet known; measure after main is
+  merged in. Also: a restore that rewrites an LFS file needs `git-lfs` on `PATH`.
