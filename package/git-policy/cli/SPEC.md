@@ -2905,6 +2905,8 @@ and builds the merge commit Git would build for a resolved merge (the parents, t
 are Git's).
 The markers in those files are committed, and the same warning as for a named path names each file and says how to fix it in a
 follow-up commit.
+`git commit -a` over unmerged files does the same: it stages the working copy of every tracked file, so it commits their markers and warns for each
+such file in the same words (owner: "Committing a conflicted path is fine. Warn and commit anyway").
 Options that select the whole index (`--all`, `--no-only`, `--include`, `--interactive`, `--patch`) keep concluding it.
 
 #### Scratch repository layout
