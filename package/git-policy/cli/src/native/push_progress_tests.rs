@@ -226,6 +226,40 @@ fn a_loop_started_by_a_panicking_test_is_gone_when_the_test_ends() {
     assert!(!left, "the loop of process {pid} outlived the test that started it");
 }
 
+/// A process that product code started in the fixture, and that no guard of the test holds, is gone when the test ends: a
+///  hook that does `exec sleep` cannot watch its test without starting processes the meter would count as progress, so the
+///  fixture ends what works in it.
+#[test]
+fn a_process_working_in_a_fixture_is_gone_when_the_test_ends() {
+    let (sender, receiver) = std::sync::mpsc::channel::<u32>();
+    let handle = std::thread::spawn(move || {
+        let root: std::path::PathBuf = fixture("progress-cwd-sweep");
+        let mut child: Child = Command::new("sleep")
+            .arg("600")
+            .current_dir(root.as_path())
+            .stdin(Stdio::null())
+            .spawn()
+            .expect("start the sleeper");
+        sender.send(child.id()).expect("send the pid");
+        // A look that does not wait: the sleeper is still running when the test fails, as in the leak this control is for.
+        let _still_running = child.try_wait();
+        panic!("the test fails before it ends the sleeper");
+    });
+    assert!(handle.join().is_err(), "the thread panics on purpose");
+    let pid: u32 = receiver.recv().expect("the pid");
+    let began: Instant = Instant::now();
+    while process_runs(pid) && began.elapsed() < PATIENCE {
+        std::thread::sleep(LOOK);
+    }
+    let left: bool = process_runs(pid);
+    if left {
+        // Tidy up the leak this control exists to catch, so a red run leaves nothing behind either.
+        // SAFETY: `kill` takes a pid and a signal and touches no memory.
+        unsafe { libc::kill(libc::pid_t::try_from(pid).expect("pid"), libc::SIGKILL) };
+    }
+    assert!(!left, "the sleeper of process {pid} outlived the test that started it");
+}
+
 /// Where nothing is measured the stall window is a fixed deadline, even for a tree that writes all the time.
 #[test]
 fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
