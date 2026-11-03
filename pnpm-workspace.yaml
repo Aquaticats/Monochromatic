@@ -52,9 +52,9 @@ catalog:
   '@deepseek-ai/schemastery': '3.18.5'
   '@deepseek-ai/dsh-llm-pi-ai': '0.2.1-rc.5'
   '@deepseek-ai/dsh-settings': '0.2.1-rc.5'
-  '@earendil-works/pi-ai': '>=1.4.0'
-  '@earendil-works/pi-coding-agent': '>=1.4.0'
-  '@earendil-works/pi-tui': '>=1.4.0'
+  '@earendil-works/pi-ai': '>=1.5.0'
+  '@earendil-works/pi-coding-agent': '>=1.5.0'
+  '@earendil-works/pi-tui': '>=1.5.0'
   '@electron/packager': '>=20.3.0'
   '@homebridge/dbus-native': '>=0.7.9'
   '@inquirer/checkbox': '>=5.2.8'
@@ -128,7 +128,7 @@ catalog:
   'h3': '>=2.0.8'
   'happy-dom': '>=20.5.0'
   'happy-rusty': '>=1.9.1'
-  'hb-subset-wasm': '>=0.4.0'
+  'hb-subset-wasm': '>=0.5.0'
   'hyphen': '>=1.14.1'
   'ignore': '>=7.0.14'
   'isomorphic-git': '>=1.27.0'
@@ -210,7 +210,7 @@ catalog:
   # conf-fork.fuzz vendored upstream-conf oracle dependency; dev-only.
   'uint8array-extras': '>=1.6.0'
   # The shell analyzer consumes the SyntaxNode/Redirection AST introduced in unbash 5.
-  'unbash': '>=6.0.2'
+  'unbash': '>=6.0.3'
   'unified': '>=11.0.5'
   'valibot': '>=1.5.0'
   'wawoff2': '>=2.0.1'
@@ -564,8 +564,10 @@ shellEmulator: false
 # it makes a separate store inside that worktree's node_modules (a full
 # download per worktree). With this shared store, pnpm clones packages into
 # each worktree, and a new worktree installs offline in about a second.
-# Changing the store makes the next install in an existing worktree relink its
-# node_modules. pnpm expands ${HOME} here; it does not expand ~.
+# Changing the store makes the next `pnpm install` in an existing worktree relink
+# its node_modules. Until that install, other commands such as `pnpm update` stop
+# with ERR_PNPM_UNEXPECTED_STORE (seen 2026-11-02 in the main checkout), so run
+# `pnpm install` first. pnpm expands ${HOME} here; it does not expand ~.
 # Owner decision 2026-11-02 ("Set the shared store"); measurements in
 # doc/handover/cli-git-rust-implementation.md ("Snapshot route measured").
 storeDir: ${HOME}/.local/share/pnpm/store
