@@ -373,9 +373,19 @@ pub fn prepare<F: RepositoryFacts>(
             committed_conflicted: Vec::new(),
         });
     };
-    // An unmerged index is Git's to refuse, in its own words and with its own status.
-    if !list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?.is_empty() {
-        return Ok(Prepared::Ready(by_git(capture, Vec::new(), None, Vec::new(), invocation.arguments.to_vec(), scratch)));
+    // Files still unmerged when the commit names no paths: Git refuses here (`builtin/commit.c:348`, `refresh_cache_or_die`, which
+    //  exits with "Committing is not possible because you have unmerged files"). The owner's rule is "Warn and finish the merge"
+    //  (2026-11-03), so the working copy of each unmerged file is staged in the commit's private index, exactly as `git add` stages
+    //  it, and the commit that follows is the one Git would have built for a resolved merge. The files are named in the warning.
+    let unmerged_files: Vec<Vec<u8>> = list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?;
+    if !unmerged_files.is_empty() {
+        let mut staging: Vec<OsString> = vec![OsString::from("add"), OsString::from("--all"), OsString::from("--")];
+        for path in &unmerged_files {
+            let mut spec: Vec<u8> = b":(top,literal)".to_vec();
+            spec.extend_from_slice(path.as_slice());
+            staging.push(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec));
+        }
+        run_git_checked(context, &indexed_request(cwd, staging.as_slice(), Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())))?;
     }
     let candidate_paths: Vec<Vec<u8>> =
         list_changed_index_paths(context, cwd, indexes.commit_index.as_path(), base.as_str(), indexes.object_directory.as_path())?;
@@ -431,6 +441,7 @@ pub fn prepare<F: RepositoryFacts>(
     ready.needs_native = forced;
     // A path in conflict that the commit takes is committed with the bytes the worktree holds, markers included.
     ready.committed_conflicted = unmerged_before.into_iter().filter(|path| { return candidate_paths.contains(path); }).collect();
+    ready.committed_conflicted.extend(unmerged_files);
     return Ok(Prepared::Ready(ready));
 }
 
