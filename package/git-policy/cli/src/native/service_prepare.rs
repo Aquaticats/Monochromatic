@@ -230,8 +230,10 @@ pub fn prepare<F: RepositoryFacts>(
     }
     // Named paths beside another session's unfinished merge or stopped cherry-pick land as an ordinary commit, one in conflict
     //  included: the owner's rule is "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will
-    //  be committed." The paths in conflict are listed here so the warning can name those the commit takes.
-    let unmerged_before: Vec<Vec<u8>> = if matches!(layout.conclusion, Conclusion::Merge | Conclusion::CherryPick) && (!region.pathspecs.is_empty() || region.pathspec_from_file.is_some()) {
+    //  be committed." The paths in conflict are listed here so the warning can name those the commit takes. `-a` stages the working
+    //  copy of every tracked file, an unmerged one included, so it commits their markers too and is listed the same way.
+    let names_paths: bool = !region.pathspecs.is_empty() || region.pathspec_from_file.is_some();
+    let unmerged_before: Vec<Vec<u8>> = if region.all || (matches!(layout.conclusion, Conclusion::Merge | Conclusion::CherryPick) && names_paths) {
         list_unmerged_index_paths(context, cwd, layout.real_index_path.as_path())?
     } else {
         Vec::new()
