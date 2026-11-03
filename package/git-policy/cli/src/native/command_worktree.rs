@@ -1,11 +1,11 @@
 //! What:
 //!  The one fact the wrapper needs about `git worktree`:
 //!  whether the invocation
-//!       creates or moves a worktree.
+//!       changes worktree registrations.
 //! Why:
-//!  Only `git worktree add` and `git worktree move` are sources of ignored-state
-//!      synchronization,
-//!  and the worktree-copy opt-out is written after that second word.
+//!  The worktree-copy opt-out is written after `git worktree add` or `git worktree move`,
+//!  so the flag is recognized after that second word; only an add is a source of ignored-state
+//!      synchronization.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
