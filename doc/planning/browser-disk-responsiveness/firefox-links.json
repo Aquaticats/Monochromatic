@@ -1,0 +1,550 @@
+{
+  "startedAt": "2026-11-03T09:09:22.110Z",
+  "session": "firefox-responsiveness-upstream-links",
+  "method": "Exact URL navigation, rendered source excerpt or anchored bug/policy text checked against fetched primary-source evidence.",
+  "priorAttempts": [
+    {
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2048221#c5",
+      "status": "outcome_unknown",
+      "error": "Failed to read: Resource temporarily unavailable (os error 11)",
+      "subsequentPage": "about:blank",
+      "cgroup": {
+        "pidsMax": 512,
+        "pidsCurrent": 147,
+        "pidsEventsMax": 0,
+        "oom": 0
+      }
+    }
+  ],
+  "results": [
+    {
+      "reference": "startup-work",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2048221#c0",
+      "status": "verified",
+      "expected": "only hold the lock while snapshotting mTable",
+      "excerptMatch": true,
+      "rendered": {
+        "anchor": "c0",
+        "anchorFound": true,
+        "anchorVisible": true,
+        "text": "\tLars Eggert [:lars] Reporter\t\n\nDescription • 4 months ago\n\n\nA better approach for would be for StartupCache::WriteToDisk to only hold the lock while snapshotting mTable (and maybe use a different lock to avoid racing actual I/O writes).\n\nSee https://phabricator.services.mozilla.com/D307210#inline-1655744",
+        "title": "2048221 - StartupCache::WriteToDisk optimization",
+        "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2048221#c0"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:23.757Z"
+    },
+    {
+      "reference": "startup-shutdown",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2037923#c8",
+      "status": "verified",
+      "expected": "Pushed by leggert@mozilla.com",
+      "excerptMatch": true,
+      "rendered": {
+        "anchor": "c8",
+        "anchorFound": true,
+        "anchorVisible": true,
+        "text": "\tPulsebot\t\n\nComment 8 • 4 months ago\n\nPushed by leggert@mozilla.com:\nhttps://github.com/mozilla-firefox/firefox/commit/a316c0cc866b\nhttps://hg.mozilla.org/integration/autoland/rev/601037445071\nDon't use low-priority I/O for startup cache writes during shutdown r=xpcom-reviewers,emilio",
+        "title": "2037923 - Crash in [@ shutdownhang | mozilla::scache::StartupCache::GetBuffer]",
+        "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2037923#c8"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:25.012Z"
+    },
+    {
+      "reference": "startup-current",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/startupcache/StartupCache.cpp#L679-L690",
+      "status": "verified",
+      "expected": [
+        "",
+        "void StartupCache::MaybeKickOffShutdownWrite() {",
+        "  if (mTimer) {",
+        "    mTimer->Cancel();",
+        "  }"
+      ],
+      "excerptMatch": true,
+      "rendered": {
+        "anchorFound": true,
+        "codeRect": {
+          "bottom": 13924,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 13904,
+          "width": 843,
+          "x": 420,
+          "y": 13904
+        },
+        "codeVisible": false,
+        "excerpt": [
+          "",
+          "void StartupCache::MaybeKickOffShutdownWrite() {",
+          "  if (mTimer) {",
+          "    mTimer->Cancel();",
+          "  }"
+        ],
+        "hash": "#L679-L690",
+        "lineNumberRect": {
+          "bottom": 13924,
+          "height": 20,
+          "left": 410,
+          "right": 442,
+          "top": 13904,
+          "width": 32,
+          "x": 410,
+          "y": 13904
+        },
+        "lineNumberVisible": false,
+        "title": "firefox/startupcache/StartupCache.cpp at 2b71df5bf2e07525d1129be46e0ee02ec70d34d8 · mozilla-firefox/firefox · GitHub",
+        "url": "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/startupcache/StartupCache.cpp#L679-L690"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:26.768Z"
+    },
+    {
+      "reference": "startup-patch",
+      "url": "https://github.com/mozilla-firefox/firefox/commit/dc6ef27385dda3a44d7aa3d655663ced75ae565b",
+      "status": "verified",
+      "expected": "Better StartupCache locking",
+      "excerptMatch": true,
+      "rendered": {
+        "anchor": "",
+        "anchorFound": true,
+        "anchorVisible": true,
+        "text": "Skip to content\nNavigation Menu\nProducts\nDevelopers\nBusinesses\nResources\nPricing\nSearch\n/\nSign in\nSign up\nmozilla-firefox\nfirefox\nRepository navigation\nCode\nPull requests\n5\n (5)\nActions\nSecurity and quality\nInsights\nCommit dc6ef27\nBrowse files\nemilio\ncommitted\nBug 2048221 - Better StartupCache locking. r=jesup\nSerialize disk writes with mIOLock, and keep mTableLock just about\nmTable. Make the entries refcounted so they're snapshottable and move\nthe offsets that we mutate while writing outside since we only use them\nduring a single write.\n\nDifferential Revision: https://phabricator.services.mozilla.com/D307302\n1 parent \n022f985\n commit \ndc6ef27\n\n2 files changed\n\n+116\n-124\nLines changed: 116 additions & 124 deletions\nFile tree\nstartupcache\nStartupCache.cpp\nStartupCache.h\n \n‎startupcache/StartupCache.cpp‎\n+95\n-77\nLines changed: 95 additions & 77 deletions\nOriginal file line number\tDiff line number\tDiff line change\n@@ -66,7 +66,7 @@ MOZ_DEFINE_MALLOC_SIZE_OF(StartupCacheMallocSizeOf)\n\n66\t66\t\nNS_IMETHODIMP\n\n67\t67\t\nStartupCache::CollectReports(nsIHandleReportCallback* aHandleReport,\n\n68\t68\t\n                             nsISupports* aData, bool aAnonymize) {\n\n69\t\t\n-\n  MutexAutoLock lock(mTableLock);\n\n\t69\t\n+\n  AssertIsOnMainThread();\n\n70\t70\t\n  MOZ_COLLECT_REPORT(\n\n71\t71\t\n      \"explicit/startup-cache/mapping\", KIND_NONHEAP, UNITS_BYTES,\n\n72\t72\t\n      mCacheData.nonHeapSizeOfExcludingThis(),\n\n\n@@ -168,9 +168,10 @@ NS_IMPL_ISUPPORTS(StartupCache, nsIMemoryReporter)\n\n168\t168\t\n\n\n\n169\t169\t\nStartupCache::StartupCache()\n\n170\t170\t\n    : mTableLock(\"StartupCache::mTableLock\"),\n\n171\t\t\n-\n      mDirty(false),\n\n172\t\t\n-\n      mRegularWriteDone(false),\n\n\t171\t\n+\n      mIOLock(\"StartupCache::mIOLock\"),\n\n173\t172\t\n      mCurTableReferenced(false),\n\n\t173\t\n+\n      mTableDirty(false),\n\n\t174\t\n+\n      mRegularWriteDone(false),\n\n174\t175\t\n      mRequestedCount(0),\n\n175\t176\t\n      mCacheEntriesBaseOffset(0) {}\n\n176\t177\t\n\n\n\n\n@@ -258,6 +259,7 @@ nsresult StartupCache::Init() {\n\n258\t259\t\n}\n\n259\t260\t\n\n\n\n260\t261\t\nvoid StartupCache::StartPrefetchMemory() {\n\n\t262\t\n+\n  AssertIsOnMainThread();\n\n261\t263\t\n  {\n\n262\t264\t\n    MonitorAutoLock lock(mPrefetchComplete);\n\n263\t265\t\n    mPrefetchInProgress = true;\n\n\n@@ -267,12 +269,11 @@ void StartupCache::StartPrefetchMemory() {\n\n267\t269\t\n      mCacheData.get<uint8_t>().get(), mCacheData.size()));\n\n268\t270\t\n}\n\n269\t271\t\n\n\n\n270\t\t\n-\n/**\n\n271\t\t\n-\n * LoadArchive can only be called from the main thread.\n\n272\t\t\n-\n */\n\n273\t272\t\nResult<Ok, nsresult> StartupCache::LoadArchive() {\n\n274\t\t\n-\n  MOZ_ASSERT(NS_IsMainThread(), \"Can only load startup cache on main thread\");\n\n275\t\t\n-\n  if (gIgnoreDiskCache) return Err(NS_ERROR_FAILURE);\n\n\t273\t\n+\n  AssertIsOnMainThread();\n\n\t274\t\n+\n  if (gIgnoreDiskCache) {\n\n\t275\t\n+\n    return Err(NS_ERROR_FAILURE);\n\n\t276\t\n+\n  }\n\n276\t277\t\n\n\n\n277\t278\t\n  MOZ_TRY(mCacheData.init(mFile));\n\n278\t279\t\n  auto size = mCacheData.size();\n\n\n@@ -312,6 +313,7 @@ Result<Ok, nsresult> StartupCache::LoadArchive() {\n\n312\t313\t\n      return Err(NS_ERROR_UNEXPECTED);\n\n313\t314\t\n    }\n\n314\t315\t\n    auto cleanup = MakeScopeExit([&]() {\n\n\t316\t\n+\n      AssertIsOnMainThread();\n\n315\t317\t\n      mTableLock.AssertCurrentThreadOwns();\n\n316\t318\t\n      WaitOnPrefetch();\n\n317\t319\t\n      mTable.clear();\n\n\n@@ -350,9 +352,9 @@ Result<Ok, nsresult> StartupCache::LoadArchive() {\n\n350\t352\t\n        return Err(NS_ERROR_UNEXPECTED);\n\n351\t353\t\n      }\n\n352\t354\t\n\n\n\n353\t\t\n-\n      if (!mTable.add(\n\n354\t\t\n-\n              p, key,\n\n355\t\t\n-\n              StartupCacheEntry(offset, compressedSize, uncompressedSize))) {\n\n\t355\t\n+\n      if (!mTable.add(p, key,\n\n\t356\t\n+\n                      MakeRefPtr<StartupCacheEntry>(offset, compressedSize,\n\n\t357\t\n+\n                                                    uncompressedSize))) {\n\n356\t358\t\n        return Err(NS_ERROR_UNEXPECTED);\n\n357\t359\t\n      }\n\n358\t360\t\n    }\n\n\n@@ -396,7 +398,7 @@ nsresult StartupCache::GetBuffer(const char* id, const char** outbuf,\n\n396\t398\t\n    return NS_ERROR_NOT_AVAILABLE;\n\n397\t399\t\n  }\n\n398\t400\t\n\n\n\n399\t\t\n-\n  auto& value = p->value();\n\n\t401\t\n+\n  auto& value = *p->value();\n\n400\t402\t\n  if (value.mData) {\n\n401\t403\t\n    label = glean::startup_cache::RequestsLabel::eHitmemory;\n\n402\t404\t\n  } else {\n\n\n@@ -409,9 +411,6 @@ nsresult StartupCache::GetBuffer(const char* id, const char** outbuf,\n\n409\t411\t\n    // LoadArchive(), either from Init() (which must have already happened) or\n\n410\t412\t\n    // InvalidateCache(). InvalidateCache() locks the mutex, so a write can't be\n\n411\t413\t\n    // happening.\n\n412\t\t\n-\n    // Also, WriteToDisk() requires mTableLock, so while it's writing we can't\n\n413\t\t\n-\n    // be here.\n\n414\t\t\n-\n\n415\t414\t\n    size_t totalRead = 0;\n\n416\t415\t\n    size_t totalWritten = 0;\n\n417\t416\t\n    Span<const char> compressed = Span(\n\n\n@@ -484,8 +483,9 @@ nsresult StartupCache::PutBuffer(const char* id, UniqueFreePtr<char[]>&& inbuf,\n\n484\t483\t\n  // putNew returns false on alloc failure - in the very unlikely event we hit\n\n485\t484\t\n  // that and aren't going to crash elsewhere, there's no reason we need to\n\n486\t485\t\n  // crash here.\n\n487\t\t\n-\n  if (mTable.putNew(nsCString(id), StartupCacheEntry(std::move(inbuf), len,\n\n488\t\t\n-\n                                                     ++mRequestedCount))) {\n\n\t486\t\n+\n  if (mTable.putNew(nsCString(id),\n\n\t487\t\n+\n                    MakeRefPtr<StartupCacheEntry>(std::move(inbuf), len,\n\n\t488\t\n+\n                                                  ++mRequestedCount))) {\n\n489\t489\t\n    return ResetStartupWriteTimer();\n\n490\t490\t\n  }\n\n491\t491\t\n  MOZ_DIAGNOSTIC_ASSERT(mTable.count() < STARTUP_CACHE_MAX_CAPACITY,\n\n\n@@ -495,67 +495,85 @@ nsresult StartupCache::PutBuffer(const char* id, UniqueFreePtr<char[]>&& inbuf,\n\n495\t495\t\n\n\n\n496\t496\t\nsize_t StartupCache::HeapSizeOfIncludingThis(\n\n497\t497\t\n    mozilla::MallocSizeOf aMallocSizeOf) const {\n\n\t498\t\n+\n  MutexAutoLock l(mTableLock);\n\n498\t499\t\n  // This function could measure more members, but they haven't been found by\n\n499\t500\t\n  // DMD to be significant.  They can be added later if necessary.\n\n500\t\t\n-\n\n501\t501\t\n  size_t n = aMallocSizeOf(this);\n\n502\t502\t\n\n\n\n503\t503\t\n  n += mTable.shallowSizeOfExcludingThis(aMallocSizeOf);\n\n504\t504\t\n  for (auto iter = mTable.iter(); !iter.done(); iter.next()) {\n\n505\t\t\n-\n    if (iter.get().value().mData) {\n\n506\t\t\n-\n      n += aMallocSizeOf(iter.get().value().mData.get());\n\n\t505\t\n+\n    if (iter.get().value()->mData) {\n\n\t506\t\n+\n      n += aMallocSizeOf(iter.get().value()->mData.get());\n\n507\t507\t\n    }\n\n508\t508\t\n    n += iter.get().key().SizeOfExcludingThisIfUnshared(aMallocSizeOf);\n\n509\t509\t\n  }\n\n510\t510\t\n\n\n\n511\t511\t\n  return n;\n\n512\t512\t\n}\n\n513\t513\t\n\n\n\n514\t\t\n-\n/**\n\n515\t\t\n-\n * WriteToDisk writes the cache out to disk.\n\n516\t\t\n-\n * We own the mTableLock here.\n\n517\t\t\n-\n */\n\n518\t\t\n-\nResult<Ok, nsresult> StartupCache::WriteToDisk(WriteType aWriteType) {\n\n519\t\t\n-\n  if (!mDirty || mRegularWriteDone) {\n\n520\t\t\n-\n    return Ok();\n\n521\t\t\n-\n  }\n\n\t514\t\n+\nstruct StartupCacheEntryWriteData {\n\n\t515\t\n+\n  nsCString key;\n\n\t516\t\n+\n  RefPtr<StartupCacheEntry> value;\n\n\t517\t\n+\n  uint32_t mHeaderOffsetInFile;\n\n\t518\t\n+\n  int32_t mRequestedOrder;\n\n\t519\t\n+\n};\n\n522\t520\t\n\n\n\n523\t\t\n-\n  if (!mFile) {\n\n524\t\t\n-\n    return Err(NS_ERROR_UNEXPECTED);\n\n\t521\t\n+\nstruct WriteDataComparator {\n\n\t522\t\n+\n  using Value = StartupCacheEntryWriteData;\n\n\t523\t\n+\n\n\t524\t\n+\n  bool Equals(const Value& a, const Value& b) const {\n\n\t525\t\n+\n    return a.mRequestedOrder == b.mRequestedOrder;\n\n525\t526\t\n  }\n\n526\t527\t\n\n\n\n527\t\t\n-\n  AutoFDClose raiiFd;\n\n528\t\t\n-\n  MOZ_TRY(mFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,\n\n529\t\t\n-\n                                  0644, getter_Transfers(raiiFd)));\n\n530\t\t\n-\n  const auto fd = raiiFd.get();\n\n\t528\t\n+\n  bool LessThan(const Value& a, const Value& b) const {\n\n\t529\t\n+\n    return a.mRequestedOrder < b.mRequestedOrder;\n\n\t530\t\n+\n  }\n\n\t531\t\n+\n};\n\n531\t532\t\n\n\n\n532\t\t\n-\n  nsTArray<StartupCacheEntry::KeyValuePair> entries(mTable.count());\n\n533\t\t\n-\n  for (auto iter = mTable.iter(); !iter.done(); iter.next()) {\n\n534\t\t\n-\n    if (iter.get().value().mRequested) {\n\n535\t\t\n-\n      StartupCacheEntry::KeyValuePair kv(&iter.get().key(),\n\n536\t\t\n-\n                                         &iter.get().value());\n\n537\t\t\n-\n      entries.AppendElement(kv);\n\n\t533\t\n+\nResult<Ok, nsresult> StartupCache::WriteToDisk(WriteType aWriteType) {\n\n\t534\t\n+\n  if (!mTableDirty || mRegularWriteDone) {\n\n\t535\t\n+\n    return Ok();\n\n\t536\t\n+\n  }\n\n\t537\t\n+\n  nsTArray<StartupCacheEntryWriteData> entries;\n\n\t538\t\n+\n  {\n\n\t539\t\n+\n    MutexAutoLock lock(mTableLock);\n\n\t540\t\n+\n    entries.SetCapacity(mTable.count());\n\n\t541\t\n+\n    for (auto iter = mTable.iter(); !iter.done(); iter.next()) {\n\n\t542\t\n+\n      if (iter.get().value()->mRequested) {\n\n\t543\t\n+\n        entries.EmplaceBack(\n\n\t544\t\n+\n            StartupCacheEntryWriteData{iter.get().key(), iter.get().value(), 0,\n\n\t545\t\n+\n                                       iter.get().value()->mRequestedOrder});\n\n\t546\t\n+\n      }\n\n538\t547\t\n    }\n\n\t548\t\n+\n    mTableDirty = false;\n\n539\t549\t\n  }\n\n540\t550\t\n\n\n\n541\t551\t\n  if (entries.IsEmpty()) {\n\n542\t552\t\n    return Ok();\n\n543\t553\t\n  }\n\n\t554\t\n+\n  MutexAutoLock ioLock(mIOLock);\n\n\t555\t\n+\n  AutoFDClose raiiFd;\n\n\t556\t\n+\n  if (!mFile) {\n\n\t557\t\n+\n    return Err(NS_ERROR_UNEXPECTED);\n\n\t558\t\n+\n  }\n\n\t559\t\n+\n  MOZ_TRY(mFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,\n\n\t560\t\n+\n                                  0644, getter_Transfers(raiiFd)));\n\n\t561\t\n+\n  const auto fd = raiiFd.get();\n\n544\t562\t\n\n\n\n545\t\t\n-\n  entries.Sort(StartupCacheEntry::Comparator());\n\n\t563\t\n+\n  entries.Sort(WriteDataComparator());\n\n546\t564\t\n  loader::OutputBuffer buf;\n\n547\t565\t\n  for (auto& e : entries) {\n\n548\t\t\n-\n    auto* key = e.first;\n\n549\t\t\n-\n    auto* value = e.second;\n\n\t566\t\n+\n    auto& key = e.key;\n\n\t567\t\n+\n    auto& value = e.value;\n\n550\t568\t\n    auto uncompressedSize = value->mUncompressedSize;\n\n551\t569\t\n    // Set the mHeaderOffsetInFile so we can go back and edit the offset.\n\n552\t\t\n-\n    value->mHeaderOffsetInFile = buf.cursor();\n\n\t570\t\n+\n    e.mHeaderOffsetInFile = buf.cursor();\n\n553\t571\t\n    // Write a 0 offset/compressed size as a placeholder until we get the real\n\n554\t572\t\n    // offset after compressing.\n\n555\t573\t\n    buf.codeUint32(0);\n\n556\t574\t\n    buf.codeUint32(0);\n\n557\t575\t\n    buf.codeUint32(uncompressedSize);\n\n558\t\t\n-\n    buf.codeString(*key);\n\n\t576\t\n+\n    buf.codeString(key);\n\n559\t577\t\n  }\n\n560\t578\t\n\n\n\n561\t579\t\n  uint8_t headerSize[4];\n\n\n@@ -579,7 +597,7 @@ Result<Ok, nsresult> StartupCache::WriteToDisk(WriteType aWriteType) {\n\n579\t597\t\n  auto writeSpan = Span(writeBuffer.get(), writeBufLen);\n\n580\t598\t\n\n\n\n581\t599\t\n  for (auto& e : entries) {\n\n582\t\t\n-\n    auto value = e.second;\n\n\t600\t\n+\n    auto& value = e.value;\n\n583\t601\t\n    value->mOffset = offset;\n\n584\t602\t\n    Span<const char> result =\n\n585\t603\t\n        MOZ_TRY(ctx.BeginCompressing(writeSpan).mapErr(MapLZ4ErrorToNsresult));\n\n\n@@ -603,37 +621,42 @@ Result<Ok, nsresult> StartupCache::WriteToDisk(WriteType aWriteType) {\n\n603\t621\t\n  }\n\n604\t622\t\n\n\n\n605\t623\t\n  for (auto& e : entries) {\n\n606\t\t\n-\n    auto value = e.second;\n\n607\t\t\n-\n    uint8_t* headerEntry = buf.Get() + value->mHeaderOffsetInFile;\n\n\t624\t\n+\n    auto& value = e.value;\n\n\t625\t\n+\n    uint8_t* headerEntry = buf.Get() + e.mHeaderOffsetInFile;\n\n608\t626\t\n    LittleEndian::writeUint32(headerEntry, value->mOffset);\n\n609\t627\t\n    LittleEndian::writeUint32(headerEntry + sizeof(value->mOffset),\n\n610\t628\t\n                              value->mCompressedSize);\n\n611\t629\t\n  }\n\n612\t630\t\n  MOZ_TRY(Seek(fd, headerStart));\n\n613\t631\t\n  MOZ_TRY(Write(fd, buf.Get(), buf.cursor()));\n\n614\t632\t\n\n\n\n615\t\t\n-\n  mDirty = false;\n\n616\t633\t\n  if (aWriteType == WriteType::RegularWrite) {\n\n617\t634\t\n    mRegularWriteDone = true;\n\n618\t635\t\n  }\n\n619\t636\t\n\n\n\n620\t637\t\n  return Ok();\n\n621\t638\t\n}\n\n622\t639\t\n\n\n\n623\t\t\n-\nvoid StartupCache::InvalidateCache(bool memoryOnly) {\n\n\t640\t\n+\nvoid StartupCache::InvalidateCache(bool aMemoryOnly) {\n\n\t641\t\n+\n  AssertIsOnMainThread();\n\n624\t642\t\n  WaitOnPrefetch();\n\n625\t\t\n-\n  // Ensure we're not writing using mTable...\n\n626\t\t\n-\n  MutexAutoLock lock(mTableLock);\n\n627\t643\t\n\n\n\n628\t\t\n-\n  mRegularWriteDone = false;\n\n629\t\t\n-\n  if (memoryOnly) {\n\n\t644\t\n+\n  if (aMemoryOnly) {\n\n\t645\t\n+\n    mRegularWriteDone = false;\n\n630\t646\t\n    // This should only be called in tests.\n\n631\t647\t\n    auto writeResult = WriteToDisk(WriteType::RegularWrite);\n\n632\t648\t\n    if (NS_WARN_IF(writeResult.isErr())) {\n\n633\t649\t\n      gIgnoreDiskCache = true;\n\n634\t650\t\n      return;\n\n635\t651\t\n    }\n\n636\t652\t\n  }\n\n\t653\t\n+\n\n\t654\t\n+\n  // Ensure we're not writing using mTable...\n\n\t655\t\n+\n  MutexAutoLock ioLock(mIOLock);\n\n\t656\t\n+\n  MutexAutoLock tableLock(mTableLock);\n\n\t657\t\n+\n\n\t658\t\n+\n  mRegularWriteDone = false;\n\n\t659\t\n+\n\n637\t660\t\n  if (mCurTableReferenced) {\n\n638\t661\t\n    // There should be no way for this assert to fail other than a user manually\n\n639\t662\t\n    // sending startupcache-invalidate messages through the Browser Toolbox. If\n\n\n@@ -653,7 +676,7 @@ void StartupCache::InvalidateCache(bool memoryOnly) {\n\n653\t676\t\n    mTable.clear();\n\n654\t677\t\n  }\n\n655\t678\t\n  mRequestedCount = 0;\n\n656\t\t\n-\n  if (!memoryOnly) {\n\n\t679\t\n+\n  if (!aMemoryOnly) {\n\n657\t680\t\n    mCacheData.reset();\n\n658\t681\t\n    nsresult rv = mFile->Remove(false);\n\n659\t682\t\n    if (NS_FAILED(rv) && rv != NS_ERROR_FILE_NOT_FOUND) {\n\n\n@@ -691,7 +714,7 @@ void StartupCache::MaybeKickOffShutdownWrite() {\n\n691\t714\t\n}\n\n692\t715\t\n\n\n\n693\t716\t\nvoid StartupCache::EnsureShutdownWriteComplete() {\n\n694\t\t\n-\n  MutexAutoLock lock(mTableLock);\n\n\t717\t\n+\n  AssertIsOnMainThread();\n\n695\t718\t\n  // If we've already written or there's nothing to write,\n\n696\t719\t\n  // we don't need to do anything. This is the common case.\n\n697\t720\t\n  if (mRegularWriteDone ||\n\n\n@@ -701,10 +724,9 @@ void StartupCache::EnsureShutdownWriteComplete() {\n\n701\t724\t\n  // Otherwise, ensure the write happens. The timer should have been cancelled\n\n702\t725\t\n  // already in MaybeInitShutdownWrite.\n\n703\t726\t\n\n\n\n704\t\t\n-\n  // We got the lock. Keep the following in sync with\n\n705\t\t\n-\n  // MaybeWriteOffMainThread:\n\n\t727\t\n+\n  // Keep the following in sync with MaybeWriteOffMainThread:\n\n706\t728\t\n  WaitOnPrefetch();\n\n707\t\t\n-\n  mDirty = true;\n\n\t729\t\n+\n  mTableDirty = true;\n\n708\t730\t\n  mCacheData.reset();\n\n709\t731\t\n  // Most of this should be redundant given MaybeWriteOffMainThread should\n\n710\t732\t\n  // have run before now.\n\n\n@@ -744,11 +766,11 @@ void StartupCache::ThreadedPrefetch(uint8_t* aStart, size_t aSize) {\n\n744\t766\t\n  MMAP_FAULT_HANDLER_CATCH()\n\n745\t767\t\n}\n\n746\t768\t\n\n\n\n747\t\t\n-\n// mTableLock must be held\n\n748\t769\t\nbool StartupCache::ShouldCompactCache() {\n\n749\t770\t\n  // If we've requested less than 4/5 of the startup cache, then we should\n\n750\t771\t\n  // probably compact it down. This can happen quite easily after the first run,\n\n751\t772\t\n  // which seems to request quite a few more things than subsequent runs.\n\n\t773\t\n+\n  MutexAutoLock lock(mTableLock);\n\n752\t774\t\n  CheckedInt<uint32_t> threshold = CheckedInt<uint32_t>(mTable.count()) * 4 / 5;\n\n753\t775\t\n  MOZ_RELEASE_ASSERT(threshold.isValid(), \"Runaway StartupCache size\");\n\n754\t776\t\n  return mRequestedCount < threshold.value();\n\n\n@@ -775,29 +797,26 @@ void StartupCache::WriteTimeout(nsITimer* aTimer, void* aClosure) {\n\n775\t797\t\n */\n\n776\t798\t\nvoid StartupCache::MaybeWriteOffMainThread(WriteType aWriteType,\n\n777\t799\t\n                                           bool aUseLowPriorityIO) {\n\n778\t\t\n-\n  {\n\n779\t\t\n-\n    MutexAutoLock lock(mTableLock);\n\n780\t\t\n-\n    if (mRegularWriteDone ||\n\n781\t\t\n-\n        (mCacheData.initialized() && !ShouldCompactCache())) {\n\n782\t\t\n-\n      return;\n\n783\t\t\n-\n    }\n\n\t800\t\n+\n  AssertIsOnMainThread();\n\n\t801\t\n+\n  if (mRegularWriteDone) {\n\n\t802\t\n+\n    return;\n\n\t803\t\n+\n  }\n\n\t804\t\n+\n  if (mCacheData.initialized() && !ShouldCompactCache()) {\n\n\t805\t\n+\n    return;\n\n784\t806\t\n  }\n\n785\t807\t\n  // Keep this code in sync with EnsureShutdownWriteComplete.\n\n786\t808\t\n  WaitOnPrefetch();\n\n787\t\t\n-\n  {\n\n788\t\t\n-\n    MutexAutoLock lock(mTableLock);\n\n789\t\t\n-\n    mDirty = true;\n\n790\t\t\n-\n    mCacheData.reset();\n\n791\t\t\n-\n  }\n\n792\t809\t\n\n\n\n793\t\t\n-\n  RefPtr<StartupCache> self = this;\n\n\t810\t\n+\n  mTableDirty = true;\n\n\t811\t\n+\n  mCacheData.reset();\n\n\t812\t\n+\n\n794\t813\t\n  nsCOMPtr<nsIRunnable> runnable = NS_NewRunnableFunction(\n\n795\t\t\n-\n      \"StartupCache::Write\", [self, aWriteType, aUseLowPriorityIO]() mutable {\n\n\t814\t\n+\n      \"StartupCache::Write\",\n\n\t815\t\n+\n      [self = RefPtr{this}, aWriteType, aUseLowPriorityIO]() mutable {\n\n796\t816\t\n        Maybe<nsAutoLowPriorityIO> lowPriority;\n\n797\t817\t\n        if (aUseLowPriorityIO) {\n\n798\t818\t\n          lowPriority.emplace();\n\n799\t819\t\n        }\n\n800\t\t\n-\n        MutexAutoLock lock(self->mTableLock);\n\n801\t820\t\n        auto result = self->WriteToDisk(aWriteType);\n\n802\t821\t\n        (void)NS_WARN_IF(result.isErr());\n\n803\t822\t\n      });\n\n\n@@ -870,7 +889,7 @@ nsresult StartupCache::ResetStartupWriteTimerAndLock() {\n\n870\t889\t\n}\n\n871\t890\t\n\n\n\n872\t891\t\nnsresult StartupCache::ResetStartupWriteTimer() {\n\n873\t\t\n-\n  mDirty = true;\n\n\t892\t\n+\n  mTableDirty = true;\n\n874\t893\t\n  nsresult rv = NS_OK;\n\n875\t894\t\n  if (!mTimer)\n\n876\t895\t\n    mTimer = NS_NewTimer();\n\n\n@@ -887,8 +906,7 @@ nsresult StartupCache::ResetStartupWriteTimer() {\n\n887\t906\t\n// Used only in tests:\n\n888\t907\t\nbool StartupCache::StartupWriteComplete() {\n\n889\t908\t\n  // Need to have written to disk and not added new things since;\n\n890\t\t\n-\n  MutexAutoLock lock(mTableLock);\n\n891\t\t\n-\n  return !mDirty && mRegularWriteDone;\n\n\t909\t\n+\n  return !mTableDirty && mRegularWriteDone;\n\n892\t910\t\n}\n\n893\t911\t\n\n\n\n894\t912\t\n// StartupCacheDebugOutputStream implementation\n\n\n0 commit comments\nComments\n0\n (0)",
+        "title": "Bug 2048221 - Better StartupCache locking. r=jesup · mozilla-firefox/firefox@dc6ef27 · GitHub",
+        "url": "https://github.com/mozilla-firefox/firefox/commit/dc6ef27385dda3a44d7aa3d655663ced75ae565b"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:28.377Z"
+    },
+    {
+      "reference": "startup-revert",
+      "url": "https://github.com/mozilla-firefox/firefox/commit/eec2f8dc61cc9f851fe5303cc05fc015d3128e6f",
+      "status": "verified",
+      "expected": "for causing multiple crashes/failures",
+      "excerptMatch": true,
+      "rendered": {
+        "anchor": "",
+        "anchorFound": true,
+        "anchorVisible": true,
+        "text": "Skip to content\nNavigation Menu\nProducts\nDevelopers\nBusinesses\nResources\nPricing\nSearch\n/\nSign in\nSign up\nmozilla-firefox\nfirefox\nRepository navigation\nCode\nPull requests\n5\n (5)\nActions\nSecurity and quality\nInsights\nCommit eec2f8d\nBrowse files\nsmolnar-sheriff\ncommitted\nRevert \"Bug 2048221 - Better StartupCache locking. r=jesup\" for causing multiple crashes/failures\nThis reverts commit dc6ef27.\n1 parent \n83a07fd\n commit \neec2f8d\n\n2 files changed\n\n+124\n-116\nLines changed: 124 additions & 116 deletions\nFile tree\nstartupcache\nStartupCache.cpp\nStartupCache.h\n \n‎startupcache/StartupCache.cpp‎\n+77\n-95\nLines changed: 77 additions & 95 deletions\nOriginal file line number\tDiff line number\tDiff line change\n@@ -66,7 +66,7 @@ MOZ_DEFINE_MALLOC_SIZE_OF(StartupCacheMallocSizeOf)\n\n66\t66\t\nNS_IMETHODIMP\n\n67\t67\t\nStartupCache::CollectReports(nsIHandleReportCallback* aHandleReport,\n\n68\t68\t\n                             nsISupports* aData, bool aAnonymize) {\n\n69\t\t\n-\n  AssertIsOnMainThread();\n\n\t69\t\n+\n  MutexAutoLock lock(mTableLock);\n\n70\t70\t\n  MOZ_COLLECT_REPORT(\n\n71\t71\t\n      \"explicit/startup-cache/mapping\", KIND_NONHEAP, UNITS_BYTES,\n\n72\t72\t\n      mCacheData.nonHeapSizeOfExcludingThis(),\n\n\n@@ -168,10 +168,9 @@ NS_IMPL_ISUPPORTS(StartupCache, nsIMemoryReporter)\n\n168\t168\t\n\n\n\n169\t169\t\nStartupCache::StartupCache()\n\n170\t170\t\n    : mTableLock(\"StartupCache::mTableLock\"),\n\n171\t\t\n-\n      mIOLock(\"StartupCache::mIOLock\"),\n\n172\t\t\n-\n      mCurTableReferenced(false),\n\n173\t\t\n-\n      mTableDirty(false),\n\n\t171\t\n+\n      mDirty(false),\n\n174\t172\t\n      mRegularWriteDone(false),\n\n\t173\t\n+\n      mCurTableReferenced(false),\n\n175\t174\t\n      mRequestedCount(0),\n\n176\t175\t\n      mCacheEntriesBaseOffset(0) {}\n\n177\t176\t\n\n\n\n\n@@ -259,7 +258,6 @@ nsresult StartupCache::Init() {\n\n259\t258\t\n}\n\n260\t259\t\n\n\n\n261\t260\t\nvoid StartupCache::StartPrefetchMemory() {\n\n262\t\t\n-\n  AssertIsOnMainThread();\n\n263\t261\t\n  {\n\n264\t262\t\n    MonitorAutoLock lock(mPrefetchComplete);\n\n265\t263\t\n    mPrefetchInProgress = true;\n\n\n@@ -269,11 +267,12 @@ void StartupCache::StartPrefetchMemory() {\n\n269\t267\t\n      mCacheData.get<uint8_t>().get(), mCacheData.size()));\n\n270\t268\t\n}\n\n271\t269\t\n\n\n\n\t270\t\n+\n/**\n\n\t271\t\n+\n * LoadArchive can only be called from the main thread.\n\n\t272\t\n+\n */\n\n272\t273\t\nResult<Ok, nsresult> StartupCache::LoadArchive() {\n\n273\t\t\n-\n  AssertIsOnMainThread();\n\n274\t\t\n-\n  if (gIgnoreDiskCache) {\n\n275\t\t\n-\n    return Err(NS_ERROR_FAILURE);\n\n276\t\t\n-\n  }\n\n\t274\t\n+\n  MOZ_ASSERT(NS_IsMainThread(), \"Can only load startup cache on main thread\");\n\n\t275\t\n+\n  if (gIgnoreDiskCache) return Err(NS_ERROR_FAILURE);\n\n277\t276\t\n\n\n\n278\t277\t\n  MOZ_TRY(mCacheData.init(mFile));\n\n279\t278\t\n  auto size = mCacheData.size();\n\n\n@@ -313,7 +312,6 @@ Result<Ok, nsresult> StartupCache::LoadArchive() {\n\n313\t312\t\n      return Err(NS_ERROR_UNEXPECTED);\n\n314\t313\t\n    }\n\n315\t314\t\n    auto cleanup = MakeScopeExit([&]() {\n\n316\t\t\n-\n      AssertIsOnMainThread();\n\n317\t315\t\n      mTableLock.AssertCurrentThreadOwns();\n\n318\t316\t\n      WaitOnPrefetch();\n\n319\t317\t\n      mTable.clear();\n\n\n@@ -352,9 +350,9 @@ Result<Ok, nsresult> StartupCache::LoadArchive() {\n\n352\t350\t\n        return Err(NS_ERROR_UNEXPECTED);\n\n353\t351\t\n      }\n\n354\t352\t\n\n\n\n355\t\t\n-\n      if (!mTable.add(p, key,\n\n356\t\t\n-\n                      MakeRefPtr<StartupCacheEntry>(offset, compressedSize,\n\n357\t\t\n-\n                                                    uncompressedSize))) {\n\n\t353\t\n+\n      if (!mTable.add(\n\n\t354\t\n+\n              p, key,\n\n\t355\t\n+\n              StartupCacheEntry(offset, compressedSize, uncompressedSize))) {\n\n358\t356\t\n        return Err(NS_ERROR_UNEXPECTED);\n\n359\t357\t\n      }\n\n360\t358\t\n    }\n\n\n@@ -398,7 +396,7 @@ nsresult StartupCache::GetBuffer(const char* id, const char** outbuf,\n\n398\t396\t\n    return NS_ERROR_NOT_AVAILABLE;\n\n399\t397\t\n  }\n\n400\t398\t\n\n\n\n401\t\t\n-\n  auto& value = *p->value();\n\n\t399\t\n+\n  auto& value = p->value();\n\n402\t400\t\n  if (value.mData) {\n\n403\t401\t\n    label = glean::startup_cache::RequestsLabel::eHitmemory;\n\n404\t402\t\n  } else {\n\n\n@@ -411,6 +409,9 @@ nsresult StartupCache::GetBuffer(const char* id, const char** outbuf,\n\n411\t409\t\n    // LoadArchive(), either from Init() (which must have already happened) or\n\n412\t410\t\n    // InvalidateCache(). InvalidateCache() locks the mutex, so a write can't be\n\n413\t411\t\n    // happening.\n\n\t412\t\n+\n    // Also, WriteToDisk() requires mTableLock, so while it's writing we can't\n\n\t413\t\n+\n    // be here.\n\n\t414\t\n+\n\n414\t415\t\n    size_t totalRead = 0;\n\n415\t416\t\n    size_t totalWritten = 0;\n\n416\t417\t\n    Span<const char> compressed = Span(\n\n\n@@ -483,9 +484,8 @@ nsresult StartupCache::PutBuffer(const char* id, UniqueFreePtr<char[]>&& inbuf,\n\n483\t484\t\n  // putNew returns false on alloc failure - in the very unlikely event we hit\n\n484\t485\t\n  // that and aren't going to crash elsewhere, there's no reason we need to\n\n485\t486\t\n  // crash here.\n\n486\t\t\n-\n  if (mTable.putNew(nsCString(id),\n\n487\t\t\n-\n                    MakeRefPtr<StartupCacheEntry>(std::move(inbuf), len,\n\n488\t\t\n-\n                                                  ++mRequestedCount))) {\n\n\t487\t\n+\n  if (mTable.putNew(nsCString(id), StartupCacheEntry(std::move(inbuf), len,\n\n\t488\t\n+\n                                                     ++mRequestedCount))) {\n\n489\t489\t\n    return ResetStartupWriteTimer();\n\n490\t490\t\n  }\n\n491\t491\t\n  MOZ_DIAGNOSTIC_ASSERT(mTable.count() < STARTUP_CACHE_MAX_CAPACITY,\n\n\n@@ -495,85 +495,67 @@ nsresult StartupCache::PutBuffer(const char* id, UniqueFreePtr<char[]>&& inbuf,\n\n495\t495\t\n\n\n\n496\t496\t\nsize_t StartupCache::HeapSizeOfIncludingThis(\n\n497\t497\t\n    mozilla::MallocSizeOf aMallocSizeOf) const {\n\n498\t\t\n-\n  MutexAutoLock l(mTableLock);\n\n499\t498\t\n  // This function could measure more members, but they haven't been found by\n\n500\t499\t\n  // DMD to be significant.  They can be added later if necessary.\n\n\t500\t\n+\n\n501\t501\t\n  size_t n = aMallocSizeOf(this);\n\n502\t502\t\n\n\n\n503\t503\t\n  n += mTable.shallowSizeOfExcludingThis(aMallocSizeOf);\n\n504\t504\t\n  for (auto iter = mTable.iter(); !iter.done(); iter.next()) {\n\n505\t\t\n-\n    if (iter.get().value()->mData) {\n\n506\t\t\n-\n      n += aMallocSizeOf(iter.get().value()->mData.get());\n\n\t505\t\n+\n    if (iter.get().value().mData) {\n\n\t506\t\n+\n      n += aMallocSizeOf(iter.get().value().mData.get());\n\n507\t507\t\n    }\n\n508\t508\t\n    n += iter.get().key().SizeOfExcludingThisIfUnshared(aMallocSizeOf);\n\n509\t509\t\n  }\n\n510\t510\t\n\n\n\n511\t511\t\n  return n;\n\n512\t512\t\n}\n\n513\t513\t\n\n\n\n514\t\t\n-\nstruct StartupCacheEntryWriteData {\n\n515\t\t\n-\n  nsCString key;\n\n516\t\t\n-\n  RefPtr<StartupCacheEntry> value;\n\n517\t\t\n-\n  uint32_t mHeaderOffsetInFile;\n\n518\t\t\n-\n  int32_t mRequestedOrder;\n\n519\t\t\n-\n};\n\n520\t\t\n-\n\n521\t\t\n-\nstruct WriteDataComparator {\n\n522\t\t\n-\n  using Value = StartupCacheEntryWriteData;\n\n523\t\t\n-\n\n524\t\t\n-\n  bool Equals(const Value& a, const Value& b) const {\n\n525\t\t\n-\n    return a.mRequestedOrder == b.mRequestedOrder;\n\n526\t\t\n-\n  }\n\n527\t\t\n-\n\n528\t\t\n-\n  bool LessThan(const Value& a, const Value& b) const {\n\n529\t\t\n-\n    return a.mRequestedOrder < b.mRequestedOrder;\n\n530\t\t\n-\n  }\n\n531\t\t\n-\n};\n\n532\t\t\n-\n\n\t514\t\n+\n/**\n\n\t515\t\n+\n * WriteToDisk writes the cache out to disk.\n\n\t516\t\n+\n * We own the mTableLock here.\n\n\t517\t\n+\n */\n\n533\t518\t\nResult<Ok, nsresult> StartupCache::WriteToDisk(WriteType aWriteType) {\n\n534\t\t\n-\n  if (!mTableDirty || mRegularWriteDone) {\n\n\t519\t\n+\n  if (!mDirty || mRegularWriteDone) {\n\n535\t520\t\n    return Ok();\n\n536\t521\t\n  }\n\n537\t\t\n-\n  nsTArray<StartupCacheEntryWriteData> entries;\n\n538\t\t\n-\n  {\n\n539\t\t\n-\n    MutexAutoLock lock(mTableLock);\n\n540\t\t\n-\n    entries.SetCapacity(mTable.count());\n\n541\t\t\n-\n    for (auto iter = mTable.iter(); !iter.done(); iter.next()) {\n\n542\t\t\n-\n      if (iter.get().value()->mRequested) {\n\n543\t\t\n-\n        entries.EmplaceBack(\n\n544\t\t\n-\n            StartupCacheEntryWriteData{iter.get().key(), iter.get().value(), 0,\n\n545\t\t\n-\n                                       iter.get().value()->mRequestedOrder});\n\n546\t\t\n-\n      }\n\n547\t\t\n-\n    }\n\n548\t\t\n-\n    mTableDirty = false;\n\n549\t\t\n-\n  }\n\n550\t522\t\n\n\n\n551\t\t\n-\n  if (entries.IsEmpty()) {\n\n552\t\t\n-\n    return Ok();\n\n553\t\t\n-\n  }\n\n554\t\t\n-\n  MutexAutoLock ioLock(mIOLock);\n\n555\t\t\n-\n  AutoFDClose raiiFd;\n\n556\t523\t\n  if (!mFile) {\n\n557\t524\t\n    return Err(NS_ERROR_UNEXPECTED);\n\n558\t525\t\n  }\n\n\t526\t\n+\n\n\t527\t\n+\n  AutoFDClose raiiFd;\n\n559\t528\t\n  MOZ_TRY(mFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,\n\n560\t529\t\n                                  0644, getter_Transfers(raiiFd)));\n\n561\t530\t\n  const auto fd = raiiFd.get();\n\n562\t531\t\n\n\n\n563\t\t\n-\n  entries.Sort(WriteDataComparator());\n\n\t532\t\n+\n  nsTArray<StartupCacheEntry::KeyValuePair> entries(mTable.count());\n\n\t533\t\n+\n  for (auto iter = mTable.iter(); !iter.done(); iter.next()) {\n\n\t534\t\n+\n    if (iter.get().value().mRequested) {\n\n\t535\t\n+\n      StartupCacheEntry::KeyValuePair kv(&iter.get().key(),\n\n\t536\t\n+\n                                         &iter.get().value());\n\n\t537\t\n+\n      entries.AppendElement(kv);\n\n\t538\t\n+\n    }\n\n\t539\t\n+\n  }\n\n\t540\t\n+\n\n\t541\t\n+\n  if (entries.IsEmpty()) {\n\n\t542\t\n+\n    return Ok();\n\n\t543\t\n+\n  }\n\n\t544\t\n+\n\n\t545\t\n+\n  entries.Sort(StartupCacheEntry::Comparator());\n\n564\t546\t\n  loader::OutputBuffer buf;\n\n565\t547\t\n  for (auto& e : entries) {\n\n566\t\t\n-\n    auto& key = e.key;\n\n567\t\t\n-\n    auto& value = e.value;\n\n\t548\t\n+\n    auto* key = e.first;\n\n\t549\t\n+\n    auto* value = e.second;\n\n568\t550\t\n    auto uncompressedSize = value->mUncompressedSize;\n\n569\t551\t\n    // Set the mHeaderOffsetInFile so we can go back and edit the offset.\n\n570\t\t\n-\n    e.mHeaderOffsetInFile = buf.cursor();\n\n\t552\t\n+\n    value->mHeaderOffsetInFile = buf.cursor();\n\n571\t553\t\n    // Write a 0 offset/compressed size as a placeholder until we get the real\n\n572\t554\t\n    // offset after compressing.\n\n573\t555\t\n    buf.codeUint32(0);\n\n574\t556\t\n    buf.codeUint32(0);\n\n575\t557\t\n    buf.codeUint32(uncompressedSize);\n\n576\t\t\n-\n    buf.codeString(key);\n\n\t558\t\n+\n    buf.codeString(*key);\n\n577\t559\t\n  }\n\n578\t560\t\n\n\n\n579\t561\t\n  uint8_t headerSize[4];\n\n\n@@ -597,7 +579,7 @@ Result<Ok, nsresult> StartupCache::WriteToDisk(WriteType aWriteType) {\n\n597\t579\t\n  auto writeSpan = Span(writeBuffer.get(), writeBufLen);\n\n598\t580\t\n\n\n\n599\t581\t\n  for (auto& e : entries) {\n\n600\t\t\n-\n    auto& value = e.value;\n\n\t582\t\n+\n    auto value = e.second;\n\n601\t583\t\n    value->mOffset = offset;\n\n602\t584\t\n    Span<const char> result =\n\n603\t585\t\n        MOZ_TRY(ctx.BeginCompressing(writeSpan).mapErr(MapLZ4ErrorToNsresult));\n\n\n@@ -621,42 +603,37 @@ Result<Ok, nsresult> StartupCache::WriteToDisk(WriteType aWriteType) {\n\n621\t603\t\n  }\n\n622\t604\t\n\n\n\n623\t605\t\n  for (auto& e : entries) {\n\n624\t\t\n-\n    auto& value = e.value;\n\n625\t\t\n-\n    uint8_t* headerEntry = buf.Get() + e.mHeaderOffsetInFile;\n\n\t606\t\n+\n    auto value = e.second;\n\n\t607\t\n+\n    uint8_t* headerEntry = buf.Get() + value->mHeaderOffsetInFile;\n\n626\t608\t\n    LittleEndian::writeUint32(headerEntry, value->mOffset);\n\n627\t609\t\n    LittleEndian::writeUint32(headerEntry + sizeof(value->mOffset),\n\n628\t610\t\n                              value->mCompressedSize);\n\n629\t611\t\n  }\n\n630\t612\t\n  MOZ_TRY(Seek(fd, headerStart));\n\n631\t613\t\n  MOZ_TRY(Write(fd, buf.Get(), buf.cursor()));\n\n632\t614\t\n\n\n\n\t615\t\n+\n  mDirty = false;\n\n633\t616\t\n  if (aWriteType == WriteType::RegularWrite) {\n\n634\t617\t\n    mRegularWriteDone = true;\n\n635\t618\t\n  }\n\n636\t619\t\n\n\n\n637\t620\t\n  return Ok();\n\n638\t621\t\n}\n\n639\t622\t\n\n\n\n640\t\t\n-\nvoid StartupCache::InvalidateCache(bool aMemoryOnly) {\n\n641\t\t\n-\n  AssertIsOnMainThread();\n\n\t623\t\n+\nvoid StartupCache::InvalidateCache(bool memoryOnly) {\n\n642\t624\t\n  WaitOnPrefetch();\n\n\t625\t\n+\n  // Ensure we're not writing using mTable...\n\n\t626\t\n+\n  MutexAutoLock lock(mTableLock);\n\n643\t627\t\n\n\n\n644\t\t\n-\n  if (aMemoryOnly) {\n\n645\t\t\n-\n    mRegularWriteDone = false;\n\n\t628\t\n+\n  mRegularWriteDone = false;\n\n\t629\t\n+\n  if (memoryOnly) {\n\n646\t630\t\n    // This should only be called in tests.\n\n647\t631\t\n    auto writeResult = WriteToDisk(WriteType::RegularWrite);\n\n648\t632\t\n    if (NS_WARN_IF(writeResult.isErr())) {\n\n649\t633\t\n      gIgnoreDiskCache = true;\n\n650\t634\t\n      return;\n\n651\t635\t\n    }\n\n652\t636\t\n  }\n\n653\t\t\n-\n\n654\t\t\n-\n  // Ensure we're not writing using mTable...\n\n655\t\t\n-\n  MutexAutoLock ioLock(mIOLock);\n\n656\t\t\n-\n  MutexAutoLock tableLock(mTableLock);\n\n657\t\t\n-\n\n658\t\t\n-\n  mRegularWriteDone = false;\n\n659\t\t\n-\n\n660\t637\t\n  if (mCurTableReferenced) {\n\n661\t638\t\n    // There should be no way for this assert to fail other than a user manually\n\n662\t639\t\n    // sending startupcache-invalidate messages through the Browser Toolbox. If\n\n\n@@ -676,7 +653,7 @@ void StartupCache::InvalidateCache(bool aMemoryOnly) {\n\n676\t653\t\n    mTable.clear();\n\n677\t654\t\n  }\n\n678\t655\t\n  mRequestedCount = 0;\n\n679\t\t\n-\n  if (!aMemoryOnly) {\n\n\t656\t\n+\n  if (!memoryOnly) {\n\n680\t657\t\n    mCacheData.reset();\n\n681\t658\t\n    nsresult rv = mFile->Remove(false);\n\n682\t659\t\n    if (NS_FAILED(rv) && rv != NS_ERROR_FILE_NOT_FOUND) {\n\n\n@@ -714,7 +691,7 @@ void StartupCache::MaybeKickOffShutdownWrite() {\n\n714\t691\t\n}\n\n715\t692\t\n\n\n\n716\t693\t\nvoid StartupCache::EnsureShutdownWriteComplete() {\n\n717\t\t\n-\n  AssertIsOnMainThread();\n\n\t694\t\n+\n  MutexAutoLock lock(mTableLock);\n\n718\t695\t\n  // If we've already written or there's nothing to write,\n\n719\t696\t\n  // we don't need to do anything. This is the common case.\n\n720\t697\t\n  if (mRegularWriteDone ||\n\n\n@@ -724,9 +701,10 @@ void StartupCache::EnsureShutdownWriteComplete() {\n\n724\t701\t\n  // Otherwise, ensure the write happens. The timer should have been cancelled\n\n725\t702\t\n  // already in MaybeInitShutdownWrite.\n\n726\t703\t\n\n\n\n727\t\t\n-\n  // Keep the following in sync with MaybeWriteOffMainThread:\n\n\t704\t\n+\n  // We got the lock. Keep the following in sync with\n\n\t705\t\n+\n  // MaybeWriteOffMainThread:\n\n728\t706\t\n  WaitOnPrefetch();\n\n729\t\t\n-\n  mTableDirty = true;\n\n\t707\t\n+\n  mDirty = true;\n\n730\t708\t\n  mCacheData.reset();\n\n731\t709\t\n  // Most of this should be redundant given MaybeWriteOffMainThread should\n\n732\t710\t\n  // have run before now.\n\n\n@@ -766,11 +744,11 @@ void StartupCache::ThreadedPrefetch(uint8_t* aStart, size_t aSize) {\n\n766\t744\t\n  MMAP_FAULT_HANDLER_CATCH()\n\n767\t745\t\n}\n\n768\t746\t\n\n\n\n\t747\t\n+\n// mTableLock must be held\n\n769\t748\t\nbool StartupCache::ShouldCompactCache() {\n\n770\t749\t\n  // If we've requested less than 4/5 of the startup cache, then we should\n\n771\t750\t\n  // probably compact it down. This can happen quite easily after the first run,\n\n772\t751\t\n  // which seems to request quite a few more things than subsequent runs.\n\n773\t\t\n-\n  MutexAutoLock lock(mTableLock);\n\n774\t752\t\n  CheckedInt<uint32_t> threshold = CheckedInt<uint32_t>(mTable.count()) * 4 / 5;\n\n775\t753\t\n  MOZ_RELEASE_ASSERT(threshold.isValid(), \"Runaway StartupCache size\");\n\n776\t754\t\n  return mRequestedCount < threshold.value();\n\n\n@@ -797,26 +775,29 @@ void StartupCache::WriteTimeout(nsITimer* aTimer, void* aClosure) {\n\n797\t775\t\n */\n\n798\t776\t\nvoid StartupCache::MaybeWriteOffMainThread(WriteType aWriteType,\n\n799\t777\t\n                                           bool aUseLowPriorityIO) {\n\n800\t\t\n-\n  AssertIsOnMainThread();\n\n801\t\t\n-\n  if (mRegularWriteDone) {\n\n802\t\t\n-\n    return;\n\n803\t\t\n-\n  }\n\n804\t\t\n-\n  if (mCacheData.initialized() && !ShouldCompactCache()) {\n\n805\t\t\n-\n    return;\n\n\t778\t\n+\n  {\n\n\t779\t\n+\n    MutexAutoLock lock(mTableLock);\n\n\t780\t\n+\n    if (mRegularWriteDone ||\n\n\t781\t\n+\n        (mCacheData.initialized() && !ShouldCompactCache())) {\n\n\t782\t\n+\n      return;\n\n\t783\t\n+\n    }\n\n806\t784\t\n  }\n\n807\t785\t\n  // Keep this code in sync with EnsureShutdownWriteComplete.\n\n808\t786\t\n  WaitOnPrefetch();\n\n\t787\t\n+\n  {\n\n\t788\t\n+\n    MutexAutoLock lock(mTableLock);\n\n\t789\t\n+\n    mDirty = true;\n\n\t790\t\n+\n    mCacheData.reset();\n\n\t791\t\n+\n  }\n\n809\t792\t\n\n\n\n810\t\t\n-\n  mTableDirty = true;\n\n811\t\t\n-\n  mCacheData.reset();\n\n812\t\t\n-\n\n\t793\t\n+\n  RefPtr<StartupCache> self = this;\n\n813\t794\t\n  nsCOMPtr<nsIRunnable> runnable = NS_NewRunnableFunction(\n\n814\t\t\n-\n      \"StartupCache::Write\",\n\n815\t\t\n-\n      [self = RefPtr{this}, aWriteType, aUseLowPriorityIO]() mutable {\n\n\t795\t\n+\n      \"StartupCache::Write\", [self, aWriteType, aUseLowPriorityIO]() mutable {\n\n816\t796\t\n        Maybe<nsAutoLowPriorityIO> lowPriority;\n\n817\t797\t\n        if (aUseLowPriorityIO) {\n\n818\t798\t\n          lowPriority.emplace();\n\n819\t799\t\n        }\n\n\t800\t\n+\n        MutexAutoLock lock(self->mTableLock);\n\n820\t801\t\n        auto result = self->WriteToDisk(aWriteType);\n\n821\t802\t\n        (void)NS_WARN_IF(result.isErr());\n\n822\t803\t\n      });\n\n\n@@ -889,7 +870,7 @@ nsresult StartupCache::ResetStartupWriteTimerAndLock() {\n\n889\t870\t\n}\n\n890\t871\t\n\n\n\n891\t872\t\nnsresult StartupCache::ResetStartupWriteTimer() {\n\n892\t\t\n-\n  mTableDirty = true;\n\n\t873\t\n+\n  mDirty = true;\n\n893\t874\t\n  nsresult rv = NS_OK;\n\n894\t875\t\n  if (!mTimer)\n\n895\t876\t\n    mTimer = NS_NewTimer();\n\n\n@@ -906,7 +887,8 @@ nsresult StartupCache::ResetStartupWriteTimer() {\n\n906\t887\t\n// Used only in tests:\n\n907\t888\t\nbool StartupCache::StartupWriteComplete() {\n\n908\t889\t\n  // Need to have written to disk and not added new things since;\n\n909\t\t\n-\n  return !mTableDirty && mRegularWriteDone;\n\n\t890\t\n+\n  MutexAutoLock lock(mTableLock);\n\n\t891\t\n+\n  return !mDirty && mRegularWriteDone;\n\n910\t892\t\n}\n\n911\t893\t\n\n\n\n912\t894\t\n// StartupCacheDebugOutputStream implementation\n\n\n0 commit comments\nComments\n0\n (0)",
+        "title": "Revert \"Bug 2048221 - Better StartupCache locking. r=jesup\" for causi… · mozilla-firefox/firefox@eec2f8d · GitHub",
+        "url": "https://github.com/mozilla-firefox/firefox/commit/eec2f8dc61cc9f851fe5303cc05fc015d3128e6f"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:29.977Z"
+    },
+    {
+      "reference": "startup-failures",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2048221#c5",
+      "status": "verified",
+      "expected": "Backed out for causing multiple crashes/failures",
+      "excerptMatch": true,
+      "rendered": {
+        "anchor": "c5",
+        "anchorFound": true,
+        "anchorVisible": true,
+        "text": "\tSandor Molnar[:smolnar]\t\n\nComment 5 • 4 months ago • Edited\n\n\nBacked out for causing multiple crashes/failures\n\nBackout link: https://hg.mozilla.org/integration/autoland/rev/5a48a2f0f543d214b87c36bad3076e51903b3d04\n\nPush with failures\n\nFailures log ->ERROR - PROCESS-CRASH | c80fd889-d5a4-4d0c-9667-45686f1181b4 | MOZ_CRASH() [@ LateWriteObserver::Observe] | testing/marionette/harness/marionette_harness/tests/unit/test_cli_arguments.py TestCommandLineArguments.test_startup_timeout\n\nFailures log ->PROCESS-CRASH | 50545021-cddc-8cfc-0986-8c76851d8965 | MOZ_CRASH() [@ LateWriteObserver::Observe] | testing/firefox-ui/tests/functional/security/test_ssl_status_after_restart.py\n\nFlags: needinfo?(emilio)",
+        "title": "2048221 - StartupCache::WriteToDisk optimization",
+        "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2048221#c5"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:31.425Z"
+    },
+    {
+      "reference": "startup-tooltip",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2048221#c11",
+      "status": "verified",
+      "expected": "normal use instead of shutdown",
+      "excerptMatch": true,
+      "rendered": {
+        "anchor": "c11",
+        "anchorFound": true,
+        "anchorVisible": true,
+        "text": "\tYannis Juglaret [:yannis]\t\n\nComment 11 • 3 days ago\n\n\nHi :emilio, :lars. Adding some extra info here after I hit the same issue as bug 2037923 on Windows Nightly, but during normal use instead of shutdown. AFAIU this bug's patch would help with that. The main thread hung while showing a tooltip. The hang lasted about 5 to 10 minutes and then resolved on its own. I took a full dump with Task Manager during the hang and can share it privately on request. Below are the results of analyzing the hang dump with an LLM companion.\n\nBuild 20261030090406. The process had been running for 4:30 when the dump was taken. It was the first start after updating from 20261029212358, so the startup cache was being rebuilt from scratch. At the time, other processes were most likely using the disk heavily: I had a test harness running that downloads and extracts Firefox builds and runs throwaway installs.\n\nMain thread, blocked on mTableLock:\n\nmozilla::detail::MutexImpl::lock\nmozilla::scache::StartupCache::GetBuffer\nReadCachedStencil\nmozJSModuleLoader::LoadSingleModule\nmozilla::loader::SyncModuleLoader::StartFetch\nmozJSModuleLoader::ImportESModule\nmozilla::xpcom::ConstructESModuleComponent\nnsGetServiceByContractID::operator()          (nsITooltipTextProvider)\nmozilla::dom::XULTooltipElement::PostHandleEvent\nnsXULPopupManager::ShowTooltipAtScreen\nnsXULTooltipListener::sTooltipCallback        (timer)\n\n\nHolder, BgIOThreadPool #7, inside the regular (timer-driven) write:\n\nntdll!NtWriteFile\nKERNELBASE!WriteFile\nnss3!PR_Write\nmozilla::scache::Write\nmozilla::scache::StartupCache::WriteToDisk\nStartupCache::MaybeWriteOffMainThread::<lambda>\nnsThreadPool::Run\n\n\nWhat this adds:\n\nThe hang is not limited to shutdown. Bug 2026686 made the write use nsAutoLowPriorityIO, and bug 2037923 only reverted that for the shutdown write. The regular write still runs with THREAD_MODE_BACKGROUND_BEGIN while holding mTableLock for the whole WriteToDisk, so any main-thread module load that hits the startup cache blocks until the write finishes. Here the module load was triggered lazily by a tooltip.\nThe writer was not doing any work. !runaway shows about 0.12 s of total CPU on that thread, and no other Firefox thread was doing file I/O. It was simply stuck in NtWriteFile at background I/O priority while other processes used the disk.\nWriteToDisk issues several small PR_Write calls per entry (a frame header, then the compressed body), with a seek between entries and no batching in user space. With the 428 entries being written here, that is around 860 non-empty write requests that Windows can delay at background priority, which stretches the time the lock is held.\nThe first session after an update is the worst case: the whole cache is rewritten soon after startup, while the user is actively using the browser.\nHangs like this one do not reach crash-stats. In the parent process, a main-thread hang only produces a crash report when it happens during shutdown, where the shutdown terminator crashes the process with a shutdownhang signature. Outside shutdown, nothing kills the process: the hang either resolves, as here, or the user kills Firefox, and neither case files a report. The shutdownhang signature from bug 2037923 therefore only covers the shutdown case. Background hang reports (BHR) do record main-thread hangs and are the place to measure how often this happens, though only on Nightly.\nThe bug 2037923 fix doesn't stop a regular write that is already running at low priority when shutdown starts. Consistent with that, shutdownhang | mozilla::scache::StartupCache::GetBuffer still appears on releases 155 to 159 in the last 30 days, at low volume. It also shows up on ESR 140 and on releases before 152, which never had the low-priority change, so some of these crashes likely have a different cause.\n\nPossible mitigations until the locking split from this bug relands:\n\nHave GetBuffer use a try-lock, as PutBuffer already does, and treat a busy lock as a cache miss so the module is compiled from source instead of blocking.\nDrop aUseLowPriorityIO for the initial and regular writes as well, as bug 2037923 did for shutdown. Low priority only makes sense once mTableLock is no longer held during the I/O.\nFlags: needinfo?(leggert)",
+        "title": "2048221 - StartupCache::WriteToDisk optimization",
+        "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2048221#c11"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:31.537Z"
+    },
+    {
+      "reference": "cert-current",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/security/manager/ssl/cert_storage/src/lib.rs#L1193-L1241",
+      "status": "verified",
+      "expected": [
+        "    SecurityStateTask<T, F>",
+        "{",
+        "    fn new(",
+        "        callback: &nsICertStorageCallback,",
+        "        security_state: &Arc<RwLock<SecurityState>>,"
+      ],
+      "excerptMatch": true,
+      "rendered": {
+        "anchorFound": true,
+        "codeRect": {
+          "bottom": 24026,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 24006,
+          "width": 843,
+          "x": 420,
+          "y": 24006
+        },
+        "codeVisible": false,
+        "excerpt": [
+          "    SecurityStateTask<T, F>",
+          "{",
+          "    fn new(",
+          "        callback: &nsICertStorageCallback,",
+          "        security_state: &Arc<RwLock<SecurityState>>,"
+        ],
+        "hash": "#L1193-L1241",
+        "lineNumberRect": {
+          "bottom": 24026,
+          "height": 20,
+          "left": 410,
+          "right": 442,
+          "top": 24006,
+          "width": 32,
+          "x": 410,
+          "y": 24006
+        },
+        "lineNumberVisible": false,
+        "title": "firefox/security/manager/ssl/cert_storage/src/lib.rs at 2b71df5bf2e07525d1129be46e0ee02ec70d34d8 · mozilla-firefox/firefox · GitHub",
+        "url": "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/security/manager/ssl/cert_storage/src/lib.rs#L1193-L1241"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:33.464Z"
+    },
+    {
+      "reference": "fog-current",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/toolkit/components/glean/xpcom/FOG.cpp#L870-L878",
+      "status": "verified",
+      "expected": [
+        "FOG::CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData,",
+        "                    bool aAnonymize) {",
+        "  mozilla::MallocSizeOf aMallocSizeOf = FOGMallocSizeOf;",
+        "",
+        "  MOZ_COLLECT_REPORT(\"explicit/fog/impl\", KIND_HEAP, UNITS_BYTES,"
+      ],
+      "excerptMatch": true,
+      "rendered": {
+        "anchorFound": true,
+        "codeRect": {
+          "bottom": 17666,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 17646,
+          "width": 843,
+          "x": 420,
+          "y": 17646
+        },
+        "codeVisible": false,
+        "excerpt": [
+          "FOG::CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData,",
+          "                    bool aAnonymize) {",
+          "  mozilla::MallocSizeOf aMallocSizeOf = FOGMallocSizeOf;",
+          "",
+          "  MOZ_COLLECT_REPORT(\"explicit/fog/impl\", KIND_HEAP, UNITS_BYTES,"
+        ],
+        "hash": "#L870-L878",
+        "lineNumberRect": {
+          "bottom": 17666,
+          "height": 20,
+          "left": 410,
+          "right": 442,
+          "top": 17646,
+          "width": 32,
+          "x": 410,
+          "y": 17646
+        },
+        "lineNumberVisible": false,
+        "title": "firefox/toolkit/components/glean/xpcom/FOG.cpp at 2b71df5bf2e07525d1129be46e0ee02ec70d34d8 · mozilla-firefox/firefox · GitHub",
+        "url": "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/toolkit/components/glean/xpcom/FOG.cpp#L870-L878"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:34.786Z"
+    },
+    {
+      "reference": "async-reporter-interface",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/base/nsIMemoryReporter.idl#L225-L237",
+      "status": "verified",
+      "expected": [
+        "   */",
+        "  void registerStrongReporter(in nsIMemoryReporter reporter);",
+        "  void registerStrongAsyncReporter(in nsIMemoryReporter reporter);",
+        "",
+        "  /*"
+      ],
+      "excerptMatch": true,
+      "rendered": {
+        "anchorFound": true,
+        "codeRect": {
+          "bottom": 4018,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 3998,
+          "width": 843,
+          "x": 420,
+          "y": 3998
+        },
+        "codeVisible": false,
+        "excerpt": [
+          "   */",
+          "  void registerStrongReporter(in nsIMemoryReporter reporter);",
+          "  void registerStrongAsyncReporter(in nsIMemoryReporter reporter);",
+          "",
+          "  /*"
+        ],
+        "hash": "#L225-L237",
+        "lineNumberRect": {
+          "bottom": 4018,
+          "height": 20,
+          "left": 410,
+          "right": 442,
+          "top": 3998,
+          "width": 32,
+          "x": 410,
+          "y": 3998
+        },
+        "lineNumberVisible": false,
+        "title": "firefox/xpcom/base/nsIMemoryReporter.idl at a34c4160e3f75ab9918fbe4669ff7ae56f1977c8 · mozilla-firefox/firefox · GitHub",
+        "url": "https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/base/nsIMemoryReporter.idl#L225-L237"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:36.065Z"
+    },
+    {
+      "reference": "async-reporter-example",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/dom/media/MediaRecorder.cpp#L90-L125",
+      "status": "verified",
+      "expected": [
+        "",
+        "  NS_IMETHOD",
+        "  CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData,",
+        "                 bool aAnonymize) override {",
+        "    nsTArray<RefPtr<MediaRecorder::SizeOfPromise>> promises;"
+      ],
+      "excerptMatch": true,
+      "rendered": {
+        "anchorFound": true,
+        "codeRect": {
+          "bottom": 1348,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 1328,
+          "width": 843,
+          "x": 420,
+          "y": 1328
+        },
+        "codeVisible": false,
+        "excerpt": [
+          "",
+          "  NS_IMETHOD",
+          "  CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData,",
+          "                 bool aAnonymize) override {",
+          "    nsTArray<RefPtr<MediaRecorder::SizeOfPromise>> promises;"
+        ],
+        "hash": "#L90-L125",
+        "lineNumberRect": {
+          "bottom": 1348,
+          "height": 20,
+          "left": 356.390625,
+          "right": 410,
+          "top": 1328,
+          "width": 53.609375,
+          "x": 356.390625,
+          "y": 1328
+        },
+        "lineNumberVisible": false,
+        "title": "firefox/dom/media/MediaRecorder.cpp at a34c4160e3f75ab9918fbe4669ff7ae56f1977c8 · mozilla-firefox/firefox · GitHub",
+        "url": "https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/dom/media/MediaRecorder.cpp#L90-L125"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:37.658Z"
+    },
+    {
+      "reference": "startup-io-test",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/base/content/test/performance/browser_startup_mainthreadio.js#L4-L18",
+      "status": "verified",
+      "expected": [
+        "/* This test records I/O syscalls done on the main thread during startup.",
+        " *",
+        " * To run this test similar to try server, you need to run:",
+        " *   ./mach package",
+        " *   ./mach test --appname=dist <path to test>"
+      ],
+      "excerptMatch": true,
+      "rendered": {
+        "anchorFound": true,
+        "codeRect": {
+          "bottom": 428,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 408,
+          "width": 843,
+          "x": 420,
+          "y": 408
+        },
+        "codeVisible": true,
+        "excerpt": [
+          "/* This test records I/O syscalls done on the main thread during startup.",
+          " *",
+          " * To run this test similar to try server, you need to run:",
+          " *   ./mach package",
+          " *   ./mach test --appname=dist <path to test>"
+        ],
+        "hash": "#L4-L18",
+        "lineNumberRect": {
+          "bottom": 428,
+          "height": 20,
+          "left": 363.59375,
+          "right": 410,
+          "top": 408,
+          "width": 46.40625,
+          "x": 363.59375,
+          "y": 408
+        },
+        "lineNumberVisible": true,
+        "title": "firefox/browser/base/content/test/performance/browser_startup_mainthreadio.js at a34c4160e3f75ab9918fbe4669ff7ae56f1977c8 · mozilla-firefox/firefox · GitHub",
+        "url": "https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/base/content/test/performance/browser_startup_mainthreadio.js#L4-L18"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:38.939Z"
+    },
+    {
+      "reference": "ai-policy",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/docs/contributing/ai-coding.md?plain=1#L13-L22",
+      "status": "verified",
+      "expected": [
+        "AI-assisted contributions must meet the same standards of correctness, security, and maintainability as any other patch.",
+        "",
+        "### When using AI tools",
+        "",
+        "* **Maintain quality and scope.** You are responsible for the technical excellence of your work, regardless of the tools you used. Keep patches small and focused so they're easy to review and clearly justified."
+      ],
+      "excerptMatch": true,
+      "rendered": {
+        "anchorFound": true,
+        "codeRect": {
+          "bottom": 502,
+          "height": 20,
+          "left": 420,
+          "right": 2629.15625,
+          "top": 482,
+          "width": 2209.15625,
+          "x": 420,
+          "y": 482
+        },
+        "codeVisible": true,
+        "excerpt": [
+          "AI-assisted contributions must meet the same standards of correctness, security, and maintainability as any other patch.",
+          "",
+          "### When using AI tools",
+          "",
+          "* **Maintain quality and scope.** You are responsible for the technical excellence of your work, regardless of the tools you used. Keep patches small and focused so they're easy to review and clearly justified."
+        ],
+        "hash": "#L13-L22",
+        "lineNumberRect": {
+          "bottom": 502,
+          "height": 20,
+          "left": 363.59375,
+          "right": 410,
+          "top": 482,
+          "width": 46.40625,
+          "x": 363.59375,
+          "y": 482
+        },
+        "lineNumberVisible": true,
+        "title": "firefox/docs/contributing/ai-coding.md at 2b71df5bf2e07525d1129be46e0ee02ec70d34d8 · mozilla-firefox/firefox · GitHub",
+        "url": "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/docs/contributing/ai-coding.md?plain=1#L13-L22"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:40.160Z"
+    },
+    {
+      "reference": "submit-policy",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/docs/contributing/how_to_submit_a_patch.md?plain=1#L38-L71",
+      "status": "verified",
+      "expected": [
+        "Every change to the code is tracked by a bug report",
+        "in [bugzilla.mozilla.org](https://bugzilla.mozilla.org/). Without a",
+        "bug, code will not be reviewed, and without review, code will not be",
+        "accepted. To avoid duplication, [search for an existing",
+        "bug](https://bugzilla.mozilla.org/query.cgi?format=specific) about"
+      ],
+      "excerptMatch": true,
+      "rendered": {
+        "anchorFound": true,
+        "codeRect": {
+          "bottom": 629,
+          "height": 20,
+          "left": 420,
+          "right": 1263,
+          "top": 609,
+          "width": 843,
+          "x": 420,
+          "y": 609
+        },
+        "codeVisible": false,
+        "excerpt": [
+          "Every change to the code is tracked by a bug report",
+          "in [bugzilla.mozilla.org](https://bugzilla.mozilla.org/). Without a",
+          "bug, code will not be reviewed, and without review, code will not be",
+          "accepted. To avoid duplication, [search for an existing",
+          "bug](https://bugzilla.mozilla.org/query.cgi?format=specific) about"
+        ],
+        "hash": "#L38-L71",
+        "lineNumberRect": {
+          "bottom": 629,
+          "height": 20,
+          "left": 363.59375,
+          "right": 410,
+          "top": 609,
+          "width": 46.40625,
+          "x": 363.59375,
+          "y": 609
+        },
+        "lineNumberVisible": false,
+        "title": "firefox/docs/contributing/how_to_submit_a_patch.md at 2b71df5bf2e07525d1129be46e0ee02ec70d34d8 · mozilla-firefox/firefox · GitHub",
+        "url": "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/docs/contributing/how_to_submit_a_patch.md?plain=1#L38-L71"
+      },
+      "evaluationError": null,
+      "checkedAt": "2026-11-03T09:09:41.193Z"
+    }
+  ],
+  "finishedAt": "2026-11-03T09:09:43.713Z",
+  "close": {
+    "success": true,
+    "data": {
+      "closed": true,
+      "lifecycle": {
+        "effectiveLaunch": {
+          "browserLaunched": false,
+          "engine": "chrome",
+          "launchHash": null
+        },
+        "launched": false,
+        "relaunchedBrowser": false,
+        "restartedBackground": false,
+        "restoreStatus": "not_configured",
+        "reused": false,
+        "saveStatus": "not_configured"
+      },
+      "restoreStatus": "not_configured",
+      "saveStatus": "not_configured"
+    },
+    "error": null
+  },
+  "cleanup": {
+    "daemonStillExists": true,
+    "pidFileStillExists": false
+  }
+}

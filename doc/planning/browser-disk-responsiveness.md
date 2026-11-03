@@ -13,6 +13,9 @@ The evidence base is the
 [Chromium audit](../troubleshooting/chromium-disk-responsiveness.md),
 [Firefox ESR audit](../audit/firefox-esr-disk-responsiveness.md),
 and [captured BrowserMetrics incident](../troubleshooting/helium-window-freezes.md).
+The [Chromium upstream check](browser-disk-responsiveness/chromium-upstream.md)
+and [Firefox upstream check](browser-disk-responsiveness/firefox-upstream.md)
+identify current work and contribution routes.
 This is a proposal;
 no browser source change or external posting is part of this planning task.
 
@@ -111,8 +114,13 @@ serializing,
 writing,
 flushing,
 or closing a file.
-Memory reporting can use an independently maintained accounting snapshot
-instead of acquiring a mutex that protects live persistence work.
+Firefox already supports asynchronous memory reporters.
+For Glean,
+the proposed integration measures on the owning sequence
+and sends its result back through that existing protocol,
+with exactly one completion notification.
+An independently maintained approximate accounting snapshot is an alternative only if its semantics are accepted.
+Returning zero when a lock is busy would produce an incorrect report.
 
 These changes require lifetime and shutdown proofs:
 the writer must not retain dangling references,
@@ -126,6 +134,17 @@ the operation needs asynchronous completion with its correctness checks preserve
 Existing upstream attempts and their failures determine the starting point.
 The next contribution should extend the active work's regression coverage and resolve its failure cases,
 not reopen the same design as an unrelated rewrite.
+
+The next distinct Firefox candidate is certificate-operation bookkeeping.
+The current implementation acquires the disk worker's state lock merely to maintain a pending-operation counter.
+Separating that accounting can remove the submission-side dependency while keeping trust-data mutation serialized.
+It needs count,
+callback-order,
+dispatch-failure,
+and shutdown tests;
+it does not remove the separate memory-reporting lock path.
+The [Firefox evidence](browser-disk-responsiveness/firefox-upstream.md)
+traces both candidates and their existing tests.
 
 ## Graphics caches and other optional disk data
 
@@ -204,7 +223,46 @@ data correctness,
 memory growth,
 and responsiveness during rollout.
 
-Current upstream work,
-contribution requirements,
-and supporting source selections are being reconciled into this proposal.
-No upstream report or patch has been sent.
+### Existing work changes the contribution
+
+The [Chromium check](browser-disk-responsiveness/chromium-upstream.md#existing-upstream-work-to-coordinate-with)
+found open work on mapped BrowserMetrics reads,
+sparse-histogram lock contention,
+and GPU preloading.
+Those are relevant collaborators and precedent;
+none establishes a fix for the captured mapped-write fault.
+Current development code also has an optional asynchronous GPU-cache initialization path
+whose consumers can still wait before checking the memory cache.
+Its initialization and metadata-preload features were disabled by default in the checked source.
+
+The [Firefox check](browser-disk-responsiveness/firefox-upstream.md#recommended-first-firefox-contribution-help-the-existing-startupcache-fix-land-safely)
+found an active assigned startup-cache issue,
+`2048221`.
+A structural lock/snapshot patch landed and was reverted after Windows late-write shutdown test crashes.
+The nearby fixed issue `2037923` changed shutdown I/O priority;
+it did not eliminate the shared lock.
+The concrete next contribution is to reproduce the failed shutdown schedule,
+add lifecycle/concurrency tests,
+and help the assigned work land safely.
+The proposed explanation involving an in-flight write is a hypothesis to test,
+not an established root cause of the reverted patch's failures.
+
+### Review and release requirements
+
+The checked Chromium and Firefox policies allow AI assistance while making the human submitter responsible
+for understanding and reviewing the changes.
+Chromium additionally requires human responses to human review feedback.
+Their documented review routes are Gerrit and Phabricator/Bugzilla,
+respectively.
+The evidence documents link the precise policies and ownership information.
+
+No upstream report,
+review comment,
+or patch has been sent.
+The proposal does not certify a patch or issue draft as ready to submit.
+Current-source checks and the completed audits supply a starting point;
+reproduction,
+implementation,
+correctness testing,
+performance measurements,
+and review remain the proposed work.

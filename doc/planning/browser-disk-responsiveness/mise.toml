@@ -1,0 +1,7 @@
+[tasks."verify:markdown"]
+description = "Render the browser responsiveness proposal and upstream evidence"
+run = [
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/browser-responsiveness-proposal.html" ../browser-disk-responsiveness.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/browser-responsiveness-chromium.html" chromium-upstream.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/browser-responsiveness-firefox.html" firefox-upstream.md',
+]
