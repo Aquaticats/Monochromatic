@@ -148,7 +148,7 @@ use crate::crates::{LockSnapshot, read_locks};
 /// ```ts
 /// import { begin, finish, run_recording, process_exists, recover, restore_if_unchanged } from 'crate/journal';
 /// ```
-use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged, run_recording};
+use crate::journal::{begin, recover, restore_if_unchanged, run_recording};
 /// What:
 /// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -733,7 +733,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     // Closure `|old, live|`: an anonymous function, like a TS arrow function.
     // Borrow `&process_exists`: lends the value without copying or giving it away.
     // Typed binding: `recovered: Vec<String>`.
-    let recovered: Vec<String> = recover(request.root, &process_exists, &|old, live| { return policy_findings(request.settings, request.registry, request.now, old, live); });
+    let recovered: Vec<String> = recover(request.root, &|old, live| { return policy_findings(request.settings, request.registry, request.now, old, live); });
     // Borrow `&recovered`: lends the value without copying or giving it away.
     for message in &recovered {
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
@@ -751,7 +751,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     // Borrow `&before`: lends the value without copying or giving it away.
     // Review finding (failed begin): without a complete recovery record nothing may be mutated, so a journal that cannot be
     // started stops the install here, before the first cargo call.
-    begin(request.root, &before).map_err(io_error)?;
+    let transaction = begin(request.root, &before, false).map_err(io_error)?;
     // What:     `RefCell<Vec<LockSnapshot>>` is a list that can be added to through a shared reference (sibling: `&mut Vec`, which needs exclusive access); `RefCell::new(Vec::new())` makes an empty one.
     // Why:      `produced` starts empty because cargo has not written yet; each cargo write is recorded the moment it succeeded, so a failure never has to guess what the run wrote.
     //
@@ -812,7 +812,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             eprintln!("cargo-shadow: warning: {warning}");
         }
     }
-    finish(request.root);
+    transaction.finish().map_err(io_error)?;
     // Closure `|mut report|`: an anonymous function, like a TS arrow function.
     // Adapter `.map(`: transforms or selects items with a closure.
     return match outcome {

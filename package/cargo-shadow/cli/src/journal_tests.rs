@@ -11,10 +11,17 @@ use crate::crates::LockSnapshot;
 // ```ts
 // import { Name } from './module.ts';
 // ```
-use crate::journal::{JOURNAL_DIR, ReplaceOutcome, begin, finish, recover, restore_if_unchanged};
+use crate::journal::{ReplaceOutcome, recover, restore_if_unchanged};
+use crate::journal_support::{journal_dir, journal_dirs, plant};
+use crate::manifest_edit::ManifestEdit;
 use crate::test_scratch::scratch;
 
 const CRATE_DIR: &str = "package/j/one";
+
+/// The journaled edit of the manifest next to the lockfile of the case.
+fn breaking_edit(root: &Path, before: &str) -> ManifestEdit {
+    return ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: root.join(CRATE_DIR).join("Cargo.toml"), before: before.to_string(), produced: None };
+}
 
 fn snapshot(source: &str) -> LockSnapshot {
     return LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: source.to_string() };
@@ -68,23 +75,16 @@ fn a_lock_that_already_equals_the_snapshot_needs_nothing_and_no_temporary_file_i
 }
 
 /// A process id that cannot exist on Linux (above the kernel's maximum).
-const DEAD_PID: u32 = 4_194_305;
-
-fn plant_journal(root: &Path, original: &str) {
-    begin(root, &[snapshot(original)]).expect("begin");
-    let ours = root.join(JOURNAL_DIR).join(std::process::id().to_string());
-    fs::rename(&ours, root.join(JOURNAL_DIR).join(DEAD_PID.to_string())).expect("pose as a killed process");
-}
 
 #[test]
 fn a_killed_run_whose_lock_holds_refused_versions_is_saved_aside_and_the_snapshot_goes_back() {
     let root = repository("unchecked output of the killed run");
-    plant_journal(root.path(), "original");
+    plant(root.path(), &[snapshot("original")], &[]);
 
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let messages = recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
 
     assert_eq!(lock(root.path()), "original");
     assert_eq!(
@@ -92,46 +92,21 @@ fn a_killed_run_whose_lock_holds_refused_versions_is_saved_aside_and_the_snapsho
         "unchecked output of the killed run"
     );
     assert_eq!(messages.len(), 1);
-    assert!(!root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists());
+    assert!(journal_dirs(root.path()).is_empty());
 }
 
 #[test]
 fn a_killed_run_whose_lock_passes_the_policy_is_kept() {
     let root = repository("good output");
-    plant_journal(root.path(), "original");
+    plant(root.path(), &[snapshot("original")], &[]);
 
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    let messages = recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return Vec::new(); });
+    let messages = recover(root.path(), &|_before, _live| { return Vec::new(); });
 
     assert_eq!(lock(root.path()), "good output");
     assert!(!root.path().join(CRATE_DIR).join("Cargo.lock.refused").exists());
     assert_eq!(messages.len(), 1);
-}
-
-#[test]
-fn a_journal_of_a_running_process_and_our_own_journal_are_not_touched() {
-    let root = repository("live lock");
-    plant_journal(root.path(), "original");
-
-    // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // Macro `vec!`: builds or prints text (or a list) from a template.
-    let messages = recover(root.path(), &|_pid, _identity| { return true; }, &|_before, _live| { return vec!["never asked".to_string()]; });
-
-    assert!(messages.is_empty());
-    assert_eq!(lock(root.path()), "live lock");
-    assert!(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists());
-}
-
-#[test]
-fn finish_removes_this_processs_journal() {
-    let root = repository("x");
-    begin(root.path(), &[snapshot("x")]).expect("begin");
-
-    finish(root.path());
-
-    assert!(!root.path().join(JOURNAL_DIR).join(std::process::id().to_string()).exists());
 }
 
 /// Review finding (recovery destroys the remaining recovery copies):
@@ -141,7 +116,7 @@ fn finish_removes_this_processs_journal() {
 #[test]
 fn a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives() {
     let root = repository("first unchecked output");
-    plant_journal(root.path(), "original");
+    plant(root.path(), &[snapshot("original")], &[]);
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
     //
@@ -182,7 +157,7 @@ fn a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives
     // ```ts
     // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
     // ```
-    recover(root.path(), &|_pid, _identity| { return false; }, &refuse);
+    recover(root.path(), &refuse);
     // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
     // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
     // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
@@ -192,11 +167,11 @@ fn a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives
     // value ?? fallback
     // ```
     fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), "second unchecked output").expect("the second killed run");
-    plant_journal(root.path(), "original");
+    plant(root.path(), &[snapshot("original")], &[]);
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // Borrow `&refuse`: lends the value without copying or giving it away.
-    recover(root.path(), &|_pid, _identity| { return false; }, &refuse);
+    recover(root.path(), &refuse);
 
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
@@ -253,7 +228,7 @@ fn a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives
 fn a_recovery_that_fails_keeps_the_journal() {
     use std::os::unix::fs::PermissionsExt;
     let root = repository("unchecked output of the killed run");
-    plant_journal(root.path(), "original");
+    plant(root.path(), &[snapshot("original")], &[]);
     let crate_dir = root.path().join(CRATE_DIR);
     // Borrow `&crate_dir`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -262,7 +237,7 @@ fn a_recovery_that_fails_keeps_the_journal() {
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let messages = recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
 
     // Borrow `&crate_dir`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -271,7 +246,7 @@ fn a_recovery_that_fails_keeps_the_journal() {
     assert_eq!(messages.len(), 1, "{messages:?}");
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists(), "the journal of a failed recovery was deleted");
+    assert!(journal_dirs(root.path()).len() == 1, "the journal of a failed recovery was deleted");
 }
 
 /// Review finding:
@@ -279,17 +254,17 @@ fn a_recovery_that_fails_keeps_the_journal() {
 #[test]
 fn an_unreadable_live_lock_keeps_the_journal() {
     let root = repository("whatever");
-    plant_journal(root.path(), "original");
+    plant(root.path(), &[snapshot("original")], &[]);
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::remove_file(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("remove the live lock");
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return Vec::new(); });
+    recover(root.path(), &|_before, _live| { return Vec::new(); });
 
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists(), "the journal was deleted with the live lock unread");
+    assert!(journal_dirs(root.path()).len() == 1, "the journal was deleted with the live lock unread");
 }
 
 /// Review finding:
@@ -297,18 +272,18 @@ fn an_unreadable_live_lock_keeps_the_journal() {
 #[test]
 fn an_unreadable_journal_is_kept() {
     let root = repository("whatever");
-    plant_journal(root.path(), "original");
+    plant(root.path(), &[snapshot("original")], &[]);
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::remove_file(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).join("0.lock")).expect("damage the journal");
+    fs::remove_file(journal_dir(root.path()).join("0.lock")).expect("damage the journal");
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return Vec::new(); });
+    recover(root.path(), &|_before, _live| { return Vec::new(); });
 
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists(), "a damaged journal was deleted");
+    assert!(journal_dirs(root.path()).len() == 1, "a damaged journal was deleted");
 }
 
 /// Review finding (compare-before-replace):
@@ -319,11 +294,11 @@ fn an_unreadable_journal_is_kept() {
 #[test]
 fn recovery_leaves_a_lock_that_another_writer_published_while_the_policy_was_judged() {
     let root = repository("unchecked output of the killed run");
-    plant_journal(root.path(), "original");
+    plant(root.path(), &[snapshot("original")], &[]);
     let lock_path = root.path().join(CRATE_DIR).join("Cargo.lock");
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
-    let messages = recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| {
+    let messages = recover(root.path(), &|_before, _live| {
         // Borrow `&lock_path`: lends the value without copying or giving it away.
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         fs::write(&lock_path, "published by another writer meanwhile").expect("the other writer");
@@ -393,7 +368,7 @@ fn a_lockfile_published_between_the_comparison_and_the_replacement_is_not_lost()
 fn recovery_does_not_replace_a_lock_published_in_the_gap_after_the_last_comparison() {
     use crate::journal::recover_with;
     let root = repository("unchecked output of the killed run");
-    plant_journal(root.path(), "original");
+    plant(root.path(), &[snapshot("original")], &[]);
     let lock_path = root.path().join(CRATE_DIR).join("Cargo.lock");
     // Closure `|_path: &Path|`: an anonymous function, like a TS arrow function.
     // Borrow `&lock_path`: lends the value without copying or giving it away.
@@ -404,7 +379,7 @@ fn recovery_does_not_replace_a_lock_published_in_the_gap_after_the_last_comparis
     // Borrow `&publish`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let messages = recover_with(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; }, &publish);
+    let messages = recover_with(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; }, &publish);
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "published by another writer in the gap");
@@ -487,32 +462,6 @@ fn a_compare_and_replace_that_finds_other_text_or_no_file_leaves_things_as_they_
     assert!(!path.exists());
 }
 
-fn plant_breaking_journal(root: &Path, original_lock: &str, original_manifest: &str) {
-    use crate::manifest_edit::ManifestEdit;
-    let manifest = root.join(CRATE_DIR).join("Cargo.toml");
-    // Borrow `&[`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    begin(root, &[snapshot(original_lock)]).expect("begin");
-    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-    // Why:      Absence is a value the caller must check; there is no `null`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // Some(value) is  value
-    // // None        is  undefined
-    // ```
-    // Borrow `&[`: lends the value without copying or giving it away.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    crate::journal::add_manifests(root, &[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest, before: original_manifest.to_string(), produced: None }]).expect("journals the manifest");
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    let ours = root.join(JOURNAL_DIR).join(std::process::id().to_string());
-    // Borrow `&ours`: lends the value without copying or giving it away.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::rename(&ours, root.join(JOURNAL_DIR).join(DEAD_PID.to_string())).expect("pose as a killed process");
-}
-
 fn manifest(root: &Path) -> String {
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.toml")).expect("read the manifest");
@@ -529,12 +478,12 @@ fn a_killed_breaking_run_whose_lock_is_refused_gets_its_manifest_back_too() {
     let root = repository("unchecked output of the killed run");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
-    plant_breaking_journal(root.path(), "original", "manifest before");
+    plant(root.path(), &[snapshot("original")], &[breaking_edit(root.path(), "manifest before")]);
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "original");
@@ -546,7 +495,7 @@ fn a_killed_breaking_run_whose_lock_is_refused_gets_its_manifest_back_too() {
     assert_eq!(kept, "edited by cargo");
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(!root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists());
+    assert!(journal_dirs(root.path()).is_empty());
 }
 
 /// When the lockfile it left passes the policy,
@@ -556,11 +505,11 @@ fn a_killed_breaking_run_whose_lock_passes_keeps_its_manifest_edit() {
     let root = repository("good output");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
-    plant_breaking_journal(root.path(), "original", "manifest before");
+    plant(root.path(), &[snapshot("original")], &[breaking_edit(root.path(), "manifest before")]);
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return Vec::new(); });
+    recover(root.path(), &|_before, _live| { return Vec::new(); });
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "good output");
@@ -576,12 +525,12 @@ fn a_killed_breaking_run_that_only_rewrote_the_manifest_gets_it_back() {
     let root = repository("original");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
-    plant_breaking_journal(root.path(), "original", "manifest before");
+    plant(root.path(), &[snapshot("original")], &[breaking_edit(root.path(), "manifest before")]);
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return vec!["never asked".to_string()]; });
+    recover(root.path(), &|_before, _live| { return vec!["never asked".to_string()]; });
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(manifest(root.path()), "manifest before");
@@ -820,20 +769,6 @@ fn a_replacement_edited_in_place_after_the_exchange_is_kept_not_deleted() {
 
 // ---- recovery, second review (2b)
 
-fn plant_two_root_journal(root: &Path) {
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    let second = LockSnapshot { crate_dir: "package/j/two".to_string(), source: "original two".to_string() };
-    // Borrow `&[`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    begin(root, &[snapshot("original one"), second]).expect("begin");
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    let ours = root.join(JOURNAL_DIR).join(std::process::id().to_string());
-    // Borrow `&ours`: lends the value without copying or giving it away.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::rename(&ours, root.join(JOURNAL_DIR).join(DEAD_PID.to_string())).expect("pose as a killed process");
-}
-
 fn two_root_repository(one: &str, two: &str) -> tempfile::TempDir {
     let root = scratch();
     for (dir, text) in [(CRATE_DIR, one), ("package/j/two", two)] {
@@ -855,31 +790,14 @@ fn two_root_repository(one: &str, two: &str) -> tempfile::TempDir {
 fn a_kept_root_keeps_its_manifest_and_a_rejected_root_gets_its_own_back() {
     use crate::manifest_edit::ManifestEdit;
     let root = two_root_repository("good output", "refused output");
-    plant_two_root_journal(root.path());
+    let second = LockSnapshot { crate_dir: "package/j/two".to_string(), source: "original two".to_string() };
     let edits = [
-        // `None`: the present or the absent value of an `Option`.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: root.path().join(CRATE_DIR).join("Cargo.toml"), before: "one before".to_string(), produced: None },
-        // `None`: the present or the absent value of an `Option`.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         ManifestEdit { crate_dir: "package/j/two".to_string(), path: root.path().join("package/j/two").join("Cargo.toml"), before: "two before".to_string(), produced: None },
     ];
-    // The journal belongs to the posed dead process, so the manifests are added to its directory.
-    let journal = root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string());
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    let posed = root.path().join(JOURNAL_DIR).join(std::process::id().to_string());
-    // Borrow `&journal`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::rename(&journal, &posed).expect("back to our own name for the call");
-    // Borrow `&edits`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    crate::journal::add_manifests(root.path(), &edits).expect("journals the manifests");
-    // Borrow `&posed`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::rename(&posed, &journal).expect("pose as the killed process again");
+    plant(root.path(), &[snapshot("original one"), second], &edits);
 
-    // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
-    recover(root.path(), &|_pid, _identity| { return false; }, &|before, _live| {
+    recover(root.path(), &|before, _live| {
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // Macro `vec!`: builds or prints text (or a list) from a template.
         // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -906,9 +824,9 @@ fn an_unreadable_or_truncated_manifest_index_keeps_the_journal() {
     let root = repository("unchecked output of the killed run");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
-    plant_breaking_journal(root.path(), "original", "manifest before");
+    plant(root.path(), &[snapshot("original")], &[breaking_edit(root.path(), "manifest before")]);
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    let journal = root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string());
+    let journal = journal_dir(root.path());
     let index = journal.join("manifests.txt");
 
     // Truncated: the `end` line is missing.
@@ -919,7 +837,7 @@ fn an_unreadable_or_truncated_manifest_index_keeps_the_journal() {
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return vec!["refused".to_string()]; });
+    recover(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(journal.exists(), "a truncated manifest index must keep the journal");
 
@@ -931,7 +849,7 @@ fn an_unreadable_or_truncated_manifest_index_keeps_the_journal() {
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return vec!["refused".to_string()]; });
+    recover(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
     // Borrow `&index`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::set_permissions(&index, fs::Permissions::from_mode(0o644)).expect("give the permissions back");
@@ -972,75 +890,15 @@ fn a_manifest_path_that_is_not_utf8_is_recovered_exactly() {
     fs::write(&manifest_path, "edited by cargo").expect("manifest");
     // Borrow `&[`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    begin(root.path(), &[snapshot("original")]).expect("begin");
-    // `None`: the present or the absent value of an `Option`.
-    // Borrow `&[`: lends the value without copying or giving it away.
-    // `.clone()`: an independent owned copy.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    crate::journal::add_manifests(root.path(), &[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest_path.clone(), before: "manifest before".to_string(), produced: None }]).expect("journals");
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::rename(root.path().join(JOURNAL_DIR).join(std::process::id().to_string()), root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string())).expect("pose");
+    plant(root.path(), &[snapshot("original")], &[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest_path.clone(), before: "manifest before".to_string(), produced: None }]);
 
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return vec!["refused".to_string()]; });
+    recover(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
 
     // Borrow `&manifest_path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(&manifest_path).expect("read"), "manifest before");
-}
-
-/// Review finding (2b 9):
-/// a journal that another recovery has claimed is not acted on,
-/// and a journal of a live process
-/// (same start time) is left alone while one whose process id was reused by another process is recovered.
-#[test]
-fn a_claimed_journal_and_a_live_owner_are_left_alone_and_a_reused_process_id_is_not_taken_for_the_owner() {
-    use crate::journal::{process_exists, process_identity};
-    let root = repository("unchecked output of the killed run");
-    plant_journal(root.path(), "original");
-    let journals = root.path().join(JOURNAL_DIR);
-    // Typed binding: `init_pid: u32`.
-    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
-    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: number
-    // ```
-    let init_pid: u32 = 1;
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    let claimed = journals.join(format!("{DEAD_PID}.claim.{init_pid}.1"));
-    // Borrow `&claimed`: lends the value without copying or giving it away.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::rename(journals.join(DEAD_PID.to_string()), &claimed).expect("another recovery claims it");
-
-    // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // Macro `vec!`: builds or prints text (or a list) from a template.
-    let messages = recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return vec!["refused".to_string()]; });
-
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(messages.is_empty(), "{messages:?}");
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(lock(root.path()), "unchecked output of the killed run");
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(claimed.exists());
-    let own = std::process::id();
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let identity = process_identity(own).expect("our own start time");
-    // Borrow `&identity`: lends the value without copying or giving it away.
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(process_exists(own, &identity));
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(process_exists(own, ""), "an empty record accepts any process with that id");
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(!process_exists(own, "1"), "a different start time is a different process");
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(!process_exists(DEAD_PID, ""), "no such process");
 }

@@ -594,7 +594,7 @@ pub fn process_exists(pid: u32, recorded_identity: &str) -> bool {
 /// ```ts
 /// export function begin(root: string, snapshots: LockSnapshot[]): void
 /// ```
-pub fn begin(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()> {
+fn begin_old(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()> {
     let directory: PathBuf = journal_path(root, std::process::id());
     fs::create_dir_all(&directory)?;
     // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
@@ -715,7 +715,7 @@ pub(crate) fn decode_path(text: &str) -> Option<PathBuf> {
 /// ```ts
 /// export function addManifests(root: string, edits: ManifestEdit[]): void  // throws when the journal cannot be written
 /// ```
-pub fn add_manifests(root: &Path, edits: &[ManifestEdit]) -> io::Result<()> {
+fn add_manifests_old(root: &Path, edits: &[ManifestEdit]) -> io::Result<()> {
     // Typed binding: `directory: PathBuf`.
     let directory: PathBuf = journal_path(root, std::process::id());
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
@@ -763,7 +763,7 @@ pub fn add_manifests(root: &Path, edits: &[ManifestEdit]) -> io::Result<()> {
 /// ```ts
 /// export function finish(root: string): void
 /// ```
-pub fn finish(root: &Path) {
+fn finish_old(root: &Path) {
     let _ = fs::remove_dir_all(journal_path(root, std::process::id()));
     // Borrow `&root.join`: lends the value without copying or giving it away.
     // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
@@ -774,4 +774,37 @@ pub fn finish(root: &Path) {
     // void expr;   // or try { expr } catch {}
     // ```
     let _ = sync_directory(&root.join(JOURNAL_DIR));
+}
+
+/// One journaled transaction: the journal of snapshots a run keeps until it settles.
+pub struct Transaction {
+    /// The repository root the journal lives under.
+    root: PathBuf,
+}
+
+/// What:
+/// `pub fn begin(root, snapshots, expects_manifests) -> io::Result<Transaction>` journals the lockfile snapshots of a run.
+/// Why:
+/// Nothing may be mutated without a complete recovery record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function begin(root: string, snapshots: LockSnapshot[], expectsManifests: boolean): Transaction
+/// ```
+pub fn begin(root: &Path, snapshots: &[LockSnapshot], _expects_manifests: bool) -> io::Result<Transaction> {
+    begin_old(root, snapshots)?;
+    return Ok(Transaction { root: root.to_path_buf() });
+}
+
+impl Transaction {
+    /// Journals the manifests a `--breaking` run may rewrite.
+    pub fn add_manifests(&self, edits: &[ManifestEdit]) -> io::Result<()> {
+        return add_manifests_old(&self.root, edits);
+    }
+
+    /// Settles the transaction and removes its journal.
+    pub fn finish(self) -> io::Result<()> {
+        finish_old(&self.root);
+        return Ok(());
+    }
 }

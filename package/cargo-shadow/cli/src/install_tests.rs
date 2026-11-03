@@ -490,13 +490,7 @@ fn a_lockfile_another_process_wrote_during_the_checks_is_not_discarded_by_a_refu
 #[test]
 fn a_run_killed_after_cargo_wrote_is_finished_by_the_next_install() {
     let (root, dirs) = repository(&[("package/a/one", &lock_with("dep", "1.0.1"))]);
-    crate::journal::begin(
-        root.path(),
-        &[crate::crates::LockSnapshot { crate_dir: "package/a/one".to_string(), source: SATISFIED.to_string() }],
-    )
-    .expect("journal");
-    let ours = root.path().join(crate::journal::JOURNAL_DIR).join(std::process::id().to_string());
-    fs::rename(&ours, root.path().join(crate::journal::JOURNAL_DIR).join("4194305")).expect("pose as a killed process");
+    crate::journal_support::plant(root.path(), &[crate::crates::LockSnapshot { crate_dir: "package/a/one".to_string(), source: SATISFIED.to_string() }], &[]);
     let cargo: FakeCargo = cargo_that_writes(SATISFIED);
     let registry: FakeRegistry = FakeRegistry {
         histories: BTreeMap::from([(

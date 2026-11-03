@@ -298,8 +298,8 @@ pub(crate) fn read_identity(directory: &Path) -> String {
 /// ```ts
 /// export function recover({ root, isAlive, judge }): string[]
 /// ```
-pub fn recover(root: &Path, is_alive: &dyn Fn(u32, &str) -> bool, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>) -> Vec<String> {
-    return recover_with(root, is_alive, judge, &no_hook);
+pub fn recover(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>) -> Vec<String> {
+    return recover_with(root, judge, &no_hook);
 }
 
 /// What:
@@ -366,7 +366,7 @@ pub(crate) fn release_claim(directory: &Path, journals: &Path, original: &str) {
 /// ```ts
 /// export function recoverWith({ root, isAlive, judge, between }): string[]
 /// ```
-pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32, &str) -> bool, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> Vec<String> {
+pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> Vec<String> {
     let mut messages: Vec<String> = Vec::new();
     // Typed binding: `journals: PathBuf`.
     let journals: PathBuf = root.join(JOURNAL_DIR);
@@ -415,7 +415,7 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32, &str) -> bool, judge: &d
         // Typed binding: `own: bool`.
         let own: bool = pid == std::process::id() && (identity.is_empty() || identity == own_identity);
         // Borrow `&identity`: lends the value without copying or giving it away.
-        if own || is_alive(pid, &identity) {
+        if own || crate::journal::process_exists(pid, &identity) {
             continue;
         }
         // `match`: picks the arm whose pattern fits the value.

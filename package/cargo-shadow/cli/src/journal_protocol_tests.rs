@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use crate::crates::LockSnapshot;
 use crate::journal::{JOURNAL_DIR, KeepAs, ReplaceOutcome, begin, recover, replace_if_holds, replace_if_holds_with_hooks};
+use crate::journal_support::plant;
 use crate::journal_replace::{Seams, replace_with_seams};
 use crate::manifest_edit::ManifestEdit;
 use crate::test_scratch::scratch;
@@ -42,15 +43,6 @@ fn some_file_holds(directory: &Path, text: &str) -> bool {
 /// Whether the process may ignore directory permissions, which makes the permission-based failures unreliable.
 fn ignores_permissions() -> bool {
     return fs::metadata("/proc/self").map(|metadata| { return metadata.uid() == 0; }).unwrap_or(true);
-}
-
-/// A pid no process can have, to pose a journal as the one of a killed run.
-const DEAD_PID: u32 = 4_194_305;
-
-/// Makes the journal this process began look like the journal of a killed run.
-fn pose_as_killed(root: &Path) {
-    let ours = root.join(JOURNAL_DIR).join(std::process::id().to_string());
-    fs::rename(&ours, root.join(JOURNAL_DIR).join(DEAD_PID.to_string())).expect("pose as a killed process");
 }
 
 /// Review finding (3b 1): after the exchange was undone the replacement inode has been live, and another writer can hold it open;
@@ -109,8 +101,8 @@ fn a_file_deleted_after_the_comparison_stays_deleted() {
 #[test]
 fn a_second_begin_leaves_the_first_journal_intact() {
     let root = repository("lock");
-    begin(root.path(), &[snapshot("first original")]).expect("first begin");
-    begin(root.path(), &[snapshot("second original")]).expect("second begin");
+    begin(root.path(), &[snapshot("first original")], false).expect("first begin");
+    begin(root.path(), &[snapshot("second original")], false).expect("second begin");
 
     let journals: Vec<String> = names_in(&root.path().join(JOURNAL_DIR));
     assert_eq!(journals.len(), 2, "{journals:?}");
@@ -130,14 +122,12 @@ fn a_failed_lockfile_restore_leaves_the_roots_manifest_alone() {
     fs::create_dir_all(&manifest_dir).expect("manifest dir");
     let manifest: PathBuf = manifest_dir.join("Cargo.toml");
     fs::write(&manifest, "manifest rewritten by the killed run").expect("manifest");
-    begin(root.path(), &[snapshot("original")]).expect("begin");
     let edit = ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "manifest before".to_string(), produced: None };
-    crate::journal::add_manifests(root.path(), &[edit]).expect("journal the manifest");
-    pose_as_killed(root.path());
+    plant(root.path(), &[snapshot("original")], &[edit]);
     let crate_dir = root.path().join(CRATE_DIR);
     fs::set_permissions(&crate_dir, fs::Permissions::from_mode(0o555)).expect("make the lockfile directory read-only");
 
-    let messages = recover(root.path(), &|_pid, _identity| { return false; }, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
 
     fs::set_permissions(&crate_dir, fs::Permissions::from_mode(0o755)).expect("writable again");
     assert_eq!(fs::read_to_string(&manifest).expect("manifest"), "manifest rewritten by the killed run", "{messages:?}");
@@ -166,4 +156,76 @@ fn a_temporary_name_search_ends_with_an_error() {
 
     let message: String = result.expect_err("no free name").to_string();
     assert!(message.contains(&root.path().display().to_string()), "{message}");
+}
+
+/// Review finding (3b 4): the lock the owner holds is the proof that it lives; a record that names a dead process, a renamed
+/// directory or an unreadable `/proc` do not change that.
+#[test]
+fn a_journal_whose_owner_still_holds_its_lock_is_not_recovered() {
+    let root = repository("unchecked output of the running owner");
+    let _owner = begin(root.path(), &[snapshot("original")], false).expect("begin");
+    let journal = crate::journal_support::journal_dir(root.path());
+    fs::rename(&journal, root.path().join(JOURNAL_DIR).join("4194305")).expect("a name that says the process is dead");
+
+    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the running owner", "{messages:?}");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 1);
+}
+
+/// Review finding (3b 5): recovering the journal of a dead run must not restore the inputs of a root a live transaction covers.
+#[test]
+fn recovery_leaves_the_roots_a_live_transaction_covers() {
+    let root = repository("unchecked output of the killed run");
+    plant(root.path(), &[snapshot("original of the killed run")], &[]);
+    let _live = begin(root.path(), &[snapshot("original of the live run")], false).expect("the live transaction");
+
+    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 2, "the killed run's journal is kept for a later run");
+    assert!(messages.iter().any(|message| { return message.contains("live"); }), "{messages:?}");
+}
+
+/// Review finding (3b 7): a ready journal whose manifest index is missing is kept, not read as "no manifests".
+#[test]
+fn a_missing_manifest_index_keeps_the_journal_and_its_snapshots() {
+    let root = repository("unchecked output of the killed run");
+    let manifest = root.path().join(CRATE_DIR).join("Cargo.toml");
+    fs::write(&manifest, "edited by cargo").expect("manifest");
+    let edit = ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest, before: "manifest before".to_string(), produced: None };
+    let journal = plant(root.path(), &[snapshot("original")], &[edit]);
+    fs::remove_file(journal.join("manifests.txt")).expect("lose the manifest index");
+
+    recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    assert!(journal.join("m0.toml").exists(), "the only copy of the manifest was deleted with the journal");
+}
+
+/// A journal whose preparation never finished (its owner was killed before cargo ran) changed nothing, so recovery removes it
+/// and does not touch the lockfile, which another writer may have written meanwhile.
+#[test]
+fn a_journal_that_never_became_ready_is_removed_without_touching_the_lockfile() {
+    let root = repository("written by someone else");
+    let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin, manifests promised but never journaled");
+    drop(transaction);
+
+    recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "written by someone else");
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "an unready journal is removed");
+}
+
+/// A journal whose removal was interrupted after the completion marker is finished by the next recovery.
+#[test]
+fn a_journal_marked_done_is_removed_by_the_next_recovery() {
+    let root = repository("good output");
+    let journal = plant(root.path(), &[snapshot("original")], &[]);
+    let done = journal.with_file_name(format!("{}.done", journal.file_name().expect("name").to_string_lossy()));
+    fs::rename(&journal, &done).expect("mark it done");
+
+    recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "good output");
 }

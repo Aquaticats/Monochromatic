@@ -166,7 +166,7 @@ use crate::install::policy_findings;
 /// ```ts
 /// import { addManifests, begin, finish, processExists, recover, restoreIfUnchanged, runRecording } from 'crate/journal';
 /// ```
-use crate::journal::{add_manifests, begin, finish, process_exists, recover, restore_if_unchanged, run_recording};
+use crate::journal::{begin, recover, restore_if_unchanged, run_recording, Transaction};
 /// Imports `Claim`,
 /// what the ownership evidence says about a file a child wrote.
 use crate::file_owner::Claim;
@@ -815,7 +815,7 @@ fn workspace_manifests(request: &UpdateRequest, crate_dir: &str) -> Result<Vec<P
 /// ```ts
 /// async function runUpdate(args): Promise<UpdateReport>
 /// ```
-fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot], produced: &RefCell<Vec<LockSnapshot>>, edits: &RefCell<Vec<ManifestEdit>>) -> Result<UpdateReport, UpdateError> {
+fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot], produced: &RefCell<Vec<LockSnapshot>>, edits: &RefCell<Vec<ManifestEdit>>, transaction: &Transaction) -> Result<UpdateReport, UpdateError> {
     // Borrow `&Settings`: lends the value without copying or giving it away.
     // Typed binding: `settings: &Settings`.
     let settings: &Settings = request.settings;
@@ -878,7 +878,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                     snapshot_manifests(crate_dir, &paths, edits).map_err(other_text)?;
                 }
                 // Delegated pick (2026-11-03): the manifests are journaled, so a killed run is recovered for them too.
-                add_manifests(request.root, &edits.borrow()).map_err(other_text)?;
+                transaction.add_manifests(&edits.borrow()).map_err(other_text)?;
             }
             for crate_dir in request.crate_dirs {
                 // Both the lockfile and the manifests of this root are attributed by the evidence in `file_owner.rs`, whether the
@@ -1093,7 +1093,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // Closure `|old, live|`: an anonymous function, like a TS arrow function.
     // Borrow `&process_exists`: lends the value without copying or giving it away.
     // Typed binding: `recovered: Vec<String>`.
-    let recovered: Vec<String> = recover(request.root, &process_exists, &|old, live| {
+    let recovered: Vec<String> = recover(request.root, &|old, live| {
         return policy_findings(request.settings, request.registry, request.now, old, live);
     });
     // Borrow `&recovered`: lends the value without copying or giving it away.
@@ -1112,7 +1112,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // Borrow `&before`: lends the value without copying or giving it away.
     // Review finding (failed begin): without a complete recovery record nothing may be mutated, so a journal that cannot be
     // started stops the update here, before the first cargo call.
-    begin(request.root, &before).map_err(other_text)?;
+    let transaction = begin(request.root, &before, matches!(kind, UpdateKind::Targeted { cargo_args } if cargo_args.iter().map(String::as_str).any(is_breaking_option))).map_err(other_text)?;
     // What:     `RefCell<Vec<LockSnapshot>>` is a list that can be added to through a shared reference (sibling: `&mut Vec`, which needs exclusive access); `RefCell::new(Vec::new())` makes an empty one.
     // Why:      `produced` starts empty because cargo has not written yet; each cargo write is recorded the moment it succeeded.
     //
@@ -1125,7 +1125,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     let edits: RefCell<Vec<ManifestEdit>> = RefCell::new(Vec::new());
     // Borrow `&before`: lends the value without copying or giving it away.
     // Typed binding: `outcome: Result<UpdateReport, UpdateError>`.
-    let outcome: Result<UpdateReport, UpdateError> = run_update(request, kind, &before, &produced, &edits);
+    let outcome: Result<UpdateReport, UpdateError> = run_update(request, kind, &before, &produced, &edits, &transaction);
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Borrow `&outcome`: lends the value without copying or giving it away.
     // Typed binding: `keep: bool`.
@@ -1154,7 +1154,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
             eprintln!("cargo-shadow: warning: {warning}");
         }
     }
-    finish(request.root);
+    transaction.finish().map_err(other_text)?;
     // Closure `|mut report|`: an anonymous function, like a TS arrow function.
     // Adapter `.map(`: transforms or selects items with a closure.
     return outcome.map(|mut report| {

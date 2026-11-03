@@ -307,6 +307,10 @@ mod git_differential_tests;
 #[cfg(test)]
 mod journal_protocol_tests;
 
+/// Helpers the journal tests share.
+#[cfg(test)]
+mod journal_support;
+
 /// What:
 /// `#[cfg(test)] mod git_refs_tests;` declares the tests in `src/git_refs_tests.rs`;
 /// the attribute compiles it only for test builds (a TS test file that production code never imports).
