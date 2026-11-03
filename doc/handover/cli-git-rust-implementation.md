@@ -10765,3 +10765,5 @@ by the coordinator at merge.
   before building. Still to weigh against this sentence: the merge-fixes branch already in the 0.5.26 candidate
   (index-lock wait, 20-round loop), and the push retry plan (network failures are outside the system, so
   retry stays there, with the by-construction parts named).
+  Owner answer (question tool): "Ship interim now (Recommended)": 0.5.26 gates and ships with the merge-fixes
+  branch's index-lock wait and 20-round loop; the by-construction design replaces them when built.
