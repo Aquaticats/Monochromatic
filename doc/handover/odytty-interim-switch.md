@@ -23,12 +23,12 @@ No new ranking or complete technology audit is claimed.
   working directory,
   title,
   and application ID through `terminal-exec` in a disposable environment.
-- [ ] Replace the VM image's Ghostty installation and dotfile seed with OdyTTY and explicit terminal defaults.
+- [x] Replace the VM image's Ghostty installation and dotfile seed with OdyTTY and explicit terminal defaults.
   Validate the release package and image integration without replacing an existing VM.
 - [x] Check current agent input compatibility,
   especially the historical Claude Code Shift+Enter limitation.
 - [x] Carry the existing terminal I/O priority to OdyTTY desktop services and AppImage scopes.
-- [ ] Commit scoped changes and record verification results and remaining limits.
+- [x] Commit scoped changes and record verification results and remaining limits.
 
 ## Completed verification
 
@@ -41,7 +41,23 @@ OdyTTY reports `0.17.5`,
 loads the seeded JetBrains Mono font preference at size `20`,
 and resolves the custom theme.
 The KDE and XDG defaults both point to `io.unfinished_works.odytty.desktop`.
-Graphical launch from the image remains to be checked.
+The installed RPM also passed a graphical launch from that exact image in a disposable container:
+its window rendered the test command output,
+showed exit status `0`,
+and closed successfully after Enter.
+This passed both with host render devices exposed and with no GPU devices passed to the container.
+The screenshots were inspected.
+The fixture mounted only a private runtime directory and the nested compositor's Wayland socket,
+used no network,
+and ran as the image's regular `user`.
+The final graphical fixtures were `image-gui-fno70w` and `image-gui-iXs75q` under the migration scratch directory.
+The first harness attempt used an unsupported Podman tmpfs ownership option and exited `125` before OdyTTY started;
+the successful fixtures used a private directory owned by the test user instead.
+The same rejected option is documented in
+[the Podman ownership notes](../troubleshooting/depot-rootless-podman-group-identity.md).
+No full VM boot,
+disk conversion,
+or replacement of an existing libvirt VM was performed.
 
 The active host OdyTTY service initially had no `IOWeight` setting;
 its kernel `io.weight` and `io.bfq.weight` were both `default 100`.
@@ -161,3 +177,11 @@ explicit terminal list,
 and taskbar launcher reverses the desktop switch.
 Do not restore whole shared KDE files over concurrent desktop changes.
 The VM change is reversible through a scoped follow-up commit.
+
+The OdyTTY I/O priority addition is confined to the host's named service and scope drop-ins.
+The Ghostty policy remains present.
+All disposable terminal windows,
+containers,
+and I/O-priority fixture units were closed or removed after their checks.
+The temporary read-only KWin identity script was unloaded;
+its log output was unavailable and is not used as verification evidence.
