@@ -47,8 +47,10 @@ const HELPER_LOOK: Duration = Duration::from_millis(50);
 fn a_helper_started_by_a_panicking_test_is_gone_when_the_test_ends() {
     let (sender, receiver) = std::sync::mpsc::channel::<u32>();
     let handle = std::thread::spawn(move || {
-        let child = spawn_owned(Command::new("sleep").arg(HELPER_SECONDS).stdin(Stdio::null())).expect("the helper starts");
+        let mut child = spawn_owned(Command::new("sleep").arg(HELPER_SECONDS).stdin(Stdio::null())).expect("the helper starts");
         sender.send(child.id()).expect("send the pid");
+        // A look that does not wait: the helper is still running when the test fails, as in the leak this control is for.
+        let _still_running = child.try_wait();
         panic!("the test fails before it ends the helper");
     });
     assert!(handle.join().is_err(), "the thread panics on purpose");

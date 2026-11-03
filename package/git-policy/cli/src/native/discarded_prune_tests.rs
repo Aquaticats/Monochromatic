@@ -17,7 +17,6 @@ use super::{
 };
 use crate::command_test_support::{audit_records, fixture, remove};
 use crate::conflict_sides::{SAVED_DIRECTORY, save_copies};
-use crate::discard_audit::AUDIT_FILE;
 use crate::iso_time::format_iso_milliseconds;
 use std::path::{Path, PathBuf};
 
