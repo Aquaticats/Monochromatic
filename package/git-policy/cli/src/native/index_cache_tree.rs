@@ -53,8 +53,9 @@ fn read_one<'a>(bytes: &'a [u8], hash_length: usize, depth: usize) -> Option<(Ve
     let mut subtrees: Vec<(Vec<u8>, CacheTree)> = Vec::new();
     for _ in 0..usize::try_from(subtree_count).ok()? {
         let (child_name, child, after) = read_one(rest, hash_length, depth + 1)?;
-        // Git sorts subtrees on insertion; a file that is not already sorted is left to Git.
-        if subtrees.last().is_some_and(|(previous, _)| { return previous.as_slice() >= child_name.as_slice(); }) {
+        // Git sorts subtrees on insertion by length first and then by bytes (`subtree_name_cmp`); a file that is not already
+        //  in that order is left to Git.
+        if subtrees.last().is_some_and(|(previous, _)| { return (previous.len(), previous.as_slice()) >= (child_name.len(), child_name.as_slice()); }) {
             return None;
         }
         subtrees.push((child_name, child));

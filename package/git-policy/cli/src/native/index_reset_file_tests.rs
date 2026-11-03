@@ -264,3 +264,16 @@ fn a_root_commit_resets_every_path_it_holds() {
     assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()), "root commit differs\n{}\n{}", listing(scene.repo.as_path()), listing(copy.as_path()));
     finish(scene);
 }
+
+/// Directories whose names differ in length keep the cache-tree in Git's order (shorter name first), which byte order is not.
+#[test]
+fn directories_of_different_name_lengths_equal_git() {
+    let files: [(&str, &[u8], bool); 7] = [("b/x", b"1", false), ("aa/x", b"1", false), ("ab/x", b"1", false), ("c/y", b"1", false), ("longer-name/z", b"1", false), ("longer-name/inner/q", b"1", false), ("top", b"1", false)];
+    let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "aa/x", mode: "100644", content: b"2" }, Edit::Delete("c/y"), Edit::Put { path: "longer-name/inner/q", mode: "100755", content: b"1" }];
+    let scene: Scene = scene("index-reset-name-lengths", &Plan { files: &files, edits: edits.as_slice(), ..Plan::default() });
+    let before: Vec<u8> = index_bytes(scene.repo.as_path());
+    let tree = crate::index_reset_support_probe::extension_of(before.as_slice(), b"TREE", 20).expect("the commit wrote a cache-tree");
+    assert!(crate::index_cache_tree::CacheTree::read(tree.as_slice(), 20).is_some(), "the reader takes Git's own order");
+    same_as_git(&scene, &named(&["aa/x", "c/y", "longer-name/inner/q"]), "name lengths");
+    finish(scene);
+}

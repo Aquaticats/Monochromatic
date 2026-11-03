@@ -46,3 +46,12 @@ fn irregular_forms_are_not_read() {
     assert_eq!(CacheTree::read(unsorted.write().as_slice(), 20), None);
     assert_eq!(CacheTree::read(b"no terminator", 20), None);
 }
+
+/// Subtrees are kept shorter name first, then by bytes, as `subtree_name_cmp` orders them; byte order alone is not Git's.
+#[test]
+fn subtrees_are_ordered_by_length_first() {
+    let in_git_order: CacheTree = valid(3, vec![(b"b".to_vec(), valid(1, Vec::new())), (b"aa".to_vec(), valid(1, Vec::new())), (b"ab".to_vec(), valid(1, Vec::new()))]);
+    assert_eq!(CacheTree::read(in_git_order.write().as_slice(), 20), Some(in_git_order));
+    let byte_order: CacheTree = valid(2, vec![(b"aa".to_vec(), valid(1, Vec::new())), (b"b".to_vec(), valid(1, Vec::new()))]);
+    assert_eq!(CacheTree::read(byte_order.write().as_slice(), 20), None);
+}
