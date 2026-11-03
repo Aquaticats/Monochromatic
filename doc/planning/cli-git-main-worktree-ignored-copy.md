@@ -1314,6 +1314,14 @@ used whever possible? Why are we still using that?" Branch `fix/git-policy-cli-s
   `O_EXCL`, never waited for, from the last delta to the end of the rewrite). The catch-up pass runs under them on purpose: it
   can copy files whose index entries the rewrite then describes.
 
+### A migration and a conversion refuse each other
+
+Shortening the conversion's `index.lock` hold removed the accidental exclusion of a migration during the conversion's first
+copy (the migration's preflight refuses any `index.lock` in `.git/worktrees/*`). The two commands now read each other's claim
+without taking it: `live_owner_of` in `single_owner_claim.rs`, used by the conversion's refusals (kind `OtherCommand`) and the
+migration's `git_state_refusals`. Controls: `a_conversion_is_refused_while_the_main_checkout_is_being_migrated` and
+`a_migration_is_refused_while_a_worktree_is_being_converted`, each shown red before the refusal and after removing it.
+
 ### Inventory of locks in this scope
 
 - `worktree_convert_journal.rs` `ConversionLock` (`flock`, per worktree, no wait): removed, replaced by the claim.

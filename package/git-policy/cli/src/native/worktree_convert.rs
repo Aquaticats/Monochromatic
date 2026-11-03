@@ -24,7 +24,7 @@ use super::subvolume_lock::{acquire, is_ours};
 use super::subvolume_platform::Platform;
 use super::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use super::worktree_clean::check_clean_tracked_by_content;
-use super::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
+use super::single_owner_claim::{ClaimOutcome, OwnerClaim, live_owner_of, take_claim};
 use super::worktree_convert_journal::{CLAIM_PREFIX, Journal, is_recorded_object, legacy_lock_is_held, read_plain_file, read_plain_text};
 pub use super::worktree_convert_journal::{JOURNAL_NAME, Phase};
 use super::worktree_convert_remove::{Removal, remove_recorded_old_tree};
@@ -159,6 +159,8 @@ pub enum RefusalKind {
     NotQuiet,
     /// A process uses the worktree, or the process table cannot be read.
     Process,
+    /// Another command of this program owns the worktree or the checkout around it.
+    OtherCommand,
 }
 
 /// What an interrupted conversion of this command owns at this moment, established by identity before the refusals are made.
@@ -214,6 +216,18 @@ fn registered_inside(common: &Path, inside: &Path) -> Result<Vec<PathBuf>, Strin
     return Ok(found);
 }
 
+/// The sentence that refuses a conversion while a migration of the main checkout that holds the worktree is running, or
+///  nothing when none is (or the common directory is not a main checkout's `.git`).
+fn migration_of_main_checkout(common: &Path) -> Option<String> {
+    let root: &Path = common.parent().filter(|_parent: &&Path| { return common.file_name() == Some(std::ffi::OsStr::new(".git")); })?;
+    let layout = super::subvolume_preflight::layout_of(root)?;
+    return match live_owner_of(layout.parent.as_path(), layout.claim_prefix.as_os_str()) {
+        Ok(None) => None,
+        Ok(Some(owner)) => Some(format!("process {} is migrating the main checkout {} to a subvolume (it owns {}); wait for it to finish, then run this command again", owner.pid, root.display(), owner.path.display())),
+        Err(error) => Some(format!("whether the main checkout {} is being migrated cannot be decided ({error})", root.display())),
+    };
+}
+
 /// What:
 ///  Every reason a worktree cannot be converted now, with its kind; empty means it can.
 /// Why:
@@ -232,6 +246,9 @@ pub fn refusals(platform: &dyn Platform, candidate: &Candidate, owned: Owned, co
     }
     if !owned.index_lock && candidate.admin.join("index.lock").exists() {
         refuse(RefusalKind::IndexLock, format!("{} exists: a Git command is writing the index", candidate.admin.join("index.lock").display()));
+    }
+    if let Some(text) = migration_of_main_checkout(candidate.common.as_path()) {
+        refuse(RefusalKind::OtherCommand, text);
     }
     let converting: PathBuf = converting_path(candidate.path.as_path());
     if !owned.stage && std::fs::symlink_metadata(&converting).is_ok() {

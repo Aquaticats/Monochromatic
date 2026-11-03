@@ -14,6 +14,7 @@
 //! ```
 
 use super::fs_kind::FilesystemKind;
+use super::single_owner_claim::live_owner_of;
 use super::subvolume_journal::Journal;
 use super::subvolume_lock::{is_ours, token_of};
 use super::subvolume_platform::Platform;
@@ -212,6 +213,21 @@ fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -
     return found;
 }
 
+/// The refusal for a conversion of the linked worktree whose administrative directory this is, when its command is running.
+fn conversion_refusal(administrative: &Path) -> Option<Refusal> {
+    return match live_owner_of(administrative, std::ffi::OsStr::new(super::worktree_convert_journal::CLAIM_PREFIX)) {
+        Ok(None) => None,
+        Ok(Some(owner)) => Some(refuse(
+            format!("process {} is converting the linked worktree registered in {} to a subvolume (it owns {})", owner.pid, administrative.display(), owner.path.display()),
+            "Wait for `git cli-git convert-worktree-to-subvolume` to finish, then run the command again.",
+        )),
+        Err(error) => Some(refuse(
+            format!("whether the linked worktree registered in {} is being converted cannot be decided ({error})", administrative.display()),
+            "Look at the claim file the message names; if no cli-git command is running, remove it, then run the command again.",
+        )),
+    };
+}
+
 /// The refusals about Git's own state in the checkout.
 fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
     let mut found: Vec<Refusal> = Vec::new();
@@ -240,6 +256,9 @@ fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
                     "Finish or abort that operation (commit, merge, rebase, cherry-pick, bisect), or, if no Git command is running, remove the stale file after checking, then run the command again.",
                 ));
             }
+        }
+        if let Some(refusal) = conversion_refusal(directory.as_path()) {
+            found.push(refusal);
         }
         for queue in ["pending", "claimed"] {
             let path: PathBuf = directory.join("cli-git").join("work").join(queue);

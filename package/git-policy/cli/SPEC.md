@@ -650,6 +650,9 @@ than `FOREIGN_OWNER_PATIENCE`. The newest generation is never removed (a release
 removed by the command that took the newer, and a generation published by a command whose listing went stale is withdrawn
 when a newer one exists. A command that finds a live owner skips the worktree, names the process and the file, waits for
 nothing and writes nothing. A killed command leaves a claim file that needs no cleanup.
+A conversion is refused while a migration of the main checkout that holds the worktree is running, and a migration is refused
+while a conversion of any linked worktree registered in it is running, each naming the other command's process; the claims
+are read without being taken, so the pair stays exclusive although the conversion holds `index.lock` only for its last phases.
 Release 0.5.20 and older serialized conversions with an advisory kernel lock on `cli-git-convert.lock`, left in place. This
 release never takes that lock for its own work. Where the file exists it probes it once without waiting, skips the worktree
 when an older command holds it (two commands must never convert one worktree at once, whichever release they are), and removes

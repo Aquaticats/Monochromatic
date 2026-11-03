@@ -73,7 +73,9 @@ fn a_migration_is_refused_while_a_worktree_is_being_converted() {
     let text: String = lines.join("\n");
     assert_eq!(code, REFUSED_EXIT_CODE, "{text}");
     assert!(text.contains(format!("process {pid}").as_str()) && text.contains("Nothing was changed."), "{text}");
-    assert_eq!(names(parent.as_path()), before, "nothing was created beside the checkout");
+    // The refused command's own claim file, released again, is the only thing it leaves in the parent directory.
+    let created: Vec<String> = names(parent.as_path()).into_iter().filter(|name: &String| { return !before.contains(name) && !name.starts_with(".cli-git-migrate-checkout.owner."); }).collect();
+    assert_eq!(created, Vec::<String>::new(), "nothing was created beside the checkout");
     conversion.kill().expect("kill");
     conversion.wait().expect("wait");
     remove(parent.as_path());

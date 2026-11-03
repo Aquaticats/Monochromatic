@@ -281,6 +281,27 @@ pub fn take_claim_seamed(directory: &Path, prefix: &OsStr, after_listing: &mut d
     return Err(MigrateError::Journal(format!("other commands kept taking the claim in {} while this one looked; nothing was changed, run the command again", directory.display())));
 }
 
+/// What:
+///  The live owner of the item whose claim files are `<prefix>.<generation>` in `directory`, if any; nothing is created.
+/// Why:
+///   A command that works on a different item inside the same checkout (a migration of the checkout, a conversion of a worktree
+///  in it) must not start while the other runs, and reading the claim is enough to know.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owner = await liveOwnerOf({ directory, prefix }); // undefined when nobody owns the item
+/// ```
+pub fn live_owner_of(directory: &Path, prefix: &OsStr) -> Result<Option<BusyOwner>, MigrateError> {
+    if !directory.is_dir() {
+        return Ok(None);
+    }
+    let existing: Vec<u64> = generations(directory, prefix)?;
+    let Some(newest) = existing.last() else { return Ok(None) };
+    let path: PathBuf = path_of(directory, prefix, *newest);
+    let Some(found) = read_record(path.as_path())? else { return Ok(None) };
+    return Ok(live_owner(&found, path.as_path())?.map(|pid: i64| { return BusyOwner { pid, path }; }));
+}
+
 impl OwnerClaim {
     /// Give the item back: the claim file is rewritten, atomically, as a released claim, so the next command takes the next
     ///  generation without judging a process.

@@ -511,7 +511,8 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   Run it first; it changes nothing.
 - Without `--dry-run` the command takes no lock. It owns the worktree through a numbered claim file in the administrative
   directory (`cli-git-convert.owner.<generation>`) that names its process; a second command that finds a live owner skips the
-  worktree and names that process, and a claim a killed command left needs no cleanup. Then it creates
+  worktree and names that process, and a claim a killed command left needs no cleanup. A conversion is also refused while a
+  `migrate-to-subvolume` of the main checkout runs, and that command is refused while a conversion runs. Then it creates
   `<path>.cli-git-converting` as a subvolume and records its identity, copies the worktree into it with cloned data, takes the
   administrative directory's `index.lock` with its own token only for the rest (the long copy runs without it), proves the
   copy equal with a second pass, swaps the two directories with one exchange, checks that the path is the subvolume it created
