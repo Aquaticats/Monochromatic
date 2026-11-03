@@ -16,7 +16,7 @@ use super::process_use::{UseScan, UseTarget, processes_using_through};
 use super::stale_ref_lock_found::PidFile;
 use super::stopped_git_locks::pid_named_by;
 use super::stale_ref_lock_walk::pid_file_beside;
-use std::os::unix::fs::MetadataExt;
+pub use super::stale_ref_lock_identity::{Identity, identity_of};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -29,6 +29,16 @@ const INITIAL_PID_NAMESPACE: &str = "pid:[4026531836]";
 /// The file system types a lock may sit on: disks and memory of this machine. A network or user-space file system can be
 ///  written by a Git on another machine, whose process numbers mean nothing here.
 const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
+
+/// How much older than the boot a lock must be for the boot proof. `btime` of `/proc/stat` is the wall clock minus the
+///  uptime, so it moves when the clock is stepped after boot (a hardware clock that is hours off until the network time
+///  arrives); a lock a live Git made in the first seconds could then look older than the boot. A real lock from before a
+///  reboot is old by more than this; a step larger than this, across the life of a live lock, is the one case left.
+pub const BOOT_SLACK: Duration = Duration::from_secs(3600);
+
+/// How far after the lock's birth a process must have started to count as a later user of the same number, beyond the
+///  clock's resolution.
+const REUSE_SLACK_MS: f64 = 100.0;
 
 /// The command name of Git, and of its helpers (`git-remote-https`), as the kernel reports it.
 const GIT_COMMAND_PREFIX: &str = "git";
@@ -47,6 +57,8 @@ pub enum Proof {
     },
     /// The lock was born before the current boot of the machine.
     BeforeBoot,
+    /// The staging file `packed-refs.new` has no lock beside it, and Git creates it only while holding that lock.
+    OrphanStaging,
 }
 
 /// What a judgement concluded.
@@ -75,33 +87,6 @@ pub struct Judge {
     pub boot: Option<SystemTime>,
     /// The file system types a lock may sit on.
     pub local_file_systems: Vec<String>,
-}
-
-/// A lock's identity at the moment it was judged: the removal checks that it is still this file.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Identity {
-    /// Device number.
-    pub device: u64,
-    /// Inode number; a freed inode may be reused at once, so it is never compared alone.
-    pub inode: u64,
-    /// Size in bytes.
-    pub size: u64,
-    /// Birth time in nanoseconds since the epoch, where the file system keeps it.
-    pub born_ns: Option<u128>,
-    /// Modification time in nanoseconds since the epoch.
-    pub modified_ns: i128,
-}
-
-/// The identity of the file at `path`, without following a link.
-pub fn identity_of(path: &Path) -> Option<Identity> {
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
-    let born_ns: Option<u128> = metadata
-        .created()
-        .ok()
-        .and_then(|born| { return born.duration_since(SystemTime::UNIX_EPOCH).ok(); })
-        .map(|elapsed| { return elapsed.as_nanos(); });
-    let modified_ns: i128 = i128::from(metadata.mtime()) * 1_000_000_000 + i128::from(metadata.mtime_nsec());
-    return Some(Identity { device: metadata.dev(), inode: metadata.ino(), size: metadata.len(), born_ns, modified_ns });
 }
 
 /// Everything one judgement found out.
@@ -157,7 +142,7 @@ impl Judge {
     }
 
     /// What the pid file's process is now: gone, a program that is not Git, a Git, or not known.
-    fn judge_pid(&self, pid: i64) -> Verdict {
+    fn judge_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
         if !self.pid_view_complete {
             return Verdict::Unproven(format!(
                 "the pid file beside it names process {pid}, but this process runs in a PID namespace of its own and cannot see every process of the machine, so it cannot tell whether {pid} is gone"
@@ -166,9 +151,13 @@ impl Judge {
         return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
             ProcessStart::Missing => Verdict::Stale(Proof::PidGone(pid)),
             ProcessStart::Unknown(reason) => Verdict::Unproven(format!("the pid file beside it names process {pid}, which could not be looked at: {reason}")),
-            ProcessStart::Running { .. } => {
+            ProcessStart::Running { started_at_ms, resolution_ms } => {
                 let command: String = std::fs::read_to_string(self.proc_root.join(pid.to_string()).join("comm")).map(|text| { return text.trim().to_owned(); }).unwrap_or_default();
-                if command.starts_with(GIT_COMMAND_PREFIX) {
+                // The number was reused only if the program is not Git AND it started after the lock was made; when the two
+                //  disagree (a Git under another name, a clock that moved) the process is taken for the holder.
+                let born_ms: Option<f64> = lock_born.and_then(|at| { return at.duration_since(SystemTime::UNIX_EPOCH).ok(); }).map(|elapsed| { return elapsed.as_secs_f64() * 1000.0; });
+                let started_after: bool = born_ms.is_some_and(|born| { return started_at_ms > born + resolution_ms as f64 + REUSE_SLACK_MS; });
+                if command.starts_with(GIT_COMMAND_PREFIX) || !started_after {
                     Verdict::Held(format!("process {pid} ({command}), which the pid file beside it names, is running"))
                 } else {
                     Verdict::Stale(Proof::PidReused { pid, command })
@@ -183,7 +172,7 @@ impl Judge {
             return false;
         };
         let modified: SystemTime = nanoseconds_to_time(identity.modified_ns);
-        let slack: Duration = self.margin.max(super::stopped_git_locks::COARSE_CLOCK_SLACK);
+        let slack: Duration = BOOT_SLACK.max(self.margin);
         return born.is_some_and(|at| { return at + slack < boot; }) && modified + slack < boot;
     }
 
@@ -201,6 +190,29 @@ impl Judge {
             }
         }
         return None;
+    }
+
+    /// Judge the staging file `packed-refs.new` at `staging`, which has no lock beside it: old enough, on a local disk, and
+    ///  open in no process. The caller has checked that the lock is absent.
+    pub fn examine_staging(&self, staging: &Path) -> Option<Examined> {
+        let identity: Identity = identity_of(staging)?;
+        let born: Option<SystemTime> = std::fs::symlink_metadata(staging).ok()?.created().ok();
+        let finish = |verdict: Verdict| { return Some(Examined { verdict, pid_file: PidFile::Absent, identity, born }); };
+        let newest: SystemTime = born.map_or(nanoseconds_to_time(identity.modified_ns), |at| { return at.max(nanoseconds_to_time(identity.modified_ns)); });
+        if SystemTime::now().duration_since(newest).unwrap_or_default() < self.margin {
+            return finish(Verdict::TooNew);
+        }
+        if let Err(reason) = self.local_check(staging) {
+            return finish(Verdict::Unproven(reason));
+        }
+        let scan: UseScan = processes_using_through(self.proc_root.as_path(), &UseTarget::File { device: identity.device, inode: identity.inode }, std::process::id());
+        if let Some(reason) = scan.unavailable.as_ref() {
+            return finish(Verdict::Unproven(format!("the process table could not be listed: {reason}")));
+        }
+        if let Some(user) = scan.users.first() {
+            return finish(Verdict::Held(format!("process {} ({}) has the file open", user.pid, user.command.clone().unwrap_or_default())));
+        }
+        return finish(Verdict::Stale(Proof::OrphanStaging));
     }
 
     /// Judge the lock at `lock`; nothing when it is not a regular file any more.
@@ -231,7 +243,7 @@ impl Judge {
             return finish(Verdict::Unproven(format!("a Git process of this account could not be looked into ({reason}), so it may hold the lock")));
         }
         if let PidFile::Names(pid) = pid_file {
-            return finish(self.judge_pid(pid));
+            return finish(self.judge_pid(pid, born));
         }
         if self.before_boot(born, &identity) {
             return finish(Verdict::Stale(Proof::BeforeBoot));

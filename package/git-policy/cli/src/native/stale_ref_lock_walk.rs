@@ -24,8 +24,10 @@ const PACKED_LOCK: &str = "packed-refs.lock";
 pub struct Candidate {
     /// The Git directory (or common Git directory) whose walk found it.
     pub root: PathBuf,
-    /// The lock file.
+    /// The lock file, or for an orphan staging file the staging file itself.
     pub lock: PathBuf,
+    /// Whether this is `packed-refs.new` found with no `packed-refs.lock` beside it.
+    pub orphan_staging: bool,
 }
 
 /// Whether a directory entry is a regular file whose name makes it a reference lock.
@@ -48,8 +50,14 @@ pub fn ref_lock_candidates(roots: &[PathBuf]) -> Vec<Candidate> {
         for name in [PACKED_LOCK, "HEAD.lock"] {
             let path: PathBuf = root.join(name);
             if std::fs::symlink_metadata(path.as_path()).is_ok_and(|metadata| { return metadata.is_file(); }) {
-                found.push(Candidate { root: root.clone(), lock: path });
+                found.push(Candidate { root: root.clone(), lock: path, orphan_staging: false });
             }
+        }
+        let staging: PathBuf = root.join(PACKED_STAGING);
+        if std::fs::symlink_metadata(staging.as_path()).is_ok_and(|metadata| { return metadata.is_file(); })
+            && std::fs::symlink_metadata(root.join(PACKED_LOCK)).is_err_and(|error| { return error.kind() == std::io::ErrorKind::NotFound; })
+        {
+            found.push(Candidate { root: root.clone(), lock: staging, orphan_staging: true });
         }
         let mut pending: Vec<PathBuf> = vec![root.join("refs")];
         while let Some(directory) = pending.pop() {
@@ -63,7 +71,7 @@ pub fn ref_lock_candidates(roots: &[PathBuf]) -> Vec<Candidate> {
                 if kind.is_dir() {
                     pending.push(entry.path());
                 } else if is_reference_lock(entry.path().as_path(), kind.is_file()) {
-                    found.push(Candidate { root: root.clone(), lock: entry.path() });
+                    found.push(Candidate { root: root.clone(), lock: entry.path(), orphan_staging: false });
                 }
             }
         }

@@ -895,6 +895,9 @@ pub mod stale_ref_lock_found;
 /// Which files below a Git directory are reference locks.
 pub mod stale_ref_lock_walk;
 
+/// A file's identity at the moment it was judged, so the removal can tell it from a new file at the same path.
+pub mod stale_ref_lock_identity;
+
 /// How one reference lock is judged.
 pub mod stale_ref_lock_judge;
 

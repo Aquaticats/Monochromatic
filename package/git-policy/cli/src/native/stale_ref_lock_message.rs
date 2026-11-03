@@ -83,6 +83,7 @@ fn proof_text(proof: &Proof) -> String {
     return match proof {
         Proof::PidGone(pid) => format!("process {pid}, named by the pid file beside it, has ended"),
         Proof::PidReused { pid, command } => format!("process {pid}, named by the pid file beside it, has ended and the number now belongs to `{command}`"),
+        Proof::OrphanStaging => String::from("Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone"),
         Proof::BeforeBoot => String::from("it was made before this boot of the machine, so no process that exists now can hold it"),
     };
 }
@@ -105,7 +106,8 @@ impl Outcome {
         let mut lines: Vec<String> = Vec::new();
         for found in &self.cleared {
             if let Verdict::Stale(proof) = &found.verdict {
-                lines.push(format!("{LINE_PREFIX}removed the reference lock {}, left by a Git that is gone: {}.", shell_quote(found.lock.as_path()), proof_text(proof)));
+                let what: &str = if matches!(proof, Proof::OrphanStaging) { "the packed-references staging file" } else { "the reference lock" };
+                lines.push(format!("{LINE_PREFIX}removed {what} {}, left by a Git that is gone: {}.", shell_quote(found.lock.as_path()), proof_text(proof)));
             }
         }
         let mut hint: bool = false;

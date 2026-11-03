@@ -77,7 +77,8 @@ pub fn remove_if_unchanged(root: &Path, lock: &Path, judged: &Identity, outcome:
 /// function judgeAndClear(candidate: Candidate, judge: Judge, outcome: Outcome): void;
 /// ```
 pub fn judge_and_clear(candidate: &Candidate, judge: &Judge, outcome: &mut Outcome) {
-    let Some(examined) = judge.examine(candidate.lock.as_path()) else {
+    let examined: Option<Examined> = if candidate.orphan_staging { judge.examine_staging(candidate.lock.as_path()) } else { judge.examine(candidate.lock.as_path()) };
+    let Some(examined) = examined else {
         return;
     };
     let Examined { verdict, pid_file, identity, born } = examined;
@@ -87,11 +88,14 @@ pub fn judge_and_clear(candidate: &Candidate, judge: &Judge, outcome: &mut Outco
         size: identity.size,
         born,
         pid_file,
-        companions: companions_of(candidate.lock.as_path()),
+        companions: if candidate.orphan_staging { Vec::new() } else { companions_of(candidate.lock.as_path()) },
     };
     match verdict {
         Verdict::TooNew => {}
         Verdict::Held(_) | Verdict::Unproven(_) => outcome.left.push(found),
+        // The staging file exists only while its lock does, so the lock is looked for again, after the file was judged: a
+        //  lock that is back means a Git holds both, and the file is left.
+        Verdict::Stale(_) if candidate.orphan_staging && candidate.lock.with_file_name("packed-refs.lock").symlink_metadata().is_ok() => {}
         Verdict::Stale(_) => match remove_if_unchanged(candidate.root.as_path(), candidate.lock.as_path(), &identity, outcome) {
             Ok(true) => {
                 for companion in &found.companions {

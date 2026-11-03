@@ -1548,14 +1548,18 @@ A candidate is judged without starting Git, from the file system and `/proc`, in
 4. A pid file born at or after the lock (Git creates it after the lock, so this is the order of a pid file the holder wrote),
    naming a process, decides:
    - a process that is gone, or a zombie, proves the lock stale;
-   - a process that runs and whose command name does not start with `git` proves the number was reused after the holder
-     ended, and the lock stale;
-   - a process that runs and is a Git command is taken for the holder: the lock is **held**, and the wrapper names it.
+   - a process that runs, whose command name does not start with `git` **and** that started after the lock was made (its start
+     time from `/proc/<pid>/stat` and `/proc/uptime`, by more than the clock's resolution), proves the number was reused after
+     the holder ended, and the lock stale;
+   - any other running process is taken for the holder, and the lock is **held**: a Git, or a program under another name that
+     started before the lock (a copied Git binary, a launcher), so the two signs must agree to delete.
    This proof exists only when the wrapper itself runs in the initial PID namespace (the link `/proc/self/ns/pid` names
    `pid:[4026531836]`), where an absent number is absent from the whole kernel.
    Anywhere else (a container) the number may belong to a namespace this process cannot see, and the lock is unproven.
 5. A lock born before the current boot of the kernel (its birth time and modification time both earlier than `btime` of
-   `/proc/stat`, less the margin), with no usable pid file, is stale: no process of this boot can have created it.
+   `/proc/stat` by more than one hour), with no usable pid file, is stale: no process of this boot can have created it.
+   `btime` is the wall clock minus the uptime, so a step of the clock after boot moves it; the hour keeps the usual step
+   of a hardware clock a few minutes off from making a lock of the first seconds of this boot look older than it.
 6. Anything else is unproven: the lock is left, and the wrapper says what it found.
 
 The removal itself takes no lock of the wrapper's own (`Use as few locks as possible.`).
@@ -1567,6 +1571,10 @@ lock (`refs/packed-backend.c:1398`), are removed after the lock has been set asi
 A killed Git leaves the staging file too, and a later packed-references update fails on it ("unable to create file
 packed-refs.new: File exists") exactly as on the lock, so a lock is cleared together with it, and the command given for a lock
 that is not cleared names it.
+A staging file with no lock beside it (the lock was removed by hand, or by an older release) is an orphan: Git makes it only
+while it holds the lock and renames it away before it releases the lock, so a file older than the margin that is still the same
+file after the lock was looked for and found absent has no live maker, and it is removed by the same set-aside step
+(`Proof::OrphanStaging`).
 
 #### Races, and how each is handled
 
@@ -1589,9 +1597,11 @@ that is not cleared names it.
   the only protection, and the SPEC records it as accepted.
 - A Git on NFS or another network or user-space file system (including a virtual machine's shared directory): the file
   system must be on the fixed local list.
-- A clock that steps: the margin and the boot proof read file times against the current clock.
-  A step forward after boot could make a lock of the first seconds of this boot look older than the boot, so the boot proof is
-  used only when no pid file exists, and a lock a live Git holds for longer than a clock step is not a case it can meet.
+- A clock that steps: the margin, the boot proof and the start time of a process read file times against the current clock.
+  A forward step after boot moves `btime` forward, so a lock a live Git made in the first seconds could look older than the
+  boot; the proof therefore needs a lock older than the boot by more than an hour, is used only when no pid file exists, and is
+  defeated only by a step larger than that across the whole life of a live lock, which Git holds for moments.
+  For a reused number a step can only make a process look newer, and the second sign (not a Git) must still agree.
 - Two wrappers removing the same stale lock: handled by setting aside with a rename and checking identity (above).
 - A removal that is raced by a new lock at the same path: the file that was set aside is checked, and put back if it is not
   the judged one; if the path has been taken again by then, it is left set aside under its private name and the wrapper
@@ -1610,15 +1620,15 @@ that is not cleared names it.
   The repository is the one the wrapper's `-C` options and `GIT_DIR` name.
   A push that the wrapper runs as a child (stacked or with an LFS upload) goes through the first item.
 - The cost on a command with no lock is one walk of `refs/` of the Git directory and the common Git directory plus two file
-  lookups: measured on 2026-11-03 at a median 1.9 ms (25 runs, 1.85 to 2.15 ms) for 5000 loose references in 50 directories,
+  lookups: measured while this entry was written at a median 1.9 ms (25 runs, 1.85 to 2.15 ms) for 5000 loose references in 50 directories,
   and no change with an unproven lock younger than the margin.
   A lock old enough to be judged adds one scan of the descriptors of every process: median 53 ms (25 runs, 47 to 63 ms) with
   1182 processes on the host, paid only when a lock exists.
   No Git is started.
 - Not covered: `git pull`, `git merge` and every other command (they belong to the merge and index-writer paths); a command that
   names its repository with `--git-dir` or any global option other than `-C`; the wrapper's own `update-ref` and other ref writes
-  of a commit; locks younger than the margin, which a command meets once as Git's own refusal (the repetition of a push clears
-  them when they have aged); and the notice of a push that Git delivers and exits 0 for after being refused the tracking
+  of a commit; locks younger than the margin, which a command meets as Git's own refusal (the next push clears them once they have
+  aged); and the notice of a push that Git delivers and exits 0 for after being refused the tracking
   reference (`cannot lock ref` in output with exit 0): the service's report shows only `remote:` lines for a push that exits 0,
   so that notice reaches the service's log and is not shown, the retry loop of `auto_push.rs` being left as it is.
 
@@ -1650,7 +1660,7 @@ In a process that is not in the initial PID namespace the reason of a lock with 
 N, but this process runs in a PID namespace of its own and cannot see every process of the machine, so it cannot tell whether N is
 gone", and the lock is left with the same `rm` line.
 
-#### Measured on 2026-11-03
+#### Measured while this entry was written (see the commit time of the entry)
 
 With real Git 2.56.0 (`git update-ref --stdin` told `start`, three `delete`/`update` lines, `prepare`, then held, and `git fetch
 --prune` held by a `reference-transaction` hook at `prepared`):

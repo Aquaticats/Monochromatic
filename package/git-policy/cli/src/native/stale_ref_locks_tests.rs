@@ -12,6 +12,7 @@
 #![cfg(unix)]
 
 use super::*;
+use crate::stale_ref_lock_judge::BOOT_SLACK;
 use crate::stale_ref_lock_killed_git as killed;
 use crate::stale_ref_lock_killed_git::{Held, Helper, Stage, GONE_REF};
 use crate::test_support::{git_output, remove};
@@ -189,15 +190,34 @@ fn a_pid_file_born_before_the_lock_is_not_evidence() {
     stage.finish();
 }
 
-/// A number that a program other than Git now has is not the holder, which ended.
+/// A number that a program other than Git now has, having started after the lock was made, is not the holder, which ended.
 #[test]
 fn a_process_number_now_held_by_another_program_proves_the_holder_gone() {
     let stage: Stage = killed::stage("stale-refs-reused", true);
+    killed::write_file(stage.lock_of(PLANTED_REF).as_path(), "");
+    std::thread::sleep(Duration::from_millis(400));
     let other: Helper = sleeper();
-    plant_lock(&stage, PLANTED_REF, Some(other.pid()));
+    std::thread::sleep(Duration::from_millis(50));
+    killed::write_file(stage.pid_file_of(PLANTED_REF).as_path(), &format!("pid {}\n", other.pid()));
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert_eq!(outcome.cleared.len(), 1, "{outcome:?}");
     assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::PidReused { .. }))), "{outcome:?}");
+    drop(other);
+    stage.finish();
+}
+
+/// A running program that is not named Git but started before the lock was made may be a Git under another name: it is
+/// taken for the holder.
+#[test]
+fn a_process_that_started_before_the_lock_is_the_holder_whatever_its_name() {
+    let stage: Stage = killed::stage("stale-refs-renamed-git", true);
+    let other: Helper = sleeper();
+    std::thread::sleep(Duration::from_millis(400));
+    plant_lock(&stage, PLANTED_REF, Some(other.pid()));
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Held(_))), "{outcome:?}");
+    assert!(stage.lock_of(PLANTED_REF).exists());
     drop(other);
     stage.finish();
 }
@@ -221,7 +241,7 @@ fn a_running_git_named_by_the_pid_file_is_the_holder() {
 fn a_lock_older_than_the_boot_goes_when_no_pid_file_names_a_holder() {
     let stage: Stage = killed::stage("stale-refs-boot", false);
     plant_lock(&stage, PLANTED_REF, None);
-    let after: Judge = Judge { boot: Some(SystemTime::now() + Duration::from_secs(3600)), ..judge() };
+    let after: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
     let before: Judge = Judge { boot: Some(SystemTime::now() - Duration::from_secs(3600)), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &before);
     assert!(!outcome.cleared_any(), "a lock younger than the boot stays: {outcome:?}");
@@ -237,7 +257,7 @@ fn the_boot_proof_does_not_override_a_pid_file_that_names_a_running_git() {
     let stage: Stage = killed::stage("stale-refs-boot-vs-pid", true);
     let idle: Held = killed::idle_git(&stage);
     plant_lock(&stage, PLANTED_REF, Some(i64::from(idle.pid())));
-    let after: Judge = Judge { boot: Some(SystemTime::now() + Duration::from_secs(3600)), ..judge() };
+    let after: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     drop(idle);
@@ -261,7 +281,7 @@ fn a_view_of_processes_that_may_be_partial_proves_nothing() {
 fn a_file_system_off_the_local_list_proves_nothing() {
     let stage: Stage = killed::stage("stale-refs-remote-fs", true);
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
-    let nowhere: Judge = Judge { local_file_systems: Vec::new(), boot: Some(SystemTime::now() + Duration::from_secs(3600)), ..judge() };
+    let nowhere: Judge = Judge { local_file_systems: Vec::new(), boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &nowhere);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
@@ -294,7 +314,7 @@ fn locks_of_other_protocols_are_never_candidates() {
     for path in &others {
         killed::write_file(path.as_path(), "");
     }
-    let after: Judge = Judge { boot: Some(SystemTime::now() + Duration::from_secs(3600)), ..judge() };
+    let after: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     assert!(!outcome.cleared_any() && outcome.left.is_empty(), "{outcome:?}");
     for path in &others {
@@ -328,7 +348,7 @@ fn symbolic_links_are_neither_followed_nor_removed() {
     let heads: PathBuf = stage.git_dir.join("refs").join("heads");
     std::os::unix::fs::symlink(outside.as_path(), heads.join("linked-directory")).expect("link a directory");
     std::os::unix::fs::symlink(outside.join("target.lock"), heads.join("linked.lock")).expect("link a lock");
-    let after: Judge = Judge { boot: Some(SystemTime::now() + Duration::from_secs(3600)), ..judge() };
+    let after: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(outside.join("x.lock").exists() && outside.join("target.lock").exists());
@@ -402,7 +422,7 @@ fn an_unreadable_process_that_is_not_git_does_not_stop_a_proof() {
     let stage: Stage = killed::stage("stale-refs-unreadable-service", false);
     plant_lock(&stage, PLANTED_REF, None);
     let table: PathBuf = table_with_unreadable(&stage, "systemd");
-    let after: Judge = Judge { proc_root: table.clone(), boot: Some(SystemTime::now() + Duration::from_secs(3600)), ..judge() };
+    let after: Judge = Judge { proc_root: table.clone(), boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     reveal(table.as_path());
     assert_eq!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::BeforeBoot)), "{outcome:?}");
@@ -415,11 +435,54 @@ fn an_unreadable_git_process_stops_a_proof() {
     let stage: Stage = killed::stage("stale-refs-unreadable-git", false);
     plant_lock(&stage, PLANTED_REF, None);
     let table: PathBuf = table_with_unreadable(&stage, "git");
-    let after: Judge = Judge { proc_root: table.clone(), boot: Some(SystemTime::now() + Duration::from_secs(3600)), ..judge() };
+    let after: Judge = Judge { proc_root: table.clone(), boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     reveal(table.as_path());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
+    stage.finish();
+}
+
+/// The staging file of a killed packed-references update stays when its lock was removed by hand; it goes, and the next
+/// packed-references update works.
+#[test]
+fn a_staging_file_with_no_lock_beside_it_is_cleared() {
+    let stage: Stage = killed::stage("stale-refs-orphan-staging", true);
+    let mut held: Held = killed::hold_fetch(&stage);
+    held.kill();
+    std::fs::remove_file(stage.packed_lock()).expect("the lock is removed by hand");
+    std::fs::remove_file(stage.git_dir.join("packed-refs~pid.lock")).expect("its pid file too");
+    assert!(stage.packed_staging().exists());
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert!(!stage.packed_staging().exists(), "{outcome:?}");
+    assert_eq!(verdict_of(&outcome, stage.packed_staging().as_path()), Some(Verdict::Stale(Proof::OrphanStaging)), "{outcome:?}");
+    assert_eq!(leftovers(&stage), Vec::<PathBuf>::new());
+    fetch_works(&stage);
+    stage.finish();
+}
+
+/// While the lock is there, the staging file is part of a live or killed update that the lock's own judgement decides.
+#[test]
+fn a_staging_file_with_its_lock_beside_it_is_left_to_the_lock() {
+    let stage: Stage = killed::stage("stale-refs-live-staging", true);
+    let held: Held = killed::hold_transaction(&stage, &["delete refs/remotes/origin/gone"]);
+    assert!(stage.packed_staging().exists(), "the update holds its staging file");
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(stage.packed_staging().exists());
+    drop(held);
+    stage.finish();
+}
+
+/// A staging file younger than the margin may be a live update's whose lock a hand removed a moment ago: it stays.
+#[test]
+fn a_staging_file_inside_the_margin_stays() {
+    let stage: Stage = killed::stage("stale-refs-young-staging", true);
+    killed::write_file(stage.packed_staging().as_path(), "# pack-refs with:\n");
+    let strict: Judge = Judge { margin: Duration::from_secs(3600), ..judge() };
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &strict);
+    assert!(!outcome.cleared_any() && outcome.left.is_empty(), "{outcome:?}");
+    assert!(stage.packed_staging().exists());
     stage.finish();
 }

@@ -45,14 +45,15 @@ pub fn run_clearing_locks(
 ) -> Result<PushAttempt, SingleFlightError> {
     let outcome = clear_stale_ref_locks(roots_of_command(&command).as_slice(), judge);
     let notice: String = outcome.notice();
-    if !notice.is_empty() {
-        warn(TAG, notice.trim_end());
-    }
     let mut attempt: PushAttempt = run_bounded_push_once(command, patience, grace, environment)?;
     // A push that delivered but could not update its tracking reference prints the refusal and exits 0, so the refusal is
     //  looked for as well as the exit status (the service repeats such a push on the same words).
-    if (attempt.exit_code != 0 || attempt.output.contains(REFERENCE_LOCK_REFUSAL)) && !notice.is_empty() {
+    let failed: bool = attempt.exit_code != 0 || attempt.output.contains(REFERENCE_LOCK_REFUSAL);
+    if failed && !notice.is_empty() {
+        // The service shows this output, so the notice is not logged a second time.
         attempt.output = if attempt.output.is_empty() { notice.trim_end().to_owned() } else { format!("{}\n{}", attempt.output, notice.trim_end()) };
+    } else if !notice.is_empty() {
+        warn(TAG, notice.trim_end());
     }
     return Ok(attempt);
 }
