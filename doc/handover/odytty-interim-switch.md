@@ -22,11 +22,17 @@ No new ranking or complete technology audit is claimed.
   and application ID through `terminal-exec` in a disposable environment.
 - [ ] Replace the VM image's Ghostty installation and dotfile seed with OdyTTY and explicit terminal defaults.
   Validate the release package and image integration without replacing an existing VM.
-- [ ] Check current agent input compatibility,
+- [x] Check current agent input compatibility,
   especially the historical Claude Code Shift+Enter limitation.
 - [ ] Commit scoped changes and record verification results and remaining limits.
 
 ## Completed verification
+
+Claude Code `2.1.317` passed the live OdyTTY input check without patching:
+Shift+Enter inserted a newline,
+Ctrl+C cleared input,
+and Enter submitted.
+The [keyboard verification](../troubleshooting/claude-code-odytty-keyboard.md) records isolation and limits.
 
 `probe-launch.ts launcher-verified` in the private migration scratch directory passed through the built `terminal-exec`.
 The isolated OdyTTY window received the requested title,
