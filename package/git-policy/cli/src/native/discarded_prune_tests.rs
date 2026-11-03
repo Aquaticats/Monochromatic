@@ -12,7 +12,7 @@
 //! ```
 
 use super::{
-    DEFAULT_MAX_AGE_DAYS, DEFAULT_MAX_BYTES, Identity, Limits, Reason, Stamped, YOUNG_FLOOR_MILLISECONDS, directory_name_of, doctor_section,
+    DEFAULT_MAX_AGE_DAYS, DEFAULT_MAX_BYTES, Identity, Limits, Reason, STAMP_RESOLUTION_MILLISECONDS, Stamped, YOUNG_FLOOR_MILLISECONDS, directory_name_of, doctor_section,
     list_stamped, parse_size, parse_stamp, plan, prune, prune_line, report,
 };
 use crate::command_test_support::{fixture, remove};
@@ -99,8 +99,9 @@ fn a_burst_of_young_copies_is_never_cut_by_size() {
     let burst: Vec<Stamped> = (0..20).map(|number| { return listed(number * 60_000, 1 << 30); }).collect();
     assert!(plan(burst.as_slice(), NOW, limits(1), None).is_empty());
     let almost: Stamped = listed(YOUNG_FLOOR_MILLISECONDS - 1, 1 << 30);
-    let exactly: Stamped = listed(YOUNG_FLOOR_MILLISECONDS, 1 << 30);
-    assert!(plan(&[almost], NOW, limits(1), None).is_empty(), "a second short of a day stays");
+    // A name says only the second of the save, so a day is counted from the end of that second.
+    let exactly: Stamped = listed(YOUNG_FLOOR_MILLISECONDS + STAMP_RESOLUTION_MILLISECONDS, 1 << 30);
+    assert!(plan(&[almost], NOW, limits(1), None).is_empty(), "a millisecond short of a day stays");
     assert_eq!(plan(&[exactly], NOW, limits(1), None), vec![(0, Reason::Size)], "a day old is within reach of the size cut");
 }
 
