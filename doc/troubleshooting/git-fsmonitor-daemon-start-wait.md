@@ -49,7 +49,7 @@ the harness in "Verification" reproduces the mechanism on a disposable tree.
 Why the previous main daemon went away between 09:15 and 09:18 is unknown.
 Finding it needs `GIT_TRACE_FSMONITOR` on a running daemon,
 which was not run.
-Everything below explains why a missing daemon is expensive,
+The sections from "Root cause" on explain why a missing daemon is expensive,
 not why it went missing.
 
 ## Root cause
@@ -207,13 +207,13 @@ wait:
 	}
 ```
 
-So the waiting client spins on `waitpid` plus `lstat` for the whole wait.
+So the `start` child, which the client waits for, spins on `waitpid` plus `lstat` for the whole wait.
 The measurements in "Verification" agree:
-user plus system CPU of the waiting command is about equal to its wall time
+user plus system CPU of the whole command (the client and its waited-for `start`) is about equal to its wall time
 (1.85 s of CPU in 1.88 s of wall on the 100,000-directory tree).
 That is a measurement of the client command,
 which the detached daemon's own CPU does not enter,
-so the spin is an inference from the loop above plus the CPU equality,
+so the spin is an inference from the `start_bg_command` loop plus the CPU equality,
 not a direct count of `lstat` calls.
 
 ### The socket does not exist until every directory has a watch
@@ -317,7 +317,7 @@ Even after the socket exists the server does not serve until the listener loop s
 The cost is one watch per directory,
 with no exclusion of nested worktrees,
 `node_modules` or build output,
-and the registration time grows with the number of directories (measured below).
+and the registration time grows with the number of directories (measured in "Verification").
 
 ### Why an early trivial answer would be correct
 
@@ -888,7 +888,7 @@ a repository far larger than this one pays more.
 [`git-fsmonitor-daemon-start-wait.patch`](git-fsmonitor-daemon-start-wait.patch) applies cleanly to `v2.56.0`
 (`git apply --check` on a copy of the three files).
 It removes the client's wait and the duplicate daemons,
-as measured above.
+as measured in "Verification".
 Tradeoffs:
 it is an unreviewed local patch to Git,
 so the host would carry a custom Git build;
@@ -907,7 +907,7 @@ because the patch only changes when the daemon answers.
   that is many daemons of millions of watches each.
 - A client-only change.
   `spawn_daemon` could pass `--start-timeout=0` to `start`,
-  but the measurement above is exactly that behavior:
+  but the `fsmonitor.startTimeout=0` measurement in "Verification" is exactly that behavior:
   the wait goes away and the daemons multiply,
   so the fix needs the daemon side (answer before registering,
   and refuse a second registration early).
@@ -1140,7 +1140,7 @@ but that is a different artifact from this prototype.
 Soft yes,
 by absence of a signal against it.
 No documented won't-fix or stated non-goal was found,
-and no maintainer has declined a comparable request in the searches above.
+and no maintainer has declined a comparable request in the searches under "Duplicate search".
 The code owners are active in this code (commits on 2026-04-15 and 2026-07-05,
 a macOS fsmonitor patch under review in July and August 2026).
 
@@ -1219,13 +1219,13 @@ Recorded 2026-11-03T10:19:01-05:00.
     its approval step for new contributors was not read.
     Not run.
 5.  Duplicate search,
-    work-in-progress check and trust-system search were run today (queries above);
+    work-in-progress check and trust-system search were run today (queries under "Duplicate search");
     the cited code exists on `master` at `ebdc087dc9`.
 6.  Reproduction as written:
     the harness in this document was run as written,
     on both binaries,
     today.
-    The draft below uses that harness.
+    The draft in "Upstream filing artifact" uses that harness.
 7.  Runnable by others:
     not run.
     A private reproduction repository with continuous integration would be a GitHub mutation outside this repository,
@@ -1249,7 +1249,7 @@ Recorded 2026-11-03T10:19:01-05:00.
 Do not file as-is.
 Constraint 4 is a soft fail for an agent-authored patch,
 and the readiness check has no recommendation.
-The draft below is kept as an auditable record for a mailing-list post that a human would rewrite and own.
+The draft in this section is kept as an auditable record for a mailing-list post that a human would rewrite and own.
 Recipients to check with `contrib/contacts/git-contacts` (not run):
 `git@vger.kernel.org`,
 and the authors of recent commits on these files (Paul Tarjan,
