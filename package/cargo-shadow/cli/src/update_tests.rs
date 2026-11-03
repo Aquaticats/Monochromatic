@@ -688,3 +688,120 @@ fn a_crate_that_is_not_exempt_is_still_held_to_the_cutoff_after_the_unconstraine
     assert_eq!(report.problems.len(), 1, "{:?}", report.problems);
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }
+
+const OLD_REQUIREMENT_MANIFEST: &str = "[package]\nname = \"u\"\nversion = \"0.1.0\"\n\n[dependencies]\ndep = \">=0.9.0\"\n";
+const NEW_REQUIREMENT_MANIFEST: &str = "[package]\nname = \"u\"\nversion = \"0.1.0\"\n\n[dependencies]\ndep = \">=1.0.1\"\n";
+
+/// A cargo whose `update --breaking` edits the manifest's requirement and locks `dep@1.0.1`, and whose `metadata` lists the
+/// manifest, the way cargo's own breaking update rewrites `Cargo.toml`.
+fn cargo_that_edits_the_manifest(directory: PathBuf) -> impl Fn(&Path, &[String]) -> Result<CargoOutcome, String> {
+    return move |_cwd: &Path, args: &[String]| -> Result<CargoOutcome, String> {
+        if args[0] == "metadata" {
+            let body: String = format!(
+                "{{\"workspace_root\":\"{}\",\"packages\":[{{\"source\":null,\"manifest_path\":\"{}\"}}]}}",
+                directory.display(),
+                directory.join("Cargo.toml").display()
+            );
+            return Ok(CargoOutcome { ok: true, output: body.clone(), stdout: body });
+        }
+        if args.iter().any(|argument| { return argument == "--precise"; }) {
+            return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
+        }
+        fs::write(directory.join("Cargo.toml"), NEW_REQUIREMENT_MANIFEST).map_err(|error| { return error.to_string(); })?;
+        fs::write(directory.join("Cargo.lock"), lock_with("1.0.1")).map_err(|error| { return error.to_string(); })?;
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    };
+}
+
+fn breaking_update(dry_run: bool) -> (World, Result<UpdateReport, UpdateError>) {
+    let world = world(&lock_with("0.9.0"), "");
+    let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
+    let cargo = cargo_that_edits_the_manifest(directory);
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &RecordingSyncer { calls: RefCell::new(0) },
+        prune_catalog: false,
+    };
+    let result = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args });
+    return (world, result);
+}
+
+fn manifest_of(world: &World) -> String {
+    return fs::read_to_string(world.root.path().join(CRATE_DIR).join("Cargo.toml")).expect("read the manifest");
+}
+
+/// Review finding (`--breaking` edits outside the transaction): cargo's breaking update rewrites the manifests. When the
+/// policy then refuses the release and nothing can be set aside, the manifests go back with the lockfiles.
+#[test]
+fn a_refused_breaking_update_puts_the_edited_manifests_back_with_the_lockfiles() {
+    let (world, result) = breaking_update_without_a_way_out();
+
+    let report = result.expect("reports");
+
+    assert!(!report.written);
+    assert_eq!(lock_of(&world), lock_with("0.9.0"));
+    assert_eq!(manifest_of(&world), OLD_REQUIREMENT_MANIFEST, "the manifest kept cargo's edit although the update was refused");
+}
+
+/// A dry run changes nothing either.
+#[test]
+fn a_dry_run_of_a_breaking_update_puts_the_edited_manifests_back() {
+    let (world, result) = breaking_update(true);
+
+    let report = result.expect("reports");
+
+    assert!(!report.written);
+    assert_eq!(manifest_of(&world), OLD_REQUIREMENT_MANIFEST);
+    assert_eq!(lock_of(&world), lock_with("0.9.0"));
+}
+
+/// A breaking update the policy accepts keeps cargo's manifest edit.
+#[test]
+fn an_accepted_breaking_update_keeps_the_manifest_edit() {
+    let (world, result) = breaking_update_that_passes();
+
+    let report = result.expect("reports");
+
+    assert!(report.written, "{:?}", report.problems);
+    assert_eq!(manifest_of(&world), NEW_REQUIREMENT_MANIFEST);
+}
+
+fn breaking_update_without_a_way_out() -> (World, Result<UpdateReport, UpdateError>) {
+    return breaking_update(false);
+}
+
+fn breaking_update_that_passes() -> (World, Result<UpdateReport, UpdateError>) {
+    let world = world(&lock_with("0.9.0"), "");
+    let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
+    let cargo = cargo_that_edits_the_manifest(directory);
+    let trusted: Vec<VersionRecord> = vec![trusted_publish("0.9.0", "2026-01-01T00:00:00Z"), trusted_publish("1.0.1", "2026-02-01T00:00:00Z")];
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), trusted)]) };
+    let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &RecordingSyncer { calls: RefCell::new(0) },
+        prune_catalog: false,
+    };
+    let result = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args });
+    return (world, result);
+}
