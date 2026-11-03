@@ -861,10 +861,30 @@ Recorded here only (no other home found):
 
 ### Git's own fsmonitor
 
-`package/git-policy/cli/README.md`,
-"Git's own fsmonitor" (the owner's four statements,
-2026-11-01 to 2026-11-03).
-Every git-policy brief quotes that section.
+Superseded 2026-11-03 by the owner:
+"If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully worked around,
+disable git's fsmonitor globally entirely and make doctor say so."
+The coordinator found that it is
+(Git 2.56.0's Linux daemon answers only after registering a watch for every directory,
+`compat/fsmonitor/fsm-listen-linux.c` lines 402-439 and 702;
+a client waits up to 60 s for it,
+`builtin/fsmonitor--daemon.c` line 40;
+main's daemon watched 2,269,377 directories because the linked worktrees live inside main,
+and cost 117.7 s of CPU and 734 MB to start;
+a running daemon saved about 7 ms per `git status` on main),
+and at 2026-11-03T09:38-05:00 set `core.fsmonitor = false` in `~/.gitconfig`
+(backup `~/temp/agent/gitconfig-backup/gitconfig.before-fsmonitor-off-2026-11-03T0938`;
+it was the only scope that set it)
+and stopped all 261 running daemons (253 with `git fsmonitor--daemon stop`,
+8 with SIGTERM,
+none left;
+`~/temp/agent/tools/fsmonitor-stop-all.ts`).
+Agents running:
+the doctor check and the README and SPEC update (branch `feat/git-policy-cli-doctor-says-fsmonitor-is-off`),
+and `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+The earlier statements stay in `package/git-policy/cli/README.md`,
+"Git's own fsmonitor",
+as history.
 
 ### Worktree add and package managers
 
