@@ -243,7 +243,9 @@ fn corpus_sides(world: &World, input: &str, path: &str) -> Captured {
 fn an_adjacent_edit_and_insertion_merge_by_word() {
     let world: World = corpus_world("replay-word", "md1b", "notes.md");
     let mine: Captured = corpus_sides(&world, "md1b", "notes.md");
-    let Merged::Tree(tree) = merge(&world, &mine) else { panic!("expected the word pass to merge the adjacent edits") };
+    let Merged::Combined { tree, files } = merge(&world, &mine) else { panic!("expected the word pass to merge the adjacent edits") };
+    assert_eq!(files.len(), 1, "the one merged file is reported");
+    assert_eq!(files[0].path, b"notes.md".to_vec());
     let blob: String = git_text(world.repo.as_path(), &["show", format!("{tree}:notes.md").as_str()]) + "\n";
     assert_eq!(blob.as_bytes(), corpus("md1b", "word.out").as_slice());
     remove(world.root.as_path());
@@ -266,14 +268,33 @@ fn the_union_attribute_of_the_landed_tip_applies_without_a_worktree_file() {
     git(world.repo.as_path(), &["add", "--all"]);
     git(world.repo.as_path(), &["commit", "--quiet", "--message=attributes"]);
     let attributed: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let world: World = World { base: attributed, ..world };
-    let mine: Captured = corpus_sides(&world, "md2", "doc/handover/log.md");
+    let attributed_world: World = World { base: attributed, ..world };
+    let mine: Captured = corpus_sides(&attributed_world, "md2", "doc/handover/log.md");
     // The checkout the merge runs from does not hold the attributes file (another branch, or a deletion not yet committed).
-    std::fs::remove_file(world.repo.join(".gitattributes")).expect("remove the attributes file");
-    git(world.repo.as_path(), &["rm", "--quiet", "--cached", ".gitattributes"]);
-    let Merged::Tree(tree) = merge(&world, &mine) else { panic!("expected the union driver of the landed tip to merge the appends") };
-    let blob: String = git_text(world.repo.as_path(), &["show", format!("{tree}:doc/handover/log.md").as_str()]);
+    std::fs::remove_file(attributed_world.repo.join(".gitattributes")).expect("remove the attributes file");
+    git(attributed_world.repo.as_path(), &["rm", "--quiet", "--cached", ".gitattributes"]);
+    let Merged::Tree(tree) = merge(&attributed_world, &mine) else { panic!("expected the union driver of the landed tip to merge the appends") };
+    let blob: String = git_text(attributed_world.repo.as_path(), &["show", format!("{tree}:doc/handover/log.md").as_str()]);
     assert!(blob.contains("Ours risk.") && blob.contains("Theirs question."), "{blob}");
-    remove(world.root.as_path());
+    remove(attributed_world.root.as_path());
+}
+
+/// The notice for a replayed commit lists every merged part and is absent when nothing was merged by word.
+#[test]
+fn the_notice_lists_each_merged_part_and_is_absent_without_one() {
+    use crate::merge_second_pass::{Conflict, Merged as MergedFile};
+    use crate::word_merge::{LineSpan, MergedPart};
+    assert_eq!(word_merge_notice(&[]), None);
+    let span = LineSpan { first: 2, count: 1 };
+    let file = MergedFile {
+        path: b"notes.md".to_vec(),
+        mode: 0o100_644,
+        bytes: Vec::new(),
+        parts: vec![MergedPart { base: span, ours: span, theirs: span, merged: b"joined\n".to_vec() }],
+        stages: Conflict { path: b"notes.md".to_vec(), base: None, ours: None, theirs: None },
+    };
+    let Some(PolicyEvent::WordMerged { lines }) = word_merge_notice(&[file]) else { panic!("expected the event") };
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].contains("word-level merge") && lines[0].contains("notes.md") && lines[0].contains("joined"), "{lines:?}");
 }
 //endregion

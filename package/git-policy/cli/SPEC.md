@@ -1131,12 +1131,18 @@ in-process reader can) gives every value of the multi-valued keys.
   and branches on the two ancestor questions.
   A remote tip that the branch contains means the rejection was not a divergence and is returned unchanged.
   A remote tip that contains the branch means the commit is delivered, and nothing is pushed.
-  Otherwise `git merge-tree --write-tree --no-messages --name-only` computes the merge from objects alone
-  and `git commit-tree` records it with the branch tip first and the remote tip second,
+  Otherwise `git merge-tree --write-tree --no-messages -z` computes the merge from objects alone
+  (with `GIT_ATTR_SOURCE` naming the branch tip, so its `.gitattributes` applies, see "Word-level second merge pass"),
+  the conflicted files go through that second pass,
+  and `git commit-tree` records the merge with the branch tip first and the remote tip second,
   signed (`-S`) when `commit.gpgsign` is true because `commit-tree` never reads that setting;
   a signer that fails publishes nothing.
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`, never forced.
-  A conflict (merge-tree exit `1`) publishes nothing and names the conflicting paths.
+  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
+  A merge whose conflicted files all resolved is published with the list of merged parts appended to the merge commit's message
+  (the lines `word-level merge: <path>: part <n> of <m>: ...`),
+  the same lines in the report after the push (each begins with `cli-git: auto-push: `),
+  and one journal entry per merged file after the push succeeded.
   A push that is refused as stale again repeats the fetch, the merge and the push,
   at most `MAX_RECONCILE_ATTEMPTS` (10) times in all,
   because sibling worktrees that keep pushing are contention and not a conflict.
@@ -1726,6 +1732,21 @@ An ordinary auto-push network or remote rejection is not an engine failure:
 cli-git surfaces complete push output,
 leaves the commit local,
 and preserves the successful commit command's exit code `0`.
+
+### Word merged event
+
+```ts
+export type WordMergedEvent = EventBase & {
+  readonly type: 'word-merged';
+  readonly outcome: 'word-merged';
+  readonly message: string;
+};
+```
+
+This event is emitted when a commit replayed over a branch that moved had files merged by word where Git's line merge
+reported a conflict.
+`message` holds one line per merged part, separated by newlines, each naming the file and the part.
+It does not block the commit and does not change the exit code.
 
 ### Stream and exit contract
 
@@ -2578,6 +2599,57 @@ each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.
 A cleanup that fails cannot be redone once the wrapper has removed its scratch directory.
 
+### Word-level second merge pass
+
+Git's line merge reports a conflict where two changes touch (one ends where the other begins):
+a line edited on one side and lines inserted right after it on the other.
+The owner decided on 2026-11-03 (`doc/planning/cli-git-merge-auto-resolution.md`) that the wrapper re-merges only the conflicted
+parts word by word, the way Jujutsu merges with `merge.hunk-level = "word"`, accepts a file only when every part resolves,
+and lists each merged part on standard error and in the journal; and that the wrapper's own unattended merges
+(the auto-push reconcile merge, the commit replay merge) and the isolated merge use the same pass.
+
+The merge is `src/native/word_merge.rs`: line hunks first, then every line hunk both sides changed is diffed by word
+and by the bytes between words (the `similar` crate, Myers algorithm, no other feature of it), and kept only when every part of
+the hunk resolves; a file is resolved only when every hunk resolves.
+The controls hold it to the stored results of Jujutsu 0.46.0 on a corpus of real and measured inputs
+(`src/native/word_merge_corpus/`): the same verdict on every input and the same bytes on every resolved one.
+It can produce text neither side wrote (two edits of different arguments of one call become one call with both),
+which the owner accepted; it never drops a byte that either side added or kept, and it never orders two insertions at one point,
+so both sides appending different text at one place stays a conflict.
+
+A conflicted file is a candidate only when all three stages exist with one mode that is a plain file, none holds a NUL byte in its
+first 8000 bytes, none is larger than 1 MiB, and the `merge` attribute is unspecified, set or `text`
+(a driver, `-merge` and `merge=binary` keep the merge to their setting).
+Anything else is left exactly as Git left it, with the reason in the debug log.
+
+Merges a person runs (`merge`, `rebase`, `cherry-pick`, `revert` forwarded to Git):
+the index is read in process before Git starts, and again when Git exits with a status other than 0.
+Only the paths that were not unmerged before the command and are unmerged after it are candidates, so a file a person is
+resolving by hand is never replaced by a later command that fails on it.
+The stages are read with one `git cat-file --batch`, the attributes with one `git check-attr`;
+each file that resolves is written as a blob (`git hash-object -w`), staged as resolved
+(`git update-index --index-info`, which replaces the conflict stages) and written to the worktree with `git checkout-index --force`,
+so the repository's filters apply; if the checkout fails the conflict stages are put back.
+Git's exit status is kept, because the operation is not finished.
+Standard error gets one line per part, `cli-git: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines> became "<text>"`,
+and a closing line that names the staged files and says how to review them (`git diff --cached -- <file>`).
+Each merged file is one journal entry of priority `warning` under `SYSLOG_IDENTIFIER` `cli-git`, with the fields
+`CLI_GIT_WORD_MERGE_FILE`, `CLI_GIT_WORD_MERGE_OPERATION` and `CLI_GIT_WORD_MERGE_PARTS`.
+A clean merge costs one in-process index read more before Git starts and one after it; the Git starts above happen only for a conflict.
+
+Merges from objects (the isolated merge, the auto-push reconcile merge, the commit replay merge):
+`git merge-tree --write-tree -z` prints the stages of every conflicted path.
+These merges accept the result only when every conflicted file resolves; otherwise they behave as they did, naming the paths.
+The merged blobs are written, a scratch index in the repository's `cli-git-scratch` directory takes the merge tree and the merged blobs
+(`read-tree`, `update-index --index-info`, `write-tree`), and the scratch file is removed.
+No worktree is read by these merges, so the attribute tree is named: `GIT_ATTR_SOURCE` is set to the first side's tip
+(the isolated merge's `HEAD`, the reconcile merge's branch tip, the landed tip of a replay) unless the environment already sets it.
+The `doc/handover/*.md merge=union` line of `.gitattributes` therefore applies in them.
+A `.gitattributes` that only the second side has is not read (Git takes one tree), and `attr.tree` is overridden by the variable.
+The isolated merge prints the part lines before Git's own words and sends the journal entries after the merge is in the checkout;
+the reconcile merge appends the part lines to the merge commit's message, prints them with the push report and sends the entries after the push succeeded;
+the replay merge reports the parts in a `word-merged` event and sends the entries when the merge is used.
+
 ### Retry after a moved branch
 
 A branch that moved since the wrapper read it makes the service answer `retry-prepare` with the commits that landed meanwhile.
@@ -2588,6 +2660,9 @@ no recorded policy run is reused.
 Where a path changed in both,
 the later capture wins when both captures read the same worktree
 and every other path is settled by subsumption and then the three-way merge.
+A path that Git's line merge still reports as a conflict after the subsumption rules is merged by word
+(see "Word-level second merge pass"); when every conflicted file resolves, the merged tree is used,
+and a `word-merged` event lists each merged part with the commit's other events.
 Paths that cannot be combined end the commit with the core finding `concurrent-commit/replay-conflict`,
 exit `1`,
 a message naming the paths and the commit that landed first,

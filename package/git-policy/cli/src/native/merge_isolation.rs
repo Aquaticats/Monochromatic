@@ -30,6 +30,10 @@ use super::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 use super::forwarded_command::ResolvedCommand;
 /// The merge messages.
 use super::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source};
+/// The word-level second pass over the conflicts of the merge tree, and the attribute tree it reads.
+use super::merge_second_pass::{ContextRunner, GitReply, GitRunner, Merged, conflicts_of_merge_tree};
+use super::merge_second_pass_tree::{announce, attribute_source_variables, resolve_tree};
+use super::path_bytes::path_message_text;
 /// The intent record.
 use super::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
 /// Recovery of records.
@@ -451,7 +455,8 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
         let full_name: String = session.text(&["rev-parse", "--symbolic-full-name", reference.as_str()])?;
         Some(describe_merge_source(reference.as_str(), full_name.as_str(), target).ok_or(Bail::Forward(None))?)
     };
-    let tree: String = merge_tree(&session, &shape, head, target, reference.as_str())?;
+    let (tree, second_pass_files): (String, Vec<Merged>) =
+        merge_tree(&session, &shape, (head, target, reference.as_str()), (common_dir, input.environment))?;
     let incoming: Vec<Vec<u8>> = diff_paths(
         session
             .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, tree.as_str()])?
@@ -487,7 +492,31 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
         old_oid: head,
         new_oid: new_oid.as_str(),
     };
-    return apply(input, &session, &plan);
+    return apply(input, &session, &plan).map(|done| { return with_second_pass_report(done, second_pass_files.as_slice()); });
+}
+
+/// What:
+///  The finished merge with the lines that list the files the second pass merged by word, ahead of Git's own words.
+/// Why:
+///   The journal entries and the lines are produced only now, after the merge is in the checkout, so neither says a merge
+///  happened that was refused or undone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function withSecondPassReport(done: IsolatedMerge, merged: Merged[]): IsolatedMerge;
+/// ```
+fn with_second_pass_report(done: IsolatedMerge, merged: &[Merged]) -> IsolatedMerge {
+    match done {
+        IsolatedMerge::Finished { code: 0, stdout, stderr } if !merged.is_empty() => {
+            let mut report: String = String::new();
+            for line in announce("cli-git: ", "merge", merged) {
+                report.push_str(line.as_str());
+                report.push('\n');
+            }
+            return IsolatedMerge::Finished { code: 0, stdout, stderr: report + stderr.as_str() };
+        }
+        other => return other,
+    }
 }
 
 /// What:
@@ -529,31 +558,51 @@ fn recover_dead_merges(input: &IsolatedMergeInput<'_>, git_dir: &Path, root: &Pa
 }
 
 /// What:
-///  Compute the merge from objects and return its tree, or refuse a conflict.
+///  Compute the merge from objects and return its tree and the files the word pass merged, or refuse a conflict.
 /// Why:
-///   `merge-tree --write-tree` exits 1 for a conflicted merge and names the paths; nothing is written to the
-///  worktree or the index.
+///   `merge-tree --write-tree` exits 1 for a conflicted merge and prints the tree with the conflicted files' stages; nothing
+///  is written to the worktree or the index. The conflicts get the word-level second pass, and the merge continues only when
+///  every conflicted file resolved; otherwise it is refused as before, naming the paths. The attributes of the first side's
+///  tip apply, because no worktree is read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function mergeTree({ session, shape, head, target }): Promise<string>;
+/// async function mergeTree({ session, shape, ends, places }): Promise<{ tree: string; merged: Merged[] }>;
 /// ```
-fn merge_tree(session: &Session, shape: &MergeShape, head: &str, target: &str, reference: &str) -> Result<String, Bail> {
-    let mut arguments: Vec<&str> = vec!["merge-tree", "--write-tree", "--name-only", "--no-messages"];
+fn merge_tree(
+    session: &Session,
+    shape: &MergeShape,
+    ends: (&str, &str, &str),
+    places: (&Path, &[(OsString, OsString)]),
+) -> Result<(String, Vec<Merged>), Bail> {
+    let (head, target, reference): (&str, &str, &str) = ends;
+    let (common_dir, environment): (&Path, &[(OsString, OsString)]) = places;
+    let mut arguments: Vec<&str> = vec!["merge-tree", "--write-tree", "-z", "--no-messages"];
     if shape.allow_unrelated_histories {
         arguments.push("--allow-unrelated-histories");
     }
     arguments.push(head);
     arguments.push(target);
-    let merged: GitOutput = session.run(arguments.as_slice())?;
-    let lines: Vec<String> = String::from_utf8_lossy(&merged.stdout).lines().map(String::from).collect();
+    let runner: ContextRunner<'_> = ContextRunner {
+        context: &session.context,
+        cwd: Path::new("."),
+        without_prefix: false,
+        object_directory: None,
+        environment: attribute_source_variables(head, environment),
+    };
+    let merged: GitReply = runner.run(arguments.as_slice(), None, None)?;
+    let (tree, conflicts) = conflicts_of_merge_tree(merged.stdout.as_slice());
     match merged.code {
-        Some(0) => return lines.first().cloned().ok_or_else(|| { return Bail::from(String::from("merge-tree printed no tree")); }),
+        Some(0) if !tree.is_empty() => return Ok((tree, Vec::new())),
+        Some(0) => return Err(Bail::from(String::from("merge-tree printed no tree"))),
         Some(1) => {
-            let paths: Vec<String> = lines.iter().skip(1).take_while(|line| { return !line.is_empty(); }).cloned().collect();
+            if let Some(resolved) = resolve_tree(&runner, common_dir, tree.as_str(), conflicts.as_slice()) {
+                return Ok((resolved.tree, resolved.merged));
+            }
+            let paths: Vec<String> = conflicts.iter().map(|conflict| { return path_message_text(conflict.path.as_slice()); }).collect();
             return Err(refused(2, conflict_finding(reference, paths.as_slice())));
         }
-        _ => return Err(Bail::from(format!("git merge-tree failed: {}", merged.error_text()))),
+        _ => return Err(Bail::from(format!("git merge-tree failed: {}", String::from_utf8_lossy(&merged.stderr).trim()))),
     }
 }
 

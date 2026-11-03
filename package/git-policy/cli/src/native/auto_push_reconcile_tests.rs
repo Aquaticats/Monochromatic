@@ -685,7 +685,8 @@ fn unrelated_histories_are_merged() {
     let main = text_of(&s.local, &["rev-parse", "main"]);
     let merged = commit_merge(&push_git(&s.local), &island, &main, "message")
         .expect("git")
-        .expect("no conflict");
+        .expect("no conflict")
+        .oid;
     assert_eq!(
         text_of(&s.local, &["rev-list", "--parents", "--max-count=1", &merged]),
         format!("{merged} {island} {main}")

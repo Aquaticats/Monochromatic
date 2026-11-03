@@ -34,6 +34,8 @@ use super::git_version::check_git_version;
 use super::worktree_identity::WorktreeIdentity;
 /// A merge the staged index would make native Git refuse, completed without disturbing the staged work.
 use super::merge_isolation::{IsolatedMerge, IsolatedMergeInput, run_isolated_merge};
+/// The word-level second pass for the conflicts a merge, rebase, cherry-pick or revert created.
+use super::merge_second_pass_worktree::{Watch, resolve_after, watch_before};
 /// Running real Git for the location query.
 use super::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes.
@@ -187,6 +189,8 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
             }
         }
     }
+    // The paths that are unmerged before the command runs are not the second merge pass's to touch afterwards.
+    let second_pass_watch: Option<Watch> = watch_before(forward);
     // A command that takes the index lock before it changes anything is run again when the commit service took the index first.
     let outcome: ForwardedRun = if forward.copy.is_none() && may_run_again(forward.command.word(), forward.command.region()) {
         run_again_while_service_holds(
@@ -206,7 +210,12 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
             forward.copy.as_ref(),
         )
     };
-    return from_forwarded(outcome);
+    let finished: CoordinatedRun = from_forwarded(outcome);
+    // A merge, rebase, cherry-pick or revert that Git stopped with a conflict gets the word-level second pass.
+    if let CoordinatedRun::Ran(code) = &finished {
+        resolve_after(second_pass_watch.as_ref(), forward, *code, &mut std::io::stderr());
+    }
+    return finished;
 }
 
 /// What:

@@ -152,7 +152,9 @@ Read-only commands,
    a worktree with uncommitted work follows too, as long as the move writes none of the files that work touches,
    and the report says the work was left as it is.
    Otherwise the branch stays behind and the report names the overlapping files.
-  A conflict is reported with the conflicting paths and publishes nothing.
+  A conflict that the word-level second merge pass cannot resolve in every file is reported with the conflicting paths
+   and publishes nothing; when it resolves every conflicted file, the merge is published and its commit message and the report
+   list each part merged by word (see "Word-level second merge pass").
   An amended or rebased branch is not merged, and its rejection is shown as before.
   A failed push never fails the commit,
    and no configuration key turns the push off.
@@ -169,7 +171,7 @@ Read-only commands,
    the wrapper merges them in from Git objects alone and pushes the merge by running itself,
    so every push policy reads the integrated result,
    at most ten times.
-  A conflict is reported with the conflicting paths and publishes nothing.
+  A conflict is reported with the conflicting paths and publishes nothing, after the same second pass.
   The checked-out branch follows the published merge under the same conditions as after a commit;
    a detached HEAD stays where it is, and the report says so.
   Forced, deleting, mirroring, tag, `--all`, `--set-upstream`, `--porcelain` and `--dry-run` pushes,
@@ -795,9 +797,10 @@ Two refusals change nothing:
   The ways forward are to wait until the owner has committed or restored them,
    to merge in a clean linked worktree and bring the result back with `git merge --ff-only`,
    or, for your own files, to commit or stash them first.
-- The merge conflicts textually.
+- The merge conflicts textually, and the word-level second merge pass cannot resolve every conflicted file.
   The finding `merge-isolation/merge-conflict` names the conflicting paths.
   Resolve in a clean linked worktree or checkout, or rebase the branch.
+  A conflict that does resolve by word completes the merge, and the lines of the merged parts come first on standard error.
 
 An untracked file where the merge adds one is refused by Git at the last step;
  the finding `merge-isolation/not-applied` follows Git's message, and nothing is changed.
@@ -805,6 +808,39 @@ A merge killed while it runs is finished or discarded by the next invocation (se
 `git pull` runs its merge inside Git, out of the wrapper's reach,
  so a pull that needs a merge commit is still refused while the index holds staged changes;
  run `git fetch`, then `git merge --no-edit origin/<branch>`.
+
+### Word-level second merge pass
+
+Git's line merge calls two changes that touch a conflict: a line you edited and lines the other side inserted right after it,
+ for example, in a paragraph that is hard-wrapped one sentence to a line.
+When a `git merge`, `git rebase`, `git cherry-pick` or `git revert` stops on such a conflict, the wrapper re-merges only the
+ conflicted parts word by word (the way Jujutsu does with `merge.hunk-level = "word"`),
+ and accepts a file only when every part of it resolves.
+A file that resolves is written to the worktree and staged as resolved, and the command keeps Git's exit status,
+ because the operation is not finished: finish it as Git said (`git commit`, `git rebase --continue`, and so on).
+Standard error lists every part that was merged, with the file and the lines in the base, your side and the other side,
+ and the text it became:
+
+```text
+cli-git: word-level merge: notes.md: part 1 of 1: base line 3, ours line 3, theirs lines 3 to 4 became "Flags are optional, see below.\nExit code is zero on success.\n"
+cli-git: word-level merge: staged as resolved by the second merge pass: notes.md. Review a merged file with `git diff --cached -- <file>`; ...
+```
+
+The journal gets one entry per merged file (`journalctl --identifier=cli-git`), with the fields
+ `CLI_GIT_WORD_MERGE_FILE`, `CLI_GIT_WORD_MERGE_OPERATION` and `CLI_GIT_WORD_MERGE_PARTS`.
+Only conflicts the command itself created are touched; a file you are resolving by hand is never replaced.
+A file that does not resolve stays exactly as Git left it.
+That includes two sides that append different text at the same place, two different edits of the same word,
+ a file with a NUL byte near its start, a file over 1 MiB, a path added on both sides or deleted on one,
+ a link, a path whose mode differs between the sides, and a path whose `merge` attribute names a driver, `binary` or `-merge`.
+
+The result can be text neither side wrote: two edits of different arguments of one call become one call with both edits.
+Nothing either side added or kept is dropped, and the parts are listed so you can check them.
+The wrapper's own merges from objects (the merge of a staged-index checkout above, the merge of an auto-push that lost a race,
+ and the replay of a commit another commit beat to the branch) use the same pass and publish or commit a merge only when every
+ conflicted file resolves.
+They read no worktree, so they read the `.gitattributes` of the branch tip (`GIT_ATTR_SOURCE`), and the `union` line for `doc/handover/*.md` applies in them too.
+Design and measurements: `doc/planning/cli-git-merge-auto-resolution.md`; the rules: `SPEC.md`, "Word-level second merge pass".
 
 ### Output and exit status
 
