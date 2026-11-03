@@ -186,11 +186,24 @@ SPEC `474c987ae2`),
 unit-template and provisioning tests 31 of 31,
 merged into the 0.5.27 integration branch;
 rule `LQM` on main `708fbd7e47`.
+The shipped-limits audit is on branch `docs/git-policy-cli-shipped-limits-audit` `7387f29a52`
+(`doc/planning/cli-git-shipped-limits-audit.md`):
+73 limits,
+4 cited,
+7 partly,
+58 uncited,
+one dead constant (`DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS`);
+conflicts with decisions:
+the 1800 s live-holder wait against `doc/decision/cli-git-concurrent-commits.md` lines 151-158 and "Same as the ref
+lock",
+`COMMIT_WAIT`'s message naming a setting that does not exist,
+main's push window and ceiling against "Wait while connected",
+retry counts on causes the owner put on the designed-out list.
+Fifteen owner questions are in the doc;
+not yet asked.
 Remaining:
-audit every other shipped limit of the wrapper (timeouts such as the 60 s and 300 s child bounds and the 1800 s merge
-wait,
-the 1 GiB snapshot-trash bound,
-notice intervals) against `LQM`,
+merge the audit doc,
+ask its questions,
 and measure the service's commits on main once 0.5.27 is installed.
 Remaining after that:
 measure commits and merges on the real main checkout against native Git,
@@ -311,10 +324,36 @@ signed commit with a moved parent;
 a Git hang on identical input (the owner's "embed instead of spawning" may already decide it);
 an overlapping destructive prune;
 no-reflog ambiguity.
-Fifth review running,
-output `~/temp/agent/reviews/commits-never-fail-sol-5.txt`.
+Fifth review returned 2026-11-03T09:23:28-05:00 (`~/temp/agent/reviews/commits-never-fail-sol-5.txt`):
+not ready;
+open:
+publication inferred from an incomplete reflog or a reused commit id,
+staging intent inferred from stat equality (a tree-created zero-stat entry can be recreated exactly),
+the attachment check not synchronized with the mutation,
+deferred intents against a foreign successor commit,
+descendants of an inline owner holding the lane lock forever,
+age cleanup deleting the only saved copy of a carried edit,
+maintenance admitted at an idle lane but not covering its lifetime,
+a hook's external effect repeated by recovery after an owner death.
+Its judgments:
+no construction recovers a silent wedge without a time bound and also never repeats a hook's effect,
+and manual restart cannot silently satisfy "never stuck";
+the deterministic Git hang is settled by "embed instead of spawning";
+corruption by another tool after release is on the outside list,
+but the wrapper's own maintenance must be coordinated over its lifetime;
+signed replay and no-reflog ambiguity are owner choices.
+Coordinator adoptions,
+veto open:
+re-sign a replayed signed commit in the background with the configured signer,
+as the service already signs its reconcile merges;
+saved copies of carried edits are kept until explicit disposal ("never discard user data").
+Questions put to the owner 2026-11-03:
+a wedged owner,
+staging intent,
+no-reflog ambiguity.
 Remaining:
-read it,
+the owner's answers,
+then revise,
 ask the owner the questions it leaves,
 then build in the reviewer's order (models and crash fixtures first),
 with the exit inventory as a gate.
@@ -478,8 +517,25 @@ it stops only when nothing older fits.
 Scoped to local runs;
 CI keeps the frozen behavior;
 operational failures keep warn-and-run with `--locked`.
-An agent is fixing every finding and building these answers on the branch,
+Done on the branch,
+tip `569596c984` (243 of 243 tests,
+clippy clean):
+every review finding and both answers,
 red tests first.
+Its nine questions for the owner,
+not yet asked:
+under `trustLockfile = true` with base `HEAD` a committed merge's lockfile is already base,
+so cases 1 and 2 do not fire locally (compare with upstream,
+check every entry locally,
+or keep);
+release age versus trust under `trustLockfile`;
+CI still warns and runs `--locked` on a refusal;
+the window between cargo writing the live lockfile and the checks;
+the restore read-then-rename gap;
+strict cutoff with exemptions;
+`--breaking` sync failure;
+a killed `--breaking` run's manifests;
+whether the trust line must name the publisher account.
 Remaining,
 in the order the agent's report adopted:
 1. the review fixes and the two answers (agent running), then a second cross-vendor review;
