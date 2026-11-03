@@ -16,6 +16,8 @@ consent,
 and allocator-lifetime evidence.
 The [build research](../../planning/browser-disk-responsiveness/chromium-metrics-build.md)
 records the selected native toolchain and test targets.
+The [retained validation drivers](native-validation.md) record the actual test and browser checks,
+including the failing startup control and candidate restoration.
 
 ## Intended behavior and limits
 

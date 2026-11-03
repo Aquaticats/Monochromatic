@@ -309,3 +309,34 @@ The candidate must be restored and rebuilt after that control.
 The test driver must check the intended failed assertion,
 not merely a nonzero exit.
 No native test pass or patch efficacy is yet claimed.
+
+## Validation drivers retained at 2026-11-03T17:51:08+00:00
+
+The [native validation source record](../troubleshooting/chromium-disk-responsiveness/native-validation.md)
+preserves the test-name checks,
+live browser mapping and sample checks,
+display lifetime,
+and failing startup control.
+The control requires the specific persistent-location assertion to fail;
+a different failure does not count.
+Its `finally` block restores the candidate and rebuilds it before the native tests run again.
+Forced process termination still requires inspecting the saved candidate source before resuming.
+
+The local `test:guard-control` task is prepared but has not run.
+It has external networking disabled,
+`28` CPUs,
+`44 GiB` memory,
+`4096` processes,
+I/O weight `10`,
+and a `3h` ceiling.
+Run `test`,
+then `test:browser`,
+then `test:guard-control` after the native build succeeds.
+The updated drivers passed the local `lint:types` task and were synchronized to the volume.
+
+The issue watch remains active.
+Its saved events at `2026-11-03T16:38:55.982Z` and `2026-11-03T16:43:58.941Z`
+changed and then restored the baseline hash.
+The snapshot diff changes only the original report's rendered body string.
+It does not show a new maintainer comment.
+This observation does not establish why the tracker returned different body representations.
