@@ -1,0 +1,139 @@
+diff --git a/builtin/fsmonitor--daemon.c b/builtin/fsmonitor--daemon.c
+index 4161dd8..7b2d80b 100644
+--- a/builtin/fsmonitor--daemon.c
++++ b/builtin/fsmonitor--daemon.c
+@@ -674,6 +674,13 @@ static int fsmonitor_parse_client_token(const char *buf_token,
+ 	return 0;
+ }
+ 
++/*
++ * Token for responses sent while the listener is still registering
++ * watches.  It has no ":<seq_nr>" part, so a client that sends it back
++ * gets a trivial response with a real token.
++ */
++#define FSMONITOR_TOKEN_REGISTERING "builtin:registering"
++
+ static int do_handle_client(struct fsmonitor_daemon_state *state,
+ 			    const char *command,
+ 			    ipc_server_reply_cb *reply,
+@@ -766,6 +773,27 @@ static int do_handle_client(struct fsmonitor_daemon_state *state,
+ 	if (!state->current_token_data)
+ 		BUG("fsmonitor state does not have a current token");
+ 
++	if (state->registering_watches) {
++		/*
++		 * Events under directories that are not watched yet are
++		 * not recorded, so no token handed out now can be trusted
++		 * later.  Send a trivial response with a token that
++		 * fsmonitor_parse_client_token() rejects: the client scans
++		 * everything now, and its next query gets a trivial
++		 * response that carries a real token.
++		 */
++		pthread_mutex_unlock(&state->main_lock);
++
++		reply(reply_data, FSMONITOR_TOKEN_REGISTERING,
++		      sizeof(FSMONITOR_TOKEN_REGISTERING));
++		reply(reply_data, "/", 2);
++
++		trace2_data_intmax("fsmonitor", the_repository,
++				   "response/trivial", 1);
++
++		goto cleanup;
++	}
++
+ 	/*
+ 	 * Write a cookie file inside the directory being watched in
+ 	 * an effort to flush out existing filesystem events that we
+diff --git a/compat/fsmonitor/fsm-listen-linux.c b/compat/fsmonitor/fsm-listen-linux.c
+index e3dca14..cfe1a9b 100644
+--- a/compat/fsmonitor/fsm-listen-linux.c
++++ b/compat/fsmonitor/fsm-listen-linux.c
+@@ -423,23 +423,35 @@ int fsm_listen__ctor(struct fsmonitor_daemon_state *state)
+ 	hashmap_init(&data->renames, rename_entry_cmp, NULL, 0);
+ 	hashmap_init(&data->revwatches, revwatches_entry_cmp, NULL, 0);
+ 
++	/*
++	 * Registering a watch on every directory takes time proportional
++	 * to the size of the worktree.  fsm_listen__loop() does it after the
++	 * IPC server starts, and clients get trivial responses until then.
++	 */
++	state->registering_watches = 1;
++
++	state->listen_error_code = 0;
++	data->shutdown = SHUTDOWN_CONTINUE;
++
++	return ret;
++}
++
++static int register_initial_watches(struct fsmonitor_daemon_state *state)
++{
++	struct fsm_listen_data *data = state->listen_data;
++
+ 	if (add_watch(state->path_worktree_watch.buf, data))
+-		ret = -1;
+-	else if (register_inotify(state->path_worktree_watch.buf, state, NULL))
+-		ret = -1;
+-	else if (state->nr_paths_watching > 1) {
++		return -1;
++	if (register_inotify(state->path_worktree_watch.buf, state, NULL))
++		return -1;
++	if (state->nr_paths_watching > 1) {
+ 		if (add_watch(state->path_gitdir_watch.buf, data))
+-			ret = -1;
+-		else if (register_inotify(state->path_gitdir_watch.buf, state, NULL))
+-			ret = -1;
+-	}
+-
+-	if (!ret) {
+-		state->listen_error_code = 0;
+-		data->shutdown = SHUTDOWN_CONTINUE;
++			return -1;
++		if (register_inotify(state->path_gitdir_watch.buf, state, NULL))
++			return -1;
+ 	}
+ 
+-	return ret;
++	return 0;
+ }
+ 
+ void fsm_listen__dtor(struct fsmonitor_daemon_state *state)
+@@ -696,11 +708,19 @@ void fsm_listen__loop(struct fsmonitor_daemon_state *state)
+ 	fds[0].events = POLLIN;
+ 
+ 	/*
+-	 * Our fs event listener is now running, so it's safe to start
+-	 * serving client requests.
++	 * Serve clients right away.  They get trivial responses until the
++	 * initial watches are registered.
+ 	 */
+ 	ipc_server_start_async(state->ipc_server_data);
+ 
++	if (register_initial_watches(state)) {
++		state->listen_data->shutdown = SHUTDOWN_ERROR;
++	} else {
++		pthread_mutex_lock(&state->main_lock);
++		state->registering_watches = 0;
++		pthread_mutex_unlock(&state->main_lock);
++	}
++
+ 	for (;;) {
+ 		switch (state->listen_data->shutdown) {
+ 		case SHUTDOWN_CONTINUE:
+diff --git a/fsmonitor--daemon.h b/fsmonitor--daemon.h
+index 5cbbec8..97cdc1c 100644
+--- a/fsmonitor--daemon.h
++++ b/fsmonitor--daemon.h
+@@ -51,6 +51,13 @@ struct fsmonitor_daemon_state {
+ 	int cookie_seq;
+ 	struct hashmap cookies;
+ 
++	/*
++	 * Nonzero while the listener is still registering its initial
++	 * watches, so it cannot yet vouch for any token it hands out.
++	 * Protected by main_lock.
++	 */
++	int registering_watches;
++
+ 	int listen_error_code;
+ 	int health_error_code;
+ 	struct fsm_listen_data *listen_data;
