@@ -358,14 +358,14 @@ fn a_resend_that_finds_the_name_syncs_the_directory_itself() {
     let inbox: PathBuf = root.join("inbox");
     let one: Request = request('2', "m");
     publish(&inbox, &one).expect("publish");
-    let before: usize = directory_sync_count();
+    let before_record: usize = directory_sync_count();
     assert_eq!(publish(&inbox, &one).expect("resend"), Published::AlreadyPresent);
-    assert!(directory_sync_count() > before, "the record resend must sync");
+    assert!(directory_sync_count() > before_record, "the record resend must sync");
     let ledger: PathBuf = root.join("ledger");
     append(&ledger, &entry('3', "published")).expect("append");
-    let before: usize = directory_sync_count();
+    let before_append: usize = directory_sync_count();
     append(&ledger, &entry('4', "published")).expect("append");
-    assert!(directory_sync_count() > before, "an append to an existing ledger syncs its directory");
+    assert!(directory_sync_count() > before_append, "an append to an existing ledger syncs its directory");
 }
 
 /// Review P1 2 (revision 9, R8-2): each lane has its own ledger path, and a reader of a ledger never repairs it: a torn tail
@@ -419,7 +419,7 @@ fn spool_closure_survives_the_removal_of_the_base_objects() {
         old_mode: "100644".to_string(),
         old_sha256: sha256_hex(&base_bytes),
     }];
-    write_spool(&repository, &original.id, &[b"new bytes".to_vec()], &[base_bytes.clone()]).expect("write");
+    write_spool(&repository, &original.id, &[b"new bytes".to_vec()], std::slice::from_ref(&base_bytes)).expect("write");
     for entry in std::fs::read_dir(repository.join(".git/objects")).expect("objects") {
         let path: PathBuf = entry.expect("entry").path();
         std::fs::remove_dir_all(&path).expect("remove the object store");

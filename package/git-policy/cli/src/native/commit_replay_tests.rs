@@ -100,7 +100,7 @@ fn oracle(directory: &Path, base: &str, current: &str, result: &str) -> Oracle {
         .take_while(|line| { return !line.is_empty(); })
         .map(|line| {
             let suffixed: Option<usize> = line.rfind('~').filter(|at| { return line[*at + 1..].len() >= 40 && line[*at + 1..].chars().all(|c| { return c.is_ascii_hexdigit(); }); });
-            return line[..suffixed.unwrap_or(line.len())].as_bytes().to_vec();
+            return line.as_bytes()[..suffixed.unwrap_or(line.len())].to_vec();
         })
         .collect();
     return Oracle { clean: output.status.success(), tree, conflicted };
