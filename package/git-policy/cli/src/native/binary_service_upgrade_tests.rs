@@ -27,18 +27,20 @@ const OLD_SERVICE_VARIABLE: &str = "CLI_GIT_OLD_SERVICE";
 fn start_old_service(program: &Path, root: &Path, runtime: &Path) -> Child {
     let socket: PathBuf = runtime.join(LEGACY_SOCKET_RELATIVE);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
-    let child: Child = Command::new(program)
-        .args(["--journal", root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("HOME", root.join("home"))
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .expect("the 0.5.4 service starts");
+    // Owned: its idle exit is hours away, so a control that fails before the wrapper retires it would leave it running.
+    let child: Child = super::support::spawn_owned(
+        Command::new(program)
+            .args(["--journal", root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", root.join("home"))
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit()),
+    )
+    .expect("the 0.5.4 service starts");
     let began: Instant = Instant::now();
     while std::os::unix::net::UnixStream::connect(&socket).is_err() {
         assert!(began.elapsed() < PATIENCE, "the 0.5.4 service never listened");

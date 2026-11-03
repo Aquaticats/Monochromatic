@@ -123,6 +123,11 @@ impl ObjectDatabase {
         return self.read_at_depth(name, 0);
     }
 
+    /// How many pack entries this database has decoded so far, counting an entry each time its bytes are rebuilt.
+    pub fn decoded_entries(&self) -> u64 {
+        return self.packs.iter().map(Pack::decoded_entries).sum();
+    }
+
     /// Whether the object named `name` is stored loose or in a pack, without reading it.
     pub fn contains(&self, name: &[u8]) -> bool {
         if name.len() != name_length(self.format) {

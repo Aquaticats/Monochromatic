@@ -16,6 +16,8 @@
 use super::repo_read_object::{ObjectKind, name_length};
 use super::repo_read_layout::ObjectFormat;
 use super::repo_read_odb::ObjectDatabase;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// The deepest tree nesting the flattener follows.
 const TREE_DEPTH_LIMIT: usize = 256;
@@ -129,6 +131,149 @@ fn walk(
             }
         }
         prefix.truncate(length);
+    }
+    return Some(());
+}
+
+/// What:
+///  The flat list of a tree, shared with every other question this process asked about the same tree.
+/// Why:
+///   One commit asks about its base tree a dozen times, through a database opened afresh by each question; a tree's name
+///  fixes its content, so the list is kept by name and handed out again. The list of a few trees is kept, the oldest dropped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function flattenTreeShared(odb, tree, format): readonly FlatEntry[] | undefined; // same list, one read per process
+/// ```
+pub fn flatten_tree_shared(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat) -> Option<Rc<Vec<FlatEntry>>> {
+    let key: Vec<u8> = tree.to_vec();
+    let kept: Option<Rc<Vec<FlatEntry>>> = SHARED_LISTS.with(|lists| {
+        return lists.borrow().iter().find(|(name, _)| { return *name == key; }).map(|(_, list)| { return Rc::clone(list); });
+    });
+    if let Some(found) = kept {
+        return Some(found);
+    }
+    let listed: Rc<Vec<FlatEntry>> = Rc::new(flatten_tree(database, tree, format)?);
+    SHARED_LISTS.with(|lists| {
+        let mut held = lists.borrow_mut();
+        if held.len() >= SHARED_LIST_LIMIT {
+            held.remove(0);
+        }
+        held.push((key, Rc::clone(&listed)));
+    });
+    return Some(listed);
+}
+
+/// How many trees' lists a thread keeps for later questions.
+const SHARED_LIST_LIMIT: usize = 3;
+
+thread_local! {
+    /// The lists `flatten_tree_shared` keeps, oldest first, by the tree's name.
+    static SHARED_LISTS: RefCell<Vec<(Vec<u8>, Rc<Vec<FlatEntry>>)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// What:
+///  The entries that differ between two trees, as two flat lists in path order: the old side's entries and the new side's,
+///  with every subtree both sides share left unread.
+/// Why:
+///   A listing of what a commit changed needs only the paths that differ, and the repository's trees are mostly equal from
+///  one commit to the next, so equal subtree names end the walk there instead of reading every file of a large checkout.
+///  A name that is a file on one side and a directory on the other appears as a file in one list and as paths below it in
+///  the other, which `diff_sorted` then declines.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function flattenPair(odb, oldTree, newTree, format): [FlatEntry[], FlatEntry[]] | undefined;
+/// ```
+pub fn flatten_pair(database: &ObjectDatabase, old: &[u8], new: &[u8], format: ObjectFormat) -> Option<(Vec<FlatEntry>, Vec<FlatEntry>)> {
+    let mut before: Vec<FlatEntry> = Vec::new();
+    let mut after: Vec<FlatEntry> = Vec::new();
+    walk_pair(database, (old, new), format, &mut Vec::new(), 0, (&mut before, &mut after))?;
+    return Some((before, after));
+}
+
+/// The sort key of a tree entry: a directory sorts as if its name ended in a slash.
+fn tree_order_key(entry: &TreeEntry) -> Vec<u8> {
+    let mut key: Vec<u8> = entry.name.clone();
+    if is_tree_mode(entry.mode) {
+        key.push(b'/');
+    }
+    return key;
+}
+
+/// Append one entry of one side whole: a file as itself, a directory as every file below it.
+fn push_side(database: &ObjectDatabase, entry: &TreeEntry, format: ObjectFormat, prefix: &mut Vec<u8>, depth: usize, flat: &mut Vec<FlatEntry>) -> Option<()> {
+    let length: usize = prefix.len();
+    prefix.extend_from_slice(entry.name.as_slice());
+    if is_tree_mode(entry.mode) {
+        prefix.push(b'/');
+        walk(database, entry.id.as_slice(), format, prefix, depth + 1, flat)?;
+    } else {
+        flat.push(FlatEntry { path: prefix.clone(), mode: entry.mode, id: entry.id.clone() });
+    }
+    prefix.truncate(length);
+    return Some(());
+}
+
+/// Walk two trees together below `prefix`, appending only what differs.
+fn walk_pair(
+    database: &ObjectDatabase,
+    trees: (&[u8], &[u8]),
+    format: ObjectFormat,
+    prefix: &mut Vec<u8>,
+    depth: usize,
+    flats: (&mut Vec<FlatEntry>, &mut Vec<FlatEntry>),
+) -> Option<()> {
+    if depth > TREE_DEPTH_LIMIT {
+        return None;
+    }
+    let (before, after) = flats;
+    let entries_of = |name: &[u8]| -> Option<Vec<TreeEntry>> {
+        let object = database.read(name)?;
+        if object.kind != ObjectKind::Tree {
+            return None;
+        }
+        return parse_tree(object.bytes.as_slice(), name_length(format));
+    };
+    let old_entries: Vec<TreeEntry> = entries_of(trees.0)?;
+    let new_entries: Vec<TreeEntry> = entries_of(trees.1)?;
+    let (mut left, mut right): (usize, usize) = (0, 0);
+    while left < old_entries.len() || right < new_entries.len() {
+        let order = match (old_entries.get(left), new_entries.get(right)) {
+            (Some(gone), Some(added)) => tree_order_key(gone).cmp(&tree_order_key(added)),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, _) => std::cmp::Ordering::Greater,
+        };
+        match order {
+            std::cmp::Ordering::Less => {
+                push_side(database, &old_entries[left], format, prefix, depth, before)?;
+                left += 1;
+            }
+            std::cmp::Ordering::Greater => {
+                push_side(database, &new_entries[right], format, prefix, depth, after)?;
+                right += 1;
+            }
+            std::cmp::Ordering::Equal => {
+                let (was, now): (&TreeEntry, &TreeEntry) = (&old_entries[left], &new_entries[right]);
+                if was.id != now.id || was.mode != now.mode {
+                    if is_tree_mode(was.mode) {
+                        let length: usize = prefix.len();
+                        prefix.extend_from_slice(was.name.as_slice());
+                        prefix.push(b'/');
+                        walk_pair(database, (was.id.as_slice(), now.id.as_slice()), format, prefix, depth + 1, (&mut *before, &mut *after))?;
+                        prefix.truncate(length);
+                    } else {
+                        push_side(database, was, format, prefix, depth, before)?;
+                        push_side(database, now, format, prefix, depth, after)?;
+                    }
+                }
+                left += 1;
+                right += 1;
+            }
+        }
+        if before.len() + after.len() > FLAT_ENTRY_LIMIT {
+            return None;
+        }
     }
     return Some(());
 }

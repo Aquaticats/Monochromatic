@@ -174,6 +174,17 @@ fn attempted(
     arguments: &[&str],
     environment: &[(OsString, OsString)],
 ) -> IsolatedMerge {
+    return attempted_with(Path::new(REAL_GIT), repo, route, arguments, environment);
+}
+
+/// `attempted` with the Git executable given, so a control can stand in for it.
+fn attempted_with(
+    real_git: &Path,
+    repo: &Path,
+    route: Route,
+    arguments: &[&str],
+    environment: &[(OsString, OsString)],
+) -> IsolatedMerge {
     let prefix: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_owned()];
     let identity: WorktreeIdentity =
         resolve_worktree_identity(Path::new(REAL_GIT), prefix.as_slice(), isolated_overlay().as_slice())
@@ -188,7 +199,7 @@ fn attempted(
     };
     let overlay: Vec<(OsString, OsString)> = isolated_overlay();
     return run_isolated_merge(&IsolatedMergeInput {
-        real_git: Path::new(REAL_GIT),
+        real_git,
         overlay: overlay.as_slice(),
         identity: &identity,
         command: &command,
@@ -363,4 +374,33 @@ fn the_editor_decision_follows_no_edit_then_the_environment() {
         }
         remove(parent.as_path());
     }
+}
+
+/// The branch moves inside Git's own fast-forward, after it installed the merge's paths and before its ref update, which
+/// then fails (`cannot lock ref 'HEAD': is at <winner> but expected <old>`): the stand-in for Git plays the winner's commit
+/// and the loser's install once, then reports Git's failure. The paths go back to the winner's content and the merge is made
+/// again on the winner, so it lands with the winner as its first parent and nothing half applied.
+#[test]
+fn a_ref_update_that_loses_the_race_inside_gits_fast_forward_is_made_again_on_the_new_head() {
+    let (parent, repo): (PathBuf, PathBuf) = diverged_with_staged_work("merge-attempt-inside-race");
+    let shim: PathBuf = parent.join("racing-git");
+    let marker: PathBuf = parent.join("raced");
+    let script: String = format!(
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = --ff-only ] && [ ! -e '{marker}' ]; then\n    : > '{marker}'\n    for merged; do :; done\n    cd '{repo}' || exit 1\n    old=$({real} rev-parse HEAD)\n    echo 'committed meanwhile' > z.txt\n    {real} add -- z.txt\n    {real} -c user.name=Racer -c user.email=racer@example.invalid commit --quiet --message=meanwhile -- z.txt\n    winner=$({real} rev-parse HEAD)\n    {real} read-tree -m -u \"$old\" \"$merged\"\n    echo \"fatal: update_ref failed for ref 'HEAD': cannot lock ref 'HEAD': is at $winner but expected $old\" >&2\n    exit 128\n  fi\ndone\nexec {real} \"$@\"\n",
+        marker = marker.display(),
+        repo = repo.display(),
+        real = REAL_GIT
+    );
+    crate::test_support::executable(shim.as_path(), script.as_bytes());
+    let outcome: IsolatedMerge = attempted_with(shim.as_path(), repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+    assert!(marker.exists(), "the race was played");
+    assert!(is_completed(&outcome), "{outcome:?}");
+    let winner: String = git_text(repo.as_path(), &["rev-parse", "HEAD^1"]);
+    assert_eq!(git_text(repo.as_path(), &["log", "-1", "--format=%s", winner.trim()]).trim(), "meanwhile", "the merge sits on the winner");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD^2"]), git_text(repo.as_path(), &["rev-parse", "feature"]));
+    assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1"]), "M  u.txt", "only the other session's work differs from the head");
+    assert!(repo.join("z.txt").exists() && repo.join("dir/new.txt").exists(), "both sides are in the checkout");
+    assert!(!repo.join(".git/MERGE_HEAD").exists());
+    assert_eq!(std::fs::read_dir(repo.join(".git/cli-git-merges")).map_or(0, Iterator::count), 0, "no record is left");
+    remove(parent.as_path());
 }

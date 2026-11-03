@@ -24,9 +24,10 @@ use super::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
 
 use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_query_refs::{config_list, for_each_ref, remote_url, rev_parse, symbolic_ref};
-use super::repo_read_tree::{FlatEntry, flatten_tree, parse_commit, subject_of};
+use super::repo_read_tree::{FlatEntry, flatten_pair, flatten_tree_shared, parse_commit, subject_of};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 /// The command line and surroundings of one query.
 pub struct Query<'a> {
@@ -242,7 +243,7 @@ fn diff_cached(context: &Context, parsed: &Parsed<'_>, porcelain: bool) -> Optio
     let filter: PathFilter = PathFilter::parse(parsed.specs.as_slice(), context.layout.prefix.is_empty())?;
     let database: ObjectDatabase = context.database()?;
     let tree: Vec<u8> = context.tree_of(&database, parsed.operands[0])?;
-    let old: Vec<FlatEntry> = flatten_tree(&database, tree.as_slice(), context.layout.object_format)?;
+    let old: Rc<Vec<FlatEntry>> = flatten_tree_shared(&database, tree.as_slice(), context.layout.object_format)?;
     let changes = diff_sorted(old.as_slice(), context.resolved_index()?.as_slice())?;
     // The porcelain pairs an added and a deleted path as a rename; plain lists cannot say which pairs it would choose.
     if porcelain && changes.iter().any(|change| { return change.status == b'A'; }) && changes.iter().any(|change| { return change.status == b'D'; }) {
@@ -269,20 +270,59 @@ fn diff_tree(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if commit.parents.len() > 1 {
         return None;
     }
-    let new: Vec<FlatEntry> = flatten_tree(&database, commit.tree.as_slice(), context.layout.object_format)?;
-    let old: Vec<FlatEntry> = match commit.parents.first() {
+    let new: Rc<Vec<FlatEntry>> = flatten_tree_shared(&database, commit.tree.as_slice(), context.layout.object_format)?;
+    let old: Rc<Vec<FlatEntry>> = match commit.parents.first() {
         Some(parent) => {
             let parent_object = database.read(parent.as_slice())?;
             if parent_object.kind != ObjectKind::Commit {
                 return None;
             }
             let parent_tree = parse_commit(parent_object.bytes.as_slice(), context.layout.object_format)?.tree;
-            flatten_tree(&database, parent_tree.as_slice(), context.layout.object_format)?
+            flatten_tree_shared(&database, parent_tree.as_slice(), context.layout.object_format)?
         }
-        None => Vec::new(),
+        None => Rc::new(Vec::new()),
     };
     let changes = diff_sorted(old.as_slice(), new.as_slice())?;
     return Some(Answer { stdout: raw_lines(changes.as_slice(), context.zero().as_str()), stderr: Vec::new(), code: 0 });
+}
+
+/// `diff-tree -r --name-only -z [--no-renames] <old> <new>` and `diff-tree --no-commit-id --name-only -r -z <commit>`: the paths
+///  that differ between two trees or commits, or between a commit with exactly one parent and that parent.
+fn diff_tree_names(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+    if !parsed.specs.is_empty() {
+        return None;
+    }
+    let database: ObjectDatabase = context.database()?;
+    let (old, new): (Vec<u8>, Vec<u8>) = match parsed.operands.as_slice() {
+        [pair_old, pair_new] => {
+            if !flags_are(&parsed.flags, &["-r", "--name-only", "-z"], &["--no-renames"]) {
+                return None;
+            }
+            (context.tree_of(&database, pair_old)?, context.tree_of(&database, pair_new)?)
+        }
+        [single] => {
+            if !flags_are(&parsed.flags, &["--no-commit-id", "--name-only", "-r", "-z"], &[]) {
+                return None;
+            }
+            let name: Vec<u8> = from_hex(single, context.layout.object_format)?;
+            let object = database.read(name.as_slice())?;
+            if object.kind != ObjectKind::Commit {
+                return None;
+            }
+            let commit = parse_commit(object.bytes.as_slice(), context.layout.object_format)?;
+            // A root commit and a merge commit print nothing or per-parent lists in Git, which the reader leaves to it.
+            let [parent] = commit.parents.as_slice() else { return None };
+            let parent_object = database.read(parent.as_slice())?;
+            if parent_object.kind != ObjectKind::Commit {
+                return None;
+            }
+            (parse_commit(parent_object.bytes.as_slice(), context.layout.object_format)?.tree, commit.tree)
+        }
+        _ => return None,
+    };
+    let (before, after): (Vec<FlatEntry>, Vec<FlatEntry>) = flatten_pair(&database, old.as_slice(), new.as_slice(), context.layout.object_format)?;
+    let changes = diff_sorted(before.as_slice(), after.as_slice())?;
+    return Some(Answer { stdout: name_lines(changes.as_slice()), stderr: Vec::new(), code: 0 });
 }
 
 /// `show --no-patch --format=%s <commit>`.
@@ -371,7 +411,8 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
         "ls-files" => list_files(&context, &parsed),
         "diff-index" => diff_cached(&context, &parsed, false),
         "diff" => diff_cached(&context, &parsed, true),
-        "diff-tree" => diff_tree(&context, &parsed),
+        "diff-tree" if parsed.flags.contains(&"--root") => diff_tree(&context, &parsed),
+        "diff-tree" => diff_tree_names(&context, &parsed),
         "show" => show_subject(&context, &parsed),
         "config" => config_list(&context, &parsed),
         "remote" => remote_url(&context, &parsed),
@@ -386,3 +427,8 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
 #[cfg(test)]
 #[path = "repo_read_query_tests.rs"]
 pub(crate) mod tests;
+
+/// Controls for the tree-to-tree listings stay out of the release executable.
+#[cfg(test)]
+#[path = "repo_read_pair_tests.rs"]
+mod pair_tests;

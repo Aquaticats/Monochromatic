@@ -410,6 +410,17 @@ pub fn service_commit<F: RepositoryFacts>(
                     let lost: Vec<String> = unlanded.iter().map(|full| { return abbreviated(full.as_str()); }).collect();
                     print_note(rebuilt_note(lost.as_slice(), abbreviated(commit.as_str()).as_str()).as_str());
                 }
+                // The owner: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."
+                for path in &ready.committed_conflicted {
+                    let name: String = String::from_utf8_lossy(path.as_slice()).into_owned();
+                    // Terminal output error: a warning is advisory; a failed write must not fail a commit that landed.
+                    let _warned = writeln!(
+                        std::io::stderr(),
+                        "cli-git: warning: {name} still has conflict markers, and they were committed. The merge in progress is not \
+                         finished by this commit. To fix it, remove the markers from {name} and make a follow-up commit: \
+                         git commit -m \"<message>\" -- {name}"
+                    );
+                }
                 // The corrections a policy made reach the worktree once the commit has landed, as the earlier landing did.
                 install_added_worktree_files(
                     invocation.context,

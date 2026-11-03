@@ -47,7 +47,7 @@ use super::service_replay::{MergeSite, Merged, ReplayConflict, Retry, already_co
 use super::external_hooks::warn_external_hooks;
 use super::traditional_hook_warning::warn_traditional_hooks;
 use super::transaction_git::{GitContext, run_git_checked};
-use super::transaction_journal::{AddedPath, Base, RefFormat, SymbolicHead, TransactionMode};
+use super::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
 use super::worktree_completion::install_added_worktree_files;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -124,6 +124,9 @@ pub struct Ready {
     pub fixed_parents: bool,
     /// When the worktree's bytes were captured (`service_replay::capture_stamp`); a retry keeps the first capture's stamp.
     pub captured_at: u64,
+    /// The paths this commit commits that the unfinished merge or pick left in conflict. Their worktree bytes, conflict markers
+    ///  included, are what is committed; the person is warned once the commit has landed (`conflicted_path_warning`).
+    pub committed_conflicted: Vec<Vec<u8>>,
 }
 
 /// The all-zero object name of the repository's hash length, standing for a branch that does not exist yet.
@@ -225,6 +228,14 @@ pub fn prepare<F: RepositoryFacts>(
         warn_traditional_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
         warn_external_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
     }
+    // Named paths beside another session's unfinished merge or stopped cherry-pick land as an ordinary commit, one in conflict
+    //  included: the owner's rule is "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will
+    //  be committed." The paths in conflict are listed here so the warning can name those the commit takes.
+    let unmerged_before: Vec<Vec<u8>> = if matches!(layout.conclusion, Conclusion::Merge | Conclusion::CherryPick) && (!region.pathspecs.is_empty() || region.pathspec_from_file.is_some()) {
+        list_unmerged_index_paths(context, cwd, layout.real_index_path.as_path())?
+    } else {
+        Vec::new()
+    };
     let selection: Selection = decide_selection(region, layout.conclusion);
     let reference: String = match &layout.symbolic_head {
         SymbolicHead::Branch(name) => name.clone(),
@@ -359,6 +370,7 @@ pub fn prepare<F: RepositoryFacts>(
             interactive,
             fixed_parents,
             captured_at,
+            committed_conflicted: Vec::new(),
         });
     };
     // An unmerged index is Git's to refuse, in its own words and with its own status.
@@ -417,6 +429,8 @@ pub fn prepare<F: RepositoryFacts>(
     let forced: bool = config_native || unborn || detached || state_present || changes.is_none();
     let mut ready: Box<Ready> = by_git(capture, events, changes, records, pass.arguments.clone(), scratch);
     ready.needs_native = forced;
+    // A path in conflict that the commit takes is committed with the bytes the worktree holds, markers included.
+    ready.committed_conflicted = unmerged_before.into_iter().filter(|path| { return candidate_paths.contains(path); }).collect();
     return Ok(Prepared::Ready(ready));
 }
 

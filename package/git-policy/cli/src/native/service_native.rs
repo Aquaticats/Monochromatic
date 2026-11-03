@@ -19,7 +19,7 @@ use super::commit_args::{resolve_private_commit_args, split_commit_invocation, w
 use super::commit_preparation::{PreparationRequest, read_prepared_commit, run_native_commit};
 use super::commit_transaction::TransactionStop;
 use super::global_arguments::global_layout;
-use super::shadow_create::create_shadow_repository_at;
+use super::shadow_create::create_shadow_repository_carrying;
 use super::transaction_git::GitContext;
 use super::transaction_journal::TransactionMode;
 use std::ffi::OsString;
@@ -118,7 +118,12 @@ pub fn private_invocation(
 ///  failed, a signer that failed); `TransactionStop::Message` when Git could not be started.
 pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionStop> {
     let shadow = input.scratch.join("shadow");
-    create_shadow_repository_at(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch)?;
+    // Named paths while another session's merge, cherry-pick or revert is unfinished: real Git refuses that as a partial commit,
+    //  and a commit never fails for another session's unfinished work, so the scratch repository holds none of that state and
+    //  builds an ordinary commit of the paths; the worktree's state stays for its owner to conclude on the new head.
+    let git_dir: &Path = input.capture.layout.git_dir.as_path();
+    let carry_conclusion: bool = !(input.mode == TransactionMode::ExplicitPath && ["MERGE_HEAD", "CHERRY_PICK_HEAD"].iter().any(|name| { return git_dir.join(name).exists(); }));
+    create_shadow_repository_carrying(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch, carry_conclusion)?;
     // The wrapper adds no option of its own to the person's command line: Git prints what it prints, and `--quiet` reaches it only
     //  when the person typed it.
     let (globals, commit_args): (Vec<String>, Vec<String>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);

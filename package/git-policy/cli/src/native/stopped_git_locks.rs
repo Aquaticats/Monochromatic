@@ -26,7 +26,9 @@
 use super::diagnostic_log::warn;
 /// The processes of the stopped tree and whether each still runs.
 use super::process_tree::{TreeMember, still_running};
-/// Owned OS strings of a command's environment.
+/// The Git directories a command works in.
+use super::git_directory_roots::roots_of_command;
+/// Owned OS strings, for the names of directories the walk skips.
 use std::ffi::OsStr;
 /// Paths of the repository.
 use std::path::{Path, PathBuf};
@@ -39,17 +41,17 @@ use std::time::{Duration, SystemTime};
 const TAG: &str = "cli-git";
 
 /// What every Git lock file's name ends with.
-const LOCK_SUFFIX: &str = ".lock";
+pub(crate) const LOCK_SUFFIX: &str = ".lock";
 
 /// What the pid file of a lock ends with: the lock's name without `.lock`, then this.
-const PID_LOCK_SUFFIX: &str = "~pid.lock";
+pub(crate) const PID_LOCK_SUFFIX: &str = "~pid.lock";
 
 /// What a pid file's text starts with, before the number.
 const PID_TEXT_PREFIX: &str = "pid ";
 
 /// How far a file's birth may precede the clock reading taken before the child started.
 ///  The kernel stamps files from a coarse clock that lags the one `SystemTime` reads by up to one tick.
-const COARSE_CLOCK_SLACK: Duration = Duration::from_millis(50);
+pub(crate) const COARSE_CLOCK_SLACK: Duration = Duration::from_millis(50);
 
 /// How long an empty lock without a pid file must have stayed empty before it counts as left behind.
 ///  Git creates a ref lock empty and fills it a moment later, so a lock that a live process just made is empty for
@@ -81,52 +83,6 @@ pub struct LockLedger {
     settle: Duration,
 }
 
-/// The common Git directory a linked worktree's Git directory names in its `commondir` file, or the directory itself.
-///  The few lines are repeated here because the module that reads it belongs to the service run, which the client path
-///  may not name (`standards_review_boundary_tests.rs`); a path that cannot be resolved is used as written.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// existsSync(join(gitDir, 'commondir')) ? realpath(resolve(gitDir, readFile(...).trimEnd())) : gitDir
-/// ```
-fn common_dir_for(git_dir: &Path) -> PathBuf {
-    let Ok(text) = std::fs::read_to_string(git_dir.join("commondir")) else {
-        return git_dir.to_path_buf();
-    };
-    let named: &str = text.trim_end_matches(['\r', '\n']);
-    if named.is_empty() {
-        return git_dir.to_path_buf();
-    }
-    let joined: PathBuf = git_dir.join(named);
-    return std::fs::canonicalize(&joined).unwrap_or(joined);
-}
-
-/// Where the Git directory of a working directory is: `.git` as a directory, a `gitdir:` file, or a bare repository.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function gitDirectoryOf(start: string): string | undefined;
-/// ```
-fn git_directory_of(start: &Path) -> Option<PathBuf> {
-    for directory in start.ancestors() {
-        let dot_git: PathBuf = directory.join(".git");
-        if let Ok(metadata) = std::fs::symlink_metadata(dot_git.as_path()) {
-            if metadata.is_dir() {
-                return Some(dot_git);
-            }
-            if metadata.is_file() {
-                let text: String = std::fs::read_to_string(dot_git.as_path()).ok()?;
-                let named: &str = text.lines().next()?.strip_prefix("gitdir:")?.trim();
-                return Some(directory.join(named));
-            }
-        }
-        if directory.join("HEAD").is_file() && directory.join("objects").is_dir() {
-            return Some(directory.to_path_buf());
-        }
-    }
-    return None;
-}
-
 impl LockLedger {
     /// A ledger that finds nothing: for a child that holds no Git lock, such as a reader of objects.
     pub fn none() -> Self {
@@ -137,26 +93,7 @@ impl LockLedger {
     ///  its working directory (the process's own when the command sets none).
     pub fn before_start(command: &Command) -> Self {
         let since: SystemTime = SystemTime::now();
-        let working: PathBuf = command
-            .get_current_dir()
-            .map(Path::to_path_buf)
-            .or_else(|| { return std::env::current_dir().ok(); })
-            .unwrap_or_default();
-        let named: Option<PathBuf> = command
-            .get_envs()
-            .filter(|(name, _)| { return *name == OsStr::new("GIT_DIR"); })
-            .last()
-            .and_then(|(_, value)| { return value.map(|path| { return working.join(path); }); });
-        let git_dir: Option<PathBuf> = named.or_else(|| { return git_directory_of(working.as_path()); });
-        let mut roots: Vec<PathBuf> = Vec::new();
-        if let Some(directory) = git_dir {
-            let common: PathBuf = common_dir_for(directory.as_path());
-            roots.push(directory.clone());
-            if common != directory {
-                roots.push(common);
-            }
-        }
-        return Self { roots, since, settle: EMPTY_LOCK_SETTLE };
+        return Self { roots: roots_of_command(command), since, settle: EMPTY_LOCK_SETTLE };
     }
 
     /// When a file was born; a file system that keeps no birth time still stamps a never-written file with its creation time.
@@ -240,7 +177,7 @@ impl LockLedger {
 /// ```ts
 /// Number(readFileSync(path, 'utf8').trim().replace(/^pid /, ''))
 /// ```
-fn pid_named_by(path: &Path) -> Option<i32> {
+pub(crate) fn pid_named_by(path: &Path) -> Option<i32> {
     let text: String = std::fs::read_to_string(path).ok()?;
     return text.trim().strip_prefix(PID_TEXT_PREFIX)?.trim().parse::<i32>().ok();
 }

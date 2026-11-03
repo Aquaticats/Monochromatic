@@ -28,7 +28,13 @@ fn the_mode_follows_the_selection() {
     assert_eq!(selection(&["-a", "-m", "x", "a.txt"]).mode, TransactionMode::Index);
     assert_eq!(selection(&["-i", "-m", "x", "a.txt"]).mode, TransactionMode::Index);
     assert_eq!(selection(&["--pathspec-from-file=list", "-m", "x"]).mode, TransactionMode::ExplicitPath);
-    assert_eq!(decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::Merge).mode, TransactionMode::Index);
+    // Named paths during another session's merge or stopped cherry-pick are an ordinary commit of those paths; during a revert,
+    //  which real Git takes with paths, they conclude it.
+    assert_eq!(decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::Merge).mode, TransactionMode::ExplicitPath);
+    assert!(!decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::Merge).concludes_sequencer);
+    assert_eq!(decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::CherryPick).mode, TransactionMode::ExplicitPath);
+    assert_eq!(decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::Revert).mode, TransactionMode::Index);
+    assert_eq!(decide_selection(&region(&["-m", "x", "--no-only", "a.txt"]), Conclusion::Merge).mode, TransactionMode::Index);
     assert_eq!(decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::Amend).mode, TransactionMode::ExplicitPath);
 }
 
