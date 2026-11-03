@@ -347,13 +347,18 @@ veto open:
 re-sign a replayed signed commit in the background with the configured signer,
 as the service already signs its reconcile merges;
 saved copies of carried edits are kept until explicit disposal ("never discard user data").
-Questions put to the owner 2026-11-03:
-a wedged owner,
-staging intent,
-no-reflog ambiguity.
+Owner answers 2026-11-03 (question tool):
+stuck step "End Git, hold hooks (Recommended)" (a Git child with no progress for a measured interval is ended and its
+step redone;
+the person's hook is never ended,
+its commit is set aside as pending with a notice and the others keep landing on top);
+deferred staging "Update the index (Recommended)" (a deliberate restage to exactly the old entry inside a foreign
+lock's window is replaced,
+accepted as undetectable);
+unclear publication "Land it (Recommended)" (landed with a message naming it and how to drop it).
+Sixth revision sent to the design agent.
 Remaining:
-the owner's answers,
-then revise,
+revise,
 ask the owner the questions it leaves,
 then build in the reviewer's order (models and crash fixtures first),
 with the exit inventory as a gate.
