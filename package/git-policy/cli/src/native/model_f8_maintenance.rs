@@ -29,7 +29,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'nine' | 'candidate-observes-empty';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'nine' | 'ten' | 'candidate-observes-empty';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -49,6 +49,9 @@ pub enum Rules {
     /// Revision 9, G1 to G4 as revision 8, and T1 as a release intent: observe, write the intent, re-read the registry and
     /// withdraw if a run that is not terminal appeared, then re-check and release. The harm is an actual deletion after release.
     Nine,
+    /// Revision 10, T1 and C5: as revision 9, and the request's hold root exists until step 6, so a run's earlier view includes
+    /// the closure whatever the branch did meanwhile.
+    Ten,
     /// The candidate where a lane also closes a reserved entry whose scope is empty, without revoking (a mutation that
     /// must stay red).
     CandidateObservesEmpty,
@@ -86,6 +89,8 @@ pub struct State {
     pub deleted: bool,
     /// The second lane: 0 idle, 1 imported, 2 published, 3 connectivity checked, 4 spool released.
     pub lane_b: u8,
+    /// The branch was moved away from the request's commit (a switch or a rewrite) at some point.
+    pub branch_elsewhere: bool,
     /// The spool was released while destructive execution could still occur (a registered launch still authorized, or a
     /// destructive process still alive); set by the release step.
     pub lost: bool,
@@ -112,6 +117,7 @@ pub fn initial(rules: Rules, manager: bool) -> State {
         view: 0,
         deleted: false,
         lane_b: 0,
+        branch_elsewhere: false,
         lost: false,
     };
 }
@@ -134,7 +140,7 @@ fn launcher_steps(state: &State) -> Vec<(String, State)> {
     let mut found: Vec<(String, State)> = Vec::new();
     let candidate: bool = state.rules == Rules::Candidate || state.rules == Rules::CandidateObservesEmpty;
     let mut after: State = state.clone();
-    if state.rules == Rules::Eight || state.rules == Rules::Nine {
+    if state.rules == Rules::Eight || state.rules == Rules::Nine || state.rules == Rules::Ten {
         return eight_launcher_steps(state);
     }
     if state.rules == Rules::Six && state.launcher == 0 {
@@ -276,17 +282,34 @@ fn eight_release_steps(state: &State) -> Vec<(String, State)> {
         after.lost = destructive_alive(state) || launch_possible;
         push_step(&mut found, "T1 retire: lane B releases the spool", after);
     }
-    if state.rules == Rules::Nine && state.lane_b == 3 && !open {
+    let nine_like: bool = state.rules == Rules::Nine || state.rules == Rules::Ten;
+    if nine_like && state.lane_b >= 2 && state.lane_b != 4 && !state.branch_elsewhere {
+        let mut after: State = state.clone();
+        after.branch_elsewhere = true;
+        push_step(&mut found, "person: moves the branch away from the request's commit", after);
+    }
+    if nine_like && state.branch_elsewhere {
+        let mut after: State = state.clone();
+        after.branch_elsewhere = false;
+        push_step(&mut found, "person: returns the branch to the request's commit", after);
+    }
+    if nine_like && state.lane_b == 3 && !open {
         let mut after: State = state.clone();
         after.lane_b = 5;
         push_step(&mut found, "T1 (1): lane B writes the release intent", after);
     }
-    if state.rules == Rules::Nine && state.lane_b == 5 && open {
+    if nine_like && state.lane_b == 5 && open {
         let mut after: State = state.clone();
         after.lane_b = 3;
         push_step(&mut found, "T1 (2): lane B re-reads the registry, finds a run that is not terminal and withdraws the intent", after);
     }
-    if state.rules == Rules::Nine && state.lane_b == 5 && !open {
+    if nine_like && state.lane_b == 5 && !open {
+        let mut after: State = state.clone();
+        after.lane_b = 7;
+        push_step(&mut found, "T1 (2): lane B re-reads the registry and finds no run that is not terminal", after);
+    }
+    // Step (3) re-runs the connectivity check from the tip: a commit the tip no longer reaches is not released.
+    if nine_like && state.lane_b == 7 && !state.branch_elsewhere {
         let mut after: State = state.clone();
         if state.deleted {
             after.lane_b = 1;
@@ -313,7 +336,10 @@ fn work_steps(state: &State) -> Vec<(String, State)> {
     let mut found: Vec<(String, State)> = Vec::new();
     if destructive_alive(state) && state.view == 0 {
         let mut after: State = state.clone();
-        after.view = if state.lane_b >= 2 { 2 } else { 1 };
+        // The closure is referenced when the request is published and either the branch holds it or a hold root does (revision 10,
+        // until T1 step 6).
+        let rooted: bool = state.rules == Rules::Ten && state.lane_b != 4;
+        after.view = if state.lane_b >= 2 && (rooted || !state.branch_elsewhere) { 2 } else { 1 };
         push_step(&mut found, "prune: takes its reachability view", after);
     }
     if destructive_alive(state) && state.view == 1 && !state.deleted {
@@ -378,7 +404,7 @@ fn work_steps(state: &State) -> Vec<(String, State)> {
 fn release_steps(state: &State) -> Vec<(String, State)> {
     let mut found: Vec<(String, State)> = Vec::new();
     let candidate: bool = state.rules == Rules::Candidate || state.rules == Rules::CandidateObservesEmpty;
-    if state.rules == Rules::Eight || state.rules == Rules::Nine {
+    if state.rules == Rules::Eight || state.rules == Rules::Nine || state.rules == Rules::Ten {
         return eight_release_steps(state);
     }
     let scope_empty: bool = state.scope == 0 || state.scope == 1 || state.scope == 3;

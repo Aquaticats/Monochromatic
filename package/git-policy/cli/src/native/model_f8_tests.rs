@@ -247,6 +247,7 @@ fn nine_withdraws_a_release_when_a_run_appears_and_loses_nothing_otherwise() {
             "lane B: publishes the request",
             "lane B: the connectivity check passes",
             "T1 (1): lane B writes the release intent",
+            "T1 (2): lane B re-reads the registry and finds no run that is not terminal",
             "T1 (3) to (5): lane B re-runs the check, appends the ledger line and releases the spool",
             "G1 reserve: the launcher creates the scope and places itself in it",
             "G1 reserve: the launcher writes the entry reserved by link",
@@ -255,10 +256,52 @@ fn nine_withdraws_a_release_when_a_run_appears_and_loses_nothing_otherwise() {
         ],
     );
     assert_eq!(invariant(&late), None);
-    let report: Report = check(Rules::Nine);
+    // Exhaustive search: revision 9 is red for the root race (see nine_releases_a_closure_that_an_earlier_view_found_unreferenced);
+    // the release intent alone does not close it.
+    assert!(check(Rules::Nine).violation.is_some());
+}
+
+/// The schedule of the changelog's T1 and C5 row, shared by the next two tests: T1 steps 1 and 2 pass, a run is admitted and takes
+/// its view while the branch is away, the branch returns.
+const ROOT_RACE: [&str; 11] = [
+    "lane B: accepts the request and imports its objects",
+    "lane B: publishes the request",
+    "lane B: the connectivity check passes",
+    "T1 (1): lane B writes the release intent",
+    "T1 (2): lane B re-reads the registry and finds no run that is not terminal",
+    "G1 reserve: the launcher creates the scope and places itself in it",
+    "G1 reserve: the launcher writes the entry reserved by link",
+    "G2 run: the launcher starts the destructive process from inside the scope",
+    "person: moves the branch away from the request's commit",
+    "prune: takes its reachability view",
+    "person: returns the branch to the request's commit",
+];
+
+/// Revision 9 (red): no root protects the closure; the earlier view found it unreferenced, T1 releases, the run deletes.
+#[test]
+fn nine_releases_a_closure_that_an_earlier_view_found_unreferenced() {
+    let mut schedule: Vec<&str> = ROOT_RACE.to_vec();
+    schedule.push("T1 (3) to (5): lane B re-runs the check, appends the ledger line and releases the spool");
+    schedule.push("prune: deletes the objects its view found unreachable");
+    let reached = replay(initial(Rules::Nine, true), steps, &schedule);
+    assert_eq!(
+        invariant(&reached),
+        Some("a request's recovery copy was released and its objects were then deleted by wrapper-started maintenance".to_string())
+    );
+    assert!(check(Rules::Nine).violation.is_some());
+}
+
+/// Revision 10 (green): the hold root exists until step 6, so the same view includes the closure and the prune has nothing to
+/// delete; exhaustive.
+#[test]
+fn ten_roots_the_closure_until_the_release_is_done() {
+    let rooted = replay(initial(Rules::Ten, true), steps, &ROOT_RACE);
+    assert_eq!(rooted.view, 2);
+    assert!(!steps(&rooted).iter().any(|entry| { return entry.0.contains("deletes the objects"); }));
+    let report: Report = check(Rules::Ten);
     if let Some(violation) = &report.violation {
         panic!("{}: {}", violation.message, violation.trace.join(" ; "));
     }
     assert!(report.exhausted);
-    println!("F8 nine: {} states, deepest {}", report.states, report.deepest);
+    println!("F8 ten: {} states, deepest {}", report.states, report.deepest);
 }
