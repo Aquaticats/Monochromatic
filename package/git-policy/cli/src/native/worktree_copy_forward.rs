@@ -269,6 +269,8 @@ fn run_settled(
         short_circuit: false,
         context,
         add_plan: facts.add_plan.clone(),
+        #[cfg(target_os = "linux")]
+        repair: super::package_repair::RepairSwitch::from_arguments(arguments),
     };
     let mut stderr = std::io::stderr();
     // The runner starts Git as a child, so the wrapper is still there to copy once Git returns.

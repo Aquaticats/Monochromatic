@@ -936,6 +936,16 @@ MXL:
  re-exporting from `index.ts`;
  never strip docs/`//region` or reformat to fit.
 
+### Concurrency
+
+NLK:
+ Concurrency is lock-free first (atomic rename,
+ `O_EXCL`,
+ one owner per item);
+ an unavoidable lock covers the smallest unit,
+ never a whole repository,
+ with its reason written beside it.
+
 ### Linting
 
 LN1:

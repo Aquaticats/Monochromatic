@@ -144,6 +144,7 @@ fn added_worktree_receives_ignored_state_without_a_lock() {
             short_circuit: false,
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_step| return Ok(run_real(source_canonical.as_path(), args.as_slice())),
         &mut stderr,
@@ -190,6 +191,7 @@ fn opted_out_invocation_skips_synchronization() {
             short_circuit: false,
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_step| {
             runs += 1;
@@ -232,6 +234,7 @@ fn main_worktree_command_that_creates_nothing_is_not_settled() {
             short_circuit: false,
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_step| {
             runs += 1;
@@ -268,6 +271,7 @@ fn non_worktree_command_runs_without_settlement() {
             short_circuit: false,
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_step| {
             runs += 1;
@@ -309,6 +313,7 @@ fn creation_from(main: &Path, common: &Path, destination: Option<&Path>) -> Invo
         short_circuit: false,
         context: git_context(),
         add_plan: None,
+        repair: crate::package_repair::RepairSwitch::default(),
     };
 }
 
@@ -556,6 +561,7 @@ fn add_from_main(root: &Path, main: &Path, common: &Path, flags: (bool, bool)) -
             short_circuit: false,
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_step| return Ok(run_real(main, args.as_slice())),
         &mut stderr,
@@ -723,5 +729,43 @@ fn a_made_destination_whose_registration_cannot_be_confirmed_is_told() {
     assert!(text.contains("registration could not be confirmed"), "{text}");
     assert!(text.contains(topic.to_str().expect("utf8")), "{text}");
     assert!(!topic.join("cache").exists());
+    remove(root.as_path());
+}
+
+/// The worktrees handed on for the package-manager repair are exactly the destination whose registration the binding
+/// confirmed: never another add's worktree registered meanwhile, and none when the destination is unknown or unconfirmed.
+#[cfg(unix)]
+#[test]
+fn the_repair_is_handed_exactly_the_confirmed_destination() {
+    let root: PathBuf = fixture("lifecycle-repair-destination");
+    let (main, common) = source(root.as_path());
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    let topic: PathBuf = canonical_root.join("topic");
+    let other: PathBuf = canonical_root.join("other");
+    let observation: WorktreeCopyObservation = observe_copy_source(&main_identity(main.as_path(), common.as_path()), main.as_path())
+        .expect("observed")
+        .expect("applicable");
+    let (_settlement, after) = settle_creation(
+        &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
+        &observation,
+        &mut |_step| {
+            run_real(main.as_path(), add_arguments("other", other.as_path()).as_slice());
+            return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice()));
+        },
+        &mut Vec::new(),
+    )
+    .expect("settled");
+    assert_eq!(after.created, vec![topic.clone()]);
+    assert_eq!(after.source_root, Some(main.clone()));
+    // An unknown destination hands nothing on, even though Git made a worktree.
+    let unknown: PathBuf = canonical_root.join("unknown");
+    let (_settlement, none) = settle_creation(
+        &creation_from(main.as_path(), common.as_path(), None),
+        &observation,
+        &mut |_step| return Ok(run_real(main.as_path(), add_arguments("unknown", unknown.as_path()).as_slice())),
+        &mut Vec::new(),
+    )
+    .expect("settled");
+    assert!(none.created.is_empty());
     remove(root.as_path());
 }

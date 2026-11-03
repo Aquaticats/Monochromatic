@@ -1,0 +1,108 @@
+{
+  "verifiedAt": "2026-11-03T06:56:39.416Z",
+  "root": "~/temp/agent",
+  "request": "Delete whatever we almost definitely will not use in ~/temp/agent/",
+  "correction": "Nested Git repositories alone are not a reason to retain generated or recoverable scratch data.",
+  "ruleDecision": "User declined the proposed GCL edit. AGENTS.md was not changed.",
+  "deletedSelectedPaths": 4677,
+  "deletedRegularFiles": 6112320,
+  "deletedApparentBytes": 309639497027,
+  "deletedAllocatedBytes": 326015004672,
+  "categories": {
+    "Unreferenced build, lint, or test command output older than 30 days": {
+      "selectedPaths": 485,
+      "files": 485,
+      "apparentBytes": 134521474,
+      "allocatedBytes": 135999488
+    },
+    "Dependency copy in abandoned August worktree staging directory": {
+      "selectedPaths": 1290,
+      "files": 5024385,
+      "apparentBytes": 89476554845,
+      "allocatedBytes": 102500831232
+    },
+    "Cargo build cache in abandoned August worktree staging directory": {
+      "selectedPaths": 170,
+      "files": 388930,
+      "apparentBytes": 163703848970,
+      "allocatedBytes": 164937195520
+    },
+    "Old empty scratch directory": {
+      "selectedPaths": 26,
+      "files": 0,
+      "apparentBytes": 0,
+      "allocatedBytes": 0
+    },
+    "Disposable native-policy test fixture with empty authentication and synthetic workspace": {
+      "selectedPaths": 2332,
+      "files": 4829,
+      "apparentBytes": 474066,
+      "allocatedBytes": 19984384
+    },
+    "Installed-parser test fixture containing copied adapter and dependencies": {
+      "selectedPaths": 221,
+      "files": 1092,
+      "apparentBytes": 1587983,
+      "allocatedBytes": 5324800
+    },
+    "Verified Cargo build tree with clean pinned Ghostty dependency clones": {
+      "selectedPaths": 10,
+      "files": 436720,
+      "apparentBytes": 53453722896,
+      "allocatedBytes": 54775398400
+    },
+    "Old clean source clone with no ignored files, stashes, or commits outside remote refs": {
+      "selectedPaths": 143,
+      "files": 255879,
+      "apparentBytes": 2868786793,
+      "allocatedBytes": 3640270848
+    }
+  },
+  "verification": {
+    "allDeletionPathsAbsent": true,
+    "allOriginalSelectedPathsDeleted": true,
+    "unselectedInitialEntriesMissing": [],
+    "retainedClones": [
+      {
+        "name": "linux-btrfs-pinned-20260917",
+        "exists": true
+      },
+      {
+        "name": "terrapkg-packages-2026-08-21",
+        "exists": true
+      }
+    ]
+  },
+  "initialTopLevelEntries": 21711,
+  "finalTopLevelEntries": 18547,
+  "filesystemAvailableBytesBefore": 940981706752,
+  "filesystemAvailableBytesAfter": 1029136334848,
+  "spaceLimit": "File sizes count copies separately. Reflinks, snapshots, compression, hardlinks, and concurrent jobs mean removed file bytes do not measure physical space reclaimed.",
+  "retained": "Active and recent work, registered worktrees, referenced artifacts, uncommitted or locally unique repository work, configurations, patches, backups, and other uncertain data.",
+  "inspectionLimit": "Some operating-system and desktop-process descriptors were unreadable. Candidate age, content classification, readable process references, Git checks, mount checks, and targeted fsmonitor status probes provided additional evidence.",
+  "nestedRepositoryEvidence": {
+    "source": "~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libghostty-vt-sys-0.1.1/build.rs",
+    "sourceLines": [
+      86,
+      89,
+      90,
+      107,
+      118,
+      123
+    ],
+    "dependency": "https://github.com/ghostty-org/ghostty.git",
+    "commit": "bebca84668947bfc92b9a30ed58712e1c34eee1d",
+    "buildTrees": 10,
+    "checkouts": 20,
+    "checks": "Every checkout matched the build pin and generated stamp; no additional edits, stashes, or commits outside remote refs; only ignored Zig cache content."
+  },
+  "auditDirectory": "~/temp/agent/cleanup-audit-20261103",
+  "manifests": [
+    "deletions.jsonl",
+    "retry-deletions.jsonl",
+    "nested-deletions.jsonl",
+    "nested-retry-deletions.jsonl",
+    "clone-deletions.jsonl",
+    "clone-retry-deletions.jsonl"
+  ]
+}
