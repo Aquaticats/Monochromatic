@@ -430,9 +430,26 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   race-test barriers,
   and the comment-density pass.
   Some red states were compile errors rather than failing assertions.
-  Running,
-  not an agent:
-  the components re-review (`~/temp/agent/reviews/commit-components-sol-2.txt`).
+  The components re-review (`~/temp/agent/reviews/commit-components-sol-2.txt`,
+  2026-11-03T12:21:53-05:00):
+  "not correct".
+  The type-merge P1 and the `.torn` ordering are fixed;
+  per-lane ledgers hold under revision 9's single-appender contract.
+  P1s:
+  `create_dir_all_durable` stops at the first existing ancestor,
+  so an ancestor another creator made but never synced can vanish after acceptance;
+  the spool manifest's order and indices are unchecked,
+  so a correctly hashed manifest can make `read_closure` return old and new bytes swapped,
+  and an index such as `../other` is read as a path.
+  P2s:
+  an agreed type change (symlink to regular file on both sides) is refused;
+  a relative path fails (`create_dir("")`);
+  an empty commit and a message-only amendment are indistinguishable (no operation kind);
+  v1 requests are rejected (fine before release).
+  P3s:
+  the oracle strips legitimate `~<hex>` names;
+  the test sync counter runs in production code;
+  the counter tests prove neither the target nor the order.
 - Step 1,
   second round:
   its agent is resumed to model revision 9 (red under revision 8,
