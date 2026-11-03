@@ -2609,7 +2609,10 @@ the next entry that gets through says how many were dropped,
 as `CLI_GIT_LOG_DROPPED` on a native entry or as a warning line on the stream.
 Dropped lines are lost, not spooled: a lost line is better than a stuck command.
 A partial line still unfinished when the process ends stays unfinished in the stream.
-The signal handler sends its line the same way, with `sendto`.
+The signal handler sends its line the same way, with `sendto`,
+and writes the fallback line to standard error through the same non-waiting send,
+using only `send`, `poll` and `write`, which `signal-safety(7)` lists:
+a standard error that is a full pipe or stream loses the line, and the service still ends by the signal.
 Without `$JOURNAL_STREAM` (a terminal, a file, a test) the lines are plain on standard error.
 Every line ends with `at_ms=<epoch milliseconds>`,
 and the userinfo of any URL in it is replaced by `<credentials>`.
