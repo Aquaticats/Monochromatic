@@ -386,3 +386,8 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
 #[cfg(test)]
 #[path = "repo_read_query_tests.rs"]
 pub(crate) mod tests;
+
+/// Controls for the tree-to-tree listings stay out of the release executable.
+#[cfg(test)]
+#[path = "repo_read_pair_tests.rs"]
+mod pair_tests;
