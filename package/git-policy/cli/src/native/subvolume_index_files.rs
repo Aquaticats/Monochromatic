@@ -462,6 +462,9 @@ pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
 
 /// The number of copies of an index file one rewrite holds at once: the bytes read, the parsed entries, and the bytes written.
 ///  The budget multiplies the largest index file by it to estimate what one rewrite holds.
+///  Not measured: no run of the rewrite with its resident size read exists, so the count is the three structures named above plus
+///  one for allocator slack, and it is the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+///  "Parallelism caps and memory estimates").
 const INDEX_REWRITE_COPIES: u64 = 4;
 
 /// What one rewrite of an index file is: the file, the tree it describes, and the trees its entries were copied from.

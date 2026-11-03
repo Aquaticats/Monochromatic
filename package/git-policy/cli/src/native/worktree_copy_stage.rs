@@ -213,6 +213,10 @@ fn copy_file_exclusive_with(
 ///  The entries per worker below which a copy stays on one thread.
 /// Why:
 ///   Starting threads costs more than a small copy; a main checkout's hundreds of thousands of entries are what need them.
+///  Measured with `clone_tree` (`package_repair_tree_clone.rs`, the same `copy_file_exclusive` primitive as the copy stage) on trees of reflinked tracked files of this repository, medians of three runs, 28 threads, other sessions running, 2026-11-03: 8 workers took 99 ms against 330 ms for one at 4,723 entries, 33 ms against 143 ms at 2,119, and
+///  20 ms against 74 ms at 1,077, so a copy under this threshold gives up about a hundred milliseconds. The copy stage itself was
+///  not run at these sizes, so the value is not changed; it is the coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -224,6 +228,9 @@ const PARALLEL_COPY_MIN_ENTRIES: usize = 4096;
 ///  The most threads one copy starts.
 /// Why:
 ///   Cloning is a metadata operation bound by the filesystem's locks more than by CPU, and other sessions share this host.
+///  Measured with `clone_tree` (`package_repair_tree_clone.rs`, the same `copy_file_exclusive` primitive as the copy stage) on trees of reflinked tracked files of this repository, medians of three runs, 28 threads, other sessions running, 2026-11-03: at 22,718 entries 1, 2, 4, 8 and 16 workers took 1,549, 880, 555, 397 and 415 ms (three runs each, the
+///  spread of 16 workers 383 to 444 ms), at 9,301 entries 619, 363, 236, 183 and 194 ms, and at 4,723 entries 330, 190, 124, 99
+///  and 106 ms, so more than eight workers were never faster. Kept at eight; the coordinator's pick under the owner's delegation, open to the owner's veto.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

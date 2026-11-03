@@ -1010,6 +1010,9 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
 /// Why:
 ///   A stage holds a few very large trees (`node_modules`, `target`); three levels below the payload give enough
 ///  independent subtrees to share without walking the whole stage on one thread first.
+///  Not measured: no run of the removal at other depths exists, so this value has the stage's shape as its only basis and is
+///  the coordinator's pick under the owner's delegation, open to the owner's veto; the audit lists it as open
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -35,7 +35,11 @@ struct Entry {
     kind: Kind,
 }
 
-/// The entries per worker below which a clone stays on one thread; starting threads costs more than a small clone.
+/// The entries below which a clone stays on one thread; starting threads costs more than a small clone.
+///  Measured with `clone_tree` itself on reflinked trees, medians of three to five runs, other sessions running, 2026-11-03: at
+///  555 entries 8 workers took 13.5 ms against 39.6 ms for one; at 296 entries (which this threshold keeps on one thread) one thread
+///  took 20.6 ms, so a clone just under the threshold gives up less than 20 ms. Kept; the coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
 const PARALLEL_MIN_ENTRIES: usize = 512;
 
 /// What a clone made and what it left out.

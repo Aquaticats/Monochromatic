@@ -130,11 +130,23 @@ pub struct PushUpdate {
 
 /// The most per-destination or per-update Git queries that run at once: the bound `SPEC.md` gives ("at most four per-update
 ///  `git rev-list --stdin` or `git ls-tree` processes run concurrently"), which also bounds the connections opened to remotes.
+///  Measured on local queries of this repository (16 branch tips, medians of three runs, alternating orders, other sessions
+///  running): `git ls-tree -r` took 218, 114, 80, 50 and 46 ms at 1, 2, 4, 8 and 16 at once, and `git rev-list` of a whole branch
+///  845, 413, 231, 190 and 194 ms, so local queries still gained 37 and 18 percent from four to eight. The remote side (the
+///  connections a server tolerates) was not measured. Kept at four; the coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
 pub const MOST_CONCURRENT_QUERIES: usize = 4;
 
-/// The bytes one query holds at its peak: the output of a `rev-list` or `ls-remote` is read whole, so a push of a long range
-///  holds its commit names; about 32 MiB covers half a million commits at the length of a name.
-pub const QUERY_MEMORY: u64 = 32 << 20;
+/// The bytes one query holds at its peak when it lists the whole history of this repository: the largest resident size of
+///  `git rev-list --all` in three runs (29,164 KiB, 29,032 KiB and 28,848 KiB, so 29,863,936 bytes) plus the 1,413,721 bytes of
+///  its output, which the wrapper reads whole (34,481 commits on 2026-11-03). `git ls-tree -r` of the main tree peaked at 26,080
+///  KiB with 2,459,743 bytes of output.
+pub const MEASURED_WHOLE_HISTORY_QUERY: u64 = 29_863_936 + 1_413_721;
+
+/// The bytes one query holds at its peak: `MEASURED_WHOLE_HISTORY_QUERY` rounded up to a power of two. The coordinator's pick
+///  under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps
+///  and memory estimates"). A history that grows past a few tens of thousands more commits needs a larger figure.
+pub const QUERY_MEMORY: u64 = MEASURED_WHOLE_HISTORY_QUERY.next_power_of_two();
 
 /// What:
 ///  The probe's Git arguments: the invocation's global options, the switches that keep every hook and full object
