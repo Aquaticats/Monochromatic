@@ -435,3 +435,39 @@ run the prepared local tasks `test`,
 then `test:browser`.
 The final-source driver writes `/work/logs/latest-final-source.json` only on success.
 Native tests and live-browser verification remain outstanding.
+
+## Native build success at 2026-11-03T19:21:54+00:00
+
+The final native build completed successfully at `2026-11-03T19:21:54.478Z`,
+with elapsed time `3314963 ms` for the resumed build.
+It built the actual browser and both native test executables.
+`/work/logs/latest-final-source.json` now records the successful inputs and result directory.
+The native `test` task is running with networking disabled.
+The remaining execution order is the failing startup control,
+candidate restoration and native retest,
+then the final live-browser check.
+
+The [current-upstream comparison](../troubleshooting/chromium-disk-responsiveness/upstream-source-check.json)
+found identical Git blob IDs for all patched source paths at
+`4bc632656c7b95bc4c1c8c6a891e63396bdd0d52`.
+The `DEPS` positive control differed.
+The complete retained patch also passed `git apply --check` in the unmodified base clone.
+
+The related-work refresh inspected startup,
+accessor,
+persistent-histogram,
+and histogram-fault queries.
+Selected current diffs concern crash-profile ownership,
+feature-list startup,
+and consent lookup rather than the allocator's backing selection.
+Source-selection browser checks passed for the crash-profile,
+feature-list,
+and parallel-consent descriptions.
+The remaining selections are the consent-restructuring and early-exit prototypes.
+An `agent-browser` navigation returned `outcome_unknown`;
+normal close succeeded and its launch scope became inactive.
+A subsequent helper assertion failed to identify the browser through direct-child enumeration;
+that helper also closed its browser.
+The next attempt identifies the exact disposable profile and bounds its actual browser scope.
+These are separate observations;
+no common cause or host-limit explanation is established.

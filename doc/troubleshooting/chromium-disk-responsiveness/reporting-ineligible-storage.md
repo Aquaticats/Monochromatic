@@ -1,10 +1,13 @@
 # Candidate local histogram storage for reporting-ineligible Chromium
 
-## Candidate status at 2026-11-03T09:29:22-05:00
+## Candidate status at 2026-11-03T19:21:54+00:00
 
 The [patch](reporting-ineligible-storage.patch) targets upstream Chromium revision
 `360d943d418b3d6645fea86766f5dcc4a7cc3b2e`.
-It is implemented but has not yet passed native compilation or browser verification.
+Native compilation passed for `chrome`,
+`chrome/test:unit_tests`,
+and `chrome/test:browser_tests`.
+Native test execution and live browser verification remain pending.
 Do not treat the earlier unmodified Chromium reproduction as validation of this patch.
 
 The user requested a patch to accompany
@@ -68,7 +71,7 @@ Native compilation started at `2026-11-03T17:40:12.725Z`.
 The build retains its logs in the named container volume;
 the [handover](../../handover/chromium-live-histogram-contribution.md)
 records the resource bounds and acquisition evidence.
-Compilation and behavioral verification remain pending.
+This preparation checkpoint did not yet include completed compilation or behavioral verification.
 
 ## Formatted candidate prepared at 2026-11-03T18:21:27+00:00
 
@@ -93,3 +96,18 @@ and the new reporting-ineligible startup regression.
 The final order is native tests,
 the deliberately failing control and candidate restoration,
 then the live browser check on the restored candidate.
+
+## Native build verified at 2026-11-03T19:21:54+00:00
+
+The final native build exited `0` at `2026-11-03T19:21:54.478Z`.
+Its recorded elapsed time was `3314963 ms` after resuming from the retained outputs.
+The final-source record confirms the exact candidate patch and source checksums.
+This is compilation evidence;
+no native test pass or browser behavior is inferred from it.
+
+The [upstream source check](upstream-source-check.json) also compared the patch-base files
+against observed main revision `4bc632656c7b95bc4c1c8c6a891e63396bdd0d52`.
+All modified source paths retained their original Git blob IDs.
+The `DEPS` control had different blob IDs,
+demonstrating that the comparison detects a changed input.
+The build remains pinned to its recorded target revision.
