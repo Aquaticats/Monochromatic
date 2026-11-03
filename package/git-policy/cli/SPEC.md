@@ -2845,6 +2845,7 @@ Any difference (an atomic save over the path, an append, a truncation or a rewri
 rejects the command with a finding that names the file and says to run it again once nothing is writing to it,
 and changes nothing.
 A write that lands after the last comparison and before Git starts cannot be seen from outside Git.
+A file that another program changes while the save runs is the user's risk.
 
 The folder is bounded after each save that wrote at least one copy,
 once the copy is complete and synced (so a kill while copying costs no older copy),

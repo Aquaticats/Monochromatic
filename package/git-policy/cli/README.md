@@ -594,6 +594,7 @@ When a copy cannot be written (no space, no permission), the command is rejected
  and says to move it out of the way or save it first.
  A file that changes while it is being copied (an editor's atomic save, an append, a rewrite in place) is not reported saved:
  the copy is removed, the command is rejected, and running it again once nothing writes to the file goes through.
+ A file that another program changes while the save runs is your risk.
  A pathspec mode (`--icase-pathspecs`, `GIT_ICASE_PATHSPECS` and the glob, noglob and literal forms) keeps the rejection,
  and when every path you named is a conflicted file the message names the mode and says the same command without it
  is saved first and then allowed.
