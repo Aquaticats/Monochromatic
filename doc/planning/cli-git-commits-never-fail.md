@@ -636,12 +636,15 @@ are `C` (and `T`'s other parent for a conclusion).
 No wait below is called designed out.
 
 Guaranteed to complete, with no wait on another program and no cap or count:
-- acceptance: local reads and an fsynced write in the worktree's own directory, no ref write; failures are the owner's outside
-  causes (a full disk, I/O errors);
+- acceptance: local reads and fsynced writes in the worktree's own directory and the common directory, no ref write, no wait on a
+  program or on a foreign lock; it may wait for the lane's short state updates (an odd generation never spans a person's program or a
+  foreign lock); failures are the owner's outside causes (a full disk, I/O errors);
 - the answer after a crash or a long stop (a resend returns the record's state or the permanent ledger's outcome);
 - retention of everything the request needs until its ledger line is durable, and permanently for anything promised as saved.
 
 May wait, with a notice that names what is waited for:
+- the next owner's acquisition, while a child of the previous owner is between fork and exec;
+- a quiet owner that holds the gate with no person's program running (owner question B);
 - the command, on its own lane (a slow or wedged owner of our own making; the person can interrupt at no cost; the request is
   durable);
 - off the command (it has exited 0): publishing a pending request while a live foreign program holds the branch's ref lock or keeps
@@ -649,26 +652,26 @@ May wait, with a notice that names what is waited for:
   (Recommended)"; a merge saves its result on a side ref, exits 0 and finishes the checkout when the lock frees).
 The remaining waits are the person's own: an editor, a signer's prompt, a hook.
 
-Stuck Git children and the person's hooks (decision 1).
-A Git child that makes no progress (no processor time, disk activity or output) for the measured interval is cancelled by the protocol of
-"Cancelling a stalled Git child" and its step redone: the object writers and `merge-tree` are content-addressed, and `update-ref` is a
-compare-and-swap that is safe to run twice after the evidence rules of "Publication and recovery". The person's hook is never ended. A
-hook running as a descendant of a Git child (a `reference-transaction` hook of the publication's `update-ref`, or `pre-commit` and
-`commit-msg` in a commit Git builds) makes that child exempt from the stall rule while it runs. A commit whose build is held by such a
-hook is `held` (see "Adoption order"), with a notice naming the hook and its process; independent requests behind it keep landing; a
-publication whose `update-ref` is held by a `reference-transaction` hook holds the branch's ref lock, so the requests behind it find it
-held and become pending in adoption order until the hook returns. Internal transactions on `refs/cli-git/` run without the person's hooks.
-A deterministic Git bug that hangs the same input every time cannot be restarted away. The direction is adopted (above): embed the
-operation instead of spawning Git for it, starting with the files-backend ref transaction and the object writes the lane uses, with
-differential controls against Git; reftable and any operation not yet embedded keep using Git until embedded. Pending with a message
-is not an end state. Embedding moves a hang into the owner, so the embedded code carries the same step journaling and redo, and
-embedding is not itself a termination proof.
+Stuck Git children and the person's hooks (decision 1; X1 of the state machine).
+A Git child that makes no progress (no processor time, disk activity or output) for the measured interval and whose command cannot launch a
+protected program is sent the terminate signal and its step redone: the object writers and `merge-tree` are content-addressed, and
+`update-ref` without a hook is a compare-and-swap that is safe to run twice after the evidence classes of P1 to P4. The person's hook is never
+ended, and a command that can launch a person's program is exempt from cancellation altogether (decided at spawn, not by sampling), so it
+waits. A commit whose build is held by a hook is `held` (B1, B2); independent requests behind it keep landing. A publication whose
+`update-ref` is held by a `reference-transaction` hook holds the branch's ref lock, so the requests behind it find it held and become
+pending in adoption order until the hook returns. Internal transactions on `refs/cli-git/` run without the person's hooks. A child that
+ignores the terminate signal is owner question A. A deterministic Git bug that hangs the same input every time cannot be restarted away; the
+direction is adopted: embed the operation instead of spawning Git for it, starting with the files-backend ref transaction and the object
+writes the lane uses, with differential controls against Git; reftable and any operation not yet embedded keep using Git until embedded.
+Pending with a message is not an end state. Embedding moves a hang into the owner, so the embedded code carries the same journaling and
+redo, runs inside the shared gate, and is not itself a termination proof.
 
 Hooks and owner death.
 When a `reference-transaction` hook is configured the lane writes `hook-dispatch <id> <attempt>` (fsync) before it invokes
 `update-ref`. It is conservative evidence that a hook may have run; it is not an admission interlock (the gate is) and it does not give
 exactly-once effects. After an owner death with no durable `published`, recovery runs the evidence rules first and invokes `update-ref`
-again only if they say to publish (a recorded `swap-failed`, or unclear, which owner decision 3 lands). Git's contract allows the
+again only if the recovery classes say to publish (R4 a recorded `swap-failed` with no positive evidence, or R5 unclear, which owner
+decision 3 lands). Git's contract allows the
 repetition: the hook "executes whenever a reference transaction is preparing, prepared, committed or aborted and may thus get called
 multiple times" (`Documentation/githooks.adoc:486-488`). The concession is stated directly (question 3, picked A): an external effect of
 a hook on "prepared" may happen again after an interrupted attempt, and neither the journal nor the transaction state proves
@@ -1263,6 +1266,9 @@ the outside list.
 
 ## Answers to the sixth review
 
+History. Revision 8's normative state machine governs; where this section describes the seqlock across publication, the birth-time lock
+removal, scope reaping by a recorded path, an `O_EXCL` binding before the request exists or an empty scope as finished, it is superseded.
+
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol-6.txt` (summarized on main in `doc/handover/cli-git-rust-implementation.md`
 under "Commits, merges and pushes that never fail"), with a closure line (closed in the model: answered by the design, a red control
 exists to be built; narrowed: reduced, with the decision it meets; open: with the reason). The verdict: ready to build step 1, executable
@@ -1317,6 +1323,51 @@ models and disposable crash fixtures only; not ready to build the live protocol.
   preserved semantics, reference-counted pause); it stays a P2 verification gate. Ledger: kept, no expiry.
 - Still open and unchanged: the retained-child exit inventory and the deterministic-hang embedding (work to do), and the extension and
   carry-forward durability gates.
+
+## Answers to the seventh review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-7.txt`, with a closure line (closed in the model: answered by a named transition
+and a red control to build; narrowed: reduced, with the guarantee stated plainly; open: with the reason). Verdict: step 1 remains the right
+first build; the live protocol is not ready. This revision builds nothing.
+
+- F1 precedence (P2): accepted. R3 (positive old-value evidence after the anchor) is checked before R4 (`swap-failed`), so a failed invocation
+  followed by the identical commit installed and removed by another writer is `rewritten-away`, not replayed. Old values are read from the
+  entry's own record, never from an adjacent entry; the Git interface for this on each backend is a backend inspection. Closure: closed in the model.
+- F2 (P1): accepted in both parts. (A) The fork-to-exec window is modelled: close-on-exec acts at exec, a child between fork and exec holds the
+  description, and L1 waits for it (bounded by that child's progress; stated as a narrowed guarantee), instead of claiming children never hold it.
+  The proof is restated: acquisition proves no conflicting lock remains on that inode, and the previous owner's death follows from the enforced
+  invariants (children close at exec, the lock file is never replaced, no explicit unlock, no person's program runs in the owner process).
+  (B) Each incarnation has its own cgroup named by its unique id (transient scope for an inline client, delegated sub-cgroup for a service), and L2
+  targets only the recorded previous id, so a replacement owner can never kill its own group. Closure: closed in the model; the older-implementation
+  case is not covered by the proof and needs no migration while nothing is built.
+- F3 (P1): accepted. "The person's program" is the execution tree: the owner holds the shared gate until the invocation's cgroup is empty. The
+  restarter is fail-closed through the durable `lane/restart-intent` (an owner that finds it admits nothing and exits), uses a pidfd and no manager stop
+  request, and runs only within one pid namespace. The wedged shared holder is a remaining internal wait, stated plainly as owner question B.
+  Closure: closed in the model except the wedged shared holder, which is narrowed.
+- F4 (P1): accepted. The birth-time lock deletion rule is removed and is not to be implemented; the wrapper never removes a ref lock file. X1 sends
+  the terminate signal only and exempts any command capable of launching a protected program, decided at spawn. A child that ignores the signal is
+  owner question A (default: do not kill, request pending). Closure: narrowed; the choice is the owner's.
+- F5 (P2): accepted. M1 is the only materialization path and carries the attachment guard, so an immediate follow-up cannot bypass it. Closure:
+  closed in the model; the accepted residue stays question 4 (picked A).
+- F6 (P1): accepted. The generation is odd only around lane state updates (C5, P3, M1's index replacement), never across P2, a hook or a foreign
+  lock; publication is journaled in P1 without a generation change and the in-flight commit is already in the logical tail. The optional
+  index lock is taken after the publication, so it is not held across a hook. The base closure read is part of C1's validated capture. Acceptance
+  waits for short local updates only; stated. Closure: closed in the model; red control: a hook that waits for ever during P2 with a disjoint
+  request being accepted.
+- F7 (P1): accepted. The binding is published by `link` from a fully written file (never partial), names an already-durable `incoming` request, and
+  a same-content resend or L4 completes the no-replace inbox publication; the reserved state is defined. Closure: closed in the model.
+- F8 (P1): accepted. Reservation, launch authority and terminal state are separate: the launcher is placed in the run's scope before the entry is
+  observable and launches from inside it; empty or absent scope is never read as finished; the launcher's death with an empty scope proves launch can
+  no longer happen. Where no manager exists, containment is impossible and the recovery copy is kept until explicit disposal (G4). Closure: closed in
+  the model with a manager; narrowed without one.
+- F9 (P2): accepted. One consumption release rule (materialized, voided or refused, never at publication); amendment of a held request is a versioned
+  successor with an immutable base, its build queued behind the running hook, and completions carry (request, version) and are discarded for a
+  superseded version. Closure: closed in the model.
+- Section 3, seven operative contradictions: (1) Item 1 now describes X1 and the embedding direction and no longer says the kill is removed or that
+  pending is an end state; (2) Item 4 uses background re-signing; (3) Item 4 uses the one transition P4 (one try, then pending); (4) Item 2 limits an
+  inline owner to draining earlier requests and its own; (5) the acceptance guarantee states what it waits for; (6) the consumption release rule is
+  one; (7) Item 6's stale owner-question language is replaced by the outside list plus coordination. Closure: closed.
+- Step 1 expressive power and properties: adopted in "Verification plan and build order".
 
 ## Exits that stay nonzero
 
@@ -1390,6 +1441,26 @@ Each pick stays open to the owner's veto; its reason follows the question's opti
    - Picked: A. Nothing is lost and `git restore --staged` undoes the residue; the owner's "Update the index (Recommended)" chose a
      current index over a lagging one, and B makes the index lag after any foreign write.
 
+Two decisions the seventh review leaves to the owner. Neither is picked here; the coordinator picks under the owner's delegation.
+
+A. A Git child that ignores the terminate signal and holds a ref lock.
+   Case: the service runs `update-ref` for `main`; it creates `.git/refs/heads/main.lock`, then stalls and ignores the terminate signal; the person
+   has no reference-transaction hook.
+   - Option A1, never kill it: the request stays pending with a notice naming the child and saying it ignored the signal; nothing is manufactured.
+     Visible: the commit is saved and the command exits 0, `main` does not show it, and later requests behind it are pending too until the child
+     ends or the person ends it. The default of this revision.
+   - Option A2, kill it and leave its lock for the person to clear: the child ends; `main.lock` stays (the wrapper never removes a ref lock); the request
+     and the requests behind it are pending behind a lock with no live holder, and the notice names the file and says to remove it if no Git runs.
+     Visible: the same pending state, now with a lock file that needs a person's action, and the stuck child gone.
+B. A quiet owner that holds the gate with no person's program running.
+   Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
+   before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
+   - Option B1, do nothing automatic: the command prints how to restart the unit and waits; the request is durable. Visible: the command waits until
+     the person restarts the service; this conflicts with "never stuck" if such a wedge occurs.
+   - Option B2, restart anyway: the waiting command ends the owner without the gate and the manager restarts the service. Visible: the commit lands after
+     the restart, but if the owner was inside a ref transaction with a child, ending it can leave `main.lock` that the wrapper will not remove, with
+     the pending state of A2.
+
 ## Verification plan and build order
 
 Nothing past the red controls and the conflicted-file changes is built. The sixth review's verdict governs: step 1 is executable models and
@@ -1412,6 +1483,18 @@ Step 1, in this order (every model starts as a failing control that preserves th
    torn tails, resend with changed content, upgrade recovery; retain everything.
 4. Pure tree comparison and captured-delta replay with explicit base, result and current inputs, changing no live ref, index or worktree;
    including the mixed plain and named-path pending sequence and an amendment whose target is no longer the tip.
+Models added from the seventh review (each starts as a failing control with the review's schedule): the fork-to-exec window with the owner dying
+and the next owner waiting; the service cgroup reused by a replacement owner (it must not kill itself); the gate with the restarter dying at every
+point of L7, a hook admitted after the check, and a wedged shared holder; a pid read in another pid namespace; the foreign lock taken while a child
+is stalled before acquiring it, and after it released and stalled before exit (no deletion may occur); the reserved binding (C3 done, C4 not) with a
+same-content resend, a different-content resend, and a partial binding that cannot exist; maintenance with a launcher alive and an empty scope, with
+process-group escape, and release racing the run; the seqlock with a hook that waits for ever during P2; the immediate follow-up after a completed
+switch; a held request completed after its amendment, with the consumption entries across deferred materialization; a failed swap followed by the
+identical commit installed and removed by another writer.
+Properties to check at minimum: no foreign lock is removed; no replacement or healthy owner is targeted; a protected running program is not cancelled;
+every accepted identity stays recoverable to its immutable request or terminal outcome; no recovery copy is released while relevant destructive
+execution can still occur; stale index entries are not silently reintroduced into unrelated commits; a superseded version cannot publish. Liveness is
+stated with its fairness assumptions and is not made to pass by assuming that every gate holder, hook, child or owner eventually completes.
 Explicit red controls named by the review: the intact-anchor deleted-suffix case, restart versus hook dispatch, the retained-descriptor scope
 deadlock, same-identity concurrent acceptance, and cross-worktree maintenance overlap.
 
