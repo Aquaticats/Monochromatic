@@ -10083,3 +10083,18 @@ by the coordinator at merge.
   `pm-bin` or `pm-measure-dir`: it removed the 22 five-entry build skeletons under `/var/mnt/encrypted/cargo-build`
   created 2026-11-03T00:58:40 to 01:00:30-05:00 by the agent's real add; `pm-measure-dir` and `pm-bin` were already
   gone; no `pm-` worktree or matching scope remains.
+- 2026-11-03T01:56:35-05:00, release and locks. Conversion gate passed (3842/3842), merged `6da46b2c92`; combined
+  dirty-snapshot gate passed (3855/3855), merged `fe1ab4be45`. Release 0.5.20 dispatched (run 41593017383; the
+  release note is capped at 200 characters). Owner, verbatim: "Didn't I say locks shouldn't be used whever
+  possible? Why are we still using that?" Answer: the wrapper's own per-repository settlement lock around
+  worktree-creating commands (SPEC "settlement lock") still exists because new worktrees are found by diffing the
+  administrative set before and after Git, so concurrent adds are serialized; README says it "remains until the copy
+  moves into the commit service", and that move was never done. Measured cost today: adds waited about 228 s and
+  over 20 minutes on it. An agent is removing it on `fix/git-policy-cli-worktree-add-without-settlement-lock` and
+  inventorying every other lock. Separate bug found: the service stops `git push` at its 30 s deadline in a way that
+  left Git's `refs/remotes/origin/main.lock` (0 bytes, 01:38:01) behind, so every later `git fetch` failed and the
+  tracking ref showed main 22 ahead though pushes had landed; with no Git network process alive, the coordinator
+  removed the stale file and fetch recovered. An agent is fixing the stop path on
+  `fix/git-policy-cli-deadline-stop-leaves-no-git-lock` and counting how often the 30 s deadline fires. The
+  package-manager branch (repairs now after the lock, online toolchain install) merged main and runs its gate
+  `gpc-gate-package-repair-with-main-20261103T015635-0500`.
