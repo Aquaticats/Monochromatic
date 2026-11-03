@@ -61,7 +61,30 @@ use std::fs;
 /// import { io } from 'std';
 /// ```
 use std::cell::RefCell;
+/// What:
+/// `use std::io;` imports
+/// `io`
+/// so this file can name them unqualified.
+/// Why:
+/// `io::Result` and `io::Error` are the file-system error types of the journal functions.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { } from 'node:fs'; // errors are thrown
+/// ```
 use std::io;
+/// What:
+/// `use std::io::Write;` imports
+/// `Write`
+/// so this file can name them unqualified.
+/// Why:
+/// `Write` is the trait that adds `write_all` to an open file,
+/// which `save_aside` uses to fill a file it just created exclusively.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Node's fs.writeSync is a free function; no trait import is needed.
+/// ```
 use std::io::Write;
 /// What:
 /// `use std::path::{Path, PathBuf};` imports `Path`,
@@ -83,10 +106,19 @@ use std::io::Write;
 /// import { Path, PathBuf } from 'std/path';
 /// ```
 use std::path::{Path, PathBuf};
-/// Imports `rustix`'s safe wrapper of `renameat2`:
-/// the flags,
-/// and the current directory as the base of relative names.
-use rustix::fs::{CWD, RenameFlags, renameat_with};
+/// What:
+/// `pub use crate::journal_replace::{ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks};` imports and re-exports
+/// the atomic compare-and-replace,
+/// so callers keep writing `crate::journal::replace_if_holds`.
+/// Why:
+/// The file was split to stay under the line limit;
+/// the callers and the tests are unchanged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { ReplaceOutcome, replaceIfHolds, replaceIfHoldsWithHooks } from './journal-replace.ts';
+/// ```
+pub use crate::journal_replace::{ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks};
 
 /// What:
 /// `use crate::constants::LOCKFILE_NAME;` imports `LOCKFILE_NAME` from another module of this crate so this file can name it unqualified.
@@ -131,7 +163,7 @@ pub const REFUSED_SUFFIX: &str = ".refused";
 const INDEX_FILE: &str = "index.txt";
 
 /// The path of a sibling file used for the write half of an atomic replace.
-fn sibling_temp(target: &Path) -> PathBuf {
+pub(crate) fn sibling_temp(target: &Path) -> PathBuf {
     let mut name: std::ffi::OsString = target.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
     name.push(format!(".cargo-shadow-{}.tmp", std::process::id()));
     return target.with_file_name(name);
@@ -148,148 +180,10 @@ pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
     return renamed;
 }
 
-/// What a compare-and-replace did to one file.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ReplaceOutcome {
-    /// The file held what was expected and now holds the new text.
-    Replaced,
-    /// The file held something else,
-    /// or held it only for a moment and was put back:
-    /// another writer's file is where it was.
-    LeftAlone,
-    /// Another writer published twice in the gap,
-    /// so a file was displaced and could not be put back;
-    /// it was kept under this name.
-    Preserved(PathBuf),
-}
 
-/// What:
-/// `fn exchange(first, second) -> io::Result<()>` swaps two paths in one step (`renameat2` with `RENAME_EXCHANGE`,
-/// through `rustix`'s safe wrapper).
-/// Why:
-/// After the call `first` names what `second` named and the other way round,
-/// with no moment at which either path is missing,
-/// so the file that was displaced can be read and,
-/// if it was not the expected one,
-/// swapped back.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // no Node API; the kernel call is renameat2(RENAME_EXCHANGE)
-/// function exchange(first: string, second: string): void
-/// ```
-fn exchange(first: &Path, second: &Path) -> io::Result<()> {
-    return renameat_with(CWD, first, CWD, second, RenameFlags::EXCHANGE).map_err(io::Error::from);
-}
 
-/// What:
-/// `fn preserve(displaced, target) -> io::Result<PathBuf>` moves a file to the first free `<name>.displaced`,
-/// `<name>.displaced.1`,
-/// ... next to the target,
-/// without replacing anything.
-/// Why:
-/// A file that could not be put back must not be deleted;
-/// a hard link fails when the name exists,
-/// so two runs never share one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function preserve(displaced: string, target: string): string  // linkSync(displaced, name) per candidate, then unlinkSync(displaced)
-/// ```
-fn preserve(displaced: &Path, target: &Path) -> io::Result<PathBuf> {
-    let base: String = target.file_name().map(|name| { return name.to_string_lossy().to_string(); }).unwrap_or_default();
-    let mut number: u32 = 0;
-    loop {
-        let name: String = if number == 0 { format!("{base}.displaced") } else { format!("{base}.displaced.{number}") };
-        let candidate: PathBuf = target.with_file_name(name);
-        match fs::hard_link(displaced, &candidate) {
-            Ok(()) => {
-                fs::remove_file(displaced)?;
-                return Ok(candidate);
-            }
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => number += 1,
-            Err(error) => return Err(error),
-        }
-    }
-}
 
-/// What:
-/// `pub fn replace_if_holds(path, expected, new_text, between) -> io::Result<ReplaceOutcome>` puts `new_text` in `path` only if
-/// `path` holds `expected`,
-/// comparing and replacing in one atomic step.
-/// Why:
-/// Review finding and delegated pick (2026-11-03):
-/// reading a file and then renaming over it leaves a gap in which another writer
-/// can publish a lockfile that the rename then destroys.
-/// The new text is written to a sibling file and exchanged with `path`
-/// atomically;
-/// the file that came out is read,
-/// and when it is not the expected one the exchange is undone,
-/// so no writer's
-/// file is ever lost and no lock is taken.
-/// A filesystem that cannot exchange falls back to a second comparison right before
-/// an ordinary rename.
-/// `between` runs after the first comparison,
-/// so a test can publish a file exactly in the gap.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function replaceIfHolds(path: string, expected: string, newText: string, between: (path: string) => void): ReplaceOutcome
-/// ```
-pub fn replace_if_holds(path: &Path, expected: &str, new_text: &str, between: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
-    return replace_if_holds_with_hooks(path, expected, new_text, between, &|_path| {});
-}
 
-/// What:
-/// `pub fn replace_if_holds_with_hooks(path, expected, new_text, between, after_exchange)` is `replace_if_holds` with a second
-/// hook that runs right after the exchange,
-/// before the displaced file is read.
-/// Why:
-/// The second gap is where a writer publishes a file between the swap and the swap back;
-/// the hook lets a test publish one there,
-/// to show that the file displaced twice is kept and not deleted.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function replaceIfHoldsWithHooks(path, expected, newText, between, afterExchange): ReplaceOutcome
-/// ```
-pub fn replace_if_holds_with_hooks(path: &Path, expected: &str, new_text: &str, between: &dyn Fn(&Path), after_exchange: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
-    let first: String = fs::read_to_string(path).unwrap_or_default();
-    if first != expected {
-        return Ok(ReplaceOutcome::LeftAlone);
-    }
-    between(path);
-    let temp: PathBuf = sibling_temp(path);
-    fs::write(&temp, new_text)?;
-    if exchange(&temp, path).is_err() {
-        // No exchange here (the path vanished, or the filesystem cannot swap): compare again, then an ordinary rename.
-        let again: String = fs::read_to_string(path).unwrap_or_default();
-        if again != expected {
-            let _ = fs::remove_file(&temp);
-            return Ok(ReplaceOutcome::LeftAlone);
-        }
-        fs::rename(&temp, path)?;
-        return Ok(ReplaceOutcome::Replaced);
-    }
-    after_exchange(path);
-    // The temporary name now holds the file that was at `path`.
-    let displaced: String = fs::read_to_string(&temp).unwrap_or_default();
-    if displaced == expected {
-        fs::remove_file(&temp)?;
-        return Ok(ReplaceOutcome::Replaced);
-    }
-    // Another writer published in the gap: swap back, so their file is where it was.
-    if exchange(&temp, path).is_err() {
-        return Ok(ReplaceOutcome::Preserved(preserve(&temp, path)?));
-    }
-    let after_undo: String = fs::read_to_string(&temp).unwrap_or_default();
-    if after_undo == new_text {
-        fs::remove_file(&temp)?;
-        return Ok(ReplaceOutcome::LeftAlone);
-    }
-    // Yet another writer published between the swap and the swap back; their file now sits at the temporary name.
-    return Ok(ReplaceOutcome::Preserved(preserve(&temp, path)?));
-}
 
 /// What:
 /// `fn snapshot_of(snapshots, crate_dir) -> Option<&LockSnapshot>` finds the snapshot of one crate root,
@@ -328,7 +222,7 @@ fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a
 /// export function restoreIfUnchanged({ root, snapshots, produced }): string[]
 /// ```
 pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot]) -> io::Result<Vec<String>> {
-    return restore_if_unchanged_with(root, snapshots, produced, &|_path| {});
+    return restore_if_unchanged_with(root, snapshots, produced, &no_hook);
 }
 
 /// What:
@@ -405,7 +299,12 @@ pub fn note_produced(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSn
         Err(_) => return,
     };
     let mut list = produced.borrow_mut();
-    list.retain(|known| { return known.crate_dir != crate_dir; });
+    let earlier: Vec<LockSnapshot> = std::mem::take(&mut *list);
+    for known in earlier {
+        if known.crate_dir != crate_dir {
+            list.push(known);
+        }
+    }
     list.push(LockSnapshot { crate_dir: crate_dir.to_string(), source });
 }
 
@@ -428,7 +327,7 @@ pub fn note_produced(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSn
 /// function saveAside(target: string, text: string): string  // writeFileSync(name, text, { flag: 'wx' }) per candidate name
 /// ```
 fn save_aside(target: &Path, text: &str) -> io::Result<PathBuf> {
-    let base: String = target.file_name().map(|name| { return name.to_string_lossy().to_string(); }).unwrap_or_default();
+    let base: String = file_name_text(target);
     let mut number: u32 = 0;
     loop {
         let name: String = if number == 0 { base.clone() } else { format!("{base}.{number}") };
@@ -573,9 +472,12 @@ fn recover_manifests(directory: &Path, between: &dyn Fn(&Path), messages: &mut V
         if live == before {
             continue;
         }
-        let saved: io::Result<PathBuf> = save_aside(&path.with_file_name(format!("{}{REFUSED_SUFFIX}", path.file_name().map(|name| { return name.to_string_lossy().to_string(); }).unwrap_or_default())), &live);
+        let saved: io::Result<PathBuf> = save_aside(&path.with_file_name(format!("{}{REFUSED_SUFFIX}", file_name_text(&path))), &live);
         let restored: io::Result<(PathBuf, ReplaceOutcome)> = match saved {
-            Ok(copy) => replace_if_holds(&path, &live, &before, between).map(|outcome| { return (copy, outcome); }),
+            Ok(copy) => match replace_if_holds(&path, &live, &before, between) {
+                Ok(outcome) => Ok((copy, outcome)),
+                Err(error) => Err(error),
+            },
             Err(error) => Err(error),
         };
         match restored {
@@ -615,7 +517,7 @@ fn recover_manifests(directory: &Path, between: &dyn Fn(&Path), messages: &mut V
 /// export function recover({ root, isAlive, judge }): string[]
 /// ```
 pub fn recover(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>) -> Vec<String> {
-    return recover_with(root, is_alive, judge, &|_path| {});
+    return recover_with(root, is_alive, judge, &no_hook);
 }
 
 /// What:
@@ -688,7 +590,10 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(
             }
             let saved: io::Result<PathBuf> = save_aside(&path.with_file_name(format!("{LOCKFILE_NAME}{REFUSED_SUFFIX}")), &now.source);
             let restored: io::Result<(PathBuf, ReplaceOutcome)> = match saved {
-                Ok(copy) => replace_if_holds(&path, &now.source, &old.source, between).map(|outcome| { return (copy, outcome); }),
+                Ok(copy) => match replace_if_holds(&path, &now.source, &old.source, between) {
+                    Ok(outcome) => Ok((copy, outcome)),
+                    Err(error) => Err(error),
+                },
                 Err(error) => Err(error),
             };
             match restored {
@@ -696,7 +601,7 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(
                     "{}/{LOCKFILE_NAME} was left by a run that was killed and holds versions the policy refuses ({}); it was saved as {} and the earlier lockfile was put back",
                     old.crate_dir,
                     problems.join("; "),
-                    copy.file_name().map(|name| { return name.to_string_lossy().to_string(); }).unwrap_or_default()
+                    file_name_text(&copy)
                 )),
                 Ok((copy, ReplaceOutcome::LeftAlone)) => messages.push(format!(
                     "{}/{LOCKFILE_NAME} was changed by another process while a killed run was being recovered; it was left as that process wrote it, not restored (the refused text is kept as {})",

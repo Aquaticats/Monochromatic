@@ -204,27 +204,44 @@ use crate::lockfile::{LockedVersion, added_versions};
 /// import { Registry } from 'crate/registry';
 /// ```
 use crate::registry::Registry;
-/// Imports the set-aside round,
-/// which moves a refused release to the newest older one that passes.
-use crate::set_aside::{SetAsideRequest, set_aside_until_clean};
 /// What:
-/// `use crate::verify::{ALL_ENTRIES_SCOPE, is_verified, mark_verified, verify_added_since_base, verify_locked_entries};` imports
-/// `ALL_ENTRIES_SCOPE`,
+/// `use crate::verify::{is_verified, mark_verified, verify_added_since_base, verify_locked_entries};` imports
 /// `is_verified`,
 /// `mark_verified`,
 /// `verify_added_since_base`,
 /// `verify_locked_entries` from another module of this crate so this file can name them unqualified.
 /// Why:
-/// The frozen check,
-/// the remembered passes and their scope names live in `verify.rs`;
-/// `install_rust_lockfiles`,
-/// `update_stale_roots` and `verification_cached` use them.
+/// The frozen check and the remembered passes live in `verify.rs`;
+/// `install_rust_lockfiles` and `update_stale_roots` use them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { ALL_ENTRIES_SCOPE, isVerified, markVerified, verifyAddedSinceBase, verifyLockedEntries } from 'crate/verify';
+/// import { isVerified, markVerified, verifyAddedSinceBase, verifyLockedEntries } from 'crate/verify';
 /// ```
-use crate::verify::{ALL_ENTRIES_SCOPE, is_verified, mark_verified, verify_added_since_base, verify_locked_entries};
+use crate::verify::{is_verified, mark_verified, verify_added_since_base, verify_locked_entries};
+/// What:
+/// `pub use crate::install_verify::{LockBaseFactory, LockBaseReader, policy_findings, verification_cached, verification_scope};` imports and
+/// re-exports the helpers split out of this file,
+/// so callers keep writing `crate::install::verification_cached`.
+/// Why:
+/// The file was split to stay under the line limit;
+/// the callers and the tests are unchanged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { LockBaseFactory, LockBaseReader, verificationCached, verificationScope } from './install-verify.ts';
+/// ```
+pub use crate::install_verify::{LockBaseFactory, LockBaseReader, policy_findings, verification_cached, verification_scope};
+/// What:
+/// `use crate::install_verify::{base_reader, set_aside_pass};` imports the two helpers that only this crate calls.
+/// Why:
+/// `update_stale_roots` and `install_rust_lockfiles` read the base revision and set refused releases aside with them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { baseReader, setAsidePass } from 'crate/install_verify';
+/// ```
+use crate::install_verify::{base_reader, set_aside_pass};
 
 /// Asks whether the lockfile satisfies the manifests:
 /// exits 0 without writing when it does.
@@ -524,12 +541,7 @@ pub struct InstallRequest<'a> {
     pub known_consistent: bool,
 }
 
-/// A reader of one crate root's lockfile text at the base revision.
-pub type LockBaseReader = Box<dyn Fn(&str) -> String>;
 
-/// Makes a `LockBaseReader`,
-/// or says why the base cannot be read.
-pub type LockBaseFactory<'a> = &'a dyn Fn() -> Result<LockBaseReader, String>;
 
 /// What:
 /// `fn io_error(error) -> InstallError` wraps any displayable error as the `Io` variant of the install error.
@@ -545,7 +557,7 @@ fn io_error(error: impl fmt::Display) -> InstallError {
 }
 
 /// What:
-/// `fn io_message(message) -> InstallError` wraps a message text as the `Io` variant.
+/// `pub(crate) fn io_message(message) -> InstallError` wraps a message text as the `Io` variant.
 /// Why:
 /// Helpers that already return text (`Result<_, String>`) convert with `.map_err(io_message)`.
 ///
@@ -553,7 +565,7 @@ fn io_error(error: impl fmt::Display) -> InstallError {
 /// ```ts
 /// const ioMessage = (message: string) => new InstallError("io", message)
 /// ```
-fn io_message(message: String) -> InstallError {
+pub(crate) fn io_message(message: String) -> InstallError {
     return InstallError::Io { message };
 }
 
@@ -631,7 +643,7 @@ fn run_or_fail(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Resu
 }
 
 /// The lockfile texts of snapshots.
-fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
+pub(crate) fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
     // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
     // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
     // Why:      `added_versions` takes plain lockfile texts, so `sources_of` copies the text out of each snapshot instead of passing the snapshot itself.
@@ -704,113 +716,9 @@ fn invalid_lock_toml(message: String) -> InstallError {
     return InstallError::Io { message: format!("a Cargo.lock could not be read for its registry versions: {message}") };
 }
 
-/// What:
-/// `pub fn verification_scope(settings, frozen, trust_base) -> String` names the check a remembered pass belongs to.
-/// Why:
-/// A pass of the frozen check says nothing about the local check (which also sets refused releases aside),
-/// and a pass
-/// against one base revision says nothing about another,
-/// so the remembered passes are keyed by this text as well as by the
-/// lockfile and the settings.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export const verificationScope = (settings: Settings, frozen: boolean, trustBase: string): string
-/// ```
-pub fn verification_scope(settings: &Settings, frozen: bool, trust_base: &str) -> String {
-    let mode: &str = if frozen { "frozen" } else { "local" };
-    if settings.trust_lockfile {
-        return format!("{mode}-since-base:{trust_base}");
-    }
-    if frozen {
-        return ALL_ENTRIES_SCOPE.to_string();
-    }
-    return format!("{mode}-all-entries");
-}
 
-/// What:
-/// `pub fn verification_cached(root, crate_dirs, settings, frozen, trust_base) -> bool` says whether every lockfile already
-/// passed the policy check of this mode,
-/// under these settings and this base.
-/// Why:
-/// The freshness stamp answers "do the lockfiles satisfy the manifests";
-/// this answers "were they checked against the policy".
-/// A call may take the fast path only when both are true.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function verificationCached({ root, crateDirs, settings, frozen, trustBase }): boolean
-/// ```
-pub fn verification_cached(root: &Path, crate_dirs: &[String], settings: &Settings, frozen: bool, trust_base: &str) -> bool {
-    let snapshots: Vec<LockSnapshot> = match read_locks(root, crate_dirs) {
-        Ok(found) => found,
-        Err(_) => return false,
-    };
-    let scope: String = verification_scope(settings, frozen, trust_base);
-    for snapshot in &snapshots {
-        if !is_verified(root, snapshot, settings, &scope) {
-            return false;
-        }
-    }
-    return true;
-}
 
-/// What:
-/// `fn base_reader(request) -> Result<LockBaseReader, InstallError>` makes the base-revision lockfile reader.
-/// Why:
-/// An install under `trustLockfile = true` compares with the base,
-/// and without a reader nothing can be trusted.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function baseReader(request: InstallRequest): (crateDir: string) => string  // throws
-/// ```
-fn base_reader(request: &InstallRequest) -> Result<LockBaseReader, InstallError> {
-    let factory: LockBaseFactory = request.lock_base.ok_or_else(|| {
-        return InstallError::Io {
-            message: "trustLockfile is true in rust-catalog.toml, but no base-revision lockfile reader was given, so nothing can be trusted".to_string(),
-        };
-    })?;
-    return factory().map_err(io_message);
-}
 
-/// What:
-/// `fn set_aside_pass(request, baseline, produced) -> Result<Vec<String>, InstallError>` sets every release the policy
-/// refuses (among the versions `baseline` did not hold) aside for the newest older release that passes,
-/// prints one line per move and returns the lines.
-/// Why:
-/// pnpm resolves to the newest release older than the cutoff instead of refusing,
-/// and the owner decided (2026-11-03) that a
-/// local install does the same for a committed lockfile:
-/// the refused release never runs,
-/// the older copy does.
-/// The moves go through the transaction (`produced` records each lockfile this run wrote),
-/// so another writer's lockfile is
-/// never replaced.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function setAsidePass(request, baseline, produced): Promise<string[]>
-/// ```
-fn set_aside_pass(request: &InstallRequest, baseline: &[String], produced: &RefCell<Vec<LockSnapshot>>) -> Result<Vec<String>, InstallError> {
-    let forward: Vec<String> = if request.offline { vec!["--offline".to_string()] } else { Vec::new() };
-    let lines: Vec<String> = set_aside_until_clean(&SetAsideRequest {
-        root: request.root,
-        crate_dirs: request.crate_dirs,
-        before: baseline,
-        registry: request.registry,
-        settings: request.settings,
-        now: request.now,
-        runner: request.runner,
-        forward: &forward,
-        produced,
-    })
-    .map_err(io_message)?;
-    for line in &lines {
-        eprintln!("cargo-shadow: {line}");
-    }
-    return Ok(lines);
-}
 
 /// What:
 /// `fn update_stale_roots(request, before, produced) -> Result<InstallReport, InstallError>` is the transaction body:
@@ -862,7 +770,11 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     if !covered {
         let baseline: Vec<String> = if request.settings.trust_lockfile {
             let reader: LockBaseReader = base_reader(request)?;
-            request.crate_dirs.iter().map(|dir| { return reader(dir); }).collect()
+            let mut texts: Vec<String> = Vec::new();
+            for dir in request.crate_dirs {
+                texts.push(reader(dir));
+            }
+            texts
         } else {
             Vec::new()
         };
@@ -907,45 +819,6 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     });
 }
 
-/// The policy findings for the registry versions `after` holds that `before` did not;
-/// used to judge a killed run's leftovers.
-pub fn policy_findings(settings: &Settings, registry: &dyn Registry, now: i64, before: &[LockSnapshot], after: &[LockSnapshot]) -> Vec<String> {
-    // `match`: picks the arm whose pattern fits the value.
-    // Borrow `&sources_of`: lends the value without copying or giving it away.
-    // Typed binding: `added: Vec<LockedVersion>`.
-    let added: Vec<LockedVersion> = match added_versions(&sources_of(before), &sources_of(after)) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        Ok(found) => found,
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `vec!`: builds or prints text (or a list) from a template.
-        Err(message) => return vec![format!("a Cargo.lock could not be read for its registry versions: {message}")],
-    };
-    if added.is_empty() {
-        // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-        return Vec::new();
-    }
-    // `let mut`: a binding that may change.
-    // Typed binding: `findings: Vec<String>`.
-    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    let mut findings: Vec<String> = Vec::new();
-    // `match`: picks the arm whose pattern fits the value.
-    // Borrow `&added`: lends the value without copying or giving it away.
-    match check_release_age(&added, settings, registry, now) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        Ok(outcome) => findings.extend(outcome.problems),
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(error) => findings.push(error.message),
-    }
-    // `match`: picks the arm whose pattern fits the value.
-    // Borrow `&added`: lends the value without copying or giving it away.
-    match check_trust(&added, settings, registry, now) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        Ok(problems) => findings.extend(problems),
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(error) => findings.push(error.message),
-    }
-    return findings;
-}
 
 /// What:
 /// `pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport, InstallError>` runs the install over the

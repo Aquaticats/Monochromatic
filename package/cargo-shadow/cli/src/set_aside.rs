@@ -409,6 +409,20 @@ fn is_candidate(record: &VersionRecord, refused: &TrustRefusal, prerelease_allow
 }
 
 /// What:
+/// `fn newest_first(left: &String, right: &String) -> std::cmp::Ordering` orders two version texts with the newer first.
+/// Why:
+/// The candidates are tried newest first,
+/// and a named function is what `sort_by` takes where a closure would be flagged as avoidable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const newestFirst = (left: string, right: string): number => compareVersions(right, left);
+/// ```
+fn newest_first(left: &String, right: &String) -> std::cmp::Ordering {
+    return compare_texts(right, left);
+}
+
+/// What:
 /// `pub fn set_aside_candidates(...) -> Result<Vec<String>, RegistryError>` lists the releases that may replace a refused
 /// version,
 /// the refused version's own caret class first and each group newest first.
@@ -451,8 +465,8 @@ pub fn set_aside_candidates(refused: &TrustRefusal, request: &SetAsideRequest, r
             other_class.push(record.num.clone());
         }
     }
-    same_class.sort_by(|left, right| { return compare_texts(right, left); });
-    other_class.sort_by(|left, right| { return compare_texts(right, left); });
+    same_class.sort_by(newest_first);
+    other_class.sort_by(newest_first);
     same_class.extend(other_class);
     return Ok(same_class);
 }

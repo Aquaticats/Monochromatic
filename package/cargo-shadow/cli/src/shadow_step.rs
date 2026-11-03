@@ -633,6 +633,10 @@ pub type OwnedLockBaseFactory = Box<dyn Fn() -> Result<LockBaseReader, String>>;
 /// ```ts
 /// export function trustBaseSetup(catalogRoot: string, document: CatalogDocument, inCi: boolean): [string, (() => Reader) | undefined]
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(avoidable_closure, reason = "the returned maker keeps the resolved base and the repository root after this function returns")
+)]
 pub fn trust_base_setup(catalog_root: &Path, document: &CatalogDocument, in_ci: bool) -> (String, Option<OwnedLockBaseFactory>) {
     if !document.settings.trust_lockfile {
         return (String::new(), None);
@@ -681,10 +685,18 @@ pub enum Preflight {
     /// An operational problem or a stale lockfile under a frozen check:
     /// warn,
     /// then run with `--locked`.
-    Failed(String),
+    Failed(
+        /// The message to show as the warning,
+        /// as owned text.
+        String,
+    ),
     /// A policy refusal:
     /// stop.
-    Refused(String),
+    Refused(
+        /// The findings to show,
+        /// as owned text.
+        String,
+    ),
 }
 
 /// What:

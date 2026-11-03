@@ -27,6 +27,20 @@
 /// import { Path } from 'std/path';
 /// ```
 use std::cell::Cell;
+/// What:
+/// `use std::path::Path;` imports
+/// `Path`
+/// so this file can name them unqualified.
+/// Why:
+/// `Path` is the borrowed view of a file path (sibling:
+/// `PathBuf`,
+/// the owned one);
+/// the repository root is lent to the functions.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
 /// What:
 /// `use std::process::Command;` imports `Command` from the standard library so this file can name it unqualified.
@@ -49,7 +63,27 @@ use std::process::Command;
 /// import { LOCKFILE_NAME } from 'crate/constants';
 /// ```
 use crate::constants::LOCKFILE_NAME;
-use crate::git_refs::{NativeEnvironment, native_base};
+/// What:
+/// `use crate::git_native::native_base;` imports the choice of the trust base made from the repository files.
+/// Why:
+/// `resolve_trust_base_with` tries it before it asks Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { nativeBase } from 'crate/git_native';
+/// ```
+use crate::git_native::native_base;
+/// What:
+/// `use crate::git_refs::NativeEnvironment;` imports the description of where the user configuration lives and whether the environment forbids reading the files.
+/// Why:
+/// Tests pass a disposable one;
+/// the shadow passes the process's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { NativeEnvironment } from 'crate/git_refs';
+/// ```
+use crate::git_refs::NativeEnvironment;
 
 /// The environment variable that names the base revision.
 pub const BASE_VARIABLE: &str = "CARGO_SHADOW_TRUST_BASE";
@@ -212,6 +246,10 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
 /// ```ts
 /// export function gitLockReaderAt(root: string, commit: string): (crateDir: string) => string
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(avoidable_closure, reason = "the returned reader keeps the repository root and the commit after this function returns")
+)]
 pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> String> {
     let root_path = root.to_path_buf();
     let commit_text: String = commit.to_string();

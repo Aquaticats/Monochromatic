@@ -25,9 +25,48 @@
 //! export function nativeBase(root: string, inCi: boolean, env: NativeEnvironment): NativeBase  // throws: ask Git
 //! ```
 
+/// What:
+/// `use std::fs;` imports
+/// `fs`
+/// so this file can name them unqualified.
+/// Why:
+/// `fs` reads the repository files (`HEAD`,
+/// `config`,
+/// reference files and `packed-refs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { readFileSync, statSync } from 'node:fs';
+/// ```
 use std::fs;
+/// What:
+/// `use std::path::{Path, PathBuf};` imports
+/// `Path`,
+/// `PathBuf`
+/// so this file can name them unqualified.
+/// Why:
+/// `Path` is the borrowed path and `PathBuf` the owned one (the same pair as `&str` and `String`);
+/// stored directories are owned,
+/// lent ones borrowed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // TS has one type for this: string
+/// ```
 use std::path::{Path, PathBuf};
 
+/// What:
+/// `use crate::git_config::{ParsedConfig, parse_config};` imports
+/// `ParsedConfig`,
+/// `parse_config`
+/// so this file can name them unqualified.
+/// Why:
+/// The branch and remote settings are read from the configuration files with the reader in `git_config.rs`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ParsedConfig, parseConfig } from 'crate/git_config';
+/// ```
 use crate::git_config::{ParsedConfig, parse_config};
 
 /// The environment variables that move the repository,
@@ -68,6 +107,7 @@ pub struct NativeEnvironment {
     pub blocking_variable: Option<String>,
 }
 
+/// The constructor that reads the running process's environment.
 impl NativeEnvironment {
     /// What:
     /// `pub fn from_process() -> NativeEnvironment` reads the running process's environment.
@@ -87,7 +127,10 @@ impl NativeEnvironment {
         // const home = process.env.HOME ? process.env.HOME : undefined;
         // ```
         let home: Option<PathBuf> = std::env::var_os("HOME").map(PathBuf::from);
-        let xdg_config_home: Option<PathBuf> = std::env::var_os("XDG_CONFIG_HOME").filter(|value| { return !value.is_empty(); }).map(PathBuf::from);
+        let xdg_config_home: Option<PathBuf> = match std::env::var_os("XDG_CONFIG_HOME") {
+            Some(value) if !value.is_empty() => Some(PathBuf::from(value)),
+            _ => None,
+        };
         let mut blocking_variable: Option<String> = None;
         for name in BLOCKING_VARIABLES {
             if std::env::var_os(name).is_some() {
@@ -115,10 +158,20 @@ pub enum Head {
     /// A branch:
     /// the full reference name,
     /// such as `refs/heads/main`.
-    Branch(String),
+    Branch(
+        /// The full reference name,
+        /// as owned text (`String`,
+        /// not the borrowed `&str`,
+        /// because the value outlives the file text it was cut from).
+        String,
+    ),
     /// A detached commit:
     /// its object name in hexadecimal.
-    Detached(String),
+    Detached(
+        /// The object name in hexadecimal,
+        /// as owned text.
+        String,
+    ),
 }
 
 /// The base chosen without Git:
@@ -146,7 +199,63 @@ pub struct NativeBase {
 /// const isObjectName = (text: string) => /^([0-9a-f]{40}|[0-9a-f]{64})$/.test(text);
 /// ```
 fn is_object_name(text: &str) -> bool {
-    return (text.len() == 40 || text.len() == 64) && text.chars().all(|character| { return character.is_ascii_hexdigit(); });
+    if text.len() != 40 && text.len() != 64 {
+        return false;
+    }
+    for character in text.chars() {
+        if !character.is_ascii_hexdigit() {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+/// `fn cannot_read(path: &Path, error: &std::io::Error) -> String` words the failure to read a repository file.
+/// Why:
+/// Every reader here reports a file it cannot read the same way,
+/// so the caller can show why Git was asked instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cannotRead = (path: string, error: Error): string => `${path} cannot be read: ${error.message}`;
+/// ```
+fn cannot_read(path: &Path, error: &std::io::Error) -> String {
+    return format!("{} cannot be read: {error}", path.display());
+}
+
+/// What:
+/// `fn read_text(path: &Path) -> Result<String, String>` reads a file as text,
+/// with the error already worded.
+/// Why:
+/// `HEAD` and the `.git` pointer file are read the same way and fail the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readText(path: string): string  // throws a worded error
+/// ```
+fn read_text(path: &Path) -> Result<String, String> {
+    return match fs::read_to_string(path) {
+        Ok(text) => Ok(text),
+        Err(error) => Err(cannot_read(path, &error)),
+    };
+}
+
+/// What:
+/// `fn setting_is(config: &ParsedConfig, key: &str, expected: &str) -> bool` says whether `extensions.<key>` is set to a value
+/// equal to `expected` without regard to case.
+/// Why:
+/// Git compares these extension values without case.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settingIs = (config: ParsedConfig, key: string, expected: string): boolean => config.last('extensions', undefined, key)?.toLowerCase() === expected;
+/// ```
+fn setting_is(config: &ParsedConfig, key: &str, expected: &str) -> bool {
+    return match config.last("extensions", None, key) {
+        Some(value) => value.eq_ignore_ascii_case(expected),
+        None => false,
+    };
 }
 
 /// What:
@@ -177,11 +286,14 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     // ```ts
     // const stat = statSync(dotGit);
     // ```
-    let metadata = fs::metadata(&dot_git).map_err(|error| { return format!("{} cannot be read: {error}", dot_git.display()); })?;
+    let metadata = match fs::metadata(&dot_git) {
+        Ok(found) => found,
+        Err(error) => return Err(cannot_read(&dot_git, &error)),
+    };
     let git_dir: PathBuf = if metadata.is_dir() {
         dot_git
     } else {
-        let text: String = fs::read_to_string(&dot_git).map_err(|error| { return format!("{} cannot be read: {error}", dot_git.display()); })?;
+        let text: String = read_text(&dot_git)?;
         let target: &str = match text.trim().strip_prefix("gitdir:") {
             Some(found) => found.trim(),
             None => return Err(format!("{} is a file but does not say gitdir:", dot_git.display())),
@@ -233,16 +345,19 @@ pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Resul
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Err(format!("{} cannot be read: {error}", file.display())),
         };
-        let parsed: ParsedConfig = parse_config(&text).map_err(|message| { return format!("{}: {message}", file.display()); })?;
+        let parsed: ParsedConfig = match parse_config(&text) {
+            Ok(found) => found,
+            Err(message) => return Err(format!("{}: {message}", file.display())),
+        };
         merged.extend_with(parsed);
     }
     if merged.has_include {
         return Err("a configuration file has include or includeIf, which only Git follows".to_string());
     }
-    if merged.last("extensions", None, "refstorage").is_some_and(|value| { return value.eq_ignore_ascii_case("reftable"); }) {
+    if setting_is(&merged, "refstorage", "reftable") {
         return Err("the repository stores references as reftable, which only Git reads".to_string());
     }
-    if merged.last("extensions", None, "worktreeconfig").is_some_and(|value| { return value.eq_ignore_ascii_case("true"); }) {
+    if setting_is(&merged, "worktreeconfig", "true") {
         return Err("the repository has a worktree-specific configuration (extensions.worktreeConfig)".to_string());
     }
     return Ok(merged);
@@ -261,7 +376,7 @@ pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Resul
 /// ```
 pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
     let path: PathBuf = layout.git_dir.join("HEAD");
-    let text: String = fs::read_to_string(&path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
+    let text: String = read_text(&path)?;
     let trimmed: &str = text.trim();
     if let Some(name) = trimmed.strip_prefix("ref:") {
         return Ok(Head::Branch(name.trim().to_string()));
@@ -283,7 +398,13 @@ pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
 /// function checkRefName(name: string): void  // throws on a name that could escape
 /// ```
 fn check_ref_name(name: &str) -> Result<(), String> {
-    if name.is_empty() || name.starts_with('/') || name.split('/').any(|part| { return part.is_empty() || part == ".." || part == "."; }) {
+    let mut escapes: bool = name.is_empty() || name.starts_with('/');
+    for part in name.split('/') {
+        if part.is_empty() || part == ".." || part == "." {
+            escapes = true;
+        }
+    }
+    if escapes {
         return Err(format!("{name:?} is not a reference name this reader will turn into a path"));
     }
     return Ok(());
@@ -396,7 +517,9 @@ fn map_refspec(spec: &str, merge: &str) -> Result<Option<String>, String> {
     };
     match (source.split_once('*'), destination.split_once('*')) {
         (Some((prefix, suffix)), Some((target_prefix, target_suffix))) => {
-            if let Some(middle) = merge.strip_prefix(prefix).and_then(|rest| { return rest.strip_suffix(suffix); }) {
+            if let Some(rest) = merge.strip_prefix(prefix)
+                && let Some(middle) = rest.strip_suffix(suffix)
+            {
                 return Ok(Some(format!("{target_prefix}{middle}{target_suffix}")));
             }
             return Ok(None);
@@ -443,8 +566,10 @@ pub fn tracking_ref(config: &ParsedConfig, branch: &str) -> Result<Option<String
     }
     let specs: Vec<&str> = config.values("remote", Some(remote), "fetch");
     // A negative refspec can remove a match made by another one, so any of them makes the answer Git's.
-    if specs.iter().any(|spec| { return spec.trim().starts_with('^'); }) {
-        return Err("a negative fetch refspec is applied by Git".to_string());
+    for spec in &specs {
+        if spec.trim().starts_with('^') {
+            return Err("a negative fetch refspec is applied by Git".to_string());
+        }
     }
     for spec in specs {
         if let Some(mapped) = map_refspec(spec, merge)? {
@@ -452,68 +577,4 @@ pub fn tracking_ref(config: &ParsedConfig, branch: &str) -> Result<Option<String
         }
     }
     return Ok(None);
-}
-
-/// What:
-/// `fn head_base(layout) -> NativeBase` is `HEAD` as a base:
-/// its spelling and the commit it names.
-/// Why:
-/// CI compares with `HEAD`,
-/// and a local run falls back to it when no upstream or remote default branch exists.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function headBase(layout: GitLayout): NativeBase  // throws: ask Git
-/// ```
-fn head_base(layout: &GitLayout) -> Result<NativeBase, String> {
-    let commit: Result<String, String> = match read_head(layout)? {
-        Head::Detached(object) => Ok(object),
-        Head::Branch(name) => match lookup_ref(layout, &name)? {
-            Some(object) => Ok(object),
-            // An unborn branch names no commit, which Git reports as an error too.
-            None => Err(crate::git_base::not_a_commit_message("HEAD")),
-        },
-    };
-    return Ok(NativeBase { spelling: "HEAD".to_string(), commit });
-}
-
-/// What:
-/// `pub fn native_base(root, in_ci, environment) -> Result<NativeBase, String>` chooses the trust base without Git:
-/// in CI `HEAD`;
-/// locally `@{upstream}`,
-/// else `origin/main`,
-/// else `origin/master`,
-/// else `HEAD`.
-/// `Err(reason)` means Git must answer.
-/// Why:
-/// This is the choice `git_base::resolve_trust_base` makes with `git rev-parse`,
-/// made from the files (delegated pick of
-/// 2026-11-03,
-/// with the owner's rule "Invoke real git as rarely as possible."
-/// from 2026-11-01).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function nativeBase(root: string, inCi: boolean, environment: NativeEnvironment): NativeBase  // throws: ask Git
-/// ```
-pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) -> Result<NativeBase, String> {
-    let layout: GitLayout = find_layout(root, environment)?;
-    // The configuration is read even for CI's `HEAD`, because a reftable store or an include changes what `HEAD` means.
-    let config: ParsedConfig = read_config(&layout, environment)?;
-    if in_ci {
-        return head_base(&layout);
-    }
-    if let Head::Branch(full) = read_head(&layout)?
-        && let Some(branch) = full.strip_prefix("refs/heads/")
-        && let Some(tracking) = tracking_ref(&config, branch)?
-        && let Some(object) = lookup_ref(&layout, &tracking)?
-    {
-        return Ok(NativeBase { spelling: "@{upstream}".to_string(), commit: Ok(object) });
-    }
-    for candidate in ["origin/main", "origin/master"] {
-        if let Some(object) = lookup_short(&layout, candidate)? {
-            return Ok(NativeBase { spelling: candidate.to_string(), commit: Ok(object) });
-        }
-    }
-    return head_base(&layout);
 }

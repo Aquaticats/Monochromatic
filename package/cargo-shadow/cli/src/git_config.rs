@@ -63,6 +63,10 @@ pub struct ParsedConfig {
     pub has_include: bool,
 }
 
+/// The lookups on a parsed configuration file:
+/// every value of a key,
+/// the last one,
+/// and the merge of a later file.
 impl ParsedConfig {
     /// What:
     /// `pub fn values(&self, ...) -> Vec<&str>` lists every value of one key in file order.
@@ -188,7 +192,11 @@ fn read_header(rest: &str) -> Result<(String, Option<String>, &str), String> {
         // ```ts
         // if (!quoted.startsWith('"') || !quoted.endsWith('"')) throw new Error('...');
         // ```
-        let body: &str = match quoted.strip_prefix('"').and_then(|text| { return text.strip_suffix('"'); }) {
+        let unquoted: Option<&str> = match quoted.strip_prefix('"') {
+            Some(text) => text.strip_suffix('"'),
+            None => None,
+        };
+        let body: &str = match unquoted {
             Some(found) => found,
             None => return Err(format!("a subsection name is not in double quotes: [{inner}]")),
         };
@@ -260,6 +268,32 @@ fn read_value(raw: &str) -> Result<String, String> {
 }
 
 /// What:
+/// `fn is_valid_key(key: &str) -> bool` says whether a text is a configuration key:
+/// a letter followed by letters,
+/// digits and hyphens.
+/// Why:
+/// A key outside that grammar is text this reader does not read exactly,
+/// so the parser reports it instead of storing it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isValidKey = (key: string): boolean => /^[A-Za-z][A-Za-z0-9-]*$/.test(key);
+/// ```
+fn is_valid_key(key: &str) -> bool {
+    let mut characters = key.chars();
+    match characters.next() {
+        Some(first) if first.is_ascii_alphabetic() => {}
+        _ => return false,
+    }
+    for character in characters {
+        if !character.is_ascii_alphanumeric() && character != '-' {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
 /// `pub fn parse_config(text: &str) -> Result<ParsedConfig, String>` parses one configuration file.
 /// Why:
 /// The caller needs the entries of `.git/config` and of the user's configuration files,
@@ -315,8 +349,7 @@ pub fn parse_config(text: &str) -> Result<ParsedConfig, String> {
             None => (rest.trim(), "true".to_string()),
         };
         // A key is a letter followed by letters, digits and hyphens.
-        let first_is_letter: bool = key.chars().next().is_some_and(|character| { return character.is_ascii_alphabetic(); });
-        if !first_is_letter || !key.chars().all(|character| { return character.is_ascii_alphanumeric() || character == '-'; }) {
+        if !is_valid_key(key) {
             return Err(format!("a configuration key is not valid: {key:?}"));
         }
         parsed.entries.push(ConfigEntry { section: section_name, subsection: subsection_name, key: key.to_lowercase(), value });

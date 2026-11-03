@@ -57,6 +57,9 @@ pub mod commands;
 /// and the journal that recovers a killed run.
 pub mod journal;
 
+/// The atomic compare-and-replace of one file (an exchange that is undone when another writer's file came out).
+pub mod journal_replace;
+
 /// The transaction around the manifests that cargo's `update --breaking` rewrites.
 pub mod manifest_edit;
 
@@ -74,6 +77,10 @@ pub mod git_config;
 /// branch configuration and references that chooses the trust base without Git.
 pub mod git_refs;
 
+/// The choice of the trust base from the repository's files,
+/// split out of `git_refs.rs`.
+pub mod git_native;
+
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `cargo`.
 pub mod guard;
 
@@ -86,6 +93,10 @@ pub mod policy;
 /// The install step,
 /// the counterpart of `pnpm install`.
 pub mod install;
+
+/// The helpers of the install that decide which policy checks a lockfile still needs,
+/// split out of `install.rs`.
+pub mod install_verify;
 
 /// Replaces refused new versions with the newest older release that passes.
 pub mod set_aside;
@@ -148,6 +159,10 @@ pub mod version_order;
 /// The catalog update,
 /// the counterpart of `pnpm update`.
 pub mod update;
+
+/// The full update's resolution of each crate root,
+/// split out of `update.rs`.
+pub mod update_resolve;
 
 /// The check of every locked entry against the policy,
 /// the default of a frozen install.

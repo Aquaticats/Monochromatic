@@ -283,7 +283,7 @@ fn the_reftable_reference_format_is_asked_of_git() {
     // The setting alone is what the reader refuses; the repository still has files, so Git (which ignores the setting while the
     // files exist) is not asked to read a reftable store here.
     let environment: NativeEnvironment = isolated_environment(root.path());
-    assert!(crate::git_refs::native_base(&work, false, &environment).is_err());
+    assert!(crate::git_native::native_base(&work, false, &environment).is_err());
     let _ = pushed;
 }
 

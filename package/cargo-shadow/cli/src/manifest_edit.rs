@@ -20,12 +20,71 @@
 //! export function restoreManifests(edits: ManifestEdit[]): string[]
 //! ```
 
+/// What:
+/// `use std::cell::RefCell;` imports
+/// `RefCell`
+/// so this file can name them unqualified.
+/// Why:
+/// The list of manifests grows while the transaction holds a shared reference to it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // TS objects are mutable through any reference; no import is needed.
+/// ```
 use std::cell::RefCell;
+/// What:
+/// `use std::fs;` imports
+/// `fs`
+/// so this file can name them unqualified.
+/// Why:
+/// `fs` reads and compares the manifest files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { readFileSync } from 'node:fs';
+/// ```
 use std::fs;
+/// What:
+/// `use std::io;` imports
+/// `io`
+/// so this file can name them unqualified.
+/// Why:
+/// `io::Result` is the error type of reading and restoring a file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // errors are thrown in Node
+/// ```
 use std::io;
+/// What:
+/// `use std::path::PathBuf;` imports
+/// `PathBuf`
+/// so this file can name them unqualified.
+/// Why:
+/// A manifest's path is stored,
+/// so it is the owned type (sibling:
+/// `&Path`,
+/// the borrowed one).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // TS has one type for this: string
+/// ```
 use std::path::PathBuf;
 
-use crate::journal::{ReplaceOutcome, replace_if_holds};
+/// What:
+/// `use crate::journal::{ReplaceOutcome, no_hook, replace_if_holds};` imports
+/// `ReplaceOutcome`,
+/// `replace_if_holds`
+/// so this file can name them unqualified.
+/// Why:
+/// A manifest goes back with the same atomic compare-and-replace the lockfiles use.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ReplaceOutcome, replaceIfHolds } from 'crate/journal';
+/// ```
+use crate::journal::{ReplaceOutcome, no_hook, replace_if_holds};
 
 /// One manifest the run may rewrite.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -97,7 +156,7 @@ pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<Vec<S
             continue;
         }
         match &edit.produced {
-            Some(produced) if *produced == live => match replace_if_holds(&edit.path, produced, &edit.before, &|_path| {})? {
+            Some(produced) if *produced == live => match replace_if_holds(&edit.path, produced, &edit.before, &no_hook)? {
                 ReplaceOutcome::Replaced => {}
                 ReplaceOutcome::LeftAlone => warnings.push(format!(
                     "{} was changed by another process while it was being restored; it was left as that process wrote it",

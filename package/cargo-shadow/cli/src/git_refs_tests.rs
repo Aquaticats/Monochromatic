@@ -5,7 +5,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::git_config::parse_config;
-use crate::git_refs::{GitLayout, Head, NativeEnvironment, find_layout, lookup_ref, lookup_short, native_base, read_config, read_head, tracking_ref};
+use crate::git_native::native_base;
+use crate::git_refs::{GitLayout, Head, NativeEnvironment, find_layout, lookup_ref, lookup_short, read_config, read_head, tracking_ref};
 use crate::test_scratch::scratch;
 
 const FIRST: &str = "1111111111111111111111111111111111111111";

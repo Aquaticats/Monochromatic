@@ -175,7 +175,12 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
     let verb: String = find_verb(arguments).unwrap_or_default();
     // The position of the command word itself: everything else is scanned, including the global options before it
     // (review finding: `cargo --locked update` and `cargo --offline update` must read like their later spellings).
-    let verb_position: Option<usize> = words.iter().position(|word| { return !word.starts_with('+') && !word.starts_with('-') && *word == verb; });
+    let mut verb_position: Option<usize> = None;
+    for (position, word) in words.iter().enumerate() {
+        if verb_position.is_none() && !word.starts_with('+') && !word.starts_with('-') && *word == verb {
+            verb_position = Some(position);
+        }
+    }
     let mut dry_run: bool = false;
     let mut frozen: bool = false;
     let mut workspace: bool = false;

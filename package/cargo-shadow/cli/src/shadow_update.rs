@@ -558,7 +558,10 @@ pub fn run_with_placeholder_lock(lock_path: &Path, dry_run: bool, body: &mut dyn
     let code: i32 = body();
     if created_placeholder && (code != 0 || dry_run) {
         // Remove the stand-in only if it is still the stand-in.
-        let still_placeholder: bool = std::fs::read_to_string(lock_path).map(|text| { return text == EMPTY_LOCK; }).unwrap_or(false);
+        let still_placeholder: bool = match std::fs::read_to_string(lock_path) {
+            Ok(text) => text == EMPTY_LOCK,
+            Err(_) => false,
+        };
         if still_placeholder {
             let _ = std::fs::remove_file(lock_path);
         }
