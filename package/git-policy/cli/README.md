@@ -596,8 +596,35 @@ A path that is not conflicted keeps the rejection,
 Write each conflicted file by its own name after `--`;
  a directory, a wildcard, pathspec magic, a missing `--`, `--force`, `--patch`, `--pathspec-from-file` and
  `restore --staged` are not covered and stay rejected.
+ A token that is the value of `--source`,
+ `-s` or `--conflict` is never read as `--worktree` or `--staged`,
+ so `git restore --source -W --staged -- f` (a tag can be named `-W`) is an index-only restore and stays rejected,
+ and the rejection names `git restore --staged`,
+ not a restore of file content.
 A conflicted path that is deleted in your worktree has nothing to copy, and the command runs.
 When a copy cannot be written (no space, no permission), the command is rejected and says why.
+ A symbolic link or a file where a directory in front of the name should be (`dir` for `dir/file`) is never followed:
+ Git would replace it with a real directory and it would be lost unsaved,
+ so the command is rejected,
+ names `dir`
+ and says to move it out of the way or save it first.
+ A file that changes while it is being copied (an editor's atomic save,
+ an append,
+ a rewrite in place) is not reported saved:
+ the copy is removed,
+ the command is rejected,
+ and running it again once nothing writes to the file goes through.
+ A file that another program changes while the save runs is your risk.
+ A pathspec mode (`--icase-pathspecs`,
+ `GIT_ICASE_PATHSPECS` and the glob,
+ noglob and literal forms) keeps the rejection,
+ and when every path you named is a conflicted file the message names the mode and says the same command without it
+ is saved first and then allowed.
+ The same holds for pathspec magic on a conflicted file's name (`:(icase)a.rs`,
+ `:!a.rs`,
+ `:/a.rs`):
+ the message names the magic and the file,
+ and naming the file itself is saved first and then allowed.
 The folder is bounded, because it would otherwise grow for as long as the repository lives,
  and the copies are the only remaining content of replaced files.
  When a new copy has been written and synced, the wrapper removes the saves older than 30 days,

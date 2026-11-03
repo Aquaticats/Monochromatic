@@ -210,7 +210,22 @@ pub mod command_discard;
 /// The `checkout` and `restore` command lines that take one side of a conflicted file.
 pub mod command_conflict_side;
 
-/// Conflicted paths, the decision on a command line that names them, and the saved copy of each file.
+/// Finding and copying the file a conflict-side command replaces.
+pub mod conflict_side_source;
+
+/// The operation in progress and the conflicted paths.
+pub mod conflict_side_state;
+
+/// Whether every token of a command line names a conflicted file.
+pub mod conflict_side_decision;
+
+/// The pathspec modes and magic of a conflict-side line.
+pub mod conflict_side_modes;
+
+/// The notices of a conflict-side command.
+pub mod conflict_side_notice;
+
+/// The saved copy of each file a conflict-side command replaces.
 pub mod conflict_sides;
 
 /// The linked-worktree policy's carve-out for conflicted files during a merge, rebase, cherry-pick or revert.
@@ -980,6 +995,9 @@ pub mod repo_read_config_typed;
 
 /// In-process repository reads: the location, Git paths and object format found from the file system.
 pub mod repo_read_layout;
+
+/// The layout reader's answer with some global options and variables left out.
+pub mod repo_read_layout_without;
 
 /// In-process repository reads: the layout turned into the shapes the wrapper's existing queries answer with.
 pub mod repo_read_adapter;

@@ -2871,11 +2871,67 @@ The forms covered are:
 - `restore -- <path>...` with `--ours`, `--theirs`, `-m`, `--merge`, `--conflict`, `-s` or `--source`,
   `-W` or `--worktree` (with `-S` only beside `-W`), and the quiet, progress, overlay and ignore options.
   Abbreviated `restore` options are not read and keep the rejection.
+  `-W`,
+  `--worktree`,
+  `-S` and `--staged` count only where Git parses them as options:
+  the token after `--source`,
+  `-s` or `--conflict` is that option's value,
+  so in `restore --source -W --staged -- f`
+  (a tag can be named `-W`) the `-W` is a revision,
+  the restore is index-only,
+  and the rejection stays.
+The rejection reads the line the same way and names `git restore --staged` (the policy's own classification of an
+index-only restore skips those values and reads `-sW` as `-s` with the value `W`).
 
 Every other line keeps the rejection: a force, a patch, a path list read from a file, a branch option, a form without `--`
 before the paths, an index-only `restore --staged`, and any `reset`, `merge --abort` or other guarded command.
 A path is read by its literal spelling below the working directory.
 A directory, a trailing slash, a wildcard, pathspec magic or a path outside the worktree is not a conflicted file.
+A global pathspec mode changes which files a pathspec names (`--icase-pathspecs` and `GIT_ICASE_PATHSPECS` match `A.rs`
+for `a.rs`;
+the glob,
+noglob and literal forms change the reading of the characters),
+so a line under one keeps the
+rejection:
+the layout reader declines every global option except `-C` and every `GIT_` variable it does not tolerate,
+and `core.ignorecase` does not widen a pathspec.
+The rejection of such a line stays,
+and when the line qualifies,
+an operation is in progress,
+the index is readable and
+every path it names is a conflicted file,
+the message gains one sentence:
+it names the mode (`--icase-pathspecs`,
+`--glob-pathspecs`,
+`--noglob-pathspecs`,
+`--literal-pathspecs`,
+`--no-literal-pathspecs`,
+`GIT_ICASE_PATHSPECS`,
+`GIT_GLOB_PATHSPECS`,
+`GIT_NOGLOB_PATHSPECS`,
+`GIT_LITERAL_PATHSPECS`)
+and says the same command without it would be saved first and then allowed.
+The layout reader is asked a second time,
+without the mode,
+only for such a line.
+Pathspec magic on a conflicted file's name (`:(icase)a.rs`,
+`:(glob)a.rs`,
+`:(literal)a.rs`,
+`:(top)a.rs`,
+`:(exclude)a.rs`,
+`:!a.rs`,
+`:^a.rs`,
+`:/a.rs`) is rejected the same way,
+and when every token that is not a plain conflicted file is such magic
+the message names the magic and the file and says that naming the file itself is saved first and then allowed.
+Other magic (`:(attr:...)`,
+`:(prefix:...)`),
+a wildcard,
+a clean file,
+a mix,
+a form the carve-out does not cover and a
+repository with no operation in progress get no such sentence,
+because the carve-out would refuse those anyway.
 A line that names a path that is not conflicted is rejected whole, with the rejection text of the form
 followed by a sentence that names every such path.
 A path that Git resolves in the index as the command runs (`checkout <tree-ish> -- <path>` stages it) stops being conflicted,
@@ -2902,6 +2958,31 @@ regular file nor a symbolic link),
 the command is rejected with a finding that names the path or place and the system's reason,
 no cut-short copy is left,
 and nothing is changed.
+
+The file is found without following a symbolic link.
+Each directory in front of the name is opened one component at a time below the worktree's top level,
+and a symbolic link or a regular file in front of the name stops the command:
+Git writes `dir/file` by replacing whatever stands at `dir` with a real directory,
+so that link or file would be lost unsaved.
+The finding names the directory (`dir`) and what it is,
+and says to move it out of the way or save it first.
+A directory in front of the name that does not exist means there is nothing to copy.
+The copy is read from the opened file.
+Its device,
+inode,
+size,
+modification time and change time are compared before and after the read,
+the byte count must equal the size,
+and the name must still lead,
+without a link,
+to the object that was read.
+Any difference (an atomic save over the path,
+an append,
+a truncation or a rewrite in place) removes the copy,
+rejects the command with a finding that names the file and says to run it again once nothing is writing to it,
+and changes nothing.
+A write that lands after the last comparison and before Git starts cannot be seen from outside Git.
+A file that another program changes while the save runs is the user's risk.
 
 The folder is bounded after each save that wrote at least one copy,
 once the copy is complete and synced (so a kill while copying costs no older copy),
