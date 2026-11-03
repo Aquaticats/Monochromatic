@@ -281,10 +281,11 @@ await describe({
             const named = (await Promise.all(taskFiles.map(async function releaseTaskCrates(path) {
               const text = await readFile(join(repositoryRoot, path), 'utf8');
               return text.split('\n').flatMap(function crateOfLine(line) {
-                const at = line.indexOf(marker);
-                if (at === -1)
+                // A line without the marker splits into one part, so the text after it is absent.
+                const [, afterMarker] = line.split(marker);
+                if (afterMarker === undefined)
                   return [];
-                const crate = line.slice(at + marker.length).split('"')[0]?.split(' ')[0] ?? '';
+                const crate = afterMarker.split('"')[0]?.split(' ')[0] ?? '';
                 return crate === '' ? [] : [crate];
               });
             }))).flat();
