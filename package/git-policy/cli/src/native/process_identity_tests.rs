@@ -256,3 +256,47 @@ fn failures_are_described() {
         "the birth identity of the current process is unavailable"
     );
 }
+
+/// A record that cannot be read says the process is gone only when it is missing or the process exited during the read;
+/// a refusal, a record that is a directory, and any other failure say nothing about the process,
+/// and reading them as "gone" would let a lock of a running service be taken.
+#[cfg(target_os = "linux")]
+#[test]
+fn only_a_missing_record_or_an_exit_during_the_read_says_the_process_is_gone() {
+    use super::record_is_gone;
+    assert!(record_is_gone(&std::io::Error::from(std::io::ErrorKind::NotFound)));
+    assert!(record_is_gone(&std::io::Error::from_raw_os_error(libc::ENOENT)));
+    assert!(record_is_gone(&std::io::Error::from_raw_os_error(libc::ESRCH)));
+    for refusal in [libc::EACCES, libc::EPERM, libc::EISDIR, libc::EIO, libc::EMFILE, libc::EINTR] {
+        assert!(!record_is_gone(&std::io::Error::from_raw_os_error(refusal)), "errno {refusal} says nothing about the process");
+    }
+    assert!(!record_is_gone(&std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
+    assert!(!record_is_gone(&std::io::Error::other("something else")));
+}
+
+/// A record that is missing or whose process exited during the read is an exited process; a refusal and an I/O error are
+/// errors naming the process, and a record that reads is parsed.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_failure_to_read_the_record_is_an_exit_only_when_it_says_so() {
+    use super::linux_identity_read_by;
+    let failing = |code: i32| { return move |_: &str| -> std::io::Result<Vec<u8>> { return Err(std::io::Error::from_raw_os_error(code)); }; };
+    assert_eq!(linux_identity_read_by(4242, failing(libc::ENOENT)).expect("gone is not an error"), None);
+    assert_eq!(linux_identity_read_by(4242, failing(libc::ESRCH)).expect("gone is not an error"), None);
+    for code in [libc::EACCES, libc::EIO, libc::EISDIR] {
+        match linux_identity_read_by(4242, failing(code)) {
+            Err(ProcessIdentityError::Io { pid, error }) => {
+                assert_eq!(pid, 4242);
+                assert_eq!(error.raw_os_error(), Some(code));
+            },
+            other => panic!("errno {code} must be an error naming the process, got {other:?}"),
+        }
+    }
+    let seen_path = std::cell::RefCell::new(String::new());
+    let read = linux_identity_read_by(4242, |path| {
+        *seen_path.borrow_mut() = path.to_string();
+        return Ok(stat_line("git", "S").into_bytes());
+    });
+    assert_eq!(read.expect("a record that reads"), Some(String::from("linux:8423337")));
+    assert_eq!(seen_path.borrow().as_str(), "/proc/4242/stat");
+}
