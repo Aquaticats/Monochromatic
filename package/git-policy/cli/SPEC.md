@@ -1300,6 +1300,27 @@ A content conflict goes through the wrapper's conflict resolution and stops, as 
 with the conflicting paths named, only where no resolution exists.
 The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
 
+A `git pull` that is stated to merge (`--no-rebase`, `pull.rebase` or `branch.<name>.rebase` false, or `--ff`
+ or `--no-ff`
+with nothing else stated) and that carries only the options and operands the wrapper reads exactly
+(`src/native/pull_isolation.rs`) is split the way Git splits it (`builtin/pull.c`, `run_fetch` and `run_merge`):
+ the wrapper runs
+`git fetch --update-head-ok` with the pull's fetch options and operands,
+ moves the working tree along when the fetch moved the
+checked-out branch (`git read-tree -u -m`, as `checkout_fast_forward` does),
+ and then runs `git merge <merge options> FETCH_HEAD`
+through the path of a typed merge, so the lock wait, the isolated merge over staged work, the moved-branch rounds
+ and the word-level pass
+all apply to it. The isolated merge takes the one head `FETCH_HEAD` lists for merging (`handle_fetch_head`,
+ `builtin/merge.c`)
+and words the message from the whole file, as `git merge FETCH_HEAD` does. Everything else is native Git's whole pull:
+a rebase, `--ff-only`, `--autostash` and `pull.autostash`, `pull.ff`, submodules, a refspec with a destination,
+ an option that is not
+read by its exact spelling, a repository that is mid-operation or has unmerged entries, an unborn or detached `HEAD`,
+ and a
+`FETCH_HEAD` that lists no head or several (the pull then runs again from its fetch, which is idempotent).
+A pull with nothing stated keeps Git's refusal of divergent branches and its advice.
+
 A merge, the person's or the auto-push's, never runs native Git's stash and never trusts the late ref update:
 the merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, the checkout moves with
 `git merge --ff-only`, and the whole is preceded by a bounded wait for `index.lock`.
@@ -1699,12 +1720,18 @@ in-process reader can) gives every value of the multi-valued keys.
   and branches on the two ancestor questions.
   A remote tip that the branch contains means the rejection was not a divergence and is returned unchanged.
   A remote tip that contains the branch means the commit is delivered, and nothing is pushed.
-  Otherwise `git merge-tree --write-tree --no-messages --name-only` computes the merge from objects alone
-  and `git commit-tree` records it with the branch tip first and the remote tip second,
+  Otherwise `git merge-tree --write-tree --no-messages -z` computes the merge from objects alone
+  (with `GIT_ATTR_SOURCE` naming the branch tip, so its `.gitattributes` applies, see "Word-level second merge pass"),
+  the conflicted files go through that second pass,
+  and `git commit-tree` records the merge with the branch tip first and the remote tip second,
   signed (`-S`) when `commit.gpgsign` is true because `commit-tree` never reads that setting;
   a signer that fails publishes nothing.
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`, never forced.
-  A conflict (merge-tree exit `1`) publishes nothing and names the conflicting paths.
+  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
+  A merge whose conflicted files all resolved is published with the list of merged parts appended to the merge commit's message
+  (the lines `word-level merge: <path>: part <n> of <m>: ...`),
+  the same lines in the report after the push (each begins with `cli-git: auto-push: `),
+  and one journal entry per merged file after the push succeeded.
   A push that is refused as stale again repeats the fetch, the merge and the push,
   at most `MAX_RECONCILE_ATTEMPTS` (10) times in all,
   because sibling worktrees that keep pushing are contention and not a conflict.
@@ -2773,6 +2800,21 @@ cli-git surfaces complete push output,
 leaves the commit local,
 and preserves the successful commit command's exit code `0`.
 
+### Word merged event
+
+```ts
+export type WordMergedEvent = EventBase & {
+  readonly type: 'word-merged';
+  readonly outcome: 'word-merged';
+  readonly message: string;
+};
+```
+
+This event is emitted when a commit replayed over a branch that moved had files merged by word where Git's line merge
+reported a conflict.
+`message` holds one line per merged part, separated by newlines, each naming the file and the part.
+It does not block the commit and does not change the exit code.
+
 ### Stream and exit contract
 
 Wrapper policy events use stderr.
@@ -3806,6 +3848,139 @@ each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.
 A cleanup that fails cannot be redone once the wrapper has removed its scratch directory.
 
+### Word-level second merge pass
+
+Git's line merge reports a conflict where two changes touch (one ends where the other begins):
+a line edited on one side and lines inserted right after it on the other.
+The owner decided on 2026-11-03 (`doc/planning/cli-git-merge-auto-resolution.md`) that the wrapper re-merges only the conflicted
+parts word by word, the way Jujutsu merges with `merge.hunk-level = "word"`, accepts a file only when every part resolves,
+and lists each merged part on standard error and in the journal; and that the wrapper's own unattended merges
+(the auto-push reconcile merge, the commit replay merge) and the isolated merge use the same pass.
+
+The merge is `src/native/word_merge.rs`: line hunks first, then every line hunk both sides changed is diffed by word
+and by the bytes between words (the `similar` crate, Myers algorithm, no other feature of it), and kept only when every part of
+the hunk resolves; a file is resolved only when every hunk resolves.
+The controls hold it to the stored results of Jujutsu 0.46.0 on a corpus of real and measured inputs
+(`src/native/word_merge_corpus/`): the same verdict on every input and the same bytes on every resolved one.
+It can produce text neither side wrote (two edits of different arguments of one call become one call with both),
+which the owner accepted; it never drops a byte that either side added or kept, and it never orders two insertions at one point,
+so both sides appending different text at one place stays a conflict.
+
+A conflicted file is a candidate only when all three stages exist with one mode that is a plain file, none holds a NUL byte in its
+first 8000 bytes (Git's `FIRST_FEW_BYTES`, `xdiff-interface.c` line 197), none is larger than 8 MiB, and the `merge` attribute is unspecified, set or `text`
+(a driver, `-merge` and `merge=binary` keep the merge to their setting).
+Git's own limit is `MAX_XDIFF_SIZE`, 1023 MiB (`xdiff-interface.h` line 14), above which its merge calls a file binary
+(`merge-ll.c` lines 117 to 122); the pass takes the smaller of that and 8 MiB, which is measured: texts that share no line took
+0.08 s and 45 MB at 1 MiB, 0.73 s and 352 MB at 8 MiB, 4.12 s and 1320 MB at 32 MiB, so Git's limit would not bound the cost.
+Anything else is left exactly as Git left it, with the reason in the debug log.
+
+Merges a person runs (`merge`, `rebase`, `cherry-pick`, `revert` and `pull` forwarded to Git):
+a conflicted merge computed from objects with another session's staged work gets the pass from objects
+ (`merge_isolation.rs`,
+`merge_tree`); with a clean index the conflict is native Git's, which stops and writes the markers,
+ and the pass then runs on the
+stopped merge here, because the ending commit then goes through the wrapper's commit path and its policies (the control
+`the_ending_commit_is_judged_by_the_repositorys_policies` pins that for the stopped path;
+ whether a merge completed from objects is
+judged by the same policies was not measured).
+The index is read in process before Git starts, and again when Git exits with a status other than 0.
+Only the paths that were not unmerged before the command and are unmerged after it are candidates, so a file a person is
+resolving by hand is never replaced by a later command that fails on it.
+The stages are read with one `git cat-file --batch`, the attributes with one `git check-attr`;
+each file that resolves is written as a blob (`git hash-object -w`), staged as resolved
+(`git update-index --index-info`, which replaces the conflict stages) and written to the worktree with `git checkout-index --force`,
+so the repository's filters apply; if the checkout fails the conflict stages are put back.
+Standard error gets one line per part, `cli-git: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines> became "<text>"`.
+Each merged file is one journal entry of priority `warning` under `SYSLOG_IDENTIFIER` `cli-git`, with the fields
+`CLI_GIT_WORD_MERGE_FILE`, `CLI_GIT_WORD_MERGE_OPERATION` and `CLI_GIT_WORD_MERGE_PARTS`.
+
+When every conflicted file of the command resolved, the operation is finished the way Git finishes it after a clean run
+(owner decision of 2026-11-03, "Finish like a clean merge"), through the wrapper's own command path: the continuing step is
+`run_process` of this process, so the commit policies apply to it and a later pick of a rebase that conflicts gets the pass again
+(nested no deeper than the budget the outermost finish takes from its input: a rebase's remaining todo length plus one, a
+cherry-pick or revert sequence's todo length, one for a merge; past it the operation stays stopped).
+The exit status and the output are the finishing command's; what Git printed when it stopped (`CONFLICT` lines, "Automatic merge
+failed") is already out and stays.
+What Git does after a clean run, from the Git 2.56.0 source:
+- `merge` and the merge of a `pull`: a clean merge that wants a commit commits (`builtin/merge.c` line 1828, `prepare_to_commit`
+  line 905); with `--no-commit` or `--squash` it prints "Automatic merge went well; stopped before committing as requested" to
+  standard error and exits 0 (lines 1867 to 1873). The wrapper does the same for those two options, and otherwise runs
+  `git commit` through its own path with `--no-edit --cleanup=whitespace` (the prepared message as it is, with the conflict hint
+  cut from `MERGE_MSG`, `append_conflicts_hint`, `sequencer.c` line 722) or, when the editor is wanted, plain `git commit`.
+  The editor is wanted by `--edit`/`-e`, or by default when no `-m`/`-F` was given, `GIT_MERGE_AUTOEDIT` is unset and standard
+  input and output are one terminal (`default_edit_option`, lines 1158 to 1180). `-S`, `--gpg-sign`, `--no-gpg-sign` and
+  `--signoff` are handed to the commit. `--autostash` and `merge.autoStash` need nothing: the ending `git commit` applies
+  `MERGE_AUTOSTASH` after it concludes the merge (`builtin/commit.c` line 1982), as a clean merge's `finish` does
+  (`builtin/merge.c` line 1848). The wrapper's commit builds the commit in a shadow repository, which now holds a private copy of
+  `MERGE_AUTOSTASH`; landing removes the real pseudoref when the shadow consumed it (`conclusion_cleanup.rs`).
+  The wrapper's own finish dry-runs the apply first (`write-tree`,
+  then `merge-tree --write-tree --merge-base=<stash>^1 <tree> <stash>`,
+  `autostash_blocks_finish` in `merge_second_pass_finish.rs`) and does not finish when it conflicts
+  or cannot be tried, so the merge
+  stays stopped with the work in `MERGE_AUTOSTASH`.
+  A stash whose apply conflicts when the person concludes the merge with
+  their own `git commit` is stored by Git in the shadow's private `refs/stash`,
+  and its unmerged index entries stay in the private
+  index; neither is carried back, so the real stash list stays empty and the files show as modified, not unmerged
+  (the conflict
+  markers are in the worktree files).
+  The control `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it`
+  states Git's result and is ignored: fixed by carry-back A, queued after the index writer's third round. A
+  `branch.<name>.mergeoptions` value of the checked-out branch is split as Git splits it (`alias.c` lines 126 to 180) and read
+  before the command line (`merge.c` lines 1407 to 1409), so `--no-commit`, `--squash`, `--edit` or `-m` set there is honoured.
+  Hooks: the wrapper switches every hook event off in every Git it starts, so a user's hooks see nothing on a clean merge and
+  nothing on a finished one (a control compares the two, with real Git run directly as the positive control). Were hooks run, a
+  clean merge would run `pre-merge-commit`, `prepare-commit-msg`, `commit-msg` and `post-merge` (`merge.c` lines 931, 966, 975
+  and 537), a concluding `git commit` `pre-commit`, `prepare-commit-msg`, `commit-msg` and `post-commit` (`builtin/commit.c`
+  lines 780, 1116, 1133 and 1966), and a clean pick `prepare-commit-msg` and `post-commit` (`sequencer.c` lines 1367 and 1699);
+  that difference would then need a decision.
+- `cherry-pick` and `revert`: `git commit --no-edit --cleanup=strip`, which is what Git's own `--continue` runs for a conflicted
+  pick (`continue_single_pick`, `sequencer.c` lines 5354 to 5378), edited when `--edit` is given or, for `revert`, when standard
+  input is a terminal (`should_edit`, line 2217); then `<command> --continue` when a sequencer todo file exists, which picks the
+  rest and ends the sequence (`sequencer_continue`, lines 5617 to 5630). `--no-commit` stops with the result staged and exit 0;
+  a range applied with `--no-commit` is not finished (`error_dirty_index`), and neither is it here. `--continue` and `--skip`
+  forms take their options from `sequencer/opts` (`save_opts`, line 3734).
+- `rebase` and the rebase of a `pull`: `git rebase --continue`, which edits the message of the commit it makes after a conflict
+  (`commit_staged_changes`, `sequencer.c` line 5381, flag `EDIT_MSG`), where a clean pick does not; the continuing step is run
+  with `GIT_EDITOR=:` for its Git children (the in-process variable `CLI_GIT_CHILD_SET_GIT_EDITOR`, `child_environment.rs`), and a
+  rebase whose remaining todo list holds `reword`, `squash` or `fixup -c`/`-C` is not finished, because the same setting would
+  switch off the editor those steps want. The original author is kept because `--continue` reads `rebase-merge/author-script`
+  (a plain `git commit` would not). `--autostash` and `rebase.autoStash` need nothing: the continuing step applies the autostash
+  when the rebase ends (`sequencer.c` lines 4980 and 5330).
+- `pull` runs `git merge` or `git rebase` as a child of Git (`builtin/pull.c` lines 525 and 750),
+  out of the wrapper's reach, except
+  for a pull that is stated to merge and read exactly, which the wrapper splits into its fetch
+  and a `git merge FETCH_HEAD` of its own
+  (see "Merges and commits never fail"); for every other pull the wrapper sees the pull's exit and its state files:
+  `rebase-merge` or `rebase-apply` means the rebase, `MERGE_HEAD` (or
+  `--squash`) the merge. Pull's own options are read like merge's plus the fetch and rebase options it passes on, and the
+  child merge applies `branch.<name>.mergeoptions` and `--autostash` as a merge does; the finish is not made when an option is
+  unknown.
+Options are read by exact spelling, since Git accepts unambiguous abbreviations; a command line with an option this reader does not know
+leaves the operation stopped with the files staged and Git's exit status, as before the finish existed.
+A file that does not resolve keeps the stop of Git for every operation.
+A merge that Git completes costs one in-process read of the index before Git starts and nothing after it; the Git starts above happen only after a conflict,
+and they run from the top of the worktree with the invocation's `-c` options only, because `check-attr` and `checkout-index` read paths relative to the directory they run in.
+
+Merges from objects (the isolated merge, the auto-push reconcile merge, the commit replay merge):
+`git merge-tree --write-tree -z` prints the stages of every conflicted path.
+These merges accept the result only when every conflicted file resolves; otherwise they behave as they did, naming the paths.
+The merged blobs are written, a scratch index in the repository's `cli-git-scratch` directory takes the merge tree and the merged blobs
+(`read-tree`, `update-index --index-info`, `write-tree`), and the scratch file is removed.
+No worktree is read by these merges, so the attribute tree is named where Git would read none. Git takes the tree from
+`--attr-source`, else `GIT_ATTR_SOURCE`, else the configuration `attr.tree`, and ignores an `attr.tree` that is no tree
+(`attr.c` lines 1202 to 1231). The wrapper sets `GIT_ATTR_SOURCE` to the first side's tip (the isolated merge's `HEAD`, the
+reconcile merge's branch tip, the landed tip of a replay) only when none of the three applies: a person's choice is never
+overridden. `attr.tree` is read in process, or from Git when the in-process readers decline the environment (a `GIT_*` variable
+such as `GIT_NAMESPACE` makes them decline; the variables that only trace, word output, reach a network or a tool, or set a limit
+do not, each checked against Git 2.56.0 in `repo_read_layout.rs`), which costs one Git start in that case.
+The `doc/handover/*.md merge=union` line of `.gitattributes` therefore applies in them.
+A `.gitattributes` that only the second side has is not read (Git takes one tree).
+The isolated merge prints the part lines before Git's own words and sends the journal entries after the merge is in the checkout;
+the reconcile merge appends the part lines to the merge commit's message, prints them with the push report and sends the entries after the push succeeded,
+under `SYSLOG_IDENTIFIER` `cli-git-service` for the auto-push, which runs inside the service, and `cli-git` for a push a person typed;
+the replay merge reports the parts in a `word-merged` event and sends the entries when the merge is used.
+
 ### Retry after a moved branch
 
 A branch that moved since the wrapper read it makes the service answer `retry-prepare` with the commits that landed meanwhile.
@@ -3816,6 +3991,9 @@ no recorded policy run is reused.
 Where a path changed in both,
 the later capture wins when both captures read the same worktree
 and every other path is settled by subsumption and then the three-way merge.
+A path that Git's line merge still reports as a conflict after the subsumption rules is merged by word
+(see "Word-level second merge pass"); when every conflicted file resolves, the merged tree is used,
+and a `word-merged` event lists each merged part with the commit's other events.
 Paths that cannot be combined end the commit with the core finding `concurrent-commit/replay-conflict`,
 exit `1`,
 a message naming the paths and the commit that landed first,

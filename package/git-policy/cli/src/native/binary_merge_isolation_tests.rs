@@ -56,7 +56,7 @@ pub(super) fn diverged(fixture: &Fixture, name: &str) -> PathBuf {
 }
 
 /// A byte-for-byte copy of a repository, for the clean checkout the oracle merges in.
-fn copy_of(fixture: &Fixture, from: &Path, name: &str) -> PathBuf {
+pub(super) fn copy_of(fixture: &Fixture, from: &Path, name: &str) -> PathBuf {
     let to: PathBuf = fixture.root.join(name);
     let copied = Command::new("cp").arg("--archive").arg("--").arg(from).arg(&to).status().expect("cp starts");
     assert!(copied.success(), "the copy of {from:?} failed");

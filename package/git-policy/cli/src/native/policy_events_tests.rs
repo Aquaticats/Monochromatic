@@ -251,6 +251,18 @@ fn fix_summary_has_the_incumbent_shape() {
     );
 }
 
+/// The word-merged event is one line with its type, its outcome and the part lines in one escaped message, and it blocks nothing.
+#[test]
+fn word_merged_has_its_shape_and_does_not_block() {
+    let event: PolicyEvent = PolicyEvent::WordMerged { lines: vec![String::from("word-level merge: a.md: part 1 of 1: \"x\""), String::from("second")] };
+    assert_eq!(
+        rendered_without_hint(1, &event),
+        "{\"schemaVersion\":1,\"sequence\":1,\"type\":\"word-merged\",\"outcome\":\"word-merged\",\
+         \"message\":\"word-level merge: a.md: part 1 of 1: \\\"x\\\"\\nsecond\"}\n"
+    );
+    assert!(!event_blocks(&event));
+}
+
 /// Text that tries to end its string or its line stays inside one JSON string on one line.
 #[test]
 fn hostile_text_cannot_leave_its_field() {

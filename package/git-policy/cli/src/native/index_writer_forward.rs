@@ -36,6 +36,10 @@ use super::git_version::check_git_version;
 use super::worktree_identity::WorktreeIdentity;
 /// A merge the staged index would make native Git refuse, completed without disturbing the staged work.
 use super::merge_isolation::{IsolatedMerge, IsolatedMergeInput, run_isolated_merge};
+/// A pull that merges, split into its fetch and its merge so the merge is completed in isolation.
+use super::pull_isolation::{PullStep, pull_step};
+/// The word-level second pass for the conflicts a merge, rebase, cherry-pick or revert created.
+use super::merge_second_pass_worktree::{Watch, resolve_after, watch_before};
 /// Running real Git for the location query.
 use super::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes.
@@ -134,26 +138,26 @@ fn written_real_index(context: &GitContext, command: &ResolvedCommand) -> Result
 /// ```ts
 /// async function forwardToRealGit({ args, gitPath, identity }): Promise<void>;
 /// ```
-pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
+pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     // The context runs the location query with the same overlay as the command.
     let context: GitContext = GitContext {
-        real_git: forward.real_git.clone(),
-        overlay: forward.overlay.clone(),
+        real_git: typed.real_git.clone(),
+        overlay: typed.overlay.clone(),
         global_prefix: Vec::new(),
         // The location query sends no input, so no scratch directory is needed.
         common_dir: None,
     };
-    let location: LandingLocation = match written_real_index(&context, &forward.command) {
+    let location: LandingLocation = match written_real_index(&context, &typed.command) {
         Ok(Some(found)) => found,
         Ok(None) => {
             // A copy keeps the wrapper alive around Git; otherwise the caller may replace the process.
-            let Some(facts) = forward.copy.as_ref() else {
+            let Some(facts) = typed.copy.as_ref() else {
                 return CoordinatedRun::NotCoordinated;
             };
             return from_forwarded(run_forwarded_git(
-                forward.real_git.as_path(),
-                forward.arguments.as_slice(),
-                forward.overlay.as_slice(),
+                typed.real_git.as_path(),
+                typed.arguments.as_slice(),
+                typed.overlay.as_slice(),
                 Some(facts),
             ));
         }
@@ -163,12 +167,32 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
     if let Err(reason) = check_git_version(&context) {
         return failed_with(EngineFailureCode::ContentUnavailable, reason.as_str());
     }
+    // A pull that merges runs its fetch here and goes on as the `git merge FETCH_HEAD` it ends with; any other pull is native Git's.
+    let merge_of_pull: CoordinatedForward;
+    // A merge that cannot create a commit (a fast-forward, or nothing to merge) is native Git's without the isolated attempt.
+    let mut isolate: bool = true;
+    let forward: &CoordinatedForward = if typed.command.word() == b"pull" {
+        match pull_step(typed, location.real_index_path.as_path()) {
+            PullStep::Native => typed,
+            PullStep::Ended(run) => return run,
+            PullStep::Merge { forward: merge, makes_commit } => {
+                merge_of_pull = *merge;
+                isolate = makes_commit;
+                &merge_of_pull
+            }
+        }
+    } else {
+        typed
+    };
     let name: String = String::from_utf8_lossy(forward.command.word()).into_owned();
     // The commit service holds the index while it lands a commit, which ends by itself: the command waits for it, naming
     //  it, before Git starts. A lock that is not the service's is a foreign program's and keeps the behavior of native Git.
     wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
     // A merge that native Git would refuse only because the index holds staged changes is completed in isolation.
-    if forward.command.word() == b"merge" {
+    if forward.command.word() == b"merge" && !isolate {
+        // Native Git never waits for the index lock; the fast-forward it is handed waits for the holder first.
+        wait_for_index_release_here(location.real_index_path.as_path(), name.as_str());
+    } else if forward.command.word() == b"merge" {
         let merge_input: IsolatedMergeInput<'_> = IsolatedMergeInput {
             real_git: forward.real_git.as_path(),
             overlay: forward.overlay.as_slice(),
@@ -192,6 +216,8 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
             }
         }
     }
+    // The paths that are unmerged before the command runs are not the second merge pass's to touch afterwards.
+    let second_pass_watch: Option<Watch> = watch_before(forward);
     // A command that takes the index lock before it changes anything is run again when the commit service took the index first.
     let outcome: ForwardedRun = if forward.copy.is_none() && may_run_again(forward.command.word(), forward.command.region()) {
         run_again_while_service_holds(
@@ -211,7 +237,15 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
             forward.copy.as_ref(),
         )
     };
-    return from_forwarded(outcome);
+    let finished: CoordinatedRun = from_forwarded(outcome);
+    // A merge, rebase, cherry-pick or revert that Git stopped with a conflict gets the word-level second pass.
+    if let CoordinatedRun::Ran(code) = &finished
+        && let Some(ended) = resolve_after(second_pass_watch.as_ref(), forward, *code, &mut std::io::stderr())
+    {
+        // Every conflicted file resolved and the operation was ended like a clean run: that run's status is the command's.
+        return CoordinatedRun::Ran(ended);
+    }
+    return finished;
 }
 
 /// What:

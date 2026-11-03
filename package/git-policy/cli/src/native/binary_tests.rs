@@ -140,6 +140,22 @@ mod dependent_version;
 #[path = "binary_merge_isolation_tests.rs"]
 mod merge_isolation;
 
+/// The word-level second merge pass after a merge, rebase, cherry-pick or revert that Git stops with a conflict.
+#[path = "binary_word_merge_tests.rs"]
+mod word_merge;
+
+/// The finish after the second pass: the operation ends like a clean run, and `--no-commit`, `--squash` and `--edit` stop it.
+#[path = "binary_word_merge_finish_tests.rs"]
+mod word_merge_finish;
+
+/// The harness that acts on a repository when a running command shows a line on standard error.
+#[path = "binary_held_lock_support.rs"]
+mod held_lock_support;
+
+/// A `git pull` that merges: completed in isolation like `git merge`, and every other pull left to native Git.
+#[path = "binary_pull_isolation_tests.rs"]
+mod pull_isolation;
+
 /// A merge that waits for a held `index.lock` and lands on a branch that moved underneath it.
 #[path = "binary_merge_never_fails_tests.rs"]
 mod merge_never_fails;

@@ -290,6 +290,12 @@ pub fn lockfile_pid_overlay(environment: &[(OsString, OsString)]) -> Vec<(OsStri
     ];
 }
 
+/// The prefix of a variable in the `environment` of an in-process command that the Git children of that command receive
+///  without the prefix: `CLI_GIT_CHILD_SET_GIT_EDITOR` becomes `GIT_EDITOR` for them. The wrapper's second merge pass uses it to
+///  run the continuing step of a rebase without an editor, as the rebase would have run without a conflict. Nothing of the
+///  wrapper's own process environment is changed.
+pub const CHILD_SET_PREFIX: &str = "CLI_GIT_CHILD_SET_";
+
 /// What:
 ///  Compute every variable cli-git sets for a real Git child:
 ///  the lock PID
@@ -309,6 +315,12 @@ pub fn child_environment_overlay(
     real_git: &Path,
 ) -> Vec<(OsString, OsString)> {
     let mut overlay: Vec<(OsString, OsString)> = lockfile_pid_overlay(environment);
+    // A command the wrapper runs for itself, in process, names the variables its Git children must get this way.
+    for (name, value) in environment {
+        if let Some(child_name) = name.to_str().and_then(|text| { return text.strip_prefix(CHILD_SET_PREFIX); }) {
+            overlay.push((OsString::from(child_name), value.clone()));
+        }
+    }
     // `.as_os_str().to_os_string()` copies the path's raw bytes without any decoding.
     overlay.push((
         OsString::from(FORWARD_TARGET_VARIABLE),
