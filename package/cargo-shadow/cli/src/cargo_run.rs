@@ -138,7 +138,10 @@ impl CargoRunner for RealCargo {
         // The loop guard (`guard.rs`): the candidate's resolved path joins the skip list of the instance it may start, so a
         // `cargo` that is a launcher leading back to the shadow is skipped there and the next `cargo` on PATH runs instead.
         // The value is bound to this process: only the direct child honors it, never a script the real cargo runs.
-        let chosen: PathBuf = fs::canonicalize(&self.program).unwrap_or_else(|_| { return self.program.clone(); });
+        let chosen: PathBuf = match fs::canonicalize(&self.program) {
+            Ok(resolved) => resolved,
+            Err(_) => self.program.clone(),
+        };
         let guard: Guard = Guard { kind: GuardKind::Spawn, pid: std::process::id(), hops: 1, skipped: vec![chosen] };
         command.env(GUARD_VARIABLE, format_guard(&guard));
         if !self.toolchain.is_empty() {

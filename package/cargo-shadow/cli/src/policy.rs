@@ -183,6 +183,42 @@ pub fn trust_level(record: &VersionRecord, earlier: &[VersionRecord], owner_ids:
 }
 
 /// What:
+/// `fn trusted_repository_of(entry: &VersionRecord) -> Option<String>` returns the repository that published an earlier release through Trusted Publishing,
+/// or `None` when it was not published that way.
+/// Why:
+/// The repository-change rule compares a new release with the repositories that published the earlier ones.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const trustedRepositoryOf = (entry: VersionRecord): string | undefined => entry.trustpubRepository || undefined;
+/// ```
+fn trusted_repository_of(entry: &VersionRecord) -> Option<String> {
+    if entry.trustpub_repository.is_empty() {
+        return None;
+    }
+    return Some(entry.trustpub_repository.clone());
+}
+
+/// What:
+/// `fn version_record_of(history, version) -> Option<&VersionRecord>` finds the record of one version number in a crate's history.
+/// Why:
+/// The trust check starts from the record of the locked version,
+/// and a version missing from the history is reported.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const versionRecordOf = (history: VersionRecord[], version: string) => history.find((e) => e.num === version);
+/// ```
+fn version_record_of<'a>(history: &'a [VersionRecord], version: &str) -> Option<&'a VersionRecord> {
+    for entry in history {
+        if entry.num == version {
+            return Some(entry);
+        }
+    }
+    return None;
+}
+
+/// What:
 /// `pub fn trust_problems(name, version, history, settings, now, owner_ids) -> Vec<String>` returns the findings against one
 /// version under `trustPolicy = "no-downgrade"`.
 /// Why:
@@ -208,7 +244,7 @@ pub fn trust_problems(
     if settings.trust_policy == TrustPolicy::Off || is_excluded(&settings.trust_policy_exclude, name, version) {
         return Vec::new();
     }
-    let record: &VersionRecord = match history.iter().find(|entry| { return entry.num == version; }) {
+    let record: &VersionRecord = match version_record_of(history, version) {
         Some(found) => found,
         None => {
             return vec![format!(
@@ -221,8 +257,13 @@ pub fn trust_problems(
     {
         return Vec::new();
     }
-    let mut earlier: Vec<VersionRecord> =
-        history.iter().filter(|entry| { return created_millis(entry) < created_millis(record); }).cloned().collect();
+    let record_millis: i64 = created_millis(record);
+    let mut earlier: Vec<VersionRecord> = Vec::new();
+    for entry in history {
+        if created_millis(entry) < record_millis {
+            earlier.push(entry.clone());
+        }
+    }
     earlier.sort_by_key(created_millis);
     let mut problems: Vec<String> = Vec::new();
     let level: u8 = trust_level(record, &earlier, owner_ids);
@@ -240,8 +281,7 @@ pub fn trust_problems(
     }
     let trusted_repositories: BTreeSet<String> = earlier
         .iter()
-        .map(|entry| { return entry.trustpub_repository.clone(); })
-        .filter(|repository| { return !repository.is_empty(); })
+        .filter_map(trusted_repository_of)
         .collect();
     if !record.trustpub_repository.is_empty()
         && !trusted_repositories.is_empty()

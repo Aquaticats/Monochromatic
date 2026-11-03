@@ -391,6 +391,33 @@ pub struct Prepared {
 }
 
 /// What:
+/// `fn missing_cargo_message() -> String` words the absence of a real `cargo` on `PATH`.
+/// Why:
+/// The install step needs the real cargo,
+/// and without it the shadow reports that instead of looping on itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const missingCargoMessage = () => 'cargo-shadow: no real cargo found on PATH for the install step';
+/// ```
+fn missing_cargo_message() -> String {
+    return "cargo-shadow: no real cargo found on PATH for the install step".to_string();
+}
+
+/// What:
+/// `fn catalog_read_failure(error: std::io::Error) -> String` words a failure to read `rust-catalog.toml`.
+/// Why:
+/// The install step names the file it could not read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const catalogReadFailure = (error: Error) => `cargo-shadow: rust-catalog.toml: ${error.message}`;
+/// ```
+fn catalog_read_failure(error: std::io::Error) -> String {
+    return format!("cargo-shadow: {CATALOG_MARKER}: {error}");
+}
+
+/// What:
 /// `pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String>` finds the repository,
 /// the workspace,
 /// the
@@ -482,7 +509,7 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // try { return compute(); } catch { return undefined; }
     // ```
     // Typed binding: `program: PathBuf`.
-    let program: PathBuf = find_real_cargo().ok_or_else(|| { return "cargo-shadow: no real cargo found on PATH for the install step".to_string(); })?;
+    let program: PathBuf = find_real_cargo().ok_or_else(missing_cargo_message)?;
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `explicit: String`.
     // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
@@ -514,7 +541,7 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
         // Closure `|error|`: an anonymous function, like a TS arrow function.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        .map_err(|error| { return format!("cargo-shadow: {CATALOG_MARKER}: {error}"); })?;
+        .map_err(catalog_read_failure)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&catalog_text`: lends the value without copying or giving it away.

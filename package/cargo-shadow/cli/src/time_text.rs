@@ -106,7 +106,7 @@ impl<'a> Cursor<'a> {
             return None;
         }
         let (head, tail) = self.remaining.split_at(length);
-        if !head.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+        if head.bytes().take_while(u8::is_ascii_digit).count() != head.len() {
             return None;
         }
         let value: i64 = head.parse().ok()?;
@@ -156,7 +156,7 @@ pub fn parse_rfc3339_millis(text: &str) -> Option<i64> {
     let second: i64 = cursor.digits(2)?;
     let mut millis: i64 = 0;
     if cursor.accept('.') {
-        let digit_count: usize = cursor.remaining.bytes().take_while(|byte| { return byte.is_ascii_digit(); }).count();
+        let digit_count: usize = cursor.remaining.bytes().take_while(u8::is_ascii_digit).count();
         if digit_count == 0 {
             return None;
         }

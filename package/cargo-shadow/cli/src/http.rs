@@ -215,6 +215,50 @@ impl Default for UreqFetcher {
 }
 
 /// What:
+/// `fn request_failure(url, error) -> RegistryError` words a failed request with the address it went to and no HTTP status.
+/// Why:
+/// The registry needs to know the address,
+/// and a request without an answer carries no status to retry on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const requestFailure = (url: string, error: Error) => new RegistryError(`${url}: ${error.message}`);
+/// ```
+fn request_failure(url: &str, error: &dyn std::fmt::Display) -> RegistryError {
+    return RegistryError { message: format!("{url}: {error}"), status: None, retry_after_seconds: 0 };
+}
+
+/// What:
+/// `fn header_text(value: &HeaderValue) -> Option<&str>` reads a header value as text,
+/// or `None` when it is not plain text.
+/// Why:
+/// The `Retry-After` header is only useful as a number of seconds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const headerText = (value: string | null) => value ?? undefined;
+/// ```
+fn header_text(value: &ureq::http::HeaderValue) -> Option<&str> {
+    return value.to_str().ok();
+}
+
+/// What:
+/// `fn seconds_of(text: &str) -> Option<u64>` reads a whole number of seconds from header text,
+/// or `None`.
+/// Why:
+/// A `Retry-After` given as a date,
+/// not seconds,
+/// is ignored and the default wait applies.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const secondsOf = (text: string) => /^\d+$/.test(text.trim()) ? Number(text.trim()) : undefined;
+/// ```
+fn seconds_of(text: &str) -> Option<u64> {
+    return text.trim().parse::<u64>().ok();
+}
+
+/// What:
 /// `impl TextFetcher for UreqFetcher` makes the real network usable as a `TextFetcher`.
 /// Why:
 /// The registry asks for a fetcher by trait,
@@ -238,16 +282,17 @@ impl TextFetcher for UreqFetcher {
     /// get(url: string): string  // throws RegistryError
     /// ```
     fn get(&self, url: &str) -> Result<String, RegistryError> {
-        let mut response = self.agent.get(url).call().map_err(|error| {
-            return RegistryError { message: format!("{url}: {error}"), status: None, retry_after_seconds: 0 };
-        })?;
+        let mut response = match self.agent.get(url).call() {
+            Ok(answer) => answer,
+            Err(error) => return Err(request_failure(url, &error)),
+        };
         let status: u16 = response.status().as_u16();
         if !(200..300).contains(&status) {
             let retry_after: u64 = response
                 .headers()
                 .get("retry-after")
-                .and_then(|value| { return value.to_str().ok(); })
-                .and_then(|text| { return text.trim().parse::<u64>().ok(); })
+                .and_then(header_text)
+                .and_then(seconds_of)
                 .unwrap_or(0);
             return Err(RegistryError {
                 message: format!("{url} answered HTTP {status}"),
@@ -255,9 +300,10 @@ impl TextFetcher for UreqFetcher {
                 retry_after_seconds: retry_after,
             });
         }
-        return response.body_mut().with_config().limit(MAX_BODY_BYTES).read_to_string().map_err(|error| {
-            return RegistryError { message: format!("{url}: {error}"), status: None, retry_after_seconds: 0 };
-        });
+        return match response.body_mut().with_config().limit(MAX_BODY_BYTES).read_to_string() {
+            Ok(text) => Ok(text),
+            Err(error) => Err(request_failure(url, &error)),
+        };
     }
 }
 
@@ -286,9 +332,10 @@ impl DumpSource for UreqFetcher {
     /// open(url: string): ReadableStream  // throws RegistryError
     /// ```
     fn open(&self, url: &str) -> Result<Box<dyn Read>, RegistryError> {
-        let response = self.stream_agent.get(url).call().map_err(|error| {
-            return RegistryError { message: format!("{url}: {error}"), status: None, retry_after_seconds: 0 };
-        })?;
+        let response = match self.stream_agent.get(url).call() {
+            Ok(answer) => answer,
+            Err(error) => return Err(request_failure(url, &error)),
+        };
         let status: u16 = response.status().as_u16();
         if !(200..300).contains(&status) {
             return Err(RegistryError { message: format!("{url} answered HTTP {status}"), status: Some(status), retry_after_seconds: 0 });

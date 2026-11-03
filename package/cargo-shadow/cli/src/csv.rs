@@ -302,7 +302,7 @@ pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool
 pub fn column_indexes(header: &[String], columns: &[&str]) -> Result<Vec<usize>, DumpFormatError> {
     let mut indexes: Vec<usize> = Vec::new();
     for column in columns {
-        match header.iter().position(|name| { return name == column; }) {
+        match crate::adapt::position_of_text(header, column) {
             Some(found) => indexes.push(found),
             None => {
                 return Err(DumpFormatError {

@@ -56,9 +56,22 @@ pub fn compare_texts(left: &str, right: &str) -> Ordering {
     };
 }
 
+/// What:
+/// `fn has_prerelease(found: ParsedVersion) -> bool` tells whether a parsed version carries a pre-release part (`1.0.0-beta`).
+/// Why:
+/// A version that is not a version at all counts as no pre-release.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hasPrerelease = (found: ParsedVersion) => found.prerelease.length > 0;
+/// ```
+fn has_prerelease(found: ParsedVersion) -> bool {
+    return !found.prerelease.is_empty();
+}
+
 /// Whether the version has a prerelease part.
 pub fn is_prerelease_text(version: &str) -> bool {
-    return parsed(version).map(|found| { return !found.prerelease.is_empty(); }).unwrap_or(false);
+    return parsed(version).is_some_and(has_prerelease);
 }
 
 /// What:

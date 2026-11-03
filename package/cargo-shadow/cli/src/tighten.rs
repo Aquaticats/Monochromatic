@@ -137,6 +137,21 @@ pub trait Syncer {
 pub struct FileEnforcer;
 
 /// What:
+/// `fn file_enforcer_start_failure(error: std::io::Error) -> String` words the failure to start `file-enforcer`,
+/// with the command that renders the floors by hand.
+/// Why:
+/// Raised floors only reach the manifests through `file-enforcer write`,
+/// so the user is told how to do that step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fileEnforcerStartFailure = (error: Error) => `could not start file-enforcer (${error.message}); run the sync task`;
+/// ```
+fn file_enforcer_start_failure(error: std::io::Error) -> String {
+    return format!("could not start file-enforcer ({error}); run `mise run sync:files` to render the raised floors into the manifests");
+}
+
+/// What:
 /// `impl Syncer for FileEnforcer` makes the `file-enforcer` program usable as the sync step.
 /// Why:
 /// `cargo update --breaking` raises catalog floors and then renders them into the manifests;
@@ -163,7 +178,7 @@ impl Syncer for FileEnforcer {
             .arg("write")
             .current_dir(root)
             .output()
-            .map_err(|error| { return format!("could not start file-enforcer ({error}); run `mise run sync:files` to render the raised floors into the manifests"); })?;
+            .map_err(file_enforcer_start_failure)?;
         if !output.status.success() {
             return Err(format!("file-enforcer write failed: {}", String::from_utf8_lossy(&output.stderr).trim()));
         }
@@ -191,7 +206,10 @@ pub fn raised_names(before: &[LockedVersion], after: &[LockedVersion]) -> BTreeS
     let old: BTreeMap<String, String> = highest_by_name(before);
     let mut raised: BTreeSet<String> = BTreeSet::new();
     for (name, version) in highest_by_name(after) {
-        let was_higher_or_equal: bool = old.get(&name).map(|previous| { return compare_texts(&version, previous) != std::cmp::Ordering::Greater; }).unwrap_or(false);
+        let was_higher_or_equal: bool = match old.get(&name) {
+            Some(previous) => compare_texts(&version, previous) != std::cmp::Ordering::Greater,
+            None => false,
+        };
         if !was_higher_or_equal {
             raised.insert(name);
         }

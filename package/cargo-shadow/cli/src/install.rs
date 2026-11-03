@@ -642,6 +642,19 @@ pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError
     return Ok(stale);
 }
 
+/// What:
+/// `fn invalid_lock_toml(message: String) -> InstallError` turns a TOML parse message of a `Cargo.lock` into an install error.
+/// Why:
+/// A lockfile that cannot be parsed stops the install with a message that names the file kind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const invalidLockToml = (message: string) => new InstallError(`a Cargo.lock is not valid TOML: ${message}`);
+/// ```
+fn invalid_lock_toml(message: String) -> InstallError {
+    return InstallError::Io { message: format!("a Cargo.lock is not valid TOML: {message}") };
+}
+
 /// The transaction body:
 /// update the stale roots,
 /// then check the new versions;
@@ -685,7 +698,7 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
         // Closure `|message|`: an anonymous function, like a TS arrow function.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        .map_err(|message| { return InstallError::Io { message: format!("a Cargo.lock is not valid TOML: {message}") }; })?;
+        .map_err(invalid_lock_toml)?;
     // Typed binding: `age: CheckOutcome`.
     let age: CheckOutcome = if added.is_empty() {
         CheckOutcome::default()
@@ -924,9 +937,12 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     }
     // Closure `|mut report|`: an anonymous function, like a TS arrow function.
     // Adapter `.map(`: transforms or selects items with a closure.
-    return outcome.map(|mut report| {
-        report.warnings.extend(recovered);
-        report.warnings.extend(restore_warnings);
-        return report;
-    });
+    return match outcome {
+        Ok(mut report) => {
+            report.warnings.extend(recovered);
+            report.warnings.extend(restore_warnings);
+            Ok(report)
+        }
+        Err(error) => Err(error),
+    };
 }

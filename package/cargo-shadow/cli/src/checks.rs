@@ -110,6 +110,25 @@ pub struct TrustRefusal {
     pub problems: Vec<String>,
 }
 
+/// What:
+/// `fn group_for(groups, name) -> Option<&mut (String, Vec<String>)>` finds the group of one crate name so another version can be added to it.
+/// Why:
+/// Versions of the same crate are checked together,
+/// so each crate name has one group.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const groupFor = (groups: [string, string[]][], name: string) => groups.find((g) => g[0] === name);
+/// ```
+fn group_for<'a>(groups: &'a mut [(String, Vec<String>)], name: &str) -> Option<&'a mut (String, Vec<String>)> {
+    for group in groups {
+        if group.0 == name {
+            return Some(group);
+        }
+    }
+    return None;
+}
+
 /// Versions grouped by crate name,
 /// in first-seen order,
 /// so each crate costs one lookup.
@@ -172,7 +191,7 @@ pub fn group_by_name(versions: &[LockedVersion]) -> Vec<(String, Vec<String>)> {
         // ```ts
         // for (const item of list) { ... }  // or list.map(...)
         // ```
-        match groups.iter_mut().find(|group| { return group.0 == locked.name; }) {
+        match group_for(&mut groups, &locked.name) {
             // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
             // Why:      Absence is a value the caller must check; there is no `null`.
             //
@@ -353,6 +372,20 @@ fn crate_trust_refusals(
 }
 
 /// What:
+/// `fn group_name(group: &(String, Vec<String>)) -> String` returns the crate name of one group of locked versions.
+/// Why:
+/// The registry prefetches the index of every crate name once,
+/// before the checks read them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const groupName = (group: [string, string[]]) => group[0];
+/// ```
+fn group_name(group: &(String, Vec<String>)) -> String {
+    return group.0.clone();
+}
+
+/// What:
 /// `pub fn trust_refusals(...) -> Result<Vec<TrustRefusal>, RegistryError>` checks the trust policy:
 /// one history lookup per
 /// crate,
@@ -404,7 +437,7 @@ pub fn trust_refusals(
     // ```
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     // Adapter `.map(`: transforms or selects items with a closure.
-    registry.prefetch(&groups.iter().map(|group| { return group.0.clone(); }).collect::<BTreeSet<String>>())?;
+    registry.prefetch(&groups.iter().map(group_name).collect::<BTreeSet<String>>())?;
     // `let mut`: a binding that may change.
     // Typed binding: `refusals: Vec<TrustRefusal>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.

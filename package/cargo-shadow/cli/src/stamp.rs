@@ -384,7 +384,7 @@ pub fn manifests_from_metadata(metadata_json: &str) -> Vec<PathBuf> {
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     // Closure `|value|`: an anonymous function, like a TS arrow function.
     // Adapter `.and_then(`: transforms or selects items with a closure.
-    if let Some(root) = parsed.get("workspace_root").and_then(|value| { return value.as_str(); }) {
+    if let Some(root) = parsed.get("workspace_root").and_then(Value::as_str) {
         manifests.push(Path::new(root).join("Cargo.toml"));
     }
     // Typed binding: `empty: Vec<Value>`.
@@ -407,7 +407,7 @@ pub fn manifests_from_metadata(metadata_json: &str) -> Vec<PathBuf> {
         // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         // Closure `|value|`: an anonymous function, like a TS arrow function.
         // Adapter `.and_then(`: transforms or selects items with a closure.
-        if let Some(path) = package.get("manifest_path").and_then(|value| { return value.as_str(); }) {
+        if let Some(path) = package.get("manifest_path").and_then(Value::as_str) {
             manifests.push(PathBuf::from(path));
         }
     }

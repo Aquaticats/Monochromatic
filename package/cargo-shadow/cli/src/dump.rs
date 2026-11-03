@@ -177,7 +177,12 @@ pub fn dump_timestamp(value: &str) -> Result<String, DumpFormatError> {
 /// Whether a history may hide a Trusted Publishing release the dump cannot show.
 pub fn needs_api(history: &[VersionRecord]) -> bool {
     let start: i64 = parse_rfc3339_millis(TRUSTED_PUBLISHING_START).unwrap_or(0);
-    return history.iter().any(|record| { return record.publisher_id.is_empty() && parse_rfc3339_millis(&record.created_at).unwrap_or(0) >= start; });
+    for record in history {
+        if record.publisher_id.is_empty() && parse_rfc3339_millis(&record.created_at).unwrap_or(0) >= start {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// One history as the cache file format.
@@ -229,6 +234,33 @@ fn read_table(entry: &mut dyn Read, columns: &[&str], on_row: &mut dyn FnMut(&[S
 }
 
 /// What:
+/// `fn entry_path_text(path: Cow<Path>) -> String` turns the path of one archive entry into text,
+/// replacing bytes that are not valid UTF-8.
+/// Why:
+/// The dump reader picks the tables it needs by the end of each entry's path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entryPathText = (path: string) => path;
+/// ```
+fn entry_path_text(path: std::borrow::Cow<'_, Path>) -> String {
+    return path.to_string_lossy().to_string();
+}
+
+/// What:
+/// `fn path_failure(path: &Path, error: &io::Error) -> DumpFormatError` words a file-system failure with the path it happened at.
+/// Why:
+/// A cache directory or file that cannot be written is named in the error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathFailure = (path: string, error: Error) => new DumpFormatError(`${path}: ${error.message}`);
+/// ```
+fn path_failure(path: &Path, error: &std::io::Error) -> DumpFormatError {
+    return DumpFormatError { message: format!("{}: {error}", path.display()) };
+}
+
+/// What:
 /// `pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>, cache_dir: &Path) -> Result<DumpFillResult, DumpFormatError>`
 /// reads the gzip tar stream and writes a cache file for each wanted crate whose history the dump shows completely.
 /// Why:
@@ -257,7 +289,7 @@ pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>
             Ok(found) => found,
             Err(error) => return Err(DumpFormatError { message: format!("reading the crates.io dump failed: {error}") }),
         };
-        let path: String = entry.path().map(|found| { return found.to_string_lossy().to_string(); }).unwrap_or_default();
+        let path: String = entry.path().map(entry_path_text).unwrap_or_default();
         if path.ends_with(CRATES_ENTRY) {
             read_table(&mut entry, &["id", "name"], &mut |row: &[String]| {
                 if names.contains(&row[1]) {
@@ -293,7 +325,9 @@ pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>
     if !versions_read {
         return Err(DumpFormatError { message: "the crates.io dump ended before versions.csv was read completely".to_string() });
     }
-    fs::create_dir_all(cache_dir).map_err(|error| { return DumpFormatError { message: format!("{}: {error}", cache_dir.display()) }; })?;
+    if let Err(error) = fs::create_dir_all(cache_dir) {
+        return Err(path_failure(cache_dir, &error));
+    }
     let mut result: DumpFillResult = DumpFillResult { found: histories.len(), ..DumpFillResult::default() };
     for (name, history) in &histories {
         if needs_api(history) {
@@ -305,7 +339,9 @@ pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>
             result.kept += 1;
             continue;
         }
-        fs::write(&path, history_json(history)).map_err(|error| { return DumpFormatError { message: format!("{}: {error}", path.display()) }; })?;
+        if let Err(error) = fs::write(&path, history_json(history)) {
+            return Err(path_failure(&path, &error));
+        }
         result.written += 1;
     }
     return Ok(result);

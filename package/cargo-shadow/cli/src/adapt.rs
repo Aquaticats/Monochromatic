@@ -91,3 +91,39 @@ pub fn message_of(error: RegistryError) -> String {
 pub fn millis_of(elapsed: Duration) -> i64 {
     return elapsed.as_millis() as i64;
 }
+
+/// What:
+/// `pub fn position_of_text(texts: &[String], wanted: &str) -> Option<usize>` returns the index of the first text equal to
+/// `wanted`,
+/// or `None`.
+/// Why:
+/// The dump reader looks up each column name in the header row of a table.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const positionOfText = (texts: string[], wanted: string) => { const at = texts.indexOf(wanted); return at === -1 ? undefined : at; };
+/// ```
+pub fn position_of_text(texts: &[String], wanted: &str) -> Option<usize> {
+    for (index, text) in texts.iter().enumerate() {
+        if text == wanted {
+            return Some(index);
+        }
+    }
+    return None;
+}
+
+/// What:
+/// `pub fn contains_text(texts: &[String], wanted: &str) -> bool` tells whether any text equals `wanted`,
+/// without copying
+/// `wanted` into a `String`.
+/// Why:
+/// Version selectors list exact versions,
+/// and a locked version is compared against them as plain text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const containsText = (texts: string[], wanted: string) => texts.includes(wanted);
+/// ```
+pub fn contains_text(texts: &[String], wanted: &str) -> bool {
+    return position_of_text(texts, wanted).is_some();
+}

@@ -95,7 +95,7 @@ pub fn is_excluded(selectors: &[String], name: &str, version: &str) -> bool {
     for selector in selectors {
         let parsed: ParsedSelector = parse_selector(selector);
         if matches_pattern(&parsed.pattern, name)
-            && (parsed.versions.is_empty() || parsed.versions.iter().any(|candidate| { return candidate == version; }))
+            && (parsed.versions.is_empty() || crate::adapt::contains_text(&parsed.versions, version))
         {
             return true;
         }

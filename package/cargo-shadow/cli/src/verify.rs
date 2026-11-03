@@ -223,7 +223,7 @@ pub fn verify_locked_entries(
     if pending.is_empty() {
         return Ok(Vec::new());
     }
-    let sources: Vec<String> = pending.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
+    let sources: Vec<String> = pending.iter().copied().map(LockSnapshot::source_text).collect();
     let versions: Vec<LockedVersion> = registry_versions(&sources)?;
     eprintln!("cargo-shadow: verifying {} locked versions from {} lockfiles", versions.len(), pending.len());
     let mut problems: Vec<String> = check_release_age(&versions, settings, registry, now).map_err(message_of)?.problems;
@@ -269,8 +269,11 @@ pub fn verify_added_since_base(
     registry: &dyn Registry,
     now: i64,
 ) -> Result<Vec<String>, String> {
-    let base_sources: Vec<String> = snapshots.iter().map(|snapshot| { return read_base_lock(&snapshot.crate_dir); }).collect();
-    let current: Vec<String> = snapshots.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
+    let mut base_sources: Vec<String> = Vec::new();
+    for snapshot in snapshots {
+        base_sources.push(read_base_lock(&snapshot.crate_dir));
+    }
+    let current: Vec<String> = snapshots.iter().map(LockSnapshot::source_text).collect();
     let versions: Vec<LockedVersion> = added_versions(&base_sources, &current)?;
     eprintln!("cargo-shadow: verifying {} versions newly locked since the base from {} lockfiles", versions.len(), snapshots.len());
     if versions.is_empty() {

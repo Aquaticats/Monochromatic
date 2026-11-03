@@ -481,6 +481,25 @@ fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Res
 }
 
 /// What:
+/// `fn matches_any_pattern(patterns, name) -> bool` tells whether a crate name fits at least one name pattern.
+/// Why:
+/// A crate that an exemption pattern names is updated on its own,
+/// outside the release-age cutoff.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const matchesAnyPattern = (patterns: string[], name: string) => patterns.some((p) => matchesPattern(p, name));
+/// ```
+fn matches_any_pattern(patterns: &[String], name: &str) -> bool {
+    for pattern in patterns {
+        if matches_pattern(pattern, name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 /// `pub fn excluded_update_specs(lock: &str, selectors: &[String]) -> Result<Vec<String>, String>` lists `name@version` for
 /// each locked registry crate that a name-only selector exempts from the release age.
 /// Why:
@@ -550,7 +569,7 @@ pub fn excluded_update_specs(lock: &str, selectors: &[String]) -> Result<Vec<Str
         // ```ts
         // for (const item of list) { ... }  // or list.map(...)
         // ```
-        if patterns.iter().any(|pattern| { return matches_pattern(pattern, &locked.name); }) {
+        if matches_any_pattern(&patterns, &locked.name) {
             specs.push(locked.key());
         }
     }
@@ -672,7 +691,7 @@ fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, Upd
         // list.map(f).filter(g)
         // ```
         // Typed binding: `source: &str`.
-        let source: &str = snapshots.first().map(|snapshot| { return snapshot.source.as_str(); }).unwrap_or("");
+        let source: &str = snapshots.first().map(LockSnapshot::source_str).unwrap_or("");
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Closure `|message|`: an anonymous function, like a TS arrow function.
         // Borrow `&request.settings.minimum_release_age_exclu...`: lends the value without copying or giving it away.
@@ -763,6 +782,47 @@ fn other_message(error: RegistryError) -> UpdateError {
 }
 
 /// What:
+/// `fn is_precise_option(argument: &str) -> bool` tells whether one cargo argument is `--precise` in either spelling (`--precise x` or `--precise=x`).
+/// Why:
+/// An update that pins an exact version must not have another version set aside,
+/// so this run skips the set-aside step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isPreciseOption = (argument: string) => argument === '--precise' || argument.startsWith('--precise=');
+/// ```
+fn is_precise_option(argument: &str) -> bool {
+    return argument == "--precise" || argument.starts_with("--precise=");
+}
+
+/// What:
+/// `fn is_breaking_option(argument: &str) -> bool` tells whether one cargo argument is `--breaking`.
+/// Why:
+/// Only a `--breaking` update raises the catalog floors,
+/// as `pnpm update --latest` raises the ranges.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isBreakingOption = (argument: string) => argument === '--breaking';
+/// ```
+fn is_breaking_option(argument: &str) -> bool {
+    return argument == "--breaking";
+}
+
+/// What:
+/// `fn raised_floor_warning(change: &str) -> String` words one raised floor as a warning line.
+/// Why:
+/// The user sees which catalog floors the `--breaking` update raised.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const raisedFloorWarning = (change: string) => `Raised the catalog floor ${change}`;
+/// ```
+fn raised_floor_warning(change: &str) -> String {
+    return format!("Raised the catalog floor {change}");
+}
+
+/// What:
 /// `fn run_update(request, kind, before, produced) -> Result<UpdateReport, UpdateError>` is the transaction body:
 /// resolve or run the user's update,
 /// set refused versions aside,
@@ -836,7 +896,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             args.extend(request.forward.iter().cloned());
             // An explicit `--precise` names the version the user wants: the policy decides whether it stands, and nothing is
             // set aside in its place.
-            set_aside_allowed = !cargo_args.iter().any(|argument| { return argument == "--precise" || argument.starts_with("--precise="); });
+            set_aside_allowed = !cargo_args.iter().map(String::as_str).any(is_precise_option);
             for crate_dir in request.crate_dirs {
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Borrow `&args`: lends the value without copying or giving it away.
@@ -935,7 +995,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
         pruned = result.removed;
     }
     // `--breaking` is `pnpm update --latest`: the new range goes into the catalog entry and the sync renders it (tighten.rs).
-    if keep && let UpdateKind::Targeted { cargo_args } = kind && cargo_args.iter().any(|argument| { return argument == "--breaking"; }) {
+    if keep && let UpdateKind::Targeted { cargo_args } = kind && cargo_args.iter().map(String::as_str).any(is_breaking_option) {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&before_sources`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
@@ -967,7 +1027,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
             // Adapter `.map(`: transforms or selects items with a closure.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            warnings.extend(changes.iter().map(|change| { return format!("Raised the catalog floor {change}"); }));
+            warnings.extend(changes.iter().map(String::as_str).map(raised_floor_warning));
             // `match`: picks the arm whose pattern fits the value.
             match request.syncer.sync(request.root) {
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.

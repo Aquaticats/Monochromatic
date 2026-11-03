@@ -168,6 +168,19 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
 }
 
 /// What:
+/// `fn path_display_text(path: &Path) -> String` prints one path as text.
+/// Why:
+/// The loop-guard message lists the `cargo` candidates that led back to this shadow.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathDisplayText = (path: string) => path;
+/// ```
+fn path_display_text(path: &Path) -> String {
+    return path.display().to_string();
+}
+
+/// What:
 /// `pub fn run_shim(arguments: Vec<OsString>) -> i32` takes the arguments cargo was started with (an owned list) and
 /// returns the exit code.
 /// Why:
@@ -197,7 +210,7 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     if hops >= MAX_HOPS {
         eprintln!(
             "cargo-shadow: stopped after {hops} hops: the {SHADOWED_NAME} found on PATH keeps leading back to this shadow (tried {})",
-            skipped.iter().map(|path| { return path.display().to_string(); }).collect::<Vec<String>>().join(", ")
+            skipped.iter().map(PathBuf::as_path).map(path_display_text).collect::<Vec<String>>().join(", ")
         );
         return EXEC_FAILED_EXIT_CODE;
     }

@@ -64,6 +64,20 @@ pub fn base_from_environment() -> String {
 }
 
 /// What:
+/// `fn git_start_failure(error: std::io::Error) -> String` words the failure to start `git`.
+/// Why:
+/// The base lock reader runs `git`,
+/// and the user needs to know when it cannot even start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gitStartFailure = (error: Error) => `could not start git: ${error.message}`;
+/// ```
+fn git_start_failure(error: std::io::Error) -> String {
+    return format!("could not start git: {error}");
+}
+
+/// What:
 /// `pub fn git_base_lock_reader(root: &Path, base: &str) -> Result<Box<dyn Fn(&str) -> String>, String>` resolves the base to a
 /// commit once and returns a reader of `<commit>:<crate>/Cargo.lock`.
 /// Why:
@@ -82,7 +96,7 @@ pub fn git_base_lock_reader(root: &Path, base: &str) -> Result<Box<dyn Fn(&str) 
         .args(["rev-parse", "--verify", "--end-of-options", &format!("{base}^{{commit}}")])
         .current_dir(root)
         .output()
-        .map_err(|error| { return format!("could not start git: {error}"); })?;
+        .map_err(git_start_failure)?;
     if !resolved.status.success() {
         return Err(format!(
             "The verification base {base:?} is not a commit in this repository: {}\nSet {BASE_VARIABLE} to a revision that exists locally (in CI, fetch it first), or leave it unset to compare with HEAD.",

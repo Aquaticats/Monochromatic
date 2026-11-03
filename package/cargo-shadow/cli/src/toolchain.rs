@@ -86,8 +86,8 @@ use crate::adapt::text_of;
 /// ```
 pub fn rust_toolchain_from_lock(text: &str) -> Result<String, String> {
     let parsed: serde_json::Value = serde_json::from_str(text).map_err(text_of)?;
-    let version = parsed.get("tools").and_then(|tools| { return tools.get("rust"); }).and_then(|rust| { return rust.get("version"); });
-    return match version.and_then(|value| { return value.as_str(); }) {
+    let version = parsed.pointer("/tools/rust/version");
+    return match version.and_then(serde_json::Value::as_str) {
         Some(found) => Ok(found.to_string()),
         None => Ok(String::new()),
     };

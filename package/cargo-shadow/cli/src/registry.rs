@@ -375,6 +375,20 @@ fn id_field(object: &Value, key: &str) -> String {
     };
 }
 
+/// What:
+/// `fn index_line_error(error: serde_json::Error) -> RegistryError` turns a line of the sparse index that is not valid JSON into a registry error with no HTTP status.
+/// Why:
+/// A damaged index line stops the policy check with a message that names the index,
+/// and retrying would not help.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const indexLineError = (error: Error) => new RegistryError(`sparse index line: ${error.message}`);
+/// ```
+fn index_line_error(error: serde_json::Error) -> RegistryError {
+    return RegistryError { message: format!("sparse index line: {error}"), status: None, retry_after_seconds: 0 };
+}
+
 /// The sparse index lines as JSON values;
 /// a line that is not JSON is an error naming the crate.
 fn index_lines(text: &str) -> Result<Vec<Value>, RegistryError> {
@@ -419,7 +433,7 @@ fn index_lines(text: &str) -> Result<Vec<Value>, RegistryError> {
             // try { ... } catch (error) { throw new MyError(String(error)); }
             // ```
             // Macro `format!`: builds or prints text (or a list) from a template.
-            .map_err(|error| { return RegistryError { message: format!("sparse index line: {error}"), status: None, retry_after_seconds: 0 }; })?;
+            .map_err(index_line_error)?;
         records.push(record);
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -860,6 +874,19 @@ impl CratesIo {
 }
 
 /// What:
+/// `fn version_number_of(record: &VersionRecord) -> &str` lends the version number of one cached release.
+/// Why:
+/// The cache is trusted only when it already lists every version the lockfile names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const versionNumberOf = (record: VersionRecord) => record.num;
+/// ```
+fn version_number_of(record: &VersionRecord) -> &str {
+    return record.num.as_str();
+}
+
+/// What:
 /// `impl Registry for CratesIo` makes crates.io usable as the `Registry` the checks ask for.
 /// Why:
 /// The release-age and trust checks only know the trait,
@@ -904,7 +931,12 @@ impl Registry for CratesIo {
         // Adapter `.filter(`: transforms or selects items with a closure.
         // Typed binding: `uncached: BTreeSet<String>`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        let uncached: BTreeSet<String> = names.iter().filter(|name| { return !self.cache_dir.join(format!("{name}.json")).exists(); }).cloned().collect();
+        let mut uncached: BTreeSet<String> = BTreeSet::new();
+        for name in names {
+            if !self.cache_dir.join(format!("{name}.json")).exists() {
+                uncached.insert(name.clone());
+            }
+        }
         if uncached.len() < self.dump_breakeven {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("cargo-shadow: {} crates lack a cached history (below {}); using the crates.io API for them", uncached.len(), self.dump_breakeven);
@@ -1008,7 +1040,7 @@ impl Registry for CratesIo {
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         // Adapter `.map(`: transforms or selects items with a closure.
         // Typed binding: `known: BTreeSet<&str>`.
-        let known: BTreeSet<&str> = cached.iter().map(|record| { return record.num.as_str(); }).collect();
+        let known: BTreeSet<&str> = cached.iter().map(version_number_of).collect();
         // Closure `|version|`: an anonymous function, like a TS arrow function.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         if !cached.is_empty() && versions.iter().all(|version| { return known.contains(version.as_str()); }) {

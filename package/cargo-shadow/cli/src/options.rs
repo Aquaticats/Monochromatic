@@ -221,6 +221,19 @@ pub fn change_dir(arguments: &[OsString]) -> Option<PathBuf> {
     return found;
 }
 
+/// What:
+/// `fn is_locked_or_frozen(word: &str) -> bool` tells whether one command-line word is cargo's `--locked` or `--frozen` option.
+/// Why:
+/// The install step is not given a second `--locked` when the user already wrote one of the two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLockedOrFrozen = (word: string) => word === '--locked' || word === '--frozen';
+/// ```
+fn is_locked_or_frozen(word: &str) -> bool {
+    return word == "--locked" || word == "--frozen";
+}
+
 /// Whether the command line asks cargo to keep the lockfile unchanged (`--locked`) or also stay offline (`--frozen`).
 pub fn asserts_lock(arguments: &[OsString]) -> bool {
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
@@ -237,5 +250,5 @@ pub fn asserts_lock(arguments: &[OsString]) -> bool {
     // ```ts
     // for (const item of list) { ... }  // or list.map(...)
     // ```
-    return words_before_double_dash(arguments).iter().any(|word| { return word == "--locked" || word == "--frozen"; });
+    return words_before_double_dash(arguments).iter().map(String::as_str).any(is_locked_or_frozen);
 }

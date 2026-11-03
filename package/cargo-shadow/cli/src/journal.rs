@@ -132,7 +132,31 @@ fn sibling_temp(target: &Path) -> PathBuf {
 pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
     let temp: PathBuf = sibling_temp(target);
     fs::write(&temp, text)?;
-    return fs::rename(&temp, target).inspect_err(|_| { let _ = fs::remove_file(&temp); });
+    let renamed: io::Result<()> = fs::rename(&temp, target);
+    if renamed.is_err() {
+        let _ = fs::remove_file(&temp);
+    }
+    return renamed;
+}
+
+/// What:
+/// `fn snapshot_of(snapshots, crate_dir) -> Option<&LockSnapshot>` finds the snapshot of one crate root,
+/// or `None`.
+/// Why:
+/// The restore needs the lockfile this run produced for a root,
+/// to tell it from one a concurrent writer left.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const snapshotOf = (snapshots: Snapshot[], crateDir: string) => snapshots.find((s) => s.crateDir === crateDir);
+/// ```
+fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a LockSnapshot> {
+    for candidate in snapshots {
+        if candidate.crate_dir == crate_dir {
+            return Some(candidate);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -157,8 +181,8 @@ pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &
         if live == snapshot.source {
             continue;
         }
-        let expected: Option<&LockSnapshot> = produced.iter().find(|candidate| { return candidate.crate_dir == snapshot.crate_dir; });
-        if expected.map(|found| { return found.source != live; }).unwrap_or(false) {
+        let expected: Option<&LockSnapshot> = snapshot_of(produced, &snapshot.crate_dir);
+        if matches!(expected, Some(found) if found.source != live) {
             warnings.push(format!(
                 "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
                 snapshot.crate_dir
@@ -279,7 +303,10 @@ pub fn recover(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[Loc
                 continue;
             }
             let refused: PathBuf = path.with_file_name(format!("{LOCKFILE_NAME}{REFUSED_SUFFIX}"));
-            let saved: io::Result<()> = atomic_write(&refused, &now.source).and_then(|()| { return atomic_write(&path, &old.source); });
+            let saved: io::Result<()> = match atomic_write(&refused, &now.source) {
+                Ok(()) => atomic_write(&path, &old.source),
+                Err(error) => Err(error),
+            };
             match saved {
                 Ok(()) => messages.push(format!(
                     "{}/{LOCKFILE_NAME} was left by a run that was killed and holds versions the policy refuses ({}); it was saved as {LOCKFILE_NAME}{REFUSED_SUFFIX} and the earlier lockfile was put back",

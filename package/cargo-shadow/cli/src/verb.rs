@@ -238,6 +238,20 @@ pub fn find_verb(arguments: &[OsString]) -> Option<String> {
 }
 
 /// What:
+/// `fn is_no_deps_option(word: &str) -> bool` tells whether one command-line word is `--no-deps`.
+/// Why:
+/// `cargo metadata --no-deps` reads no registry data,
+/// so it passes through without the install step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNoDepsOption = (word: string) => word === '--no-deps';
+/// ```
+fn is_no_deps_option(word: &str) -> bool {
+    return word == NO_DEPS_OPTION;
+}
+
+/// What:
 /// `pub fn treatment_of(arguments: &[OsString]) -> Treatment` says what the shadow does before cargo runs.
 /// Why:
 /// A help or version word before `--` cancels everything,
@@ -271,7 +285,7 @@ pub fn treatment_of(arguments: &[OsString]) -> Treatment {
     if verb == "update" || verb == "generate-lockfile" {
         return Treatment::PnpmUpdate;
     }
-    if verb == "metadata" && words.iter().any(|word| { return word == NO_DEPS_OPTION; }) {
+    if verb == "metadata" && words.iter().map(String::as_str).any(is_no_deps_option) {
         return Treatment::PassThrough;
     }
     if INSTALL_STEP_VERBS.contains(&verb.as_str()) {
