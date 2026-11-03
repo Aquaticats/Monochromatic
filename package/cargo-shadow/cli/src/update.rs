@@ -69,7 +69,7 @@ use std::fs;
 /// ```ts
 /// import { Path } from 'std/path';
 /// ```
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What:
 /// `use monochromatic_dependency_catalog::Settings;` imports `Settings` from the external crate `monochromatic_dependency_catalog` so this file can name it unqualified.
@@ -165,6 +165,10 @@ use crate::install::policy_findings;
 /// import { begin, finish, note_produced, process_exists, recover, restore_if_unchanged } from 'crate/journal';
 /// ```
 use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};
+/// Imports the manifest transaction that `--breaking` needs: cargo rewrites `Cargo.toml` as well as the lockfile.
+use crate::manifest_edit::{ManifestEdit, record_manifest_output, restore_manifests, snapshot_manifests};
+/// Imports the manifest list of a `cargo metadata` answer.
+use crate::stamp::manifests_from_metadata;
 /// What:
 /// `use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};` imports `LockedVersion`,
 /// `added_versions`,
@@ -834,6 +838,27 @@ fn raised_floor_warning(change: &str) -> String {
 }
 
 /// What:
+/// `fn workspace_manifests(request, crate_dir) -> Result<Vec<PathBuf>, UpdateError>` lists the manifests of the Cargo workspace
+/// at a crate root, from `cargo metadata --no-deps`.
+/// Why:
+/// The `--breaking` transaction has to know every file cargo may rewrite before cargo runs; if the list cannot be made,
+/// nothing has been mutated yet and the update stops.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function workspaceManifests(request, crateDir): Promise<string[]>  // throws when metadata fails
+/// ```
+fn workspace_manifests(request: &UpdateRequest, crate_dir: &str) -> Result<Vec<PathBuf>, UpdateError> {
+    let mut args: Vec<String> = vec!["metadata".to_string(), "--no-deps".to_string(), "--format-version".to_string(), "1".to_string()];
+    args.extend(request.forward.iter().cloned());
+    let outcome: CargoOutcome = request.runner.run(&request.root.join(crate_dir), &args).map_err(other)?;
+    if !outcome.ok {
+        return Err(UpdateError::Cargo { crate_dir: crate_dir.to_string(), command: format!("cargo {}", args.join(" ")), output: outcome.output });
+    }
+    return Ok(manifests_from_metadata(&outcome.stdout));
+}
+
+/// What:
 /// `fn run_update(request, kind, before, produced) -> Result<UpdateReport, UpdateError>` is the transaction body:
 /// resolve or run the user's update,
 /// set refused versions aside,
@@ -849,7 +874,7 @@ fn raised_floor_warning(change: &str) -> String {
 /// ```ts
 /// async function runUpdate(args): Promise<UpdateReport>
 /// ```
-fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot], produced: &RefCell<Vec<LockSnapshot>>) -> Result<UpdateReport, UpdateError> {
+fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot], produced: &RefCell<Vec<LockSnapshot>>, edits: &RefCell<Vec<ManifestEdit>>) -> Result<UpdateReport, UpdateError> {
     // Borrow `&Settings`: lends the value without copying or giving it away.
     // Typed binding: `settings: &Settings`.
     let settings: &Settings = request.settings;
@@ -891,10 +916,29 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             // An explicit `--precise` names the version the user wants: the policy decides whether it stands, and nothing is
             // set aside in its place.
             set_aside_allowed = !cargo_args.iter().map(String::as_str).any(is_precise_option);
+            // Review finding (`--breaking` edits outside the transaction): cargo's breaking update rewrites the requirements in the
+            // manifests, so their text is taken before the run and restored with the lockfiles when the update is not kept.
+            let breaking: bool = cargo_args.iter().map(String::as_str).any(is_breaking_option);
+            if breaking {
+                for crate_dir in request.crate_dirs {
+                    let paths: Vec<PathBuf> = workspace_manifests(request, crate_dir)?;
+                    snapshot_manifests(&paths, edits).map_err(other_text)?;
+                }
+            }
             for crate_dir in request.crate_dirs {
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // Borrow `&args`: lends the value without copying or giving it away.
-                run_or_fail(request, crate_dir, &args)?;
+                if breaking {
+                    // The manifests are recorded as the run's output whether cargo succeeded or not, because a call that
+                    // returned has finished writing.
+                    let outcome: CargoOutcome = request.runner.run(&request.root.join(crate_dir), &args).map_err(other)?;
+                    record_manifest_output(edits);
+                    if !outcome.ok {
+                        return Err(UpdateError::Cargo { crate_dir: crate_dir.to_string(), command: format!("cargo {}", args.join(" ")), output: outcome.output });
+                    }
+                } else {
+                    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                    // Borrow `&args`: lends the value without copying or giving it away.
+                    run_or_fail(request, crate_dir, &args)?;
+                }
                 note_produced(request.root, crate_dir, produced);
             }
         }
@@ -1083,9 +1127,11 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // const produced: LockSnapshot[] = [];
     // ```
     let produced: RefCell<Vec<LockSnapshot>> = RefCell::new(Vec::new());
+    // The manifests a `--breaking` run may rewrite: empty for every other update.
+    let edits: RefCell<Vec<ManifestEdit>> = RefCell::new(Vec::new());
     // Borrow `&before`: lends the value without copying or giving it away.
     // Typed binding: `outcome: Result<UpdateReport, UpdateError>`.
-    let outcome: Result<UpdateReport, UpdateError> = run_update(request, kind, &before, &produced);
+    let outcome: Result<UpdateReport, UpdateError> = run_update(request, kind, &before, &produced, &edits);
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Borrow `&outcome`: lends the value without copying or giving it away.
     // Typed binding: `keep: bool`.
@@ -1104,6 +1150,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         restore_warnings = restore_if_unchanged(request.root, &before, &produced.borrow()).map_err(other_text)?;
+        restore_warnings.extend(restore_manifests(&edits).map_err(other_text)?);
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
         for warning in &restore_warnings {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.

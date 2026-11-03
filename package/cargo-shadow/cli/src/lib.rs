@@ -57,6 +57,9 @@ pub mod commands;
 /// and the journal that recovers a killed run.
 pub mod journal;
 
+/// The transaction around the manifests that cargo's `update --breaking` rewrites.
+pub mod manifest_edit;
+
 /// Fills the history cache from the crates.io database dump.
 pub mod dump;
 
@@ -233,6 +236,21 @@ mod dump_tests;
 /// ```
 #[cfg(test)]
 mod guard_tests;
+
+/// What:
+/// `#[cfg(test)] mod manifest_edit_tests;` declares the tests in `src/manifest_edit_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the manifest transaction around cargo's breaking update."
+/// so the behavior of `manifest_edit` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // manifest_edit_tests.test.ts, run by the test runner only
+/// ```
+#[cfg(test)]
+mod manifest_edit_tests;
 
 /// What:
 /// `#[cfg(test)] mod notice_marker_tests;` declares the tests in `src/notice_marker_tests.rs`;
