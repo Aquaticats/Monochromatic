@@ -1,5 +1,5 @@
 //! Differential controls for the tree-to-tree listings the commit service and the post-commit gate ask Git for:
-//!  `diff-tree` names between two commits or between a commit and its parent, and `ls-tree -r` of a commit or a tree.
+//!  `diff-tree` names between two commits or between a commit and its parent.
 //!  Each answered command line prints what real Git prints in the same repository, and every state Git words
 //!  differently (a root commit, a merge commit, a file that became a directory, a gitlink) is declined.
 
@@ -70,27 +70,6 @@ fn name_lists_of_one_commit_equal_git() {
     remove(root.as_path());
 }
 
-/// A recursive listing of a commit and of a tree equals Git, in loose and packed object states.
-#[test]
-fn recursive_listings_equal_git() {
-    let root = fixture("repo-read-pair-listing");
-    for format in ["sha1", "sha256"] {
-        let (repo, commits) = history(root.as_path(), format, format);
-        let tree = text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
-        for state in 0..2 {
-            for commit in &commits {
-                answered(root.as_path(), repo.as_path(), &["ls-tree", "-r", "-z", "--full-tree", commit]);
-            }
-            answered(root.as_path(), repo.as_path(), &["ls-tree", "--full-tree", "-r", "-z", &tree]);
-            if state == 0 {
-                git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
-                git(repo.as_path(), &["prune-packed"]);
-            }
-        }
-    }
-    remove(root.as_path());
-}
-
 /// A root commit, a merge commit, a file that became a directory and a gitlink are left to Git.
 #[test]
 fn states_that_need_git_are_declined() {
@@ -122,6 +101,7 @@ fn states_that_need_git_are_declined() {
     declined(root.as_path(), repo.as_path(), &["diff-tree", "-r", "--name-only", "-z", "--no-renames", &directory, &linked]);
     // Options the readers do not model.
     declined(root.as_path(), repo.as_path(), &["diff-tree", "-r", "--name-only", "-z", "-M", &commits[0], &commits[1]]);
-    declined(root.as_path(), repo.as_path(), &["ls-tree", "-r", "-z", &commits[1]]);
+    // A recursive listing reads the whole tree and touches no index, so Git keeps it.
+    declined(root.as_path(), repo.as_path(), &["ls-tree", "-r", "-z", "--full-tree", &commits[1]]);
     remove(root.as_path());
 }
