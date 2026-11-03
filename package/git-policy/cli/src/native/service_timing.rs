@@ -23,7 +23,10 @@
 //! console.error(`cli-git-service: answered request=${id} queued_ms=${queued} lock_wait_ms=${lockWait} total_ms=${total}`);
 //! ```
 
-use std::io::Write;
+use super::service_index_found::WaitNotes;
+use super::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, one_line};
+use super::lfs_output_mask::mask_userinfo_text;
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 /// The prefix of every line the service writes,
@@ -64,6 +67,11 @@ pub struct LandTiming {
     /// The holder the evidence named while the lock was waited for,
     /// when it named one.
     pub lock_holder: Option<String>,
+    /// What the acquisition noted about its wait:
+    /// what the first and the last look at the held lock found,
+    /// how many looks there were,
+    /// and how the time split between flushing the marker and waiting for the holder.
+    pub lock_notes: WaitNotes,
     /// Time to make the commits:
     /// one import for the batch,
     /// or the checks of a commit Git built.
@@ -135,6 +143,59 @@ fn holder_field(who: &String) -> String {
     return format!(" lock_holder={who:?}");
 }
 
+/// The words for what the wait for the lock found,
+/// empty when the lock was free at the first placement:
+/// the placements that found it held,
+/// the time spent flushing the marker and the time spent waiting,
+/// and the first and the last description of the held lock.
+pub fn lock_notes_fields(notes: &WaitNotes) -> String {
+    if notes.looks == 0 {
+        return format!(" lock_stage_ms={} lock_stage_kind={} lock_place_ms={}", notes.staging.as_millis(), notes.stage_kind, notes.placing.as_millis());
+    }
+    let first: &str = notes.found.as_deref().unwrap_or("none");
+    let last: &str = notes.last.as_deref().unwrap_or("none");
+    return format!(
+        " lock_stage_ms={} lock_stage_kind={} lock_place_ms={} lock_looks={} lock_found={first:?} lock_last={last:?}",
+        notes.staging.as_millis(),
+        notes.stage_kind,
+        notes.placing.as_millis(),
+        notes.looks
+    );
+}
+
+/// The wait for the index lock that is written down even when no holder was met:
+/// a flush of the marker or a wait that long is a slow landing's first suspect.
+pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
+
+/// What:
+///  The line for the end of a wait for the index lock,
+/// or nothing when the lock was free at the first placement and the acquisition was quick.
+/// Why:
+///   Written when the wait ends,
+/// not with the answer,
+/// so a landing that fails afterwards still leaves what it waited for.
+/// It says the total,
+/// how it split between flushing the marker and waiting for a holder,
+/// how many times the lock was found held,
+/// and what the first and the last look found (`lock_found`,
+/// `lock_last`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitLine(seq, total, notes, taken) // 'waited batch=7 result=taken lock_wait_ms=5629 ...' | undefined
+/// ```
+pub fn wait_line(seq: u64, total: Duration, notes: &WaitNotes, taken: bool) -> Option<String> {
+    if notes.looks == 0 && notes.staging < SLOW_LOCK_STEP && total < SLOW_LOCK_STEP {
+        return None;
+    }
+    return Some(format!(
+        "waited for the index lock batch={seq} result={} lock_wait_ms={}{}",
+        if taken { "taken" } else { "refused" },
+        total.as_millis(),
+        lock_notes_fields(notes)
+    ));
+}
+
 /// What:
 ///  One answered request as a line of `key=value` words,
 /// without the prefix.
@@ -150,7 +211,8 @@ fn holder_field(who: &String) -> String {
 /// `answered request=${JSON.stringify(id)} outcome=${outcome} queued_ms=${queued} ...`
 /// ```
 pub fn answered_line(answered: &Answered<'_>) -> String {
-    let holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
+    let mut holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
+    holder.push_str(lock_notes_fields(&answered.landing.lock_notes).as_str());
     return format!(
         "answered request={:?} branch={:?} outcome={} batch={} size={} position={} read_ms={} queued_ms={} settle_ms={} \
          lock_wait_ms={}{holder} reads_ms={} objects_ms={} journal_ms={} ref_ms={} sync_ms={} attempts={} landing_ms={} \
@@ -222,25 +284,193 @@ pub fn exit_line(reason: ExitReason, uptime: Duration) -> String {
     return format!("exiting reason={} uptime_ms={}", reason.word(), uptime.as_millis());
 }
 
+/// The wall clock in whole milliseconds since the Unix epoch,
+/// the time a log line states for its own event.
+pub fn wall_millis() -> u128 {
+    return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_millis(); });
+}
+
+/// What:
+///  The text of one log line:
+/// the prefix,
+/// the line,
+/// the time of the event as `at_ms=<epoch milliseconds>` at the end,
+/// and the newline.
+/// Why:
+///   The journal stamps a line when it receives it,
+/// and under load that can be seconds after the event;
+/// the line states its own time,
+/// at the end so that the prefix and the first word stay where readers look for them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${LOG_PREFIX}${line} at_ms=${Date.now()}\n`
+/// ```
+pub fn stamped_line(line: &str, at_ms: u128) -> String {
+    return format!("{LOG_PREFIX}{line} at_ms={at_ms}\n");
+}
+
 /// What:
 ///  Writes one line to the service's log.
 /// Why:
 ///   Standard error is the service manager's journal;
 /// one `write` carries the prefix,
-/// the line and the newline together,
+/// the line,
+/// its own time and the newline together,
 /// and a
 ///  closed or broken stream is not the service's failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// console.error(LOG_PREFIX + line)
+/// console.error(LOG_PREFIX + line + ` at_ms=${Date.now()}`)
 /// ```
 pub fn log(line: &str) {
-    let mut text: String = format!("{LOG_PREFIX}{line}");
-    text.push('\n');
-    // The result is dropped on purpose: `eprintln!` panics when the stream breaks (a journal restarting), and a log line may
-    //  never take the landing that wrote it down with it.
-    let _written = std::io::stderr().write_all(text.as_bytes());
+    log_entry(Priority::Info, line, &[]);
+}
+
+/// What the service says of itself in every entry: its release and, when it serves one worktree, its instance.
+static CONTEXT: OnceLock<Vec<(&'static str, String)>> = OnceLock::new();
+
+/// Where entries go, decided at the first one.
+static SINK: OnceLock<Sink> = OnceLock::new();
+
+/// The sink of this process.
+pub fn sink() -> &'static Sink {
+    return SINK.get_or_init(Sink::from_environment);
+}
+
+/// Names the release and instance every later entry carries as `CLI_GIT_RELEASE` and `CLI_GIT_INSTANCE`; the first call wins.
+pub fn set_context(release: &str, instance: Option<&str>) {
+    let mut fields: Vec<(&'static str, String)> = vec![("CLI_GIT_RELEASE", release.to_string())];
+    if let Some(name) = instance {
+        fields.push(("CLI_GIT_INSTANCE", name.to_string()));
+    }
+    let _first = CONTEXT.set(fields);
+}
+
+/// What:
+///  Writes one entry of a priority, with fields a reader can filter the journal on, and gives where it went.
+/// Why:
+///   The text is one line with the userinfo of every URL masked (a push or a review reports what Git and a server said),
+///  then it states its own time (`stamped_line`); a native entry also carries the time as `CLI_GIT_AT_MS`, the priority
+///  and the context. Nothing here waits: see `journald_native`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// logEntry('warning', 'cannot listen', [['CLI_GIT_REQUEST_ID', id]])
+/// ```
+pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> Delivery {
+    let at_ms: u128 = wall_millis();
+    // Masked before it is cut: a cut that falls just before the `@` of `scheme://user:secret@host` would leave a password
+    //  that no longer looks like userinfo.
+    let clean: String = one_line(mask_userinfo_text(line).as_str(), MESSAGE_LIMIT);
+    let mut all: Vec<(&str, String)> = CONTEXT.get().map_or_else(Vec::new, |context| { return context.iter().map(|(name, value)| { return (*name, value.clone()); }).collect(); });
+    all.push(("CLI_GIT_AT_MS", at_ms.to_string()));
+    all.extend(fields.iter().map(|(name, value)| { return (*name, mask_userinfo_text(value.as_str())); }));
+    #[cfg(test)]
+    if capture::record(priority, format!("{clean} at_ms={at_ms}").as_str(), all.as_slice()) {
+        return Delivery::Stderr;
+    }
+    let message: String = format!("{clean} at_ms={at_ms}");
+    let text: String = stamped_line(clean.as_str(), at_ms);
+    // On the journal's stream a line that finds no room is dropped, never waited for.
+    if sink().on_stream() {
+        return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut StreamWriter::stderr());
+    }
+    return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut std::io::stderr());
+}
+
+/// What:
+///  Writes one formatted line at the `warning` priority, with its time.
+/// Why:
+///   Something did not go as intended and the service went on; `journalctl --priority=warning` shows it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceWarn(`the review of ${oid} was skipped: ${reason}`)
+/// ```
+#[macro_export]
+macro_rules! service_warn {
+    ($($argument:tt)*) => {
+        {
+            let _delivered = $crate::service_timing::log_entry($crate::journald_native::Priority::Warning, format!($($argument)*).as_str(), &[]);
+        }
+    };
+}
+
+/// What:
+///  Writes one formatted line at the `err` priority, with its time.
+/// Why:
+///   Something the service needed failed; `journalctl --priority=err` shows it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceError(`cannot listen: ${error}`)
+/// ```
+#[macro_export]
+macro_rules! service_error {
+    ($($argument:tt)*) => {
+        {
+            let _delivered = $crate::service_timing::log_entry($crate::journald_native::Priority::Error, format!($($argument)*).as_str(), &[]);
+        }
+    };
+}
+
+/// What:
+///  Writes one formatted line to the service's log,
+/// with its time.
+/// Why:
+///   Every line the service writes states its own time (`stamped_line`);
+/// the macro is the one way to write a line with arguments.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceLog(`cannot take the index lock ${path}: ${error}`)
+/// ```
+#[macro_export]
+macro_rules! service_log {
+    ($($argument:tt)*) => {
+        $crate::service_timing::log(format!($($argument)*).as_str())
+    };
+}
+
+/// What a control sees of the entries the code under test writes, on the thread that runs it.
+#[cfg(test)]
+pub mod capture {
+    use super::Priority;
+    use std::cell::RefCell;
+
+    /// One entry as written: its priority, its message with the time, and its fields.
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub struct Captured {
+        /// How serious the entry is.
+        pub priority: Priority,
+        /// The message as the journal would show it.
+        pub message: String,
+        /// The fields beside the message.
+        pub fields: Vec<(String, String)>,
+    }
+
+    thread_local! {
+        static ENTRIES: RefCell<Option<Vec<Captured>>> = const { RefCell::new(None) };
+    }
+
+    /// Notes an entry when a control is capturing on this thread; says whether it did.
+    pub fn record(priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+        return ENTRIES.with(|entries| {
+            return entries.borrow_mut().as_mut().is_some_and(|taken| {
+                taken.push(Captured { priority, message: message.to_string(), fields: fields.iter().map(|(name, value)| { return ((*name).to_string(), value.clone()); }).collect() });
+                return true;
+            });
+        });
+    }
+
+    /// Runs `body` and gives its entries, which are not written anywhere.
+    pub fn entries_of(body: impl FnOnce()) -> Vec<Captured> {
+        ENTRIES.with(|entries| { *entries.borrow_mut() = Some(Vec::new()); });
+        body();
+        return ENTRIES.with(|entries| { return entries.borrow_mut().take().unwrap_or_default(); });
+    }
 }
 
 /// The lines,

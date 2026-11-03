@@ -153,14 +153,13 @@ pub fn bind_registration(common_dir: &Path, destination: &Path) -> Result<Bound,
     let held: File = open_root(destination).map_err(|error| { return format!("{shown} is not a real directory ({error})"); })?;
     let pointer: Vec<u8> = read_through(&held, OsStr::new(".git")).map_err(|error| { return format!("{shown}/.git is unreadable ({error})"); })?;
     let pointer_path: PathBuf = destination.join(".git");
-    let line: &[u8] = pointer.strip_suffix(b"\n").unwrap_or(pointer.as_slice());
-    let named: &[u8] = line.strip_prefix(b"gitdir: ").ok_or_else(|| { return format!("{shown}/.git is not a gitdir pointer"); })?;
-    let admin_path: PathBuf = std::fs::canonicalize(destination.join(OsStr::from_bytes(named))).map_err(|error| { return format!("the administrative directory of {shown} is unreadable ({error})"); })?;
+    let admin_path: PathBuf = pointer_target(destination, pointer.as_slice())?;
+    // The target is opened as a canonical root first: a pointer through a link is refused here, with its own message.
+    let admin: File = open_root(admin_path.as_path()).map_err(|error| { return not_canonical(shown.as_str(), admin_path.as_path(), error.to_string().as_str()); })?;
     let worktrees: PathBuf = std::fs::canonicalize(common_dir.join("worktrees")).map_err(|error| { return format!("the worktrees of the repository are unreadable ({error})"); })?;
     if admin_path.parent() != Some(worktrees.as_path()) {
         return Err(format!("{shown} is not registered in this repository"));
     }
-    let admin: File = open_root(admin_path.as_path()).map_err(|error| { return format!("the registration of {shown} cannot be opened ({error})"); })?;
     let recorded: Vec<u8> = read_through(&admin, OsStr::new("gitdir")).map_err(|error| { return format!("the registration of {shown} is unreadable ({error})"); })?;
     let recorded_line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
     if recorded_line != pointer_path.as_os_str().as_bytes() {
@@ -174,6 +173,40 @@ pub fn bind_registration(common_dir: &Path, destination: &Path) -> Result<Bound,
         pointer,
     };
     return Ok(Bound { binding, destination: held, admin });
+}
+
+/// The message for a pointer whose target reaches the registration through a link or by a non-canonical path.
+fn not_canonical(shown: &str, target: &Path, why: &str) -> String {
+    return format!("the pointer in {shown}/.git names {}, which cannot be resolved without a symbolic link to the registration ({why}); the add is left as Git made it: make the worktree with a canonical path, or replace the link in the pointer with the real directory", target.display());
+}
+
+/// What:
+///  The registration directory a `gitdir:` pointer names, resolved lexically against the destination.
+/// Why:
+///   The destination is a canonical path, so `.` and `..` in a relative pointer resolve by their text; a link anywhere in the
+///  result is then caught by opening it as a canonical root, and no alias is ever followed to find the registration.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const target = pointerTarget(destination, pointerBytes); // throws a reason
+/// ```
+fn pointer_target(destination: &Path, pointer: &[u8]) -> Result<PathBuf, String> {
+    let shown: String = destination.display().to_string();
+    let line: &[u8] = pointer.strip_suffix(b"\n").unwrap_or(pointer);
+    let named: &[u8] = line.strip_prefix(b"gitdir: ").ok_or_else(|| { return format!("{shown}/.git is not a gitdir pointer"); })?;
+    let mut resolved: PathBuf = PathBuf::new();
+    for part in destination.join(OsStr::from_bytes(named)).components() {
+        match part {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if !resolved.pop() {
+                    return Err(format!("the pointer in {shown}/.git climbs out of the file system root"));
+                }
+            }
+            other => resolved.push(other.as_os_str()),
+        }
+    }
+    return Ok(resolved);
 }
 
 /// The bytes of the file `name` of the held directory, read through the handle and not through a path.
@@ -208,6 +241,12 @@ pub fn verify_association(bound: &Bound) -> Result<(), String> {
     let pointer: Vec<u8> = read_through(&bound.destination, OsStr::new(".git")).map_err(|error| { return format!("{shown}/.git is unreadable ({error})"); })?;
     if pointer != binding.pointer {
         return Err(format!("{shown}/.git is no longer the pointer Git wrote"));
+    }
+    // What Git resolves the unchanged pointer to now: the target is opened without a link and must be the held registration.
+    let target: PathBuf = pointer_target(binding.destination.as_path(), pointer.as_slice())?;
+    let resolved: File = open_root(target.as_path()).map_err(|error| { return not_canonical(shown.as_str(), target.as_path(), error.to_string().as_str()); })?;
+    if identity_of(&resolved).ok() != Some(binding.admin_id) || identity_of(&bound.admin).ok() != Some(binding.admin_id) {
+        return Err(format!("the pointer in {shown}/.git now resolves to another registration than the one Git made for this add"));
     }
     let recorded: Vec<u8> = read_through(&bound.admin, OsStr::new("gitdir")).map_err(|error| { return format!("the registration of {shown} is unreadable ({error})"); })?;
     let line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());

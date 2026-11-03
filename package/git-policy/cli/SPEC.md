@@ -165,7 +165,8 @@ so the numbered items are the checks,
 3.  Validate each top-level key:
      only `policies`,
      `hooks`,
-     `indexLock` and `landing` exist.
+     `indexLock`,
+     `landing` and `discardedCopies` exist.
     `plugins` and `trust` are refused with an explanation of the retirement.
 4.  Validate `policies`:
      each key is a known policy ID,
@@ -234,6 +235,21 @@ wrong types,
 fractional values,
 and out-of-range values are config failures.
 An absent config uses the defaults.
+
+### Discarded copies configuration
+
+`discardedCopies` is not a concurrency key and is not inert.
+
+- `discardedCopies.maxAgeDays`:
+  safe integer of at least 1,
+  default `30`,
+  the days after which a saved copy of a conflicted file is removed.
+- `discardedCopies.maxSize`:
+  safe integer of at least 1 (bytes) or text such as `"256m"`,
+  default one gibibyte,
+  the size the folder of saved copies is kept under.
+
+The pass that applies them is described under "Conflicted files during a merge, rebase, cherry-pick or revert".
 
 ## Command facts and classification
 
@@ -514,8 +530,10 @@ Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the 
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links
 recreated), a second comparison of the source with its own index, the installation of the index, and the same tree
 difference.
-A refusal removes the entries the clones created, each only while it is still the object the wrapper made, and completes
-the worktree with `git reset --hard`; a file another process put into the destination is never removed.
+A refusal removes nothing, because a name cannot be checked and unlinked in one step: the entries the clones created stay,
+`git reset --hard` overwrites the tracked ones, a message counts them and names `git -C <path> status` for any other, and a
+file another process put into the destination is never touched. The index records the stat fields of the regular files the
+wrapper made, taken from their descriptors; a cloned link keeps the source's stat fields, which Git compares by target.
 The ignored-state copy then runs as for Git's checkout.
 
 Rung 3 is Git's checkout and the ignored-state copy.
@@ -523,9 +541,12 @@ Where the destination's parent is on btrfs and the rung is 2 or 3, the wrapper f
 empty subvolume (`BTRFS_IOC_SUBVOL_CREATE`), which Git accepts as an empty directory, and removes it again if Git leaves
 it empty.
 No rung runs a hook: every real-Git start of the wrapper switches hooks off.
-The wrapper never deletes or unregisters a worktree, a registration or a stage it did not make in the running process.
+The wrapper never deletes or unregisters a worktree, a registration or a stage it did not make in the running process, and
+the only entry it removes by name is its own lock file, while the name still holds the file it made.
 After Git's `--no-checkout` run it binds the add to the two directories Git made (the destination and its administrative
-directory, proven to name each other below this repository's `worktrees`), records their identities, and checks the
+directory, proven to name each other below this repository's `worktrees`, the pointer resolving to the registration without
+any symbolic link; a pointer through a link ends the ladder for the add with a message that names the pointer and says to make
+the worktree with a canonical path), records their identities, and checks the
 binding again before every write into the worktree and before the fallback checkout; a worktree that was moved, replaced
 or edited meanwhile is not written to, the add fails with one report, and nothing is changed.
 When the fallback checkout fails, the worktree and its registration stay as they are, the command fails with Git's
@@ -756,12 +777,31 @@ object format,
 reftable,
 a valid `HEAD`),
 and the proof that every configuration value is
-one Git accepts does not,
-because Git has read and accepted them.
-A user-level `core.fsmonitor = true` (which the reader cannot prove harmless,
-since it starts a daemon) once made the reader
-decline the whole repository,
+one Git accepts does not.
+That proof guards the wording of a failure Git would give for a malformed value,
+and a command that already succeeded has none to give;
+it is not a certificate that every value is valid,
+because the files are read again and not the snapshot the command saw,
+and a successful command types only the keys it consults.
+A user-level `core.fsmonitor = true` once made the reader
+decline the whole repository
+(the proof then accepted only false spellings of the key),
 so no merge was ever handed over for that user and nothing said why.
+The proof now accepts `true`,
+`yes` and `on` for that key
+(and types `fsmonitor.allowRemote` and `fsmonitor.socketDir`,
+which Git reads once the monitor is on),
+and a hook path still declines it,
+as do the bare name and the numbers other than zero,
+which Git reads as true.
+A same-user listener on the monitor's socket that answers with a malformed reply is an accepted limit,
+by the owner's decision that the wrapper leaves Git's monitor alone.
+An active `trace2.normalTarget`,
+`trace2.eventTarget` or `trace2.perfTarget` in any configuration file declines the readers,
+because Git then writes trace output they do not.
+The trigger keeps reading as a caller that follows a successful Git run,
+because any other value the proof cannot vouch for
+would stop it the same way.
 
 Every ending of the trigger leaves one line in `cli-git-push-trigger.jsonl` in the common Git directory (size-capped like
 the commit timing file,
@@ -776,7 +816,23 @@ The line has `schemaVersion`,
 `command`,
 `outcome` (`handed-over` or `declined`),
 `reason`,
-`detail` and `branch`.
+`detail` and `branch`,
+and since the file is shared by every worktree,
+`worktree`,
+`gitDir` and `instance` name the worktree that decided,
+and `level` is `warn` for a decision the wrapper could not make or a hand-over that failed
+(`layout-declined`,
+`head-unreadable`,
+`branch-has-no-tip`,
+`object-database-unopened`,
+`upstream-config-unreadable`,
+`walk-undecided-growth`,
+`walk-undecided-ahead`,
+`no-route`,
+`handover-failed`) and `info` otherwise.
+`command-failed` names the branch and the tip it was at before the command in `detail`.
+The userinfo of any URL in `detail` is masked as `<credentials>`.
+The lines of a watch that could not start name the worktree but no branch.
 The reasons are stable words,
 one for each step:
 `layout-declined`,
@@ -985,6 +1041,10 @@ defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) do
 signing programs, credential helpers): the program it names is not reached by the hooks path or by any event switch
 (measured on Git 2.56.0, including with `hook.fsmonitor-watchman.enabled=false`), and the built-in monitor daemon keeps
 working.
+This is the owner's decision ("To stop the fsmonitor program - we don't need to.",
+recorded in `doc/handover/cli-git-rust-implementation.md`):
+Git runs its monitor as the configuration says,
+and the wrapper neither stops it, starts it, nor works around it.
 The wrapper injects no hook of its own, so no event is an exception.
 
 - The option is part of the argument vector, so it adds no system call and no process start.
@@ -1697,7 +1757,7 @@ The lifecycle that lets one marker-writing taker at a time take the lock stays t
 #### Placement and its refusals
 
 The marked file is first created under a name that has never existed
-(`index.lock.cli-git-marker-<pid>-<batch>-<uuid>`),
+(`index.lock.cli-git-marker-<pid>.<pid namespace>-<batch>-<uuid>`),
 with exclusive creation,
 so no attempt ever opens or empties a file that an earlier attempt,
 or an alias of a lock,
@@ -1807,6 +1867,56 @@ not by the age of the lock file:
   so a hold placed after a long wait is not old.
 
 #### Removing the lock and what is made durable
+
+The marker of the next batch is made ahead.
+When a batch has been landed and answered,
+the service makes the marker of the batch after it,
+which is numbered one more and lands on the same index:
+it creates the file,
+writes the marker and flushes it to storage,
+on a thread of its own while the service is idle.
+The next commit then only places that file (a rename that does not replace),
+so the flush is not on its path.
+The file is the service's one:
+it is kept for the service thread,
+named with this process and the batch number,
+and replaced or removed (waiting for a flush that is still running) when the batch or the index is not the one it was made for.
+It is removed when the service ends,
+whichever way its loop ends,
+and what a killed service leaves is removed by the next acquisition,
+by these rules:
+a whole marker decides alone,
+and its verdict vetoes the name
+(a holder that runs,
+or that the cleaner cannot compare with,
+keeps its file;
+a holder that is gone loses it);
+without a whole marker the name decides,
+and only when it carries this cleaner's PID namespace
+and the cleaner's `/proc` numbers it as the system does,
+and the process it names is gone.
+A name without a namespace (an earlier release's) or with another one,
+and an unreadable `/proc`,
+are no evidence of death.
+An empty or partial file is never removed on its content.
+A marker is a whole line:
+the text up to its newline,
+so a marker cut at any point reads as no marker,
+from the text and from a file.
+The file's pathname is checked before it is placed:
+it must still name a regular file (not a link) with the device and inode of the descriptor the service holds.
+A pathname that names another file is that file's,
+and is not removed.
+A commit that arrives while the flush is still running waits for it and starts no second.
+The file the first commit of a service needs is made by that commit,
+because the service learns the index only from a request.
+`lock_stage_ms` is what a commit waited for in this step,
+measured over the whole of it:
+near zero when the marker was ready,
+the rest of the flush when it was not,
+a wait for a flush that failed or was for another batch plus the cold staging that followed,
+the whole creation and flush when it staged its own;
+`lock_stage_kind` says `pre` or `cold`.
 
 A lock the holder owns is removed by the release after the index is installed,
 or when the holder goes out of scope.
@@ -2398,11 +2508,17 @@ an identity or a secret.
 
 The wrapper appends one JSON line per commit that reached the service to `<common-git-dir>/cli-git-commit-timing.jsonl`
 with `schemaVersion`,
+`time`
+(when the line was written),
+`level` (`warn` for `stopped`),
 `startMillis`,
 `pid`,
 `release`,
 `instance`,
 `gitDir`,
+`requestId`
+(the request's identity as the service logs it,
+null when the command made none),
 `branch`,
 `outcome`
 (`landed`,
@@ -2428,21 +2544,61 @@ and within `submitMs` the reach (`reachMs`,
 `answeredByRelease`) and the wait for the answer (`answerWaitMs`,
 `positions`,
 `waitingNotices`,
+`lockHolderKind`,
 `reconnects`,
 `sends`).
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to `cli-git-commit-timing.jsonl.1` at one mebibyte,
 and a failed write never changes the command's result.
+All three JSONL files (timing,
+push trigger,
+audit) are written by one appender with one `write` per line and no lock.
+It moves the file aside only when the path still names the file it opened,
+so two writers that both see a full file cannot put the new small file over the history in `.1`,
+and a file that ends without a newline (a write a full disk or a signal cut short) gets the next line on a fresh line,
+so one torn line is lost alone.
+A reader skips empty lines and lines that are not JSON.
 
-The service writes to standard error,
-which the service manager keeps in the unit's journal:
+The service's lines reach the unit's journal in one of two ways.
+When its standard error is the journal
+(`$JOURNAL_STREAM` names the device and inode of the standard error it has),
+each line is one datagram on the journal's native socket (`/run/systemd/journal/socket`):
+the kernel stamps a datagram when it is sent,
+so the journal dates the line by its event and not by the moment it reads it (a stream line is dated by the read,
+which a loaded machine delays by seconds).
+The datagram has `MESSAGE` (the line without the prefix),
+`PRIORITY` (`err` 3,
+`warning` 4,
+`info` 6),
+`SYSLOG_IDENTIFIER=cli-git-service`,
+`CLI_GIT_AT_MS`,
+`CLI_GIT_RELEASE`,
+`CLI_GIT_INSTANCE`
+and, where the line has them,
+`CLI_GIT_REQUEST_ID`,
+`CLI_GIT_BRANCH`,
+`CLI_GIT_OUTCOME`,
+`CLI_GIT_BATCH` and `CLI_GIT_OID`.
+The socket is unconnected and non-blocking,
+no lock is taken,
+and a line the socket does not take (the journal restarting, a full queue) is written to standard error,
+prefixed `<priority>` when standard error is the journal's stream,
+so a line is neither lost nor waited for.
+The signal handler sends its line the same way, with `sendto`.
+Without `$JOURNAL_STREAM` (a terminal, a file, a test) the lines are plain on standard error.
+Every line ends with `at_ms=<epoch milliseconds>`,
+and the userinfo of any URL in it is replaced by `<credentials>`.
+The lines are:
 a `started` line before `ready`,
 an `answered` line for every request with the phases of its stay
 (`read_ms`,
 `queued_ms`,
 `settle_ms`,
 `lock_wait_ms` and the holder when one is named,
+the split of the lock wait into the flush of the marker (`lock_stage_ms`) and the wait for a holder (`lock_place_ms`),
+and when the lock was found held `lock_looks`,
+`lock_found` and `lock_last`,
 `reads_ms`,
 `objects_ms`,
 `journal_ms`,
@@ -2450,6 +2606,16 @@ an `answered` line for every request with the phases of its stay
 `sync_ms`,
 `answer_ms`,
 `total_ms`),
+a `pushed` line for every push the service ran
+(`branch`,
+`oid`,
+`items`,
+`outcome` `done`,
+`failed` or `skipped`,
+`push_ms`;
+a failure is a `warning` and carries Git's words),
+a line when automatic maintenance ran or a review finished,
+a `warning` for each batch a restart settled that an earlier service left open,
 a line for a retire request,
 and an `exiting` line with the reason (`idle`,
 `retire`,
@@ -2617,10 +2783,40 @@ the command is rejected with a finding that names the path or place and the syst
 no cut-short copy is left,
 and nothing is changed.
 
+The folder is bounded after each save that wrote at least one copy,
+once the copy is complete and synced (so a kill while copying costs no older copy),
+without a lock and without anything waiting on it.
+The pass reads only directories whose names are a save time
+(`YYYY-MM-DDTHH-MM-SS`, with `-<number>` when a second save fell in one second);
+the age of a save is the time in its name, not a modification time.
+It removes every save older than `discardedCopies.maxAgeDays` days (default 30),
+then, while the folder's files total more than `discardedCopies.maxSize` bytes (default one gibibyte),
+the oldest remaining save, until the total is within the limit or nothing is within reach.
+A save younger than 24 hours is out of reach of both limits,
+and so is the save that was just written,
+so a burst of saves is never cut by size and a save made with an old clock survives its own pass.
+Both settings are keys of the `discardedCopies` section of `cli-git.config.jsonc`:
+`maxAgeDays`, a safe integer of at least 1,
+and `maxSize`, a safe integer of at least 1 (bytes) or a string of digits with an optional suffix `k`, `m` or `g`
+(powers of 1024, any case).
+A value that is not that is a configuration failure that names the key, as for every other key of the file
+(exit `2` before any policy runs); zero never means "no limit" or "remove everything", and nothing is removed.
+An unknown key under the section is refused with `maxAgeDays` and `maxSize` named.
+Each removed save is followed by one audit line, written once the directory is gone:
+`schemaVersion`, `time`, `level`, `timeMillis`, `release`, `pid`, `form` (`PruneDiscarded`), `outcome` (`pruned`),
+`reason` (`age` or `size`), `limit` (days or bytes), `folderBytes` (the folder before the pass), `path`, `bytes`,
+`copiesTotal` and `copies` (at most one hundred names).
+A directory that cannot be removed stays, without a line.
+`git cli-git doctor` writes to standard error, when the folder holds any save,
+its path, total bytes, number of copies and saves, the oldest save and the limits in force.
+
 Every decision about a guarded form is appended as one JSON line to `<common-git-dir>/cli-git-audit.jsonl`
 with `schemaVersion`, `timeMillis`, `pid`, `parentPid`, `worktree`, `form`, `outcome`
 (`rejected`, `allowed`, `exempt`, `hatch` or `saved-conflict`), `dirty`, `cwd` and `arguments`.
 A `saved-conflict` line also has `copies`, a list of `<path> => <place>` (`none` when there was nothing to copy).
+The line also has `time` (the ISO form),
+`level` (`warn` for `rejected`),
+`release` and `gitDir` (the invocation's own Git directory, which `worktree` the kind word does not name).
 The file moves to `cli-git-audit.jsonl.1` at one mebibyte.
 A failed write never changes the command's result.
 

@@ -7,7 +7,7 @@
 //!  completes the worktree the way Git would have. The ladder never deletes or unregisters a worktree: when the fallback
 //!  fails, or the bound objects are no longer what they were, the worktree and its registration stay exactly as they are and
 //!  one loud report names what is incomplete and the command that removes it. The only deletions are of objects this process
-//!  made and still checks: the stage it took and never exchanged, and the entries its clones created. The line that Git's
+//!  made and still checks: the stage it took and never exchanged. The line that Git's
 //!  own checkout would have printed is printed here, so the person cannot tell the rungs apart except by the time they take.
 //!  No hook runs on any rung: every real-Git start of the wrapper switches hooks off (`hooks_off.rs`).
 //!
@@ -21,7 +21,7 @@ use super::fs_beneath::ObjectId;
 use super::transaction_git::GitContext;
 use super::worktree_add_binding::{Bound, bind_registration, verify_association};
 use super::worktree_add_plan::AddPlan;
-use super::worktree_clone::{Cloned, clone_tracked_files};
+use super::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
 use super::worktree_copy::{GitRunner, GitStatus};
 use super::worktree_copy_stage_claim::StageClaim;
 use super::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
@@ -92,8 +92,8 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 /// What:
 ///  The clone rung: clone the tracked files into the destination, install the index, apply the tree difference.
 /// Why:
-///   The destination is filled in place; an error removes the entries the run created, while they still are the objects it
-///  made (and nothing else), before Git's own checkout completes the worktree.
+///   The destination is filled in place; an error removes nothing: the entries the run created stay, are reported, and Git's
+///  own checkout completes the worktree and overwrites the tracked ones.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,9 +105,7 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, token: O
     let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
     let applied: Result<(), String> = verify_association(bound).and_then(|()| { return apply_difference(source, &target, plan.destination.as_path(), token, run_git); });
     if let Err(reason) = applied {
-        for kept in cloned.remove() {
-            warn(TAG, format!("cli-git: {kept}").as_str());
-        }
+        warn(TAG, format!("cli-git: {}", leftover_report(cloned.created(), plan.destination.as_path())).as_str());
         return Err(reason);
     }
     return Ok(target.line);

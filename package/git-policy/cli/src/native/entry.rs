@@ -19,7 +19,7 @@
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure};
 #[cfg(unix)]
 use super::auto_push_trigger::{TipWatch, hand_over_if_ahead, try_watch_tip};
-use super::push_trigger_log::{Outcome, record_decision};
+use super::push_trigger_log::{Decision, Origin, Outcome, record_decision};
 use super::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
 use super::command_push::stackable_option_tokens;
 use super::external_hooks::external_hooks_warning;
@@ -477,14 +477,16 @@ fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
         if code == 0 {
             hand_over_if_ahead(found, trigger_command(&forward.command).as_str(), &mut std::io::stderr());
         } else {
-            record_decision(
-                Some(found.common_dir()),
-                trigger_command(&forward.command).as_str(),
-                Outcome::Declined,
-                "command-failed",
-                format!("Git exited with status {code}").as_str(),
-                None,
-            );
+            // The watch holds the branch and its tip from before the command, which a reader needs to tell which merge failed.
+            record_decision(&Decision {
+                common_dir: Some(found.common_dir()),
+                origin: Some(found.origin()),
+                command: trigger_command(&forward.command).as_str(),
+                outcome: Outcome::Declined,
+                reason: "command-failed",
+                detail: format!("Git exited with status {code}; {} was at {} before the command", found.branch_ref(), found.tip_before()).as_str(),
+                branch: Some(found.branch_ref()),
+            });
         }
     }
     return code;
@@ -548,7 +550,20 @@ fn watch_forward(forward: &CoordinatedForward) -> Option<TipWatch> {
     return match try_watch_tip(root.as_path(), forward.real_git.as_path(), forward.overlay.as_slice(), forward.environment.as_slice()) {
         Ok(watch) => Some(watch),
         Err(declined) => {
-            record_decision(Some(common.as_path()), trigger_command(&forward.command).as_str(), Outcome::Declined, declined.reason, declined.detail.as_str(), None);
+            // The watch could not start, so no branch is known; the worktree is.
+            let git_dir: PathBuf = match &forward.identity {
+                WorktreeIdentity::MainWorktree { git_dir, .. } | WorktreeIdentity::LinkedWorktree { git_dir, .. } => git_dir.clone(),
+                WorktreeIdentity::OutsideWorktree | WorktreeIdentity::BareRepository { .. } => common.clone(),
+            };
+            record_decision(&Decision {
+                common_dir: Some(common.as_path()),
+                origin: Some(Origin { worktree: root.as_path(), git_dir: git_dir.as_path() }),
+                command: trigger_command(&forward.command).as_str(),
+                outcome: Outcome::Declined,
+                reason: declined.reason,
+                detail: declined.detail.as_str(),
+                branch: None,
+            });
             None
         }
     };

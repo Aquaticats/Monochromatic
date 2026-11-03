@@ -302,6 +302,7 @@ fn prepare_guarded_command<F: RepositoryFacts>(
     // `.clone()` copies the scanner and Markdown options the configuration chose.
     checks.scanner_settings.options = config.policies.forbidden_strings.clone();
     checks.markdown.options = config.policies.markdown_autofix.clone();
+    checks.discarded_limits = config.discarded;
     // Only `git add` inside a worktree has content for a policy to read before Git runs:
     // what it would stage, predicted when a content policy first reads it.
     if command_word(stripped) == b"add" && worktree_root(&location.identity).is_some() {

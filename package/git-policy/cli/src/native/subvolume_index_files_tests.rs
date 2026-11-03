@@ -391,28 +391,113 @@ fn an_index_written_before_the_publication_is_not_replaced() {
     remove(root.as_path());
 }
 
-/// A lock that was replaced while the index was written is another process's and stays.
+/// A lock name that another process took while the index was written does not change what is published: the file that was
+///  written is the one that gets the name of the index, and the other process's lock stays.
 #[test]
-fn a_lock_replaced_before_the_publication_is_left_to_its_owner() {
+fn a_lock_replaced_before_the_publication_does_not_change_the_file_published() {
     let (root, seed, admin, held, fields) = seed_and_admin("install-index-lock-replaced");
     let mut replace = || {
-        std::fs::remove_file(admin.join("index.lock")).expect("our lock removed by a cleaner");
+        std::fs::rename(admin.join("index.lock"), admin.join("index.lock.moved")).expect("our lock moved away");
         std::fs::write(admin.join("index.lock"), b"theirs").expect("their lock");
     };
-    let error: String = install_index_in_with(&held, seed.as_slice(), &mut |path: &[u8]| { return (path == b"a.txt").then_some(fields); }, 20, &mut InstallSeams { before_publish: &mut replace, after_publish: &mut || {} }).expect_err("refused");
-    assert!(error.contains("replaced"), "{error}");
+    install_index_in_with(&held, seed.as_slice(), &mut |path: &[u8]| { return (path == b"a.txt").then_some(fields); }, 20, &mut InstallSeams { before_publish: &mut replace, after_publish: &mut || {} }).expect("installed");
+    let entries = crate::worktree_clean::stored_stats(std::fs::read(admin.join("index")).expect("index").as_slice(), 20).expect("what was written is a valid index");
+    assert_eq!(entries[0].stored.ino, 6, "the index is the file written here");
     assert_eq!(std::fs::read(admin.join("index.lock")).expect("lock"), b"theirs", "their lock stays");
-    assert!(!admin.join("index").exists());
     remove(root.as_path());
 }
 
-/// The lock another Git process takes right after the publication is not touched: nothing is removed after the rename.
+/// The lock name the next Git process takes between the publication and the release is not removed.
 #[test]
 fn a_lock_taken_right_after_the_publication_stays() {
     let (root, seed, admin, held, fields) = seed_and_admin("install-index-after");
-    let mut take_lock = || { std::fs::write(admin.join("index.lock"), b"the next writer").expect("their lock"); };
+    // The lock name is taken over by the next writer between the publication and the release.
+    let mut take_lock = || {
+        std::fs::rename(admin.join("index.lock"), admin.join("index.lock.moved")).expect("our lock moves");
+        std::fs::write(admin.join("index.lock"), b"the next writer").expect("their lock");
+    };
     install_index_in_with(&held, seed.as_slice(), &mut |path: &[u8]| { return (path == b"a.txt").then_some(fields); }, 20, &mut InstallSeams { before_publish: &mut || {}, after_publish: &mut take_lock }).expect("installed");
-    assert_eq!(std::fs::read(admin.join("index.lock")).expect("lock"), b"the next writer");
+    assert_eq!(std::fs::read(admin.join("index.lock")).expect("lock"), b"the next writer", "released only while the name still holds our file");
     assert!(admin.join("index").is_file());
+    remove(root.as_path());
+}
+
+/// A refresh under its own lock never touches the lock name after the new index was renamed over the index: a Git command that
+///  takes the lock right after keeps it.
+#[test]
+fn a_refresh_leaves_the_lock_of_the_next_command_alone() {
+    let parent: PathBuf = fixture("index-files-next-lock");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    let copy: PathBuf = parent.join("copy");
+    copy_of(root.as_path(), copy.as_path());
+    let index: PathBuf = copy.join(".git/index");
+    let lock: PathBuf = copy.join(".git/index.lock");
+    let mut next_command = || { std::fs::write(lock.as_path(), b"the next command's lock").expect("their lock"); };
+    let line: String = refresh_index_file_seamed(index.as_path(), copy.as_path(), &RefreshOptions { lock: IndexLock::Acquire, references: &[], hash_length: None }, &mut next_command);
+    assert!(line.ends_with("entries refreshed"), "{line}");
+    assert_eq!(std::fs::read(lock.as_path()).expect("lock"), b"the next command's lock");
+    remove(parent.as_path());
+}
+
+/// A refresh that did not publish removes its own lock, and only if the name still holds it.
+#[test]
+fn a_refresh_that_published_nothing_removes_its_own_lock_only() {
+    let parent: PathBuf = fixture("index-files-own-lock");
+    std::fs::create_dir(parent.join("tree")).expect("tree");
+    let missing: PathBuf = parent.join("tree/index");
+    let line: String = refresh_index_file(missing.as_path(), parent.join("tree").as_path());
+    assert_eq!(line, "no index file");
+    assert!(!parent.join("tree/index.lock").exists(), "its own lock is removed");
+    let lock: PathBuf = parent.join("tree/index.lock");
+    let mut taken_over = || {
+        std::fs::remove_file(lock.as_path()).expect("our lock goes");
+        std::fs::write(lock.as_path(), b"theirs").expect("their lock");
+    };
+    let again: String = refresh_index_file_seamed(missing.as_path(), parent.join("tree").as_path(), &RefreshOptions { lock: IndexLock::Acquire, references: &[], hash_length: None }, &mut taken_over);
+    assert_eq!(again, "no index file");
+    assert_eq!(std::fs::read(lock.as_path()).expect("lock"), b"theirs", "a lock that is not ours stays");
+    remove(parent.as_path());
+}
+
+/// A staging name that already exists, as a link to a user's file or as a file, is neither followed nor overwritten: the
+///  refresh under a held lock is refused and the file the link names keeps its content.
+#[test]
+fn an_existing_staging_name_is_never_followed_or_overwritten() {
+    let parent: PathBuf = fixture("index-files-staging");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    let copy: PathBuf = parent.join("copy");
+    copy_of(root.as_path(), copy.as_path());
+    let index: PathBuf = copy.join(".git/index");
+    let before: Vec<u8> = std::fs::read(index.as_path()).expect("index");
+    std::fs::write(copy.join(".git/index.lock"), b"our token\n").expect("our lock");
+    let victim: PathBuf = parent.join("victim.txt");
+    std::fs::write(victim.as_path(), b"a user's file").expect("victim");
+    std::os::unix::fs::symlink(victim.as_path(), copy.join(".git/index.cli-git-new")).expect("a link at the staging name");
+    let line: String = refresh_index_file_locked(index.as_path(), copy.as_path(), IndexLock::Held("our token\n"));
+    assert!(line.starts_with("skipped"), "{line}");
+    assert_eq!(std::fs::read(victim.as_path()).expect("victim"), b"a user's file", "the link was not followed");
+    assert_eq!(std::fs::read(index.as_path()).expect("index"), before);
+    assert!(std::fs::symlink_metadata(copy.join(".git/index.cli-git-new")).expect("link").file_type().is_symlink(), "the staging name was left alone");
+    std::fs::remove_file(copy.join(".git/index.cli-git-new")).expect("link removed");
+    std::fs::write(copy.join(".git/index.cli-git-new"), b"somebody's file").expect("a file at the staging name");
+    let again: String = refresh_index_file_locked(index.as_path(), copy.as_path(), IndexLock::Held("our token\n"));
+    assert!(again.starts_with("skipped"), "{again}");
+    assert_eq!(std::fs::read(copy.join(".git/index.cli-git-new")).expect("kept"), b"somebody's file");
+    remove(parent.as_path());
+}
+
+/// A lock name whose file was unlinked before the publication fails the install closed: nothing is published and the other
+///  process's lock stays.
+#[test]
+fn an_unlinked_lock_fails_the_install_closed() {
+    let (root, seed, admin, held, fields) = seed_and_admin("install-index-lock-unlinked");
+    let mut unlink = || {
+        std::fs::remove_file(admin.join("index.lock")).expect("our lock is unlinked");
+        std::fs::write(admin.join("index.lock"), b"theirs").expect("their lock");
+    };
+    let error: String = install_index_in_with(&held, seed.as_slice(), &mut |path: &[u8]| { return (path == b"a.txt").then_some(fields); }, 20, &mut InstallSeams { before_publish: &mut unlink, after_publish: &mut || {} }).expect_err("refused");
+    assert!(error.contains("cannot be put in place"), "{error}");
+    assert!(!admin.join("index").exists());
+    assert_eq!(std::fs::read(admin.join("index.lock")).expect("lock"), b"theirs");
     remove(root.as_path());
 }

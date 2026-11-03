@@ -16,6 +16,7 @@
 //! ```
 
 use super::auto_push::push_once;
+use super::journald_native::Priority;
 use super::auto_push_single_flight::PushGit;
 use super::config_snapshot::read_config_snapshot;
 use super::lfs_pre_push::uses_lfs;
@@ -24,14 +25,15 @@ use super::auto_push::AutoPushOutcome;
 use super::claim_time::ClaimTime;
 use super::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
-use super::service_claim_renewal::{ClaimRenewal, HeldClaims, RENEWALS_PER_LEASE};
+use super::service_claim_renewal::{ClaimRenewal, HeldClaims, Renewal, renewal_interval};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
+use super::service_timing::log_entry;
 use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
 use super::work_item::{Claimed, DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, next_claim_expiry, requeue_expired_reporting};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// The kinds of work the service runs itself.
 pub const SERVICE_KINDS: [WorkKind; 4] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash];
@@ -96,7 +98,7 @@ pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
 fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed], state: &str) {
     for item in claimed {
         if let Err(reason) = held.settle(work_dir, item.id.as_str(), state) {
-            eprintln!("cli-git-service: {reason}");
+            crate::service_warn!("{reason}");
         }
     }
 }
@@ -111,11 +113,10 @@ fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed], state: &s
 /// ```ts
 /// claimed.filter((c) => held.isHeld(c.id))
 /// ```
-fn still_held(held: &HeldClaims, claimed: Vec<Claimed>) -> Vec<Claimed> {
-    let (mine, lost): (Vec<Claimed>, Vec<Claimed>) = claimed.into_iter().partition(|item| { return held.is_held(item.id.as_str()); });
+fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claimed>) -> Vec<Claimed> {
+    let (mine, lost): (Vec<Claimed>, Vec<Claimed>) = claimed.into_iter().partition(|item| { return held.is_held_on_disk(work_dir, item.id.as_str()); });
     for item in lost {
-        eprintln!(
-            "cli-git-service: the claim on {} ran out before this instance could run it, so another instance took the work over and it is not run here",
+        crate::service_warn!("the claim on {} ran out before this instance could run it, so another instance took the work over and it is not run here",
             item.id
         );
         held.release(item.id.as_str());
@@ -180,7 +181,7 @@ fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
             item.branch_ref
         );
         if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {
-            eprintln!("cli-git-service: the abandoned push of {} could not be recorded for the person: {problem}", item.oid);
+            crate::service_error!("the abandoned push of {} could not be recorded for the person: {problem}", item.oid);
         }
     }
 }
@@ -211,9 +212,15 @@ pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime) -> Op
 
 /// `drain` with the lease given, so a test can use a short one.
 pub fn drain_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
+    return drain_with_renewal(git_dir, handlers, now, lease, Renewal::Timed);
+}
+
+/// `drain_with_lease` with the way its claims are kept fresh given,
+/// so a control can drive the renewal itself.
+pub fn drain_with_renewal(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
     tell_about_given_up(git_dir, requeue_expired_reporting(work_dir.as_path(), now, lease, MAX_TRIES).given_up.as_slice());
-    drain_pending(git_dir, handlers, lease);
+    drain_pending(git_dir, handlers, lease, renewal);
     return next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease);
 }
 
@@ -243,7 +250,7 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
         return None;
     }
     tell_about_given_up(common.as_path(), requeue_expired_reporting(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES).given_up.as_slice());
-    drain_pending(common.as_path(), handlers, lease);
+    drain_pending(common.as_path(), handlers, lease, Renewal::Timed);
     return next_claim_expiry(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease);
 }
 
@@ -273,10 +280,16 @@ fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
 
 /// Claims and runs every pending item of one work directory until none is left; the claims held are renewed every third of
 /// `lease`, so that none of them looks abandoned to another instance while it waits or runs.
-fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
+fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, renewal: Renewal<'_>) {
     let work_dir: PathBuf = work_directory(git_dir);
     let held: HeldClaims = HeldClaims::default();
-    let _renewal: ClaimRenewal = ClaimRenewal::start(work_dir.clone(), held.clone(), lease / RENEWALS_PER_LEASE);
+    let _renewing: Option<ClaimRenewal> = match renewal {
+        Renewal::Timed => Some(ClaimRenewal::start(work_dir.clone(), held.clone(), renewal_interval(lease))),
+        Renewal::Driven(driver) => {
+            driver.attach(work_dir.clone(), held.clone());
+            None
+        }
+    };
     loop {
         let mut claimed: Vec<Claimed> = Vec::new();
         loop {
@@ -289,7 +302,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
                 }
                 Ok(None) => break,
                 Err(reason) => {
-                    eprintln!("cli-git-service: {reason}");
+                    crate::service_error!("{reason}");
                     break;
                 }
             }
@@ -311,14 +324,34 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
             }
         }
         for (_, claimed_members) in groups {
-            let members: Vec<Claimed> = still_held(&held, claimed_members);
+            let members: Vec<Claimed> = still_held(&held, work_dir.as_path(), claimed_members);
             if members.is_empty() {
                 continue;
             }
             let items: Vec<WorkItem> = members.iter().map(|member| { return member.item.clone(); }).collect();
             // The push carries what existed when it began; a notice written after this moment is about something newer.
             let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
-            match handlers.push(items.as_slice()) {
+            let pushing: Instant = Instant::now();
+            let verdict: Verdict = handlers.push(items.as_slice());
+            if let Some(newest) = members.last() {
+                // One line for every push the service ran, so a branch that was not backed up (or was) is found by its name.
+                let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
+                    Verdict::Done => (Priority::Info, "done", ""),
+                    Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
+                    Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
+                };
+                let fields: [(&str, String); 3] = [
+                    ("CLI_GIT_BRANCH", newest.item.branch_ref.clone()),
+                    ("CLI_GIT_OID", newest.item.oid.clone()),
+                    ("CLI_GIT_OUTCOME", outcome.to_string()),
+                ];
+                log_entry(
+                    priority,
+                    format!("pushed branch={:?} oid={} items={} outcome={outcome} push_ms={}{}{said}", newest.item.branch_ref, newest.item.oid, members.len(), pushing.elapsed().as_millis(), if said.is_empty() { "" } else { ": " }).as_str(),
+                    &fields,
+                );
+            }
+            match verdict {
                 Verdict::Done => {
                     // A push of the branch went through, so an earlier failure to push it is no longer true. The records go
                     //  before the items settle: a service that dies between the two pushes again, and nothing is lost.
@@ -332,7 +365,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
                     if let Some(newest) = members.last()
                         && let Err(reason) = record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
                     {
-                        eprintln!("cli-git-service: the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
+                        crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
                     }
                     settle_all(work_dir.as_path(), &held, &members, FAILED);
                 }
@@ -344,7 +377,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
                         Some(newest) if !text.is_empty() => match record_push_skip(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str()) {
                             Ok(()) => true,
                             Err(reason) => {
-                                eprintln!("cli-git-service: the skipped push of {} could not be recorded for the person: {reason}", newest.item.oid);
+                                crate::service_error!("the skipped push of {} could not be recorded for the person: {reason}", newest.item.oid);
                                 false
                             }
                         },
@@ -355,12 +388,14 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
             }
         }
         let mut upkept: Vec<String> = Vec::new();
-        for item in still_held(&held, upkeep) {
+        for item in still_held(&held, work_dir.as_path(), upkeep) {
             if !upkept.contains(&item.item.repository) {
                 upkept.push(item.item.repository.clone());
-                if let Verdict::Failed(reason) = handlers.maintenance(&item.item) {
-                    eprintln!("cli-git-service: automatic maintenance did not run: {reason}");
-                }
+                let upkeep_began: Instant = Instant::now();
+                match handlers.maintenance(&item.item) {
+                    Verdict::Failed(reason) => crate::service_warn!("automatic maintenance did not run: {reason}"),
+                    Verdict::Done | Verdict::Skipped(_) => crate::service_log!("automatic maintenance ran maintenance_ms={}", upkeep_began.elapsed().as_millis()),
+                };
             }
             settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
         }
@@ -380,15 +415,20 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
             }
         }
         // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
-        for item in still_held(&held, reviews) {
-            match handlers.review(&item.item) {
+        for item in still_held(&held, work_dir.as_path(), reviews) {
+            let review_began: Instant = Instant::now();
+            let verdict: Verdict = handlers.review(&item.item);
+            if matches!(verdict, Verdict::Done) {
+                crate::service_log!("the review of {} is done review_ms={}", item.item.oid, review_began.elapsed().as_millis());
+            }
+            match verdict {
                 Verdict::Done => settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE),
                 Verdict::Failed(reason) => {
-                    eprintln!("cli-git-service: the review of {} failed: {reason}", item.item.oid);
+                    crate::service_warn!("the review of {} failed: {reason}", item.item.oid);
                     settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), FAILED);
                 }
                 Verdict::Skipped(reason) => {
-                    eprintln!("cli-git-service: the review of {} was skipped: {reason}", item.item.oid);
+                    crate::service_log!("the review of {} was skipped: {reason}", item.item.oid);
                     settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
                 }
             }

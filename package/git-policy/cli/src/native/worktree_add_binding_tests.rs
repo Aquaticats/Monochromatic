@@ -131,3 +131,52 @@ fn a_record_round_trips_and_a_forged_one_is_nothing() {
     let missing_field: String = binding.encode().replace("pointer=", "pointe=");
     assert_eq!(decode_record(missing_field.as_str()), None);
 }
+
+/// A pointer that reaches the registration through a link is refused at the binding, with a message that names the pointer and
+///  the remedy: Git resolves the same text again at every use, and the link can be retargeted to another registration.
+#[test]
+fn a_pointer_through_a_link_is_not_bound_and_the_message_names_the_remedy() {
+    let root: PathBuf = fixture("binding-alias");
+    let (repo, destination, admin) = registered(root.as_path());
+    let alias: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("alias");
+    std::os::unix::fs::symlink(repo.join(".git"), alias.as_path()).expect("alias of the git directory");
+    std::fs::write(destination.join(".git"), format!("gitdir: {}/worktrees/topic\n", alias.display())).expect("pointer through the alias");
+    let reason: String = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect_err("refused");
+    assert!(reason.contains("without a symbolic link") && reason.contains("canonical path") && reason.contains(".git"), "{reason}");
+    std::fs::write(destination.join(".git"), format!("gitdir: {}\n", admin.display())).expect("restored");
+    assert!(bind_registration(repo.join(".git").as_path(), destination.as_path()).is_ok(), "positive control");
+    remove(root.as_path());
+}
+
+/// A relative pointer resolves by its text against the destination and binds when no link is involved.
+#[test]
+fn a_relative_pointer_without_links_is_bound() {
+    let root: PathBuf = fixture("binding-relative");
+    let (repo, destination, _admin) = registered(root.as_path());
+    std::fs::write(destination.join(".git"), "gitdir: ../repo/.git/worktrees/topic\n").expect("relative pointer");
+    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    assert_eq!(bound.binding.admin, repo.join(".git/worktrees/topic"));
+    assert!(pointer_target(destination.as_path(), b"gitdir: ../../../../../../..\n").is_ok(), "the root is a place");
+    assert!(pointer_target(destination.as_path(), b"gitdir: ").is_ok());
+    let climbing: String = "../".repeat(40);
+    assert!(pointer_target(destination.as_path(), format!("gitdir: {climbing}x\n").as_bytes()).is_err(), "a pointer cannot climb out of the root");
+    remove(root.as_path());
+}
+
+/// The verification resolves the pointer again: a binding whose pointer text goes through a link fails even when the bytes, the
+///  identities and the back-link all still hold.
+#[test]
+fn verification_resolves_the_pointer_again() {
+    let root: PathBuf = fixture("binding-verify-alias");
+    let (repo, destination, admin) = registered(root.as_path());
+    let mut bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    let alias: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("alias");
+    std::os::unix::fs::symlink(repo.join(".git"), alias.as_path()).expect("alias");
+    let text: Vec<u8> = format!("gitdir: {}/worktrees/topic\n", alias.display()).into_bytes();
+    std::fs::write(destination.join(".git"), text.as_slice()).expect("pointer through the alias");
+    bound.binding.pointer = text;
+    let reason: String = verify_association(&bound).expect_err("an alias");
+    assert!(reason.contains("without a symbolic link"), "{reason}");
+    assert!(admin.exists());
+    remove(root.as_path());
+}

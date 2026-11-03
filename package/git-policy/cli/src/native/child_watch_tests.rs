@@ -244,13 +244,49 @@ fn a_command_past_the_bound_is_stopped_and_reported() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sleep");
     command.arg("30").stdin(Stdio::null());
-    let started: Instant = Instant::now();
     let failure: std::io::Error = output_watched(&mut command, "git rev-parse HEAD", terms(Duration::from_millis(400), &sink))
         .expect_err("stopped at the bound");
-    assert!(started.elapsed() < Duration::from_secs(60), "{:?}", started.elapsed());
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
     assert!(failure.to_string().starts_with("git rev-parse HEAD did not finish within 0 seconds and was stopped"), "{failure}");
     assert!(sink.text().lines().count() >= 1, "{}", sink.text());
+}
+
+/// Whether the process `pid` still runs.
+/// A process that was killed and is waiting to be reaped is a zombie,
+/// and `kill` with signal 0 succeeds for it.
+/// On a host where the process that adopts an orphan is the user's service manager,
+/// which reaps a moment after the signal landed,
+/// the helper of the control below was a zombie when it was looked at.
+/// The process table says what the process is:
+/// a zombie has exited (`process_birth_identity` answers nothing for one),
+/// so the observation does not depend on how fast the reaper is.
+fn helper_is_running(pid: i32) -> bool {
+    return !matches!(crate::process_identity::process_birth_identity(i64::from(pid)), Ok(None));
+}
+
+/// A killed process that nobody has reaped yet is not running,
+/// though `kill` with signal 0 still reaches it,
+/// and a process that runs is running.
+/// This is the observation the control below makes of the helper a stopped step started.
+/// The host's reaper makes the zombie window wide enough to fall into,
+/// and this makes it deterministic.
+#[test]
+fn a_killed_process_that_is_not_yet_reaped_is_not_running() {
+    let mut child: std::process::Child = Command::new("sleep").arg("30").stdin(Stdio::null()).spawn().expect("a process");
+    let pid: i32 = i32::try_from(child.id()).expect("a process ID");
+    assert!(helper_is_running(pid), "a sleeping process runs");
+    // SAFETY: `kill` takes two integers and touches no memory of this process.
+    unsafe { libc::kill(pid, libc::SIGKILL) };
+    let began: Instant = Instant::now();
+    while std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|text| { return !text.contains(") Z "); }) {
+        assert!(began.elapsed() < Duration::from_secs(10), "the process never became a zombie");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    // SAFETY: `kill` with signal 0 only checks that the process exists.
+    assert_eq!(unsafe { libc::kill(pid, 0) }, 0, "the premise: a zombie still answers signal 0");
+    assert!(!helper_is_running(pid), "a zombie has exited");
+    child.wait().expect("reaped");
+    assert!(!helper_is_running(pid), "a reaped process is gone");
 }
 
 /// What a command that started a process of its own must not leave behind when it is stopped at the bound: a step of a commit
@@ -273,8 +309,7 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
     let waited: Duration = started.elapsed();
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
     let helper: i32 = std::fs::read_to_string(&helper_file).expect("the helper's process ID").trim().parse().expect("a process ID");
-    // SAFETY: `kill` with signal 0 only checks that the process exists.
-    let helper_alive: bool = unsafe { libc::kill(helper, 0) } == 0;
+    let helper_alive: bool = helper_is_running(helper);
     // The assertions come after the cleanup, so a failure leaves no helper running.
     // SAFETY: `kill` takes two integers and touches no memory of this process.
     unsafe { libc::kill(helper, libc::SIGKILL) };

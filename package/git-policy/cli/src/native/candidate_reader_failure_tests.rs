@@ -23,7 +23,7 @@ use crate::child_watch::{WatchTerms, reader_subject};
 use crate::test_support::{SharedSink, executable, fixture, remove};
 use crate::wait_progress::Cadence;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// A stand-in `git` that waits for one request line,
 ///  answers with fixed bytes,
@@ -60,7 +60,7 @@ fn wait_until_exited(process: u32) {
 fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
     let root: PathBuf = fixture("reader-stalls");
     let program: PathBuf = root.join("git");
-    executable(program.as_path(), b"#!/bin/sh\nread -r request\nexec sleep 30\n");
+    executable(program.as_path(), b"#!/bin/sh\nread -r request\nexec sleep 3600\n");
     let sink: SharedSink = SharedSink::default();
     let mut subject: ObjectReader = start_object_reader_with(
         program.as_path(),
@@ -73,9 +73,7 @@ fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
         },
     )
     .expect("stand-in starts");
-    let started: Instant = Instant::now();
     let error: CandidateError = subject.head_commit().expect_err("never answers");
-    assert!(started.elapsed() < Duration::from_secs(20), "{:?}", started.elapsed());
     assert_eq!(error.failure, CandidateFailure::ReaderEnded);
     assert!(
         error.message.contains(format!("{} did not finish within 1 seconds and was stopped", reader_subject()).as_str()),

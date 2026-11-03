@@ -366,3 +366,118 @@ fn a_linked_worktree_saves_beside_the_common_audit_log() {
     assert_eq!(std::fs::read(place).expect("copy"), HAND_EDITED);
     remove(&fixture);
 }
+
+/// The directory name the wrapper gives a save made `age_millis` before now.
+fn name_before_now(age_millis: i64) -> String {
+    let now: i64 = i64::try_from(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("a clock").as_millis()).expect("fits");
+    return git_policy_cli::iso_time::format_iso_milliseconds(now - age_millis).chars().take(19).map(|each| { return if each == ':' { '-' } else { each }; }).collect();
+}
+
+/// Plants a save of `bytes` bytes made `age_millis` ago below the folder of copies, and gives its directory.
+fn plant_save(repo: &Path, age_millis: i64, bytes: usize) -> PathBuf {
+    let directory: PathBuf = saved_root(repo).join(name_before_now(age_millis));
+    std::fs::create_dir_all(&directory).expect("planted save");
+    std::fs::write(directory.join("planted.txt"), vec![b'p'; bytes]).expect("planted copy");
+    return directory;
+}
+
+/// A day in milliseconds.
+const A_DAY: i64 = 24 * 60 * 60 * 1000;
+
+/// Saving a copy applies the limits: a save past thirty days goes with an audit line, a younger one and the new copy stay.
+#[test]
+fn a_new_save_removes_the_saves_past_the_age_limit_and_audits_them() {
+    let fixture: Fixture = fixture("side-prune-age");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    let old: PathBuf = plant_save(repo.as_path(), 45 * A_DAY, 100);
+    let recent: PathBuf = plant_save(repo.as_path(), 5 * A_DAY, 100);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(0), "{said}");
+    assert!(!old.exists(), "the save past thirty days is removed");
+    assert!(recent.exists(), "a save inside the limit stays");
+    let place: PathBuf = saved_places(said.as_str()).remove(0);
+    assert_eq!(std::fs::read(place).expect("the new copy"), HAND_EDITED);
+    let pruned: Vec<String> = audit_lines(repo.as_path()).into_iter().filter(|line| { return line.contains("\"outcome\":\"pruned\""); }).collect();
+    assert_eq!(pruned.len(), 1, "{pruned:?}");
+    assert!(pruned[0].contains("\"reason\":\"age\"") && pruned[0].contains("planted.txt") && pruned[0].contains(old.to_string_lossy().as_ref()), "{}", pruned[0]);
+    remove(&fixture);
+}
+
+/// The `discardedCopies` settings of `cli-git.config.jsonc` change the limits: a longer age keeps the old save, and a small size
+/// removes an older save but never one younger than a day.
+#[test]
+fn the_configuration_file_changes_the_limits_and_a_young_save_stays() {
+    let fixture: Fixture = fixture("side-prune-config");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 100, "maxSize": "1k" } }"#).expect("configuration");
+    let old: PathBuf = plant_save(repo.as_path(), 45 * A_DAY, 4096);
+    let older_than_a_day: PathBuf = plant_save(repo.as_path(), 3 * A_DAY, 4096);
+    let young: PathBuf = plant_save(repo.as_path(), A_DAY / 4, 4096);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert!(!old.exists() && !older_than_a_day.exists(), "the size limit of one kibibyte takes the older saves, not the age limit of a hundred days");
+    assert!(young.exists(), "a save a quarter of a day old is out of reach of the size limit");
+    let reasons: Vec<String> = audit_lines(repo.as_path()).into_iter().filter(|line| { return line.contains("\"outcome\":\"pruned\""); }).collect();
+    assert_eq!(reasons.len(), 2, "{reasons:?}");
+    assert!(reasons.iter().all(|line| { return line.contains("\"reason\":\"size\"") && line.contains("\"limit\":1024"); }), "{reasons:?}");
+    remove(&fixture);
+}
+
+/// A longer age limit keeps a save the default would have removed.
+#[test]
+fn a_longer_age_setting_keeps_the_old_save() {
+    let fixture: Fixture = fixture("side-prune-keeps");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 400 } }"#).expect("configuration");
+    let old: PathBuf = plant_save(repo.as_path(), 45 * A_DAY, 100);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert!(old.exists());
+    assert!(audit_lines(repo.as_path()).iter().all(|line| { return !line.contains("\"outcome\":\"pruned\""); }));
+    remove(&fixture);
+}
+
+/// `git cli-git doctor` states the folder's size, copy count and oldest save.
+#[test]
+fn the_doctor_reports_the_folder_of_saved_copies() {
+    let fixture: Fixture = fixture("side-prune-doctor");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    plant_save(repo.as_path(), 9 * A_DAY, 300);
+    let oldest: String = name_before_now(12 * A_DAY);
+    let directory: PathBuf = saved_root(repo.as_path()).join(oldest.as_str());
+    std::fs::create_dir_all(&directory).expect("older save");
+    std::fs::write(directory.join("older.txt"), vec![b'o'; 200]).expect("older copy");
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["cli-git", "doctor"]);
+    let said: String = stderr_of(&observed);
+    assert!(said.contains("git cli-git doctor: discarded copies:") && said.contains("500 bytes in 2 copies from 2 saves"), "{said}");
+    assert!(said.contains(format!("the oldest save is {oldest}").as_str()), "{said}");
+    remove(&fixture);
+}
+
+/// A limit that is no limit stops the command with the configuration failure that names the key, and removes nothing.
+#[test]
+fn a_zero_limit_is_a_configuration_failure_and_removes_nothing() {
+    let fixture: Fixture = fixture("side-prune-zero");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 0 } }"#).expect("configuration");
+    let old: PathBuf = plant_save(repo.as_path(), 45 * A_DAY, 100);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(2), "{said}");
+    assert!(said.contains("discardedCopies.maxAgeDays"), "{said}");
+    assert!(old.exists(), "nothing was removed");
+    remove(&fixture);
+}
+
+/// The doctor states the limits that the configuration file sets.
+#[test]
+fn the_doctor_names_the_limits_the_configuration_sets() {
+    let fixture: Fixture = fixture("side-prune-doctor-limits");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 90, "maxSize": "2k" } }"#).expect("configuration");
+    plant_save(repo.as_path(), 9 * A_DAY, 300);
+    let said: String = stderr_of(&run_wrapped(&fixture, repo.as_path(), &["cli-git", "doctor"]));
+    assert!(said.contains("older than 90 days") && said.contains("past 2048 bytes"), "{said}");
+    remove(&fixture);
+}

@@ -509,28 +509,32 @@ What the code does:
 
 - Real Git runs once with `--no-checkout`. Before it runs, the wrapper records the add durably (a stage claim and a
   record of the planned destination under the repository's journal root). That record authorizes nothing.
-- After Git returns, the add is bound: the destination's `.git` pointer must name an administrative directory directly
-  below this repository's `worktrees`, that directory's `gitdir` must name the pointer back, and the identities (device,
+- After Git returns, the add is bound: the destination's `.git` pointer must name, by a path that resolves without any
+  symbolic link, an administrative directory directly below this repository's `worktrees`, that directory's `gitdir` must name the pointer back, and the identities (device,
   inode, birth time) of both directories and the pointer bytes are written to the record with both directories held open.
   A pair that cannot be proven ends the ladder for this add and leaves what Git made as it is.
 - The wrapper never deletes or unregisters a worktree or a registration, and recovery never deletes a stage. The binding
   is not authority to remove: it is what the fast rungs and the fallback checkout verify (identities at their paths, the
   pointer bytes, the registration's back-link) before every write, and what the report of an interrupted add names. The only
   deletions are of objects the running process made: the stage it took and never exchanged (removed only while the name
-  still holds the object it made), and the entries its clones created (each moved into a private directory made for the
-  call, compared there with the identity recorded at creation, and removed only if that matches; a directory only when
-  empty). Anything else, including every doubt, is kept and reported.
+  still holds the object it made) and its own `index.lock` (while the name still holds the file it made, as Git does).
+  The entries its clones created are not removed: no way to check a name and unlink it in one step exists, a private
+  quarantine directory is no protection against a process of the same user, so a failed clone run leaves them, the checkout
+  that completes the worktree overwrites the tracked ones, and the report counts the rest. Anything else, including every
+  doubt, is kept and reported.
 - The snapshot rung takes the snapshot at a stage name beside the destination, removes the stubs below a held handle of
   the stage without following a link, writes Git's own `.git` pointer, installs the index bytes that were proven clean
-  (never a second read of the file) through the administrative directory's handle under `index.lock` without replacing an
-  index, applies the tree difference with one `git read-tree -m -u`, and swaps stage and destination with
+  (never a second read of the file) through the administrative directory's handle under `index.lock`, publishing the open
+  file itself under the name of the index with a link that cannot replace anything and releasing the lock name only while it
+  still holds that file, applies the tree difference with one `git read-tree -m -u`, and swaps stage and destination with
   `RENAME_EXCHANGE` after checking that the destination is still the directory Git made. A swap that finds another
   directory is undone; when it cannot be undone the stage name is never destroyed. The displaced directory is settled
   without a recursive removal: Git's pointer and an empty directory go, and anything added meanwhile stays and is named.
 - The clone rung opens every source file below a held handle of the source root, compares the open descriptor's metadata
   with the frozen index entry before and after the clone, creates its entries below held handles of the destination, records
   the identity of everything it creates and the stat fields of the objects it made (the index takes those, not a fresh
-  look at the paths), and on a failure removes only the entries that still are the objects it made.
+  look at the paths; a created link keeps the source's stat fields, because nothing can pin a link while its metadata is
+  read), and on a failure removes nothing and reports what stays.
 - Every file operation below a root uses `openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS`, `RESOLVE_NO_XDEV` and
   `RESOLVE_NO_MAGICLINKS` on one plain name at a time, and a root is accepted only when the path read back from its
   descriptor equals the path asked for.
@@ -575,6 +579,12 @@ Third review: automatic recovery and rollback could still delete or unregister w
 adopted worktree, a moved worktree's registration, a replacement reset by the fallback, stages identified by name,
 quarantine names replaced after the check, files inside an owned root, a failed marker lookup read as incomplete). The rule
 above replaced all of that code: recovery and rollback no longer delete anything.
+
+Fourth review (part B of round three): the quarantine directory was no protection against a process of the same user, the
+stat fields of a created link came from a name that can be replaced, the index lock name could be replaced between the check
+and the rename that published it, a refresh deleted the next command's lock after its own rename, the held-lock refresh
+followed and truncated an existing staging name, and a pointer through a link could be retargeted after the binding. Each is
+fixed as described in the bullets above.
 
 Not covered by a control: the arm of `finish_snapshot` that skips the stage cleanup when the stage name is not the
 wrapper's is exercised through the primitives (`btrfs_a_failed_swap_back_does_not_claim_the_stage`) and the mapping of the
