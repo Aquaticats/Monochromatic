@@ -10447,3 +10447,14 @@ by the coordinator at merge.
   repro's branch setup failed (`~/temp/agent/repro-quiet-operations.ts`). Stale-lock-only gate
   `gpc-gate-release-0.5.23-stale-lock-fix-20261103T044002-0500` passed 3995/3995; the combined add-speed gate is
   still running, and 0.5.23 ships from it if it passes, else from the stale-lock branch alone.
+- 2026-11-03T04:58:40-05:00: combined gate `gpc-gate-release-0.5.23-add-speed-and-stale-lock-20261103T044547-0500`
+  passed 4019/4019 on `87fb3bc477`; merged to main as `c248091a98` (main had gained only handover commits). Two more
+  empty tracking-ref locks blocked `git fetch` (`origin/fix/git-policy-cli-worktree-add-without-settlement-lock.lock`
+  born 03:18:10, `origin/refactor/mutation-test-cli-cargo-mutants-claims-not-flocks.lock` born 04:21:02; no process
+  had either open, no fetch or push running); removed by hand, then main and origin matched. Release 0.5.23 dispatched
+  as run 41615333317. QUEUED (task 127): 0.5.23 sweeps only locks left by a child the wrapper itself stopped; a lock
+  left by Git killed any other way (oomd, a user's kill, any release before 0.5.23) still blocks fetch until removed
+  by hand. Proposed fix: on "Unable to create ... .lock: File exists", remove a lock whose `~pid.lock` names an ended
+  process of this boot and PID namespace, or an empty lock with no pid file past a settle time that no process has
+  open, then retry once. The owner approved deleting the 12 benchmark build directories the add-speed agent left;
+  all 12 removed.
