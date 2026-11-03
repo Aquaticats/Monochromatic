@@ -2,6 +2,7 @@
 //!  of the editor. The finish as a whole runs through the built executable in `binary_word_merge_finish_tests.rs`.
 
 use super::*;
+use super::super::merge_second_pass::{GitReply, GitRunner};
 use std::path::{Path, PathBuf};
 
 /// Command-line words as operating-system text.
@@ -163,4 +164,49 @@ fn a_merge_options_value_is_split_as_git_splits_it() {
 fn autostash_is_a_known_option_of_merge_and_pull() {
     assert!(merge_of(&["--autostash", "topic"]).is_some());
     assert!(merge_stops(words(&["--autostash", "--rebase", "origin"]).as_slice(), true).is_some());
+}
+
+/// A runner that answers `write-tree` and `merge-tree` with the given statuses and records which of them was asked.
+struct Answering {
+    /// Status of `write-tree`.
+    write_tree: Option<i32>,
+    /// Status of `merge-tree`.
+    merge_tree: Option<i32>,
+    /// The commands asked, by name.
+    asked: std::cell::RefCell<Vec<String>>,
+}
+
+/// The answers of a runner that asks Git nothing.
+impl GitRunner for Answering {
+    fn run(&self, arguments: &[&str], _input: Option<&[u8]>, _index_file: Option<&Path>) -> Result<GitReply, String> {
+        self.asked.borrow_mut().push(String::from(arguments[0]));
+        let code: Option<i32> = if arguments[0] == "write-tree" { self.write_tree } else { self.merge_tree };
+        return Ok(GitReply { code, stdout: b"0123456789abcdef\n".to_vec(), stderr: Vec::new() });
+    }
+}
+
+/// A merge finish for a Git directory, with the stops given.
+fn merge_finish(git_dir: &Path, stops: Stops) -> Finish {
+    return Finish { operation: Operation::Merge, stops, git_dir: git_dir.to_path_buf() };
+}
+
+/// The finish is blocked only when a merge that commits carries an autostash whose dry run conflicts or cannot be tried.
+#[test]
+fn an_autostash_that_would_conflict_or_cannot_be_tried_blocks_the_finish() {
+    let root: PathBuf = crate::test_support::fixture("finish-autostash-dry-run");
+    let clean = Answering { write_tree: Some(0), merge_tree: Some(0), asked: Default::default() };
+    assert!(!autostash_blocks_finish(&clean, &merge_finish(root.as_path(), Stops::default())), "no stash, no block");
+    assert!(clean.asked.borrow().is_empty(), "no stash costs no Git start");
+    std::fs::write(root.join("MERGE_AUTOSTASH"), b"89abcdef01234567\n").expect("the pseudoref");
+    assert!(!autostash_blocks_finish(&clean, &merge_finish(root.as_path(), Stops::default())), "a clean apply does not block");
+    assert_eq!(*clean.asked.borrow(), vec!["write-tree", "merge-tree"]);
+    let conflicting = Answering { write_tree: Some(0), merge_tree: Some(1), asked: Default::default() };
+    assert!(autostash_blocks_finish(&conflicting, &merge_finish(root.as_path(), Stops::default())), "a conflict blocks");
+    let untried = Answering { write_tree: Some(0), merge_tree: Some(128), asked: Default::default() };
+    assert!(autostash_blocks_finish(&untried, &merge_finish(root.as_path(), Stops::default())), "an apply that cannot be tried blocks");
+    let unwritten = Answering { write_tree: Some(128), merge_tree: Some(0), asked: Default::default() };
+    assert!(autostash_blocks_finish(&unwritten, &merge_finish(root.as_path(), Stops::default())), "an index that cannot be written blocks");
+    let stopping = Stops { no_commit: true, ..Stops::default() };
+    assert!(!autostash_blocks_finish(&conflicting, &merge_finish(root.as_path(), stopping)), "a merge that stops before the commit applies nothing");
+    crate::test_support::remove(root.as_path());
 }
