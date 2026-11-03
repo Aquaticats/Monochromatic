@@ -177,7 +177,9 @@ export const searchProgram = 'rg';
 export const taskRunnerProgram = 'mise';
 
 /**
- Program that holds a slot lock while the slotted command runs.
+ Program that probes, once and without waiting, the kernel lock the earlier release of this package took on a slot file or an
+ evidence directory (`src/legacy-flock.ts`). Nothing holds a lock with it while a command runs any more: the slots and the
+ campaign are numbered claim files (`src/owner-claim.ts`).
  */
 export const flockProgram = 'flock';
 
@@ -203,17 +205,31 @@ export const defaultSlotCount = 6;
 export const slotNiceAdjustment = 19;
 
 /**
- Exit status `flock` reports when another process holds the slot, chosen so no wrapped command's own status collides.
+ Exit status the probe's `flock` reports when a process of the earlier release holds the lock, chosen so no other status of
+ `flock` collides.
  */
 export const slotConflictExitCode = 200;
 
 /**
- Milliseconds to wait before every slot is tried again after all of them were held.
+ Longest milliseconds a gate waits before it tries every slot again after all of them were held. A slot's release wakes the
+ gate at once (`src/directory-watch.ts`); this bound is only the fallback for a holder that died, which makes no event.
  */
 export const defaultPollIntervalMs = 15_000;
 
 /**
- Directory under the scratch directory that holds the slot lock files; shared by every launcher on the host,
+ Milliseconds between the notices a waiting gate writes, as the wrapper's lock-wait notices are spaced
+ (`package/git-policy/cli/src/native/wait_progress.rs`, ten seconds).
+ */
+export const defaultNoticeIntervalMs = 10_000;
+
+/**
+ Milliseconds a gate waits in silence before its first notice, never more than the notice interval itself
+ (`wait_progress.rs`, one second), so brief contention between healthy gates prints nothing.
+ */
+export const noticeGraceMs = 1_000;
+
+/**
+ Directory under the scratch directory that holds the slot claim files; shared by every launcher on the host,
  so it must not vary with the per-launch scratch location unless the caller names it.
  */
 export const lockDirectorySegment = 'gate-slots';
@@ -224,7 +240,7 @@ export const lockDirectorySegment = 'gate-slots';
 export const slotCountEnvironmentVariable = 'GATE_SLOT_COUNT';
 
 /**
- Environment variable that names the slot lock directory, read when `--lock-dir` is absent.
+ Environment variable that names the slot claim directory, read when `--lock-dir` is absent.
  */
 export const lockDirectoryEnvironmentVariable = 'GATE_SLOT_DIRECTORY';
 

@@ -87,13 +87,36 @@ Two files that collapse to one unit name make the launch fail before anything st
 mise run //package/mutation-test/cli-cargo-mutants:campaign:gate-slot -- mise run //package/some/cli:test:container
 ```
 
-The limiter tries `slot-1.lock` to `slot-N.lock` under the lock directory with `flock --nonblock`, runs the command
-inside the first free slot at nice 19, and sleeps 15 seconds before trying again when every slot is held.
-The command inherits stdio and its exit status becomes the limiter's.
+The limiter holds no lock.
+Each slot is a series of numbered claim files, `slot-1.owner.<generation>` to `slot-N.owner.<generation>`, in the lock directory,
+made as `package/git-policy/cli/src/native/single_owner_claim.rs` makes its claims (see "Single writer").
+A gate takes the lowest free slot at once, with one exclusive `link` of a new generation, and runs the command inside it at
+nice 19 with inherited stdio; the command's exit status becomes the limiter's.
+A slot is free when its newest generation is released, or names a process that no longer exists with that start time and boot,
+so a gate that was killed leaves nothing for a person to clean up.
+The gate waits only while all slots are held by live processes.
+It writes one notice to standard error naming the directory and each holder (`slot 2: process 41233`), waits for a change in
+the lock directory (a release renames a file there, so the gate wakes at once), and writes `still waiting` notices at the
+notice interval, 10 seconds by default (`--notice-interval-ms`).
+A holder that dies makes no event, so the wait also ends after `--poll-interval-ms` (15 seconds by default) and looks again.
+The gate process holds its claim for as long as the command runs and passes `SIGINT`, `SIGTERM` and `SIGHUP` on to the command.
+A gate killed by `SIGKILL` cannot, so its slot reads as free while its command may still run.
+`systemctl --user stop` of the unit that runs the gate ends the command as well, and that is the way gates are normally stopped.
 The default is six slots in `<home>/temp/agent/gate-slots`.
 Every launcher on the host must share that directory for the limit to hold, so change it only on purpose.
 The limit exists because the host runs under a shared CPU cap; the slot count follows the user's CPU hold,
 documented at `defaultSlotCount` in `src/constants.ts`.
+
+### Gates of the earlier release
+
+Until this release the limiter held `flock` locks on `slot-N.lock` files for as long as the command ran.
+A gate that started before the change may still run, so each time a gate looks at a slot it opens that slot's `slot-N.lock`
+without creating it and asks `flock` once, without waiting, for the lock (`src/legacy-flock.ts`).
+A held lock counts as a live holder and is named in the notice as a gate of the earlier release.
+A lock file nobody holds is removed while the probe still holds it, so the leftovers retire themselves and a slot whose file is
+gone costs one failed `open`.
+A launcher that still runs the earlier source does not see the claim files and can take a slot beside a gate of this release;
+the limit is whole again once every launcher reads this release.
 
 ## Who runs a campaign
 
@@ -169,19 +192,25 @@ status 3 although the last attempt, handed nothing to score, exits 0), plus `att
 
 ### Single writer
 
-The right to run a campaign is a kernel advisory lock on its evidence directory,
-held by the campaign process itself:
-it opens the directory and lends the open descriptor to a short-lived `flock` process (the program the gate-slot limiter
-already uses), which takes the lock on it and ends, and the lock stays with the descriptor the campaign process keeps open.
-No helper outlives the handshake, so nothing can drop the lock while the campaign goes on,
-and a `flock` that fails, is missing or is killed makes the run refuse to start.
-A second run of the same campaign is refused while the first holds it,
-and the kernel drops the lock when the campaign process ends,
-whether the run released it,
-was stopped by `systemctl --user stop`,
-lost its host in a reboot or was killed,
-so there is no lock file to go stale and no takeover to race.
-The lock is needed although the parallel launcher names each campaign's systemd unit,
+The right to run a campaign is a numbered claim file in its evidence directory, held by the campaign process itself
+(`src/campaign-lock.ts`, `src/owner-claim.ts`), made as `package/git-policy/cli/src/native/single_owner_claim.rs` makes its claims.
+`campaign.owner.<generation>` is written whole into a private file and published with one exclusive `link`, so exactly one
+process creates generation `n + 1`; the newest generation is the claim, and it names its owner by process id, birth (start
+time from `/proc/<pid>/stat` field 22 plus the boot id) and PID namespace (`src/process-identity.ts`).
+A second run of the same campaign is refused at once with the owner's process id and claim file named, and never waits.
+A run that ended normally rewrites its claim as released.
+A run that was stopped by `systemctl --user stop`, lost its host in a reboot or was killed leaves its claim naming a process
+that no longer exists with that birth, and the next run takes the next generation; there is nothing to clean up by hand.
+The newest generation file stays as a tombstone, so a run that listed the directory earlier cannot create a number that was
+used.
+An owner in another PID namespace cannot be probed; it counts as alive until its claim file is an hour old.
+The claim knows its owner only by process id, start time and boot.
+The kernel lock this replaced was exact about whether the holder still lived; the claim is exact for a process that was killed
+or lost to a reboot, but a campaign process that handed its work to another process and exited would read as finished.
+A campaign that the earlier release started holds a kernel lock on the evidence directory instead of a claim.
+The run takes its claim first and then asks `flock` once, without waiting, for that lock (`src/legacy-flock.ts`);
+a held lock gives its claim back and refuses the run, naming the earlier release.
+The claim is needed although the parallel launcher names each campaign's systemd unit,
 because a run started by hand,
 or by another launcher under another label for the same file,
 names the same directory,
@@ -278,7 +307,7 @@ campaign of the evidence directory itself (`<evidence>/attempt-NNN/`).
 The pass-1 test selection is deliberately not part of the key: it comes from the source tree on the host, which can
 change while the tested image stays, and a mutant caught by any set of tests is caught.
 Containers are named `cargo-mutants-<key>-pass-1` and `cargo-mutants-<key>`.
-One lock (`campaign.lock` of the evidence directory) covers both passes.
+One claim (`campaign.owner.<generation>` in the evidence directory) covers both passes.
 
 ### Composition and status
 
@@ -393,6 +422,12 @@ the campaigns themselves are run by a person, never by a test.
 ## Source layout
 
 - `bin/mutation-parallel.ts` and `bin/gate-slot.ts` only read the process state and spawn; they hold no logic.
+- The claim files: `src/process-identity.ts` (process id, birth, PID namespace), `src/claim-record.ts` (the text of a claim
+  and the names of its generations), `src/claim-files.ts` (the exclusive `link` publication and the atomic release),
+  `src/claim-liveness.ts` (whether an owner is alive) and `src/owner-claim.ts` (take a claim, read the live owner).
+  `src/campaign-lock.ts` uses one claim per evidence directory, and `src/gate-slot-run.ts` one claim series per slot.
+- `src/legacy-flock.ts` is the one-time probe of the kernel locks the earlier release took; it is the only place that runs
+  `flock`, and it can be deleted with its callers' probe calls once no gate or campaign of that release can still run.
 - `startUnit` (`src/start-units.ts`) starts one unit and reports it;
   a product launcher can use it,
   with `planUnits`,

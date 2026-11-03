@@ -107,7 +107,7 @@ export const launcherUsage: string = [
   `  --log-prefix <text>       log file name prefix (default: ${defaultNamePrefix})`,
   'Gate slots:',
   `  --slot-count <count>      slots, overriding $${slotCountEnvironmentVariable} and the limiter default`,
-  `  --lock-dir <dir>          slot lock directory, overriding $${lockDirectoryEnvironmentVariable}`,
+  `  --lock-dir <dir>          slot claim directory, overriding $${lockDirectoryEnvironmentVariable}`,
   '  --gate-slot <path>        limiter script (default: bin/gate-slot.ts of this package)',
 ].join('\n');
 
