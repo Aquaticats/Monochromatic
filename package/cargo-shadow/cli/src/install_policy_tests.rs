@@ -786,3 +786,16 @@ fn the_non_strict_release_age_warning_is_reported_on_the_frozen_path() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the warning was dropped: {:?}", report.warnings);
 }
+
+/// Review finding (3c P2-1): a trust finding that the owners of the crate could still clear is provisional; when the owners request
+/// fails it is an incomplete evaluation (an operational failure), not a refusal.
+#[test]
+fn an_owners_lookup_failure_does_not_turn_a_provisional_trust_finding_into_a_refusal() {
+    let history: Vec<VersionRecord> = vec![record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")];
+    let registry: RegistryWithoutOwners = RegistryWithoutOwners { inner: registry_of(history) };
+    let versions = [crate::lockfile::LockedVersion { name: "dep".to_string(), version: "1.0.1".to_string() }];
+
+    let result = crate::checks::check_trust(&versions, &settings(), &registry, now());
+
+    assert!(result.is_err(), "a provisional finding was reported as a refusal: {result:?}");
+}

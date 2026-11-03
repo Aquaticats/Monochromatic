@@ -468,8 +468,9 @@ pub fn trust_refusals_partial(
             Ok(owner_ids) => refusals.extend(crate_trust_refusals(&name, &name_versions, &history, settings, now, &owner_ids)),
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => {
-                // The ownerless findings are what is known; they are kept with the failure.
-                refusals.extend(without_owners);
+                // Review finding (3c P2-1): the findings without the owners are provisional (the owners could clear them), so they are
+                // not carried as refusals; only completed evaluations are.
+                drop(without_owners);
                 // `Some`: the present or the absent value of an `Option`.
                 return (refusals, Some(error));
             }
