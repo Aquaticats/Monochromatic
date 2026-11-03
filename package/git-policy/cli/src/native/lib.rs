@@ -821,6 +821,9 @@ pub mod index_writer_commands;
 /// The wait for any program's hold on `index.lock` before a command changes the checkout.
 pub mod index_holder_wait;
 
+/// The service's own retry of a push it stopped or that failed: the pauses, the waiting branches, the final failure.
+pub mod push_retry;
+
 /// Waiting for a foreign index.lock under the classification rules and Git's backoff schedule.
 pub mod index_lock_wait;
 

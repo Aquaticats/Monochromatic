@@ -51,6 +51,8 @@ const REMOTE_REJECTED_MARKER: &str = "[remote rejected]";
 pub use super::auto_push_destination::Destination;
 /// The destination of the plain push of a branch, from the settings alone.
 use super::auto_push_destination::read_destination;
+/// The words that name a conflict in the report.
+use super::push_retry::CONFLICT_PHRASE;
 
 /// What:
 ///  Whether a push's output shows a refusal that a moved remote branch can explain: Git's stale `[rejected]`, or the
@@ -558,7 +560,7 @@ pub fn integrate_and_push(
                     &previous,
                     rejected.exit_code,
                     &format!(
-                        "merging {}/{short} into {short} conflicts in: {}. Nothing was pushed and the worktree was not touched; \
+                        "merging {}/{short} into {short}{CONFLICT_PHRASE}{}. Nothing was pushed and the worktree was not touched; \
                          merge {}/{short} in a separate worktree, resolve the conflicts and push.",
                         destination.remote,
                         paths.join(", "),

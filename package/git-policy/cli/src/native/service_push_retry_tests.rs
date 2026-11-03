@@ -97,3 +97,99 @@ fn a_stopped_push_is_tried_again_without_a_new_commit_and_lands() {
     assert_eq!(second, None, "nothing is left to try again");
     remove(stage.root.as_path());
 }
+
+/// Handlers whose pushes answer from a script, one verdict per push, and that retry like the real ones.
+struct Scripted {
+    /// The verdicts still to give, the next last.
+    verdicts: std::cell::RefCell<Vec<Verdict>>,
+    /// How many pushes ran.
+    pushes: std::cell::Cell<usize>,
+    /// The pushes waiting for a new try.
+    retries: PushRetries,
+}
+
+impl WorkHandlers for Scripted {
+    fn push(&self, _items: &[WorkItem]) -> Verdict {
+        self.pushes.set(self.pushes.get() + 1);
+        return self.verdicts.borrow_mut().pop().unwrap_or(Verdict::Done);
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn retries(&self) -> Option<&PushRetries> {
+        return Some(&self.retries);
+    }
+}
+
+/// A directory standing for a repository, with a push item written for it.
+fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Scripted) {
+    let root: PathBuf = fixture(name);
+    let git_dir: PathBuf = root.join("common");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir_all(&git_dir).expect("common directory");
+    std::fs::create_dir_all(&worktree).expect("worktree directory");
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: worktree.display().to_string(),
+        git_dir: git_dir.display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from("0123456789abcdef0123456789abcdef01234567"),
+        parent: String::new(),
+        created: String::from("2026-11-03T05:40:00.000Z"),
+        tries: 0,
+    };
+    enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("enqueue");
+    let handlers: Scripted = Scripted { verdicts: std::cell::RefCell::new(verdicts), pushes: std::cell::Cell::new(0), retries: PushRetries::with_first_pause(Duration::from_millis(300)) };
+    return (root, git_dir, handlers);
+}
+
+/// Every failure that can pass is tried again, each time after a longer pause, until the push lands; the record of the failure
+/// says the service keeps trying, and goes when the push lands.
+#[test]
+fn a_push_that_keeps_failing_is_tried_again_with_longer_pauses_until_it_lands() {
+    // The script is read from the end: two failures, then success.
+    let (root, git_dir, handlers): (PathBuf, PathBuf, Scripted) =
+        scripted_world("push-retry-grows", vec![Verdict::Done, Verdict::Retry(String::from("Could not resolve host")), Verdict::Retry(String::from("Could not resolve host"))]);
+    let first: Duration = drain(git_dir.as_path(), &handlers, &ClaimTime::read()).expect("a retry is planned");
+    std::thread::sleep(first);
+    let second: Duration = drain(git_dir.as_path(), &handlers, &ClaimTime::read()).expect("a second retry is planned");
+    assert!(second > first + Duration::from_millis(150), "the pause grew: {first:?} then {second:?}");
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
+    assert!(record.contains("tries this push again by itself") && record.contains("Could not resolve host"), "{record}");
+    std::thread::sleep(second);
+    assert_eq!(drain(git_dir.as_path(), &handlers, &ClaimTime::read()), None, "nothing is left to try");
+    assert_eq!(handlers.pushes.get(), 3);
+    assert_eq!(std::fs::read_dir(notice_directory(git_dir.as_path())).map_or(0, |entries| { return entries.flatten().count(); }), 0, "the record went when the push landed");
+    remove(root.as_path());
+}
+
+/// A conflict is final: the push is not tried again, and the person's record stays.
+#[test]
+fn a_conflict_is_not_tried_again() {
+    let (root, git_dir, handlers): (PathBuf, PathBuf, Scripted) =
+        scripted_world("push-retry-conflict", vec![Verdict::Failed(String::from("merging origin/main into main conflicts in: a.txt")), Verdict::Retry(String::from("stalled"))]);
+    let first: Duration = drain(git_dir.as_path(), &handlers, &ClaimTime::read()).expect("a retry is planned");
+    std::thread::sleep(first);
+    assert_eq!(drain(git_dir.as_path(), &handlers, &ClaimTime::read()), None, "a conflict plans no retry");
+    assert_eq!(handlers.pushes.get(), 2);
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
+    assert!(record.contains("conflicts in: a.txt") && !record.contains("tries this push again"), "{record}");
+    remove(root.as_path());
+}
+
+/// A new commit's push replaces the plan of its branch: a push that lands needs no retry.
+#[test]
+fn a_push_that_lands_cancels_the_plan_of_its_branch() {
+    let (root, git_dir, handlers): (PathBuf, PathBuf, Scripted) = scripted_world("push-retry-cancelled", vec![Verdict::Retry(String::from("stalled"))]);
+    assert!(drain(git_dir.as_path(), &handlers, &ClaimTime::read()).is_some());
+    handlers.retries.forget(git_dir.as_path(), "refs/heads/main");
+    assert_eq!(drain(git_dir.as_path(), &handlers, &ClaimTime::read()), None);
+    assert_eq!(handlers.pushes.get(), 1, "a forgotten plan is not pushed");
+    remove(root.as_path());
+}

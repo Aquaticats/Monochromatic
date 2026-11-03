@@ -25,6 +25,7 @@ use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use super::auto_push::AutoPushOutcome;
 use super::claim_time::ClaimTime;
 use super::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
+use super::push_retry::{PushRetries, needs_the_person};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use super::service_claim_renewal::{ClaimRenewal, HeldClaims, Renewal, held_claims, renewal_interval};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
@@ -54,6 +55,9 @@ pub enum Verdict {
     Failed(String),
     /// Nothing was done and nothing is left to retry, but the person should be told why; the text is what they are told.
     Skipped(String),
+    /// The push failed for a reason that can pass (a stall, the ceiling, the network, a held lock, a remote that advanced again);
+    /// the text is what the person should be told, and the service tries the push again on its own, with growing pauses.
+    Retry(String),
 }
 
 /// What runs each kind of work.
@@ -64,6 +68,10 @@ pub trait WorkHandlers {
     fn maintenance(&self, item: &WorkItem) -> Verdict;
     /// Review one landed commit into the repository's shadow log.
     fn review(&self, item: &WorkItem) -> Verdict;
+    /// The pushes waiting for a new try, for the handlers that retry a push; the others report a retryable push as failed.
+    fn retries(&self) -> Option<&PushRetries> {
+        return None;
+    }
     /// Empty the directory of left-out files a snapshot-made worktree set aside; a handler that does not know it skips.
     fn trash(&self, _item: &WorkItem) -> Verdict {
         return Verdict::Skipped(String::from("this handler does not empty trash directories"));
@@ -187,6 +195,86 @@ fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
     }
 }
 
+/// What:
+///  Plan the next try of a push that failed for a reason that can pass, say so in the journal, and give the words the person's
+///  failure record carries.
+/// Why:
+///   The journal line names the cause, the number of the try that is planned and the pause before it, so the service's quiet
+///  between tries is explained; the person's record says the service keeps trying, so they do not push by hand for nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = plannedRetry(gitDir, retries, item, attempt, text);
+/// ```
+fn planned_retry(git_dir: &Path, retries: &PushRetries, item: &WorkItem, attempt: u32, text: &str) -> String {
+    let pause: Duration = retries.schedule(git_dir, item, attempt, Instant::now());
+    let plan: String = format!(
+        "cli-git: the commit service tries this push again by itself in {} seconds (try {}), and keeps trying with longer pauses until the push lands or a conflict needs you.",
+        pause.as_secs(),
+        attempt + 1
+    );
+    let fields: [(&str, String); 3] = [
+        ("CLI_GIT_BRANCH", item.branch_ref.clone()),
+        ("CLI_GIT_OID", item.oid.clone()),
+        ("CLI_GIT_OUTCOME", String::from("retrying")),
+    ];
+    log_entry(
+        Priority::Warning,
+        format!("push will be tried again branch={:?} oid={} next_try={} in_seconds={} cause: {}", item.branch_ref, item.oid, attempt + 1, pause.as_secs(), text.lines().next().unwrap_or_default()).as_str(),
+        &fields,
+    );
+    return format!("{plan}\n{text}");
+}
+
+/// What:
+///  Push again every branch of this Git directory whose pause is over, with no new commit needed.
+/// Why:
+///   The work loop looks at the repository when `drain` tells it to (the wait it returns), and this is what the look does for
+///  a push the service stopped: it lands and the person's failure record goes, it is planned again with a longer pause, or it
+///  is given up on because a conflict needs the person.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const due of retries.takeDue(gitDir)) await settleRetry(await handlers.push([due.item]));
+/// ```
+fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers) {
+    let Some(retries) = handlers.retries() else { return };
+    for due in retries.take_due(git_dir, Instant::now()) {
+        if !is_acceptable(&due.item, git_dir) {
+            crate::service_warn!("the push of {} is not tried again: its repository or branch record is no longer acceptable", due.item.branch_ref);
+            continue;
+        }
+        let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
+        let began: Instant = Instant::now();
+        let verdict: Verdict = handlers.push(std::slice::from_ref(&due.item));
+        let branch: &str = due.item.branch_ref.as_str();
+        let commit: &str = due.item.oid.as_str();
+        match verdict {
+            Verdict::Done => {
+                clear_push_failures_before(git_dir, branch, pushing_since);
+                crate::service_log!("the push of {branch:?} landed on try {} push_ms={}", due.attempt + 1, began.elapsed().as_millis());
+            }
+            Verdict::Retry(text) => {
+                let said: String = planned_retry(git_dir, retries, &due.item, due.attempt + 1, text.as_str());
+                if let Err(reason) = record_push_failure(git_dir, branch, commit, said.as_str()) {
+                    crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
+                }
+            }
+            Verdict::Failed(text) => {
+                crate::service_warn!("the push of {branch:?} failed on try {} and needs you: {}", due.attempt + 1, text.lines().next().unwrap_or_default());
+                if let Err(reason) = record_push_failure(git_dir, branch, commit, text.as_str()) {
+                    crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
+                }
+            }
+            Verdict::Skipped(text) => {
+                if !text.is_empty() && let Err(reason) = record_push_skip(git_dir, branch, commit, text.as_str()) {
+                    crate::service_error!("the skipped push of {commit} could not be recorded for the person: {reason}");
+                }
+            }
+        }
+    }
+}
+
 /// How long a claim goes without a renewal before another instance runs its item again; the holder renews it three times in this
 /// span while it works (`service_claim_renewal.rs`), so a holder that is slow keeps its claim and one that died loses it
 /// after this long.
@@ -221,8 +309,10 @@ pub fn drain_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &Claim
 pub fn drain_with_renewal(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
     tell_about_given_up(git_dir, requeue_expired_reporting(work_dir.as_path(), now, lease, MAX_TRIES).given_up.as_slice());
+    run_due_push_retries(git_dir, handlers);
     drain_pending(git_dir, handlers, lease, renewal);
-    return next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease);
+    let retry_wait: Option<Duration> = handlers.retries().and_then(|retries| { return retries.next_wait(git_dir, Instant::now()); });
+    return [next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease), retry_wait].into_iter().flatten().min();
 }
 
 /// What:
@@ -336,6 +426,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
                 let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
                     Verdict::Done => (Priority::Info, "done", ""),
                     Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
+                    Verdict::Retry(text) => (Priority::Warning, "retrying", text.as_str()),
                     Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
                 };
                 let fields: [(&str, String); 3] = [
@@ -355,10 +446,30 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
                     //  before the items settle: a service that dies between the two pushes again, and nothing is lost.
                     if let Some(newest) = members.last() {
                         clear_push_failures_before(git_dir, newest.item.branch_ref.as_str(), pushing_since);
+                        if let Some(retries) = handlers.retries() {
+                            retries.forget(git_dir, newest.item.branch_ref.as_str());
+                        }
                     }
                     settle_all(work_dir.as_path(), &held, &members, DONE);
                 }
+                Verdict::Retry(text) => {
+                    // Without handlers that retry, a retryable push is a failed one.
+                    let said: String = match (members.last(), handlers.retries()) {
+                        (Some(newest), Some(retries)) => planned_retry(git_dir, retries, &newest.item, 1, text.as_str()),
+                        _ => text,
+                    };
+                    if let Some(newest) = members.last()
+                        && let Err(reason) = record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), said.as_str())
+                    {
+                        crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
+                    }
+                    settle_all(work_dir.as_path(), &held, &members, FAILED);
+                }
                 Verdict::Failed(text) => {
+                    // A failure the service gives up on is no longer waiting for a new try.
+                    if let (Some(newest), Some(retries)) = (members.last(), handlers.retries()) {
+                        retries.forget(git_dir, newest.item.branch_ref.as_str());
+                    }
                     // The record goes before the items settle, so an item in `failed` always has its record.
                     if let Some(newest) = members.last()
                         && let Err(reason) = record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
@@ -391,7 +502,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
                 upkept.push(item.item.repository.clone());
                 let upkeep_began: Instant = Instant::now();
                 match handlers.maintenance(&item.item) {
-                    Verdict::Failed(reason) => crate::service_warn!("automatic maintenance did not run: {reason}"),
+                    Verdict::Failed(reason) | Verdict::Retry(reason) => crate::service_warn!("automatic maintenance did not run: {reason}"),
                     Verdict::Done | Verdict::Skipped(_) => crate::service_log!("automatic maintenance ran maintenance_ms={}", upkeep_began.elapsed().as_millis()),
                 };
             }
@@ -402,7 +513,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
         for item in still_held(&held, work_dir.as_path(), trashes) {
             match handlers.trash(&item.item) {
                 Verdict::Done => settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE),
-                Verdict::Failed(reason) => {
+                Verdict::Failed(reason) | Verdict::Retry(reason) => {
                     eprintln!("cli-git-service: the trash {} could not be emptied: {reason}", item.item.parent);
                     settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), FAILED);
                 }
@@ -421,7 +532,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
             }
             match verdict {
                 Verdict::Done => settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE),
-                Verdict::Failed(reason) => {
+                Verdict::Failed(reason) | Verdict::Retry(reason) => {
                     crate::service_warn!("the review of {} failed: {reason}", item.item.oid);
                     settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), FAILED);
                 }
@@ -482,9 +593,8 @@ pub struct GitHandlers {
     /// Variables a test adds to the environment of the push, such as a short stall window.
     #[cfg(test)]
     push_environment: Vec<(std::ffi::OsString, std::ffi::OsString)>,
-    /// The first pause before a stopped push is tried again, which a test makes short.
-    #[cfg(test)]
-    retry_pause: Option<Duration>,
+    /// The pushes waiting for a new try.
+    push_retries: PushRetries,
 }
 
 /// Methods over the real handlers.
@@ -498,8 +608,7 @@ impl GitHandlers {
             review_endpoint: None,
             #[cfg(test)]
             push_environment: Vec::new(),
-            #[cfg(test)]
-            retry_pause: None,
+            push_retries: PushRetries::from_environment(),
         };
     }
 
@@ -513,7 +622,7 @@ impl GitHandlers {
     /// The same handlers with the first pause before a push is tried again given; tests only.
     #[cfg(test)]
     pub fn with_retry_pause(mut self, pause: Duration) -> GitHandlers {
-        self.retry_pause = Some(pause);
+        self.push_retries = PushRetries::with_first_pause(pause);
         return self;
     }
 
@@ -566,9 +675,15 @@ impl WorkHandlers for GitHandlers {
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
             Ok(result) if result.exit_code == 0 => Verdict::Done,
-            Ok(result) => Verdict::Failed(result.shown),
-            Err(error) => Verdict::Failed(format!("{error}")),
+            // Only a conflict needs the person; every other failure can pass (a stall, the ceiling, the network, a held lock).
+            Ok(result) if needs_the_person(result.shown.as_str()) => Verdict::Failed(result.shown),
+            Ok(result) => Verdict::Retry(result.shown),
+            Err(error) => Verdict::Retry(format!("{error}")),
         };
+    }
+
+    fn retries(&self) -> Option<&PushRetries> {
+        return Some(&self.push_retries);
     }
 
     fn trash(&self, item: &WorkItem) -> Verdict {
