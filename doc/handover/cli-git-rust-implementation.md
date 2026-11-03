@@ -20,9 +20,10 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
 
 ### Installed versions
 
-- Git wrapper `monochromatic-git-policy-cli` 0.5.25 (`toolchain.lock.json`,
-  row `cargo:monochromatic-git-policy-cli`;
-  `git --version` prints "monochromatic-git-policy-cli 0.5.25,
+- Git wrapper `monochromatic-git-policy-cli` 0.5.26 (`toolchain.lock.json`,
+  row `cargo:monochromatic-git-policy-cli`,
+  lock commit `c76a6b6d3e`;
+  `git --version` prints "monochromatic-git-policy-cli 0.5.26,
   shadowing git at /usr/bin/git" over Git 2.56.0).
 - `monochromatic-mpm-shadow` 0.2.5,
   `monochromatic-pnpm-shadow` 0.1.1,
@@ -38,23 +39,8 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
 
 ### Release in flight
 
-- Wrapper 0.5.26 is dispatched:
-  crate-release run 41642288130 (created 2026-11-03T13:12:34Z,
-  in progress at the time of writing).
-  It was built from main after the gate `gpc-gate-release-0-5-26-final-candidate-20261103T074924-0500` passed 4210 of
-  4210
-  (6 skipped,
-  `gate-exit-status=0`).
-  Contents:
-  the main-commit speed work,
-  the merge fixes and push retry plan,
-  stale ref lock clearing,
-  the test-helpers cleanup
-  and warn-and-commit for a named conflicted path.
-- After the run publishes:
-  `node ~/temp/agent/upgrade-wrapper.ts 0.5.26`,
-  then `git --version` in a fresh login shell,
-  then one sample commit through the new service and its journal line (`journalctl --user --identifier=cli-git`).
+None.
+0.5.26 was published to crates.io at 2026-11-03T13:21:01Z and installed by `upgrade-wrapper.ts`.
 
 ### Unmerged branches and worktrees of this effort
 
@@ -117,9 +103,23 @@ why each took 60 s is unexplained).
 The perf branch changed this (throwaway of main's shape:
 wrapped commit median 651 ms to 437 ms,
 native 63 ms).
-Remaining:
-install 0.5.26,
-then measure commits and merges on the real main checkout against native Git,
+Measured with 0.5.26 installed (2026-11-03T08:27:22-05:00):
+the lock commit `c76a6b6d3e` of one file took 66.8 s,
+of which the service's follow-up `git reset -q <commit> --pathspec-from-file=-` ran 59 s inside the `index.lock`
+hold (`lock_hold_ms=59122`,
+`sync_ms=59118`);
+the next `git merge` waited 21 s for that commit and then over 40 s in the wrapper's
+`git diff-index --cached --quiet HEAD`.
+Owner: "Can't we skip the git reset?"
+Answer:
+the index entries must be updated (or the next commit reverts the committed paths),
+but no Git needs to run for it.
+Agent on `perf/git-policy-cli-follow-up-index-in-process` writes the committed entries in process,
+as `builtin/commit.c` does for a partial commit,
+and answers the merge's `diff-index` check in process,
+with differential tests against real Git and a measured before and after.
+Remaining after that:
+measure commits and merges on the real main checkout against native Git,
 under the load there is,
 and report counts.
 Plan:
@@ -609,6 +609,13 @@ Also:
 but auth and server hook declines stop until your next commit."
 (SPEC,
 same section).
+Answered by the question tool on 2026-11-03 and not yet in main's SPEC
+(they are on `fix/git-policy-cli-commits-never-fail` until it merges):
+"Same as the ref lock (Recommended)" for a live foreign `index.lock`;
+"Save on the side ref (Recommended)" for a branch a foreign program keeps moving;
+"Leave out wrapper refs (Recommended)" for `git push --mirror` (everything except `refs/cli-git/*`,
+with a line saying so);
+"Amend the pending commit (Recommended)" for an amend while commits are pending.
 
 ### Design stance
 
