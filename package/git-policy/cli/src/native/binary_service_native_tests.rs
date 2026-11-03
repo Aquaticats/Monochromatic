@@ -307,10 +307,11 @@ fn summary_name(line: &str) -> String {
     return line.split_whitespace().nth(1).expect("a name after the branch").trim_end_matches(']').to_string();
 }
 
-/// A commit built again because the branch moved prints one summary line, and it names the commit that landed: the build that
-///  never landed prints nothing a person could copy.
+/// A commit Git builds again because the branch moved prints Git's summary for each build, as Git prints them (the owner's
+///  decision: the wrapper adds no `--quiet`, "Letting native git emit whatever it wants to is expected."), and the last one
+///  names the commit that landed. The first names a build that never landed; the wrapper adds no line of its own.
 #[test]
-fn a_commit_built_again_prints_one_summary_line_naming_the_landed_commit() {
+fn a_commit_built_again_prints_gits_summary_for_each_build_and_the_last_names_the_landed_commit() {
     let fixture: Fixture = fixture("service-native-one-summary");
     let (repo, _start_commit) = repository_with_programs(&fixture);
     let marker: PathBuf = fixture.root.join("raced-once");
@@ -322,10 +323,11 @@ fn a_commit_built_again_prints_one_summary_line_naming_the_landed_commit() {
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let stdout: String = String::from_utf8_lossy(&output.stdout).into_owned();
     let summaries: Vec<&str> = stdout.lines().filter(|line| { return line.starts_with('['); }).collect();
-    assert_eq!(summaries.len(), 1, "one summary line, not one per build: {stdout}");
+    assert_eq!(summaries.len(), 2, "Git's summary of the build that lost the race, then of the build that landed: {stdout}");
     let landed: String = query(&fixture, &repo, &["rev-parse", "HEAD"]);
-    assert!(landed.starts_with(summary_name(summaries[0]).as_str()), "the line names the landed commit {landed}: {stdout}");
-    assert!(summaries[0].contains("signed and moved"), "{stdout}");
+    assert!(landed.starts_with(summary_name(summaries[1]).as_str()), "the last line names the landed commit {landed}: {stdout}");
+    assert!(!landed.starts_with(summary_name(summaries[0]).as_str()), "the first line names the build that never landed: {stdout}");
+    assert!(summaries.iter().all(|line| { return line.contains("signed and moved"); }), "{stdout}");
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);

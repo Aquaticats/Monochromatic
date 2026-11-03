@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 
 /// The tracked files every state changes; three of them are named like options.
-const TRACKED: [&str; 4] = ["a.txt", "-dash.txt", "--quiet", "-o"];
+pub(super) const TRACKED: [&str; 4] = ["a.txt", "-dash.txt", "--quiet", "-o"];
 
 /// A raw real-Git run that may fail, in the fixture's hermetic environment.
 fn try_git(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Output {
@@ -34,7 +34,7 @@ fn write_all(fixture: &Fixture, repo: &Path, text: &str) {
 
 /// The sequencer state a control starts from.
 #[derive(Clone, Copy, Debug)]
-enum State {
+pub(super) enum State {
     /// `git revert --no-commit` of a clean change.
     Revert,
     /// `git cherry-pick --no-commit` of a clean change.
@@ -77,7 +77,7 @@ impl State {
     }
 
     /// A repository in this state: a base commit of the tracked files, a change to all of them on `other`, and the state made.
-    fn prepare(self, fixture: &Fixture, name: &str) -> PathBuf {
+    pub(super) fn prepare(self, fixture: &Fixture, name: &str) -> PathBuf {
         let repo: PathBuf = super::support::repository(fixture, std::ffi::OsStr::new(name));
         git(fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
         write_all(fixture, &repo, "base\n");

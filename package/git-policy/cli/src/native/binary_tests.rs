@@ -341,6 +341,10 @@ mod service_native;
 #[path = "binary_service_sequencer_tests.rs"]
 mod service_sequencer;
 
+/// Guard: no option of the wrapper's follows the person's `--` in any Git start, and no `--quiet` is added.
+#[path = "binary_option_order_guard_tests.rs"]
+mod option_order_guard;
+
 /// The route of a commit and the wrapper's own provisioning of socket activation, against a stand-in session bus.
 #[path = "binary_service_provision_tests.rs"]
 mod service_provision;
