@@ -443,7 +443,7 @@ Capture and acceptance (client)
   and rule D is applied to it before the answer, so a record that is visible but not durable is never acknowledged. Crash: repeated by C4 from the candidate;
   a request that C5 has adopted is not repeated.
 - C5 adopt (lane). Pre: accepted, no `adopt <id>` yet, L4 done. Do: journal the intent; append `adopt <id> <crc>` to `lane/order` (this
-  line is the authority); link the record into `queue/`; create the object-store root `refs/cli-git/<instance>/hold/<id>` (T1); S1 replacement adding the request to the logical tail and the map
+  line is the authority); link the record into `queue/`; create the hold ref `refs/cli-git/<instance>/hold/<id>` best effort (T1: extra protection, never a precondition of building or publishing); S1 replacement adding the request to the logical tail and the map
   with `resume = B1` (for a merge `resume = MG1`). Crash: L4
   completes the link and the S1 replacement; a second `adopt` is never appended.
 
@@ -596,30 +596,29 @@ Materialization and retirement
   execution tree is empty (L6). Release: T1-nocommit for `id` (ledger line exists, execution tree empty, no entry remains), spool released then.
   C3 lookup: the terminal route for `id` follows `superseded by` to `id2` and answers `id2`'s state, so "a terminal line exists for this
   identity" is not enough and a resend of `id` is answered as superseded by `id2`. Crash: repeated; the ledger line is idempotent per `id`.
-- T1 retire. Pre: the request has a terminal outcome and every entry of the maintenance registry that overlaps the request's lifetime is `terminal`
-  by G3 (an entry that is not `terminal` blocks, whatever its scope: an entry with an empty or absent scope and a live launcher is not terminal,
-  because that launcher may still launch). Two kinds. T1-commit, for a request whose commit is in the object store and published (materialized
-  or voided): the connectivity check from the branch tip passes and the request holds its object-store root (below). T1-nocommit, for a request
-  that has no commit to publish (`superseded`, `refused`, `conflicted`, a held version): the hook execution tree of the version is empty, no
-  consumption entry remains for it, and nothing is claimed reachable; it needs no connectivity check. A request that is saved (`pending`,
-  `landing`, `rewritten-away`, or `conflicted` whose inputs the person has not disposed of) is never retired by T1 and never loses its spool.
-  Do, in this order: (1) write `releases/<instance>/<id>` (the release intent) by the link method of C3 and fsync; (2) re-read the registry and, if
-  any entry created after the Pre observation is not `terminal`, withdraw the intent and keep the retention (a later T1 repeats from the Pre);
-  (3) for T1-commit, re-run the connectivity check from the tip; (4) append the terminal line to this lane's own ledger; (5) release the spool;
-  (6) remove the object-store root `refs/cli-git/<instance>/hold/<id>` last; (7) remove the intent. Crash: the intent names an unfinished
-  release; L4 repeats from step (2); the ledger line exists before any release, so retention is never released first.
-  The object-store root (revision 10; R9-6): the lane creates `refs/cli-git/<instance>/hold/<id>`, naming the request's commit (or its imported
-  closure), at C5 adopt, and the request is not `ready` without it; if the ref store refuses it, the request is `unrooted`, T1 never releases its
-  spool, and the notice says so. The root is a ref in the lane's own namespace, so no foreign program contends for it, and it is excluded from
-  pushes. Why a late maintenance admission cannot take the closure, as an invariant over the interval of a destructive operation: a closure is
-  rooted from its import until step (6); a destructive run that takes its reachability view at any time before step (6) includes the root
-  (`git prune` marks from all refs), so the closure is reachable in that view whatever the branch did meanwhile, including a temporary loss of
-  reachability; a run that takes its view after step (6) takes it after step (3) found the commit reachable from the tip, and loses it only if a
-  person rewrites the branch after that check (the stated residue; the reflog keeps the object for the person's own expiry). That a prune view includes
-  `refs/cli-git/*` is a backend obligation, tested against the installed Git before the root is relied on. The alternative, a handshake in
-  which G1 reads the release intents after publishing its reservation and defers only on an intent whose lane has a live owner, T1 withdraws on
-  seeing a reservation, and a dead lane's intent is not waited on (its L4 repeats T1 from step (2) and sees the reservation), is the owner
-  choice G below.
+- T1 retire. Pre: the request has a terminal outcome already published to the ledger (T0 below) and every entry of the maintenance registry that overlaps the request's
+  lifetime is `terminal` by G3 (an entry that is not `terminal` blocks, whatever its scope: an entry with an empty or absent scope and a live launcher is not
+  terminal, because that launcher may still launch). Two kinds. T1-commit, for a request whose commit is in the object store and published (materialized
+  or voided). T1-nocommit, for a request that has no commit to publish (`superseded`, `refused`, `withdrawn`, `conflicted`, a held version): the hook execution tree of
+  the version is empty and no consumption entry remains for it; it needs no connectivity check. A request that is saved (`pending`, `landing`,
+  `rewritten-away`, a `withdrawn` or `conflicted` request whose inputs the person has not disposed of) never loses its spool. Do, in this order: (1) write
+  `releases/<instance>/<id>` (the release intent) by the link method of C3 and fsync; (2) for T1-commit, run the connectivity check from the tip; (3) re-read the
+  maintenance registry after the check (revision 11: the order is the proof, see below) and if any entry that overlaps the request's lifetime or was created since
+  the Pre is not `terminal`, withdraw the intent and keep everything (a later T1 repeats from the Pre); (4) append `retired <id>` to this lane's ledger; (5) release
+  the spool; (6) remove the hold ref `refs/cli-git/<instance>/hold/<id>` if there is one; (7) remove the intent. Crash: the intent names an unfinished release;
+  L4 repeats from step (2); the ledger line exists before any release, so retention is never released first. Retirement is retention, not a wait: nothing blocks
+  on it, and it may be deferred for as long as a run is open (the cost is disk).
+  Why a late maintenance admission cannot take the closure (revision 11; R10-4). The argument is an order, not a root. A run is admitted by a durable reservation
+  (G1) before any destructive process exists and so before its first reachability view; a run is `terminal` only when no view or deletion can follow (G3).
+  T1 re-reads the registry after the connectivity check and before any release. A run admitted before that read is non-terminal in it (T1 withdraws) or terminal
+  (all its views and deletions are over, so the check, which ran after them, found the closure complete or failed and T1 kept everything). A run admitted after that
+  read takes every view after the check found the commit reachable from the tip, so it can lose the closure only if a person rewrites the branch after the
+  check (the stated residue; the reflog keeps the object for the person's own expiry). No ref in the object store is load-bearing, so a person deleting
+  `refs/cli-git/*` removes protection only from a run already open, which the order has already blocked. The mixed-time view of a run that reads the branch while
+  it is away and reads other refs afterwards is covered because that run began before the second registry read. The hold ref is extra protection
+  where the ref store allows it, created at C5 and advanced to cover each built commit best effort; its absence changes nothing in this argument. Obligations
+  for step 1 and for the backend: G1 is durable and visible before G2 for every wrapper-started run; a run takes no reachability view before it is launched; a
+  deletion by a run precedes its `terminal` record.
 Merges (a merge is a request of the same lane, in the same order as commits and pushes; MG1 to MG6 keep their names, revision 11 repairs their bodies
 for R10-3 and R10-9; the order is checkout first, swap second, owner choice M-A). Two authorities are kept apart. Authority to do: with `index.lock` held, `HEAD`
 is attached to the request's target ref in both reads around the index read, or, for a detached target, is detached and `M`'s base is an ancestor of its
