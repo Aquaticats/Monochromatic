@@ -10319,3 +10319,13 @@ by the coordinator at merge.
   host); fix and main merged into the stack; rerun gate
   `gpc-gate-release-0.5.22-lock-free-add-rerun-20261103T034827-0500` running. Release 0.5.21 run 41605647987 being
   waited on.
+- 2026-11-03T03:59:32-05:00: 0.5.21 published (crates.io 2026-11-03T08:52:50Z, run 41605647987) and installed: `git --version`
+  names 0.5.21; install commit `f22aafad62` (toolchain lock) took 1842 ms with the service upgrade (0.5.20 retired
+  after its batch, 0.5.21 started; landing 65 ms, `lock_hold_ms` 32). Conversion dry run with 0.5.21
+  (`~/temp/agent/convert-dry-run-0.5.21.log`): 183 looked at, 164 already subvolumes, 18 would convert (all the
+  former config-reader refusals; zero lines with the old reason), 1 skipped for real content
+  (`.claude/worktrees/follow-ups-059`: `package/forbidden-strings/core/Cargo.lock` differs from the commit). Real
+  conversion running as unit `cli-git-convert-all-20261103T035840-0500`. QUEUED small fix: a dry run's summary
+  says "0 converted or completed" beside "would convert" lines; it should count what would convert. 0.5.22 stack
+  rerun gate passed (3970 run, 3970 passed, `gate-exit-status=0`) and is merged into main; release after the
+  0.5.21 add check (new worktree's `node_modules` resolve) returns.
