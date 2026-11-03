@@ -12,9 +12,35 @@ use crate::worktree_clean::{check_clean_tracked, check_clean_tracked_by_content,
 use crate::worktree_convert::inspect;
 use std::os::unix::ffi::OsStrExt;
 
+/// How long a step that must not block may take in a control.
+const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// The mode of a file only its owner may use.
+const OWNER_ONLY: libc::mode_t = 0o600;
+
+/// How many macros the reverse chain of the closure control defines.
+const MACRO_CHAIN_LENGTH: usize = 4_000;
+
+/// Run `work` on a thread and fail when it does not finish within the patience.
+fn finishes<T: Send + 'static>(what: &str, work: impl FnOnce() -> T + Send + 'static) -> T {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _sent = sender.send(work());
+    });
+    return receiver.recv_timeout(PATIENCE).unwrap_or_else(|_error| { panic!("{what} did not finish within {PATIENCE:?}") });
+}
+
+/// A named pipe at `path`.
+fn make_pipe(path: &Path) {
+    let name = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), OWNER_ONLY) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
 /// An environment that names no system or global file and the given system attributes.
 fn environment(system_attributes: SystemAttributes) -> ConversionEnvironment {
-    return ConversionEnvironment { scope: ScopeEnvironment { no_system: true, ..ScopeEnvironment::default() }, system_attributes };
+    return ConversionEnvironment { scope: ScopeEnvironment { no_system: true, ..ScopeEnvironment::default() }, system_attributes, alternate_attribute_source: None };
 }
 
 /// Run the content check on a worktree.
@@ -53,7 +79,7 @@ fn the_system_attributes_file_is_not_derived_from_the_system_config_path() {
     let elsewhere: PathBuf = parent.join("custom.gitconfig");
     std::fs::write(&elsewhere, "").expect("system config");
     make_stale(worktree.join("target").as_path());
-    let moved: ConversionEnvironment = ConversionEnvironment { scope: ScopeEnvironment { system: Some(elsewhere), ..ScopeEnvironment::default() }, system_attributes: SystemAttributes::File(etc.join("gitattributes")) };
+    let moved: ConversionEnvironment = ConversionEnvironment { scope: ScopeEnvironment { system: Some(elsewhere), ..ScopeEnvironment::default() }, system_attributes: SystemAttributes::File(etc.join("gitattributes")), alternate_attribute_source: None };
     let reason: String = check(worktree.as_path(), &moved).expect_err("the attribute applies");
     assert!(reason.contains("target") && reason.contains("ident") && reason.contains("etc/gitattributes"), "{reason}");
     check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect("the switch turns the file off");
@@ -243,4 +269,110 @@ fn a_file_that_grows_during_the_look_is_refused_and_the_read_is_bounded() {
     assert_eq!(served.get(), 1_001, "never more than the limit and one byte");
     assert_eq!(read_at_most(&b"abc"[..], 3).expect("read"), Some(b"abc".to_vec()));
     remove(parent.as_path());
+}
+
+/// Every quoted line refuses the paths below its directory, whatever it sets and wherever its tokens end: an attribute value that
+///  holds the macro marker, a token glued to the closing quote, and a line that sets nothing the content cares about.
+#[test]
+fn every_quoted_line_refuses_at_every_source_level() {
+    for (label, in_directory, text) in [
+        ("macro marker in a value", true, "\"target\" ident note=[attr]x\n"),
+        ("token glued to the closing quote", false, "\"target\"ident\n"),
+        ("a quoted line that sets nothing", false, "\"other\" -text\n"),
+    ] {
+        let (parent, root, worktree) = settled(format!("content-quoted-{}", label.replace(' ', "-")).as_str(), &|root: &Path| {
+            std::fs::create_dir(root.join("d")).expect("d");
+            std::fs::write(root.join("d/target"), b"$Id: old $\n").expect("target");
+        });
+        if in_directory {
+            std::fs::write(worktree.join("d/.gitattributes"), text.as_bytes()).expect("directory attributes");
+        } else {
+            std::fs::create_dir_all(root.join(".git/info")).expect("info");
+            std::fs::write(root.join(".git/info/attributes"), text.as_bytes()).expect("info attributes");
+        }
+        make_stale(worktree.join("d/target").as_path());
+        let reason: String = check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect_err(label);
+        assert!(reason.contains("quoted"), "{label}: {reason}");
+        remove(parent.as_path());
+    }
+}
+
+/// A named pipe where an attributes file should be ends the check with a reason instead of blocking it.
+#[test]
+fn a_named_pipe_as_an_attributes_file_does_not_block() {
+    let (parent, root, worktree) = settled("content-pipe", &|root: &Path| {
+        std::fs::create_dir(root.join("d")).expect("d");
+        std::fs::write(root.join("d/target"), b"$Id: old $\n").expect("target");
+    });
+    std::fs::create_dir_all(root.join(".git/info")).expect("info");
+    make_pipe(root.join(".git/info/attributes").as_path());
+    make_stale(worktree.join("d/target").as_path());
+    let at: PathBuf = worktree.clone();
+    let outside = finishes("the check with a pipe in info/attributes", move || { return check(at.as_path(), &environment(SystemAttributes::Disabled)); });
+    assert!(outside.expect_err("pipe").contains("not a plain file"), "info/attributes");
+    std::fs::remove_file(root.join(".git/info/attributes")).expect("remove the pipe");
+    make_pipe(worktree.join("d/.gitattributes").as_path());
+    let there: PathBuf = worktree.clone();
+    let inside = finishes("the check with a pipe as a directory's attributes", move || { return check(there.as_path(), &environment(SystemAttributes::Disabled)); });
+    assert!(inside.is_err(), "d/.gitattributes");
+    remove(parent.as_path());
+}
+
+/// A long reverse chain of macros is followed in work that grows with its length, not with the cube of it.
+#[test]
+fn a_long_chain_of_macros_is_followed_in_linear_work() {
+    let (parent, root, worktree) = settled("content-macros", &|root: &Path| { std::fs::write(root.join("target"), b"$Id: old $\n").expect("target"); });
+    let mut text: String = String::new();
+    for index in (1..=MACRO_CHAIN_LENGTH).rev() {
+        text.push_str(format!("[attr]chain{index} chain{}\n", index - 1).as_str());
+    }
+    text.push_str("[attr]chain0 ident\n");
+    text.push_str(format!("target chain{MACRO_CHAIN_LENGTH}\n").as_str());
+    std::fs::create_dir_all(root.join(".git/info")).expect("info");
+    std::fs::write(root.join(".git/info/attributes"), text).expect("attributes");
+    make_stale(worktree.join("target").as_path());
+    let at: PathBuf = worktree.clone();
+    let outcome = finishes("the macro closure", move || { return check(at.as_path(), &environment(SystemAttributes::Disabled)); });
+    assert!(outcome.expect_err("the chain reaches ident").contains("chain"), "the reason names the macro");
+    remove(parent.as_path());
+}
+
+/// The stat-only proof reaches files below a held root too: a directory moved away and replaced by a link is not read through.
+#[test]
+fn the_stat_only_proof_does_not_follow_a_link_in_a_parent() {
+    let (parent, _root, worktree) = settled("content-stat-link", &|_root: &Path| {});
+    let found = inspect(worktree.as_path()).expect("registered");
+    check_clean_tracked(worktree.as_path(), found.admin.as_path(), found.common.as_path()).expect("positive control");
+    let away: PathBuf = parent.join("src-away");
+    std::fs::rename(worktree.join("src"), &away).expect("move the directory away");
+    std::os::unix::fs::symlink(&away, worktree.join("src")).expect("link in its place");
+    let reason: String = check_clean_tracked(worktree.as_path(), found.admin.as_path(), found.common.as_path()).expect_err("a link");
+    assert!(reason.contains("src/") && reason.contains("link"), "{reason}");
+    remove(parent.as_path());
+}
+
+/// A tree chosen as the source of attributes (`GIT_ATTR_SOURCE`, `attr.tree`, the command line) is not the worktree files the
+///  judge reads, so the content shortcut is refused; an entry the stat data vouches for is unaffected.
+#[test]
+fn an_alternate_attribute_source_refuses_the_content_shortcut() {
+    let (parent, root, worktree) = settled("content-source", &|root: &Path| { std::fs::write(root.join("target"), b"$Id: old $\n").expect("target"); });
+    let selected: ConversionEnvironment = ConversionEnvironment { alternate_attribute_source: Some(String::from("GIT_ATTR_SOURCE is set")), ..environment(SystemAttributes::Disabled) };
+    check(worktree.as_path(), &selected).expect("every entry is vouched for by its stat data, so no content is read");
+    make_stale(worktree.join("target").as_path());
+    let reason: String = check(worktree.as_path(), &selected).expect_err("selected by the environment");
+    assert!(reason.contains("GIT_ATTR_SOURCE") && reason.contains("cannot be ruled out"), "{reason}");
+    check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect("positive control: without a source the content is decided");
+    git(root.as_path(), &["config", "attr.tree", "HEAD"]);
+    let configured: String = check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect_err("selected by the configuration");
+    assert!(configured.contains("attr.tree"), "{configured}");
+    remove(parent.as_path());
+}
+
+/// The environment of a process names an attribute source when `GIT_ATTR_SOURCE` is there, whatever its value.
+#[test]
+fn the_process_environment_names_an_attribute_source() {
+    let with = |value: &str| -> Vec<(OsString, OsString)> { return vec![(OsString::from("GIT_ATTR_SOURCE"), OsString::from(value))]; };
+    assert!(ConversionEnvironment::from_variables(with("HEAD").as_slice()).alternate_attribute_source.is_some());
+    assert!(ConversionEnvironment::from_variables(with("").as_slice()).alternate_attribute_source.is_some());
+    assert!(ConversionEnvironment::from_variables(&[]).alternate_attribute_source.is_none());
 }

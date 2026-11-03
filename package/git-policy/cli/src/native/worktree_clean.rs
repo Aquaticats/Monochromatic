@@ -248,23 +248,6 @@ fn index_differs_from_tree(index: &[IndexEntry], tree: &[FlatEntry]) -> Option<C
 }
 
 /// What:
-///  The reason a tracked file differs from its index entry, or nothing when `lstat` agrees with the entry.
-/// Why:
-///   This is Git's fast path: equal size, times, inode, owner and mode mean Git would not look at the content.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function fileDiffersFromEntry(root: string, entry: StatEntry, indexSeconds: number): string | undefined;
-/// ```
-fn file_differs_from_entry(root: &Path, entry: &StatEntry, index_seconds: u32) -> Option<CleanRefusal> {
-    let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
-    let Ok(metadata) = std::fs::symlink_metadata(root.join(OsStr::from_bytes(entry.path.as_slice()))) else {
-        return Some(CleanRefusal::new(CleanRefusalKind::FileChanged, format!("{shown} is missing from the worktree")));
-    };
-    return stat_finding(entry, &metadata, index_seconds);
-}
-
-/// What:
 ///  What the stat data of an index entry says about a file.
 /// Why:
 ///   A file the data cannot vouch for (a racily clean entry, a stale stat) is not the same as a file that certainly changed:
@@ -358,19 +341,27 @@ pub fn metadata_differs_from_entry(entry: &StatEntry, metadata: &std::fs::Metada
 ///  The first reason a tracked file of `root` differs from its index entry, or nothing when every file agrees.
 /// Why:
 ///   After a snapshot the same comparison runs against the snapshot's own files, so a source that changed while the
-///  snapshot was taken is caught on the copy.
+///  snapshot was taken is caught on the copy. The files are reached below a held root with no link followed, so a directory
+///  replaced by a link is not read through.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function treeDiffersFromIndex(root: string, entries: StatEntry[], indexSeconds: number): string | undefined;
 /// ```
 pub fn tree_differs_from_index(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
-    return tree_refusal(root, entries, index_seconds).map(|refusal: CleanRefusal| { return refusal.reason; });
+    return match open_root(root) {
+        Ok(held) => tree_differs_from_index_beneath(&held, entries, index_seconds),
+        Err(error) => Some(format!("{} cannot be opened without following a link ({error})", root.display())),
+    };
 }
 
-/// The first refusal of a tracked file of `root` against its index entry, with its kind.
+/// The first refusal of a tracked file of `root` against its index entry, with its kind; the files are reached below a held
+///  root with no link followed.
 fn tree_refusal(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<CleanRefusal> {
-    return entries.iter().find_map(|entry: &StatEntry| { return file_differs_from_entry(root, entry, index_seconds); });
+    return match open_root(root) {
+        Ok(held) => tree_refusal_beneath(&held, entries, index_seconds),
+        Err(error) => Some(CleanRefusal::unreadable(format!("{} cannot be opened without following a link ({error})", root.display()))),
+    };
 }
 
 /// What the content decision needs besides the entries: the worktree, its Git directories, the environment and the format.
@@ -449,19 +440,25 @@ fn tree_differs_from_index_by_content(target: &ContentTarget<'_>, entries: &[Sta
 /// function treeDiffersFromIndexBeneath(root: Dir, entries: StatEntry[], indexSeconds: number): string | undefined;
 /// ```
 pub fn tree_differs_from_index_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
+    return tree_refusal_beneath(root, entries, index_seconds).map(|refusal: CleanRefusal| { return refusal.reason; });
+}
+
+/// The first refusal of a tracked file below the held directory `root` against its index entry, with its kind.
+fn tree_refusal_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Option<CleanRefusal> {
+    let changed = |reason: String| -> Option<CleanRefusal> { return Some(CleanRefusal::new(CleanRefusalKind::FileChanged, reason)); };
     let mut cached: Option<(Vec<std::ffi::OsString>, std::fs::File)> = None;
     for entry in entries {
         let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
-        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Some(format!("{shown} is not a plain path")) };
-        let Some((name, parents)) = names.split_last() else { return Some(format!("{shown} is not a plain path")) };
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Some(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
+        let Some((name, parents)) = names.split_last() else { return Some(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
         if cached.as_ref().is_none_or(|(held, _directory): &(Vec<std::ffi::OsString>, std::fs::File)| { return held.as_slice() != parents; }) {
-            let Ok(directory) = open_directory_beneath(root, parents) else { return Some(format!("{shown} is missing from the worktree or reached through a link")) };
+            let Ok(directory) = open_directory_beneath(root, parents) else { return changed(format!("{shown} is missing from the worktree or reached through a link")) };
             cached = Some((parents.to_vec(), directory));
         }
-        let Some((_held, directory)) = cached.as_ref() else { return Some(format!("{shown} is missing from the worktree")) };
-        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return Some(format!("{shown} is missing from the worktree")) };
-        if let Some(reason) = metadata_differs_from_entry(entry, &metadata, index_seconds) {
-            return Some(reason);
+        let Some((_held, directory)) = cached.as_ref() else { return changed(format!("{shown} is missing from the worktree")) };
+        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return changed(format!("{shown} is missing from the worktree")) };
+        if let Some(refusal) = stat_finding(entry, &metadata, index_seconds) {
+            return Some(refusal);
         }
     }
     return None;

@@ -78,3 +78,37 @@ fn help_is_printed() {
     let action: Action = convert_action(&ConvertArguments { help: true, ..ConvertArguments::default() }, Path::new("."));
     assert!(matches!(action, Action::Exit { code: 0, ref stdout, .. } if stdout.contains("--abandon")));
 }
+
+/// A real run says the risk once, before it touches the first worktree; a dry run, an abandon and an empty list say nothing.
+#[test]
+fn the_risk_is_said_once_before_anything_is_converted() {
+    let (parent, root) = two_worktrees("convert-command-risk");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let real: ConvertArguments = ConvertArguments { all: true, ..ConvertArguments::default() };
+    let (code, lines) = run(&platform, &real, root.as_path());
+    assert_eq!(code, 0, "{lines:#?}");
+    assert_eq!(lines.iter().filter(|line: &&String| { return line.as_str() == RISK_NOTICE; }).count(), 1, "said once: {lines:#?}");
+    assert_eq!(lines.first().map(String::as_str), Some(RISK_NOTICE), "before the first worktree is named");
+    let dry: ConvertArguments = ConvertArguments { dry_run: true, all: true, ..ConvertArguments::default() };
+    let (_dry_code, dry_lines) = run(&platform, &dry, root.as_path());
+    assert!(!dry_lines.iter().any(|line: &String| { return line.as_str() == RISK_NOTICE; }), "a dry run removes nothing");
+    remove(parent.as_path());
+}
+
+/// An attribute source chosen on the command line reaches the conversion: it refuses to decide by content.
+#[test]
+fn a_command_line_attribute_source_stops_the_content_shortcut() {
+    let (parent, root) = two_worktrees("convert-command-source");
+    let platform: PlainPlatform = PlainPlatform::new();
+    // A stale stat that only content can vouch for.
+    let readme: PathBuf = root.join("wt/README.md");
+    let bytes: Vec<u8> = std::fs::read(&readme).expect("read");
+    std::fs::write(&readme, bytes).expect("rewrite");
+    let named: ConvertArguments = ConvertArguments { dry_run: true, paths: vec![std::ffi::OsString::from("wt")], command_line_attributes: true, ..ConvertArguments::default() };
+    let (_code, lines) = run(&platform, &named, root.as_path());
+    assert!(lines.iter().any(|line: &String| { return line.contains("--attr-source") && line.contains("cannot be ruled out"); }), "{lines:#?}");
+    let without: ConvertArguments = ConvertArguments { command_line_attributes: false, ..named };
+    let (_plain_code, plain_lines) = run(&platform, &without, root.as_path());
+    assert!(plain_lines.iter().any(|line: &String| { return line.trim() == "would convert"; }), "{plain_lines:#?}");
+    remove(parent.as_path());
+}

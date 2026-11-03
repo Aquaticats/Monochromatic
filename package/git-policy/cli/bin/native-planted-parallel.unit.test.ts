@@ -18,6 +18,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  defaultContainerLimits,
+  runLimitArguments,
+} from './container-limits.ts';
+
+import {
   type ImageInspector,
   imageOptionOf,
   inspectionEnvironment,
@@ -83,9 +88,10 @@ const harness = plantedHarnessId;
 const containerArguments = [
   '--init',
   '--network=none',
-  '--memory=2g',
-  '--cpus=2',
-  '--pids-limit=512',
+  ...runLimitArguments({
+    limits: defaultContainerLimits,
+    withPidsLimit: true,
+  }),
 ];
 
 /**

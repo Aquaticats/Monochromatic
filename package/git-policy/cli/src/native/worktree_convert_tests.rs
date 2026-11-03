@@ -7,7 +7,7 @@ use crate::test_support::{git, git_text, remove};
 use std::os::unix::fs::MetadataExt;
 
 /// The options of a real run.
-const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false };
+const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false, command_line_attributes: false };
 
 /// A checkout with one linked worktree whose tracked files are old and whose index is fresh, so it is quiet.
 fn quiet_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
@@ -82,7 +82,7 @@ fn a_worktree_is_converted_in_place() {
 fn a_dry_run_changes_nothing() {
     let (parent, _root, worktree) = quiet_worktree("convert-dry");
     let platform: PlainPlatform = PlainPlatform::new();
-    let verdict = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: true, abandon: false }, &Interrupt::never());
+    let verdict = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: true, abandon: false, command_line_attributes: false }, &Interrupt::never());
     assert_eq!(verdict.expect("dry"), Verdict::WouldConvert);
     assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"));
     assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists());
@@ -172,18 +172,18 @@ fn abandon_undoes_before_the_swap_and_refuses_after() {
     let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("verified", 0));
     assert!(killed.is_err());
     assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_ok(), "the copy exists");
-    let undone = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
+    let undone = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false }, &Interrupt::never());
     assert_eq!(undone.expect("abandoned"), Verdict::Abandoned);
     assert_nothing_left(worktree.as_path());
     assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"));
     assert_eq!(std::fs::read(worktree.join("README.md")).expect("original intact"), b"readme\n");
     // Nothing to abandon without a journal.
-    let nothing = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
+    let nothing = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false }, &Interrupt::never());
     skipped_with(nothing, "nothing to abandon");
     // Past the swap the abandon refuses and deletes nothing.
     let past = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0));
     assert!(past.is_err());
-    let refused = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
+    let refused = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false }, &Interrupt::never());
     skipped_with(refused, "past the swap");
     assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_ok(), "the old tree is still there");
     let finished = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::never());
@@ -192,7 +192,7 @@ fn abandon_undoes_before_the_swap_and_refuses_after() {
 }
 
 /// The final removal deletes the directory the journal recorded and nothing else: a different directory at the converting
-///  name is left alone and the conversion still finishes.
+///  name is left alone, the run says it is not finished, and the journal stays so that the next run can finish it.
 #[test]
 fn a_directory_that_is_not_the_recorded_old_tree_is_never_removed() {
     let (parent, _root, worktree) = quiet_worktree("convert-foreign-old");
@@ -205,10 +205,15 @@ fn a_directory_that_is_not_the_recorded_old_tree_is_never_removed() {
     std::fs::create_dir(&converting).expect("foreign directory at the name");
     std::fs::write(converting.join("theirs"), b"x").expect("theirs");
     let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
-    assert_eq!(finished.expect("finished"), Verdict::Resumed);
-    assert!(lines.iter().any(|line: &String| { return line.contains("left alone"); }), "{lines:#?}");
+    let message: String = finished.expect_err("the conversion is not finished").to_string();
+    assert!(message.contains("not the old tree") && message.contains("journal"), "{message}: {lines:#?}");
     assert!(converting.join("theirs").exists(), "the foreign directory is untouched");
     assert!(kept.join("README.md").exists(), "the old tree is untouched");
+    assert!(admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(), "the journal stays");
+    std::fs::remove_dir_all(&converting).expect("the person clears the name");
+    std::fs::rename(&kept, &converting).expect("and puts the old tree back");
+    let (completed, completed_lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(completed.expect("finished"), Verdict::Resumed, "{completed_lines:#?}");
     remove(parent.as_path());
 }
 

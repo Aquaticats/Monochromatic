@@ -20,3 +20,26 @@ fn options_paths_and_refusals_parse() {
     assert!(parse_convert_arguments(&words(&["--bogus", "a"])).unwrap_err().contains("--bogus"));
     assert!(parse_convert_arguments(&words(&["--help"])).expect("help").help);
 }
+
+/// The help states the risk the person accepts, and the notice names the same thing in one line.
+#[test]
+fn the_help_and_the_notice_state_the_risk() {
+    assert!(CONVERT_HELP.contains("Risk, accepted by running the command"));
+    assert!(CONVERT_HELP.contains("another process from changing the worktree"));
+    assert!(!RISK_NOTICE.contains('\n'), "the notice is one line");
+    assert!(RISK_NOTICE.contains("that risk is yours"));
+}
+
+/// An attribute source chosen before the command is found: `--attr-source` in both spellings, `-c attr.tree`, and the
+///  environment-supplied form; other global options are not.
+#[test]
+fn a_command_line_attribute_source_is_found() {
+    assert!(selects_attribute_source(&words(&["--attr-source=HEAD"])));
+    assert!(selects_attribute_source(&words(&["--attr-source", "HEAD"])));
+    assert!(selects_attribute_source(&words(&["-c", "attr.tree=HEAD"])));
+    assert!(selects_attribute_source(&words(&["-C", "/x", "-c", "ATTR.TREE=HEAD"])));
+    assert!(selects_attribute_source(&words(&["--config-env=attr.tree=NAME"])));
+    assert!(!selects_attribute_source(&words(&["-C", "/x", "-c", "core.autocrlf=false"])));
+    assert!(!selects_attribute_source(&words(&["--no-pager"])));
+    assert!(!selects_attribute_source(&[]));
+}

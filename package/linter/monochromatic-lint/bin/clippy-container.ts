@@ -2,7 +2,10 @@
 /**
  Check the already tested snapshot, with a read-only compiler and bounded container resources.
  */
-import { runCaptured } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+import {
+  diskWeightArguments,
+  runCaptured,
+} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 /**
  Run Clippy over the tested snapshot with the host's Rust toolchain mounted read-only.
@@ -51,6 +54,7 @@ async function main(): Promise<void> {
       '--memory=2g',
       '--cpus=2',
       '--pids-limit=128',
+      ...diskWeightArguments(),
       '--security-opt',
       'label=disable',
       '--volume',

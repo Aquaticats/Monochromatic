@@ -16,7 +16,10 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { memoryBytes } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/container-limits.ts';
+import {
+  diskWeightArguments,
+  memoryBytes,
+} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/container-limits.ts';
 import {
   isMissing,
   isRecord,
@@ -45,12 +48,15 @@ export type ExecutionLimits = {
 
 /**
  Arguments, by exact text or by `--option=` prefix, that the verification runners write into the container arguments they
- record: removal on exit, init process, no network, and the three bounds of `runLimitArguments`.
+ record: removal on exit, init process, no network, the disk-weight arguments of `runLimitArguments`, and the memory, CPU
+ and process bounds it writes with an `--option=` prefix.
+ A record made before the disk weight existed lacks the weight arguments and is still read.
  */
 const writtenExactArguments: ReadonlySet<string> = new Set([
   '--rm',
   '--init',
   '--network=none',
+  ...diskWeightArguments(),
 ]);
 
 /**
