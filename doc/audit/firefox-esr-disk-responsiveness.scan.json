@@ -1,0 +1,334 @@
+{
+  "observedAt": "2026-11-03T08:17:38.695Z",
+  "sourceCommit": "a34c4160e3f75ab9918fbe4669ff7ae56f1977c8",
+  "version": "153.6.0esr",
+  "trackedEntries": 468910,
+  "trackedRegularFiles": 468910,
+  "symlinks": [],
+  "submodules": [],
+  "manifestSha256": "a1ecedc25ccba335e7383a7c1f0588e1fb886cfdf864f36260491e8407a872c3",
+  "discoveredFiles": 468910,
+  "missingTrackedRegularFiles": [],
+  "patterns": {
+    "nativeFile": "\\b(open|open64|fopen|freopen|read|pread|write|pwrite|fsync|fdatasync|syncfs|stat|lstat|fstat|access|readlink|readdir|mkdir|rename|unlink|remove|CreateFileW|ReadFile|WriteFile|FlushFileBuffers|GetFileAttributesW|PR_Open|PR_Read|PR_Write|PR_Sync|PR_Access|PR_GetFileInfo)\\s*\\(",
+    "geckoFile": "\\b(NS_NewLocalFile|NS_NewNativeLocalFile|NS_NewLocalFileInputStream|NS_NewLocalFileOutputStream|NS_NewSafeLocalFileOutputStream|ReadFile|WriteFile|OpenDatabase|OpenUnsharedDatabase|ExecuteSimpleSQL|ExecuteStep|SavePrefFile|WritePrefFile|ReadUserPrefs|FlushFileBuffers|SyncRead|SyncWrite|readFileSync|writeFileSync|existsSync|statSync)\\s*\\(|(?:->|\\.)(?:Exists|IsDirectory|IsReadable|IsWritable|CreateUnique|GetFileSize|GetLastModifiedTime|Remove|MoveTo|CopyTo|OpenNSPRFileDesc|OpenANSIFileDesc|GetDirectoryEntries|exists|isDirectory|isReadable|isWritable|createUnique|fileSize|lastModifiedTime)\\b",
+    "mappings": "\\b(mmap|mmap64|MapViewOfFile|CreateFileMappingW|PR_MemMap|PR_CreateFileMap|MemMapSnapshot|MappedFile|AutoMemMap|FileLocation|Omnijar|LoadLibraryW|dlopen)\\b",
+    "waits": "\\b(MonitorAutoLock|MutexAutoLock|CondVar|SyncRunnable|DispatchAndWait|NS_DISPATCH_SYNC|PR_JoinThread|SpinEventLoopUntil|WaitForSingleObject|WaitForMultipleObjects)\\b|\\.Wait\\(|\\bsync\\s+\\w+\\(",
+    "explicitConcern": "(?i:main[ -]?thread.{0,100}(?:I/O|IO\\b|disk|block|file)|(?:I/O|disk|block).{0,100}main[ -]?thread|synchronous.{0,100}(?:disk|file|I/O)|(?:disk|I/O).{0,100}synchronous|main.thread.io|mainthreadio)"
+  },
+  "rgArgs": [
+    "--json",
+    "--hidden",
+    "--no-ignore",
+    "--glob",
+    "!.git/**",
+    "--regexp",
+    "(?:\\b(open|open64|fopen|freopen|read|pread|write|pwrite|fsync|fdatasync|syncfs|stat|lstat|fstat|access|readlink|readdir|mkdir|rename|unlink|remove|CreateFileW|ReadFile|WriteFile|FlushFileBuffers|GetFileAttributesW|PR_Open|PR_Read|PR_Write|PR_Sync|PR_Access|PR_GetFileInfo)\\s*\\()|(?:\\b(NS_NewLocalFile|NS_NewNativeLocalFile|NS_NewLocalFileInputStream|NS_NewLocalFileOutputStream|NS_NewSafeLocalFileOutputStream|ReadFile|WriteFile|OpenDatabase|OpenUnsharedDatabase|ExecuteSimpleSQL|ExecuteStep|SavePrefFile|WritePrefFile|ReadUserPrefs|FlushFileBuffers|SyncRead|SyncWrite|readFileSync|writeFileSync|existsSync|statSync)\\s*\\(|(?:->|\\.)(?:Exists|IsDirectory|IsReadable|IsWritable|CreateUnique|GetFileSize|GetLastModifiedTime|Remove|MoveTo|CopyTo|OpenNSPRFileDesc|OpenANSIFileDesc|GetDirectoryEntries|exists|isDirectory|isReadable|isWritable|createUnique|fileSize|lastModifiedTime)\\b)|(?:\\b(mmap|mmap64|MapViewOfFile|CreateFileMappingW|PR_MemMap|PR_CreateFileMap|MemMapSnapshot|MappedFile|AutoMemMap|FileLocation|Omnijar|LoadLibraryW|dlopen)\\b)|(?:\\b(MonitorAutoLock|MutexAutoLock|CondVar|SyncRunnable|DispatchAndWait|NS_DISPATCH_SYNC|PR_JoinThread|SpinEventLoopUntil|WaitForSingleObject|WaitForMultipleObjects)\\b|\\.Wait\\(|\\bsync\\s+\\w+\\()|(?:(?i:main[ -]?thread.{0,100}(?:I/O|IO\\b|disk|block|file)|(?:I/O|disk|block).{0,100}main[ -]?thread|synchronous.{0,100}(?:disk|file|I/O)|(?:disk|I/O).{0,100}synchronous|main.thread.io|mainthreadio))",
+    "."
+  ],
+  "rgSummary": {
+    "elapsed_total": {
+      "human": "61.849008s",
+      "nanos": 849007837,
+      "secs": 61
+    },
+    "stats": {
+      "bytes_printed": 75222511,
+      "bytes_searched": 2626682918,
+      "elapsed": {
+        "human": "114.522867s",
+        "nanos": 522866802,
+        "secs": 114
+      },
+      "matched_lines": 82115,
+      "matches": 85055,
+      "searches": 468910,
+      "searches_with_match": 22108
+    }
+  },
+  "matchLines": 82115,
+  "matchingFiles": 22108,
+  "binaryStops": [],
+  "byDirectory": {
+    ".agents": {
+      "tracked": 38,
+      "matchedLines": 12,
+      "matchedFiles": 6
+    },
+    "(root)": {
+      "tracked": 68,
+      "matchedLines": 40,
+      "matchedFiles": 10
+    },
+    ".cargo": {
+      "tracked": 2,
+      "matchedLines": 0,
+      "matchedFiles": 0
+    },
+    ".claude": {
+      "tracked": 39,
+      "matchedLines": 12,
+      "matchedFiles": 6
+    },
+    ".codex": {
+      "tracked": 1,
+      "matchedLines": 0,
+      "matchedFiles": 0
+    },
+    ".github": {
+      "tracked": 2,
+      "matchedLines": 0,
+      "matchedFiles": 0
+    },
+    ".vscode": {
+      "tracked": 2,
+      "matchedLines": 0,
+      "matchedFiles": 0
+    },
+    ".zed": {
+      "tracked": 1,
+      "matchedLines": 0,
+      "matchedFiles": 0
+    },
+    "accessible": {
+      "tracked": 1194,
+      "matchedLines": 276,
+      "matchedFiles": 82
+    },
+    "browser": {
+      "tracked": 10821,
+      "matchedLines": 3478,
+      "matchedFiles": 1151
+    },
+    "build": {
+      "tracked": 728,
+      "matchedLines": 324,
+      "matchedFiles": 54
+    },
+    "caps": {
+      "tracked": 68,
+      "matchedLines": 15,
+      "matchedFiles": 9
+    },
+    "chrome": {
+      "tracked": 42,
+      "matchedLines": 4,
+      "matchedFiles": 2
+    },
+    "config": {
+      "tracked": 128,
+      "matchedLines": 128,
+      "matchedFiles": 24
+    },
+    "devtools": {
+      "tracked": 9596,
+      "matchedLines": 1595,
+      "matchedFiles": 567
+    },
+    "docs": {
+      "tracked": 817,
+      "matchedLines": 67,
+      "matchedFiles": 34
+    },
+    "docshell": {
+      "tracked": 817,
+      "matchedLines": 345,
+      "matchedFiles": 186
+    },
+    "dom": {
+      "tracked": 32000,
+      "matchedLines": 7411,
+      "matchedFiles": 2534
+    },
+    "editor": {
+      "tracked": 939,
+      "matchedLines": 120,
+      "matchedFiles": 63
+    },
+    "extensions": {
+      "tracked": 852,
+      "matchedLines": 177,
+      "matchedFiles": 29
+    },
+    "gfx": {
+      "tracked": 7683,
+      "matchedLines": 3298,
+      "matchedFiles": 501
+    },
+    "gradle": {
+      "tracked": 4,
+      "matchedLines": 0,
+      "matchedFiles": 0
+    },
+    "hal": {
+      "tracked": 48,
+      "matchedLines": 13,
+      "matchedFiles": 5
+    },
+    "image": {
+      "tracked": 1768,
+      "matchedLines": 264,
+      "matchedFiles": 45
+    },
+    "intl": {
+      "tracked": 8170,
+      "matchedLines": 697,
+      "matchedFiles": 181
+    },
+    "ipc": {
+      "tracked": 888,
+      "matchedLines": 626,
+      "matchedFiles": 154
+    },
+    "js": {
+      "tracked": 72381,
+      "matchedLines": 2568,
+      "matchedFiles": 590
+    },
+    "layout": {
+      "tracked": 24268,
+      "matchedLines": 1060,
+      "matchedFiles": 618
+    },
+    "media": {
+      "tracked": 3467,
+      "matchedLines": 356,
+      "matchedFiles": 129
+    },
+    "memory": {
+      "tracked": 112,
+      "matchedLines": 164,
+      "matchedFiles": 16
+    },
+    "mfbt": {
+      "tracked": 230,
+      "matchedLines": 93,
+      "matchedFiles": 21
+    },
+    "mobile": {
+      "tracked": 14883,
+      "matchedLines": 1795,
+      "matchedFiles": 664
+    },
+    "modules": {
+      "tracked": 1081,
+      "matchedLines": 536,
+      "matchedFiles": 105
+    },
+    "mozglue": {
+      "tracked": 248,
+      "matchedLines": 112,
+      "matchedFiles": 39
+    },
+    "netwerk": {
+      "tracked": 2445,
+      "matchedLines": 2544,
+      "matchedFiles": 560
+    },
+    "nsprpub": {
+      "tracked": 536,
+      "matchedLines": 618,
+      "matchedFiles": 152
+    },
+    "other-licenses": {
+      "tracked": 822,
+      "matchedLines": 114,
+      "matchedFiles": 49
+    },
+    "parser": {
+      "tracked": 594,
+      "matchedLines": 200,
+      "matchedFiles": 78
+    },
+    "python": {
+      "tracked": 1583,
+      "matchedLines": 2598,
+      "matchedFiles": 285
+    },
+    "remote": {
+      "tracked": 1109,
+      "matchedLines": 351,
+      "matchedFiles": 111
+    },
+    "security": {
+      "tracked": 7190,
+      "matchedLines": 1825,
+      "matchedFiles": 383
+    },
+    "services": {
+      "tracked": 536,
+      "matchedLines": 321,
+      "matchedFiles": 86
+    },
+    "servo": {
+      "tracked": 408,
+      "matchedLines": 211,
+      "matchedFiles": 48
+    },
+    "startupcache": {
+      "tracked": 14,
+      "matchedLines": 29,
+      "matchedFiles": 4
+    },
+    "storage": {
+      "tracked": 171,
+      "matchedLines": 223,
+      "matchedFiles": 44
+    },
+    "supply-chain": {
+      "tracked": 4,
+      "matchedLines": 0,
+      "matchedFiles": 0
+    },
+    "taskcluster": {
+      "tracked": 1202,
+      "matchedLines": 236,
+      "matchedFiles": 61
+    },
+    "testing": {
+      "tracked": 196054,
+      "matchedLines": 16872,
+      "matchedFiles": 6182
+    },
+    "third_party": {
+      "tracked": 47819,
+      "matchedLines": 19190,
+      "matchedFiles": 3872
+    },
+    "toolkit": {
+      "tracked": 10971,
+      "matchedLines": 8219,
+      "matchedFiles": 1757
+    },
+    "tools": {
+      "tracked": 1481,
+      "matchedLines": 746,
+      "matchedFiles": 180
+    },
+    "uriloader": {
+      "tracked": 208,
+      "matchedLines": 183,
+      "matchedFiles": 54
+    },
+    "widget": {
+      "tracked": 1205,
+      "matchedLines": 370,
+      "matchedFiles": 124
+    },
+    "xpcom": {
+      "tracked": 1148,
+      "matchedLines": 1675,
+      "matchedFiles": 252
+    },
+    "xpfe": {
+      "tracked": 24,
+      "matchedLines": 4,
+      "matchedFiles": 1
+    }
+  },
+  "limits": [
+    "Lexical candidate inventory, not exhaustive call-graph proof.",
+    "Binary data may stop text scanning at NUL; binary code and OS/framework implementations are outside source tracing.",
+    "Tests, examples, generated and vendored source retained in scan; matches do not imply shipped runtime reachability."
+  ]
+}
