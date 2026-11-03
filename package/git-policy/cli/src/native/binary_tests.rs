@@ -345,6 +345,10 @@ mod service_native;
 #[path = "binary_service_sequencer_tests.rs"]
 mod service_sequencer;
 
+/// A commit of named paths while another session's merge is unfinished lands, and the merge is carried forward.
+#[path = "binary_commit_during_merge_tests.rs"]
+mod commit_during_merge;
+
 /// Guard: no option of the wrapper's follows the person's `--` in any Git start, and no `--quiet` is added.
 #[path = "binary_option_order_guard_tests.rs"]
 mod option_order_guard;
