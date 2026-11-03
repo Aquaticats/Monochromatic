@@ -94,10 +94,13 @@ Read-only commands,
    unconfigured remote makes the wrapper read the whole history of the pushed refs instead.
   A repository the readers decline, or an object missing from `.git/lfs`, falls back to `git-lfs push <remote> <refs>`
    (with `--all` in the untrusted cases), which scans itself.
-  When `git-lfs push` fails with a server error (an HTTP 5xx answer other than 501, 507 and 509, which `git-lfs` reports
-   on a line starting `Fatal error: `), the wrapper runs it again after 2 seconds and, if needed, after 5 seconds;
-   a refused credential, a missing local object or any other failure is not retried.
-  `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` (a comma-separated list, at most five entries; empty for none) replaces the delays.
+  When `git-lfs push` fails, the wrapper does not run it again, whatever the cause.
+  A server error (an HTTP 5xx answer other than 501, 507 and 509, which `git-lfs` reports on a line starting
+   `Fatal error: `) is outside our control, like a network that is down.
+  That is pick 12 of `doc/planning/cli-git-shipped-limits-audit.md`, made by the coordinator under the owner's delegation
+   and open to the owner's veto.
+  The commit service's push retry plan (`CLI_GIT_PUSH_RETRY_SECONDS`, doubling to 600 seconds) tries the auto-push again
+   by itself, and a typed `git push` ends at the first server error, with `git-lfs`'s own words, so that you push again.
   The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the user and
    password of every URL replaced by `<credentials>`.
   It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
@@ -1260,18 +1263,24 @@ fractional or non-numeric value is ignored.
    and how often the commit service repeats the line that names the holder of a foreign `index.lock`.
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
    default `30`.
-  How long the push after a landed commit may show no sign of work (the stall window) before it is stopped.
+  How long the push after a landed commit may show no sign of work and hold no open connection (the stall window)
+   before it is stopped.
+  The 30 seconds has no measurement or owner decision behind it (the audit keeps it as an open question).
   The push and every process it started are watched: one that moves bytes (on its pipes and files, and on its connected TCP
    sockets), uses processor time, or has a task able to run or waiting for the disk (an `fsync` on a slow volume) is working
    and is not stopped here, however slow; one that does none of these is stopped after this many seconds.
-  A push that has sent its pack and holds its connection to the remote is waiting for the server's checks and is not stopped
-   (the owner's decision of 2026-11-03: "Wait while connected (Recommended)"): the wrapper says so once, in a line that starts
-   with `cli-git: git push is waiting for the server`, and waits until the connection closes or the ceiling.
-  A connection that dies without a reset is noticed only when TCP gives up.
-  The wrapper adds no low-speed abort of its own to a push (it used to set `GIT_HTTP_LOW_SPEED_LIMIT=1000` and
+  A run whose connection to the remote is open (the push, the fetch that follows a refused push, and the Git LFS upload)
+   is waiting for the remote and is never stopped for time, however long the remote takes and whatever phase it is in.
+  That is the owner's decision of 2026-11-03, "Wait while connected (Recommended)", extended to no ceiling and no
+   low-speed abort by pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`,
+   which the coordinator made under the owner's delegation and the owner may veto.
+  The wrapper says so once, in a line that starts with `cli-git: git push is waiting for the server`
+   (`git fetch` or `git-lfs push` for those runs), and waits until the remote answers or the connection closes.
+  "Connected" means that a process of the run holds a TCP socket in state `ESTABLISHED`, read from the kernel.
+  A connection that dies without a reset is noticed only when TCP gives up; the wrapper sets no time for it.
+  The wrapper adds no low-speed abort of its own to any run (it used to set `GIT_HTTP_LOW_SPEED_LIMIT=1000` and
    `GIT_HTTP_LOW_SPEED_TIME=60`, which ended a silent check after 60 seconds): Git sets neither, and a limit and time you set
    in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime` still reach Git and still end the wait.
-   The auto-push's fetch keeps the old defaults.
   A push to a local path has no connection to wait on and is stopped after this many seconds, as before.
   The name is kept from the time when this was a fixed deadline, so an existing setting now sets the stall window.
   Where the system cannot count bytes (no `/proc/<pid>/io`, as on macOS),
@@ -1287,7 +1296,7 @@ fractional or non-numeric value is ignored.
   A failure that can pass is tried again, with the pause doubled each time up to 600 seconds,
    until the push lands; no new commit is needed, and the service's journal says each time that it will try again
    (cause, number of the try, pause).
-  Being offline, a stall, the ceiling and a held lock can pass.
+  Being offline, a stall, an HTTP 5xx answer of the LFS server and a held lock can pass.
   Three failures stop the retry until the person's next commit, because trying again would get the same answer
    (owner decision, 2026-11-03: "Offline is retried, but auth and server hook declines stop until your next commit."):
    a reported conflict,
@@ -1302,11 +1311,9 @@ fractional or non-numeric value is ignored.
    journal (`push-retries`), and the service that starts next rebuilds it and tries again with no wrapper command.
   The record the next command shows is not the plan, since showing it removes it.
   A pause that was running when the service stopped starts again from the restart, and the try number is kept.
-- `CLI_GIT_PUSH_CEILING_SECONDS`,
-   default `1800`.
-  How long the push may run in all, even while it keeps moving data,
-   so a push that trickles for ever is stopped.
-  The report of a stopped push names `limit=stall` or `limit=ceiling`, the bytes the push moved and the seconds it ran.
+- There is no ceiling on a push, and no variable sets one:
+   no total time ends a push that shows progress or holds an open connection.
+  The report of a stopped push names `limit=stall`, the bytes the push moved and the seconds it ran.
   A stopped Git process is first asked to end with `SIGTERM`, which lets Git remove its own `.lock` files,
    and is killed only if it is still running after five seconds.
   A process that was killed, or that could not answer in time, can leave a lock file behind;

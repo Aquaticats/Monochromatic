@@ -91,6 +91,8 @@ Three decided changes are not on main yet, and one design is still in review.
   On main the unit still carries the caps, and `SPEC.md:2515` still says the unit "allows two CPUs and one gibibyte".
 - `fix/git-policy-cli-no-inner-quiet-and-slow-server-waits`: "Wait while connected" for pushes (handover
   `doc/handover/cli-git-rust-implementation.md:327`).
+  Update, 2026-11-03: it is in the 0.5.27 integration tip, and picks 5 and 12 below were then built on branch
+  `feat/git-policy-cli-pushes-wait-while-connected-lfs-5xx`; the entries of "Pushes" carry their outcomes.
 Read with `git show`: its `bounded_push.rs` keeps `DEFAULT_PUSH_DEADLINE` (30 s), `DEFAULT_PUSH_CEILING` (1800 s) and
   the
   low-speed constants at the same values and stops giving a push the low-speed abort (its lines 221 to 224).
@@ -745,6 +747,18 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   `SPEC.md:1505` to `1509` itself says a server that checks the push before answering "is stopped" after the window.
   A slow remote is on the owner's "designed out" list.
   The unmerged branch changes the progress rule and keeps 30.
+- Outcome (pick 5, the coordinator's under the owner's delegation "Pick options as if I had picked them and invite veto
+  when I say I'm back", open to the owner's veto):
+  the pack-sent test is gone, and an open connection (a process of the tree holds a socket in state `ESTABLISHED`,
+  read from the kernel's socket diagnostics) is waited for in every phase.
+  The window now applies only to a tree with no open connection and no sign of work.
+  It covers the push, the reconcile fetch and the LFS upload, and the wait line names the program that waits.
+  The 30 seconds stays uncited, and `bounded_push.rs` and `SPEC.md` say so beside it.
+  The journal of the commit service (read-only, 2026-10-20 to 2026-11-03, 794 pushes that landed) gives whole-push times
+  of p50 3.5 s, p99 26.4 s and maximum 72.4 s, which include connected time.
+  No silence of a disconnected push is logged, so nothing determines the number.
+  Open question: "The stall window of a push with no connection, and a connection that holds and never answers",
+  in "Questions raised while building picks 5 and 12".
 
 ### Push ceiling, 1800 seconds
 
@@ -758,6 +772,10 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 - Fails or waits: waits, then stops; the service retries.
 - Citation: none (`SPEC.md:1515` to `1517`: "so a trickle that never stalls cannot hold the service for good").
 - Conflict, yes: "Wait while connected ... once the pack is sent, keep waiting while the connection is open."
+- Outcome (pick 5, delegated, open to the owner's veto): removed.
+  `DEFAULT_PUSH_CEILING`, `CLI_GIT_PUSH_CEILING_SECONDS`, its advice, `StopCause::Ceiling` and `limit=ceiling` are gone.
+  Cost, recorded in `SPEC.md`: a process that spins or sits in state `D` for good shows a sign of work for ever
+  and holds the service's push of its repository.
 
 ### Git low-speed abort, 1000 bytes per second for 60 seconds
 
@@ -771,8 +789,15 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 - Citation: none.
 - Conflict, yes on main: "Wait while connected".
   The handover says the push no longer sets it (branch `fb1e093809`); main still does.
+- Outcome (pick 5, delegated, open to the owner's veto): removed for every run the wrapper starts.
+  The push stopped setting it in `fb1e093809`.
+  The reconcile fetch stopped here (`apply_low_speed_defaults`, `LOW_SPEED_LIMIT` and `LOW_SPEED_TIME` are gone),
+  shown by `the_reconcile_fetch_sets_no_low_speed_abort`.
+  A value the person sets in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime` still reaches Git.
 
 ### Push output cap, 4 MiB
+
+Status after picks 5 and 12: unchanged. `bounded_push.rs` and `SPEC.md` now say beside the value that no citation exists.
 
 - Where: `src/native/bounded_push.rs:62` (`MAX_PUSH_OUTPUT`), `is_flood` at `277`, `SPEC.md:1562`.
 - Value: 4 MiB; only the first 4 MiB are kept.
@@ -836,6 +861,17 @@ The owner decision "Offline is retried, but auth and server hook declines stop u
 - Conflict: unclear. An HTTP 5xx is a remote answering, which the owner's two lists do not name; "the remote refusing"
   lists auth, a server hook, GH009 and branch protection, and "a slow remote" is designed out.
   The classification is a question for the owner.
+- Outcome (pick 12, the coordinator's under the owner's delegation, open to the owner's veto):
+  an HTTP 5xx from the LFS server is classed as outside our control, a server fault like "Network down",
+  and is retried by the service's push retry plan alone.
+  `lfs_server_retry.rs`, `RETRY_DELAYS`, `MAX_CONFIGURED_RETRIES`, `MAX_CONFIGURED_DELAY`,
+  the variable `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` and both loops of `lfs_upload.rs` are removed.
+  The plan reads nothing in a 5xx as final
+  (`an_lfs_server_error_is_tried_again_by_the_plan`, shown red by classing a 5xx as final),
+  the auto-push is left to the plan (`an_auto_push_that_meets_a_server_error_is_left_to_the_services_retry_plan`),
+  and a typed push ends at the first 5xx (`a_server_error_ends_a_typed_push_at_once`).
+  Visible change for a typed `git push`: no "retry 1 of 2" lines, and a brief outage now fails the push
+  where two in-place retries used to ride it out.
 
 ### LFS chunking, relay and pointer scan
 
@@ -1321,10 +1357,11 @@ Each line is a limit with no citation (class none) or only a partial one.
   `service_captures.rs:25`; temporary and scratch ages 10 min and 24 h, `service_journal.rs:33`,
   `work_item_recovery.rs:29`, `scratch_location.rs:46`.
 - Retirement wait 10 s, `service_provision.rs:86`; manager exchange 20 s, `systemd_dbus.rs:32`.
-- Push stall window 30 s (partial), `bounded_push.rs:49`; push ceiling 1800 s, `bounded_push.rs:55`; low-speed abort,
-  `bounded_push.rs:69`; push output 4 MiB, `bounded_push.rs:62`; stop grace 5 s, `bounded_push.rs:58`; query ceiling
-  120 s, `bounded_query.rs:35`; push retry pauses 10 s to 600 s, `push_retry.rs:35`.
-- LFS server-error retry 2 s and 5 s, `lfs_server_retry.rs:23`; LFS chunking, relay and scan, `lfs_upload_plan.rs:57`,
+- Push stall window 30 s (partial, now only for a tree with no open connection), `bounded_push.rs`; push output 4 MiB,
+  `bounded_push.rs`; stop grace 5 s (partial), `bounded_push.rs`; query ceiling 120 s, `bounded_query.rs:35`;
+  push retry pauses 10 s to 600 s, `push_retry.rs:35`.
+  Removed by pick 5: the push ceiling 1800 s and the low-speed abort.
+- LFS chunking, relay and scan, `lfs_upload_plan.rs:57`,
   `lfs_pointer_scan.rs:28`; auto-push walk budget 4096, `auto_push_trigger.rs:42`; concurrent queries 4,
   `manual_push_probe.rs:133`.
 - Markdown linter deadline 60 s (partial), `markdown_linter.rs:64`; Markdown output bounds,
@@ -1490,6 +1527,9 @@ Visible result: a hook or server check longer than thirty seconds still prints "
 Ranking: A > B > C, because A is the owner's decision with no leftover number to cite; B follows the decision for
 progress
 but leaves two numbers that end a connected push; C contradicts the decision on main.
+
+Delegated pick, 2026-11-03: A, built; see the outcomes under "Pushes".
+The coordinator picked it under the owner's delegation, and the owner may veto it.
 The stop grace, output cap and query ceiling are memory and cleanup bounds and can be cited by measurement under any
 option.
 
@@ -1647,6 +1687,10 @@ Ranking: C > B > A, because the classification decides which of the others is al
 because B
 removes a second retry mechanism and its two uncited numbers, while A keeps both.
 
+Delegated pick, 2026-11-03: the classification "outside our control" (the owner's list, like "Network down")
+and B's single mechanism, built; see the outcome under "LFS server-error retry".
+The coordinator picked it under the owner's delegation, and the owner may veto it.
+
 ### Sizes and ages of the service's own housekeeping
 
 Covers: `MAX_BATCH` 64, `MAX_LINE_BYTES` 1 MiB, `MAX_CHANGES` 4096, `CLAIM_LEASE` 120 s, `DONE_RETAINED` 1024,
@@ -1700,3 +1744,61 @@ Visible result: a small repository no longer needs 5 GiB free; a large one may n
 Ranking: A > B > C, because A matches the need to the repository and cites a measurement; B > C because refusing
 before the
 migration starts is safer than failing in the middle, even when the number is the owner's.
+
+## Questions raised while building picks 5 and 12
+
+Added 2026-11-03 by the agent that built the two picks.
+The coordinator picks under the owner's delegation.
+
+### The stall window of a push with no connection, and a connection that holds and never answers
+
+What the code can observe about a push, with no time window and no invented number:
+whether some process of its tree holds a TCP socket in state `ESTABLISHED` (the kernel's socket diagnostics),
+the bytes that socket carried, and the three signs from `/proc` (bytes, processor time, a task in state `R` or `D`).
+It cannot tell a slow remote from a live remote that is hung.
+It cannot tell a dead peer from a slow one until TCP gives up
+(retransmission for unacknowledged data; keepalive probes for an idle connection,
+which Git's HTTP client turns on and `ssh` and `git://` leave to the kernel's default).
+A tree with no connection, such as a push to a local path, a connect that has not completed, or a name lookup,
+shows nothing a clock can read either, and today it is stopped after the 30 second stall window,
+which no measurement or owner decision determines.
+
+- A. As built: an open connection is waited for in every phase;
+  30 seconds stays for a tree with no connection and no sign of work, uncited.
+  Visible result: a remote that accepts the connection and never answers holds the push until TCP or the remote ends it;
+  a push while offline is stopped after 30 seconds and retried by the plan.
+  Pro: the pick as written, and no number for "connected".
+  Con: one uncited number remains, and a hung live remote blocks the repository's pushes with no end.
+- B. A with the first answer excepted: an open connection before any pack was seen is a stall after the window,
+  as 0.5.27 has it.
+  Visible result: a remote that is slow to answer the first request is stopped after 30 seconds and retried.
+  Pro: a hung remote cannot hold the service for ever.
+  Con: contradicts "no stall window for a connected push", and keeps the number.
+- C. A, with the 30 seconds measured: time, on this host, from the start of a push to its first established socket
+  and its longest silence with no connection over many pushes, and write the figure beside the value.
+  Pro: satisfies the citation rule without changing behavior.
+  Con: needs new logging first, because no log holds it, and it measures one host.
+- D. Drop the window for a tree with no connection too, so the code stops a push only on a closed connection, or never.
+  Pro: no number at all.
+  Con: a hung local hook or a lookup that never ends holds the repository's pushes for ever.
+
+Ranking: A > C > B > D, because A is the delegated pick and changes the least behavior;
+C > B because C keeps behavior and adds the missing basis while B reverses part of the pick;
+B > D because B still ends a hung state that D leaves for ever.
+C is a complement of A and can follow it.
+
+### Limits that remain beside the push, with no citation
+
+`STOP_GRACE` 5 s (partial), `MAX_PUSH_OUTPUT` 4 MiB and `QUERY_CEILING` 120 s have no measurement or owner decision
+that determines them.
+The audit said they could be cited by measurement under any option.
+They are marked as uncited beside the value in the code and in `SPEC.md`, with what exists, and not measured here,
+because a measurement needs a load the brief forbids
+(a push to a remote that prints megabytes, and a stopped Git whose locks are timed).
+
+- A. Measure each from the service's own journal once it logs the data (push output size, time from stop to child exit).
+- B. The owner names the numbers.
+- C. Remove `QUERY_CEILING` with the Git child steps work (its kill is the audit's question on Git child steps)
+  and keep the other two uncited.
+
+Ranking: A > B > C, because the journal already holds most distributions A needs and C leaves two numbers uncited.

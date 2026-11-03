@@ -60,13 +60,12 @@ fn a_plan_is_per_branch_and_due_after_its_pause() {
     assert_eq!(retries.next_wait(here, now), None);
 }
 
-/// Only a reported conflict needs the person; a stall, a ceiling and a refused connection do not.
+/// Only a reported conflict needs the person; a stall and a refused connection do not.
 #[test]
 fn only_a_conflict_needs_the_person() {
     assert!(needs_the_person("cli-git: auto-push: not published: merging origin/main into main conflicts in: a.txt, b.txt. Nothing was pushed"));
     for output in [
         "cli-git: git push made no progress for 30 seconds and was stopped (limit=stall, bytes_moved=0, elapsed_seconds=30)",
-        "cli-git: git push ran for 1800 seconds and was stopped (limit=ceiling)",
         "fatal: unable to access 'https://example.invalid/': Could not resolve host: example.invalid",
         "",
     ] {
