@@ -283,6 +283,10 @@ mod git_base_tests;
 #[cfg(test)]
 mod git_config_tests;
 
+/// The differential tests of the plain-file base reader, with Git as the oracle.
+#[cfg(test)]
+mod git_differential_tests;
+
 /// What:
 /// `#[cfg(test)] mod git_refs_tests;` declares the tests in `src/git_refs_tests.rs`;
 /// the attribute compiles it only for test builds (a TS test file that production code never imports).
