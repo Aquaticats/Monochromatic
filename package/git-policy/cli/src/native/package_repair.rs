@@ -14,6 +14,7 @@
 //! repairWorktree({ git, source, destination, switch: { quiet, noCheckout }, environment }, process.stderr);
 //! ```
 
+use super::add_timing::work;
 use super::diagnostic_log::debug;
 use super::package_repair_cargo::repair_cargo;
 use super::package_repair_pnpm::repair_pnpm;
@@ -176,9 +177,9 @@ pub fn repair_worktree(request: &RepairRequest<'_>, notices: &mut dyn Write) -> 
     }
     let started: std::time::Instant = std::time::Instant::now();
     let (pnpm, cargo, toolchain): (Option<Finding>, Vec<Finding>, Option<Finding>) = std::thread::scope(|scope| {
-        let pnpm = scope.spawn(|| { return repair_pnpm(request.destination, request.environment); });
-        let toolchain = scope.spawn(|| { return repair_toolchain(request.destination, request.environment); });
-        let cargo: Vec<Finding> = repair_cargo(request);
+        let pnpm = scope.spawn(|| { return work("repairPnpm", || { return repair_pnpm(request.destination, request.environment); }); });
+        let toolchain = scope.spawn(|| { return work("repairToolchain", || { return repair_toolchain(request.destination, request.environment); }); });
+        let cargo: Vec<Finding> = work("repairCargo", || { return repair_cargo(request); });
         // A tool that panicked has no finding; the add goes on and the worktree stays as the copy left it.
         let settled = |joined: std::thread::Result<Option<Finding>>, tool: &str| -> Option<Finding> {
             return joined.unwrap_or_else(|_panic| {

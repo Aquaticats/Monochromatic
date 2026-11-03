@@ -23,6 +23,7 @@ use super::service_protocol::RELEASE;
 use std::cell::RefCell;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 /// The file inside the common Git directory that collects the add timing records of every worktree of the repository.
@@ -77,13 +78,15 @@ pub struct Recorder {
     notes: Vec<(String, String)>,
     /// Milliseconds since the Unix epoch at the start, for finding the add among other logs.
     start_millis: u128,
+    /// Time spent on worker threads by name, summed over the threads; threads overlap, so it is not part of the sum rule.
+    work: Vec<Spent>,
 }
 
 impl Recorder {
     /// A recorder for an add in the repository whose common Git directory is `common_dir`.
     pub fn new(common_dir: PathBuf) -> Self {
         let start_millis: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|elapsed: Duration| { return elapsed.as_millis(); }).unwrap_or_default();
-        return Self { common_dir, open: Vec::new(), spent: Vec::new(), notes: Vec::new(), start_millis };
+        return Self { common_dir, open: Vec::new(), spent: Vec::new(), notes: Vec::new(), start_millis, work: Vec::new() };
     }
 
     /// Enter the step `name` at `at`, a time since the recorder began.
@@ -116,6 +119,17 @@ impl Recorder {
         }
     }
 
+    /// Add `own` to the work named `name`, as one call.
+    pub fn add_work(&mut self, name: &str, own: Duration) {
+        match self.work.iter_mut().find(|known: &&mut Spent| { return known.name == name; }) {
+            Some(known) => {
+                known.own += own;
+                known.calls += 1;
+            }
+            None => self.work.push(Spent { name: name.to_string(), own, calls: 1 }),
+        }
+    }
+
     /// The record as one line of JSON ending in a newline; `total` is the add's whole time.
     ///
     /// One `write` per line keeps the lines of concurrent adds from interleaving; a word with a quote or a newline is escaped
@@ -124,9 +138,10 @@ impl Recorder {
         let micros_to_ms = |time: Duration| -> String { return format!("{:.3}", time.as_micros() as f64 / 1000.0); };
         let covered: Duration = self.spent.iter().map(|each: &Spent| { return each.own; }).sum();
         let steps: Vec<String> = self.spent.iter().map(|each: &Spent| { return format!("{}:{{\"ms\":{},\"calls\":{}}}", quote(each.name.as_str()), micros_to_ms(each.own), each.calls); }).collect();
+        let work: Vec<String> = self.work.iter().map(|each: &Spent| { return format!("{}:{{\"ms\":{},\"calls\":{}}}", quote(each.name.as_str()), micros_to_ms(each.own), each.calls); }).collect();
         let notes: Vec<String> = self.notes.iter().map(|(key, value): &(String, String)| { return format!("{}:{}", quote(key.as_str()), quote(value.as_str())); }).collect();
         return format!(
-            "{{\"schemaVersion\":{ADD_TIMING_SCHEMA_VERSION},\"time\":{},\"startMillis\":{},\"pid\":{},\"release\":{},\"exitCode\":{exit_code},\"totalMs\":{},\"steps\":{{{}}},\"otherMs\":{},\"notes\":{{{}}}}}\n",
+            "{{\"schemaVersion\":{ADD_TIMING_SCHEMA_VERSION},\"time\":{},\"startMillis\":{},\"pid\":{},\"release\":{},\"exitCode\":{exit_code},\"totalMs\":{},\"steps\":{{{}}},\"otherMs\":{},\"work\":{{{}}},\"notes\":{{{}}}}}\n",
             quote(now_iso().as_str()),
             self.start_millis,
             std::process::id(),
@@ -134,6 +149,7 @@ impl Recorder {
             micros_to_ms(total),
             steps.join(","),
             micros_to_ms(total.saturating_sub(covered)),
+            work.join(","),
             notes.join(","),
         );
     }
@@ -144,6 +160,9 @@ impl Recorder {
     }
 }
 
+/// The work of worker threads while an add is recorded: none outside a recording, so a stray call keeps nothing.
+static WORK: Mutex<Option<Vec<(String, Duration)>>> = Mutex::new(None);
+
 thread_local! {
     /// The recorder of the add this thread is running, and when it began; none outside an add.
     static ACTIVE: RefCell<Option<(Instant, Recorder)>> = const { RefCell::new(None) };
@@ -153,6 +172,9 @@ thread_local! {
 ///  of this thread.
 pub fn begin(common_dir: PathBuf) {
     ACTIVE.with(|active: &RefCell<Option<(Instant, Recorder)>>| { *active.borrow_mut() = Some((Instant::now(), Recorder::new(common_dir))); });
+    if let Ok(mut work) = WORK.lock() {
+        *work = Some(Vec::new());
+    }
 }
 
 /// Run `body` as the step `name`; with no recording begun, `body` runs alone.
@@ -203,6 +225,28 @@ pub fn git_step_label(arguments: &[OsString]) -> String {
     return String::from("git");
 }
 
+/// What:
+///  Run `body` as work named `name` on any thread, adding its time to the name's sum; with no recording begun, `body` runs alone.
+/// Why:
+///   The repair of package managers runs its tools on worker threads, which the thread's own steps cannot see; the sum over
+///  threads says how much work a step held, and the step that waited for it says how long the add waited.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const value = work('clone', () => cloneTree());
+/// ```
+pub fn work<T>(name: &str, body: impl FnOnce() -> T) -> T {
+    let began: Instant = Instant::now();
+    let value: T = body();
+    let spent: Duration = began.elapsed();
+    if let Ok(mut work) = WORK.lock()
+        && let Some(list) = work.as_mut()
+    {
+        list.push((name.to_string(), spent));
+    }
+    return value;
+}
+
 /// Note a fact about the add being recorded; nothing outside a recording.
 pub fn note(key: &str, value: &str) {
     ACTIVE.with(|active: &RefCell<Option<(Instant, Recorder)>>| {
@@ -224,7 +268,11 @@ pub fn note(key: &str, value: &str) {
 /// ```
 pub fn finish(exit_code: i32) {
     let taken: Option<(Instant, Recorder)> = ACTIVE.with(|active: &RefCell<Option<(Instant, Recorder)>>| { return active.borrow_mut().take(); });
-    let Some((began, recorder)) = taken else { return };
+    let drained: Option<Vec<(String, Duration)>> = WORK.lock().ok().and_then(|mut work: std::sync::MutexGuard<'_, Option<Vec<(String, Duration)>>>| { return work.take(); });
+    let Some((began, mut recorder)) = taken else { return };
+    for (name, spent) in drained.unwrap_or_default() {
+        recorder.add_work(name.as_str(), spent);
+    }
     let target: PathBuf = recorder.common_dir().join(ADD_TIMING_FILE);
     let line: String = recorder.line(began.elapsed(), exit_code);
     if let Err(error) = append_line(target.as_path(), line.as_bytes()) {

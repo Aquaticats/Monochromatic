@@ -15,6 +15,7 @@
 //! const findings = await repairCargo(request); // one per workspace that failed, one for the rest that worked
 //! ```
 
+use super::add_timing::work;
 use super::diagnostic_log::debug;
 use super::package_repair::RepairRequest;
 use super::package_repair_command::{ToolCommand, ToolEnd, ToolRun, find_program, run_tool};
@@ -331,7 +332,7 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
     };
     let source_workspace: PathBuf = request.source.join(relative);
     let source_build: Option<PathBuf> = if source_workspace.join(MANIFEST).is_file() {
-        match read_workspace(cargo, source_workspace.as_path(), request.environment.tool_limit) {
+        match work("cargoMetadataSource", || { return read_workspace(cargo, source_workspace.as_path(), request.environment.tool_limit); }) {
             Ok(found) => Some(found.build_directory),
             Err(reason) => {
                 debug(TAG, format!("the source workspace {} cannot be read: {reason}", source_workspace.display()).as_str());
@@ -353,7 +354,7 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
         BuildStatePlan::Nothing(_) => return Done::Skipped,
         BuildStatePlan::CleanOnly => false,
         BuildStatePlan::CloneThenClean { from, to } => {
-            match clone_tree(from.as_path(), to.as_path(), clone_workers) {
+            match work("cargoCloneTree", || { return clone_tree(from.as_path(), to.as_path(), clone_workers); }) {
                 Ok(made) => debug(TAG, format!("cloned {made} entries from {} to {}", from.display(), to.display()).as_str()),
                 Err(reason) => return failed(format!("the build state could not be cloned: {reason}")),
             }
@@ -362,7 +363,7 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
     };
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
     let lock_before: Option<Vec<u8>> = read_lock(workspace.root.as_path());
-    let run: ToolRun = run_tool(cargo, &command, request.environment.tool_limit);
+    let run: ToolRun = work("cargoClean", || { return run_tool(cargo, &command, request.environment.tool_limit); });
     restore_lock(workspace.root.as_path(), lock_before.as_deref());
     return match run.end {
         ToolEnd::Succeeded => Done::Cleaned { cloned },
@@ -427,7 +428,7 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
         return vec![missing_tool(Tool::Cargo, PROGRAM, "cargo clean --offline --package <member> in each Cargo workspace of the worktree")];
     };
     let workers: usize = request.environment.workers;
-    let read: Vec<Result<Workspace, String>> = map_concurrent(directories.as_slice(), workers, &|directory: &PathBuf| { return read_workspace(cargo.as_path(), directory.as_path(), request.environment.tool_limit); });
+    let read: Vec<Result<Workspace, String>> = map_concurrent(directories.as_slice(), workers, &|directory: &PathBuf| { return work("cargoMetadataWorktree", || { return read_workspace(cargo.as_path(), directory.as_path(), request.environment.tool_limit); }); });
     let mut findings: Vec<Finding> = Vec::new();
     let mut found: Vec<Workspace> = Vec::new();
     for (directory, outcome) in directories.iter().zip(read) {
@@ -440,7 +441,7 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
     // Real paths: Cargo names the workspace by its real path, and the worktree may be reached through a link.
     let destination_root: PathBuf = std::fs::canonicalize(request.destination).unwrap_or_else(|_error| { return request.destination.to_path_buf(); });
     let clone_workers: usize = if workspaces.len() > 1 { 1 } else { workers };
-    let done: Vec<Done> = map_concurrent(workspaces.as_slice(), workers, &|workspace: &Workspace| { return repair_workspace(cargo.as_path(), workspace, destination_root.as_path(), request, clone_workers); });
+    let done: Vec<Done> = map_concurrent(workspaces.as_slice(), workers, &|workspace: &Workspace| { return work("cargoRepairWorkspace", || { return repair_workspace(cargo.as_path(), workspace, destination_root.as_path(), request, clone_workers); }); });
     let mut cleaned: usize = 0;
     let mut cloned: usize = 0;
     for outcome in done {

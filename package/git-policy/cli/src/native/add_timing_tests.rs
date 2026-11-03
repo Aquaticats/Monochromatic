@@ -10,7 +10,7 @@
 //! ```
 
 /// The recorder under test.
-use super::{ADD_TIMING_FILE, Recorder, begin, finish, git_step_label, note, step};
+use super::{ADD_TIMING_FILE, Recorder, begin, finish, git_step_label, note, step, work};
 use crate::command_test_support::{fixture, remove};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -151,4 +151,40 @@ fn a_git_run_is_named_by_its_subcommand() {
     assert_eq!(git_step_label(words(&["-C", "status", "--no-optional-locks", "ls-files", "--others"]).as_slice()), "git ls-files");
     assert_eq!(git_step_label(words(&["-c", "core.x=1", "read-tree", "-m"]).as_slice()), "git read-tree");
     assert_eq!(git_step_label(words(&["--no-optional-locks"]).as_slice()), "git");
+}
+
+/// Work done on other threads is summed by name beside the steps, outside the sum rule, because threads overlap in time.
+#[test]
+fn work_on_other_threads_is_summed_by_name() {
+    let root: PathBuf = fixture("add-timing-work");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.as_path()).expect("common directory");
+    begin(common.clone());
+    std::thread::scope(|scope| {
+        for _worker in 0..2 {
+            scope.spawn(|| { work("clone", || { std::thread::sleep(Duration::from_millis(5)); }); });
+        }
+    });
+    finish(0);
+    let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
+    let record = parsed(text.lines().next().expect("one line"));
+    assert_eq!(record["work"]["clone"]["calls"], 2);
+    assert!(record["work"]["clone"]["ms"].as_f64().expect("milliseconds") >= 10.0, "two sleeps of five milliseconds add up");
+    assert!(record["steps"].get("clone").is_none(), "work is not a step");
+    remove(root.as_path());
+}
+
+/// Work with no recording begun is its body, and a later recording does not inherit it.
+#[test]
+fn work_without_a_recording_is_forgotten() {
+    assert_eq!(work("early", || { return 3; }), 3);
+    let root: PathBuf = fixture("add-timing-work-forgotten");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.as_path()).expect("common directory");
+    begin(common.clone());
+    finish(0);
+    let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
+    let record = parsed(text.lines().next().expect("one line"));
+    assert!(record["work"].get("early").is_none());
+    remove(root.as_path());
 }
