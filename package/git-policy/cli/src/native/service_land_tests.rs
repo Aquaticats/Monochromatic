@@ -878,3 +878,30 @@ fn a_landing_keeps_an_earlier_stage_of_another_path() {
     assert_eq!(git_text(world.repo.as_path(), &["diff", "--cached", "--name-only"]), "elsewhere.txt", "the earlier stage is the only difference left");
     remove(world.root.as_path());
 }
+
+/// A restart that finds a foreign program holding the live index lock leaves the batch open, the index and the foreign lock as
+/// they are, and finishes the batch on a later restart once the lock is free.
+#[test]
+fn a_restart_leaves_the_batch_open_while_a_foreign_lock_is_held() {
+    let world: World = world("service-land-recover-foreign-lock");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    std::fs::rename(&done, &open).expect("reopen");
+    let lock: PathBuf = world.repo.join(".git/index.lock");
+    std::fs::write(&lock, "foreign").expect("foreign lock");
+    let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
+    let first = recover(&world.context);
+    assert!(first.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Finish; }));
+    assert!(open.exists(), "the batch stays open while the lock is held");
+    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), before, "the index was not touched");
+    assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "foreign");
+    std::fs::remove_file(&lock).expect("the foreign program lets go");
+    recover(&world.context);
+    assert!(!open.exists(), "the batch is finished once the lock is free");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
+    remove(world.root.as_path());
+}
