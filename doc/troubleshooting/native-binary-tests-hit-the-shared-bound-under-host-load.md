@@ -384,9 +384,11 @@ Length and modification time were used first and rejected after the cross-vendor
 timestamp share them.
 The hash is SipHash from the standard library, which protects against accidental equality only.
 
-A caller that finds no stored copy writes its own partial file, created exclusively (`create_new`, see "The second
-review"), in `<fixture root>/wrapper-store/` and links it to the final name with `std::fs::hard_link`, which fails with `AlreadyExists` if another caller published
-first; it then removes its partial and uses the winner's file.
+A caller that finds no stored copy writes its own partial file, created exclusively (`create_new`, see
+"2026-11-01T09:50:10-05:00: cross-vendor review of the wrapper store and its controls"),
+in `<fixture root>/wrapper-store/` and links it to the final name with `std::fs::hard_link`,
+which fails with `AlreadyExists` if another caller published first;
+it then removes its partial and uses the winner's file.
 There is no lock: the final name is only ever a complete file, a reader only opens the final name, and the first
 publisher wins.
 Callers that start together each write a partial copy once per build, so the first wave after a rebuild writes up to
@@ -421,9 +423,9 @@ Not covered: a copy of another build removed by a different process between its 
 one removal at one moment (the control removes the stored file in `link_stored`'s hook), not under a real second run.
 An earlier version used an advisory lock; the owner's stance against locks replaced it with the lock-free publish.
 
-### The second review
+### 2026-11-01T09:50:10-05:00: cross-vendor review of the wrapper store and its controls
 
-A second cross-vendor review of the store and its controls (OpenAI model, output kept at
+A later cross-vendor review of the store and its controls (OpenAI model, output kept at
 `/var/home/user/temp/agent/ct/pi-review2.out` on the development host) made eight claims; each was checked against the
 code, and all eight held.
 What changed, finding by finding:
@@ -496,7 +498,8 @@ The controls now compare the diagnostics without wait-notice lines (`without_wai
 used by `run` in `binary_merge_isolation_tests.rs`), and
 `a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out` holds a signer stand-in until the control has
 read the notice from the wrapper's standard error, and checks that it is printed and removed.
-Its first version only slept past the grace, which did not make the notice certain: see "The second review".
+Its first version only slept past the grace, which did not make the notice certain:
+see "2026-11-01T09:50:10-05:00: cross-vendor review of the wrapper store and its controls".
 Controls that assert a notice or its absence (`binary_wait_notice_tests.rs`, `binary_lfs_hang_tests.rs`) read raw
 bytes and are unchanged.
 
