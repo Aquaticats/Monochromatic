@@ -54,7 +54,7 @@ use std::path::Path;
 use monochromatic_dependency_catalog::Settings;
 
 /// What:
-/// `use crate::checks::{check_release_age, check_trust};` imports the two policy checks over a list of locked versions.
+/// `use crate::checks::check_policy;` imports the two policy checks together over a list of locked versions.
 /// Why:
 /// `policy_findings` judges the versions a killed run's lockfile added.
 ///
@@ -62,7 +62,7 @@ use monochromatic_dependency_catalog::Settings;
 /// ```ts
 /// import { checkReleaseAge, checkTrust } from 'crate/checks';
 /// ```
-use crate::checks::{check_release_age, check_trust};
+use crate::checks::check_policy;
 /// What:
 /// `use crate::crates::{LockSnapshot, read_locks};` imports the lockfile snapshot type and the reader of the lockfiles.
 /// Why:
@@ -334,18 +334,8 @@ pub fn policy_findings(settings: &Settings, registry: &dyn Registry, now: i64, b
     let mut findings: Vec<String> = Vec::new();
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&added`: lends the value without copying or giving it away.
-    match check_release_age(&added, settings, registry, now) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    match check_policy(&added, settings, registry, now) {
         Ok(outcome) => findings.extend(outcome.problems),
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(error) => findings.push(error.message),
-    }
-    // `match`: picks the arm whose pattern fits the value.
-    // Borrow `&added`: lends the value without copying or giving it away.
-    match check_trust(&added, settings, registry, now) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        Ok(problems) => findings.extend(problems),
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => findings.push(error.message),
     }
     return findings;

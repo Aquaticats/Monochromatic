@@ -111,7 +111,7 @@ use crate::cargo_run::{CargoOutcome, CargoRunner};
 /// ```ts
 /// import { CheckOutcome, check_release_age, check_trust } from 'crate/checks';
 /// ```
-use crate::checks::{CheckOutcome, check_release_age, check_trust};
+use crate::checks::{CheckOutcome, check_policy};
 /// What:
 /// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
 /// `read_locks` from another module of this crate so this file can name them unqualified.
@@ -885,18 +885,9 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // Borrow `&added`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `age: CheckOutcome`.
-    let age: CheckOutcome = check_release_age(&added, settings, request.registry, request.now).map_err(other_message)?;
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Closure `|error|`: an anonymous function, like a TS arrow function.
-    // Borrow `&added`: lends the value without copying or giving it away.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `trust: Vec<String>`.
-    let trust: Vec<String> = check_trust(&added, settings, request.registry, request.now).map_err(other_message)?;
-    // `let mut`: a binding that may change.
-    // Typed binding: `problems: Vec<String>`.
-    let mut problems: Vec<String> = age.problems;
-    problems.extend(trust);
-    warnings.extend(age.warnings);
+    let outcome: CheckOutcome = check_policy(&added, settings, request.registry, request.now).map_err(other_message)?;
+    let mut problems: Vec<String> = outcome.problems;
+    warnings.extend(outcome.warnings);
     // Typed binding: `keep: bool`.
     let mut keep: bool = problems.is_empty() && !request.dry_run;
     // `let mut`: a binding that may change.

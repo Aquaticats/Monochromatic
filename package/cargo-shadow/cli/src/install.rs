@@ -113,21 +113,17 @@ use monochromatic_dependency_catalog::Settings;
 /// ```
 use crate::cargo_run::{CargoOutcome, CargoRunner};
 /// What:
-/// `use crate::checks::{CheckOutcome, check_release_age, check_trust};` imports `CheckOutcome`,
-/// `check_release_age`,
-/// `check_trust` from another module of this crate so this file can name them unqualified.
+/// `use crate::checks::{CheckOutcome, check_policy};` imports `CheckOutcome`,
+/// `check_policy` from another module of this crate so this file can name them unqualified.
 /// Why:
-/// `CheckOutcome` is used by `update_stale_roots`;
-/// `check_release_age` is used by `update_stale_roots`,
-/// `policy_findings`;
-/// `check_trust` is used by `update_stale_roots`,
-/// `policy_findings`.
+/// `check_policy` runs the release-age and trust checks together and keeps a refusal when a later lookup fails;
+/// `CheckOutcome` carries the findings and warnings of the install and of the frozen verification.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { CheckOutcome, check_release_age, check_trust } from 'crate/checks';
+/// import { CheckOutcome, checkPolicy } from 'crate/checks';
 /// ```
-use crate::checks::{CheckOutcome, check_release_age, check_trust};
+use crate::checks::{CheckOutcome, check_policy};
 /// What:
 /// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
 /// `read_locks` from another module of this crate so this file can name them unqualified.
@@ -205,7 +201,7 @@ use crate::lockfile::{LockedVersion, added_versions};
 /// ```
 use crate::registry::Registry;
 /// What:
-/// `use crate::verify::{is_verified, mark_verified, verify_added_since_base, verify_locked_entries};` imports
+/// `use crate::verify::{is_verified, mark_verified, verify_added_since_base_outcome, verify_locked_entries_outcome};` imports
 /// `is_verified`,
 /// `mark_verified`,
 /// `verify_added_since_base`,
@@ -218,7 +214,7 @@ use crate::registry::Registry;
 /// ```ts
 /// import { isVerified, markVerified, verifyAddedSinceBase, verifyLockedEntries } from 'crate/verify';
 /// ```
-use crate::verify::{is_verified, mark_verified, verify_added_since_base, verify_locked_entries};
+use crate::verify::{is_verified, mark_verified, verify_added_since_base_outcome, verify_locked_entries_outcome};
 /// What:
 /// `pub use crate::install_verify::{LockBaseFactory, LockBaseReader, policy_findings, verification_cached, verification_scope};` imports and
 /// re-exports the helpers split out of this file,
@@ -832,27 +828,8 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     // Typed binding: `versions: Vec<LockedVersion>`.
     let versions: Vec<LockedVersion> = checked.into_iter().collect();
     // Typed binding: `age: CheckOutcome`.
-    let age: CheckOutcome = if versions.is_empty() {
-        CheckOutcome::default()
-    } else {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&versions`: lends the value without copying or giving it away.
-        check_release_age(&versions, request.settings, request.registry, request.now)?
-    };
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
-    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (value !== undefined) { const inner = value; ... }
-    // ```
-    // Borrow `&versions`: lends the value without copying or giving it away.
-    // Typed binding: `trust: Vec<String>`.
-    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    let trust: Vec<String> = if versions.is_empty() { Vec::new() } else { check_trust(&versions, request.settings, request.registry, request.now)? };
-    let mut problems: Vec<String> = age.problems;
-    problems.extend(trust);
+    let outcome: CheckOutcome = if versions.is_empty() { CheckOutcome::default() } else { check_policy(&versions, request.settings, request.registry, request.now)? };
+    let problems: Vec<String> = outcome.problems;
     // Only a pass is remembered, and only for the text that is live now.
     if problems.is_empty() && !covered {
         // Borrow `&after`: lends the value without copying or giving it away.
@@ -863,7 +840,7 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     }
     // `let mut`: a binding that may change.
     // Typed binding: `warnings: Vec<String>`.
-    let mut warnings: Vec<String> = age.warnings;
+    let mut warnings: Vec<String> = outcome.warnings;
     warnings.extend(notes);
     let keep: bool = problems.is_empty() && !request.dry_run;
     return Ok(InstallReport {
@@ -914,7 +891,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `locks: Vec<LockSnapshot>`.
         let locks: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(io_error)?;
-        let problems: Vec<String> = if request.settings.trust_lockfile {
+        let outcome: CheckOutcome = if request.settings.trust_lockfile {
             // Typed binding: `scope: String`.
             let scope: String = verification_scope(request.settings, true, request.trust_base);
             // `let mut`: a binding that may change.
@@ -931,7 +908,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             }
             if pending.is_empty() {
                 // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-                Vec::new()
+                CheckOutcome::default()
             } else {
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Typed binding: `read_base: LockBaseReader`.
@@ -940,8 +917,9 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
                 // Borrow `&pending`: lends the value without copying or giving it away.
                 // `.map_err(...)`: converts the callee's error into this function's error type.
                 // Typed binding: `found: Vec<String>`.
-                let found: Vec<String> = verify_added_since_base(&pending, &*read_base, request.settings, request.registry, request.now).map_err(registry_error)?;
-                if found.is_empty() {
+                let found: CheckOutcome = verify_added_since_base_outcome(&pending, &*read_base, request.settings, request.registry, request.now).map_err(registry_error)?;
+                // A pass with a warning is not remembered, so the warning is shown again.
+                if found.problems.is_empty() && found.warnings.is_empty() {
                     // Borrow `&pending`: lends the value without copying or giving it away.
                     for snapshot in &pending {
                         // Borrow `&scope`: lends the value without copying or giving it away.
@@ -954,9 +932,9 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Borrow `&locks`: lends the value without copying or giving it away.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            verify_locked_entries(request.root, &locks, request.settings, request.registry, request.now).map_err(registry_error)?
+            verify_locked_entries_outcome(request.root, &locks, request.settings, request.registry, request.now).map_err(registry_error)?
         };
-        return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), problems, ..InstallReport::default() });
+        return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), problems: outcome.problems, warnings: outcome.warnings, ..InstallReport::default() });
     }
     // Closure `|old, live|`: an anonymous function, like a TS arrow function.
     // Borrow `&process_exists`: lends the value without copying or giving it away.

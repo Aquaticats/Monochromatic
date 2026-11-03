@@ -101,18 +101,17 @@ use monochromatic_dependency_catalog::Settings;
 use sha2::{Digest, Sha256};
 
 /// What:
-/// `use crate::checks::{check_release_age, check_trust};` imports `check_release_age`,
-/// `check_trust` from another module of this crate so this file can name them unqualified.
+/// `use crate::checks::{CheckOutcome, check_policy};` imports `CheckOutcome`,
+/// `check_policy` from another module of this crate so this file can name them unqualified.
 /// Why:
-/// `check_release_age` is used by `verify_locked_entries`;
-/// `check_trust` is used by `verify_locked_entries`,
-/// `verify_added_since_base`.
+/// `check_policy` runs the release-age and trust checks together and keeps a refusal when a later lookup fails;
+/// `CheckOutcome` carries its findings and warnings out of the two verify functions.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { check_release_age, check_trust } from 'crate/checks';
+/// import { CheckOutcome, checkPolicy } from 'crate/checks';
 /// ```
-use crate::checks::{check_release_age, check_trust};
+use crate::checks::{CheckOutcome, check_policy};
 /// What:
 /// `use crate::crates::LockSnapshot;` imports `LockSnapshot` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -307,13 +306,27 @@ pub fn mark_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, 
 /// ```ts
 /// export async function verifyLockedEntries(args): Promise<string[]>
 /// ```
-pub fn verify_locked_entries(
+pub fn verify_locked_entries(root: &Path, snapshots: &[LockSnapshot], settings: &Settings, registry: &dyn Registry, now: i64) -> Result<Vec<String>, String> {
+    return Ok(verify_locked_entries_outcome(root, snapshots, settings, registry, now)?.problems);
+}
+
+/// What:
+/// `pub fn verify_locked_entries_outcome(...) -> Result<CheckOutcome, String>` is `verify_locked_entries` with the release-age warnings.
+/// Why:
+/// Review finding (2c 8): a young release that the non-strict release age allows must still be reported on the frozen path,
+/// and a pass that carries a warning is not remembered, so the warning is shown again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export async function verifyLockedEntriesOutcome(args): Promise<CheckOutcome>
+/// ```
+pub fn verify_locked_entries_outcome(
     root: &Path,
     snapshots: &[LockSnapshot],
     settings: &Settings,
     registry: &dyn Registry,
     now: i64,
-) -> Result<Vec<String>, String> {
+) -> Result<CheckOutcome, String> {
     let mut pending: Vec<&LockSnapshot> = Vec::new();
     for snapshot in snapshots {
         if !is_verified(root, snapshot, settings, ALL_ENTRIES_SCOPE) {
@@ -321,19 +334,18 @@ pub fn verify_locked_entries(
         }
     }
     if pending.is_empty() {
-        return Ok(Vec::new());
+        return Ok(CheckOutcome::default());
     }
     let sources: Vec<String> = pending.iter().copied().map(LockSnapshot::source_text).collect();
     let versions: Vec<LockedVersion> = registry_versions(&sources)?;
     eprintln!("cargo-shadow: verifying {} locked versions from {} lockfiles", versions.len(), pending.len());
-    let mut problems: Vec<String> = check_release_age(&versions, settings, registry, now).map_err(message_of)?.problems;
-    problems.extend(check_trust(&versions, settings, registry, now).map_err(message_of)?);
-    if problems.is_empty() {
+    let outcome: CheckOutcome = check_policy(&versions, settings, registry, now).map_err(message_of)?;
+    if outcome.problems.is_empty() && outcome.warnings.is_empty() {
         for snapshot in pending {
             mark_verified(root, snapshot, settings, ALL_ENTRIES_SCOPE);
         }
     }
-    return Ok(problems);
+    return Ok(outcome);
 }
 
 /// What:
@@ -365,6 +377,25 @@ pub fn verify_added_since_base(
     registry: &dyn Registry,
     now: i64,
 ) -> Result<Vec<String>, String> {
+    return Ok(verify_added_since_base_outcome(snapshots, read_base_lock, settings, registry, now)?.problems);
+}
+
+/// What:
+/// `pub fn verify_added_since_base_outcome(...) -> Result<CheckOutcome, String>` is `verify_added_since_base` with the release-age warnings.
+/// Why:
+/// The same as `verify_locked_entries_outcome`, for the versions new since the base.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export async function verifyAddedSinceBaseOutcome(args): Promise<CheckOutcome>
+/// ```
+pub fn verify_added_since_base_outcome(
+    snapshots: &[LockSnapshot],
+    read_base_lock: &dyn Fn(&str) -> String,
+    settings: &Settings,
+    registry: &dyn Registry,
+    now: i64,
+) -> Result<CheckOutcome, String> {
     let mut base_sources: Vec<String> = Vec::new();
     for snapshot in snapshots {
         base_sources.push(read_base_lock(&snapshot.crate_dir));
@@ -373,22 +404,7 @@ pub fn verify_added_since_base(
     let versions: Vec<LockedVersion> = added_versions(&base_sources, &current)?;
     eprintln!("cargo-shadow: verifying {} versions newly locked since the base from {} lockfiles", versions.len(), snapshots.len());
     if versions.is_empty() {
-        return Ok(Vec::new());
+        return Ok(CheckOutcome::default());
     }
-    // Delegated pick (2026-11-03): the release age applies to the versions new since the base as well as the trust policy,
-    // on this frozen path as on the local one.
-    let mut problems: Vec<String> = check_release_age(&versions, settings, registry, now).map_err(message_of)?.problems;
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&versions`: lends the value without copying or giving it away.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    problems.extend(check_trust(&versions, settings, registry, now).map_err(message_of)?);
-    // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
-    // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // Ok(value)  is  return value;
-    // // Err(error) is  throw error;   (the caller sees it as a returned value)
-    // ```
-    return Ok(problems);
+    return check_policy(&versions, settings, registry, now).map_err(message_of);
 }

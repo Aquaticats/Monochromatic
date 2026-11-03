@@ -171,57 +171,41 @@ fn created_millis(record: &VersionRecord) -> Option<i64> {
 }
 
 /// What:
-/// `fn ordering_millis(record) -> i64` reads a release's publish time for ordering only,
-/// and an unreadable time sorts first.
+/// `fn ordering_millis(record) -> i64` reads a release's publish time for sorting records that are known to have a readable time.
 /// Why:
-/// An undated earlier release then still counts as earlier history,
-/// which can only make the downgrade check stricter,
-/// never grant an exemption.
+/// Review finding (2c 7): an unreadable time cannot be ordered, so such a record is never part of the earlier history
+/// (`earlier_releases` leaves it out). It must not give a publisher a reputation it did not earn; the zero here is never reached
+/// for a record in that list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const orderingMillis = (record: VersionRecord): number => parseRfc3339Millis(record.createdAt) ?? 0;
 /// ```
 fn ordering_millis(record: &VersionRecord) -> i64 {
-    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
-    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // value ?? fallback
-    // ```
     return created_millis(record).unwrap_or(0);
 }
 
 /// What:
 /// `fn earlier_releases(history, record_millis) -> Vec<VersionRecord>` lists the releases published before a given time,
-/// oldest first.
+/// oldest first, leaving out any release whose publish time is unreadable.
 /// Why:
 /// Both the trust decision and the question "can the owner list change this decision" need the same set.
+/// A release that cannot be placed in time cannot be called earlier, so it establishes no publisher history.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const earlierReleases = (history: VersionRecord[], recordMillis: number) =>
-///   history.filter((entry) => orderingMillis(entry) < recordMillis).sort(byOrderingMillis);
+///   history.filter((entry) => (createdMillis(entry) ?? Infinity) < recordMillis).sort(byMillis);
 /// ```
 fn earlier_releases(history: &[VersionRecord], record_millis: i64) -> Vec<VersionRecord> {
-    // Keeps the releases published strictly before the given time (a TS `filter`).
     let mut earlier: Vec<VersionRecord> = Vec::new();
     for entry in history {
-        if ordering_millis(entry) < record_millis {
-            // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
-            // Why:      The copy can be stored or moved elsewhere while the original stays in place.
-            // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // structuredClone(value)  // or [...list] / {...object}
-            // ```
+        if let Some(published) = created_millis(entry)
+            && published < record_millis
+        {
             earlier.push(entry.clone());
         }
     }
-    // `sort_by_key` orders by the key function's number, oldest first (a TS `sort((a, b) => a - b)`).
     earlier.sort_by_key(ordering_millis);
     return earlier;
 }
