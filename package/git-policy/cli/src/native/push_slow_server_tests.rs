@@ -13,14 +13,16 @@
 //! ```
 #![cfg(unix)]
 
-use crate::auto_push_single_flight::PushAttempt;
-use crate::bounded_push::{Patience, STOPPED_EXIT_CODE, WAIT_NOTE_PREFIX, run_bounded_push};
+use crate::auto_push_single_flight::{PushAttempt, PushGit};
+use crate::bounded_push::{LOW_SPEED_TIME, PUSH_DEADLINE_VARIABLE, Patience, STOPPED_EXIT_CODE, WAIT_NOTE_PREFIX, run_bounded_push};
+use crate::lfs_bounded_push::run_push;
 use crate::smart_http_support::SmartHttp;
 use crate::test_support::{REAL_GIT, fixture, git, git_text, remove, repository, scratch_environment};
 use std::io::Read;
 use std::net::TcpListener;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use std::ffi::OsString;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
@@ -39,14 +41,13 @@ const GRACE: Duration = Duration::from_secs(2);
 /// How long a loaded host may take over a stop beyond its limit and the grace.
 const STOP_SLACK: Duration = Duration::from_secs(30);
 
-/// A bare remote whose `pre-receive` hook sleeps for the silence and whose server sends no keepalive.
-fn silent_remote(projects: &std::path::Path) -> PathBuf {
+/// A bare remote whose `pre-receive` hook sleeps for `silence` and whose server sends no keepalive.
+fn silent_remote(projects: &std::path::Path, silence: Duration) -> PathBuf {
     let remote: PathBuf = projects.join("remote.git");
     git(projects, &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
     git(remote.as_path(), &["config", "http.receivepack", "true"]);
     git(remote.as_path(), &["config", "receive.keepAlive", "0"]);
     let hook: PathBuf = remote.join("hooks").join("pre-receive");
-    let silence: Duration = STALL * SILENCE_WINDOWS;
     std::fs::write(hook.as_path(), format!("#!/bin/sh\nexec sleep {}\n", silence.as_secs())).expect("hook");
     std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook mode");
     return remote;
@@ -80,7 +81,7 @@ fn a_push_over_http_waits_for_a_silent_server_check_and_lands() {
     let root: PathBuf = fixture("slow-server-http");
     let projects: PathBuf = root.join("projects");
     std::fs::create_dir(&projects).expect("projects");
-    let remote: PathBuf = silent_remote(projects.as_path());
+    let remote: PathBuf = silent_remote(projects.as_path(), STALL * SILENCE_WINDOWS);
     let server: SmartHttp = SmartHttp::start(projects.as_path());
     let repo: PathBuf = repository(root.as_path(), "repo");
     git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{}/remote.git", server.port()).as_str()]);
@@ -98,7 +99,7 @@ fn a_push_over_http_waits_for_a_silent_server_check_and_lands() {
 #[test]
 fn the_same_silence_behind_a_local_path_is_still_a_stall() {
     let root: PathBuf = fixture("slow-server-local");
-    let remote: PathBuf = silent_remote(root.as_path());
+    let remote: PathBuf = silent_remote(root.as_path(), STALL * SILENCE_WINDOWS);
     let repo: PathBuf = repository(root.as_path(), "repo");
     git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
     let (attempt, elapsed): (PushAttempt, Duration) = run(repo.as_path(), Patience::Push { stall: STALL, ceiling: CEILING });
@@ -132,4 +133,84 @@ fn a_server_that_never_answers_the_first_request_is_still_a_stall() {
     assert!(elapsed < STALL + GRACE + STOP_SLACK, "{elapsed:?}");
     remove(root.as_path());
     drop(silent);
+}
+
+/// How much longer than the wrapper's former low-speed cutoff the server's check stays silent.
+const PAST_THE_CUTOFF: Duration = Duration::from_secs(5);
+
+/// The low-speed time a person sets in the control that proves the person's own value still applies, in whole seconds.
+const PERSON_LOW_SPEED_SECONDS: u64 = 2;
+
+/// How many times the person's low-speed time the server's check stays silent in that control.
+const PERSON_SILENCE_FACTOR: u32 = 6;
+
+/// The coordinator of the wrapper's own push for the repository, as the service builds it: the stall window of the controls in
+///  its environment, and whatever the person set besides.
+fn push_git(repo: &std::path::Path, person: &[(&str, &str)]) -> PushGit {
+    let mut environment: Vec<(OsString, OsString)> = [
+        ("PATH", "/usr/bin:/bin"),
+        ("GIT_CONFIG_NOSYSTEM", "1"),
+        ("GIT_CONFIG_GLOBAL", "/nonexistent-global-config"),
+        ("GIT_TERMINAL_PROMPT", "0"),
+        (PUSH_DEADLINE_VARIABLE, "1"),
+    ]
+    .iter()
+    .chain(person.iter())
+    .map(|(name, value)| { return (OsString::from(name), OsString::from(value)); })
+    .collect();
+    environment.extend(scratch_environment());
+    return PushGit { real_git: PathBuf::from(REAL_GIT), cwd: repo.to_path_buf(), environment, lfs: false };
+}
+
+/// A silent HTTP server and a repository that pushes to it, for a silence of `silence`.
+fn http_stage(name: &str, silence: Duration) -> (PathBuf, PathBuf, PathBuf, SmartHttp) {
+    let root: PathBuf = fixture(name);
+    let projects: PathBuf = root.join("projects");
+    std::fs::create_dir(&projects).expect("projects");
+    let remote: PathBuf = silent_remote(projects.as_path(), silence);
+    let server: SmartHttp = SmartHttp::start(projects.as_path());
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{}/remote.git", server.port()).as_str()]);
+    return (root, repo, remote, server);
+}
+
+/// The wrapper's own push, as the service runs it.
+fn run_wrapper_push(git: &PushGit) -> (PushAttempt, Duration) {
+    let started: Instant = Instant::now();
+    let arguments: Vec<OsString> = ["push", "origin", "main"].iter().map(OsString::from).collect();
+    let attempt: PushAttempt = run_push(git, arguments.as_slice()).expect("runs");
+    return (attempt, started.elapsed());
+}
+
+/// A server check that stays silent past the 60 seconds after which the wrapper used to have Git end an HTTP transfer lands on
+///  the first try: the wrapper's push sets no low-speed limit of its own, so nothing but the server or TCP ends the wait.
+#[test]
+fn a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands() {
+    let cutoff: Duration = Duration::from_secs(LOW_SPEED_TIME.parse::<u64>().expect("whole seconds"));
+    let (root, repo, remote, server) = http_stage("slow-server-past-cutoff", cutoff + PAST_THE_CUTOFF);
+    let (attempt, elapsed): (PushAttempt, Duration) = run_wrapper_push(&push_git(repo.as_path(), &[]));
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    assert!(elapsed >= cutoff, "the push waited past the cutoff: {elapsed:?}");
+    assert!(attempt.output.contains(WAIT_NOTE_PREFIX), "{}", attempt.output);
+    assert_eq!(git_text(remote.as_path(), &["rev-parse", "main"]), git_text(repo.as_path(), &["rev-parse", "main"]), "the commit arrived");
+    drop(server);
+    remove(root.as_path());
+}
+
+/// A low-speed limit and time the person set reach Git unchanged, so they still end a silent HTTP wait: a person who wants a
+///  shorter cutoff has it, and the wrapper's push neither adds nor lengthens one.
+#[test]
+fn a_low_speed_setting_the_person_made_still_ends_a_silent_http_wait() {
+    let person_time: Duration = Duration::from_secs(PERSON_LOW_SPEED_SECONDS);
+    let silence: Duration = person_time * PERSON_SILENCE_FACTOR;
+    let (root, repo, _remote, server) = http_stage("slow-server-person-cutoff", silence);
+    let seconds: String = PERSON_LOW_SPEED_SECONDS.to_string();
+    let git: PushGit = push_git(repo.as_path(), &[("GIT_HTTP_LOW_SPEED_LIMIT", crate::bounded_push::LOW_SPEED_LIMIT), ("GIT_HTTP_LOW_SPEED_TIME", seconds.as_str())]);
+    let (attempt, elapsed): (PushAttempt, Duration) = run_wrapper_push(&git);
+    assert_ne!(attempt.exit_code, 0, "{}", attempt.output);
+    assert_ne!(attempt.exit_code, STOPPED_EXIT_CODE, "Git ended it, not the wrapper: {}", attempt.output);
+    assert!(attempt.output.to_lowercase().contains("too slow"), "{}", attempt.output);
+    assert!(elapsed < silence, "the person's cutoff ended the wait before the server's check did: {elapsed:?}");
+    drop(server);
+    remove(root.as_path());
 }
