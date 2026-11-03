@@ -531,7 +531,8 @@ thing from the quiet interval of the stall rule; they are not carried over as ev
 3. record the distribution beside the number, with the host load average of each sample;
 4. choose the interval above the longest quiet gap observed among healthy steps by a margin the owner approves, and record the
    measurement file and the margin beside the constant.
-Until then the stall rule uses no new number: the existing classes stay as the only bound, which is the behavior on the branch today.
+Until then no new number ships: the existing class numbers stay as the stall windows (the behavior of the retry-based attempt on this
+branch) and are labelled unmeasured as stall intervals.
 
 ## Item 1: a Git step of the commit crosses its class bound
 
@@ -948,6 +949,10 @@ open (with the reason).
 
 ## Answers to the fourth review
 
+This section is kept as history. Where it names `saved-ambiguous` as an outcome, a reflog line as publication evidence without an
+anchor, entry equality as provenance, `update-ref` never being stopped, the saved-copies age rule, or Questions 1 to 4 below its
+end, the fifth review's answers and the owner's decisions of 2026-11-03 supersede it.
+
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol-4.txt`, with a closure line: closed (answered by the design, to be
 tested), narrowed (reduced, with the owner decision it still meets), or open (with the reason).
 
@@ -1020,6 +1025,77 @@ is not asked; re-signing is necessary only under "single replayed commit, change
 Git bug narrowing is optional if a path avoiding the child is built; the prune boundary as worded was inaccurate; the no-reflog
 ambiguity is inherent. The list below keeps only what the review says is the owner's.
 
+## Answers to the fifth review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-5.txt`, with a closure line (closed: answered by the design, to be
+tested; narrowed: reduced, with the decision it meets; open: with the reason).
+
+1. Publication evidence (open in review): accepted. Rule 4 is replaced: an existing reflog is evidence only if the anchor recorded
+   before the swap (reflog length and the hash of its last line) is still in the file, and only lines after the anchor belong to the
+   attempt, which also answers the reused-commit-identifier execution (an older publication and removal of an identical commit
+   cannot be read as this attempt's). When the anchor is gone the traces are unclear and owner decision 3 applies: land it, with a
+   message that names the commit and the command to drop it. Closure: closed; the residue is the owner's decision 3.
+2. Retirement and duplicate protection: closed at the protocol level, as the reviewer says; the four implementation obligations are
+   adopted: torn-tail repair before append, per-line integrity, preservation across upgrades and worktree lifecycle, and rejection of
+   an identity reused with different content (hash of the immutable request).
+3. Obsolete workers: narrowed. "Obsolete workers cannot exist" is restated as a safety argument that holds if every mutator keeps the
+   lock description, with a cgroup for descendants that close it (inline owners in a transient scope, services in their unit's cgroup),
+   and controls for retained-descriptor and closed-descriptor descendants. Closure: narrowed to controls.
+4. Foreign staging provenance: accepted that stat fields do not identify a staging operation (the reviewer's tree-created zero-stat
+   entry). Owner decision 2 settles it: the deferred follow-up stages the committed content as Git's `git commit -- path` would, a
+   deliberate restage to exactly the old entry inside a foreign lock's window is replaced, and this is an accepted concession.
+   Closure: closed by the owner's decision; stated as a concession, not a provenance claim.
+5. Carry-forward crash recovery: process-crash counterexample closed in the model. Power-loss ordering is now written down (each
+   namespace effect with the fsync of the affected directory, recovery identity-based) and is a per-file-system verification
+   obligation. Saved copies are retained until explicit disposal (adoption), which closes the sole-copy deletion by the age rule.
+   Closure: closed in the model; filesystem durability open as a verification obligation.
+6. Ref-free acceptance and interrupted lock cleanup: closed. An abandoned lock keeps the request pending until someone removes it; the
+   notice names the file.
+7. Worktree attachment and generation: accepted. The generation counter is withdrawn as a fence. The lane brackets reads of `HEAD`
+   and `logs/HEAD` around the index read while holding `index.lock` and declines ambiguous materialization. The window between Git's
+   own index write and its `HEAD` update in `checkout` and `switch` cannot be seen by any bracket, so the residue is a question for the
+   owner (below). Closure: narrowed; the residue is the owner's.
+8. Adoption order: closed at the protocol level, with the torn-suffix repair before appends and capture time stated as a convention.
+9. Logical index, amendments, signed requests: capture consistency is now explicit (state version before and after reading, a delta
+   replayed and never reinterpreted); signed replay follows the adopted background re-signing; the consumption map's limitation (staging a
+   path back to exactly its consumed entry cannot express a revert of a pending commit) is a question for the owner (below). Closure:
+   closed except the limitation, which is the owner's.
+10. Index extensions: narrowed to a verification gate (differential controls on Git's later behavior); no new counterexample.
+11. Overlapping prune: narrowed. The temporal boundary is stated accurately; corruption by another tool after release is on the owner's
+    outside list (adoption); maintenance the wrapper starts is coordinated over its whole lifetime by extending retention, which closes
+    the reviewer's idle-lane hole. Closure: narrowed to the owner's outside list.
+12. Push, hooks, hangs, inventory:
+    - Push: the unconditional exclusion stands; the fallback is a frozen filtered explicit update set under an acknowledged marker, so a
+      ref created after the marker cannot enter the set (mirror deletions listed explicitly). Closure: closed pending the per-form control.
+    - Hooks after an owner death: `hook-dispatch` is journaled before `update-ref`; recovery runs the evidence rules and invokes
+      `update-ref` again only if the swap did not complete; Git's own contract allows the repetition (`Documentation/githooks.adoc:486-488`).
+      The exception, a hook with an external effect on "prepared", is a question for the owner (below). Closure: narrowed.
+    - Deterministic hangs: the end state "pending with a message" is withdrawn; the direction is the embedded path (adoption).
+      Closure: open as work (the embedding), with differential controls.
+    - Exit inventory: still an unperformed gate. Closure: open.
+
+Fourth-round new findings.
+- Kill before acquire: closed. Inline lifecycle: closed with the cgroup scope (finding 3 above) and the stated fallback (no inline
+  ownership where a hook is configured and the manager is unavailable).
+- Watchdog cancellation and repeated hooks: narrowed. The reviewer's separate point stands: removing the watchdog does not satisfy
+  "never stuck". The stuck-step rule of owner decision 1 covers Git children and holds hooks; a quiet owner of our own making is a
+  question for the owner (below). Closure: open as a question.
+- Lock ownership by contents: closed.
+- Dry-run versus actual push expansion: narrowed; see push above.
+- Stale deferred intents: accepted. The target is the current branch tip's entry for the path, not the newest wrapper intent, so a
+  foreign successor is respected (the reviewer's `R1`, native `C` sequence leaves the entry at `A`). Closure: closed.
+
+New high findings.
+- Descendant lifetime for an inline owner: closed by the cgroup design and controls for both descriptor cases.
+- Age cleanup deleting the only carried edit: closed (adoption: retained until explicit disposal).
+- Maintenance admission at an idle lane: closed (coordination over the whole lifetime by extending retention).
+
+Judgments requested of the reviewer, as adopted: a wedged owner has no general construction that detects a silent wedge, tells it from a
+slow correct operation, and never repeats a hook's effect; the design therefore uses the measured no-progress rule of decision 1 and
+asks the owner what remains. Full entry equality does not preserve every expressible foreign staging state (decision 2 accepts it). The
+signed-commit and hang questions are settled by the adoptions above unless the owner vetoes them; the prune question is partly settled by
+the outside list.
+
 ## Exits that stay nonzero
 
 - Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
@@ -1033,46 +1109,47 @@ ambiguity is inherent. The list below keeps only what the review says is the own
 
 ## Questions for the owner
 
-Four decisions the fourth review says are the owner's. None is decided here. Each shows a concrete case and what the person sees
-under each option. (Earlier answers, 2026-11-03: a branch a foreign program keeps moving, "Save on the side ref (Recommended)"; a
-`--mirror` push, "Leave out wrapper refs (Recommended)"; an amend while commits are pending, "Amend the pending commit
-(Recommended)".)
+Answered on 2026-11-03: stuck step, "End Git, hold hooks (Recommended)"; deferred staging, "Update the index (Recommended)"; unclear
+publication, "Land it (Recommended)"; earlier, a branch a foreign program keeps moving, "Save on the side ref (Recommended)"; a
+`--mirror` push, "Leave out wrapper refs (Recommended)"; an amend while commits are pending, "Amend the pending commit (Recommended)".
+Adopted from standing rules, not asked: the embedded path for a deterministic Git hang, background re-signing, saved copies kept until
+disposal, corruption by another tool after release on the outside list, whole-lifetime maintenance coordination.
 
-1. A signed commit whose parent moved while it was pending.
-   Case: the person ran `git commit -S -m "fix parser" -- parser.rs` on `main` at `B`; another program held `main`'s ref lock, so the
-   signed commit `D` (parent `B`) is pending. When the lock frees, `main` is at `C` (another session's commit).
-   - Option A, wait for the person to sign again: `D` stays pending with a line saying it needs signing again; the next wrapper
-     command asks for the signature and lands `D'` (parent `C`). Visible: `git log` shows `C` only until the person runs a command.
-   - Option B, delegated signing: the service signs `D'` itself with a key or agent the person has authorized for the service.
-     Visible: `D'` lands without a prompt, signed by the service's use of the key; this adds a standing authorization to the signer.
-   - Option C, preserve the signed commit: the service lands `D` unchanged as a side branch and adds a merge commit with parents `C`
-     and `D`. Visible: history gains a merge commit the person did not make and `main` shows `D`'s signature inside it.
-2. A Git bug that hangs on the same input every time.
-   Case: `git update-ref` (or another retained child) hangs on one input on this Git version; restarting it hangs again.
-   - Option A, contain: the request stays pending with a message naming the child and the input, the command exits 0, nothing is
-     lost, and the commit is not on the branch until Git changes. Visible: "saved, not landed", plus a message.
-   - Option B, build a second path for the operations that matter (an in-process writer for the files backend): the commit lands
-     despite the Git bug for the operations it covers; reftable and anything not covered still fall to A. Visible: the commit
-     lands; the cost is another implementation to keep equal to Git.
-3. A destructive prune that overlaps a request.
-   Case: `git prune` (no expiry) starts, takes its view, a request is then imported and published, the spool is released, and the prune
-   deletes the commit's blobs.
-   - Option A, accept as a corrupt repository caused by another tool (the owner's outside list): the wrapper reports a missing object
-     when it next reads it. Visible: after the prune the commit has missing blobs and the person must recover them from elsewhere.
-   - Option B, retain the recovery closure independently for a longer, owner-chosen period before releasing the spool: the lane
-     repairs a late loss from the spool. Visible: a disk cost per published commit for the period, and a repaired repository after such
-     a prune; the period is an owner decision to be recorded beside its value.
-   - Option C, coordinate maintenance the wrapper runs: `git gc` and `git prune` forwarded through the wrapper wait for the lane to
-     be idle and for the spool of every published request to be released. Visible: a person's `git gc` waits with a notice; a
-     prune run by a tool that bypasses the wrapper is still not coordinated.
-4. A published commit that may have been removed by a rewrite, with no reflog to tell.
-   Case: the service crashes right after the swap `B` to `D`, before it writes `published`; the branch's reflog was deleted by a
-   `git reflog expire --expire=now --all`; before the next owner starts, a script resets `main` to `B`.
-   - Option A, `saved-ambiguous` (never publish without proof): `D` is kept saved and named, `main` stays at `B`, and the person is
-     told. Visible: if instead the crash came before the swap (the common case) the commit is also not on `main`, and the person must
-     publish it by an explicit command.
-   - Option B, republish: `D` is replayed on `main` and lands again. Visible: in the rare case the script's reset was deliberate, the
-     commit reappears once, with a message.
+Four decisions remain that no standing rule settles. None is decided here.
+
+1. Staging a path back to its consumed entry while commits are pending.
+   Case: request `R1` (a plain commit) consumed `x=1` and is pending; named-path request `R2` set `x=2` and is pending; the real index
+   still holds `x=1`. The person now wants to undo `R2` and runs `git add x` after putting `x=1` back in the file, then `git commit`.
+   - Option A, as designed: the plain commit sees `x=1` equal to the entry already consumed and does not include `x`; `R2` stays.
+     Visible: after both land, `x` is `2`; the person undoes `R2` with a named-path commit of `x`, and a notice on a plain commit with
+     pending requests says staged paths equal to a pending request's old entry are not captured.
+   - Option B, any plain commit with pending requests captures every staged entry that differs from the logical tail's content, stale
+     ones included. Visible: the reviewer's earlier case (`R1` staged `x=1`, `R2` made `x=2`, the person stages only `y`) commits
+     `y` and also reverts `R2` to `x=1`, which the person did not ask for.
+   - Option C, a plain commit refuses to guess while requests are pending whose paths are staged: it is set aside as pending with a
+     notice that asks the person to name the paths. Visible: no wrong commit, and an extra step for the person.
+2. A quiet owner of our own making.
+   Case: the service owner holds adopted request `R`, and for the measured quiet interval shows no processor time, disk activity or
+   output, and no person's hook is running in its tree. A waiting command (the person's own `git commit`) sees it.
+   - Option A, the waiting command asks the manager to restart the unit, using the same measured interval as owner decision 1; the
+     steps are journaled and redone. Visible: after the interval the person's command prints that it restarted the service, and the
+     commit lands. Risk: a healthy owner that is only slow is ended, and its step is redone.
+   - Option B, never restart automatically; the command prints how to restart the unit and waits. Visible: the command waits until the
+     person acts. This conflicts with "never stuck" if a silent wedge is possible.
+3. A hook with an external effect on "prepared", after an owner death.
+   Case: the person's `reference-transaction` hook posts a chat message when it sees "prepared"; the owner is killed after the post
+   and before the swap; recovery finds the swap did not complete.
+   - Option A, run `update-ref` again: the hook runs again and posts again; Git's contract allows this ("may thus get called
+     multiple times"). Visible: two chat messages, one commit.
+   - Option B, do not run it again: the request is set aside as pending with a notice naming the hook, until the person confirms.
+     Visible: no second message, and the commit waits for the person.
+4. The instant inside Git's own `checkout` where the index is written before `HEAD` changes.
+   Case: the person ran `git switch topic` with edits carried across, and in the instant after Git wrote `topic`'s index and before it
+   updated `HEAD`, the lane applied a deferred follow-up for a commit made on `main`.
+   - Option A, accept the residue: the carried change appears staged on `topic`; nothing is lost; `git restore --staged` undoes it.
+     Visible: a rare staged change on the new branch, which is also what a native `git commit` racing the switch would do.
+   - Option B, decline every deferred follow-up whenever the index file was written by anyone since the commit was captured. Visible: the
+     index lags more often (any foreign `git add` makes the follow-up wait for the person), and a notice says so.
 
 ## Verification plan and build order
 
@@ -1088,6 +1165,11 @@ The order is the reviewer's, adopted:
 4. A narrowly eligible index writer with the extension policy above, under-lock delta only, no checksum provenance.
 5. Backend-specific publication experiments on disposable repositories: files and reftable, packed refs and `pack-refs`,
    `reference-transaction` hooks, linked worktrees, interruption at real persistence boundaries, the branch and `HEAD` reflogs.
+Models to add from the fifth review: an inline hook descendant that keeps and one that closes the lock description, with the owner killed
+at each phase; a partial or expired reflog and the anchor rule; a reused commit identifier; HEAD changing between the bracketed reads; a
+foreign successor commit under a deferred intent; the ledger torn tail and resend with changed content; maintenance overlapping a
+request's whole lifetime; power-loss ordering of the carry-forward effects on btrfs, ext4 and xfs; the stall-interval measurement of
+"Measured stall interval".
 Models to add from the fourth review: a healthy inline owner met by a starting service; a long phase and a hook-bearing owner restart
 (no watchdog exists); forgotten ledger identities (there are none); adoption-before-move crashes; the mixed plain and named-path
 pending sequence; an amendment whose target is no longer the tip; ref creation between a push's expansion and its execution; a worktree
