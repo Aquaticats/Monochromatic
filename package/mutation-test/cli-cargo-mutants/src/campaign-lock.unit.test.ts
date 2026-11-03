@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import {
   readdir,
   readFile,
@@ -21,6 +22,10 @@ import {
   startOldHolder,
 } from './claim-test-support.ts';
 import { noLiveOwner } from './claim-liveness.ts';
+import {
+  flockProgram,
+  slotConflictExitCode,
+} from './constants.ts';
 import { decodeClaimRecord } from './claim-record.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import { liveOwnerOf } from './owner-claim.ts';
@@ -207,6 +212,43 @@ await describe({
         const taken = await attempt(evidence);
         expect(taken.lock).toHaveLength(1);
         await taken.lock[0]?.[Symbol.asyncDispose]();
+      },
+    }),
+    it({
+      name: 'holds the kernel lock on the directory while the lock is held, so a campaign of the earlier release that starts then is refused, and gives it back after',
+      fn: async () => {
+        await using directory = await scratchDirectory('campaign-claim-legacy-start-');
+        const evidence = join(
+          directory.path,
+          'evidence',
+        );
+        await mkdir(evidence);
+        /**
+         What a campaign of the earlier release did to start: the kernel lock on the directory, without waiting.
+         */
+        function legacyStart(): number {
+          /**
+           How `flock` ended.
+           */
+          const { status } = spawnSync(
+            flockProgram,
+            [
+              '--nonblock',
+              '--exclusive',
+              `--conflict-exit-code=${String(slotConflictExitCode)}`,
+              evidence,
+              'true',
+            ],
+          );
+          if (status === null)
+            throw new Error('flock was ended by a signal.');
+          return status;
+        }
+        const taken = await attempt(evidence);
+        expect(taken.lock).toHaveLength(1);
+        expect(legacyStart()).toBe(slotConflictExitCode);
+        await taken.lock[0]?.[Symbol.asyncDispose]();
+        expect(legacyStart()).toBe(0);
       },
     }),
     it({
