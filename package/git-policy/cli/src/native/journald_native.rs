@@ -7,8 +7,11 @@
 //!  time from the moment it was sent (measured in `doc/handover/cli-git-logging.md`), and the entry can carry a
 //!  priority and fields a reader filters on (`journalctl CLI_GIT_REQUEST_ID=<id>`). The protocol is at
 //!  <https://systemd.io/JOURNAL_NATIVE_PROTOCOL/>, and `$JOURNAL_STREAM` is described in `systemd.exec(5)`.
-//!  No lock is taken: the socket is unconnected and non-blocking, one `sendto` per entry, and an entry that cannot be
-//!  sent (journald restarting, a full queue) goes to standard error instead, so a commit never waits for the journal.
+//!  No lock is taken on the native path: the socket is unconnected and non-blocking, one `sendto` per entry, and an entry
+//!  that cannot be sent (journald restarting, a full queue) goes to standard error instead, so a commit never waits for the
+//!  journal. A value is carried as written, one with a newline in the protocol's length-prefixed form. On the fallback a line
+//!  that finds no room is dropped and counted, never waited for, and a line the stream took only in part is finished before
+//!  the next one starts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,6 +19,8 @@
 //! ```
 
 use std::io::Write;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixDatagram};
 
@@ -67,10 +72,27 @@ impl Priority {
 }
 
 /// What:
+///  The text cut to `limit` characters, with the mark appended when it was cut; control characters and newlines are kept.
+/// Why:
+///   The native protocol carries any bytes (a value with a newline in the length-prefixed form), so a value is cut and not
+///  changed; only the line on standard error needs `one_line`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.length > limit ? text.slice(0, limit) + ' [cut]' : text
+/// ```
+pub fn cut(text: &str, limit: usize) -> String {
+    return match text.char_indices().nth(limit) {
+        Some((end, _)) => format!("{}{CUT_MARK}", &text[..end]),
+        None => text.to_string(),
+    };
+}
+
+/// What:
 ///  The text with every control character (a newline included) replaced by a space, and cut to `limit` characters.
 /// Why:
-///   One entry is one line whatever a client or an error message held: a newline in a message could otherwise start a
-///  field of its own in the datagram, or a second line in the standard error stream.
+///   A line on standard error is one line whatever a client or an error message held: a newline in a message could
+///  otherwise start a second line in the stream.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,32 +110,68 @@ pub fn one_line(text: &str, limit: usize) -> String {
     return single;
 }
 
-/// Whether a field name is one journald accepts from a client: upper-case letters, digits and underscores, not starting
-/// with an underscore (those are the journal's own) or a digit.
+/// The longest field name journald takes, in characters.
+pub const FIELD_NAME_LIMIT: usize = 64;
+
+/// What:
+///  Whether a field name is one journald accepts from a client: 1 to 64 upper-case letters, digits and underscores, not
+///  starting with an underscore (the journal's own fields) or a digit.
+/// Why:
+///   This is systemd's `journal_field_valid` called with `allow_protected` false (`src/libsystemd/sd-journal/journal-file.c`,
+///  read from the `main` branch; its comments say names longer than 64 are refused and a digit may not come first), which
+///  `manager_process_entry` in `src/journal/journald-native.c` applies to both forms of a field. A refused name is dropped by
+///  journald without a word, so the entry is built without it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// /^[A-Z][A-Z0-9_]{0,63}$/.test(name)
+/// ```
 pub fn valid_field_name(name: &str) -> bool {
-    let mut characters = name.chars();
-    return characters.next().is_some_and(|first| { return first.is_ascii_uppercase(); })
-        && characters.all(|character| { return character.is_ascii_uppercase() || character.is_ascii_digit() || character == '_'; });
+    let bytes: &[u8] = name.as_bytes();
+    return bytes.len() <= FIELD_NAME_LIMIT
+        && bytes.first().is_some_and(|first| { return first.is_ascii_uppercase(); })
+        && bytes.iter().all(|byte| { return byte.is_ascii_uppercase() || byte.is_ascii_digit() || *byte == b'_'; });
+}
+
+/// Appends one field: `NAME=value\n` when the value has no newline, otherwise the length-prefixed form, `NAME\n`, the byte
+/// length as eight little-endian bytes, the value and `\n`.
+fn push_field(entry: &mut Vec<u8>, name: &str, value: &str) {
+    if value.contains('\n') {
+        entry.extend_from_slice(name.as_bytes());
+        entry.push(b'\n');
+        entry.extend_from_slice(&u64::try_from(value.len()).unwrap_or(u64::MAX).to_le_bytes());
+        entry.extend_from_slice(value.as_bytes());
+    } else {
+        entry.extend_from_slice(name.as_bytes());
+        entry.push(b'=');
+        entry.extend_from_slice(value.as_bytes());
+    }
+    entry.push(b'\n');
 }
 
 /// What:
-///  The bytes of one native entry: `PRIORITY`, `SYSLOG_IDENTIFIER`, `MESSAGE`, then each field as `NAME=value` and a newline.
+///  The bytes of one native entry: `PRIORITY`, `SYSLOG_IDENTIFIER`, `MESSAGE`, then each field, each value as written (cut
+///  to its limit), in the length-prefixed form when it holds a newline.
 /// Why:
-///   Every value is a single line (`one_line`), so the simple form of the protocol is enough and no value can start a
-///  field. A field whose name journald would refuse is left out.
+///   A newline cannot be written in the simple `NAME=value` form without starting a field, and the length-prefixed form
+///  carries any bytes, so a value reads back in the journal as it was sent. A field whose name journald would refuse is left
+///  out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// `PRIORITY=${n}\nSYSLOG_IDENTIFIER=cli-git-service\nMESSAGE=${message}\n${fields.map(([k, v]) => `${k}=${v}\n`).join('')}`
 /// ```
 pub fn datagram(priority: Priority, message: &str, fields: &[(&str, String)]) -> Vec<u8> {
-    let mut text: String = format!("PRIORITY={}\nSYSLOG_IDENTIFIER={IDENTIFIER}\nMESSAGE={}\n", priority.number(), one_line(message, MESSAGE_LIMIT));
+    let mut entry: Vec<u8> = Vec::new();
+    push_field(&mut entry, "PRIORITY", priority.number().to_string().as_str());
+    push_field(&mut entry, "SYSLOG_IDENTIFIER", IDENTIFIER);
+    push_field(&mut entry, "MESSAGE", cut(message, MESSAGE_LIMIT).as_str());
     for (name, value) in fields {
         if valid_field_name(name) {
-            text.push_str(&format!("{name}={}\n", one_line(value, FIELD_LIMIT)));
+            push_field(&mut entry, name, cut(value, FIELD_LIMIT).as_str());
         }
     }
-    return text.into_bytes();
+    return entry;
 }
 
 /// Whether `$JOURNAL_STREAM` names the file with this device and inode, which is how `systemd.exec(5)` says to tell that
@@ -171,8 +229,10 @@ pub fn raw_address(address: &SocketAddr) -> Option<(libc::sockaddr_un, libc::soc
 pub enum Delivery {
     /// As a datagram on the native socket.
     Native,
-    /// As a line on standard error.
+    /// As a line on standard error (all of it, or the start of it with the rest kept to finish before the next line).
     Stderr,
+    /// Nowhere: the journal's socket refused it and standard error had no room, so the entry was dropped and counted.
+    Dropped,
 }
 
 /// Where the journal listens.
@@ -213,6 +273,10 @@ pub struct Sink {
     address: Option<SocketAddr>,
     /// Whether standard error is the journal's stream, so that a line there may carry a `<priority>` prefix.
     stream: bool,
+    /// The rest of a line the stream took only in part, to be written before any other line.
+    pending: Mutex<Vec<u8>>,
+    /// How many entries were dropped since one last said so.
+    lost: AtomicU64,
 }
 
 impl Sink {
@@ -230,7 +294,7 @@ impl Sink {
     pub fn choose(variable: Option<&str>, stderr: Option<(u64, u64)>, socket: &Target) -> Self {
         let stream: bool = stderr.is_some_and(|(device, inode)| { return stream_matches(variable, device, inode); });
         let native: Option<UnixDatagram> = if stream { Self::open() } else { None };
-        return Self { native, address: socket.address(), stream };
+        return Self { native, address: socket.address(), stream, pending: Mutex::new(Vec::new()), lost: AtomicU64::new(0) };
     }
 
     /// An unconnected datagram socket that never blocks, or nothing.
@@ -267,46 +331,123 @@ impl Sink {
 
     /// What:
     ///  Sends one entry, and gives where it went: a datagram when the sink is native and the socket takes it, otherwise
-    ///  `line` on `stderr`.
+    ///  `line` on `stderr`, otherwise nowhere.
     /// Why:
-    ///   A journal that is restarting, absent or full is no reason for the service to wait or to lose the entry. Standard
-    ///  error is the journal's stream when the sink was chosen for it, and a `<priority>` prefix there keeps the level.
+    ///   A journal that is restarting, absent or full is no reason for the service to wait or to lose the entry, and standard
+    ///  error that has no room is no reason to wait either: that entry is dropped and counted, and the next one that gets
+    ///  through says how many were. On the journal's stream a `<priority>` prefix keeps the level, and a line taken in part is
+    ///  finished before another starts, so two lines never run together.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// try { socket.send(datagram) } catch { stderr.write(prefix + line) }
+    /// try { socket.send(datagram) } catch { stderr.write(prefix + line) ?? count(dropped) }
     /// ```
     pub fn deliver(&self, priority: Priority, message: &str, fields: &[(&str, String)], line: &str, stderr: &mut dyn Write) -> Delivery {
+        let lost: u64 = self.lost.load(Ordering::Relaxed);
         if let Some(socket) = self.native.as_ref()
             && let Some(address) = self.address.as_ref()
-            && socket.send_to_addr(datagram(priority, message, fields).as_slice(), address).is_ok()
         {
-            return Delivery::Native;
+            let mut all: Vec<(&str, String)> = fields.to_vec();
+            if lost > 0 {
+                all.push((LOST_FIELD, lost.to_string()));
+            }
+            if socket.send_to_addr(datagram(priority, message, all.as_slice()).as_slice(), address).is_ok() {
+                self.lost.fetch_sub(lost, Ordering::Relaxed);
+                return Delivery::Native;
+            }
         }
-        let prefix: String = if self.stream { format!("<{}>", priority.number()) } else { String::new() };
-        // The result is dropped on purpose: a closed standard error is no reason to fail the work the entry describes.
-        let _written = stderr.write_all(format!("{prefix}{line}").as_bytes());
+        return self.fall_back(priority, line, stderr);
+    }
+
+    /// What:
+    ///  Writes the line to `stderr` without waiting: finishes what an earlier line left unwritten first, says how many
+    ///  entries were dropped before this one, and keeps the rest of a line the stream takes only in part.
+    /// Why:
+    ///   Only the journal's stream needs this care; any other standard error gets its plain line as it always did. Entries
+    ///  that find no room are counted (`lost`) and reported with the next that gets through, because a dropped entry nobody
+    ///  hears of is a gap nobody can explain.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// if (pending.length) flush(pending); if (!pending.length) write(note + line) else lost++
+    /// ```
+    fn fall_back(&self, priority: Priority, line: &str, stderr: &mut dyn Write) -> Delivery {
+        if !self.stream {
+            // The result is dropped on purpose: a closed standard error is no reason to fail the work the entry describes.
+            let _written = stderr.write_all(line.as_bytes());
+            return Delivery::Stderr;
+        }
+        let mut pending = self.pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !pending.is_empty() {
+            let finished: usize = write_what_fits(stderr, pending.as_slice());
+            pending.drain(..finished);
+            if !pending.is_empty() {
+                self.lost.fetch_add(1, Ordering::Relaxed);
+                return Delivery::Dropped;
+            }
+        }
+        let lost: u64 = self.lost.load(Ordering::Relaxed);
+        let mut bytes: Vec<u8> = Vec::new();
+        if lost > 0 {
+            bytes.extend_from_slice(format!("<{}>{LOST_NOTICE_HEAD}{lost}{LOST_NOTICE_TAIL}\n", Priority::Warning.number()).as_bytes());
+        }
+        bytes.extend_from_slice(format!("<{}>{line}", priority.number()).as_bytes());
+        let written: usize = write_what_fits(stderr, bytes.as_slice());
+        if written == 0 {
+            self.lost.fetch_add(1, Ordering::Relaxed);
+            return Delivery::Dropped;
+        }
+        // The note, if any, is now in the stream or in `pending` ahead of the rest of the line, so it is not owed again.
+        self.lost.fetch_sub(lost, Ordering::Relaxed);
+        pending.extend_from_slice(&bytes[written..]);
         return Delivery::Stderr;
     }
+}
+
+/// The field a native entry carries the count of earlier dropped entries in.
+pub const LOST_FIELD: &str = "CLI_GIT_LOG_DROPPED";
+
+/// What a line on standard error says before the count of entries dropped before it.
+const LOST_NOTICE_HEAD: &str = "cli-git-service: ";
+
+/// What it says after the count.
+const LOST_NOTICE_TAIL: &str = " log entries were dropped before this one because the log stream had no room";
+
+/// Writes as much of `bytes` as `stream` takes without waiting, and gives how much it took.
+fn write_what_fits(stream: &mut dyn Write, bytes: &[u8]) -> usize {
+    let mut done: usize = 0;
+    while done < bytes.len() {
+        match stream.write(&bytes[done..]) {
+            Ok(0) => break,
+            Ok(count) => done += count,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(_) => break,
+        }
+    }
+    return done;
 }
 
 /// What:
 ///  A writer to the journal's stream (standard error as the service manager connected it) that never waits for room.
 /// Why:
 ///   `O_NONBLOCK` on the datagram socket does not make standard error non-blocking, and a journal that stops reading would
-///  fill the stream and block the service, and so the commits that wait for it. Each line is sent with `MSG_DONTWAIT`: a
-///  line that finds no room at all is dropped whole. A line the socket took only in part is finished within a short bound
-///  (three waits of at most 100 milliseconds), because the stream would otherwise carry half a line into the next one.
+///  fill the stream and block the service, and so the commits that wait for it. Each write is `MSG_DONTWAIT` on a socket, or,
+///  on a pipe or file a test or a redirection put there, a write made only after a poll shows room and of no more than a
+///  pipe takes whole; a write that finds no room is refused with `WouldBlock`, and one that takes part of the bytes says how
+///  many, so the caller keeps the rest (`Sink::deliver` does) instead of the writer waiting for room.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// try { socket.sendNonBlocking(line) } catch (error) { if (error.code === 'EAGAIN') drop(line) }
+/// try { socket.sendNonBlocking(line) } catch (error) { if (error.code === 'EAGAIN') report(error) }
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct StreamWriter {
     /// The descriptor of the stream.
     descriptor: std::os::fd::RawFd,
 }
+
+/// The most a pipe takes in one write once a poll shows room: a page, which a pipe holding a free slot takes whole.
+const PIPE_CHUNK: usize = 4096;
 
 impl StreamWriter {
     /// A writer to standard error.
@@ -319,6 +460,14 @@ impl StreamWriter {
         return Self { descriptor };
     }
 
+    /// Whether the descriptor shows room for a write right now.
+    fn has_room(&self) -> bool {
+        let mut request: libc::pollfd = libc::pollfd { fd: self.descriptor, events: libc::POLLOUT, revents: 0 };
+        // SAFETY: `request` is valid for the call, which reads and writes one `pollfd`.
+        let ready: libc::c_int = unsafe { libc::poll(&raw mut request, 1, 0) };
+        return ready > 0 && request.revents & libc::POLLOUT != 0;
+    }
+
     /// Sends bytes without waiting; the count sent, or the error.
     fn send_now(&self, bytes: &[u8]) -> std::io::Result<usize> {
         // SAFETY: `bytes` is valid for its length for the call.
@@ -329,41 +478,21 @@ impl StreamWriter {
         if error.raw_os_error() != Some(libc::ENOTSOCK) {
             return Err(error);
         }
-        // Not a socket (a file or a pipe a test or a redirection put there): an ordinary write.
-        // SAFETY: `bytes` is valid for its length for the call.
-        let written: isize = unsafe { libc::write(self.descriptor, bytes.as_ptr().cast(), bytes.len()) };
+        // Not a socket (a file or a pipe a test or a redirection put there): an ordinary write, made only when the
+        // descriptor shows room and small enough for a pipe to take whole, so it cannot block.
+        if !self.has_room() {
+            return Err(std::io::ErrorKind::WouldBlock.into());
+        }
+        let chunk: &[u8] = &bytes[..bytes.len().min(PIPE_CHUNK)];
+        // SAFETY: `chunk` is valid for its length for the call.
+        let written: isize = unsafe { libc::write(self.descriptor, chunk.as_ptr().cast(), chunk.len()) };
         return usize::try_from(written).map_err(|_| { return std::io::Error::last_os_error(); });
-    }
-
-    /// Waits at most 100 milliseconds for room.
-    fn wait_for_room(&self) {
-        let mut request: libc::pollfd = libc::pollfd { fd: self.descriptor, events: libc::POLLOUT, revents: 0 };
-        // SAFETY: `request` is valid for the call, which reads and writes one `pollfd`.
-        unsafe { libc::poll(&raw mut request, 1, 100) };
     }
 }
 
 impl Write for StreamWriter {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         return self.send_now(bytes);
-    }
-
-    fn write_all(&mut self, bytes: &[u8]) -> std::io::Result<()> {
-        let mut rest: &[u8] = bytes;
-        let mut waits: u32 = 0;
-        while !rest.is_empty() {
-            match self.send_now(rest) {
-                Ok(count) => rest = &rest[count..],
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock && rest.len() == bytes.len() => return Err(error),
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock && waits < 3 => {
-                    waits += 1;
-                    self.wait_for_room();
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
-                Err(error) => return Err(error),
-            }
-        }
-        return Ok(());
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
