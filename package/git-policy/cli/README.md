@@ -934,8 +934,12 @@ Two refusals change nothing:
 An untracked file where the merge adds one is refused by Git at the last step;
  the finding `merge-isolation/not-applied` follows Git's message, and nothing is changed.
 A merge killed while it runs is finished or discarded by the next invocation (see "State on disk").
-`git pull` runs its merge inside Git, out of the wrapper's reach,
- so a pull that needs a merge commit keeps native Git's failures (the held lock, the staged index, the late ref update);
+A `git pull` that merges is completed the same way when the command line or the settings say that it merges
+ (`--no-rebase`, `pull.rebase` or `branch.<name>.rebase` set to false, or `--ff` or `--no-ff`) and every option and operand is one the wrapper reads exactly:
+ the wrapper runs the pull's fetch, then the merge of `FETCH_HEAD` as a typed `git merge --no-edit FETCH_HEAD` would run.
+Every other pull is native Git's whole (a rebase, `--ff-only`, `--autostash`, `pull.ff`, submodules, a refspec with a destination,
+ an abbreviated option, a pull with nothing stated, which Git refuses with its advice when the branches diverged),
+ and it keeps native Git's failures (the held lock, the staged index, the late ref update);
  run `git fetch`, then `git merge --no-edit origin/<branch>`.
 
 #### Waiting for the index lock
@@ -985,7 +989,7 @@ Each with its cause:
 - A merge or sequencer operation already in progress (native Git reports it).
 - A signer that fails when the merge is signed (nothing is changed).
 - A repository or index the wrapper cannot read (the failure names the file).
-- `git pull` that needs a merge: it runs its merge inside Git, out of the wrapper's reach (see below).
+- A `git pull` that needs a merge and is not read exactly: it runs its merge inside Git, out of the wrapper's reach.
 
 ### Word-level second merge pass
 
@@ -1004,6 +1008,9 @@ When every conflicted file resolves, the operation is finished the way Git finis
  as Git applies them; a command with an option the wrapper does not read exactly is left stopped with the files staged and
  Git's status.
 What Git printed when it stopped (`CONFLICT` lines) is already out and stays.
+Known gap: when an autostash is applied by the ending commit and the stash conflicts with the merged files, Git's words about the
+ stash are printed, but the stash entry and the unmerged index entries are not carried back to your repository (the conflict
+ markers are in the worktree files); the control for it is ignored until the owner decides how they are carried back.
 Standard error lists every part that was merged, with the file and the lines in the base, your side and the other side,
  and the text it became:
 

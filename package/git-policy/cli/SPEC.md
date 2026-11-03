@@ -1299,6 +1299,19 @@ A content conflict goes through the wrapper's conflict resolution and stops, as 
 with the conflicting paths named, only where no resolution exists.
 The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
 
+A `git pull` that is stated to merge (`--no-rebase`, `pull.rebase` or `branch.<name>.rebase` false, or `--ff` or `--no-ff`
+with nothing else stated) and that carries only the options and operands the wrapper reads exactly
+(`src/native/pull_isolation.rs`) is split the way Git splits it (`builtin/pull.c`, `run_fetch` and `run_merge`): the wrapper runs
+`git fetch --update-head-ok` with the pull's fetch options and operands, moves the working tree along when the fetch moved the
+checked-out branch (`git read-tree -u -m`, as `checkout_fast_forward` does), and then runs `git merge <merge options> FETCH_HEAD`
+through the path of a typed merge, so the lock wait, the isolated merge over staged work, the moved-branch rounds and the word-level pass
+all apply to it. The isolated merge takes the one head `FETCH_HEAD` lists for merging (`handle_fetch_head`, `builtin/merge.c`)
+and words the message from the whole file, as `git merge FETCH_HEAD` does. Everything else is native Git's whole pull:
+a rebase, `--ff-only`, `--autostash` and `pull.autostash`, `pull.ff`, submodules, a refspec with a destination, an option that is not
+read by its exact spelling, a repository that is mid-operation or has unmerged entries, an unborn or detached `HEAD`, and a
+`FETCH_HEAD` that lists no head or several (the pull then runs again from its fetch, which is idempotent).
+A pull with nothing stated keeps Git's refusal of divergent branches and its advice.
+
 A merge, the person's or the auto-push's, never runs native Git's stash and never trusts the late ref update:
 the merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, the checkout moves with
 `git merge --ff-only`, and the whole is preceded by a bounded wait for `index.lock`.
@@ -3675,7 +3688,11 @@ Git's own limit is `MAX_XDIFF_SIZE`, 1023 MiB (`xdiff-interface.h` line 14), abo
 Anything else is left exactly as Git left it, with the reason in the debug log.
 
 Merges a person runs (`merge`, `rebase`, `cherry-pick`, `revert` and `pull` forwarded to Git):
-the index is read in process before Git starts, and again when Git exits with a status other than 0.
+a conflicted merge computed from objects with another session's staged work gets the pass from objects (`merge_isolation.rs`,
+`merge_tree`); with a clean index the conflict is native Git's, which stops and writes the markers, and the pass then runs on the
+stopped merge here, because the ending commit then goes through the wrapper's commit path and its policies (a merge completed from
+objects bypasses them, as every merge completed in isolation does).
+The index is read in process before Git starts, and again when Git exits with a status other than 0.
 Only the paths that were not unmerged before the command and are unmerged after it are candidates, so a file a person is
 resolving by hand is never replaced by a later command that fails on it.
 The stages are read with one `git cat-file --batch`, the attributes with one `git check-attr`;
@@ -3704,7 +3721,12 @@ What Git does after a clean run, from the Git 2.56.0 source:
   `--signoff` are handed to the commit. `--autostash` and `merge.autoStash` need nothing: the ending `git commit` applies
   `MERGE_AUTOSTASH` after it concludes the merge (`builtin/commit.c` line 1982), as a clean merge's `finish` does
   (`builtin/merge.c` line 1848). The wrapper's commit builds the commit in a shadow repository, which now holds a private copy of
-  `MERGE_AUTOSTASH`; landing removes the real pseudoref when the shadow consumed it (`conclusion_cleanup.rs`). A
+  `MERGE_AUTOSTASH`; landing removes the real pseudoref when the shadow consumed it (`conclusion_cleanup.rs`). A stash whose apply conflicts is stored by Git in the shadow's private
+  `refs/stash`, and its unmerged index entries stay in the private index; neither is carried back, so after the ending commit the real
+  stash list is empty and the files show as modified, not unmerged (the conflict markers are in the worktree files). This is the
+  wrapper's behavior for a person's own `git commit` after `git merge --autostash` too. The control
+  `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it` states Git's result and is ignored until it is decided how
+  the stash and the entries are carried back. A
   `branch.<name>.mergeoptions` value of the checked-out branch is split as Git splits it (`alias.c` lines 126 to 180) and read
   before the command line (`merge.c` lines 1407 to 1409), so `--no-commit`, `--squash`, `--edit` or `-m` set there is honoured.
   Hooks: the wrapper switches every hook event off in every Git it starts, so a user's hooks see nothing on a clean merge and
@@ -3726,8 +3748,9 @@ What Git does after a clean run, from the Git 2.56.0 source:
   switch off the editor those steps want. The original author is kept because `--continue` reads `rebase-merge/author-script`
   (a plain `git commit` would not). `--autostash` and `rebase.autoStash` need nothing: the continuing step applies the autostash
   when the rebase ends (`sequencer.c` lines 4980 and 5330).
-- `pull` runs `git merge` or `git rebase` as a child of Git (`builtin/pull.c` lines 525 and 750), out of the wrapper's reach, so the
-  wrapper sees the pull's exit and its state files: `rebase-merge` or `rebase-apply` means the rebase, `MERGE_HEAD` (or
+- `pull` runs `git merge` or `git rebase` as a child of Git (`builtin/pull.c` lines 525 and 750), out of the wrapper's reach, except
+  for a pull that is stated to merge and read exactly, which the wrapper splits into its fetch and a `git merge FETCH_HEAD` of its own
+  (see "Merges and commits never fail"); for every other pull the wrapper sees the pull's exit and its state files: `rebase-merge` or `rebase-apply` means the rebase, `MERGE_HEAD` (or
   `--squash`) the merge. Pull's own options are read like merge's plus the fetch and rebase options it passes on, and the
   child merge applies `branch.<name>.mergeoptions` and `--autostash` as a merge does; the finish is not made when an option is
   unknown.

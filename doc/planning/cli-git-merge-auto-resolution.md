@@ -1889,3 +1889,66 @@ plain list, the in-process attribute probe.
 1. If hooks are ever supported: the finished merge runs the hooks of `git commit`, a clean merge those of `git merge` (list above).
 2. The edit to `conclusion_cleanup.rs` is outside the merge paths (a commit-conclusion file); it is small and fixes a defect, but another agent may be editing near it.
 3. A stash whose apply conflicts inside the shadow is not carried back to the real repository.
+
+## 2026-11-03T11:50:00-05:00: the 0.5.28 base merged in, autostash and mergeOptions verified, a pull that merges goes through the isolated merge
+
+### The merge of the 0.5.28 base
+
+`integrate/git-policy-cli-plain-commit-no-quiet-index-in-process` (tip `9763599f3a`) was merged into this branch.
+Six files conflicted; four were additive and kept both sides: the imports of `auto_push_reconcile.rs`, the test modules of
+`binary_tests.rs`, the tests of `auto_push_reconcile_tests.rs`, and this document (the base's decision bullet joined the list
+that ends in "every decision of this proposal is now made", and this branch's sections follow it).
+`README.md` kept this branch's "Word-level second merge pass" section between the base's merge subsections and its commit
+section, and the base's "A conflict" paragraph, which said the pass "would plug in" at `merge_tree`, now says where it runs.
+The one semantic choice is in `merge_tree` of `src/native/merge_isolation.rs`: the base forwards a conflict with a clean index to
+native Git (`Some(1) if !staged_work`), this branch runs the pass on every conflict. Both are kept: with another session's staged
+work the pass runs from objects and the merge is refused whole if a file does not resolve; with a clean index the conflict stays
+native Git's, which stops and writes the markers, and the pass then runs on the stopped merge. The base's order was kept, not
+"resolve first, forward when unresolved", because the stopped path finishes through the wrapper's commit path, so the repository's
+commit policies judge the merge commit, while a merge completed from objects bypasses them (the finish control
+`the_ending_commit_is_judged_by_the_repositorys_policies` pins that). Where the intents truly conflicted the base's behavior won;
+nothing else did.
+The merge left one duplicate import, removed in a separate commit; compile, library and binary controls of the touched modules passed.
+
+### Autostash and mergeOptions, verified
+
+The controls from `8bc4b70b7a` were read and run: `a_merge_autostash_is_applied_by_the_ending_commit` (flag and
+`merge.autoStash`), `a_rebase_autostash_is_applied_when_the_rebase_ends` (flag and `rebase.autoStash`),
+`a_pull_autostash_is_applied_by_the_ending_commit` and `a_merge_options_setting_is_applied_to_the_finish` (`--no-commit` and a
+quoted `-m` in `branch.<name>.mergeoptions`). They are sound for a stash that applies cleanly.
+One defect they do not reach: when the stash conflicts with the merged file, Git's apply runs in the commit's scratch repository, so
+`stash store` writes the scratch repository's private `refs/stash` and the unmerged entries stay in the private index. The real
+repository ends with an empty stash list and the file marked modified, where Git ends with `stash@{0}: autostash` and the file
+unmerged; Git's words, which the person sees, promise the stash. The conflict markers are in the worktree file, so the lines are not
+gone, but the stash entry is. `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it` states Git's result (run
+against real Git on a twin repository) and is `#[ignore]`d with this reason; it fails when run with `--run-ignored all`.
+A fix has to copy the stash commit and its objects out of the scratch repository, store it in the real reflog, and carry the unmerged
+entries into the real index under the landing's lock; that is the commit service's landing path, which this branch does not touch.
+This is item 3 of the earlier "Needs the owner's decision" lists, now with a measured case.
+
+### Pull
+
+A `git pull` that merges did not go through the isolated merge: `run_merge` in `builtin/pull.c` starts `git merge ... FETCH_HEAD` as
+a child of Git (`cmd.git_cmd = 1`), so the merge never reached the wrapper, and the control
+`a_pull_that_merges_is_completed_over_staged_work_and_equals_native_gits` was red before the build (native Git: "Your local changes to
+the following files would be overwritten by merge ... Merge with strategy ort failed.", status 2).
+`src/native/pull_isolation.rs` now splits a pull that is stated to merge and read exactly into the fetch and the merge
+(`pull_step`, called from `run_coordinated_forward`); the isolated merge reads `FETCH_HEAD` for its head and its message
+(`read_fetch_head` in `merge_isolation.rs`). The decisions of `cmd_pull` that are mirrored: the unmerged-index and mid-operation
+refusals (left to native Git), `orig_head` against `curr_head` after the fetch (`read-tree -u -m`, as `checkout_fast_forward`), the
+head count of `FETCH_HEAD`, `rebase_unspecified` with no `--ff`/`--no-ff` (Git's advice stays Git's), and `GIT_REFLOG_ACTION`.
+What is left to native Git's whole pull and why: a rebase (a separate machine, not in scope), `--ff-only` (its refusal text), `--autostash`
+and `pull.autostash` (the stash round trip around the merge), `pull.ff` (Git rewrites it when `--no-rebase` is typed), submodules
+(`update_submodules` after the merge), a refspec with a destination, every option not spelled exactly, detached and unborn heads.
+Controls, each equal to native Git on a clean copy in output, diagnostics, tree, parents and message: over staged work, into a clean
+index, the pulls left to native Git (advice, `--ff-only`, `--rebase`, an abbreviation), and a fetch that moves the checked-out branch.
+The guard that carries the working tree along was removed once and the last control failed, then restored.
+Not measured: the cost of the extra Git starts of the split (a `config`, a `symbolic-ref`, two `rev-parse`, an `ls-files`, the
+`fetch`), against one `git pull`; the held-lock wait of a pull is the typed merge's, tested for the typed merge only.
+
+### Needs the owner's decision
+
+1. How the stash of a conflicted autostash apply and its unmerged entries are carried back (the ignored control above).
+2. Whether a pull with nothing stated, and `--ff-only`, should also merge in isolation. Git refuses the first with advice and the
+   second with a status; the owner's rule "Auto merging should never fail." could be read to cover both, but each refusal is a
+   deliberate Git choice, so they stay Git's here.
