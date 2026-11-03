@@ -129,6 +129,17 @@ Three separate Git processes each stalled about 50 s in one commit,
 so the cause is shared by them in that window,
 not a slow step of the wrapper;
 the observer now records each Git process's current system call (`/proc/<pid>/syscall`) to find what they block on.
+Observed 2026-11-03T09:21:59-05:00 (commit `53f96ecc24`,
+7.7 s wall):
+from 0.5 s to 7.0 s the wrapper's Git child (`/usr/bin/git -c core.hooksPath=...`) sat in `wait4` on its own
+child `git fsmonitor--daemon start`,
+which was on the CPU with a `fsmonitor--daemon run --detach` beside it;
+the commit finished half a second after that start ended.
+A Git process of another session showed the same wait.
+Stopped there,
+because the owner's rule is to never chase Git's fsmonitor as a cause
+(see "Git's own fsmonitor");
+the observation is raised with the owner.
 An observed one-file commit on main at 2026-11-03T08:42:37-05:00 took 343 ms
 (`~/temp/agent/tools/observe-main-commit.ts`),
 with no new cap hit and one new major fault in the service cgroup,
