@@ -16,13 +16,14 @@
 #![cfg(unix)]
 
 /// Import the decision under test and shared fixtures.
-use super::{plan_management, plan_management_with_section, retired_explanation};
+use super::{Selection, plan_management, plan_management_with_section, retired_explanation, status_git_dir};
+use crate::service_instance::{SOCKET_DIRECTORY, socket_for};
 use crate::action::Action;
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::{MANAGEMENT_HELP, MANAGEMENT_USAGE, RetiredCommand};
 use crate::policy_registry::PolicyId;
 use crate::real_git::{Platform, ResolutionInputs};
-use crate::test_support::{executable, fixture, remove, repository};
+use crate::test_support::{REAL_GIT, executable, fixture, isolated_overlay, remove, repository};
 use crate::wrapper_controls::{Controls, no_controls};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -669,5 +670,144 @@ fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_
     let help: Action = plan_management_with_section(&[OsString::from("--help")], global.as_slice(), &no_controls(), &[], &inputs, &supplier);
     assert!(matches!(help, Action::Exit { code: 0, .. }));
     assert_eq!(asked.borrow().len(), 1, "help does not ask for the section");
+    remove(root.as_path());
+}
+
+/// The environment of a user whose own file holds `settings`,
+/// with the system configuration file left in play:
+/// the reader then
+/// learns that file's path from the real Git it is told about.
+fn user_environment(file: &Path, settings: &str) -> Vec<(OsString, OsString)> {
+    std::fs::write(file, settings).expect("user configuration");
+    let mut environment: Vec<(OsString, OsString)> = isolated_overlay()
+        .into_iter()
+        .filter(|(name, _)| { return name != "GIT_CONFIG_GLOBAL" && name != "GIT_CONFIG_NOSYSTEM"; })
+        .collect();
+    environment.push((OsString::from("GIT_CONFIG_GLOBAL"), file.as_os_str().to_os_string()));
+    return environment;
+}
+
+/// The global options of `git -C <directory>`.
+fn in_directory(directory: &Path) -> Vec<OsString> {
+    return vec![OsString::from("-C"), directory.as_os_str().to_os_string()];
+}
+
+/// `git cli-git service status` asks about the service of the worktree it runs in,
+/// however the user's configuration reads:
+/// it needs no valid configuration.
+/// A user-level `core.fsmonitor = true` and a key the typed proof refuses must not turn the
+/// worktree into "any service",
+/// which is what a declined layout meant.
+#[test]
+fn the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for() {
+    let root: PathBuf = fixture("management-status-user");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let expected: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("git directory");
+    for settings in ["[core]\n\tfsmonitor = true\n", "[diff]\n\tdirstat = changes\n", "[core]\n\tfilemode = maybe\n"] {
+        let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), settings);
+        assert_eq!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))), Selection::Found(expected.clone()), "{settings:?}");
+    }
+    remove(root.as_path());
+}
+
+/// The reader learns the system configuration file from the real Git,
+/// so a status that names none cannot tell a plain layout
+/// from one it must leave to Git:
+/// this is why the command resolves the real Git first.
+#[test]
+fn the_status_needs_the_real_git_to_name_the_worktree() {
+    let root: PathBuf = fixture("management-status-nameless");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
+    assert!(matches!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))), Selection::Found(_)));
+    assert!(matches!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), None), Selection::Unresolved(_)), "no real Git, no answer, and not \"outside a repository\"");
+    remove(root.as_path());
+}
+
+/// The wording of the status for the worktree whose service answers,
+/// and for a worktree whose does not.
+const THIS_WORKTREE: &str = "The commit service of this worktree";
+
+/// `git -C /path/B cli-git service status` run from anywhere asks about B:
+/// the global options reach the status,
+/// and `-c` options do not change the worktree,
+/// while an option that could name another repository leaves the status counting any service.
+#[test]
+fn the_status_follows_the_dash_c_options_of_the_invocation() {
+    let root: PathBuf = fixture("management-status-dash-c");
+    let first: PathBuf = repository(root.as_path(), "first");
+    let second: PathBuf = repository(root.as_path(), "second");
+    // A socket path holds about a hundred bytes,
+    // which a fixture root could use up,
+    // so the runtime directory is short.
+    let runtime: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join(format!("temp/agent/ms-{}", std::process::id()));
+    std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("runtime directory");
+    let second_git_dir: PathBuf = std::fs::canonicalize(second.join(".git")).expect("git directory");
+    let listener = std::os::unix::net::UnixListener::bind(socket_for(runtime.as_path(), second_git_dir.as_path())).expect("the second worktree's service");
+    let mut environment: Vec<(OsString, OsString)> = isolated_overlay();
+    environment.push((OsString::from("XDG_RUNTIME_DIR"), runtime.as_os_str().to_os_string()));
+    let inputs: ResolutionInputs = with_git(root.as_path());
+    let ceiling: (OsString, OsString) = (OsString::from("GIT_CEILING_DIRECTORIES"), root.as_os_str().to_os_string());
+    let status_in = |global: &[OsString], extra: &[(OsString, OsString)]| -> (i32, String, String) {
+        let mut seen: Vec<(OsString, OsString)> = environment.clone();
+        seen.extend(extra.iter().cloned());
+        let planned: Action = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], global, &no_controls(), seen.as_slice(), &inputs, &|_| { return String::new(); });
+        let Action::Exit { code, stdout, stderr } = planned else {
+            panic!("the status exits");
+        };
+        return (code, stdout, stderr);
+    };
+    let status = |global: &[OsString]| -> (i32, String, String) { return status_in(global, &[]); };
+    let (second_code, second_out, _) = status(in_directory(second.as_path()).as_slice());
+    assert_eq!((second_code, second_out.starts_with(THIS_WORKTREE)), (0, true), "-C names the worktree that has a service: {second_out}");
+    let (first_code, _, first_err) = status(in_directory(first.as_path()).as_slice());
+    assert_eq!((first_code, first_err.starts_with(THIS_WORKTREE)), (1, true), "-C names the worktree that has none: {first_err}");
+    let mut with_config: Vec<OsString> = vec![OsString::from("-c"), OsString::from("user.name=Someone")];
+    with_config.extend(in_directory(second.as_path()));
+    let (config_code, config_out, _) = status(with_config.as_slice());
+    assert_eq!((config_code, config_out.starts_with(THIS_WORKTREE)), (0, true), "-c does not change the worktree: {config_out}");
+    // `--git-dir` is not resolved by the reader,
+    // so Git is asked:
+    // it names the repository the option selects,
+    // not any service.
+    let git_dir_option: Vec<OsString> = vec![OsString::from("--git-dir"), second.join(".git").into_os_string()];
+    let (named_code, named_out, _) = status(git_dir_option.as_slice());
+    assert_eq!((named_code, named_out.starts_with(THIS_WORKTREE)), (0, true), "--git-dir names the worktree that has a service: {named_out}");
+    let mut elsewhere: Vec<OsString> = in_directory(first.as_path());
+    elsewhere.extend([OsString::from("--git-dir"), OsString::from(".git")]);
+    let (none_code, _, none_err) = status(elsewhere.as_slice());
+    assert_eq!((none_code, none_err.starts_with(THIS_WORKTREE)), (1, true), "-C and --git-dir select the repository without a service, and another repository's service is not counted: {none_err}");
+    // Outside a repository the answer counts any service.
+    // The ceiling keeps Git from finding the repository this test is in.
+    let outside: PathBuf = root.join("outside");
+    std::fs::create_dir(&outside).expect("a directory outside any repository");
+    let (any_code, any_out, _) = status_in(in_directory(outside.as_path()).as_slice(), std::slice::from_ref(&ceiling));
+    assert_eq!((any_code, any_out.starts_with("A commit service")), (0, true), "outside a repository any service counts: {any_out}");
+    // With no real Git to ask,
+    // an invocation the reader does not resolve is unresolved,
+    // never counted as any service.
+    let nameless: ResolutionInputs = no_git(root.as_path());
+    let unresolved = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], git_dir_option.as_slice(), &no_controls(), environment.as_slice(), &nameless, &|_| { return String::new(); });
+    let Action::Exit { code: unresolved_code, stdout: unresolved_out, stderr: unresolved_err } = unresolved else {
+        panic!("the status exits");
+    };
+    assert_eq!((unresolved_code, unresolved_out.is_empty(), unresolved_err.contains("no service was counted")), (1, true, true), "{unresolved_err}");
+    drop(listener);
+    std::fs::remove_dir_all(runtime).expect("runtime directory");
+    remove(root.as_path());
+}
+
+/// An invocation the reader does not resolve and Git cannot answer for another reason than "not a git repository" (a
+/// malformed value Git dies on) is unresolved:
+/// it is not outside a repository,
+/// so no service is counted for it.
+#[test]
+fn a_selection_git_fails_on_is_unresolved_and_not_outside_a_repository() {
+    let root: PathBuf = fixture("management-status-git-fails");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[core]\n\tfilemode = maybe\n");
+    let selected: Vec<OsString> = vec![OsString::from("--git-dir"), repo.join(".git").into_os_string()];
+    let found: Selection = status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT)));
+    assert!(matches!(&found, Selection::Unresolved(reason) if reason.contains("filemode")), "{found:?}");
     remove(root.as_path());
 }

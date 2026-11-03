@@ -140,7 +140,10 @@ fn current_branch(layout: &RepoLayout) -> Result<(String, String), Declined> {
 /// Why:
 ///   The command may be a merge or a pull, which move the tip; what the tip was is what a rebase is told apart by.
 ///   The layout is read as for a caller that follows a Git run that succeeds (`read_layout_after_success`):
-/// a configuration value the reader cannot prove Git accepts is no reason not to push once Git has accepted it.
+/// a configuration value the reader cannot prove is no reason not to push once the command that moved the tip succeeded
+/// (the files are read again,
+/// not the snapshot that command saw,
+/// and the final push is Git's).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

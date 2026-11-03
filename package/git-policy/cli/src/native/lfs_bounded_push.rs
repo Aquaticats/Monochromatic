@@ -24,7 +24,7 @@ use super::lfs_object_plan::narrow_plan;
 use super::lfs_upload::run_upload_bounded;
 /// The repository found from the files.
 use super::git_system_config::with_real_git;
-use super::repo_read_layout::read_layout_in;
+use super::repo_read_layout::read_layout_after_success;
 use super::lfs_pre_push::plan_failed_message;
 use super::lfs_upload_plan::{Query, plan_upload, read_settings};
 /// Owned OS strings for Git arguments.
@@ -68,7 +68,11 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
         });
         match planned {
             Ok(Some(plan)) => {
-                let layout = read_layout_in(git.cwd.as_path(), with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice());
+                // The plan came from Git queries that exited with status 0,
+                // so Git had its say about the values it consults;
+                // the files are read again,
+                // and a plan that cannot be narrowed is still pushed by `git-lfs` and Git.
+                let layout = read_layout_after_success(git.cwd.as_path(), with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice());
                 if let Some(narrowed) = narrow_plan(plan, layout.as_ref())
                     && let Some(failed) = run_upload_bounded(git, &narrowed)? {
                     return Ok(failed);

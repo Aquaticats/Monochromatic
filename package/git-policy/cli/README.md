@@ -1791,7 +1791,15 @@ each prefixed `cli-git-service:` on standard error and identified as `cli-git-se
   and `lock_found` and `lock_last` for what the first and the last look found:
   `service seq=.. pid=.. state=running|gone|unknown age_ms=..` for a lock with the service's marker,
   `foreign no-marker size=.. age_ms=..` for any other,
-  with `open_by=[pid (command)]` when a process has it open),
+  with `open_by=[pid (comm)]` when a process has it open:
+  the program's name,
+  at most fifteen bytes,
+  never its arguments or environment;
+  the scan for them is made once,
+  with the evidence for the waiting notice,
+  and stops after a quarter of a second;
+  the marker's birth identity,
+  boot ID and PID namespace are not in the line),
   `reads_ms` (the branch reads and comparisons),
   `objects_ms`,
   `journal_ms`,

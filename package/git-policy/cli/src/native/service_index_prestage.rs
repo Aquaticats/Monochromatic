@@ -33,7 +33,6 @@ use std::cell::RefCell;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
 
 /// A marked file that is flushed and ready to become the lock.
 #[derive(Debug)]
@@ -105,47 +104,72 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
     }
 }
 
-/// Whether the staged file is still the file it was when it was made.
+/// What:
+///  Whether the pathname of the staged file still names the file that was made and flushed:
+/// a regular file,
+/// not a link,
+/// with the device and inode of the descriptor the service holds.
+/// Why:
+///   `metadata` follows links,
+/// and a link to the original file would pass a check by it and be placed as the link,
+/// which is not the file that was flushed.
+/// The check is a preflight,
+/// not a guard:
+/// a replacement after it is not seen.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const on = await lstat(path); on.isFile() && on.ino === (await held.stat()).ino && on.dev === held.dev
+/// ```
 fn still_there(made: &Prestaged) -> bool {
-    let (Ok(on_path), Ok(open)) = (std::fs::metadata(&made.staged), made.held.metadata()) else { return false };
-    return on_path.dev() == open.dev() && on_path.ino() == open.ino();
+    let (Ok(on_path), Ok(open)) = (std::fs::symlink_metadata(&made.staged), made.held.metadata()) else { return false };
+    return on_path.file_type().is_file() && on_path.dev() == open.dev() && on_path.ino() == open.ino();
+}
+
+/// Removes the staged file when the pathname still names it,
+/// and leaves any other file at the pathname alone:
+/// the descriptor is dropped either way.
+fn remove_if_ours(made: Prestaged) {
+    if still_there(&made) {
+        let _removed = std::fs::remove_file(&made.staged);
+    }
 }
 
 /// Removes a marker that will not be used.
 fn remove_unused(slot: Slot) {
     if let Ok(Ok(made)) = slot.work.join() {
-        let _removed = std::fs::remove_file(&made.staged);
+        remove_if_ours(made);
     }
 }
 
 /// What:
 ///  The marker made for batch `seq` of the index `index`,
-/// and how long it was waited for,
 /// or nothing when none was made for exactly that.
 /// Why:
 ///   A marker made for another batch or index is removed and the commit stages its own.
-/// A marker still being flushed is waited for,
-/// and the wait is what the commit reports as its staging time.
-/// A file that is no longer there (the Git directory was replaced) is no marker.
+/// A marker still being flushed is waited for.
+/// A file that is no longer the file that was flushed (the Git directory was replaced,
+/// or the pathname now names another file)
+/// is no marker,
+/// and whatever is at the pathname is not the service's to remove.
+/// The time all this takes is the caller's to measure,
+/// from before the call to after it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ready = await prestage.take(index, seq) // { marker, waited } | undefined
+/// const ready = await prestage.take(index, seq) // Prestaged | undefined
 /// ```
-pub fn take(index: &Path, seq: u64) -> Option<(Prestaged, Duration)> {
+pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
     let slot: Slot = SLOT.with(|slot| { return slot.borrow_mut().take(); })?;
     if slot.lock != lock_path_of(index) || slot.seq != seq {
         remove_unused(slot);
         return None;
     }
-    let began: Instant = Instant::now();
     let made: Prestaged = slot.work.join().ok()?.ok()?;
-    let waited: Duration = began.elapsed();
     if !still_there(&made) {
-        let _removed = std::fs::remove_file(&made.staged);
         return None;
     }
-    return Some((made, waited));
+    return Some(made);
 }
 
 /// Whether the marker made ahead is finished,

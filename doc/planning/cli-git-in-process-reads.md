@@ -216,6 +216,53 @@ Without the proof, the sweep reports every typed key and the rejected-values con
 Also fixed from the sweep: `remote.<name>.fetch` and `remote.<name>.push` are checked as plain refspecs (Git fails with
 `invalid refspec`).
 
+### `core.fsmonitor`
+
+The key is the switch of the built-in monitor daemon or the path of a hook program Git runs
+(`fsmonitor-settings.c`,
+`lookup_fsmonitor_settings`:
+a boolean value turns the daemon on or off,
+any other value is a hook path).
+The table first accepted only false spellings,
+because a test that sets the key to a true word starts a daemon.
+Every user with `core.fsmonitor = true` in their own file then made the layout reader decline every repository,
+so each commit paid thirteen more Git starts (`rev-parse` 5,
+`diff-index` 3,
+`ls-files` 2,
+`config`,
+`diff` and `diff-tree` 1 each;
+measured with `binary_budget_tests.rs` on Git 2.56.0).
+Real Git starts the daemon for the shapes that read the index,
+and the true word changes neither their output nor their exit status
+(compared on every shape in `the_query_readers_equal_git_under_a_user_level_fsmonitor_true`,
+with the daemon running and an index
+that carries its extension),
+so the table now accepts the true words `true`,
+`yes` and `on` with the false spellings.
+A hook path,
+a number other than zero and the bare name still decline:
+Git runs a hook for commands that read the index,
+and reads the bare name and the numbers as true,
+so declining them is conservative.
+Starting the monitor can fail,
+and real Git 2.56.0 says nothing about it on standard error or in the exit status
+(a directory where the socket goes,
+`the_query_readers_equal_git_when_the_monitor_cannot_start`).
+`fsmonitor.allowRemote` and `fsmonitor.socketDir`,
+which Git reads once the monitor is on,
+are typed.
+Accepted limit:
+a listener of the same user on the monitor's socket that answers with a malformed reply would make Git print a
+protocol error the readers do not,
+and the wrapper does not decline monitor-contacting queries for it,
+because the owner decided the wrapper leaves Git's monitor alone (2026-11-02:
+"Why are we messing with git's fsmonitor?
+I already told you it's fine for git to run it.").
+Configuration-enabled Trace2 is declined:
+an active `trace2.normalTarget`,
+`trace2.eventTarget` or `trace2.perfTarget` makes Git write trace output the readers do not.
+An index with the `FSMN` and `UNTR` extensions is read like any other (`parse_index` skips optional extensions).
+
 ## System configuration path
 
 The readers assumed `/etc/gitconfig`. Git compiles `ETC_GITCONFIG` in (`Makefile` sets `sysconfdir` to `/etc` only when

@@ -25,7 +25,7 @@ use super::auto_push::AutoPushOutcome;
 use super::claim_time::ClaimTime;
 use super::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
-use super::service_claim_renewal::{ClaimRenewal, HeldClaims, RENEWALS_PER_LEASE};
+use super::service_claim_renewal::{ClaimRenewal, HeldClaims, Renewal, renewal_interval};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
 use super::service_timing::log_entry;
@@ -109,8 +109,8 @@ fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed], state: &s
 /// ```ts
 /// claimed.filter((c) => held.isHeld(c.id))
 /// ```
-fn still_held(held: &HeldClaims, claimed: Vec<Claimed>) -> Vec<Claimed> {
-    let (mine, lost): (Vec<Claimed>, Vec<Claimed>) = claimed.into_iter().partition(|item| { return held.is_held(item.id.as_str()); });
+fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claimed>) -> Vec<Claimed> {
+    let (mine, lost): (Vec<Claimed>, Vec<Claimed>) = claimed.into_iter().partition(|item| { return held.is_held_on_disk(work_dir, item.id.as_str()); });
     for item in lost {
         crate::service_warn!("the claim on {} ran out before this instance could run it, so another instance took the work over and it is not run here",
             item.id
@@ -208,9 +208,15 @@ pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime) -> Op
 
 /// `drain` with the lease given, so a test can use a short one.
 pub fn drain_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
+    return drain_with_renewal(git_dir, handlers, now, lease, Renewal::Timed);
+}
+
+/// `drain_with_lease` with the way its claims are kept fresh given,
+/// so a control can drive the renewal itself.
+pub fn drain_with_renewal(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
     tell_about_given_up(git_dir, requeue_expired_reporting(work_dir.as_path(), now, lease, MAX_TRIES).given_up.as_slice());
-    drain_pending(git_dir, handlers, lease);
+    drain_pending(git_dir, handlers, lease, renewal);
     return next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease);
 }
 
@@ -240,7 +246,7 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
         return None;
     }
     tell_about_given_up(common.as_path(), requeue_expired_reporting(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES).given_up.as_slice());
-    drain_pending(common.as_path(), handlers, lease);
+    drain_pending(common.as_path(), handlers, lease, Renewal::Timed);
     return next_claim_expiry(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease);
 }
 
@@ -270,10 +276,16 @@ fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
 
 /// Claims and runs every pending item of one work directory until none is left; the claims held are renewed every third of
 /// `lease`, so that none of them looks abandoned to another instance while it waits or runs.
-fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
+fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, renewal: Renewal<'_>) {
     let work_dir: PathBuf = work_directory(git_dir);
     let held: HeldClaims = HeldClaims::default();
-    let _renewal: ClaimRenewal = ClaimRenewal::start(work_dir.clone(), held.clone(), lease / RENEWALS_PER_LEASE);
+    let _renewing: Option<ClaimRenewal> = match renewal {
+        Renewal::Timed => Some(ClaimRenewal::start(work_dir.clone(), held.clone(), renewal_interval(lease))),
+        Renewal::Driven(driver) => {
+            driver.attach(work_dir.clone(), held.clone());
+            None
+        }
+    };
     loop {
         let mut claimed: Vec<Claimed> = Vec::new();
         loop {
@@ -307,7 +319,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
             }
         }
         for (_, claimed_members) in groups {
-            let members: Vec<Claimed> = still_held(&held, claimed_members);
+            let members: Vec<Claimed> = still_held(&held, work_dir.as_path(), claimed_members);
             if members.is_empty() {
                 continue;
             }
@@ -371,7 +383,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
             }
         }
         let mut upkept: Vec<String> = Vec::new();
-        for item in still_held(&held, upkeep) {
+        for item in still_held(&held, work_dir.as_path(), upkeep) {
             if !upkept.contains(&item.item.repository) {
                 upkept.push(item.item.repository.clone());
                 let upkeep_began: Instant = Instant::now();
@@ -383,7 +395,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
             settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
         }
         // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
-        for item in still_held(&held, reviews) {
+        for item in still_held(&held, work_dir.as_path(), reviews) {
             let review_began: Instant = Instant::now();
             let verdict: Verdict = handlers.review(&item.item);
             if matches!(verdict, Verdict::Done) {

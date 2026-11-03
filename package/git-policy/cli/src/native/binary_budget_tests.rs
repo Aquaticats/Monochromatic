@@ -11,7 +11,7 @@
 use super::budget_trace::{Counts, TRACED_CALLS, count};
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
 use super::strace::{strace_available, strace_program};
-use super::support::{Fixture, REAL_GIT, fixture, git, repository};
+use super::support::{Fixture, REAL_GIT, direct, fixture, git, repository};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -194,6 +194,10 @@ enum Scenario {
     NoHooks,
     /// A new commit, no hooks, in a repository with `extensions.worktreeConfig` on and a `config.worktree`.
     WorktreeConfig,
+    /// A new commit,
+    /// no hooks,
+    /// in a repository whose configuration has `core.fsmonitor = true`.
+    MonitorOn,
     /// A new commit in a repository that configures a `post-commit` hook, which never runs.
     ConfiguredHook,
     /// The second wrapped commit of the repository, no hooks.
@@ -216,6 +220,19 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
         Scenario::WorktreeConfig => {
             git(fixture, repo.as_path(), &["config", "extensions.worktreeConfig", "true"]);
             std::fs::write(repo.join(".git/config.worktree"), b"[user]\n\tname = Only Here\n").expect("config.worktree");
+        }
+        Scenario::MonitorOn => {
+            git(fixture, repo.as_path(), &["config", "core.fsmonitor", "true"]);
+            // As for the warm scenario:
+            // the first commit is not traced,
+            // and it is the one that starts the monitor daemon,
+            // which
+            //  would otherwise stay in the trace as a child that never ends.
+            let first: Output = wrapped_commit(fixture, repo.as_path(), &["commit", "--quiet", "--message=first", "--", "a.txt"])
+                .output()
+                .expect("the first wrapped commit runs");
+            assert_eq!(first.status.code(), Some(0), "the first wrapped commit: {}", String::from_utf8_lossy(&first.stderr));
+            std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
         }
         Scenario::ConfiguredHook => {
             git(fixture, repo.as_path(), &["config", "hook.early.event", "post-commit"]);
@@ -319,6 +336,24 @@ fn differences(budgeted: &Figures, observed: &Figures) -> Vec<String> {
     return lines;
 }
 
+/// Stops the monitor daemon a scenario may have started in `repo`,
+/// whether the control passed or not.
+struct StopsMonitor<'a> {
+    fixture: &'a Fixture,
+    repo: PathBuf,
+    started: bool,
+}
+
+impl Drop for StopsMonitor<'_> {
+    fn drop(&mut self) {
+        if self.started {
+            // No daemon running is not a failure of the control,
+            // and stopping it is the whole job.
+            let _stopped = direct(self.fixture).current_dir(self.repo.as_path()).args(["fsmonitor--daemon", "stop"]).output();
+        }
+    }
+}
+
 /// Run the scenario's commit under `strace` and require its counts to equal `budget`.
 fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     if !strace_available() {
@@ -327,15 +362,16 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     }
     let fixture: Fixture = fixture(format!("budget-{label}").as_str());
     let repo: PathBuf = prepared_repository(&fixture, scenario);
+    let stops: StopsMonitor<'_> = StopsMonitor { fixture: &fixture, repo: repo.clone(), started: matches!(scenario, Scenario::MonitorOn) };
     let trace: PathBuf = fixture.root.join("trace.txt");
     let arguments: &[&str] = match scenario {
         Scenario::Amend => &["commit", "--amend", "--quiet", "--message=x", "--", "a.txt"],
-        Scenario::NoHooks | Scenario::WorktreeConfig | Scenario::ConfiguredHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
+        Scenario::NoHooks | Scenario::WorktreeConfig | Scenario::MonitorOn | Scenario::ConfiguredHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
     };
     let inner: Command = wrapped_commit(&fixture, repo.as_path(), arguments);
     let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
     // The repository starts with one commit; the warm scenario adds an untraced one before the traced commit.
-    let commits: &str = if matches!(scenario, Scenario::Warm) { "3" } else { "2" };
+    let commits: &str = if matches!(scenario, Scenario::Warm | Scenario::MonitorOn) { "3" } else { "2" };
     // Positive controls: a commit that stopped early would show a flatteringly small trace.
     assert_eq!(run.status.code(), Some(0), "{label}: the commit failed: {}", String::from_utf8_lossy(&run.stderr));
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), commits, "{label}: commits");
@@ -358,6 +394,9 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
         counts.commands.join("\n"),
         String::from_utf8_lossy(&run.stderr),
     );
+    // The daemon watches the repository,
+    // so it stops before the fixture goes.
+    drop(stops);
     remove_settled(&fixture);
 }
 
@@ -372,6 +411,21 @@ fn a_commit_with_no_hooks_stays_within_its_budget() {
 #[test]
 fn a_commit_with_a_worktree_config_costs_what_one_without_costs() {
     require_budget("worktree-config", Scenario::WorktreeConfig, &NO_HOOKS);
+}
+
+/// The second wrapped commit of a repository whose configuration has `core.fsmonitor = true` costs exactly what one without it
+///  costs:
+/// the
+///  reader used to decline the value,
+/// and thirteen more Git processes (`rev-parse`,
+/// `diff-index`,
+/// `ls-files`,
+/// `config`,
+/// `diff` and
+///  `diff-tree` starts) answered the questions it would have answered from the files.
+#[test]
+fn a_commit_with_core_fsmonitor_true_costs_what_one_without_costs() {
+    require_budget("monitor-on", Scenario::MonitorOn, &WARM);
 }
 
 /// A commit in a repository with a configured hook starts and syncs exactly what the budget names.

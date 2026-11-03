@@ -15,7 +15,7 @@
 //! ```
 
 use super::claim_time::ClaimTime;
-use super::work_item::{Claimed, renew_claim, settle_named};
+use super::work_item::{CLAIMED, Claimed, renew_claim, settle_named, state_directory};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::JoinHandle;
@@ -23,6 +23,17 @@ use std::time::Duration;
 
 /// How many times inside one lease a holder renews, so a renewal that is late by up to two intervals still beats the lease.
 pub const RENEWALS_PER_LEASE: u32 = 3;
+
+/// How often a holder renews its claims for a lease of `lease`:
+/// a third of it,
+/// so that a renewal that is late by up to two
+/// intervals still beats the lease.
+/// The production lease is 120 seconds,
+/// so a holder renews every 40 seconds and loses its
+/// claim only when a renewal is late by more than 80.
+pub fn renewal_interval(lease: Duration) -> Duration {
+    return lease / RENEWALS_PER_LEASE;
+}
 
 /// One claim this drain holds: the id, the name of its file as of the last renewal, and whether a renewal found it gone.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -79,6 +90,36 @@ impl HeldClaims {
         return self.held.lock().unwrap_or_else(PoisonError::into_inner).iter().find(|held| { return held.id == id; }).map(|held| { return held.name.clone(); });
     }
 
+    /// What:
+    ///  Whether the claim of `id` is held and its file is in `claimed` under the name this holder last wrote,
+    /// now.
+    /// Why:
+    ///   A renewal that has not run since another instance took the claim over has not found it gone,
+    /// so the flag of `is_held` still says held.
+    /// The holder looks at the directory itself just before it acts on the claim,
+    /// so a push is not started from a claim that is already another instance's,
+    /// however late the renewal is.
+    /// The look and the push are two steps,
+    /// so a takeover between them is still possible;
+    /// what the look removes is the long window of a renewal that is late.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// held.has(id) && !held.lost(id) && exists(join(workDir, 'claimed', held.name(id)))
+    /// ```
+    pub fn is_held_on_disk(&self, work_dir: &Path, id: &str) -> bool {
+        let mut held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(claim) = held.iter_mut().find(|candidate| { return candidate.id == id; }) else { return false };
+        if claim.lost {
+            return false;
+        }
+        if std::fs::symlink_metadata(state_directory(work_dir, CLAIMED).join(claim.name.as_str())).is_err() {
+            claim.lost = true;
+            return false;
+        }
+        return true;
+    }
+
     /// Renew every claim held at the reading `now`; a claim whose file is not there under its name is marked taken over.
     pub fn renew(&self, work_dir: &Path, now: &ClaimTime) {
         for held in self.held.lock().unwrap_or_else(PoisonError::into_inner).iter_mut().filter(|held| { return !held.lost; }) {
@@ -105,6 +146,57 @@ impl HeldClaims {
         }
         return settle_named(work_dir, claim.name.as_str(), state)
             .map_err(|reason| { return format!("{reason}; its lease probably ran out and another instance took the work over"); });
+    }
+}
+
+/// How the claims of one drain are kept fresh.
+#[derive(Clone, Copy, Debug)]
+pub enum Renewal<'a> {
+    /// A thread of the drain renews every third of the lease by the real clock.
+    Timed,
+    /// Nothing renews until the driver is told to,
+    /// with the reading it is given;
+    /// a control uses this to be independent of how
+    /// the host schedules threads,
+    /// and to let any number of leases pass without waiting.
+    Driven(&'a DrivenRenewal),
+}
+
+/// What:
+///  The claims a drain registered with its driver,
+/// renewed whenever the driver is asked to,
+/// at the reading it is given.
+/// Why:
+///   The renewal thread's timing is real time,
+/// and a control of what a renewal protects cannot be told apart from a slow host by waiting.
+/// A driven renewal does the same renaming at moments the control chooses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const driver = new DrivenRenewal(); drain(..., { driven: driver }); driver.renew(clockAfterTwoLeases);
+/// ```
+#[derive(Debug, Default)]
+pub struct DrivenRenewal {
+    /// The work directory and the claims of the drain that registered,
+    /// once it has.
+    target: Mutex<Option<(PathBuf, HeldClaims)>>,
+}
+
+/// Methods over a driver.
+impl DrivenRenewal {
+    /// Register the claims of a drain;
+    /// its later claims are renewed too.
+    pub fn attach(&self, work_dir: PathBuf, held: HeldClaims) {
+        *self.target.lock().unwrap_or_else(PoisonError::into_inner) = Some((work_dir, held));
+    }
+
+    /// Renew every claim the registered drain holds at the reading `now`;
+    /// false when no drain has registered.
+    pub fn renew(&self, now: &ClaimTime) -> bool {
+        let target = self.target.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        let Some((work_dir, held)) = target else { return false };
+        held.renew(work_dir.as_path(), now);
+        return true;
     }
 }
 

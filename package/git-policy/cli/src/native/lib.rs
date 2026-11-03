@@ -108,6 +108,12 @@ mod test_support;
 #[cfg(unix)]
 mod recording_git;
 
+/// The Git starts of the layout questions for a user whose own file holds `core.fsmonitor = true`;
+///  never part of the release executable.
+#[cfg(test)]
+#[cfg(unix)]
+mod reader_fsmonitor_tests;
+
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
 

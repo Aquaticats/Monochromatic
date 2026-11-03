@@ -11,6 +11,7 @@ use crate::service_index_marker::own_identity;
 use crate::service_index_placement::sync_file;
 use crate::test_support::{fixture, remove};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The controls that count flushes run one at a time:
@@ -208,10 +209,131 @@ fn the_marker_made_ahead_names_this_process_and_the_batch() {
     start_with(sync_file, &index, 16);
     until_staged(&index);
     let name: String = leftovers(&index).remove(0);
-    assert!(name.contains(format!("{}-{}-16-", crate::service_index_staging::STAGED_INFIX, std::process::id()).as_str()), "{name}");
+    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    assert!(name.contains(format!("{}-{}.{scope}-16-", crate::service_index_staging::STAGED_INFIX, std::process::id()).as_str()), "{name}");
     let text: String = std::fs::read_to_string(index.parent().expect("directory").join(&name)).expect("text");
     assert_eq!(text, marker_text(16, &own_identity).expect("text"));
     discard();
+    remove(root.as_path());
+}
+
+/// A flush that takes as long as a loaded disk makes it take and then fails.
+fn failing_flush(_: &std::fs::File) -> std::io::Result<()> {
+    FLUSHES.fetch_add(1, Ordering::SeqCst);
+    std::thread::sleep(SLOW);
+    return Err(std::io::Error::from_raw_os_error(libc::EIO));
+}
+
+/// Waits until the marker made ahead is finished.
+fn until_made() {
+    let began: Instant = Instant::now();
+    while !is_made() {
+        assert!(began.elapsed() < Duration::from_secs(60), "the marker was never finished");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// The only file in the index's directory besides the index,
+/// by its name.
+fn the_staged_file(index: &Path) -> PathBuf {
+    let mut names: Vec<String> = leftovers(index);
+    assert_eq!(names.len(), 1, "{names:?}");
+    return index.parent().expect("directory").join(names.remove(0));
+}
+
+/// A pathname that came to name another file while the service was idle is that file's:
+/// the commit stages its own marker and the other file stays where it is.
+#[test]
+fn a_pathname_that_names_another_file_is_left_alone_by_the_commit() {
+    let _serial = ONE_AT_A_TIME.lock().expect("serial");
+    let (root, index) = index_in("prestage-replaced");
+    start_with(sync_file, &index, 20);
+    until_made();
+    let staged: PathBuf = the_staged_file(&index);
+    std::fs::remove_file(&staged).expect("the marker's file goes");
+    std::fs::write(&staged, "someone else's file").expect("another file takes the name");
+    let mut notes = crate::service_index_lock::WaitNotes::default();
+    let lock = acquire_noting_wait(&index, 20, Duration::from_secs(5), &|_| {}, &mut notes).expect("taken cold");
+    assert_eq!(notes.stage_kind, "cold");
+    assert_eq!(std::fs::read_to_string(&staged).expect("the other file stays"), "someone else's file");
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// Discarding the marker made ahead removes the file it made and nothing else:
+/// a pathname that names another file by then keeps that file.
+#[test]
+fn discarding_leaves_a_file_that_took_the_name_alone() {
+    let _serial = ONE_AT_A_TIME.lock().expect("serial");
+    let (root, index) = index_in("prestage-discard-replaced");
+    start_with(sync_file, &index, 21);
+    until_made();
+    let staged: PathBuf = the_staged_file(&index);
+    std::fs::remove_file(&staged).expect("the marker's file goes");
+    std::fs::write(&staged, "another file again").expect("another file takes the name");
+    discard();
+    assert_eq!(std::fs::read_to_string(&staged).expect("discard leaves it"), "another file again");
+    remove(root.as_path());
+}
+
+/// A link to the flushed file in its place is not the file that was flushed:
+/// placing it would place the link.
+/// The commit stages its own marker,
+/// the lock is a regular file,
+/// and the link stays.
+#[test]
+fn a_link_in_the_place_of_the_flushed_file_is_not_placed() {
+    let _serial = ONE_AT_A_TIME.lock().expect("serial");
+    let (root, index) = index_in("prestage-link");
+    start_with(sync_file, &index, 23);
+    until_made();
+    let staged: PathBuf = the_staged_file(&index);
+    let moved: PathBuf = root.join("moved-marker");
+    std::fs::rename(&staged, &moved).expect("the file moves");
+    std::os::unix::fs::symlink(&moved, &staged).expect("a link takes its place");
+    let mut notes = crate::service_index_lock::WaitNotes::default();
+    let lock = acquire_noting_wait(&index, 23, Duration::from_secs(5), &|_| {}, &mut notes).expect("taken cold");
+    assert_eq!(notes.stage_kind, "cold");
+    assert!(std::fs::symlink_metadata(crate::service_index_lock::lock_path_of(&index)).expect("lock").file_type().is_file(), "the lock is a regular file, not a link");
+    assert!(std::fs::symlink_metadata(&staged).expect("the link stays").file_type().is_symlink());
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// A commit that joins a flush that then fails reports the time it waited for it,
+/// together with the cold staging that follows:
+/// the staging time is the whole preparation.
+#[test]
+fn a_commit_that_joins_a_failing_flush_reports_the_wait_and_the_cold_staging() {
+    let _serial = ONE_AT_A_TIME.lock().expect("serial");
+    let (root, index) = index_in("prestage-failing");
+    FLUSHES.store(0, Ordering::SeqCst);
+    start_with(failing_flush, &index, 24);
+    until_staged(&index);
+    let mut notes = crate::service_index_lock::WaitNotes::default();
+    let lock = acquire_noting_wait(&index, 24, Duration::from_secs(5), &|_| {}, &mut notes).expect("taken cold after the failure");
+    assert_eq!(notes.stage_kind, "cold");
+    assert!(notes.staging >= SLOW / 2, "the wait for the flush that failed is in the staging time: {notes:?}");
+    assert_eq!(FLUSHES.load(Ordering::SeqCst), 1);
+    assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// A marker for another batch that is still being flushed is waited for before it is removed,
+/// and that wait is in the staging time too.
+#[test]
+fn waiting_for_a_marker_of_another_batch_is_in_the_staging_time() {
+    let _serial = ONE_AT_A_TIME.lock().expect("serial");
+    let (root, index) = index_in("prestage-mismatch-wait");
+    start_with(slow_flush, &index, 25);
+    until_staged(&index);
+    let mut notes = crate::service_index_lock::WaitNotes::default();
+    let lock = acquire_noting_wait(&index, 26, Duration::from_secs(5), &|_| {}, &mut notes).expect("taken cold");
+    assert_eq!(notes.stage_kind, "cold");
+    assert!(notes.staging >= SLOW / 2, "{notes:?}");
+    assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
+    drop(lock);
     remove(root.as_path());
 }
 

@@ -150,7 +150,7 @@ fn holder_field(who: &String) -> String {
 /// and the first and the last description of the held lock.
 pub fn lock_notes_fields(notes: &WaitNotes) -> String {
     if notes.looks == 0 {
-        return format!(" lock_stage_ms={} lock_stage_kind={}", notes.staging.as_millis(), notes.stage_kind);
+        return format!(" lock_stage_ms={} lock_stage_kind={} lock_place_ms={}", notes.staging.as_millis(), notes.stage_kind, notes.placing.as_millis());
     }
     let first: &str = notes.found.as_deref().unwrap_or("none");
     let last: &str = notes.last.as_deref().unwrap_or("none");
