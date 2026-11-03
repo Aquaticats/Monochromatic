@@ -247,8 +247,11 @@ These are the coordinator's picks under that delegation, not owner answers, and 
   (owner rule "Use as few locks as possible").
 - A restore compares and replaces with `renameat2` and `RENAME_EXCHANGE` through `rustix`'s safe wrapper, and undoes the exchange
   when the file it displaced is not the expected one. `rustix` was added to `rust-catalog.toml` (`>=1.1.6`, the version tempfile already
-  locks) and to the crate's `Cargo.toml`; the installed `file-enforcer` rejects `trustLockfile` in this catalog, so the generated
-  `[workspace.dependencies]` line was written by hand to match what it would render.
+  locks) and to the crate's `Cargo.toml`. The installed `file-enforcer` 0.1.1 binary rejects `trustLockfile` in this catalog, but the
+  repository's source (`package/file-enforcer/cli`, which depends on `monochromatic-dependency-catalog` 0.2.0) accepts it:
+  built through `mise run //package/file-enforcer/cli:build:debug`, `file-enforcer write` regenerated the
+  `[workspace.dependencies]` line byte for byte as the first hand-written version had it (no diff), and `check` is clean.
+  The installed binary is stale, not the source.
 - A strict cutoff with exemptions keeps the approach recorded above: resolve without the cutoff, enforce it on the other crates.
 - A `file-enforcer` sync failure after the catalog write of `--breaking` restores the catalog (and the update is not kept).
 - A killed `--breaking` run is recovered for the manifests, which are journaled with the lockfiles.
