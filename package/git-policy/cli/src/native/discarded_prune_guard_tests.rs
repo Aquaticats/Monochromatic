@@ -68,6 +68,32 @@ fn audit(common: &Path) -> Vec<serde_json::Value> {
         .collect();
 }
 
+/// What:
+///  The audit file as a writer in the middle of a race can leave it: a whole record, an empty line, a whole record, and a last
+///  line that ends without its newline. Reading it gives the two whole records.
+/// Why:
+///  A writer that looks at the last byte while another writer is half-way through a page-crossing write sees no newline and
+///  starts its own record on a fresh line, which leaves an empty line between records (`append_line` states this and says that
+///  readers skip empty lines). A record is complete only at its newline, so a last line without one is not a record yet. A
+///  reader that parses either fails with "EOF while parsing" on an input that is not an error, which is how
+///  `passes_emptying_one_directory_together_audit_every_copy_once` failed once in a full host run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeFile(path, '{"copiesTotal":1}\n\n{"copiesTotal":2}\n{"copiesTotal":');
+/// expect(audit(common).map((record) => record.copiesTotal)).toEqual([1, 2]);
+/// ```
+#[test]
+fn the_audit_reader_skips_an_empty_line_and_a_last_line_without_its_newline() {
+    let root: PathBuf = fixture("prune-audit-reader");
+    let common: PathBuf = root.join("repo.git");
+    std::fs::create_dir_all(&common).expect("the common directory");
+    std::fs::write(common.join(AUDIT_FILE), "{\"copiesTotal\":1}\n\n{\"copiesTotal\":2}\n{\"copiesTotal\":").expect("the audit file");
+    let totals: Vec<Option<u64>> = audit(common.as_path()).iter().map(|record| { return record["copiesTotal"].as_u64(); }).collect();
+    assert_eq!(totals, vec![Some(1), Some(2)]);
+    remove(root.as_path());
+}
+
 /// A folder of saved copies that is a link to a directory elsewhere is not the wrapper's store: what the link reaches is
 /// not touched, and the pass says why it did nothing.
 #[test]
