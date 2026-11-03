@@ -10266,3 +10266,16 @@ by the coordinator at merge.
   fix + main (package repair, subvolume claims, service locks); gate `release-0.5.21-candidate` launched; on a pass,
   merge and release 0.5.21, install, verify, then convert the 18 skipped worktrees. The deadline agent was resumed
   for the no-progress push limit on `feat/git-policy-cli-push-stops-on-no-progress`.
+- 2026-11-03T03:24:55-05:00: deadline-stop gate `gpc-gate-deadline-stop-with-main-20261103T030559-0500` FAILED: 3959 run, 3956
+  passed, 3 failed. In the container only, `git_stop_lock_tests::a_push_stop_of_a_responsive_holder_leaves_no_lock`
+  and `..._unresponsive_holder_leaves_no_lock` left `refs/remotes/origin/main.lock`
+  (`git_stop_lock_tests.rs:128`), and `supervisor_guard::a_loop_is_ended_by_the_processor_budget_and_reported`
+  aborted after 96.3 s ("a command the supervisor ended was never reported by its test"; no earlier sighting in
+  this handover). Sent back to the deadline agent (fix on its branch, red first, cause with evidence). The first
+  0.5.21 candidate (deadline-stop + conversion + main) was stopped, since it carries those failures.
+  Coordinator tool defect found: `~/temp/agent/gate/launch-gate.ts` starts collected units, and `systemctl show` on
+  a collected unit reports `Result=success`/status 0 whatever happened, so the waiter's "success" line never
+  meant a pass. Every merge so far was also checked against the log's nextest summary, and the three gates merged
+  on today (package repair, subvolume-only, service and subvolume) end with their last stage finished and no
+  failed task. Fixed: the launcher now writes `gate-exit-status=<n>` as the log's last line, and verdicts read
+  that. New candidate: conversion fix + main, gate `gpc-gate-release-0.5.21-conversion-candidate-20261103T032431-0500`.
