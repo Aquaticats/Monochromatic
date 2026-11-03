@@ -171,10 +171,10 @@ fn eight_replays_silently_when_the_evidence_was_erased() {
     assert!(check(Rules::Eight).violation.is_some());
 }
 
-/// Revision 9, R4 with an intact-reflog condition: the schedule that is red under revision 8 (the post-anchor lines erased
-/// after a recorded swap failure) lands the commit with a notice, and every schedule is green.
+/// Revision 9 (red, a finding of the ninth review): the lane can observe only that the log after the anchor matches the anchor
+/// record; erasing every post-anchor line makes it match, so R4 replays silently a commit the branch held and lost.
 #[test]
-fn nine_lands_with_a_notice_when_the_reflog_after_the_anchor_is_not_intact() {
+fn nine_replays_silently_when_every_line_after_the_anchor_was_erased() {
     let reached = replay(
         initial(Rules::Nine),
         steps,
@@ -190,12 +190,33 @@ fn nine_lands_with_a_notice_when_the_reflog_after_the_anchor_is_not_intact() {
             "recovery: decides from the evidence",
         ],
     );
+    assert_eq!(invariant(&reached), Some("a commit the branch had held and lost was published again silently".to_string()));
+    assert!(check(Rules::Nine).violation.is_some());
+}
+
+/// Revision 10 (green): no oracle; the same schedule lands the commit with a notice, and every schedule is green.
+#[test]
+fn ten_lands_with_a_notice_without_an_oracle() {
+    let reached = replay(
+        initial(Rules::Ten),
+        steps,
+        &[
+            "lane: records publishing with the reflog anchor",
+            "foreign: takes the ref lock",
+            "lane: the swap fails because another writer holds the ref lock, and records swap-failed",
+            "foreign: releases the ref lock",
+            "foreign: installs exactly the lane's commit",
+            "foreign: resets the branch away from the commit",
+            "reflog operation: deletes the lines after the anchor, keeping the anchor",
+            "environment: the owner dies without a durable published record",
+            "recovery: decides from the evidence",
+        ],
+    );
     assert_eq!(reached.outcome, 3);
-    assert_eq!(invariant(&reached), None);
-    let report: Report = check(Rules::Nine);
+    let report: Report = check(Rules::Ten);
     if let Some(violation) = &report.violation {
         panic!("{}: {}", violation.message, violation.trace.join(" ; "));
     }
     assert!(report.exhausted);
-    println!("F1 nine: {} states, deepest {}", report.states, report.deepest);
+    println!("F1 ten: {} states, deepest {}", report.states, report.deepest);
 }

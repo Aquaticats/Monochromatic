@@ -28,7 +28,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'nine';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'nine' | 'ten';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -46,6 +46,9 @@ pub enum Rules {
     /// Revision 9, R4: a recorded swap failure replays on the tip only when the reflog after the anchor is intact; with
     /// the post-anchor lines missing or rewritten the attempt is class R5 (landing with a notice).
     Nine,
+    /// Revision 10, R3 to R5: no intact-reflog check (it is not observable, erasing every line after the anchor leaves the log
+    /// equal to its anchor record); everything but a published or rewritten-away attempt is class R5, landing with a notice.
+    Ten,
 }
 
 /// What:
@@ -140,8 +143,9 @@ fn decide(state: &State) -> u8 {
     if state.rules == Rules::Eight && !(state.tip == 1 || state.evidence) && state.swap_failed_record {
         return 2;
     }
-    // Revision 9, R4: only with an intact post-anchor reflog; otherwise class R5.
-    if state.rules == Rules::Nine && !(state.tip == 1 || state.evidence) && state.swap_failed_record && !state.evidence_deleted {
+    // Revision 9, R4: only when the reflog after the anchor matches the journal's record of the anchor (line count and last line).
+    // That is all the lane can see: erasing every line after the anchor leaves a log equal to its anchor record, so it passes.
+    if state.rules == Rules::Nine && !(state.tip == 1 || state.evidence) && state.swap_failed_record {
         return 2;
     }
     if state.tip == 1 {

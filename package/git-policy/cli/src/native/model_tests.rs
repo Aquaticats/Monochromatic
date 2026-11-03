@@ -127,3 +127,11 @@ mod model_merge;
 /// The controls of merges.
 #[path = "model_merge_tests.rs"]
 mod model_merge_tests;
+
+/// R9-8: E1 classification of a hook refusal followed by a foreign move.
+#[path = "model_e1_classify.rs"]
+mod model_e1_classify;
+
+/// The controls of E1.
+#[path = "model_e1_classify_tests.rs"]
+mod model_e1_classify_tests;
