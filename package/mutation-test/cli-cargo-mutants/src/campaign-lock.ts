@@ -1,11 +1,12 @@
 /**
  The right to run one campaign: a kernel advisory lock on the campaign's evidence directory.
 
- The lock is held by a `flock` process that lives exactly as long as the campaign holds it. The kernel grants it to one
- holder at a time and drops it when that process ends, whatever ended it, so there is no lock file to go stale, no
- judgement about whether a holder is still alive, and no takeover to race: a run killed by `systemctl stop`, a reboot or
- `SIGKILL` simply no longer holds it. The holder reads its standard input and ends when that is closed, so a campaign that
- dies, or releases the lock, ends the holder too.
+ The campaign process itself holds the lock. It opens the directory and lends the open descriptor to a short-lived `flock`
+ process, which takes the lock on it and ends; a lock belongs to the open file description, which the campaign process
+ still has open, so the lock stays held exactly as long as that descriptor, and with it the process, is open. The kernel
+ grants it to one holder at a time and drops it when the process ends, whatever ended it, so there is no lock file to go
+ stale, no judgement about whether a holder is still alive, no takeover to race, and no helper whose death could release the
+ lock while the campaign goes on: a run killed by `systemctl stop`, a reboot or `SIGKILL` simply no longer holds it.
 
  It is needed even though the parallel launcher runs each campaign as a uniquely named systemd unit: a run started by hand,
  or by a second launcher under another label for the same file, names the same evidence directory, and the runner removes
@@ -16,7 +17,11 @@ import {
   spawn,
 } from 'node:child_process';
 import { once } from 'node:events';
-import { stat } from 'node:fs/promises';
+import {
+  type FileHandle,
+  open,
+  stat,
+} from 'node:fs/promises';
 
 import {
   flockProgram,
@@ -25,65 +30,34 @@ import {
 import { CargoMutantsToolingError } from './error.ts';
 
 /**
- Shell program the holder runs once it has the lock: it says so, then keeps the lock until its input closes.
+ Number of the descriptor the lent directory has in the `flock` process: the first after standard input, output and error.
  */
-const holderProgram = 'echo held; exec cat';
+const lentDescriptor = 3;
 
 /**
- What the holder wrote first, when it has the lock.
- */
-const heldSignal = 'held';
-
-/**
- Exit status reported for a holder that ended without one, because a signal or an error ended it.
+ Exit status reported for a `flock` process that ended without one, because a signal or an error ended it.
  */
 const noStatus = -1;
 
 /**
- Wait for the first thing the holder writes.
+ Wait for the `flock` process to end.
 
- @param holder - the `flock` process
-
- @returns the signal that it holds the lock, or no signal when its output ended without any
-
- @example
- ```ts
- await firstOutput(holder);
- ```
- */
-async function firstOutput(holder: ChildProcess): Promise<readonly string[]> {
-  try {
-    await once(
-      holder.stdout ?? holder,
-      'data',
-    );
-    return [heldSignal];
-  }
-  catch (error) {
-    console.error(`The lock holder's output failed: ${String(error)}`);
-    return [];
-  }
-}
-
-/**
- Wait for the holder to end.
-
- @param holder - the `flock` process
+ @param locker - the `flock` process
 
  @returns its exit status, or {@link noStatus} when a signal or an error ended it
 
  @example
  ```ts
- await exitStatusOf(holder);
+ await exitStatusOf(locker);
  ```
  */
-async function exitStatusOf(holder: ChildProcess): Promise<number> {
+async function exitStatusOf(locker: ChildProcess): Promise<number> {
   try {
     /**
-     The arguments of the close event: the exit code, which is not a number when a signal ended the holder.
+     The arguments of the close event: the exit code, which is not a number when a signal ended it.
      */
     const closed: readonly unknown[] = await once(
-      holder,
+      locker,
       'close',
     );
     /**
@@ -93,7 +67,7 @@ async function exitStatusOf(holder: ChildProcess): Promise<number> {
     return (typeof code) === 'number' ? code : noStatus;
   }
   catch (error) {
-    console.error(`The lock holder could not run: ${String(error)}`);
+    console.error(`The flock process could not run: ${String(error)}`);
     return noStatus;
   }
 }
@@ -150,10 +124,11 @@ async function isDirectory(path: string): Promise<boolean> {
 
  @param evidence - the campaign's evidence directory, which must exist
 
- @returns the held lock; declare it with `await using` so it is released when the campaign ends
+ @returns the held lock; declare it with `await using` so it is released when the campaign ends, and keep it for as long as
+ the campaign runs, because the lock is the open descriptor it holds
 
  @throws CargoMutantsToolingError when another run of the same campaign holds the lock, the directory does not exist, or
- `flock` cannot be run
+ `flock` cannot be run or ends in any way but success or a conflict
 
  @example
  ```ts
@@ -165,53 +140,53 @@ export async function acquireCampaignLock(evidence: string): Promise<AsyncDispos
   if (!(await isDirectory(evidence)))
     throw new CargoMutantsToolingError(`${evidence} is not a directory, so there is nothing to lock.`);
   /**
-   The holder: `flock` on the directory, without waiting, running a program that waits for its input to close.
+   The directory, opened here: this descriptor, not a helper, is what holds the lock once it is taken.
    */
-  const holder = spawn(
-    flockProgram,
-    [
-      '--nonblock',
-      `--conflict-exit-code=${String(slotConflictExitCode)}`,
-      evidence,
-      'sh',
-      '-c',
-      holderProgram,
-    ],
-    {
-      stdio: [
-        'pipe',
-        'pipe',
-        'pipe',
-      ],
-    },
+  const directory: FileHandle = await open(
+    evidence,
+    'r',
   );
-  /**
-   Settle when the holder ends, whatever the reason, and when it writes; both are attached before anything is awaited.
-   */
-  const ended = exitStatusOf(holder);
-  /**
-   Standard error of the holder, to explain a refusal.
-   */
-  const errors = textOf(holder.stderr);
-  /**
-   The first thing that happens: the holder says it holds the lock, or it ends.
-   */
-  const first = await Promise.race([
-    firstOutput(holder),
-    ended,
-  ]);
-  if ((typeof first) === 'number') {
-    throw new CargoMutantsToolingError(first === slotConflictExitCode
-      ? `Another run of this campaign is alive (it holds the lock on ${evidence}); wait for it or stop it, then run this again.`
-      : `Could not take the lock on ${evidence} with ${flockProgram} (status ${String(first)}): ${(await errors).trim()}`);
+  try {
+    /**
+     `flock` on the lent descriptor, without waiting: it takes the lock for the open file description and ends.
+     */
+    const locker = spawn(
+      flockProgram,
+      [
+        '--nonblock',
+        `--conflict-exit-code=${String(slotConflictExitCode)}`,
+        String(lentDescriptor),
+      ],
+      {
+        stdio: [
+          'ignore',
+          'ignore',
+          'pipe',
+          directory.fd,
+        ],
+      },
+    );
+    /**
+     Standard error of `flock`, to explain a refusal.
+     */
+    const errors = textOf(locker.stderr);
+    /**
+     The only thing that counts as evidence of the lock: `flock` ended with success. Output, or the lack of it, proves nothing.
+     */
+    const status = await exitStatusOf(locker);
+    if (status === slotConflictExitCode)
+      throw new CargoMutantsToolingError(`Another run of this campaign is alive (it holds the lock on ${evidence}); wait for it or stop it, then run this again.`);
+    if (status !== 0)
+      throw new CargoMutantsToolingError(`Could not take the lock on ${evidence} with ${flockProgram} (status ${String(status)}): ${(await errors).trim()}`);
   }
-  holder.stdout
-    ?.resume();
+  catch (error) {
+    // Nothing was granted, or it cannot be known: give the descriptor back, so a lock that was half taken is not kept.
+    await directory.close();
+    throw error;
+  }
   return {
     async [Symbol.asyncDispose](): Promise<void> {
-      holder.stdin
-        ?.end();
-      await ended;
+      await directory.close();
     },
   };
 }

@@ -100,12 +100,41 @@ async function attempt(directory: string): Promise<Attempt> {
 }
 
 /**
- Script of a child process that takes the lock with the given `PATH`, says what became of it, and keeps the lock until it is
- killed.
+ A child process that took, or failed to take, the lock; killed and awaited when disposed.
  */
-const ownerWithPathScript = (lockModule: string, evidence: string): string => `import { acquireCampaignLock } from ${JSON.stringify(lockModule)};
+type Owner = AsyncDisposable & {
+  /**
+   The child's process ID.
+   */
+  readonly pid: number;
+  /**
+   The first line the child printed: `acquired`, or `refused` with the reason.
+   */
+  readonly line: string;
+};
+
+/**
+ Script of a child process that takes the lock, says what became of it, and keeps the lock until it is killed.
+ */
+const ownerScript = (lockModule: string, evidence: string): string => `import { acquireCampaignLock } from ${JSON.stringify(lockModule)};
 try { await acquireCampaignLock(${JSON.stringify(evidence)}); console.log('acquired'); setTimeout(() => process.exit(0), 30000); }
 catch (error) { console.log('refused ' + String(error)); }`;
+
+/**
+ Find a program on the host.
+
+ @param program - its name
+
+ @returns its path
+
+ @example
+ ```ts
+ hostPathOf('flock');
+ ```
+ */
+function hostPathOf(program: string): string {
+  return spawnSync('sh', ['-c', `command -v ${program}`], { encoding: 'utf8' }).stdout.trim();
+}
 
 /**
  Run a child node process whose `PATH` holds only the given programs, and read its first line.
@@ -116,11 +145,11 @@ catch (error) { console.log('refused ' + String(error)); }`;
 
  @param evidence - evidence directory the child takes the lock on
 
- @returns the child, still alive when it holds the lock, and its first line
+ @returns the child's first line and process ID; declare it with `await using` so the child is killed at the end
 
  @example
  ```ts
- await runWithPath({ programs: ['flock', 'sh'], fakes: {}, evidence: '/e/x' });
+ await using owner = await runWithPath({ programs: ['flock', 'sh'], fakes: {}, evidence: '/e/x' });
  ```
  */
 async function runWithPath({
@@ -131,23 +160,33 @@ async function runWithPath({
   readonly programs: readonly string[];
   readonly fakes: Readonly<Record<string, string>>;
   readonly evidence: string;
-}): Promise<{ readonly child: ReturnType<typeof spawn>; readonly line: string }> {
+}): Promise<Owner> {
   await using bin = await scratch();
-  for (const program of programs) {
-    const found = spawnSync('sh', ['-c', `command -v ${program}`], { encoding: 'utf8' }).stdout.trim();
-    await symlink(found, join(bin.path, program));
-  }
-  for (const [name, text] of Object.entries(fakes)) {
-    await writeFile(join(bin.path, name), text);
-    await chmod(join(bin.path, name), 0o755);
-  }
+  await Promise.all([
+    ...programs.map((program) => symlink(hostPathOf(program), join(bin.path, program))),
+    ...Object.entries(fakes).map(async ([name, text]) => {
+      await writeFile(join(bin.path, name), text);
+      await chmod(join(bin.path, name), 0o755);
+    }),
+  ]);
   const child = spawn(
     process.execPath,
-    ['--input-type=module', '--eval', ownerWithPathScript(join(import.meta.dirname, 'campaign-lock.ts'), evidence)],
+    ['--input-type=module', '--eval', ownerScript(join(import.meta.dirname, 'campaign-lock.ts'), evidence)],
     { stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, PATH: bin.path } },
   );
-  const [chunk] = await once(child.stdout!, 'data');
-  return { child, line: String(chunk).trim() };
+  if ((child.stdout === null) || (child.pid === undefined))
+    throw new Error('The child has no standard output or process ID.');
+  const chunks: readonly unknown[] = await once(child.stdout, 'data');
+  return {
+    pid: child.pid,
+    line: String(chunks[0]).trim(),
+    async [Symbol.asyncDispose](): Promise<void> {
+      if ((child.exitCode !== null) || (child.signalCode !== null))
+        return;
+      child.kill('SIGKILL');
+      await once(child, 'close');
+    },
+  };
 }
 
 await describe({
@@ -236,61 +275,50 @@ await describe({
       fn: async () => {
         await using directory = await scratch();
         // The owner is a separate process, so killing its children cannot touch another test's holders.
-        const { child: owner, line } = await runWithPath({ programs: ['flock', 'sh', 'cat'], fakes: {}, evidence: directory.path });
-        try {
-          expect(line).toBe('acquired');
-          const children = spawnSync('pgrep', ['--parent', String(owner.pid)], { encoding: 'utf8' }).stdout.split('\n').filter((entry) => entry !== '');
-          for (const child of children)
-            process.kill(Number(child), 'SIGKILL');
-          await sleep(500);
-          const second = await attempt(directory.path);
-          expect(second.lock.length).toBe(0);
-          expect(second.reason.includes('Another run')).toBe(true);
-        }
-        finally {
-          owner.kill('SIGKILL');
-          await once(owner, 'close');
-        }
+        await using owner = await runWithPath({ programs: ['flock', 'sh', 'cat'], fakes: {}, evidence: directory.path });
+        expect(owner.line).toBe('acquired');
+        const children = spawnSync('pgrep', ['--parent', String(owner.pid)], { encoding: 'utf8' }).stdout.split('\n').filter((entry) => entry !== '');
+        for (const child of children)
+          process.kill(Number(child), 'SIGKILL');
+        await sleep(500);
+        const second = await attempt(directory.path);
+        expect(second.lock.length).toBe(0);
+        expect(second.reason.includes('Another run')).toBe(true);
       },
     }),
     it({
       name: 'does not report a lock held that a helper without cat would drop at once: with no cat on PATH a second run is still refused',
       fn: async () => {
         await using directory = await scratch();
-        const { child, line } = await runWithPath({ programs: ['flock', 'sh'], fakes: {}, evidence: directory.path });
-        try {
-          if (line === 'acquired') {
-            await sleep(500);
-            const second = await attempt(directory.path);
-            expect(second.lock.length).toBe(0);
-          }
-          else
-            expect(line.startsWith('refused')).toBe(true);
+        await using owner = await runWithPath({ programs: ['flock', 'sh'], fakes: {}, evidence: directory.path });
+        if (owner.line === 'acquired') {
+          await sleep(500);
+          expect((await attempt(directory.path)).lock.length).toBe(0);
         }
-        finally {
-          child.kill('SIGKILL');
-          await once(child, 'close');
-        }
+        else
+          expect(owner.line.startsWith('refused')).toBe(true);
       },
     }),
     it({
       name: 'fails closed when flock reports anything but success or a conflict, even after it printed the old readiness word',
       fn: async () => {
         await using directory = await scratch();
-        for (const body of ["process.stdout.write('held\\n'); process.exit(3);", 'process.exit(3);', "process.stdout.write('held\\n'); process.kill(process.pid, 'SIGKILL');"]) {
-          const { child, line } = await runWithPath({
+        const bodies = [
+          String.raw`process.stdout.write('held\n'); process.exit(3);`,
+          'process.exit(3);',
+          String.raw`process.stdout.write('held\n'); process.kill(process.pid, 'SIGKILL');`,
+        ];
+        const lines = await Promise.all(bodies.map(async (body) => {
+          await using owner = await runWithPath({
             programs: [],
             fakes: { flock: `#!${process.execPath}\n${body}\n` },
             evidence: directory.path,
           });
-          try {
-            expect(line.startsWith('refused')).toBe(true);
-            expect(line.includes('Could not take the lock')).toBe(true);
-          }
-          finally {
-            child.kill('SIGKILL');
-            await once(child, 'close');
-          }
+          return owner.line;
+        }));
+        for (const line of lines) {
+          expect(line.startsWith('refused')).toBe(true);
+          expect(line.includes('Could not take the lock')).toBe(true);
         }
       },
     }),
