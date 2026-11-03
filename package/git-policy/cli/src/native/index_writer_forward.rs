@@ -138,26 +138,26 @@ fn written_real_index(context: &GitContext, command: &ResolvedCommand) -> Result
 /// ```ts
 /// async function forwardToRealGit({ args, gitPath, identity }): Promise<void>;
 /// ```
-pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
+pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     // The context runs the location query with the same overlay as the command.
     let context: GitContext = GitContext {
-        real_git: forward.real_git.clone(),
-        overlay: forward.overlay.clone(),
+        real_git: typed.real_git.clone(),
+        overlay: typed.overlay.clone(),
         global_prefix: Vec::new(),
         // The location query sends no input, so no scratch directory is needed.
         common_dir: None,
     };
-    let location: LandingLocation = match written_real_index(&context, &forward.command) {
+    let location: LandingLocation = match written_real_index(&context, &typed.command) {
         Ok(Some(found)) => found,
         Ok(None) => {
             // A copy keeps the wrapper alive around Git; otherwise the caller may replace the process.
-            let Some(facts) = forward.copy.as_ref() else {
+            let Some(facts) = typed.copy.as_ref() else {
                 return CoordinatedRun::NotCoordinated;
             };
             return from_forwarded(run_forwarded_git(
-                forward.real_git.as_path(),
-                forward.arguments.as_slice(),
-                forward.overlay.as_slice(),
+                typed.real_git.as_path(),
+                typed.arguments.as_slice(),
+                typed.overlay.as_slice(),
                 Some(facts),
             ));
         }
@@ -169,9 +169,9 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
     }
     // A pull that merges runs its fetch here and goes on as the `git merge FETCH_HEAD` it ends with; any other pull is native Git's.
     let merge_of_pull: CoordinatedForward;
-    let forward: &CoordinatedForward = if forward.command.word() == b"pull" {
-        match pull_step(forward) {
-            PullStep::Native => forward,
+    let forward: &CoordinatedForward = if typed.command.word() == b"pull" {
+        match pull_step(typed) {
+            PullStep::Native => typed,
             PullStep::Ended(run) => return run,
             PullStep::Merge(merge) => {
                 merge_of_pull = *merge;
@@ -179,7 +179,7 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
             }
         }
     } else {
-        forward
+        typed
     };
     let name: String = String::from_utf8_lossy(forward.command.word()).into_owned();
     // The commit service holds the index while it lands a commit, which ends by itself: the command waits for it, naming

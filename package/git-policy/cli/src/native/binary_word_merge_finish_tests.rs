@@ -362,17 +362,17 @@ fn after_autostash(fixture: &Fixture, repo: &Path) -> (String, String, String) {
 #[ignore = "red on purpose: the stash and the unmerged entries Git's apply made in the commit's scratch repository are not carried back (doc/planning/cli-git-merge-auto-resolution.md, owner decision 3)"]
 fn a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it() {
     let direct: Fixture = fixture("finish-autostash-conflict-git");
-    let repo: PathBuf = prepared(&direct, Stop::Merge, &[ADJACENT]);
-    let edited: &str = with_overlapping_work(&direct, repo.as_path());
-    let stopped: Observed = run_direct(&direct, repo.as_path(), &["merge", "--autostash", "--no-edit", "topic"]);
+    let git_repo: PathBuf = prepared(&direct, Stop::Merge, &[ADJACENT]);
+    let edited: &str = with_overlapping_work(&direct, git_repo.as_path());
+    let stopped: Observed = run_direct(&direct, git_repo.as_path(), &["merge", "--autostash", "--no-edit", "topic"]);
     assert_eq!(stopped.code, Some(1), "Git stops the merge: {}", stderr_of(&stopped));
-    std::fs::write(repo.join(tracked(ADJACENT)), corpus(ADJACENT, "word.out")).expect("the resolution");
-    git(&direct, repo.as_path(), &["add", "--", tracked(ADJACENT).as_str()]);
-    let concluded: Observed = run_direct(&direct, repo.as_path(), &["commit", "--no-edit"]);
+    std::fs::write(git_repo.join(tracked(ADJACENT)), corpus(ADJACENT, "word.out")).expect("the resolution");
+    git(&direct, git_repo.as_path(), &["add", "--", tracked(ADJACENT).as_str()]);
+    let concluded: Observed = run_direct(&direct, git_repo.as_path(), &["commit", "--no-edit"]);
     let git_said: String = stderr_of(&concluded);
-    let kept: (String, String, String) = after_autostash(&direct, repo.as_path());
+    let kept: (String, String, String) = after_autostash(&direct, git_repo.as_path());
     assert!(kept.0.contains("autostash"), "Git keeps the conflicted stash: {kept:?} {git_said}");
-    let git_state: Vec<&str> = state_left(repo.as_path());
+    let git_state: Vec<&str> = state_left(git_repo.as_path());
     remove(&direct);
     let fixture: Fixture = fixture("finish-autostash-conflict-wrapper");
     let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
