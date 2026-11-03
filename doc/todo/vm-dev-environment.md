@@ -12,7 +12,7 @@ with KDE Plasma layered on top via a custom Containerfile.
 ucore-hci (immutable, rpm-ostree, Fedora CoreOS base)
   + KDE Plasma, SDDM (baked into custom image)
   + system dev packages (baked into custom image)
-  + ghostty RPM via scottames/ghostty COPR (baked into custom image)
+  + OdyTTY upstream RPM with verified SHA-256 (baked into custom image)
   + mise (baked, /usr/local/bin)
   + user account (baked)
   |
@@ -65,11 +65,11 @@ Two artifacts define the entire environment:
    KDE is part of the base not a fragile layer
 - **Dotfiles baked into image**:
    `package/config/dotfiles/` package with subdirectories
-  (ghostty,
-   mise).
+  (OdyTTY preferences,
+   its custom theme,
+   KDE and XDG terminal defaults).
    COPYed into `~/.config/` at image build time via widened build context.
-  Only two configs needed;
-   a separate repo and provisioner step are overkill.
+  Tool versions are provisioned from `toolchain.lock.json` per worktree.
 - **KDE config not portable**:
    let KDE regenerate defaults on each VM,
   machine-specific state (display IDs,
@@ -163,8 +163,9 @@ Browser + password manager:
 
 Terminal:
 
-- [x] Ghostty COPR repo (scottames/ghostty)
-- [x] `ghostty`
+- [x] OdyTTY `0.17.5` upstream RPM with SHA-256 verification.
+  Replaced Ghostty and its `scottames/ghostty` COPR on 2026-11-02 at the user's request.
+- [x] KDE and XDG defaults select `io.unfinished_works.odytty.desktop`.
 
 Dev tools (system-level,
  mise handles the rest):
@@ -182,8 +183,7 @@ Infrastructure:
 - [x] User account `user` with password `password`,
        `wheel` group,
        passwordless sudo
-- [x] Dotfiles baked into image from `package/config/dotfiles/` (ghostty,
-       mise configs)
+- [x] Dotfiles baked into image from `package/config/dotfiles/` (OdyTTY and terminal defaults).
 - [x] bootc install config:
        btrfs root filesystem (`/usr/lib/bootc/install/00-ucore-dev.toml`)
 
@@ -197,7 +197,7 @@ Infrastructure:
        verify KDE Plasma starts with SDDM auto-login
 - [ ] Verify podman runs,
        libvirt works inside the VM
-- [ ] Verify all installed apps launch (ghostty,
+- [ ] Verify all installed apps launch (OdyTTY,
        librewolf,
        keepassxc,
        helix)
@@ -276,16 +276,21 @@ to be created if flatpak or user-layer setup remains required.
 ### Dotfiles package
 
 Lives at `package/config/dotfiles/` in this monorepo.
-Only two configs needed:
- ghostty and mise.
+Current files seed OdyTTY and terminal defaults.
+The old `ghostty/config` was replaced by `odytty/odytty.conf` on 2026-11-02.
+The old `mise/config.toml` no longer seeds tool versions;
+`toolchain.lock.json` owns them.
 
 - [x] Create `package/config/dotfiles/` with:
-  - `ghostty/config`
-  - `mise/config.toml` (global mise config)
+  - `odytty/odytty.conf`
+  - `odytty/themes/custom-custom.theme`
+  - `kdeglobals` (terminal keys only)
+  - `xdg-terminals.list`
 - [x] ~~Archive `Aquaticat/nvim`~~:
    nvim is deprecated by editord in the monorepo
 - [x] ~~Decide which `~/.config/` directories to include~~:
-   only ghostty and mise
+   OdyTTY and terminal defaults;
+   no display geometry or other machine-specific KDE state
 
 ### Provisioner script tasks
 
@@ -338,7 +343,7 @@ mise trust && mise install
        `podman run --rm alpine echo hello`
 - [ ] Verify libvirt works:
        `virsh list --all`
-- [ ] Verify ghostty launches (installed as RPM,
+- [ ] Verify OdyTTY launches (installed as RPM,
        not AppImage)
 - [ ] Verify host-level FDE protects the qcow2 at rest
 - [ ] Verify librewolf launches

@@ -16,7 +16,7 @@ No new ranking or complete technology audit is claimed.
 
 - [x] Switch KDE's terminal defaults and pinned taskbar launcher to the installed OdyTTY desktop entry.
   Verify the live Plasma configuration and actual command launch.
-- [ ] Switch the explicit terminal launcher preference and exercise command arguments,
+- [x] Switch the explicit terminal launcher preference and exercise command arguments,
   working directory,
   title,
   and application ID through `terminal-exec` in a disposable environment.
@@ -25,6 +25,31 @@ No new ranking or complete technology audit is claimed.
 - [ ] Check current agent input compatibility,
   especially the historical Claude Code Shift+Enter limitation.
 - [ ] Commit scoped changes and record verification results and remaining limits.
+
+## Completed verification
+
+`probe-launch.ts launcher-verified` in the private migration scratch directory passed through the built `terminal-exec`.
+The isolated OdyTTY window received the requested title,
+application ID,
+working directory,
+and a literal argument containing spaces,
+a semicolon,
+and command-substitution syntax.
+Its child reported `TERM_PROGRAM=odytty` and `TERM=xterm-256color`.
+Legacy input and Kitty disambiguation mode were exercised with Enter,
+Shift+Enter,
+Ctrl+C,
+and Escape.
+The hold option retained the window after child exit;
+the next key closed it with exit status `0`.
+
+The VM image definition and dotfiles were committed in `39113fdeba`.
+The build-context allowlist referenced obsolete `packages/config/dotfiles/`;
+it now names `package/config/dotfiles/` so the new seeds reach the image.
+An `image:build` task builds only the OS image,
+without converting disks or replacing a libvirt VM.
+Its first run is in progress;
+log: `${HOME}/temp/agent/odytty-switch-20261102/image-build.log`.
 
 ## Initial inventory
 
