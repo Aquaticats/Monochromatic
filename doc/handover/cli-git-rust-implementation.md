@@ -10248,3 +10248,9 @@ by the coordinator at merge.
   tooling flocks to numbered claim files (the wrapper's `single_owner_claim.rs` design, with a TypeScript process
   start-time reader); then the snapshot-add timing split (parent fsync, second walk); then the service follow-ups
   (scratch ref left by a killed landing, O(N squared) `claimed/` scan).
+- 2026-11-03T03:07:31-05:00: integration gate `gpc-gate-service-and-subvolume-locks-20261103T025533-0500` passed (3948 run, 3948
+  passed, 6 skipped; the once-seen `lfs_hang` failure did not recur); `integrate/git-policy-cli-service-and-subvolume-locks`
+  merged into main as `5d90cc2550`. Main now carries the package repair, the subvolume claims and the service lock
+  removal. Deadline-stop gate `gpc-gate-deadline-stop-with-main-20261103T030559-0500` running; plan: on its pass,
+  merge it and release 0.5.21 with all of these, then install and verify (a new worktree's `node_modules` resolve,
+  commit timing, service landing log).
