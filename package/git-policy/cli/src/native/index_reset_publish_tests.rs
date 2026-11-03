@@ -104,3 +104,17 @@ fn the_published_mode_is_gits() {
     assert_eq!(std::fs::metadata(&built).expect("metadata").permissions().mode() & 0o7777, 0o640);
     remove(root.as_path());
 }
+
+/// A legitimate lock on the live index does not make any other file beside it the batch's private index: only the name the
+/// landing gives its copy (`index.cli-git-<batch>`) counts, so another client's index in the same directory is never replaced.
+#[test]
+fn only_the_batchs_own_private_name_counts() {
+    let (root, live, _built) = directory("publish-name");
+    let other: PathBuf = root.join("other-index");
+    std::fs::write(&other, b"another client's index").expect("other");
+    let held = try_acquire(live.as_path(), 7).expect("free");
+    assert!(!holds_the_lock(&Landing { live: live.as_path(), built: other.as_path(), seq: 7 }), "another file in the directory");
+    assert!(!holds_the_lock(&Landing { live: live.as_path(), built: root.join("index.cli-git-8").as_path(), seq: 7 }), "another batch's name");
+    drop(held);
+    remove(root.as_path());
+}
