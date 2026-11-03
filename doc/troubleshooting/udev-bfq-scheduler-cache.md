@@ -185,17 +185,23 @@ Using a slash-containing attribute name with this `udevadm trigger --attr-match`
 
 ## Upstream filing decision
 
-- Fault attribution: no upstream defect is established.
+- Fault attribution:
+  no upstream defect is established.
   The rejected candidate depended on an incorrect assumption about attribute caching.
-- Fixability: no upstream patch is needed for the requested host policy.
-- Supported use: installed `udev(7)` documents `PROGRAM`,
+- Fixability:
+  no upstream patch is needed for the requested host policy.
+- Supported use:
+  installed `udev(7)` documents `PROGRAM`,
   `ATTR`,
   and local rules;
   the applied policy succeeded.
-- Contribution policy: not assessed because no contribution is proposed.
-- Maintainer intent: not assessed;
+- Contribution policy:
+  not assessed because no contribution is proposed.
+- Maintainer intent:
+  not assessed;
   no claim about future upstream behavior is made.
-- Prototype: the local configuration was verified,
+- Prototype:
+  the local configuration was verified,
   and no upstream source was modified.
 
 No matching exemption was found in `.out-of-scope/`.
