@@ -422,3 +422,90 @@ pub fn replay<S: Clone>(start: S, successors: fn(&S) -> Vec<(String, S)>, labels
 pub fn push_step<S>(found: &mut Vec<(String, S)>, label: &str, after: S) {
     found.push((label.to_string(), after));
 }
+
+/// What:
+///  Explores like `explore`, and also checks a liveness bound: a state for which `waiting` is true may last at most `bound`
+///  of the protocol's own steps. Steps of the environment (`outside:` and `environment:` labels) do not count and do not end a
+///  wait; a waiting state that has no step of the protocol's own to take is a wait with nothing that can end it.
+///  `fn(&S) -> bool` is a plain function value; the search state is a pair of the model state and how many own steps the
+///  current wait has taken, so two visits with different wait lengths are different states.
+/// Why:
+///  The owner's rule "nothing should ever wait forever or indefinitely" needs a checkable form: for every wait the protocol
+///  states, the bound in steps. A model gives `waiting` and the bound; a wait that outlives it is a violation with its trace.
+///  This does not assume the environment helps (a hook returning, a foreign lock freeing): only the protocol's own steps count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exploreBounded<S>(initials: S[], successors: (s: S) => [string, S][], invariant: (s: S) => string | undefined,
+///                            waiting: (s: S) => boolean, bound: number, limits: Limits): Report;
+/// ```
+pub fn explore_bounded<S: Clone + Eq + Hash>(
+    initials: Vec<S>,
+    successors: fn(&S) -> Vec<(String, S)>,
+    invariant: fn(&S) -> Option<String>,
+    waiting: fn(&S) -> bool,
+    bound: usize,
+    limits: Limits,
+) -> Report {
+    let mut nodes: Vec<Node<(S, usize)>> = Vec::new();
+    let mut seen: HashMap<(S, usize), usize> = HashMap::new();
+    let mut exhausted: bool = true;
+    let mut deepest: usize = 0;
+    for initial in initials {
+        let start: (S, usize) = (initial, 0);
+        if !seen.contains_key(&start) {
+            seen.insert(start.clone(), nodes.len());
+            nodes.push(Node { state: start, parent: usize::MAX, label: String::new(), depth: 0 });
+        }
+    }
+    let mut next: usize = 0;
+    while next < nodes.len() {
+        let at: usize = next;
+        next += 1;
+        let (state, count): (S, usize) = nodes[at].state.clone();
+        let depth: usize = nodes[at].depth;
+        if depth > deepest {
+            deepest = depth;
+        }
+        let steps: Vec<(String, S)> = successors(&state);
+        let own_step: bool = steps.iter().any(|step| { return !is_environment(step.0.as_str()); });
+        let mut message: Option<String> = invariant(&state);
+        if message.is_none() && waiting(&state) && !own_step {
+            message = Some("a wait with nothing of the protocol's own left that can end it".to_string());
+        }
+        if let Some(text) = message {
+            let trace: Vec<String> = trace_to(&nodes, at);
+            return Report { states: nodes.len(), deepest, exhausted: false, violation: Some(Violation { message: text, trace }) };
+        }
+        if depth >= limits.max_depth {
+            exhausted = false;
+            continue;
+        }
+        for (label, after) in steps {
+            let new_count: usize = if !waiting(&after) {
+                0
+            } else if is_environment(label.as_str()) {
+                count
+            } else {
+                count + 1
+            };
+            if new_count > bound {
+                let mut trace: Vec<String> = trace_to(&nodes, at);
+                trace.push(label);
+                let text: String = format!("a wait lasted more than {} steps of the protocol's own", bound);
+                return Report { states: nodes.len() + 1, deepest, exhausted: false, violation: Some(Violation { message: text, trace }) };
+            }
+            let key: (S, usize) = (after, new_count);
+            if seen.contains_key(&key) {
+                continue;
+            }
+            if nodes.len() >= limits.max_states {
+                exhausted = false;
+                continue;
+            }
+            seen.insert(key.clone(), nodes.len());
+            nodes.push(Node { state: key, parent: at, label, depth: depth + 1 });
+        }
+    }
+    return Report { states: nodes.len(), deepest, exhausted, violation: None };
+}

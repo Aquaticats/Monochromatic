@@ -136,3 +136,58 @@ fn a_refused_end_state_is_a_violation() {
     assert_eq!(violation.message, "stuck");
     assert!(!violation.trace.is_empty());
 }
+
+/// What:
+///  The toy model of the bound: a chain 0 to 4 whose states 1 to 3 are a wait, a two-state retry loop 10 and 11 that is a wait,
+///  and a state 20 that only the environment can leave.
+/// Why:
+///  It has one wait that ends within a known number of steps, one that never ends by the protocol's own steps, and one that
+///  nothing of the protocol's can end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function waitSteps(n: number): [string, number][];
+/// ```
+fn wait_steps(state: &Counter) -> Vec<(String, Counter)> {
+    let mut found: Vec<(String, Counter)> = Vec::new();
+    if *state < 4 {
+        found.push(("advance".to_string(), *state + 1));
+    }
+    if *state == 10 {
+        found.push(("retry".to_string(), 11));
+    }
+    if *state == 11 {
+        found.push(("retry".to_string(), 10));
+    }
+    if *state == 20 {
+        found.push(("environment: the foreign lock frees".to_string(), 0));
+    }
+    return found;
+}
+
+/// The states of the toy model that are a wait.
+fn is_waiting(state: &Counter) -> bool {
+    return (1..=3).contains(state) || *state == 10 || *state == 11 || *state == 20;
+}
+
+/// A wait that ends by the protocol's own steps within the bound passes; one step shorter, it fails with the trace.
+#[test]
+fn a_wait_within_its_bound_passes_and_one_over_it_fails() {
+    let limits = || { return Limits { max_states: 1000, max_depth: 1000 }; };
+    let within = crate::model_explore::explore_bounded(vec![0], wait_steps, never, is_waiting, 3, limits());
+    assert!(within.violation.is_none() && within.exhausted);
+    let over = crate::model_explore::explore_bounded(vec![0], wait_steps, never, is_waiting, 2, limits());
+    let violation = over.violation.expect("a wait of three steps against a bound of two");
+    assert_eq!(violation.message, "a wait lasted more than 2 steps of the protocol's own");
+    assert_eq!(violation.trace.len(), 3);
+}
+
+/// A retry loop never leaves the wait, and a state only the environment can leave has nothing of the protocol's to end it.
+#[test]
+fn a_loop_and_an_environment_only_wait_both_fail() {
+    let limits = || { return Limits { max_states: 1000, max_depth: 1000 }; };
+    let looping = crate::model_explore::explore_bounded(vec![10], wait_steps, never, is_waiting, 50, limits());
+    assert_eq!(looping.violation.expect("a loop").message, "a wait lasted more than 50 steps of the protocol's own");
+    let stuck = crate::model_explore::explore_bounded(vec![20], wait_steps, never, is_waiting, 50, limits());
+    assert_eq!(stuck.violation.expect("environment only").message, "a wait with nothing of the protocol's own left that can end it");
+}
