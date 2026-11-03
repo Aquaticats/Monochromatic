@@ -10158,3 +10158,35 @@ by the coordinator at merge.
   bump (`ad89623dd7`) and the handover union line (`8ecbb0b188`), and `git merge-tree` found no conflict, so the
   gate result stands without a combined rerun. Ships in 0.5.21. Owner questions still open from this lane: the
   hand-made absolute stub link into main, the stale `Cargo.lock` files, and other packages' container disk weight.
+- 2026-11-03T02:52:40-05:00, real conversion finished (unit `cli-git-convert-all-20261103T022250-0500`, exit 0):
+  172 looked at, 48 converted, 18 skipped, matching the dry run. Spot check of `.claude/worktrees/survivors-subvolume-timing`:
+  inode 256 (a subvolume root), `git status` clean; a `git worktree add --detach` from it into a throwaway
+  `.claude/worktrees/convert-check-snapshot-*` made a subvolume (inode 256) with a clean status, then
+  `git worktree remove` destroyed it in 403 ms. That add took 13500 ms untraced, against the 1.85 s recorded for an
+  add from main (load average near 21). Traces (`~/temp/agent/add-trace-*.strace`, scripts
+  `~/temp/agent/add-trace.ts` and `add-trace-buckets.ts`): `BTRFS_IOC_SNAP_CREATE_V2` itself took 7.05 s and 6.93 s;
+  under a full trace (49.8 s total) the wrapper walked the source (about 30000 `statx`/`openat2`) before the
+  snapshot, walked again after it, then one `fsync` of the parent directory took 18.39 s. A directory fsync after a
+  new subvolume entry forces a full btrfs transaction commit, which the snapshot ioctl has already done once. QUEUED
+  (after the settlement-lock agent lands, since it changes this path): split the add's time without strace, decide
+  whether the second walk and the parent fsync are needed, and measure against the 1.85 s figure.
+- 2026-11-03T02:52:40-05:00, cause of the 18 refusals found: the wrapper puts `CLI_GIT_NATIVE_FORWARD_TARGET` only
+  in its children's environment (`strace --no-abbrev` of `git --version`: 3 `HOME=` matches, one per process, and the
+  variable only in `/usr/bin/git`'s), while `worktree_clean_content.rs` `ConversionEnvironment::from_process` and the
+  `list_config` call read the wrapper's own environment, so `system_config_for` and `system_attributes_for` return
+  `None` and the content check refuses. The service path already adds the variable through `with_real_git`. Fix
+  delegated on a branch from the subvolume-tools branch; the 18 convert after the release that carries it.
+- 2026-11-03T02:52:40-05:00: subvolume and conversion lock pass done (agent `a0d61f5390425048f`, branch
+  `fix/git-policy-cli-subvolume-tools-without-locks`): lock-free numbered claim files (`single_owner_claim.rs`)
+  replace the conversion `flock`, the migration gained the single-owner guard it never had, conversion's `index.lock`
+  hold now spans only proof through rewrite, migration and conversion refuse each other, and a leftover 0.5.20
+  `cli-git-convert.lock` retires itself. Host suites 3326 and 550 passed. Main merged into it cleanly; gate
+  `gpc-gate-subvolume-claims-with-main-20261103T024559-0500` running. Found by that agent: worktrees made from main
+  after main moved to pnpm's global virtual store have relative `node_modules` links that resolve only at main's depth
+  (`Cannot find module '/var/home/user/Monochromatic/.claude/worktrees/.local/share/pnpm/store/v11/links/...'`); the
+  package repair merged in `f93bd82ff6` relinks new worktrees from 0.5.21 on. QUEUED: count the existing worktrees
+  with broken links after 0.5.21 and ask the owner before relinking worktrees of other sessions. Its open owner
+  questions: porting `campaign-lock.ts` and `gate-slot.ts` off `flock`, the migration's `index.lock` span over the
+  catch-up, and the one-hour patience for an owner in another PID namespace. Its finding
+  `subvolume_journal.rs::mark` (a fixed `.tmp` sibling created with `File::create`, which follows a planted link) is
+  a pre-existing issue in this package, so it is fixed unasked in the same delegated branch.
