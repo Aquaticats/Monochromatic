@@ -199,3 +199,9 @@ fn a_restart_says_each_batch_it_settled() {
     assert!(entries[0].fields.contains(&(String::from("CLI_GIT_BATCH"), String::from("41"))), "{:?}", entries[0].fields);
     crate::test_support::remove(root.as_path());
 }
+
+/// The batch cap is the size the measured landing cost had not yet doubled at, so a change of either is made with the other.
+#[test]
+fn the_batch_cap_is_the_measured_cost_knee() {
+    assert_eq!(MAX_BATCH, BATCH_COST_KNEE);
+}

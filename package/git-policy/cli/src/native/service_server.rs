@@ -37,12 +37,21 @@ use std::sync::Arc;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-/// The most requests landed as one batch. A prototype measured batches that "grow from 1 under light load to 21 to 64 in a burst"
-///  (`doc/planning/cli-git-resident-service.md`, lines 274 to 276), the largest equal to this cap. In production, 1,302 answered
-///  requests in the service journal (2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z, `size` and `position` fields) were all
-///  batches of one, so no observation of this build reaches the cap or shows where it should be; the value is the prototype's, kept
-///  as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
-pub const MAX_BATCH: usize = 64;
+/// The largest batch whose landing still costs about what its size predicts: 256. Measured with the service binary on throwaway
+///  repositories, 2026-11-03, bursts of simultaneous commit requests (`MAX_BATCH` raised to 4096 for the probe, three rounds
+///  alternating over 64, 128, 256, 512 and 1024 clients, other sessions running, a debug build): a landing took 71 to 76 ms for
+///  62 to 63 requests, 82 to 85 ms for 126, 104 to 109 ms for 253 to 255, 193 to 204 ms for 509 to 511 (once 2,002 ms, a host stall)
+///  and 525 to 547 ms for 1,021 to 1,023. The cost of each added request is 0.16 ms up to 254 requests, 0.36 ms from there to
+///  510, and 0.66 ms to 1,022, so the cost per request has not yet doubled at 256. The time a client waits for a burst of 128 was
+///  176 to 206 ms in one landing and 243 to 249 ms in three at the old cap of 64.
+pub const BATCH_COST_KNEE: usize = 256;
+
+/// The most requests landed as one batch: `BATCH_COST_KNEE`. A batch is answered all at once and holds the index lock while it
+///  lands, so the cap bounds both. The prototype's burst reached 64, and production never reached more than one request in a
+///  batch (1,302 answered requests, 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z), so the cap bites only in a burst. Option B of the
+///  batch size question, picked by the coordinator under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups").
+pub const MAX_BATCH: usize = BATCH_COST_KNEE;
 
 /// How long a connection may take to send its request line before it is dropped.
 pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
