@@ -20,6 +20,8 @@ pub struct CargoOutcome {
     pub ok: bool,
     /// Standard output, then standard error.
     pub output: String,
+    /// Standard output alone, for the callers that parse it.
+    pub stdout: String,
 }
 
 /// What:
@@ -53,9 +55,10 @@ impl CargoRunner for RealCargo {
             command.env("RUSTUP_TOOLCHAIN", &self.toolchain);
         }
         let output = command.output().map_err(|error| { return format!("could not start {}: {error}", self.program.display()); })?;
-        let mut text: String = String::from_utf8_lossy(&output.stdout).to_string();
+        let stdout: String = String::from_utf8_lossy(&output.stdout).to_string();
+        let mut text: String = stdout.clone();
         text.push_str(&String::from_utf8_lossy(&output.stderr));
-        return Ok(CargoOutcome { ok: output.status.success(), output: text });
+        return Ok(CargoOutcome { ok: output.status.success(), output: text, stdout });
     }
 }
 

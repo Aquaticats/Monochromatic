@@ -44,6 +44,12 @@ pub mod policy;
 /// The install step, the counterpart of `pnpm install`.
 pub mod install;
 
+/// The shadow's install step: fingerprint fast path, then the install over one workspace.
+pub mod install_step;
+
+/// Reads the few cargo options the shadow cares about.
+pub mod options;
+
 /// The marker file that tells an outer shadow instance that an inner one already printed the notice.
 pub mod notice_marker;
 
@@ -68,6 +74,9 @@ pub mod time_text;
 /// The rustup toolchain the repository pins.
 pub mod toolchain;
 
+/// Finds the catalog repository and the Cargo workspace of a directory.
+pub mod workspace;
+
 /// The command-word rules: what the shadow does for a cargo command line.
 pub mod verb;
 
@@ -88,10 +97,16 @@ mod real_binary_tests;
 mod shadow_notice_tests;
 
 #[cfg(test)]
+mod install_step_tests;
+
+#[cfg(test)]
 mod install_tests;
 
 #[cfg(test)]
 mod lockfile_tests;
+
+#[cfg(test)]
+mod options_tests;
 
 #[cfg(test)]
 mod policy_tests;
@@ -107,3 +122,6 @@ mod toolchain_tests;
 
 #[cfg(test)]
 mod verb_tests;
+
+#[cfg(test)]
+mod workspace_tests;

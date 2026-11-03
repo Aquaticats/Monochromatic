@@ -57,17 +57,17 @@ impl CargoRunner for FakeCargo {
         let lock_path: PathBuf = cwd.join("Cargo.lock");
         if args.iter().any(|argument| { return argument == "--locked"; }) && args[0] == "update" {
             let satisfied: bool = fs::read_to_string(&lock_path).unwrap_or_default().starts_with("# satisfied");
-            return Ok(CargoOutcome { ok: satisfied, output: "the lock file needs to be updated".to_string() });
+            return Ok(CargoOutcome { ok: satisfied, output: "the lock file needs to be updated".to_string(), stdout: String::new() });
         }
         if args[0] == "update" {
             if let Some(failing) = &self.fail_update_in
                 && cwd.ends_with(failing)
             {
-                return Ok(CargoOutcome { ok: false, output: "no matching package named `ghost` found".to_string() });
+                return Ok(CargoOutcome { ok: false, output: "no matching package named `ghost` found".to_string(), stdout: String::new() });
             }
             fs::write(&lock_path, &self.after).map_err(|error| { return error.to_string(); })?;
         }
-        return Ok(CargoOutcome { ok: true, output: String::new() });
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
     }
 }
 
