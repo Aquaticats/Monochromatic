@@ -962,12 +962,11 @@ Stage each destination separately in a mode-`0700` sibling directory so file clo
  on the destination filesystem.
 Copy regular files into the stage with an exclusive copy-on-write request whose unsupported-filesystem behavior falls
 back to a full copy.
-A manifest of at least 4096 entries is copied by up to 8 threads, bounded by the CPUs the process may use,
+A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 threads, bounded by the CPUs the process may use,
 over contiguous slices after every directory exists; the first failure stops the others.
-The cap of eight is measured: cloning 22,718 entries took 1549, 880, 555, 397 and 415 ms at 1, 2, 4, 8 and 16 workers
-(`doc/planning/cli-git-shipped-limits-audit.md`, "Measurement record").
-The threshold of 4096 is not measured on the copy stage itself; the same file-making primitive was faster in parallel
-from 555 entries up, so the threshold is kept as an open question there.
+Both numbers are measured: the copy stage forced to 1, 2, 4 and 8 workers took 1.1, 1.0, 0.7 and 0.7 ms for 30 entries and 397.6,
+222.2, 139.4 and 104.4 ms for 9,301, and cloning 22,718 entries took 1549, 880, 555, 397 and 415 ms at 1, 2, 4, 8 and 16 workers
+(`doc/planning/cli-git-shipped-limits-audit.md`, "Measurement record"). The install and the clone of a package repair use the same break-even.
 Preserve directory and regular-file permission bits plus exact symbolic-link target text.
 Never follow a symbolic link while classifying source or destination entries.
 
@@ -1935,13 +1934,15 @@ Pushing history unrelated to every published commit still scans that whole unrel
 Process creation is bounded independently of history length and update count:
 one `git cat-file --batch-check` peels every pushed and prior object,
 one `git for-each-ref` lists remote-tracking refs,
-at most four per-update `git rev-list --stdin` or `git ls-tree` processes run concurrently
-(local queries measured 37 and 18 percent faster at eight; the remote side was not measured, so four stays),
+at most eight per-update local `git rev-list --stdin`, `git cat-file` or `git ls-tree` processes run concurrently
+(`MOST_CONCURRENT_LOCAL_QUERIES`: `git ls-tree -r` took 80 and 50 ms at four and eight at once, `git rev-list` 231 and 190 ms,
+and no less at sixteen) and at most four `git ls-remote` queries, which open a connection to a remote, at a time
+(`MOST_CONCURRENT_REMOTE_QUERIES`, not measured),
 one `git diff-tree --stdin` reads every range commit's delta,
 and one `git cat-file --batch` reads every blob.
 Never spawn one process per commit.
 Met by the native executable: the `ls-remote` confirmation of each destination (one per push URL of the remote) and the
- `cat-file` and `rev-list` of each update run side by side, at most four at once and within the host budget, and their answers are
+ `cat-file` and `rev-list` of each update run side by side, at most eight at once and within the host budget, and their answers are
 used in the order Git printed the destinations and negotiated the updates, the first that fails deciding the error.
 Not yet met by the native executable: it peels each update's object with its own `git cat-file` process,
  runs `git rev-list <local> --not <published>`
@@ -2023,8 +2024,8 @@ Candidates are reference locks of the Git directory and the common Git directory
 has its own protocol in this document).
 A candidate is judged without starting Git, from the file system and `/proc`, in this order, and the first answer wins:
 
-1. A candidate that is not a regular file, or that is younger than the margin (`MARGIN`, four seconds: the whole second above the 3,438 ms
-   longest live reference step of a service journal), is left and not mentioned.
+1. A candidate that is not a regular file, or that is younger than the margin (`MARGIN`, seven seconds: twice the 3,438 ms
+   longest live reference step of a service journal, rounded up to a whole second), is left and not mentioned.
    The margin covers a lock that a live Git has just created and not yet filled, whose pid file is not yet written.
 2. A candidate on a file system that is not local (anything not on a fixed list of disk and memory file systems:
    `btrfs`, `ext4`, `xfs`, `f2fs`, `tmpfs`, `overlay`, `zfs`, `bcachefs`) is unproven, because a Git on another machine is

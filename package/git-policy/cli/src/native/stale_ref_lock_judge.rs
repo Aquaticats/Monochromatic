@@ -28,12 +28,18 @@ use std::time::{Duration, SystemTime};
 ///  is the loaded tail, not the common case.
 pub const LONGEST_LIVE_REF_STEP: Duration = Duration::from_millis(3438);
 
+/// How many times the longest live reference step the margin allows: twice, because the longest of a sample understates the
+///  tail (one entry of 1,302 reached 3,438 ms, so the next sample may reach more). Option B of the question on the margin, "twice
+///  the sample maximum, seven seconds", picked by the coordinator under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups").
+pub const MARGIN_MULTIPLE: u64 = 2;
+
 /// How old a lock must be before it is judged: long enough for a live Git to have filled and renamed a lock it just made. The
-///  whole seconds above the longest step measured in `LONGEST_LIVE_REF_STEP`, because a lock younger than the longest live hold
-///  may still be live. The longest of a sample understates the tail, so the owner may want a larger multiple: this is the
-///  coordinator's pick under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Margins for removing left-behind locks").
-pub const MARGIN: Duration = Duration::from_secs(LONGEST_LIVE_REF_STEP.as_secs() + 1);
+///  whole seconds at or above `MARGIN_MULTIPLE` times the longest step measured in `LONGEST_LIVE_REF_STEP` (6.876 s, so 7 s),
+///  because a lock younger than the longest live hold may still be live. A stale lock is left that long before it is cleared,
+///  which is a few seconds of a failing update, against a live lock removed (`doc/planning/cli-git-shipped-limits-audit.md`,
+///  "Margins for removing left-behind locks").
+pub const MARGIN: Duration = Duration::from_secs((LONGEST_LIVE_REF_STEP.as_millis() as u64 * MARGIN_MULTIPLE).div_ceil(1000));
 
 /// The kernel's name for the initial PID namespace, where every process of the machine has the number it is seen by.
 const INITIAL_PID_NAMESPACE: &str = "pid:[4026531836]";

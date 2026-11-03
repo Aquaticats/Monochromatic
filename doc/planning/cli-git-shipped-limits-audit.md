@@ -745,6 +745,17 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   The comment at `src/native/service_server.rs:41` says so; the options are in the question "Sizes and ages of the
   service's own housekeeping".
 
+- After the follow-up pick (option B, picked by the coordinator under the owner's delegation, open to the owner's
+  veto): measured and changed to 256 (`BATCH_COST_KNEE`).
+  A burst of simultaneous requests against a throwaway service landed in 71 to 76 ms for 62 to 63 requests, 82 to 85
+  ms for
+  126, 104 to 109 ms for 253 to 255, 193 to 204 ms for 509 to 511 and 525 to 547 ms for 1,021 to 1,023
+  ("Measurement record", batch burst).
+  The added cost of a request is 0.16 ms up to 254 requests, 0.36 ms to 510 and 0.66 ms to 1,022, so the cost per
+  request had not doubled at 256, and a burst of 128 that waited 243 to 249 ms in three landings at the old cap of 64
+  waited 176 to 206 ms in one.
+  Production never reached a batch of more than one request, so the cap bites only in a burst.
+
 ### Frame and change bounds
 
 - Where: `src/native/service_protocol.rs:27` (`MAX_LINE_BYTES` 1 MiB; checks at `397` and `572`, read bound at
@@ -790,6 +801,18 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   journal) does not stop renewals.
   The comment at `src/native/service_work.rs` says so; the options are in the question "Sizes and ages of the
   service's own housekeeping".
+
+- After the follow-up pick (option B, picked by the coordinator under the owner's delegation, open to the owner's
+  veto): measured, value kept.
+  A throwaway service that held a claim on a push was killed with SIGKILL, and the push was made again 119.57, 119.56
+  and
+  119.55 s after the kill in three runs ("Measurement record", claim recovery), so the cost of a kill is the lease to
+  within
+  half a second.
+  The other side of the trade, a live holder losing its claim, needs a stall of the whole process longer than the 80 s a
+  renewal may be late; the longest landing stall seen was 119.8 s but the renewal thread is separate, and a stall of the
+  process itself was not observed or produced.
+  The value is kept at 120 s with both facts beside it (`src/native/service_work.rs`).
 
 ### Journal retention and capture memory
 
@@ -929,7 +952,8 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 
 ### Push output cap, 4 MiB
 
-Status after picks 5 and 12: unchanged. `bounded_push.rs` and `SPEC.md` now say beside the value that no citation exists.
+Status after picks 5 and 12: unchanged. `bounded_push.rs` and `SPEC.md` now say beside the value that no citation
+exists.
 
 - Where: `src/native/bounded_push.rs:62` (`MAX_PUSH_OUTPUT`), `is_flood` at `277`, `SPEC.md:1562`.
 - Value: 4 MiB; only the first 4 MiB are kept.
@@ -1276,6 +1300,18 @@ Owner decision "Pass only if unset" (`SPEC.md:651`, `src/native/checkout_workers
   listed as an open question.
 - Not measured at all: `REMOVAL_SPLIT_DEPTH` (3).
 
+- After the follow-up pick (option A, picked by the coordinator under the owner's delegation, open to the owner's
+  veto): the thresholds are measured on the real functions and changed.
+  The copy stage (`copy_manifest_entries`), the install (`install_snapshot`) and `clone_tree`, each forced to 1, 2, 4
+  and 8
+  workers, were never slower in parallel from 16 entries up, so the three thresholds (4096, 1024 and 512) are now one
+  value, `PARALLEL_BREAK_EVEN_ENTRIES`, 16 ("Measurement record", thresholds).
+  The old copy threshold left up to 145 ms on the table, the install 50 ms and the clone 12 ms.
+- `REMOVAL_SPLIT_DEPTH` (3) was measured at depths 1 to 6 on a tree of 22,717 entries: medians 365, 281, 304, 325, 437
+  and
+  512 ms, depths 2 and 3 overlapping; kept.
+  The tree has no very large subtrees, so a stage with a few was not measured.
+
 ### Install batch, 4096 entries
 
 - Where: `src/native/worktree_copy_install.rs:38` (`INSTALL_BATCH_ENTRIES`),
@@ -1286,6 +1322,16 @@ Owner decision "Pass only if unset" (`SPEC.md:651`, `src/native/checkout_workers
 - Fails or waits: waits.
 - Citation: none.
 - Conflict: "60s is fine for adding worktrees" bounds the add's total, not the batch; none found.
+
+- After the follow-up pick (option A, picked by the coordinator under the owner's delegation, open to the owner's
+  veto): measured, value kept.
+  With a recorder that appends each batch to a file and syncs twice, installing 22,717 entries took 6,542, 2,265, 983,
+  746,
+  688 and 663 ms for batches of 64, 256, 1,024, 4,096, 16,384 and one batch, so a batch costs about 16 ms of syncs and
+  4096
+  entries add 12 percent to the install.
+  The real journal's append was not run, and how many entries an interrupted owner may leave unrecorded is the owner's
+  trade, so the value is kept.
 
 ### Free space preflight, 5 GiB
 
@@ -1370,6 +1416,15 @@ Once the caps are removed, the round width is set by the host's CPUs less one in
   - `CPU_MARGIN_DIVISOR` and `MEMORY_SHARE_DIVISOR` are shares, not quantities; neither binds on this host (25 workers
     against measured ceilings of 8 and 16; more than 180 items against memory), and the owner's words "make sure we're
     running everything that can be run in parallel in parallel" are cited beside them.
+
+- After the follow-up picks (options A and B, picked by the coordinator under the owner's delegation, open to the
+  owner's veto):
+  - `MOST_CONCURRENT_QUERIES` is split: `MOST_CONCURRENT_LOCAL_QUERIES` is 8 (`git ls-tree -r` took 80 and 50 ms at
+    four and
+    eight at once, `git rev-list` 231 and 190 ms, and no less at sixteen) and `MOST_CONCURRENT_REMOTE_QUERIES`, the
+    `git ls-remote` queries that open a connection, stays 4.
+  - `INDEX_REWRITE_COPIES` (4) was measured: an index of 2,786,564 bytes grew the process by 13,123,584 bytes and one of
+    1,066,894 bytes by 7,929,856 bytes, which is 3.0 copies plus about 4.7 MB that does not grow with the index; kept.
 
 ## Saved copies, audit and log retention
 
@@ -1550,6 +1605,13 @@ by content" and the path is not judged clean; an over-large index makes the guar
   The longest of a sample understates the tail; whether to use a multiple of it is an open question.
   `SPEC.md` states the new value.
 
+- After the follow-up pick (option B, picked by the coordinator under the owner's delegation, open to the owner's
+  veto): changed again, to seven seconds.
+  `MARGIN` is `MARGIN_MULTIPLE` (2) times `LONGEST_LIVE_REF_STEP` (3,438 ms), rounded up to a whole second, 7 s; a
+  stale lock
+  is left that long before it is judged.
+  The binary tests whose sleeps follow `MARGIN` run that much longer.
+
 ### Boot proof slack, one hour
 
 - Where: `src/native/stale_ref_lock_judge.rs:37` (`BOOT_SLACK`), `41` (`REUSE_SLACK_MS` 100), `SPEC.md:1769`.
@@ -1569,6 +1631,8 @@ by content" and the path is not judged clean; an over-large index makes the guar
   The other two constants of the entry are kept with measurements beside them: `REUSE_SLACK_MS` (100 ms) against a
   start-time error of at most 2.331 ms beyond the 20 ms resolution (two runs of 1,000 spawns), and the kernel tick of
   1 ms (`CONFIG_HZ=1000`).
+
+- After the follow-up pick on the margin: `BOOT_SLACK` follows `MARGIN`, so it is 3607 s.
 
 ### Empty-lock settle time, one second
 
@@ -1939,6 +2003,72 @@ goes to the embedded path of the commits-never-fail design);
 `update-ref` stays out of the ended set until the eighth design review confirms how a killed child's lock is handled;
 the review's local log write is left without a judge.
 
+### Follow-up measurements
+
+All on 2026-11-03 on this host, under the load there was.
+Probe code was scratch and is not committed; the throwaway targets were a fixture repository, a service started by the
+fixture, and reflinked copies of `git archive HEAD` of this repository (20,768 files, 22,717 entries) under
+`${HOME}/temp/agent/limits`.
+Every run was in `systemd-run --user --scope` with `IOWeight=10` and a `CPUQuota`, `MemoryMax` and `TasksMax` sized to
+it
+(burst: 800%, 8G, 1500 and 3000 tasks; thresholds: 1800%, 12G, 600 tasks).
+The claim-kill run's scope had ended by the time its tests ran, so it was bounded only by the test's own five
+minutes; it ran one fixture service and sleeping hooks.
+
+#### Batch burst
+
+- Command: the native binary test harness (`cargo nextest --test native_binary`) with a scratch test that starts the
+  real
+  `cli-git-service` on an abstract socket in a fixture repository, prepares N commit requests, releases N client threads
+  at one barrier, and reads the service's `answered` lines; `MAX_BATCH` was raised to 4096 for the second run.
+- Old cap of 64, three rounds alternating order over 8, 16, 32, 64 and 128 clients: makespan 139 to 149 ms for 8
+  clients, 145 to 146 for 16, 150 to 159 for 32, 155 to 159 for 64, 243 to 249 for 128 (three landings).
+  A landing took 62 to 85 ms for 3 to 63 requests.
+- Cap of 4096, three rounds over 64, 128, 256, 512 and 1024 clients: makespan 163 to 171 ms for 64, 176 to 206 for 128,
+  216 to 218 for 256, 313 to 331 for 512 (once 2,119 ms, a host stall), 673 to 697 for 1024; landing times as in the
+  entry
+  "Batch size, 64".
+  All requests landed in every run.
+- The probes were a debug build.
+
+#### Claim recovery
+
+- Command: the native binary test harness with a scratch test (three tests, 2026-11-03): a fixture repository with a
+  bare
+  remote whose `pre-receive` hook sleeps 20 s; a push item is recorded and the service woken; when the item appears in
+  `claimed`, 1.5 s pass, the service is killed with SIGKILL together with its process group, the hook is removed, a new
+  service is started and woken, and the time until the item is in `done` is read.
+- Result: 119.57, 119.56 and 119.55 s; the lease is 120 s.
+
+#### Thresholds, depth, batch and index rewrite
+
+- Command: scratch probes inside the crate that call `copy_manifest_entries`, `install_snapshot`, `clone_tree`,
+  `remove_tree_split` and `refresh_index_file` with the worker count, the batch size or the depth forced, five runs per
+  cell in alternating orders, medians; destinations on the same btrfs volume as the sources, removed after each run.
+- Copy stage, milliseconds at 1, 2, 4 and 8 workers: 30 entries 1.1, 1.0, 0.7, 0.7; 90 entries 3.6, 2.8, 2.1, 1.9; 296
+  entries
+  13.4, 9.3, 7.2, 5.9; 1,077 entries 47.9, 31.5, 20.6, 15.7; 2,119 entries 91.4, 53.9, 32.3, 25.4; 4,722 entries 202.6,
+  121.0, 76.1, 57.3; 9,301 entries 397.6, 222.2, 139.4, 104.4.
+- Install, same columns: 30 entries 1.6, 1.4, 1.4, 1.3; 90 entries 5.0, 3.6, 3.3, 3.1; 296 entries 14.8, 11.1, 9.1,
+  8.9; 1,077
+  entries 54.7, 37.6, 31.3, 25.9; 2,119 entries 107.7, 71.2, 56.8, 49.2; 4,722 entries 254.7, 182.5, 144.1, 129.7; 9,301
+  entries 500.2, 349.3, 277.6, 244.9.
+- `clone_tree`, same columns: 6 entries 0.4 on all; 10 entries 0.6, 0.5, 0.6, 0.6; 16 entries 1.1, 0.8, 0.7, 0.7; 30
+  entries
+  1.8, 1.5, 1.2, 1.2; 56 entries 3.5, 2.5, 2.2, 2.0; 90 entries 5.9, 3.9, 3.1, 2.7; 296 entries 20.7, 13.7, 9.5, 8.1;
+  555 entries
+  39.2, 23.4, 16.4, 13.4.
+- Removal at depths 1 to 6, 22,717 entries: 365, 281, 304, 325, 437, 512 ms (ranges 360 to 377, 251 to 305, 253 to
+  309, 307
+  to 339, 418 to 451, 495 to 525).
+- Install batches, 22,717 entries, a recorder that appends and syncs twice per batch: 6,542, 2,265, 983, 746, 688 and
+  663 ms
+  for batches of 64, 256, 1,024, 4,096, 16,384 and one batch; the ranges of the five runs were 6,301 to 7,925, 2,064 to
+  5,389, 976 to 2,355, 730 to 4,407, 655 to 2,604 and 640 to 752 ms.
+- Index rewrite, fresh process, resident size sampled every 0.2 ms: index 2,786,564 bytes grew 13,123,584 bytes (4.71
+  times); index 1,066,894 bytes grew 7,929,856 bytes (7.43 times); later runs in the same process reuse freed memory and
+  grew less.
+
 ## Counts
 
 The limit sections hold 73 limits (a grouped entry, such as the three include-depth copies, counts once).
@@ -1959,6 +2089,14 @@ The quick and bulk child bounds, the push stall window, the batch size, the Mark
 - none: 58, one of which (`DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS`) is a dead constant.
 
 So 11 of 73 have a measurement or an owner decision beside them in some form, and 4 of those 11 determine the value.
+
+### After the follow-up picks
+
+- Changed: lock age margin (4 s to 7 s) and with it the boot proof slack (3604 s to 3607 s); batch size (64 to 256);
+  the three parallel thresholds of the copy stage, the install and the clone (4096, 1024 and 512 to 16);
+  `MOST_CONCURRENT_QUERIES` split into local (8) and remote (4).
+- Newly cited, value kept: claim lease, install batch, removal depth, index rewrite copies.
+- Unchanged by the pick: idle exit, foreign-owner patience, free-space preflight.
 
 ### After the delegated picks
 
@@ -2806,3 +2944,9 @@ Coordinator, under the owner's delegation, veto open:
   B.
 - Free-space preflight scope:
   A.
+
+Applied on branch `fix/git-policy-cli-limits-cite-measurements`: batch size 64 to 256 (measured burst), claim lease kept at
+120 s (measured kill recovery 119.55 to 119.57 s), idle exit and foreign-owner patience and preflight unchanged, local
+per-update queries 8 and remote 4, the three parallel thresholds 16, install batch and removal depth and index rewrite
+copies measured and kept, lock age margin 7 s.
+See "After the follow-up picks" and "Follow-up measurements".

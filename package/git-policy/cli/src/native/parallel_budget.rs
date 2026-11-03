@@ -13,6 +13,17 @@
 
 use std::path::{Path, PathBuf};
 
+/// The smallest number of entries at which creating them on several threads beat creating them on one, for the three places that
+///  make files by cloning: 16 entries. Measured with the copy stage (`copy_manifest_entries`), the install (`install_snapshot`
+///  with a recorder that syncs every batch) and `clone_tree`, each forced to 1, 2, 4 and 8 workers on reflinked trees of this
+///  repository (2026-11-03, medians of five runs in alternating orders, other sessions running, a debug build): `clone_tree` took
+///  0.6 ms on one thread and 0.5 to 0.6 ms on 2, 4 and 8 for 10 entries, and 1.8 ms against 1.2 ms for 30; the copy stage 1.1 ms
+///  against 0.7 ms for 30, 3.6 ms against 1.9 ms for 90, 397.6 ms against 104.4 ms for 9,301; the install 1.6 ms against 1.3 ms for
+///  30, 14.8 ms against 8.9 ms for 296, 500.2 ms against 244.9 ms for 9,301. The parallel path was never slower from 16 entries up.
+///  The coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+///  "Picked for these follow-ups", thresholds of the copy stage and the install, option A).
+pub const PARALLEL_BREAK_EVEN_ENTRIES: usize = 16;
+
 /// The share of the CPUs the process is allowed that stays free: one in this many, at least one when there are more than two.
 ///  The owner's words are "make sure we're running everything that can be run in parallel in parallel" (handover
 ///  `doc/handover/cli-git-rust-implementation.md`, lines 864 and 865), which leaves a margin to a person's other work. On this
