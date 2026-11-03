@@ -21,6 +21,11 @@ construction, and, only where something outside the system remains, the residue:
 designed out.
 Nothing past the red controls and the conflicted-path change is built; the coordinator and the owner review the design first.
 
+Revision 11 and the owner's bound answers (2026-11-03T12:45, recorded as decisions 4 to 6 in "Owner decisions of 2026-11-03"): every blocked process has a bound and
+ends with an error at it, and a command that returned never has its commit land later by itself. Narrative text below that describes a command returning exit 0 with a
+commit that "lands later" (a foreign ref lock, a held `index.lock`, a request set aside as pending) describes the earlier owner answers and applies now only to a
+request that has no client; the normative state machine, its register of waits and W1 and W2 govern.
+
 What exists on the branch from before the correction, kept and not discarded:
 
 - The planning record's first version (commit `6c8c686b2a`).
@@ -1986,7 +1991,8 @@ machine and owed an executable model in step 1; nothing is built). The verdict i
 - The causes the owner listed as outside our control, with a clear message, and work already handed over finished by the next
   run.
 - No longer here: a commit that names a conflicted path, a plain commit with unmerged files and `commit -a` over unmerged files
-  (committed with a warning); a live foreign ref lock or `index.lock` (the commit lands or is saved, exit 0); a merge that would
+  (committed with a warning); a live foreign ref lock or `index.lock` (revision 11: the command waits to its FOREGROUND bound and then ends `withdrawn` with an error, the commit kept on a side ref; before the
+  owner's bound answers it landed or was saved with exit 0); a merge that would
   overwrite unsaved edits (the edits are carried forward).
 
 ## Questions for the owner
