@@ -260,7 +260,11 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
         Err(_) => program.clone(),
     };
     skipped.push(chosen);
-    let guard_kind: GuardKind = if request == TopLevelRequest::Other { GuardKind::Exec } else { GuardKind::Spawn };
+    // Review finding (recursion guard kind): the guard kind must follow the way the program is really launched below, not the
+    // notice classification. An `Other` request that has a catalog notice to print afterwards (`add`, `remove`) is started as a
+    // child, so its guard is the spawn kind; only the exec branch below leaves an exec guard.
+    let will_exec: bool = request == TopLevelRequest::Other && treatment != Treatment::CatalogWarning;
+    let guard_kind: GuardKind = if will_exec { GuardKind::Exec } else { GuardKind::Spawn };
     let guard_value: String = format_guard(&Guard { kind: guard_kind, pid: std::process::id(), hops: hops + 1, skipped });
 
     // What:     `Command::new(&program).args(&arguments).exec()` replaces this process with cargo: same process id, same
@@ -272,7 +276,7 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // ```ts
     // execvp(program, args);  // never returns on success; Node has no exec, this is the POSIX call
     // ```
-    if request == TopLevelRequest::Other && treatment != Treatment::CatalogWarning {
+    if will_exec {
         let error: std::io::Error = Command::new(&program).args(&arguments).env(GUARD_VARIABLE, &guard_value).exec();
         eprintln!("cargo-shadow: could not start {}: {error}", program.display());
         return EXEC_FAILED_EXIT_CODE;
