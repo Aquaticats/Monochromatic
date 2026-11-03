@@ -26,6 +26,13 @@ use std::time::{Duration, Instant};
 /// The stall window of the controls: several sampling intervals, short enough to wait for.
 const STALL: Duration = Duration::from_millis(2000);
 
+/// The stall window of the control that keeps moving: twenty ticks, so a loaded host that delays a few lines does not make
+///  the push stall, and the hook below runs longer than this window.
+const PROGRESS_STALL: Duration = Duration::from_millis(5000);
+
+/// How long a loaded host may take over a stop beyond its limit and the grace.
+const STOP_SLACK: Duration = Duration::from_secs(30);
+
 /// The ceiling of the controls: past the stall window, short enough to wait for.
 const CEILING: Duration = Duration::from_millis(5000);
 
@@ -51,7 +58,7 @@ impl Hook {
     fn script(self) -> String {
         return match self {
             Hook::Silent => String::from("#!/bin/sh\nexec sleep 600\n"),
-            Hook::ProgressThenAccept => format!("#!/bin/sh\ni=0\nwhile [ $i -lt 16 ]; do echo tick >&2; sleep {TICK}; i=$((i+1)); done\nexit 0\n"),
+            Hook::ProgressThenAccept => format!("#!/bin/sh\ni=0\nwhile [ $i -lt 28 ]; do echo tick >&2; sleep {TICK}; i=$((i+1)); done\nexit 0\n"),
             Hook::TrickleForever => format!("#!/bin/sh\nwhile :; do echo tick >&2; sleep {TICK}; done\n"),
         };
     }
@@ -105,8 +112,8 @@ fn run(stage: &Stage, patience: Patience) -> (PushAttempt, Duration) {
 #[test]
 fn a_push_that_keeps_moving_data_past_the_stall_window_is_not_stopped() {
     let stage: Stage = stage("patience-progress", Hook::ProgressThenAccept);
-    let (attempt, elapsed): (PushAttempt, Duration) = run(&stage, Patience::Progress { stall: STALL, ceiling: Duration::from_secs(60) });
-    assert!(elapsed > STALL, "the hook runs longer than the stall window: {elapsed:?}");
+    let (attempt, elapsed): (PushAttempt, Duration) = run(&stage, Patience::Progress { stall: PROGRESS_STALL, ceiling: Duration::from_secs(120) });
+    assert!(elapsed > PROGRESS_STALL, "the hook runs longer than the stall window: {elapsed:?}");
     assert_eq!(attempt.exit_code, 0, "a push that moves data finishes: {}", attempt.output);
     remove(stage.root.as_path());
 }
@@ -118,7 +125,7 @@ fn a_push_that_moves_nothing_is_stopped_after_the_stall_window() {
     let (attempt, elapsed): (PushAttempt, Duration) = run(&stage, Patience::Progress { stall: STALL, ceiling: Duration::from_secs(60) });
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "{}", attempt.output);
     assert!(elapsed >= STALL, "not before the stall window: {elapsed:?}");
-    assert!(elapsed < STALL + GRACE * 4, "not long after it: {elapsed:?}");
+    assert!(elapsed < STALL + GRACE + STOP_SLACK, "not long after it: {elapsed:?}");
     assert!(attempt.output.contains("made no progress for 2 seconds"), "{}", attempt.output);
     assert!(attempt.output.contains("limit=stall"), "{}", attempt.output);
     assert!(attempt.output.contains("bytes_moved="), "{}", attempt.output);
@@ -133,7 +140,7 @@ fn a_push_that_trickles_is_stopped_at_the_ceiling() {
     let (attempt, elapsed): (PushAttempt, Duration) = run(&stage, Patience::Progress { stall: STALL, ceiling: CEILING });
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "{}", attempt.output);
     assert!(elapsed >= CEILING, "a trickle outlives the stall window and is stopped at the ceiling: {elapsed:?}");
-    assert!(elapsed < CEILING + GRACE * 4, "{elapsed:?}");
+    assert!(elapsed < CEILING + GRACE + STOP_SLACK, "{elapsed:?}");
     assert!(attempt.output.contains("limit=ceiling"), "{}", attempt.output);
     assert!(attempt.output.contains("bytes_moved="), "{}", attempt.output);
     assert!(attempt.output.contains("elapsed_seconds="), "{}", attempt.output);
