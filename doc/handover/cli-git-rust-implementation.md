@@ -10190,3 +10190,28 @@ by the coordinator at merge.
   catch-up, and the one-hour patience for an owner in another PID namespace. Its finding
   `subvolume_journal.rs::mark` (a fixed `.tmp` sibling created with `File::create`, which follows a planted link) is
   a pre-existing issue in this package, so it is fixed unasked in the same delegated branch.
+- 2026-11-03T02:56:05-05:00, owner instruction on the ten stale `Cargo.lock` files, verbatim: "We maintain a Rust catalog and related
+  tools. If the tool didn't do the job perfectly, fix the tool." Delegated: find why `package/dependency-catalog`
+  (`cli-rust-update`, `cli-tighten`) raised floors in `581190711e` without regenerating those locks, red test,
+  fix the tool, then regenerate the ten by running the fixed tool (branch
+  `fix/dependency-catalog-regenerate-every-cargo-lock`). Measured first: the wrapper's own repair call
+  (`cargo metadata --locked --offline --no-deps`) passes on a stale lock (exit 0), while the same call resolving
+  dependencies exits 101, so worktree adds were never affected, only `--locked` builds of those crates.
+- 2026-11-03T02:56:05-05:00: service lock pass done (branch `fix/git-policy-cli-service-without-locks`): the discarded store's
+  `flock`, the capture and review-key mutexes and the claim-renewal mutex and condvar are gone; the landing holds
+  `index.lock` for the ref move and index build only (median 24 ms to 5 ms, p95 68 ms to 6 ms over 180 landings
+  per arm); `native:perf` commit medians unchanged within spread (unchanged release 39.5 to 40.2 ms over six runs,
+  new 38.9 to 39.8 ms). Kept with reasons written beside them: the journald line-rest mutex and the per-item lease
+  on claimed work (already a rename, no lock file). One full binary run failed
+  `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`
+  once, passing 15 of 15 alone and in two later full runs; watch for it in the gate. QUEUED fixes in this package:
+  the scratch ref `refs/worktree/cli-git-service/<seq>` a killed landing leaves (now held through the whole
+  foreign-holder wait), and the `claimed/` scan that is O(N squared) for a drain of N claims.
+- 2026-11-03T02:56:05-05:00: settlement lock pass done (branch `fix/git-policy-cli-worktree-add-without-settlement-lock`): no
+  lock is taken on add, copy, ladder, trash hand-off or dirty restore; the destination is read from the command
+  line and confirmed through its `.git` pointer; recovery takes a dead owner's journal with one rename. Forms
+  the wrapper cannot read get no copy and one line. It conflicts with main's package repair, so the agent was
+  sent back to merge main and to update the decision and planning docs that still call the lock current.
+  Service and subvolume merge cleanly together: integration branch
+  `integrate/git-policy-cli-service-and-subvolume-locks` (main, service, subvolume) is in gate
+  `gpc-gate-service-and-subvolume-locks-20261103T025533-0500`; the subvolume-only gate also runs.
