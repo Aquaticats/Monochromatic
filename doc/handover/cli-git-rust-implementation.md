@@ -10363,3 +10363,14 @@ by the coordinator at merge.
   an edited file and its running test processes), `follow-ups-059` (an edited `Cargo.lock`), and my throwaway
   `verify-0.5.21-add-*` (removed after the run listed it; skipped as "cannot be resolved"). 0.5.22 published
   (crates.io 2026-11-03T09:07:34Z, run 41607520853); install running after the conversion finished.
+- 2026-11-03T04:21:22-05:00: 0.5.22 installed (service 0.5.21 retired, 0.5.22 started; install commit landed in 56 ms, 1416 ms with
+  the upgrade); concurrent-add check running. Merge second pass finished (host 3442 and binary 595 passed):
+  resolved merges, rebases, cherry-picks, reverts and `git pull` now end like a clean run (owner's choice),
+  `attr.tree` precedence as Git's `attr.c`, binary probe `FIRST_FEW_BYTES`, size bound 8 MiB by measurement
+  (worst case 0.73 s and 352 MB). Its gate runs on a separate copy (`.claude/worktrees/gate-word-level-merge-pass`).
+  QUEUED follow-ups on that branch, settled by the owner's "finish like a clean merge": run the hooks a clean merge
+  runs (`pre-merge-commit`, not `pre-commit`); finish `--autostash` and `branch.<name>.mergeOptions` cases
+  where Git's own continue applies them; derive the finish loop's limit from the rebase todo length instead of 64;
+  teach the in-process config reader that variables such as `GIT_EDITOR` do not change config, saving a Git start.
+  Parallelism audit started on `perf/git-policy-cli-parallel-independent-work` (excludes the add path and merge
+  code, owned by other agents).
