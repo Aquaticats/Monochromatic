@@ -19,10 +19,11 @@
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
-use super::service_landing_lock::foreign_commit;
+use super::service_landing_lock::foreign_commit_until_released;
 use super::service_landing_selection::base_repository;
 use super::strace::{strace_available, strace_program};
 use super::support::{Fixture, fixture, observe};
+use super::wait_notice::{Watched, watch_notices};
 use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::service_client::ask_to_retire;
 use git_policy_cli::service_instance::{instance_of, socket_for};
@@ -42,7 +43,7 @@ const SAFETY_IDLE_SECONDS: &str = "120";
 /// The seconds the idle exit is given in its control.
 const IDLE_SECONDS: u64 = 1;
 
-/// The seconds the foreign commit keeps the index lock.
+/// The seconds the foreign commit keeps the index lock after the wrapped commit has been seen waiting for it.
 const HOLD_SECONDS: u32 = 4;
 
 /// A message no log line may carry:
@@ -165,16 +166,21 @@ fn number(record: &serde_json::Value, name: &str) -> u64 {
     return record[name].as_u64().unwrap_or_else(|| { panic!("no number {name} in {record}") });
 }
 
-/// One wrapped commit of `a.txt` through the service at `runtime`,
-/// observed.
-fn commit_a(fixture: &Fixture, repo: &Path, runtime: &Path) -> super::support::Observed {
+/// The wrapped commit of `a.txt` through the service at `runtime`, not yet run.
+fn commit_a_command(fixture: &Fixture, repo: &Path, runtime: &Path) -> Command {
     // A different text each time, so a second commit in one control has something to commit.
     static ROUND: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let round: usize = ROUND.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     std::fs::write(repo.join("a.txt"), format!("edit {round} by {}\n", std::process::id())).expect("a.txt");
     let mut command: Command = wrapped_commit(fixture, repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime);
-    return observe(&mut command, b"");
+    return command;
+}
+
+/// One wrapped commit of `a.txt` through the service at `runtime`,
+/// observed.
+fn commit_a(fixture: &Fixture, repo: &Path, runtime: &Path) -> super::support::Observed {
+    return observe(&mut commit_a_command(fixture, repo, runtime), b"");
 }
 
 /// The phases the record counts as disjoint stretches of the command.
@@ -281,9 +287,9 @@ fn a_wait_that_lost_time_or_a_phase_that_overlaps_it_is_caught() {
     assert!(!phase_lies_beside_the_wait(3_000, 2_000, 4_000), "3 s and 2 s do not fit in 4 s");
 }
 
-/// How many times the hold the pause between the foreign commit taking the lock and the wrapped commit starting lasts:
-/// a host so loaded that the wrapped commit reaches the lock late stalls it for longer than a stand-in that keeps the lock for
-///  a fixed time lasts (a failing run at a load average of 38 to 44 spent 6760 ms in one phase against a hold of 4000 ms).
+/// How many holds the wrapped commit is stalled for after the foreign commit took the lock in the control of a late commit:
+/// a loaded host delays the commit for longer than a stand-in that keeps the lock for a fixed time lasts
+///  (a failing run at a load average of 38 to 44 spent 6760 ms in one phase against a hold of 4000 ms).
 const STALL_HOLDS: u64 = 2;
 
 /// A foreign commit holds the index lock while the wrapped commit lands:
@@ -292,6 +298,8 @@ const STALL_HOLDS: u64 = 2;
 /// the wait lies inside the time the wrapper's record gives the answer,
 /// and no other phase of
 ///  either comes near it.
+/// The foreign commit lets go only after the wrapped commit has said it is waiting for it,
+/// so the outcome does not depend on how fast the host runs the wrapped commit.
 #[test]
 fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
     attributes_the_wait_for_a_foreign_index_holder("timing-lock", Duration::ZERO);
@@ -305,7 +313,8 @@ fn a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait(
     attributes_the_wait_for_a_foreign_index_holder("timing-lock-late", Duration::from_secs(STALL_HOLDS * u64::from(HOLD_SECONDS)));
 }
 
-/// Runs the claim of the two controls: a wrapped commit starts `stall` after the foreign commit took the lock.
+/// Runs the claim of the two controls: a wrapped commit starts `stall` after the foreign commit took the lock, and the foreign
+///  commit lets go `HOLD_SECONDS` after the wrapped commit's first notice that it waits for it.
 fn attributes_the_wait_for_a_foreign_index_holder(name: &str, stall: Duration) {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = base_repository(&fixture);
@@ -313,12 +322,20 @@ fn attributes_the_wait_for_a_foreign_index_holder(name: &str, stall: Duration) {
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
     let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
-    let holder: Child = foreign_commit(&fixture, &repo, HOLD_SECONDS);
+    let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, HOLD_SECONDS);
     std::thread::sleep(stall);
-    let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    // The service's first notice that the commit waits for a holder it proved alive names the holder's process; the foreign
+    //  commit lets go only after that line, so it is there for the wait however late the wrapped commit reaches the lock.
+    let waiting_for_holder: String = format!("waiting for PID {}", holder.id());
+    let served: Watched = watch_notices(
+        &mut commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path()),
+        waiting_for_holder.as_str(),
+        1,
+        || { std::fs::write(&release, b"").expect("the foreign commit is told to let go"); },
+    );
     let held = holder.wait_with_output().expect("the foreign commit ends");
     assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
-    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    assert_eq!(served.code, Some(0), "{}", served.stderr);
     let answered: Vec<String> = lines_of(&places.log, "answered");
     assert_eq!(answered.len(), 1, "{answered:?}");
     let line: &str = answered[0].as_str();
@@ -329,8 +346,8 @@ fn attributes_the_wait_for_a_foreign_index_holder(name: &str, stall: Duration) {
     let found: Vec<serde_json::Value> = records(&repo);
     let record: &serde_json::Value = found.last().expect("the wrapped commit's record");
     println!("TIMING RECORD (held index): {record}");
-    // The hold began before the commit did, so on a slow host the wait begins late: the lock was already `age_ms` old at the
-    //  first look, and the wait is what was left of the hold.
+    // The hold after the notice lasts `HOLD_SECONDS` and the wait began at or before the notice, so the wait covers the hold;
+    //  the lock was already `age_ms` old at the first look, which only loosens the bound.
     let age_at_first_look: u64 = ms_of(line, "age_ms");
     assert!(wait_covers_the_hold(lock_wait, age_at_first_look, hold_ms), "the wait for the lock is what was left of the hold ({hold_ms} ms) after {age_at_first_look} ms: {line}");
     // A phase that is slow on a slow host still lies beside the wait: the two fit in the whole they are parts of.

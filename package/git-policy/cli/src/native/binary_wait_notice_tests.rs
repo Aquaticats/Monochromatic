@@ -24,11 +24,11 @@ const NOTICE_SECONDS: &str = "1";
 const GENEROUS_LIMIT_SECONDS: &str = "120";
 
 /// What a watched commit showed its caller.
-struct Watched {
+pub(super) struct Watched {
     /// Exit code, absent when a signal ended it.
-    code: Option<i32>,
+    pub(super) code: Option<i32>,
     /// Every line of standard error.
-    stderr: String,
+    pub(super) stderr: String,
 }
 
 /// A repository with one tracked file whose worktree copy holds an uncommitted edit.
@@ -70,7 +70,7 @@ fn lines_with<'text>(stderr: &'text str, needle: &str) -> Vec<&'text str> {
 /// ```ts
 /// for await (const line of child.stderr.lines()) { if (line.includes(needle) && ++seen === count) onCount(); }
 /// ```
-fn watch_notices(command: &mut Command, needle: &str, count: usize, on_count: impl FnOnce()) -> Watched {
+pub(super) fn watch_notices(command: &mut Command, needle: &str, count: usize, on_count: impl FnOnce()) -> Watched {
     let mut child: Child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
