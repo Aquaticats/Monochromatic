@@ -37,6 +37,7 @@ on:
         options:
         - forbidden-strings
         - monochromatic-git-policy-cli
+        - monochromatic-mpm-shadow
       from:
         description: 'Version the crate holds now (the run fails when its Cargo.toml holds another)'
         type: string

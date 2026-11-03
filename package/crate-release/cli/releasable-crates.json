@@ -16,5 +16,12 @@
     "pinFiles": ["package/git-policy/cli.fuzz/Cargo.toml"],
     "checkBins": ["cli-git-native"],
     "lockDirs": ["package/git-policy/cli.fuzz"]
+  },
+  "monochromatic-mpm-shadow": {
+    "crateDir": "package/mpm-shadow/cli",
+    "scope": "mpm-shadow/cli",
+    "pinFiles": [],
+    "checkBins": ["mpm-shadow"],
+    "lockDirs": []
   }
 }
