@@ -36,6 +36,8 @@ use super::git_version::check_git_version;
 use super::worktree_identity::WorktreeIdentity;
 /// A merge the staged index would make native Git refuse, completed without disturbing the staged work.
 use super::merge_isolation::{IsolatedMerge, IsolatedMergeInput, run_isolated_merge};
+/// A pull that merges, split into its fetch and its merge so the merge is completed in isolation.
+use super::pull_isolation::{PullStep, pull_step};
 /// The word-level second pass for the conflicts a merge, rebase, cherry-pick or revert created.
 use super::merge_second_pass_worktree::{Watch, resolve_after, watch_before};
 /// Running real Git for the location query.
@@ -165,6 +167,20 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
     if let Err(reason) = check_git_version(&context) {
         return failed_with(EngineFailureCode::ContentUnavailable, reason.as_str());
     }
+    // A pull that merges runs its fetch here and goes on as the `git merge FETCH_HEAD` it ends with; any other pull is native Git's.
+    let merge_of_pull: CoordinatedForward;
+    let forward: &CoordinatedForward = if forward.command.word() == b"pull" {
+        match pull_step(forward) {
+            PullStep::Native => forward,
+            PullStep::Ended(run) => return run,
+            PullStep::Merge(merge) => {
+                merge_of_pull = *merge;
+                &merge_of_pull
+            }
+        }
+    } else {
+        forward
+    };
     let name: String = String::from_utf8_lossy(forward.command.word()).into_owned();
     // The commit service holds the index while it lands a commit, which ends by itself: the command waits for it, naming
     //  it, before Git starts. A lock that is not the service's is a foreign program's and keeps the behavior of native Git.

@@ -897,6 +897,9 @@ pub mod merge_isolation_recovery;
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
 
+/// A pull that merges, read as its fetch and its merge of `FETCH_HEAD`.
+pub mod pull_isolation;
+
 /// The refusal findings of an isolated merge.
 pub mod merge_isolation_report;
 

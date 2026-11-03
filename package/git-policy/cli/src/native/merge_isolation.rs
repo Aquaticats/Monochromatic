@@ -31,7 +31,7 @@ use super::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The resolved command.
 use super::forwarded_command::ResolvedCommand;
 /// The merge messages.
-use super::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source};
+use super::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source, fetch_head_merge_heads};
 /// The word-level second pass over the conflicts of the merge tree, and the attribute tree it reads.
 use super::merge_second_pass::{ContextRunner, GitReply, GitRunner, Merged, config_options, conflicts_of_merge_tree};
 use super::journald_native::CLIENT_IDENTIFIER;
@@ -481,7 +481,17 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
     if config.deferred {
         return Err(Bail::Forward(None));
     }
-    let both = session.run(&["rev-parse", "HEAD^{commit}", format!("{reference}^{{commit}}").as_str()])?;
+    // `FETCH_HEAD` is the merge of a pull: the one head the file lists for merging, and the file's lines name it in the message.
+    let fetched: Option<(String, String)> = if reference == "FETCH_HEAD" {
+        Some(read_fetch_head(git_dir)?)
+    } else {
+        None
+    };
+    let target_spec: String = match &fetched {
+        Some((oid, _)) => format!("{oid}^{{commit}}"),
+        None => format!("{reference}^{{commit}}"),
+    };
+    let both = session.run(&["rev-parse", "HEAD^{commit}", target_spec.as_str()])?;
     let ids: Vec<String> = lines_of(&both);
     if both.code != Some(0) || ids.len() != 2 {
         return Err(Bail::Forward(None));
@@ -508,6 +518,8 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
     }
     let description: Option<String> = if shape.message.is_some() {
         None
+    } else if let Some((_, lines)) = fetched {
+        Some(lines)
     } else {
         let full_name: String = session.text(&["rev-parse", "--symbolic-full-name", reference.as_str()])?;
         Some(describe_merge_source(reference.as_str(), full_name.as_str(), target).ok_or(Bail::Forward(None))?)
@@ -621,6 +633,29 @@ fn recover_dead_merges(input: &IsolatedMergeInput<'_>, git_dir: &Path, root: &Pa
             ));
         }
     }
+}
+
+/// What:
+///  The head a pull's `FETCH_HEAD` lists for merging, with the file's text that names it in the merge message.
+/// Why:
+///   `git merge FETCH_HEAD` merges the lines marked for merging and words the message from the whole file
+///  (`handle_fetch_head`, `builtin/merge.c`); this completes the merge only for exactly one such head and leaves several, or
+///  none, to native Git, which words that refusal itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readFetchHead(gitDir: string): { oid: string; text: string }; // throws Bail
+/// ```
+fn read_fetch_head(git_dir: &Path) -> Result<(String, String), Bail> {
+    // A missing or unreadable file is native Git's to report.
+    let Ok(text) = std::fs::read_to_string(git_dir.join("FETCH_HEAD")) else {
+        return Err(Bail::Forward(None));
+    };
+    let mut heads: Vec<String> = fetch_head_merge_heads(text.as_str());
+    if heads.len() != 1 {
+        return Err(Bail::Forward(None));
+    }
+    return Ok((heads.remove(0), text));
 }
 
 /// What:
