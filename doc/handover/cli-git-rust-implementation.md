@@ -10601,3 +10601,34 @@ by the coordinator at merge.
   the nested-launch guard and EAGAIN retry of issue 6259, because reproducing it means a real `mpm i -g` on the
   owner's global tools; the package tests cover them. Issue 6259 was already closed by its merge commit. Upstream
   noise seen on every `mpm` call: "Unrecognized Linux distribution" from extra-platforms (os_release_id `bazzite`).
+- 2026-11-03T07:00:00-05:00: owner ran `mpm i -g`; mpm 8.2.0 answered "No such command 'i'" because the shadow
+  forwarded every word typed to `mpm`. Owner: "I want pnpm style verbs. We talked about this!" (the recorded
+  decision in `doc/decision/file-enforcer-rust-rewrite.md` covered `mpm-shadow` only). Fixed on
+  `fix/mpm-shadow-cli-pnpm-verbs-when-run-as-mpm` (`49fb6f3645`, red tests first): a first word that is a declared
+  verb or alias runs the shadow's own command; `update` gained pnpm's `up` and `upgrade` (pnpm.io/cli/update, raw
+  HTML checked); a line that starts with an mpm option stays the real mpm's. mpm 8.2.0's own `install`,
+  `outdated`, `upgrade`/`update` and the `list` alias of `installed` are no longer reachable through `mpm`
+  (README says so). 530 of 530 tests pass; with the routing disabled the two routing tests fail. Merged to main;
+  mpm-shadow 0.2.4 dispatched. Next: `release:wait`, `toolchain:update -- mpm-shadow`, `toolchain:install`, check
+  `mpm i --help` and `mpm ls -g` (read-only); the owner's own `mpm i -g` is theirs to run.
+  0.5.25 gate `gpc-gate-parallel-rounds-rebuilt-note-snapshot-add-20261103T062142-0500` passed 4116 of 4116
+  (6 skipped); merged to main; release after mpm-shadow 0.2.4.
+  Release tool: dispatch refuses while origin lacks local default-branch commits (merged from
+  `fix/crate-release-cli-refuse-dispatch-before-origin-has-main`, `e89bb11e06` to `5c9673324b`).
+  Pushes at 06:35:53 failed ("Failed to connect to github.com:443 after 104 ms", then "Connection reset by peer");
+  the service pushed that branch at 06:36:37. GitHub also refused one cargo-shadow push once with "GH009: Git LFS
+  object integrity could not be checked"; the next push passed.
+  A `cli-git-service` core dump at 06:37:51 (PID 2233438, OOM abort in `read_config_snapshot`) was a debug test
+  service of the commit-speed agent's run, not an installed one; `coredumpctl` lists several hundred such test
+  dumps today. Sent to the merge-fixes agent: fixtures expected to abort set `RLIMIT_CORE` 0 (test harness only).
+  Commit-speed agent (`perf/git-policy-cli-main-commit-within-native-plus-five`, 10 commits, host 3471 and binary
+  584 pass, planning doc `doc/planning/cli-git-main-commit-within-native-plus-five.md`): the 184 s main commit
+  was mostly the service's own follow-up under the index lock (`diff-tree` then `reset --pathspec-from-file`,
+  `sync_ms=70955`), plus client `read-tree --reset` and `add --all`. Changes: in-process `diff-tree` name lists, no
+  `read-tree --reset` when the index already equals its base, decoded-object and tree-list caches. Throwaway of
+  main's shape: wrapped commit median 651 ms to 437 ms (native 63 ms); Git starts 25 to 22. It disclosed one
+  `git -c core.fsmonitor=false reset --hard` in its throwaway (against the README rule's letter) and ran the
+  owner-granted daemon stop in its throwaway; it did not run the second granted command. Its commit failure
+  paths (class-bound stops, `START_WAIT`, `COMMIT_WAIT`, `LANDING_ATTEMPTS`, `REBUILD_ATTEMPTS`, index-lock
+  refusal, `ContentPruned`, exact 120 s prepare and submit at 11:07:54Z) went to the merge-fixes agent.
+  QUEUED: 0.5.26 candidate = that perf branch + merge-fixes + stale-ref-locks, gated together.
