@@ -117,9 +117,10 @@ const TRUSTED_HISTORY: readonly VersionRecord[] = [
 ];
 
 /**
- Releases where the newest comes from a new account.
+ Releases where the newest comes from a new account, after an earlier release made the usual publisher a known one.
  */
 const DOWNGRADED_HISTORY: readonly VersionRecord[] = [
+  { num: '0.9.0', createdAt: '2025-12-01T00:00:00Z', publisherId: '7', trustpubRepository: '', repository: 'https://github.com/o/leaf', },
   { num: VERSIONS.leafOld, createdAt: '2026-01-01T00:00:00Z', publisherId: '7', trustpubRepository: '', repository: 'https://github.com/o/leaf', },
   { num: VERSIONS.leafNew, createdAt: '2026-02-01T00:00:00Z', publisherId: '9', trustpubRepository: '', repository: 'https://github.com/o/leaf', },
 ];
@@ -205,6 +206,19 @@ function disposableRoot(root: string,): AsyncDisposable & { readonly root: strin
     },
   };
 }
+
+/**
+ Cargo home private to this test run.
+
+ Cargo takes one lock on the package cache under its home for every command, and the shared home's lock is
+ held for minutes by other sessions' builds, so a test that used it would queue behind them. The directory
+ source of each fixture needs nothing from a cargo home.
+ */
+const PRIVATE_CARGO_HOME = await mkdtemp(join(
+  scratchRoot(),
+  'rust-catalog-reconcile-cargo-home-',
+),);
+process.env.CARGO_HOME = PRIVATE_CARGO_HOME;
 
 //endregion Fixtures
 
@@ -636,7 +650,15 @@ async function makeStaleRepo(): Promise<AsyncDisposable & { readonly root: strin
  ```
  */
 function lockedVersion({ lockText, name, }: { readonly lockText: string; readonly name: string; },): string {
-  return new RegExp(`name = "${name}"\\nversion = "([^"]+)"`, 'u',).exec(lockText,)?.[1] ?? '';
+  /**
+   Text that precedes the version of this package in a lockfile entry.
+   */
+  const marker = `name = "${name}"\nversion = "`;
+  /**
+   Text from the version on; empty when the crate is not locked.
+   */
+  const [, afterMarker = '',] = lockText.split(marker,);
+  return afterMarker.split('"',)[0] ?? '';
 }
 
 //endregion Real cargo
@@ -655,10 +677,19 @@ await describe({
          Repository root, removed when the test ends.
          */
         const { root, } = repo;
-        for (const dir of CHANGED_DIRS)
+        for (const dir of CHANGED_DIRS) {
+          /**
+           Whether cargo accepts this crate's lockfile before the reconcile.
+           */
           // oxlint-disable-next-line no-await-in-loop -- cargo serializes on its package cache lock anyway.
-          expect(await lockIsConsistent(join(root, dir,),),).toBe(false,);
-        expect(await lockIsConsistent(join(root, DIRS.steady,),),).toBe(true,);
+          const consistent = await lockIsConsistent(join(root, dir,),);
+          expect(consistent,).toBe(false,);
+        }
+        /**
+         Whether cargo accepts the steady crate's lockfile, which no change touched.
+         */
+        const steadyConsistent = await lockIsConsistent(join(root, DIRS.steady,),);
+        expect(steadyConsistent,).toBe(true,);
         /**
          Steady crate's lockfile before the reconcile.
          */
@@ -675,9 +706,14 @@ await describe({
         expect(report.written,).toBe(true,);
         expect(report.reconciled,).toEqual(CHANGED_DIRS,);
         expect(report.added,).toEqual([{ name: RAISED_CRATE, version: VERSIONS.leafNew, },],);
-        for (const dir of Object.values(DIRS,))
+        for (const dir of Object.values(DIRS,)) {
+          /**
+           Whether cargo accepts this crate's lockfile after the reconcile.
+           */
           // oxlint-disable-next-line no-await-in-loop -- cargo serializes on its package cache lock anyway.
-          expect(await lockIsConsistent(join(root, dir,),),).toBe(true,);
+          const consistent = await lockIsConsistent(join(root, dir,),);
+          expect(consistent,).toBe(true,);
+        }
         expect(await readFile(join(root, DIRS.steady, LOCKFILE,), 'utf8',),).toBe(steadyBefore,);
         /**
          Standalone crate's lockfile after the reconcile.
@@ -710,7 +746,11 @@ await describe({
         expect(report.written,).toBe(false,);
         expect(report.reconciled,).toEqual(CHANGED_DIRS,);
         expect(await readFile(join(root, DIRS.sidecar, LOCKFILE,), 'utf8',),).toBe(before,);
-        expect(await lockIsConsistent(join(root, DIRS.sidecar,),),).toBe(false,);
+        /**
+         Whether cargo accepts the sidecar's lockfile, which the dry run restored.
+         */
+        const sidecarConsistent = await lockIsConsistent(join(root, DIRS.sidecar,),);
+        expect(sidecarConsistent,).toBe(false,);
       },
     },),
     it({
@@ -827,3 +867,8 @@ await describe({
     },),
   ],
 },);
+
+await rm(
+  PRIVATE_CARGO_HOME,
+  { recursive: true, force: true, },
+);

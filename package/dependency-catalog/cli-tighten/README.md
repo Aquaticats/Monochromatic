@@ -151,7 +151,9 @@ Cargo builds from the lockfile,
    Run the recursive Cargo update first,
    so each crate's lockfile already holds the newest releases,
    then tighten,
-   then `mise run sync:files` to carry the new floors into the crates.
+   then `mise run sync:files` to carry the new floors into the crates,
+   then `mise run rust:reconcile` to make the lockfiles of the crates that locked a lower release satisfy the raised floors
+   (`cargo --locked` refuses them until then; the lockfile writer is `rust-catalog-update`, never this tool).
 
 Statuses match the npm side:
  `TIGHT` (old to new),

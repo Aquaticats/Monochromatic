@@ -315,7 +315,7 @@ export async function tightenRustCatalog({
         results,
       },),
     );
-    console.info(`Wrote ${String(tightened.length,)} tightened floors to ${RUST_CATALOG_FILENAME}; run \`mise run sync:files\` to update the crates.`,);
+    console.info(`Wrote ${String(tightened.length,)} tightened floors to ${RUST_CATALOG_FILENAME}; run \`mise run sync:files\` to update the crates, then \`mise run rust:reconcile\` to bring their lockfiles in line.`,);
   }
   return results;
 }

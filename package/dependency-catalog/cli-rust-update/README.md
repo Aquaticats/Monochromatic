@@ -3,7 +3,8 @@
 Recursive no-save update of every first-party `Cargo.lock`,
  the Cargo counterpart of `pnpm --recursive --no-save update`,
  under the release-age and trust policy in the repository's `rust-catalog.toml`.
-It also has a CI mode that checks newly locked versions against the trust policy.
+It also has a CI mode that checks newly locked versions against the trust policy,
+ and a lock-only mode that makes every lockfile satisfy its manifests again after a floor raise.
 
 Design and decisions:
  [`doc/decision/rust-dependency-catalog.md`](../../../doc/decision/rust-dependency-catalog.md)
@@ -17,6 +18,8 @@ Run from the repository root:
 # package/dependency-catalog/cli-rust-update/README.md
 mise run rust:update              # update and keep the result if every check passes
 mise run rust:update -- --dry-run # report what would change, then restore every Cargo.lock
+mise run rust:reconcile           # after sync:files: make every Cargo.lock satisfy its manifests, offline
+mise run rust:reconcile -- --dry-run  # report which lockfiles are stale, then restore every Cargo.lock
 mise run rust:verify              # check versions no lockfile held at HEAD (uncommitted changes)
 mise run rust:verify -- --base <rev>  # CI: the same against another revision
 ```
@@ -33,9 +36,42 @@ The full update workflow is:
 1.  `mise run rust:update` refreshes the lockfiles.
 2.  `mise run catalog:tighten` raises each `rust-catalog.toml` floor to the highest locked version.
 3.  `mise run sync:files` renders the new floors into each crate's generated `[workspace.dependencies]` table.
+4.  `mise run rust:reconcile` makes the lockfiles of the crates that locked a lower release satisfy the raised floors.
 
 The update never edits manifests or catalog floors.
 It edits `rust-catalog.toml` only to prune stale exclude selectors when the matching prune setting is on.
+
+## What a floor raise leaves behind, and the reconcile
+
+The catalog's one-version premise makes `catalog:tighten` raise a floor to the highest release any consuming crate locks.
+`sync:files` then writes that floor into every consuming crate, and also writes a path crate's new `package.version`
+ into its dependents as `=<version>`.
+A crate whose lockfile held a lower release, or the old path-crate version, now has a lockfile that its own manifest refuses:
+ `cargo metadata --locked --offline` exits 101 with "cannot update the lock file", and every later `cargo` run
+ rewrites the lockfile in whichever worktree ran it.
+Tighten never writes lockfiles and the file-enforcer sync is a pure renderer, so before `rust:reconcile` no step repaired this.
+The update does not either: it runs before the floors move and re-resolves from scratch.
+
+`mise run rust:reconcile` is that step.
+It covers every first-party crate root that has a `Cargo.lock`, found with the same globs as the update and as file-enforcer's
+ Rust catalog sync (standalone roots, `.fuzz` and `.bench` sidecars, virtual workspaces, and roots with a path dependency).
+For each root, offline:
+
+1.  `cargo update --workspace --locked --offline` asks whether the lockfile already satisfies the manifests.
+    It reads only the index and writes nothing, so a consistent lockfile stays byte-for-byte as committed.
+2.  A refusal means the lockfile is stale, so `cargo update --workspace --offline` re-locks the workspace members and the
+     packages their changed requirements force, and keeps every other locked release.
+    It is not a full re-resolution (`rust:update` is), so unrelated packages do not move.
+3.  `cargo metadata --locked --offline` confirms the result.
+
+Like the update it is one transaction.
+Any cargo failure, or a refusal by the release-age or trust policy for a registry version that no lockfile held before
+ (a version some other lockfile already holds passed the policy when it arrived and costs no registry request),
+ restores every lockfile.
+With `--dry-run` it reports the stale roots and restores everything.
+Because cargo runs offline, it can only pick releases that the local registry index and cache hold:
+ when one is missing, cargo's message is reported with the remedy (fetch it once online, or run `rust:update`).
+Run `mise run rust:verify` afterwards to check the newly locked versions against the trust policy.
 
 ## What the update does
 
@@ -108,6 +144,9 @@ Those crates,
 
 ## Limits
 
+- The reconcile cannot apply the release-age cutoff, because `cargo update` has no `--publish-time`:
+   offline cargo picks the newest release in the local index and cache, which can be younger than `minimumReleaseAge`.
+  The post-check refuses such a version (restoring every lockfile) when no other lockfile held it before.
 - The update needs a nightly cargo for `-Zunstable-options`.
    It runs cargo under the nightly `toolchain.lock.json` pins (`.tools.rust.version`),
    overriding an inherited `RUSTUP_TOOLCHAIN` (logged as a warning),
@@ -129,9 +168,12 @@ Those crates,
 mise run //package/dependency-catalog/cli-rust-update:lint:types
 mise run //package/dependency-catalog/cli-rust-update:lint:oxlint
 node package/dependency-catalog/cli-rust-update/src/update.unit.test.ts
+node package/dependency-catalog/cli-rust-update/src/reconcile.unit.test.ts
 ```
 
-The tests use fake cargo runners,
+Most tests use fake cargo runners,
  a fake registry,
  and disposable repositories,
  so they need neither the network nor cargo.
+The reconcile test also runs the real cargo (the repository's pinned one on `PATH`) against a directory source that stands
+ in for crates.io, so it needs cargo but not the network.

@@ -65,6 +65,11 @@ export {
 } from './http.ts';
 export { pruneExcludes, } from './prune.ts';
 export {
+  CargoReconcileError,
+  type ReconcileReport,
+  reconcileRustLockfiles,
+} from './reconcile.ts';
+export {
   API_MIN_INTERVAL_MS,
   createRegistry,
   DATABASE_DUMP_URL,

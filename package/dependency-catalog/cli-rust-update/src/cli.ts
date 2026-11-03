@@ -7,6 +7,8 @@
  rust-catalog-update --dry-run  # report what would change, then restore every Cargo.lock
  rust-catalog-update --verify   # check versions no lockfile held at HEAD against the trust policy
  rust-catalog-update --verify --base <rev>  # CI: the same against another revision
+ rust-catalog-update --reconcile            # after `sync:files`: make every Cargo.lock satisfy its manifests, offline
+ rust-catalog-update --reconcile --dry-run  # report which lockfiles are stale, then restore every Cargo.lock
  ```
 
  Run it from the repository root (the `mise` task does).
@@ -20,6 +22,10 @@ import {
   fetchTextWithUserAgent,
 } from './http.ts';
 import { createGitBaseLockReader, } from './git-base.ts';
+import {
+  type ReconcileReport,
+  reconcileRustLockfiles,
+} from './reconcile.ts';
 import { createRegistry, } from './registry.ts';
 import {
   type UpdateReport,
@@ -31,7 +37,7 @@ import { verifyRustLockfiles, } from './verify.ts';
 /**
  Usage text.
  */
-const USAGE = 'Usage: rust-catalog-update [--dry-run | --verify [--base <rev>] | --help]';
+const USAGE = 'Usage: rust-catalog-update [--dry-run | --verify [--base <rev>] | --reconcile [--dry-run] | --help]';
 
 /**
  Revision `--verify` compares with when `--base` is absent: the last commit, so uncommitted lockfile changes are checked.
@@ -107,7 +113,7 @@ export class UsageError extends Error {
 /**
  Mode the arguments select.
  */
-type Mode = 'update' | 'dry-run' | 'verify' | 'help';
+type Mode = 'update' | 'dry-run' | 'verify' | 'reconcile' | 'reconcile-dry-run' | 'help';
 
 /**
  Mode for each accepted flag.
@@ -120,6 +126,10 @@ const FLAG_MODES: ReadonlyMap<string, Mode> = new Map([
   [
     '--verify',
     'verify',
+  ],
+  [
+    '--reconcile',
+    'reconcile',
   ],
   [
     '--help',
@@ -200,6 +210,22 @@ export function parseMode(args: readonly string[],): Invocation {
       base: parseBase(args.slice(1,),),
     };
   }
+  if (mode === 'reconcile') {
+    /**
+     Arguments after `--reconcile`.
+     */
+    const rest = args.slice(1,);
+    /**
+     Whether the only argument is `--dry-run`.
+     */
+    const dryRun = (rest.length === 1) && (rest[0] === '--dry-run');
+    if ((rest.length > 0) && (!dryRun))
+      throw new UsageError(`--reconcile accepts only --dry-run, got ${rest.join(' ',)}`,);
+    return {
+      mode: dryRun ? 'reconcile-dry-run' : 'reconcile',
+      base: DEFAULT_BASE,
+    };
+  }
   if (args.length > 1)
     throw new UsageError(`expected at most one flag, got ${args.join(' ',)}`,);
   return {
@@ -245,7 +271,49 @@ function printReport({
   if (dryRun)
     console.info('Dry run: every Cargo.lock was restored.',);
   else if (report.written)
-    console.info('Kept the new lockfiles. Next: `mise run catalog:tighten`, then `mise run sync:files`.',);
+    console.info('Kept the new lockfiles. Next: `mise run catalog:tighten`, then `mise run sync:files`, then `mise run rust:reconcile`.',);
+}
+
+/**
+ Prints a reconcile report.
+
+ @param report - reconcile outcome
+
+ @param dryRun - whether the run was a dry run
+
+ @example
+ ```ts
+ printReconcileReport({ report, dryRun: true, });
+ ```
+ */
+function printReconcileReport({
+  report,
+  dryRun,
+}: {
+  readonly report: ReconcileReport;
+  readonly dryRun: boolean
+},): void {
+  /**
+   Crate roots whose lockfile was stale.
+   */
+  const {
+    reconciled,
+    added: addedVersions,
+  } = report;
+  console.info(`${String(report.crateDirs
+    .length,)} lockfiles, ${String(reconciled.length,)} did not satisfy their manifests${reconciled.length === 0 ? '.' : ':'}`,);
+  for (const crateDir of reconciled)
+    console.info(`  ${crateDir}`,);
+  if (addedVersions.length > 0)
+    console.info(`${String(addedVersions.length,)} versions no lockfile held before:`,);
+  for (const added of addedVersions)
+    console.info(`  ${added.name} ${added.version}`,);
+  for (const warning of report.warnings)
+    console.info(`Warning: ${warning}`,);
+  if (dryRun)
+    console.info('Dry run: every Cargo.lock was restored.',);
+  else if (report.written)
+    console.info('Every Cargo.lock satisfies its manifests. Review the diff, then `mise run rust:verify`.',);
 }
 
 //endregion Output
@@ -312,20 +380,48 @@ export async function main(args: readonly string[],): Promise<void> {
     return;
   }
   /**
+   Cargo runner bound to the pinned toolchain, so lockfiles keep one format.
+   */
+  const runCargo = createSpawnCargo({
+    toolchain: await cargoToolchain({
+      root,
+      explicit: process.env
+        .RUSTUP_TOOLCHAIN
+        ?? '',
+    },),
+  },);
+  if ((mode === 'reconcile') || (mode === 'reconcile-dry-run')) {
+    /**
+     Reconcile outcome.
+     */
+    const reconcileReport = await reconcileRustLockfiles({
+      root,
+      dryRun: mode === 'reconcile-dry-run',
+      now: Date.now(),
+      runCargo,
+      registry,
+    },);
+    printReconcileReport({
+      report: reconcileReport,
+      dryRun: mode === 'reconcile-dry-run',
+    },);
+    if (reconcileReport.problems
+      .length
+      > 0)
+      throw new RustCatalogPolicyError({
+        heading: 'Reconcile refused; every Cargo.lock was restored',
+        problems: reconcileReport.problems,
+      },);
+    return;
+  }
+  /**
    Update outcome.
    */
   const report = await updateRustLockfiles({
     root,
     dryRun: mode === 'dry-run',
     now: Date.now(),
-    runCargo: createSpawnCargo({
-      toolchain: await cargoToolchain({
-        root,
-        explicit: process.env
-          .RUSTUP_TOOLCHAIN
-          ?? '',
-      },),
-    },),
+    runCargo,
     registry,
   },);
   printReport({
