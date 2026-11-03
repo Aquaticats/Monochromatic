@@ -3,6 +3,8 @@
  */
 import { join } from 'node:path';
 
+import { diskWeightArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+
 /**
  Preserve the failed verification boundary rather than masking it with a later copy error.
  */
@@ -56,6 +58,7 @@ export const limits: readonly string[] = [
   '--memory=2g',
   '--cpus=2',
   '--pids-limit=128',
+  ...diskWeightArguments(),
 ];
 
 /**

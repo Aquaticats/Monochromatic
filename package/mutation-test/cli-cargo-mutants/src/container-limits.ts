@@ -1,10 +1,12 @@
 /**
- Memory, CPU and process limits of every container the verification runners start, with the Podman arguments they become.
+ Memory, CPU, process and disk-weight limits of every container the verification runners start, with the Podman arguments
+ they become.
 
  The defaults are 2 GiB, 2 CPUs and 512 processes (the repository rule for memory and CPUs; see `defaultPidsLimit` for
  the process count).
  A task overrides them with `--memory <size>`, `--cpus <count>` and, where its container has a process cap,
  `--pids-limit <count>`.
+ Every started container also gets the lowest disk weight (see `lowestDiskWeight`), which a task cannot override.
  Image builds take the CPU bound as a CFS period and quota (`quota = cpus * period`) because `podman build` has no `--cpus`.
  Every option is checked with a linear scan over its characters, so a malformed option fails before any container starts.
  */
@@ -33,6 +35,14 @@ export const defaultPidsLimit = 512;
  Length of one CFS scheduling period in microseconds, which is also Podman's own default period.
  */
 export const cpuPeriodMicroseconds = 100_000;
+
+/**
+ Lowest weight Podman accepts for a container's disk I/O (`podman run --blkio-weight` takes 10 to 1000).
+
+ The container-wide default is 100, so at this weight a started container gets a tenth of the disk time of a default
+ sibling when both want it. A task cannot raise it.
+ */
+export const lowestDiskWeight = 10;
 
 /**
  Smallest CPU count a task may request.
@@ -248,13 +258,35 @@ export function buildLimitArguments(limits: ContainerLimits,): string[] {
 }
 
 /**
+ Disk-weight bound of a started container, in the two forms the two block-layer weight files need.
+
+ `--blkio-weight` sets the cgroup file `io.bfq.weight`, which the BFQ I/O scheduler reads, and leaves `io.weight`
+ (which the iocost controller reads) at the default. `--cgroup-conf=io.weight=` sets `io.weight` and leaves
+ `io.bfq.weight` at the default. Passing both puts whichever file the host's scheduler reads at the lowest weight.
+ `podman build` has neither option, so image builds are not covered.
+
+ @returns `['--blkio-weight=10', '--cgroup-conf=io.weight=10']`
+
+ @example
+ ```ts
+ const bound = diskWeightArguments();
+ ```
+ */
+export function diskWeightArguments(): string[] {
+  return [
+    `--blkio-weight=${String(lowestDiskWeight,)}`,
+    `--cgroup-conf=io.weight=${String(lowestDiskWeight,)}`,
+  ];
+}
+
+/**
  Resource bounds of a started container.
 
  @param limits - container limits
 
  @param withPidsLimit - whether the container has a process cap
 
- @returns memory, CPUs and, when capped, the process limit
+ @returns memory, CPUs, the process limit when capped, and the lowest disk weight
 
  @example
  ```ts
@@ -272,6 +304,7 @@ export function runLimitArguments({
     ...memoryArguments(limits,),
     `--cpus=${String(limits.cpus,)}`,
     ...(withPidsLimit ? [`--pids-limit=${String(limits.pidsLimit,)}`,] : []),
+    ...diskWeightArguments(),
   ];
 }
 

@@ -150,3 +150,50 @@ fn btrfs_a_subvolume_with_a_nested_subvolume_is_not_destroyed_in_one_step() {
     subvolume_destroy_at(outer.as_path()).expect("then outer");
     remove(root.as_path());
 }
+
+/// The two requests added for the destroy by id, as `_IOW` and `_IOWR` compute them under each encoding (type 0x94, numbers
+///  63 and 18, a 4096-byte argument): the asm-generic encoding, the wide one, and parisc's.
+#[test]
+fn the_requests_for_the_destroy_by_id_equal_the_header_values_of_every_encoding() {
+    const GENERIC_DESTROY_V2: u32 = 0x5000_943f;
+    const WIDE_DESTROY_V2: u32 = 0x9000_943f;
+    const LOOKUP: u32 = 0xd000_9412;
+    for (layout, destroy) in [(GENERIC_IOC_LAYOUT, GENERIC_DESTROY_V2), (WIDE_DIRECTION_IOC_LAYOUT, WIDE_DESTROY_V2), (PARISC_IOC_LAYOUT, WIDE_DESTROY_V2)] {
+        assert_eq!(ioc_write_with(layout, 63, VOLUME_ARGUMENT_BYTES), destroy, "{layout:?}");
+        assert_eq!(ioc_read_write_with(layout, 18, VOLUME_ARGUMENT_BYTES), LOOKUP, "{layout:?}");
+    }
+    assert_eq!(BTRFS_IOC_INO_LOOKUP as u64, u64::from(LOOKUP));
+    let wide: bool = HOST_IOC_LAYOUT == WIDE_DIRECTION_IOC_LAYOUT;
+    assert_eq!(BTRFS_IOC_SNAP_DESTROY_V2 as u64, u64::from(if wide { WIDE_DESTROY_V2 } else { GENERIC_DESTROY_V2 }));
+}
+
+/// A subvolume's id names it for good: two subvolumes have two ids; the destroy by id removes the one whose id it is given,
+///  through a directory of the filesystem that is not its parent, and leaves the other (where the mount allows it; else
+///  the kernel refuses with `EPERM`, which also shows the request was understood and the id resolved).
+#[test]
+fn btrfs_the_destroy_by_id_removes_the_subvolume_whose_id_it_is_given() {
+    let Some(root) = btrfs_fixture("fs-ioctl-by-id") else { return };
+    let (first, second) = (root.join("first"), root.join("second"));
+    subvolume_create_at(first.as_path()).expect("first");
+    subvolume_create_at(second.as_path()).expect("second");
+    let first_id: u64 = subvolume_id(&std::fs::File::open(first.as_path()).expect("open"), first.as_path()).expect("id of the first");
+    let second_id: u64 = subvolume_id(&std::fs::File::open(second.as_path()).expect("open"), second.as_path()).expect("id of the second");
+    assert_ne!(first_id, second_id);
+    // A file inside a subvolume belongs to that subvolume's id.
+    std::fs::write(first.join("file"), b"x").expect("file");
+    assert_eq!(subvolume_id(&std::fs::File::open(first.join("file")).expect("open"), first.as_path()).expect("id of a file"), first_id);
+    // The path moves; the id still leads to the same subvolume.
+    std::fs::remove_file(first.join("file")).expect("empty it");
+    std::fs::rename(first.as_path(), root.join("renamed")).expect("rename");
+    let through: std::fs::File = std::fs::File::open(root.as_path()).expect("any directory of the filesystem");
+    if removal_allowed(root.as_path()) {
+        snapshot_destroy_by_id(&through, first_id, first.as_path()).expect("destroy by id");
+        assert!(!root.join("renamed").exists(), "the subvolume with that id is gone, under its new name");
+        assert!(second.is_dir(), "the other one is untouched");
+    } else {
+        let refused = snapshot_destroy_by_id(&through, first_id, first.as_path()).expect_err("the mount option is absent");
+        assert_eq!(refused.errno, libc::EPERM, "{refused}");
+        assert!(root.join("renamed").is_dir() && second.is_dir());
+    }
+    remove(root.as_path());
+}

@@ -29,7 +29,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-/// A deadline short enough for a test and long enough for a thread to start and answer.
+/// The deadline of the one control whose planted fix never returns, so the abandonment shows quickly.
+/// Why:
+///   Only a stalled fix waits out its deadline. Every control whose fix returns or panics at once uses the production
+///  `LINT_DEADLINE`, which only bounds a hang: under a loaded host a planted panic came back later than this deadline
+///  and read as a timeout instead of the panic, in the container gate of `692dcb9f48` (2026-11-03T00:08:43-05:00).
 const SHORT_DEADLINE: Duration = Duration::from_millis(100);
 
 /// The default options:
@@ -58,7 +62,6 @@ fn lint(
 #[test]
 fn the_executable_linter_uses_the_measured_deadline() {
     assert_eq!(embedded_linter().deadline, LINT_DEADLINE);
-    assert_eq!(LINT_DEADLINE, Duration::from_secs(60));
 }
 
 /// How many times the planted stall started, to show that no second one starts beside an abandoned one.
@@ -123,7 +126,7 @@ fn panics_with_a_long_message(_request: &EmbeddedRequest<'_>) -> Result<Embedded
 #[test]
 fn a_long_panic_message_is_bounded() {
     let root: PathBuf = fixture("linter-long-panic");
-    let mut linter: EmbeddedLinter = embedded_linter_with(panics_with_a_long_message, SHORT_DEADLINE);
+    let mut linter: EmbeddedLinter = embedded_linter_with(panics_with_a_long_message, LINT_DEADLINE);
     let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("reported");
     assert!(reason.contains(format!("{}...", "p".repeat(EXPLANATION_LIMIT)).as_str()), "{reason}");
     assert!(!reason.contains("p".repeat(EXPLANATION_LIMIT + 1).as_str()), "the payload is cut");
@@ -134,11 +137,11 @@ fn a_long_panic_message_is_bounded() {
 #[test]
 fn a_panicking_linter_is_reported_and_the_wrapper_goes_on() {
     let root: PathBuf = fixture("linter-panic");
-    let mut linter: EmbeddedLinter = embedded_linter_with(panics, SHORT_DEADLINE);
+    let mut linter: EmbeddedLinter = embedded_linter_with(panics, LINT_DEADLINE);
     let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("reported");
     assert!(reason.contains("planted panic in the linter"), "{reason}");
     assert!(reason.contains("internal error"), "{reason}");
-    let mut healthy: EmbeddedLinter = embedded_linter_with(echoes, SHORT_DEADLINE);
+    let mut healthy: EmbeddedLinter = embedded_linter_with(echoes, LINT_DEADLINE);
     assert_eq!(
         lint(&mut healthy, root.as_path(), b"a.md", b"a\n"),
         Ok(LintRun {
@@ -153,7 +156,7 @@ fn a_panicking_linter_is_reported_and_the_wrapper_goes_on() {
 #[test]
 fn an_unexpected_status_is_refused() {
     let root: PathBuf = fixture("linter-status");
-    let mut linter: EmbeddedLinter = embedded_linter_with(ends_with_error_status, SHORT_DEADLINE);
+    let mut linter: EmbeddedLinter = embedded_linter_with(ends_with_error_status, LINT_DEADLINE);
     let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("refused");
     assert!(reason.contains(format!("status {NEVER_PRODUCED_STATUS}").as_str()), "{reason}");
     remove(root.as_path());
@@ -186,7 +189,7 @@ fn a_candidate_name_is_the_exact_bytes_the_linter_is_given() {
             findings: Vec::new(),
         });
     }
-    let mut linter: EmbeddedLinter = embedded_linter_with(checks_the_name, SHORT_DEADLINE);
+    let mut linter: EmbeddedLinter = embedded_linter_with(checks_the_name, LINT_DEADLINE);
     let run: LintRun = lint(&mut linter, root.as_path(), EXACT_NAME, b"a\n").expect("the name arrived unchanged");
     assert_eq!(run.fixed, b"ok".to_vec());
     remove(root.as_path());

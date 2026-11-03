@@ -82,3 +82,24 @@ fn odd_spellings_are_unsure() {
     assert!(!is_plain_ref_name("heads/x"));
     remove(root.as_path());
 }
+
+/// A packed ref with a name outside the plain alphabet does not make a lookup of another ref unsure, the list still is, and
+///  the odd name itself is never answered; a damaged line still ends the read.
+#[test]
+fn an_unusual_packed_name_does_not_hide_a_plain_branch() {
+    let root = fixture("repo-read-refs-scoped-tag");
+    let repo = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["tag", "-a", "-m", "m", "@scope/package@1.0.0"]);
+    git(repo.as_path(), &["pack-refs", "--all", "--prune"]);
+    let refs = Refs::new(repo.join(".git").as_path(), 40);
+    let head: String = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8").trim().to_string();
+    assert_eq!(refs.resolve("refs/heads/main"), Some(head), "the branch beside the scoped tag resolves");
+    assert_eq!(refs.lookup("refs/heads/missing"), Lookup::Missing, "and an absent one is absent");
+    assert_eq!(refs.lookup("refs/tags/@scope/package@1.0.0"), Lookup::Unsure, "the unusual name itself is not answered");
+    assert!(refs.list().is_none(), "the full list needs every name");
+    let packed = repo.join(".git/packed-refs");
+    let original = std::fs::read_to_string(&packed).expect("packed refs");
+    std::fs::write(&packed, format!("{original}not-an-object refs/heads/other\n")).expect("damaged");
+    assert_eq!(refs.lookup("refs/heads/missing"), Lookup::Unsure, "a damaged line still ends the read");
+    remove(root.as_path());
+}

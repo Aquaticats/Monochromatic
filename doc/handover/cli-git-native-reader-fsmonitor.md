@@ -94,8 +94,8 @@ which changes no output.
   Git also reads the bare name and the numbers other than zero as true;
   they decline here as well,
   which is conservative and not protection against a malformed value.
-- Monitor failures are silent in Git 2.56.0 (review round 2,
-  finding on daemon contact).
+- Monitor failures are silent in Git 2.56.0 (finding of the review
+  on daemon contact).
   Repro,
   2026-11-02,
   fresh repository with `core.fsmonitor = true` in the user file and no daemon:
@@ -266,7 +266,7 @@ the logs are `m-<mutant>.log` there.
   branch and still are;
   they were not split here.
 
-## Round 3
+## 2026-11-02T15:51:29-05:00: monitor bound, service status outside a repository, and configured Trace2
 
 - The owner bounded the work on the monitor (2026-11-02:
   "Why are we messing with git's fsmonitor?

@@ -472,8 +472,9 @@ index install and checkout line), which its author measured at 2.43 s for a whol
   copied `.git` directory.
   Both must be gone before the add returns; both are renames or 4 ms unlinks, measured above.
 - A crash between the snapshot and the end of the removal leaves a trash directory and a worktree that is otherwise
-  complete; the next invocation in the repository can find the trash by its reserved name and finish, as it does for a
-  stage today.
+  complete. This first design had the next invocation find the trash by its reserved name; that was rejected in the
+  section "2026-11-03T00:08:39-05:00: review findings on the leave-out and its disposal", because a name proves nothing about who made a
+  directory. The leftover is only disk under an ignored path.
   A crash before the swap into place leaves a stage subvolume that the ladder already deletes on recovery.
 
 ### One-time conversion of an ordinary nested worktree (fixture only; needs the owner's approval to run for real)
@@ -646,7 +647,9 @@ copy.
   partition in
   the drain loop). The place is used only if Git ignores it; otherwise, and when no route to the service exists or the
   wake
-  fails, the wrapper removes the directories itself before returning, and withdraws the work item it wrote.
+  fails, the wrapper removes the directories itself before returning. The section "2026-11-03T00:08:39-05:00: review findings on the leave-out
+  and its disposal" changed what the work item carries and what the removal does when it fails: the item now stays until
+  the trash is gone.
 
 ### Edits inside the ladder's files (for the merge with its recovery rework)
 
@@ -659,10 +662,10 @@ copy.
   blocked and a linked source still is.
 - `worktree_snapshot.rs`, `take_snapshot`: one call, `worktree_trash::prune_snapshot(stage, source)`, between making
   the stage
-  private and `remove_stubs`.
+  private and `remove_stubs`; it returns the manifest of what the leave-out made and moved.
 - `worktree_ladder_finish.rs`, `serve_snapshot`: one call, `worktree_trash::dispose_pending_trash(...)`, after the
   swap and
-  `settle_displaced`.
+  `settle_displaced`; it passes that manifest and reports a failure as a warning.
 - Five binary tests changed because a main-sourced add now prints the copy's summary line and copies the ignored state
   when no
   snapshot serves it (`binary_worktree_ladder_tests.rs`, `binary_worktree_clone_tests.rs`,
@@ -673,10 +676,9 @@ copy.
   is gone,
   and `observe_copy_source_for` with its `serves_add` flag was folded into `observe_copy_source`).
 - The ladder's rule "recovery never deletes what it cannot prove it created" is kept: the trash directory is made by
-  `prune_snapshot` with a name of forty hexadecimal digits, the handler verifies the name, a real directory at the one
-  place
-  and a `.git` file in the worktree, and the conversion removes only the directory whose device and inode its journal
-  recorded.
+  `prune_snapshot`, which writes down its identity and the identity of every directory it moves in; the handler
+  removes only objects with those identities, and the conversion removes only the directory whose device and
+  inode its journal recorded.
   A stage that a crash leaves with a trash inside is the stage the ladder's recovery already owns; this module adds
   nothing it
   would have to delete.
@@ -726,7 +728,7 @@ main checkout again (two tests), and the handler following a link at the trash n
    checkout and read the skip reasons; then run it without `--dry-run`, worktree by worktree or with `--all`.
 3. Apply the shared pnpm store (section "Applying the shared pnpm store").
 
-### Round 2: merge of main, the snapshot message, and the earlier-release service
+### 2026-11-02T22:26:50-05:00: merge of main, the snapshot message, and the earlier-release service
 
 - `main` was merged into the branch with `git merge` (it holds the ladder head `3681539d6b` as `c0d7bf8bf3`, and later
   fixes). The only conflict, in `doc/handover/cli-git-rust-implementation.md`, was resolved by keeping both sides of each
@@ -747,6 +749,116 @@ main checkout again (two tests), and the handler following a link at the trash n
   400 ms, not the production ten seconds.
 - Both controls were shown red by removing the release comparison from `reach_current_untimed` (a service of the current
   protocol but another release was then accepted); restoring it turned them green.
+
+### 2026-11-02T23:10:49-05:00: the conversion tool refused clean worktrees (0.5.18)
+
+- The dry run on the real repository listed 28 worktrees as not quiet that were clean. The log of that run is
+  `convert-dry-run.log` in the scratch directory.
+- Sixteen were refused with "HEAD is not a plain ref to a commit". They were not detached: their `HEAD` names a branch that
+  only `packed-refs` holds, and `packed-refs` of the repository has tags with an `@` in the name
+  (`@monochromatic-dev/module-logger@0.4.1`), which is outside the plain alphabet of `repo_read_refs.rs`; `packed()` returned
+  nothing for the whole file, so no ref resolved. A detached `HEAD` already converted (the existing conversion tests use one).
+  A lookup now leaves out a well-formed line with an unusual name; the list and a damaged line still end the read.
+- Fifteen were refused as racily clean and two for a stale stat. `worktree_clean_content.rs` settles those by content in
+  process: blob hash of the file, a link by its target, compared with the index entry's object name. The reasons that stay
+  refusals: a `filter`, `ident` or `working-tree-encoding` attribute that may apply (attribute sources: tracked
+  `.gitattributes` down the path, `info/attributes`, `core.attributesFile` or the default global file, the system file, macros
+  that set one of them), a carriage return in the file (a line-ending conversion strips it on the way into the index; a file
+  without one is unchanged by `text`, `eol`, `core.autocrlf` and `core.eol`, so those need no attribute lookup), a file over
+  32 MiB, and a type, mode or assume-unchanged difference.
+- The real repository's `* text=auto eol=lf` therefore refuses nothing by itself, and `*.png filter=lfs` refuses only a stale
+  png.
+- Only the conversion uses it (`check_clean_tracked_by_content`); the snapshot and clone rungs keep the stat-only check
+  because they install the index they proved. After a conversion an entry that was not proven keeps its old stat data
+  (`refresh_index_file_with` rewrites only entries whose old file matched), so Git hashes it at its first status.
+- `Platform::config_scope` gives the conversion the configuration files Git reads; a stand-in names none, so controls read
+  only the repository's own configuration. When the system configuration path is unknown (no forward target in the
+  environment) the global attributes file cannot be ruled out and the content decision refuses with that reason.
+- Dry run of the fixed build on the real repository: 160 worktrees, 94 already subvolumes, 65 would convert, 1 skipped
+  (`package/forbidden-strings/core/Cargo.lock` really differs from the committed content).
+
+### 2026-11-02T23:51:49-05:00: the cross-vendor reviews of the content proof and the conversion
+
+Every finding was checked against the Git source of the installed version (`attr.c` at `v2.56.0`) before it was fixed.
+
+- System attributes (`attr.c`, `git_attr_system_file`): `system_path(ETC_GITATTRIBUTES)`, independent of
+  `GIT_CONFIG_SYSTEM`, off under `GIT_ATTR_NOSYSTEM`. The path is now asked of the executable with `git var GIT_ATTR_SYSTEM`
+  (cached per executable identity beside the system configuration path) and an unknown place refuses.
+- Lexing (`attr.c`, `parse_attr_line`): the blanks are `" \t\r\n"` only, a line is a C string (NUL ends it), and
+  `read_attr_from_file` skips a UTF-8 byte order mark on its first line; none of this was modelled. Paths, patterns and
+  directory keys are bytes now, with ASCII folding. A quoted pattern keeps all its tokens and counts as applying.
+- Reads: `worktree_clean_content.rs` opens every file and every `.gitattributes` below a held root with `openat2` and no link
+  followed, judges type and mode on the handle, compares the state before and after the read, and bounds the read at the limit
+  plus one byte. A `.gitattributes` that is a link is a refusal (Git opens it without following).
+- Conversion: the journal is created and replaced only through exclusive files, records the identity of the stage, and is
+  guarded by a `flock` per administrative directory; `Synced` is provisional; the old tree is removed beneath a pinned
+  descriptor; nested registrations are read from the common directory; refusals have kinds; a failed refresh keeps the old tree.
+- What the cleanliness proof is for: the conversion copies the whole tree, untracked and ignored files included, so a modified
+  tracked file would survive the conversion. The proof is a policy (do not rebuild a worktree someone is in the middle of), and
+  the data is protected by the copy, the second pass, the identity checks, and the update-only pass before the removal.
+- What stays open: a write that keeps the size and modification time of the copy is invisible to the second pass and to the
+  update-only pass; a process that writes and exits in the window before the exchange is found only by the update-only pass; a
+  system attributes file under a prefix other than the executable's is not read.
+
+### 2026-11-03T00:08:39-05:00: review findings on the leave-out and its disposal
+
+A cross-vendor review of `worktree_trash.rs` made seven findings. Each was checked against the code before it was
+trusted; the owner rules that decided every case were "never discard user data" (delete only what this process can
+prove it created or moved there) and "a loud, clear failure" over a silent wrong result.
+
+- Finding 9, a registered nested worktree that holds a tracked file: confirmed in `prune_snapshot`, which moved the
+  directory and lost the tracked file. The later check of the stage against the index already declined the rung with
+  "the source changed while it was copied", so nothing was lost silently, but the reason was misleading. The leave-out
+  now works out what the index tracks first and refuses before it unlinks a pointer or moves a directory, naming the
+  worktree and the tracked file.
+- Finding 10, tracked gitlinks: the defect is real in the function, but not reachable through the wrapper:
+  `check_clean` refuses a source whose index holds a submodule before any snapshot is taken. The protected set now
+  also holds every directory-valued index entry at its exact path, as hardening, and a control calls the function
+  with an index that holds a gitlink.
+- Finding 11, a name proves ownership: confirmed. A directory named like a trash, carried by the snapshot from the
+  main checkout's own `.claude/cli-git-trash`, was emptied. `prune_snapshot` now returns a manifest (the trash
+  directory's identity and that of each directory moved into it, as device, inode and birth time), `take_snapshot`
+  hands it on, and the work item carries it in its `parent` field (a repurposed free-text field; `oid` stays the
+  trash name). The disposal opens the trash, compares its identity, removes an entry only when it is the recorded
+  object, and leaves anything unrecorded alone with a reason. Nothing scans the trash parent any more.
+- Finding 12, ancestor links and check-then-use: confirmed, and wider than reported: `create_dir_all` in the
+  leave-out also followed a link at `.claude` in the snapshot. Every directory from the worktree down to the trash is
+  now opened by one plain name below the handle of the one above (`openat2` with no links, no mounts, no `..`), the
+  worktree's `.git` file is read the same way and must point at the record's administrative directory, and removal
+  is done from held handles (`worktree_trash_remove.rs`, which does not edit `fs_beneath.rs`). When the leave-out
+  cannot make its trash as real directories, it removes the left-out directories in place instead of failing the rung.
+- Finding 13, lossy names: confirmed (a directory named by byte `0xff` beside a link named with the replacement
+  character made the walk enter the link's target and unlink a `.git` file there). Names are now kept as bytes for
+  every operation and every comparison with the index. The leave-out rules still read a lossy text of a name, which is
+  sound because every name they compare with is ASCII, so a name that is not UTF-8 never equals one.
+- Finding 14, lossy paths in the record: confirmed. A destination or Git directory that is not UTF-8 is now not
+  enqueued; its trash is emptied in the foreground by the bytes of the path.
+- Finding 15, errors turned into success: confirmed. The disposal returns the reason (path and cause), the ladder
+  prints it as a warning (the worktree is already in place and complete, so it does not fail the add), and the pending
+  record is withdrawn only after the trash is gone; on a failure it stays for the service.
+- A real add of a main snapshot spent about ten seconds waiting for the service and then 4.7 minutes emptying the trash in
+  the foreground, with nothing said (the log of that run is in `/var/home/user/temp/agent/slow-route/add.err`). Cause: each
+  worktree has a service instance of its own, and its socket is created by provisioning, which only a commit did; the
+  hand-over ignored the route's provisioning step, so the wake waited out the whole start wait for a socket that nothing
+  would create. The hand-over now provisions first, as a commit does (`the_sockets_of_a_new_worktree_are_set_up_before_the_service_is_woken`,
+  shown red by skipping the step), and a failure of the route, the provisioning or the wake is rendered with the client's
+  own words in one plain line before the foreground removal. The foreground walk itself measured 3.4 s against 3.8 s for
+  the old `remove_tree` on a generated tree of 160 thousand files (three alternating rounds, same spread); it cannot make
+  a removal of hundreds of thousands of entries short, which is why the service must take it. The end-to-end add was not
+  re-timed: it needs the real session bus, which a control may not touch.
+- Not done: a crash after the swap and before the disposal leaves a trash directory with no record. It is only disk
+  under an ignored path, and nothing may find it by name.
+
+Timing, `prune_snapshot` alone on a generated tree of about eight thousand directories with 480 set aside, six
+alternating rounds on btrfs: before 143 to 152 ms, after 148 to 154 ms (means 147 and 151). The end-to-end figure of the
+add (about 1.85 s from main) was not measured again.
+
+Guards shown red after committing the tests, each by disabling it and restoring the file: the tracked check of a
+registered nested worktree, the exact-path protection of a gitlink, the trash identity check, the entry identity checks
+(both together), the check for unrecorded entries, the check of the `.git` file, a following open instead of a
+held-handle open in the disposal, in the removal and in the making of the trash, byte names in the walk, the
+refusal to spell a non-UTF-8 path in a record, the error return on a failed cleanup, and the withdrawal of the record
+before the cleanup.
 
 ## Assumptions and limits
 
@@ -840,6 +952,200 @@ Read at `0e432cd0b3` on `btrfs-worktree-ladder` (code in flux, not edited).
   choice makes `--offline` fail.
   A project-level `storeDir` in `pnpm-workspace.yaml` naming one store on the main subvolume would avoid it; I did not
   change pnpm configuration.
+
+## Snapshotting a dirty main checkout (proposal, not built)
+
+Status: proposal for the owner's decision, 2026-11-03. No behavior changed for it; the wrapper still refuses to
+snapshot a
+source it cannot prove clean, and since this branch it says why (see "Telling why an add was not made as a snapshot" in
+`package/git-policy/cli/SPEC.md`).
+
+### The question
+
+Two adds from the main checkout took Git's checkout and the ignored-state copy, for minutes, instead of the snapshot,
+for
+seconds, because the clean check refused the main checkout.
+The main checkout is where the owner works, so it is often not clean: this machine commits roughly once a minute, and a
+file edited a moment ago, an untracked note, or the `index.lock` of a commit in flight each refuse the snapshot.
+Can a dirty main checkout still be snapshotted, with the new worktree made equal to what Git itself would produce?
+
+### What Git itself produces
+
+- `git worktree add -b topic <path> main` checks out the tree of the commit `main` names: `HEAD` is that commit, the
+  index equals its tree, every tracked file has the committed bytes and mode, and there is no untracked file.
+  Nothing uncommitted in the creating worktree is ever carried, staged or not.
+- Ignored files are absent from Git's result. The wrapper adds the ignored state afterwards, and a snapshot carries it.
+  The restore below must therefore remove untracked files that are not ignored and keep every ignored one.
+- A requested commit-ish other than the source's `HEAD` is handled by the step the snapshot rung already has (the tree
+  difference between the source's commit and the new commit).
+
+### The candidate restore
+
+1. Take the snapshot as today, then keep the source's own index from the snapshot (`.git/index` inside it, read before
+   `.git` is replaced by the new worktree's pointer), not the index bytes the clean check read earlier.
+   The snapshot is one instant, so the index and the files in it agree even if the person keeps working in the source.
+2. Instead of `git read-tree -m -u <source commit> <new commit>`, run `git read-tree --reset -u <new commit>` under
+   the new
+   worktree's Git directory and work tree, which makes the index and every tracked file equal to the new commit's tree,
+   whatever the source's index and files held.
+3. Run `git clean -f -d` there, without `-x`, which removes untracked files that are not ignored and empty untracked
+   directories, and keeps ignored files.
+4. Prove the result (below); on any doubt destroy the stage and take the slow route, as every failure of the rung does
+   today.
+
+Why step 2 can work from the source's index: in a btrfs snapshot the inode number, the modification time and the
+change time
+of every file equal the source's, and only the device number differs, which Git's index does not compare.
+Measured on a throwaway subvolume of 3000 tracked files with a modified file, a file staged then modified again, a
+staged
+deletion, an unstaged deletion, a staged rename, a mode change, an untracked file and an untracked directory:
+`git status`
+in the snapshot printed the same eight lines as in the source, 5 ms, with no refresh.
+So the stat data in the copied index still marks exactly the files that were edited, and `read-tree --reset -u` rewrites
+exactly those and leaves the rest.
+The wrapper's current snapshot path installs the source's index "with refreshed stat fields" (`README.md`, ladder rung
+1;
+`rewrite_index_stat_with` in `SPEC.md`), which for a clean source is right and for a dirty one would record the edited
+files as unchanged and hide the edits, so this option must not reuse that step.
+
+### Measured
+
+- Fixture one (3000 files, the eight changes above): after `git reset --hard` and `git clean -fd` in the snapshot, 12
+  ms,
+  `diff -r --exclude=.git --exclude=ignored` against a worktree made by `git worktree add` showed no difference, the
+  executable bit was restored, `ignored/pkg/x` stayed, `git status` was empty.
+- Fixture two (500 files, two commits, the same changes plus an edit over a file the second commit added): after
+  `git read-tree --reset -u <first commit>` and `git clean -fd` in the snapshot, `diff -r` against a detached worktree
+  at
+  the first commit showed no difference, and `git write-tree` printed the same tree as that worktree.
+- Wall time of that step was 1.03 s with 0.00 s of CPU. The cause is in the trace: the user's global configuration has
+  `core.fsmonitor=true`, so the first Git command in a new snapshot started `git fsmonitor--daemon` and waited for it.
+  The wrapper's own Git runs do not pin it today: `src/native/hooks_off.rs` says `core.fsmonitor` "is left as configured".
+  So a Git run of the shipped snapshot rung in a new worktree can pay the same start and leave a daemon behind (my fixtures
+  left one per snapshot until I stopped them); I did not measure that on the shipped rung.
+  This step should pin `core.fsmonitor=false`.
+- On the real main checkout, read only: `git --no-optional-locks status --porcelain=v1 -z --untracked-files=normal` took
+  26 ms and `git clean -n -d` 57 ms, with 20445 tracked files.
+  So the dirty-set discovery is cheap here; the cost that remains is rewriting the changed files.
+- Not measured: the whole step on 20445 files with a realistic number of changes, and any run of the real ladder with
+  the
+  restore (it does not exist).
+
+### Correctness hazards and what the candidate does with each
+
+- Staged versus unstaged changes, and a file that is both: the index is replaced wholesale, so every combination ends
+  equal
+  to the new tree. Measured with a file staged then modified again.
+- Deleted files, staged or not: the entry is in the new tree, so it is written back. Measured for both.
+- Renames: Git stores a delete and an add, so the new name is removed (it is not in the new tree) and the old one
+  restored.
+  Measured with a staged rename.
+- Untracked files: removed by `git clean`; the ignored ones stay. Measured. An untracked directory that holds only
+  ignored
+  files stays too.
+- Empty untracked directories: `git clean -d` removes them. The real main checkout holds ten today (`git clean -n -d`
+  lists them and `git status` does not), and the clean snapshot of today carries them although Git's checkout would not
+  make them. This is an existing difference of the snapshot rung, not a cost of the proposal; the restore would fix it.
+- Mode changes: restored while `core.fileMode` is on. With it off Git cannot see a mode change in the source either, so
+  the new worktree would keep it; the proof below does not catch that.
+- Files that Git cannot see as changed: assume-unchanged, skip-worktree, intent-to-add and unmerged entries, a sparse
+  checkout, an operation in progress, a submodule. These stay refusals. Today the clean check folds them with ordinary
+  changes, so the check in `worktree_clean.rs` must be split into hard refusals and the changes the restore handles.
+- Racy timestamps: a file written in the second the index was written is treated by Git as possibly modified, so the
+  restore rewrites it; the cost is a rewrite and the result is right.
+- Smudge and clean filters, end-of-line conversion, Git LFS: files the restore rewrites go through Git's checkout, so
+  the
+  filters run as for any checkout. Not tested.
+- Untracked nested repositories: `git clean -f -d` skips them (it needs a second `-f`). The main-checkout snapshot
+  already
+  sets aside every directory that holds a `.git` file, so none reaches the restore; if that rule changes, this becomes
+  a hole.
+- The person keeps working while the add runs: nothing in the restore reads the source after the snapshot, so a later
+  edit
+  cannot reach the stage; an edit between the clean check and the snapshot is why the index must come from the snapshot.
+- Hooks: none run, as on every rung.
+
+### How the restore is proven complete
+
+The proof runs in the stage before the swap, from the stage alone:
+
+1. `git write-tree` under the new Git directory prints the new commit's tree, so the index is exact.
+2. `git ls-files --others --exclude-standard` prints nothing, so no untracked file that Git shows is left.
+3. `git diff-files --quiet` after a refresh of the stat data prints nothing, so every tracked file equals its index
+   entry
+   as far as Git can tell. This is what the clean check already relies on for a clean source.
+4. For the owner's confidence, not in the add: a guard test per hazard above that builds the state in a fixture, adds a
+   worktree through the wrapper and through real Git, and compares the trees byte by byte (the way the two measured
+   fixtures were compared). Each guard is shown red by removing the `git clean` step or the `--reset`.
+
+What the proof cannot show: an edit that kept the size and both timestamps. Git's own `status` in the source cannot
+show it
+either, so "what Git itself would produce" has no sharper definition there. A full proof would hash every tracked
+file, which
+reads the whole tree and gives up most of what the snapshot saves; it can stay an option behind a flag.
+
+### Cost
+
+- Added to a clean snapshot add: one `git read-tree --reset -u` instead of `-m -u`, one `git clean -f -d`, three proof
+  commands, and the rewrite of the changed files. For a handful of changed files this is milliseconds plus the process
+  starts, against minutes for the slow route.
+- Unchanged: the snapshot (0.15 s measured in "Snapshot route measured"), the leave-out of nested worktrees and caches
+  (the cost that dominates today; my own add on 2026-11-02, a snapshot, spent from 23:38:50 to 23:43:31 emptying the
+  trash in the foreground
+  after the debug line "could not be handed to the service; emptying it here", a separate problem recorded in the
+  report that
+  came with this proposal).
+- Removed for the dirty case: the slow route, about 190 thousand ignored entries copied after Git's checkout.
+
+### Options
+
+- A, keep refusing and say why (built on this branch).
+  Pros: no new risk; the add is correct whatever the source holds; the person now knows the cause and the remedy.
+  Cons: every add from a dirty main checkout is the slow route, minutes instead of seconds; the main checkout is dirty
+  often.
+- B, snapshot anyway and restore with Git's own `read-tree --reset -u` and `clean`, proven in the stage, falling to A
+  on any doubt.
+  Pros: seconds in the common case; Git does the semantics (filters, modes, deletions); nothing in the person's
+  checkout is
+  touched; it is additive to A, so a failure costs only the slow route.
+  Cons: new code in the ladder's target step and a split of the clean check, both in files others are editing; the proof
+  has a stated blind spot; the fsmonitor behavior must be pinned; it carries untracked ignored state of a dirty tree by
+  design (that is the point).
+- C, snapshot and restore by the wrapper's own file operations (compute the dirty set, rewrite and delete those paths).
+  Pros: no dependence on Git's reset semantics.
+  Cons: reimplements checkout semantics (filters, end-of-line conversion, LFS, modes, symbolic links, directory and file
+  swaps) that Git already has and the wrapper otherwise never reimplements; more hazards, more tests.
+- D, a clean spare maintained by the service: a snapshot of a clean state of the main checkout kept ready, taken
+  whenever
+  the main checkout is clean (or built from the default branch in a scratch subvolume), and used as the source for adds.
+  Pros: never reads the person's dirty tree; adds are always the clean-snapshot path.
+  Cons: a long-lived component and a refresh policy; the spare's ignored state (`node_modules`, builds) is as old as its
+  last refresh, which breaks "immediately functional"; storage for the spare; the owner prefers the operating system to
+  start things on demand.
+- E, commit or stash the person's changes before the add and put them back after.
+  Pros: the source is clean by construction.
+  Cons: it rewrites the person's work and history; an interrupted add leaves their changes stashed; rejected by the rule
+  that the wrapper never changes work it did not make.
+
+Ranking: B > A > D > C > E.
+
+- B over A: the same correctness as A in the cases B accepts and seconds instead of minutes; B is also additive, since
+  every
+  doubt falls to A, so choosing B loses nothing A gives.
+- A over D: A is built and correct, while D adds a refresh policy and a component, and a stale spare returns a worktree
+  whose `node_modules` and builds are out of date, which is the thing the owner wants avoided.
+- D over C: D reuses the proven clean-snapshot path unchanged; C writes a second implementation of Git's checkout whose
+  mistakes would be silent differences in the new worktree.
+- C over E: C leaves the person's checkout alone; E modifies the user's work, which no rung may do.
+
+### Decision for the owner
+
+Whether to build B. If yes, the work is: split the cleanliness verdict in `worktree_clean.rs` into refusals that stay
+and
+changes the restore handles; take the index from the snapshot; add the reset, clean and proof steps to the target step
+in
+`worktree_ladder_target.rs` with the guards listed above; pin `core.fsmonitor=false` for those Git runs.
+Two files named here are being edited by other agents at the time of writing, so this proposal touches neither.
 
 ## Review requests
 

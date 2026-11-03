@@ -17,6 +17,7 @@ use super::fs_clone_exchange::{clone_file, exchange_paths};
 use super::fs_kind::{FilesystemKind, filesystem_facts, is_subvolume_root};
 use super::fs_mount_options::read_mount_facts;
 use super::fs_primitive_error::PrimitiveError;
+use super::worktree_clean_content::ConversionEnvironment;
 use std::fs::File;
 use std::path::Path;
 
@@ -51,6 +52,11 @@ pub trait Platform {
     /// Make `new` another name of the file `existing`; fails with `EXDEV` where the two sit in different subvolumes.
     fn hard_link(&self, existing: &Path, new: &Path) -> std::io::Result<()> {
         return std::fs::hard_link(existing, new);
+    }
+    /// Which configuration files and system attributes file Git reads here; a stand-in names none, so a control reads
+    ///  only the repository's own configuration.
+    fn conversion_environment(&self) -> ConversionEnvironment {
+        return ConversionEnvironment::from_process();
     }
 }
 

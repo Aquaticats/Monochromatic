@@ -38,6 +38,9 @@ pub const STREAM_VARIABLE: &str = "JOURNAL_STREAM";
 /// The `SYSLOG_IDENTIFIER` of every entry, the name `journalctl` shows after the host.
 pub const IDENTIFIER: &str = "cli-git-service";
 
+/// The `SYSLOG_IDENTIFIER` of an entry the wrapper itself sends, as the command a person ran, beside the service's own.
+pub const CLIENT_IDENTIFIER: &str = "cli-git";
+
 /// The most characters of a message an entry carries; longer text is cut. The limits count characters, not encoded bytes,
 /// and bound no total, so an entry made of very many or very wide fields can still exceed what a socket takes; the send then
 /// fails with `EMSGSIZE` and the entry goes to standard error, as every entry that cannot be sent does.
@@ -150,21 +153,34 @@ fn push_field(entry: &mut Vec<u8>, name: &str, value: &str) {
 }
 
 /// What:
+///  The bytes of one native entry of the service: see `datagram_as`.
+/// Why:
+///   Every entry of the service carries the service's identifier.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// datagramAs('cli-git-service', priority, message, fields)
+/// ```
+pub fn datagram(priority: Priority, message: &str, fields: &[(&str, String)]) -> Vec<u8> {
+    return datagram_as(IDENTIFIER, priority, message, fields);
+}
+
+/// What:
 ///  The bytes of one native entry: `PRIORITY`, `SYSLOG_IDENTIFIER`, `MESSAGE`, then each field, each value as written (cut
 ///  to its limit), in the length-prefixed form when it holds a newline.
 /// Why:
 ///   A newline cannot be written in the simple `NAME=value` form without starting a field, and the length-prefixed form
 ///  carries any bytes, so a value reads back in the journal as it was sent. A field whose name journald would refuse is left
-///  out.
+///  out. The identifier names the sender: the service, or the wrapper a person ran.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `PRIORITY=${n}\nSYSLOG_IDENTIFIER=cli-git-service\nMESSAGE=${message}\n${fields.map(([k, v]) => `${k}=${v}\n`).join('')}`
+/// `PRIORITY=${n}\nSYSLOG_IDENTIFIER=${identifier}\nMESSAGE=${message}\n${fields.map(([k, v]) => `${k}=${v}\n`).join('')}`
 /// ```
-pub fn datagram(priority: Priority, message: &str, fields: &[(&str, String)]) -> Vec<u8> {
+pub fn datagram_as(identifier: &str, priority: Priority, message: &str, fields: &[(&str, String)]) -> Vec<u8> {
     let mut entry: Vec<u8> = Vec::new();
     push_field(&mut entry, "PRIORITY", priority.number().to_string().as_str());
-    push_field(&mut entry, "SYSLOG_IDENTIFIER", IDENTIFIER);
+    push_field(&mut entry, "SYSLOG_IDENTIFIER", identifier);
     push_field(&mut entry, "MESSAGE", cut(message, MESSAGE_LIMIT).as_str());
     for (name, value) in fields {
         if valid_field_name(name) {

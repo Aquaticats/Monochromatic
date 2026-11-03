@@ -10,6 +10,8 @@ import {
   type ContainerLimits,
   cpuQuotaMicroseconds,
   defaultContainerLimits,
+  diskWeightArguments,
+  lowestDiskWeight,
   memoryArguments,
   memoryBytes,
   parallelJobs,
@@ -27,6 +29,15 @@ const overridden: ContainerLimits = {
   cpus: 1.5,
   pidsLimit: 64,
 };
+
+/**
+ Disk-weight arguments every started container carries, spelled from the lowest weight so a change of the weight moves
+ the expectation with it.
+ */
+const weightArguments = [
+  `--blkio-weight=${String(lowestDiskWeight,)}`,
+  `--cgroup-conf=io.weight=${String(lowestDiskWeight,)}`,
+];
 
 /**
  Parse options and return the message the parser threw.
@@ -116,6 +127,7 @@ await describe({
               '--memory=2g',
               '--cpus=2',
               '--pids-limit=512',
+              ...weightArguments,
             ],);
           },
         },),
@@ -128,7 +140,36 @@ await describe({
             },),).toEqual([
               '--memory=2g',
               '--cpus=2',
+              ...weightArguments,
             ],);
+          },
+        },),
+        it({
+          name: 'disk-weight arguments set both weight files at the lowest weight',
+          fn: async () => {
+            expect(diskWeightArguments(),).toEqual(weightArguments,);
+          },
+        },),
+        it({
+          name: 'every run argument list ends with the disk weight, whatever the limits and the PID cap',
+          fn: async () => {
+            for (const limits of [defaultContainerLimits, overridden,]) {
+              for (const withPidsLimit of [true, false,]) {
+                expect(runLimitArguments({
+                  limits,
+                  withPidsLimit,
+                },).slice(-weightArguments.length,),).toEqual(weightArguments,);
+              }
+            }
+          },
+        },),
+        it({
+          name: 'build arguments carry no disk weight, which `podman build` does not accept',
+          fn: async () => {
+            for (const limits of [defaultContainerLimits, overridden,]) {
+              for (const argument of [...buildLimitArguments(limits,), ...memoryArguments(limits,),])
+                expect(weightArguments,).not.toContain(argument,);
+            }
           },
         },),
         it({
@@ -185,6 +226,7 @@ await describe({
               '--memory=512m',
               '--cpus=1.5',
               '--pids-limit=64',
+              ...weightArguments,
             ],);
           },
         },),
@@ -197,6 +239,7 @@ await describe({
             },),).toEqual([
               '--memory=512m',
               '--cpus=1.5',
+              ...weightArguments,
             ],);
           },
         },),

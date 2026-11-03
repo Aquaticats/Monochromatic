@@ -23,7 +23,8 @@ use super::worktree_subvolume::{CreatedSubvolume, prepare_subvolume_destination}
 use super::worktree_add_plan::AddPlan;
 use super::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add};
 use super::worktree_identity::WorktreeIdentity;
-use super::worktree_snapshot_source::{SnapshotSource, clone_refusal, common_source, snapshot_blocker, snapshot_refusal};
+use super::worktree_slow_route::{SlowRoute, explain_cheap_refusal, explain_refusal, explain_unsupported};
+use super::worktree_snapshot_source::{SnapshotSource, clone_refusal, snapshot_blocker, snapshot_refusal, source_refusal};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -56,13 +57,15 @@ pub(super) enum Rung {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Ladder = { plan?: AddPlan; rung: Rung };
+/// type Ladder = { plan?: AddPlan; rung: Rung; slow?: SlowRoute };
 /// ```
 pub struct Ladder {
     /// The destination plan, absent when the invocation is not a form the ladder serves.
     pub(super) plan: Option<AddPlan>,
     /// The chosen rung.
     pub(super) rung: Rung,
+    /// Why the add will not be a snapshot, when it will not and a sentence would help; told to the person after Git ran.
+    pub(super) slow: Option<SlowRoute>,
 }
 
 /// What:
@@ -85,35 +88,42 @@ pub struct LadderResult {
 
 /// What:
 ///  Choose the rung for one invocation and prepare it: a snapshot source and the claim on its stage, a clone source, or an
-///  empty subvolume at the destination for Git to fill.
+///  empty subvolume at the destination for Git to fill; with the sentence that says why it is not the snapshot, when it is not.
 /// Why:
 ///   Every check that can be made before Git runs is made now, cheapest first, so a refused rung costs no extra Git run and
-///  each refusal leaves its reason in the log.
+///  each refusal leaves its reason in the log and, in words, with the person once Git has succeeded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function chooseRung(plan: AddPlan, context: GitContext, identity: WorktreeIdentity): Rung;
+/// function chooseRung(plan: AddPlan, context: GitContext, identity: WorktreeIdentity): { rung: Rung; slow?: SlowRoute };
 /// ```
-fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity) -> Rung {
+fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity) -> (Rung, Option<SlowRoute>) {
     let snapshot_refusal: Option<String> = snapshot_refusal(identity, plan);
     let clone_refusal: Option<String> = clone_refusal(identity, plan);
     let reasons = |reason: &str| { debug(TAG, format!("{}: Git checks the worktree out ({reason}; snapshot: {snapshot_refusal:?}; clone: {clone_refusal:?})", plan.destination.display()).as_str()); };
+    // The cheap refusal comes first in the sentence: it is the structural one, which no commit or wait removes.
+    let cheap: Option<SlowRoute> = snapshot_refusal.as_deref().and_then(|reason: &str| { return explain_cheap_refusal(identity, reason); });
     if snapshot_refusal.is_some() && clone_refusal.is_some() {
         reasons("neither a snapshot nor clones apply");
-        return Rung::Git(prepare_subvolume_destination(plan));
+        return (Rung::Git(prepare_subvolume_destination(plan)), cheap);
     }
-    let source: SnapshotSource = match common_source(context, identity) {
+    let source: SnapshotSource = match source_refusal(context, identity) {
         Ok(found) => found,
-        Err(reason) => {
-            reasons(reason.as_str());
-            return Rung::Git(prepare_subvolume_destination(plan));
+        Err(refusal) => {
+            reasons(refusal.reason.as_str());
+            let slow: Option<SlowRoute> = cheap.or_else(|| { return explain_refusal(context, identity, &refusal); });
+            return (Rung::Git(prepare_subvolume_destination(plan)), slow);
         }
     };
     let snapshot_blocked: Option<String> = snapshot_refusal.clone().or_else(|| { return snapshot_blocker(&source); });
+    let mut slow: Option<SlowRoute> = cheap.or_else(|| { return snapshot_blocked.as_deref().map(explain_unsupported); });
     if snapshot_blocked.is_none() {
         match claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()) {
-            Ok(claim) => return Rung::Snapshot(Box::new(source), claim),
-            Err(error) => debug(TAG, format!("the stage cannot be claimed ({}); no snapshot", error.0).as_str()),
+            Ok(claim) => return (Rung::Snapshot(Box::new(source), claim), None),
+            Err(error) => {
+                debug(TAG, format!("the stage cannot be claimed ({}); no snapshot", error.0).as_str());
+                slow = Some(explain_unsupported(format!("the add could not be recorded durably ({})", error.0).as_str()));
+            }
         }
     } else {
         debug(TAG, format!("no snapshot for {} ({:?})", plan.destination.display(), snapshot_blocked).as_str());
@@ -121,12 +131,12 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     if clone_refusal.is_none() {
         // The record comes first: without it a killed add could not be removed, so the rung is not tried.
         match claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()) {
-            Ok(claim) => return Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim),
+            Ok(claim) => return (Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim), slow),
             Err(error) => debug(TAG, format!("the add cannot be recorded ({}); no clones", error.0).as_str()),
         }
     }
     reasons("no rung applies");
-    return Rung::Git(prepare_subvolume_destination(plan));
+    return (Rung::Git(prepare_subvolume_destination(plan)), slow);
 }
 
 /// What:
@@ -139,8 +149,9 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
 /// function beginLadder(plan: AddPlan | undefined, context: GitContext, identity: WorktreeIdentity): Ladder;
 /// ```
 pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &WorktreeIdentity) -> Ladder {
-    let Some(planned) = plan else { return Ladder { plan: None, rung: Rung::Git(None) } };
-    return Ladder { plan: Some(planned.clone()), rung: choose_rung(planned, context, identity) };
+    let Some(planned) = plan else { return Ladder { plan: None, rung: Rung::Git(None), slow: None } };
+    let (rung, slow) = choose_rung(planned, context, identity);
+    return Ladder { plan: Some(planned.clone()), rung, slow };
 }
 
 /// What:

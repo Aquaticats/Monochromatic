@@ -266,11 +266,13 @@ Each finding was checked against the code on main before it was fixed.
 - The three equivalents will appear in `missed.txt` again on a rerun;
   this file is their disposition record.
 
-## Index lock round 4, pass-2 survivors (branch `test/git-policy-cli-index-lock-survivors`)
+## 2026-11-02T21:44:21-05:00: index lock survivors of the rerun against the whole suite
+
+The work is on the branch `test/git-policy-cli-index-lock-survivors`.
 
 The mutation campaign over the 0.5.14 index lock scored 215 mutants;
-pass 1 left 26 missed and pass 2,
-which reran
+the first run left 26 missed and the rerun,
+which ran
 those against the whole suite,
 left 9 (`~/temp/agent/mut-q/index-lock-r4-survivors.txt`).
 No campaign was rerun;

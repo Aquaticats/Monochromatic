@@ -9861,8 +9861,11 @@ by the coordinator at merge.
   at any point you feel we're doing something in the wrong way, ask me." and, on Cargo, "That's probably because
   caches are keyed by worktree path. I couldn't find a way to make it better. If you find a way, tell me."
 - Package managers in use (tracked manifests and `toolchain.lock.json`): pnpm (257 `package.json`, one lockfile),
-  Cargo (34 crates; cargo 1.101 nightly), Gradle (3 builds, Java pinned), mise (281 `mise.toml`), plus pinned uv, Bun,
-  npm and Zig whose on-disk state is not yet measured.
+  Cargo (34 crates; cargo 1.101 nightly), Gradle (3 builds, Java pinned), plus pinned uv, Bun, npm and Zig whose
+  on-disk state is not yet measured. Correction 2026-11-03: mise was listed here by mistake; the owner: "But we're not
+  using Mise as a pkg manager." and "Mise isn't even a tool manager." (it runs tasks only). Missed at first and named
+  by the owner ("did you miss our mpm wrapper?"): `package/mpm-shadow/cli`, which owns `toolchain.plan.jsonc` and
+  `toolchain.lock.json`, installs the pinned tools, and shadows `mpm` (Meta Package Manager).
 - Cargo, measured (`~/temp/agent/cargo-*-probe.ts`; a two-crate workspace with a registry dependency, a build script
   and `env!("CARGO_MANIFEST_DIR")`): `~/.cargo/config.toml` sets `build-dir =
   "/var/mnt/encrypted/cargo-build/{workspace-path-hash}"`, so `target/` holds only final outputs and a new worktree
@@ -9888,3 +9891,182 @@ by the coordinator at merge.
   refused by the layout reader (pinned with tests), findings 2 to 4 fixed with red controls; host 3163 and 532 pass.
   Sent back: the same option-value scan in `restores_index_only` (`command_discard.rs`), `conflict_sides.rs` over 300
   lines, and the pathspec note.
+- Owner decision, verbatim: "I'm widening the pnpm spawning exemption during worktree copy ops to all pkg managers."
+  So during worktree copy operations the wrapper may launch any package manager the repository uses (pnpm, Cargo,
+  uv, Bun, npm, Gradle, Zig, and the `mpm-shadow` toolchain wrapper), not only pnpm. Relayed to the
+  package-manager agent. (An earlier wording listed mise here; corrected the same day, see the package-manager list.)
+- `mpm-shadow` state in worktrees, measured: each worktree has `.cache/toolchain-bin` (links with absolute targets
+  under `~/.local/share`, which resolve after a copy), `.cache/toolchain-launchers`, `toolchain.env.json` and
+  `toolchain.guard`. In the new worktree `.claude/worktrees/remove-path-review-findings`, five copied launchers
+  (`pnpm-shadow`, `mpm-shadow`, `file-enforcer`, `monochromatic-lint`, `search-shadow`) name main's
+  `/var/home/user/Monochromatic/toolchain.lock.json`, not the worktree's own: a branch that changes the toolchain lock
+  would still run main's tool versions and guard. Sent to the package-manager agent to repair with `mpm-shadow`'s own
+  install after the copy.
+- Slow-route explanation done (`fix/git-policy-cli-add-explains-slow-route`, main merged in as `692dcb9f48`, gate 70
+  running): every add that does not become a snapshot prints one line naming the cause and what makes the next add a
+  snapshot (silent with `--quiet`), and the same words go to the journal (`journalctl --identifier=cli-git`, fields
+  `CLI_GIT_WORKTREE`, `CLI_GIT_SLOW_CAUSE`, `CLI_GIT_SLOW_DETAIL`). Debug output: `MONOCHROMATIC_VERBOSE=true`.
+  Correction: my guess that the uncommitted `pnpm-lock.yaml` caused the 23:3x slow adds is refuted (it was committed
+  in `d48e67b24e` at 23:27:06, before both adds); the real cause was not captured. Candidates, inferred: a commit's
+  `index.lock`, or an index entry "as new as the index", which the agent showed refuses even an unmodified file.
+- New measured stall: a main-snapshot add at 23:35 waited about 3 minutes on the worktree-copy settlement lock (PID
+  3051228) and then spent 23:38:50 to 23:43:31 emptying the trash in the foreground after "could not be handed to the
+  service". Sent to the trash agent.
+- Rejected suggestion: pinning `core.fsmonitor=false` in new snapshots (first Git run there took 1.03 s and started a
+  daemon). The owner: "Why are we messing with git's fsmonitor? I already told you it's fine for git to run it."
+- Follow-ups queued: `worktree_slow_route.rs` classifies by matching `check_clean`'s reason text; make the reasons
+  structured in `worktree_clean.rs`. After the content-check re-review returns, let the snapshot rung settle racily
+  clean entries by content (as the conversion does) instead of falling to the slow route.
+- Proposal for the owner (`doc/planning/cli-git-main-worktree-ignored-copy.md`, "Snapshotting a dirty main checkout"):
+  ranking B (snapshot anyway, then `git read-tree --reset -u` and `git clean -f -d` from the snapshot's own index,
+  proven in the stage, falling back on doubt) > A (keep refusing, now with the explanation) > D (a clean spare kept by
+  the service) > C (hand-written restore) > E (commit or stash the person's work).
+- Owner decision 2026-11-03 (question tool): dirty main checkout "B: snapshot, then reset": snapshot anyway, then in
+  the new worktree `git read-tree --reset -u <commit>` and `git clean -f -d` from the snapshot's own index, proven in
+  the stage, falling back to the slow route on any doubt. Assigned to the slow-route agent on a new branch
+  (`feat/git-policy-cli-snapshot-dirty-main`), together with structured clean-check reasons; settling racily clean
+  entries by content waits for the content-check re-review.
+- Conversion re-review returned (`~/temp/agent/review-convert-2/sol-review.txt`, on the merged code): first-round 1, 4,
+  6 (layout), 7, 8 complete; 2, 3, 5 partial. New: P0 a write after the rescue pass is deleted with the old tree; P0
+  the rescue copies newer old-tree files over the installed tree and can overwrite the only copy of an edit; P0
+  identity checks and the operations they authorize resolve names separately (creation-to-recording, check-to-sync,
+  check-to-destroy, installed root); P0 `--abandon` can destroy the stage while the recorded original is no longer at
+  the worktree path, and `Journal.path` is never checked; P0 `Journal::save` renames over whatever is at the journal
+  name; P1 final root unlink can remove a foreign empty directory; P1 old-root identity lacks birth time; P1 nested
+  registration examination fails open; P1 `Removal::Kept` recorded as removed; P2 a FIFO journal hangs under the
+  lock; P2 dry run misreads the exchange-before-journal crash point. Reviewer: "Do not automatically delete the
+  displaced tree unless writers are genuinely excluded through the final verification and deletion interval." The real
+  conversion stays held; design question put to the owner (whether conversion deletes the old tree at all).
+- Owner decision 2026-11-03, verbatim (question-tool note, on whether conversion should delete the old tree given
+  races with concurrent writers): "That is not an our problem. By using this command or this program, make the user
+  understand and accept the risk." Reading adopted (veto open): races caused by other processes changing files or
+  names while the wrapper works (rename or replace mid-operation, writes through open descriptors or shared
+  mappings, edits in the window between check and act) are outside what the wrapper defends against; the wrapper
+  states that risk plainly (command help and docs, a short notice when a destructive command runs, and a general
+  statement for the whole program in the README and SPEC) and keeps fixing its own deterministic bugs. This settles
+  the earlier "no written threat model for same-user processes" gap. Relayed to every running agent.
+- Content-check re-review returned (`~/temp/agent/review-content-2/sol-review.txt`): first-round 1, 2, 6 complete.
+  In scope (deterministic): P0 quoted lines (an `[attr]` substring marks an ordinary line as a macro; a token glued
+  to the closing quote is lost), P0 `GIT_ATTR_SOURCE` / `attr.tree` not modelled, the stat-only
+  `file_differs_from_entry` still follows parent symlinks, P2 FIFO at an attributes path hangs, P2 cubic macro
+  closure, P2 matcher work unbounded. Out of scope by the decision: parent renamed mid-check, shared-mapping writes.
+- Conversion re-review, in scope (deterministic): P1 nested-registration examination fails open, P1 `Removal::Kept`
+  recorded as removed, P1 old-root identity lacks birth time, `Journal.path` never checked (a moved worktree), P2 FIFO
+  journal hang, P2 dry run misreads the exchange-before-journal crash point. Out of scope: the concurrent-writer and
+  rename-race findings; the rescue pass that copies newer old-tree files over the installed tree exists only for
+  concurrent writers and can itself overwrite an edit, so remove its overwriting. QUEUED for the conversion author when
+  an agent slot frees (all five busy). The real conversion waits for these fixes.
+- Owner corrections 2026-11-03, verbatim: "Why are you even using magic numbers at all? There is a way banning
+  this." / "I meant a rule." / "No, you even put "Round 3" or "Round 5" in docs. That's another MGN violation." /
+  "Even just putting the timestamp there is better. There was never any reason to use "Round 3"." / "No no no, a
+  plain date won't cut it. Anything must be precise down to at least the second." Applied: numbered round headings
+  in `doc/planning/cli-git-main-worktree-ignored-copy.md` now start with the strict ISO 8601 time (to the second,
+  with offset, `git log --format=%cI`) of the commit that first wrote them, plus what they cover; references name
+  the heading. An agent is doing the same in `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`,
+  `doc/handover/cli-git-native-reader-fsmonitor.md` and `doc/handover/cli-git-native-service-survivors.md`. Every
+  running agent was told. Still to fix: in `markdown_linter_tests.rs` the test pin
+  `assert_eq!(LINT_DEADLINE, Duration::from_secs(60))` (a production value copied into a test) and the bare numbers
+  in my new comment there; this handover's older entries keep their "round N" labels as historical text (most name
+  review folders such as `review-planted-controls-3`), and new entries use timestamps.
+- 2026-11-03T00:41:28-05:00, merges to main: the slow-route gate (`b40ab62da0`, 3760/3760) and the trash gate
+  (`78928da1f1`, 3748/3748; the two later commits change only the planning doc) passed. Merged as `83adc0b2ab`
+  (slow route) and `14601b28d3` (trash). The trash merge stopped on `package/git-policy/cli/README.md`: the trash
+  branch extended a sentence and the slow-route branch added a paragraph on the next line; resolved by keeping both,
+  the trash text first. Then `74e2c4da64` (the linter test no longer pins `LINT_DEADLINE`, and the stall comment
+  names the gate by commit and time) passed on the host (`native:test:host -- markdown_linter`, 24/24) and merged as
+  `24f6b1bce8`. Main was merged into the conflict-side and remove-path branches cleanly, and their gates run as
+  `gpc-gate-conflict-side-with-main-20261103T003956-0500` and `gpc-gate-remove-path-with-main-20261103T003957-0500`
+  (gate runs are now named by what they cover plus a timestamp, per WHN; logs beside them in `~/temp/agent/gate/`,
+  launcher `~/temp/agent/gate/launch-gate.ts`). On both passes: merge both, gate main, release 0.5.20, install,
+  verify a commit.
+- Owner question 2026-11-03, verbatim: "What is going on with all these conflicts? Shouldn't our wrapper auto
+  resolve non-conflicting conflicts?" Measured with Git 2.56.0 in throwaway repositories
+  (`~/temp/agent/merge-adjacency-probe.ts`): an edit and an insertion on neighbouring lines conflict (the
+  `histogram` algorithm does not help), two sections appended at the end of a file conflict, a true overlap
+  conflicts, and the same edit and insertion with one unchanged line between them merge cleanly. Both conflicts of
+  this segment were of the first two shapes. Today the wrapper forwards `git merge` to Git unchanged, and its own
+  object-only merges (`git merge-tree --write-tree` in auto-push reconciliation and in the commit replay) stop on
+  the same shapes. A research agent is writing `~/temp/agent/research/merge-auto-resolution.md` (mergiraf: licence,
+  languages, library use; whether merge-tree honours merge drivers; the `union` driver; other tools; documented
+  wrong auto-merges). Next: a proposal in `doc/planning/` and a ranked question to the owner. Not decided.
+- Owner request 2026-11-03, verbatim: "Update AGENTS.md to make IOWeight cap at 10 instead of 50." Done in
+  `309ab62095`: AGENTS.md RXS reads "never set `IOWeight` above 10", and the CLAUDE.md preamble source
+  `.config/file-enforcer/claude-preamble.md` now gives the range `<1-10>` and "never above 10" (systemd accepts 1 to
+  10000, default 100, per systemd.resource-control). The two running gates were lowered in place to 10
+  (`systemctl --user set-property --runtime`), `~/temp/agent/gate/launch-gate.ts` now sets 10, and every running
+  agent was told. Older scratch scripts under `~/temp/agent` still set 25 to 100; they are past runs and get the new
+  value if reused. The podman `--blkio-weight` in HXR was not part of the request and is unchanged.
+- 2026-11-03T00:59:50-05:00, main `615abe1db1`: the conflict-side gate (3803/3803) and the remove-path gate
+  (3796/3796), both run with main merged in, passed; each had one SLOW test,
+  `service_landing_state::awkward_change_lists_land_as_native_git_commits_them` (over 60 s, passed) while the two
+  gates ran side by side. Both branches merged into main with no conflict. Main now holds slow route, trash,
+  conflict-side and remove-path; the slow-route worktree was fast-forwarded to it for the combined gate.
+- Disk weight of gate containers, measured 2026-11-03 (`~/temp/agent/podman-io-weight-probe.ts`): both disks use
+  BFQ, which reads `io.bfq.weight`. A systemd scope with `IOWeight=10` sets `io.weight` and `io.bfq.weight` to 10.
+  Rootless podman containers live in their own `libpod-<id>.scope` under `user@1000.service/user.slice`, outside the
+  unit that starts them, so the gate unit's `IOWeight` never reached them; with no option they run at 100 and 100.
+  `--blkio-weight=10` sets `io.bfq.weight` 10 (podman's lowest value; it accepts 10 to 1000) and leaves `io.weight`
+  at 100; `--cgroup-conf=io.weight=10` sets only `io.weight`. The runners' shared
+  `package/mutation-test/cli-cargo-mutants/src/container-limits.ts` passes no disk weight, against AGENTS.md HXR.
+  An agent is adding both options on `fix/mutation-test-cli-cargo-mutants-container-disk-weight` (worktree
+  `.claude/worktrees/container-disk-weight`), with a real-container check. The combined main gate waits for it:
+  merge main into that branch, gate it, merge, release 0.5.20, install, verify a commit.
+- Owner decisions 2026-11-03 on resolving conflicts whose changes only touch (question tool; option labels as
+  chosen): merges a person runs: "Word-level second pass (Recommended)" (after Git stops, re-merge only the
+  conflicted parts word by word, Jujutsu's method; accept a file only when every part resolves; list each merged
+  part on stderr and in the journal). The wrapper's unattended merges (auto-push reconciliation, commit replay):
+  "Second pass there too", against the offered ranking, which recommended keeping Git's result there; every merged
+  part is logged with the commit. Append-only documents: "union for named append-only files", against the offered
+  ranking (no union); which files are named is still open. Where the merge code comes from (port Jujutsu's
+  algorithm on `similar` or `imara-diff`, or link `jj-core` 0.46.0 with 22 required dependencies): "Re-ask this
+  specific question when the agent returns", the agent being the one checking whether `jj-core` exposes its merge
+  publicly; it is also writing `doc/planning/cli-git-merge-auto-resolution.md` from the research report
+  (`~/temp/agent/research/merge-auto-resolution.md`, evidence `~/temp/agent/mergiraf-eval/`). Implementation waits
+  for that answer (rule GXD: dependencies first).
+- Conversion third round done (`fix/git-policy-cli-convert-content-third-review`, commits `5513295bdb` red,
+  `c9e65e8bf4` fixes, `34910352b9` docs): clippy clean, library 3222/3222, binary 528/528, 24 guards each shown red.
+  Dry run on the real repository: 169 worktrees, 103 already subvolumes, 64 would convert, 2 skipped (the real
+  `Cargo.lock` difference, and a worktree a `kopia` process holds). Main merged in; the planning doc's two appended
+  sections (both after the 2026-11-02T23:51:49 section) were kept in time order. The real conversion still waits
+  for this branch's gate and release.
+- Dirty-main snapshot (option B) built on `feat/git-policy-cli-snapshot-dirty-main` (`3a62188647` red,
+  `a7d983512a`, `6d9c8f8403`, `14d2edd4b4`, `f006034334`): clippy clean, unit 3221, binary 539; structured
+  `CleanRefusal` kinds; restore by `read-tree --reset -u` plus `clean` in the stage, proven before the swap; main
+  never written. Measured in btrfs copies of the real main: restore proven at 43.5 s (reset 1103 ms), against the
+  slow route at 142.3 s. Open finding to check against current main: every snapshot add in those runs printed that
+  the trash could not be handed to the service and emptied it in the foreground, and the first add returned after
+  19 min 26 s although the worktree was proven at 61.3 s. The branch started from `692dcb9f48`, before the trash
+  fixes merged in `14601b28d3`, so whether current main still does this is not yet known; measure after main is
+  merged in. Also: a restore that rewrites an LFS file needs `git-lfs` on `PATH`.
+- Merge-code source, 2026-11-03: the planning doc `doc/planning/cli-git-merge-auto-resolution.md` is committed
+  (`39cd8a9b37`, `a1d096e4a8`). Correction to what the owner was first offered: published `jj-core` 0.46.0 does
+  not expose Jujutsu's merge; published `jj-lib` 0.46.0 does (`src/lib.rs:46` `pub mod files`, `src/files.rs:305`
+  `pub fn try_merge`; 36 required dependencies); Jujutsu's diff is its own `core/src/diff.rs` (1804 lines; with
+  `core/src/files.rs` 1132 lines at Jujutsu `08edabb3be`), not `similar` or `imara-diff`. Also corrected: in the
+  README conflict both sides inserted lines after the same sentence and one also extended it. Re-asked with four
+  options (port Jujutsu's code; link `jj-lib`; own merge on `similar`; wait for a `jj-core` release); the owner
+  answered, verbatim: "Do the measurements first then ask." An agent is measuring A, B and C on the same fixtures
+  (correctness against `jj` 0.46.0, port size, crates added, build time, binary size, start cost and merge time with
+  spread, licence duties), report to `~/temp/agent/merge-code-options/report.md`. Then ask again.
+- 2026-11-03T01:35:00-05:00, release 0.5.20 assembly: container disk-weight fix merged to main (`d5a3b2e77c`:
+  `diskWeightArguments()` in `package/mutation-test/cli-cargo-mutants/src/container-limits.ts` adds
+  `--blkio-weight=10 --cgroup-conf=io.weight=10` to every runner `run`/`create`; real-container check showed
+  `io.weight` and `io.bfq.weight` both 10; no workflow runs these runners) plus the linter `mise.toml` inline
+  container starts (`f84121558c`, import checked by running the anchor task up to the missing image). Containers
+  still at the default weight belong to other packages (`package/ide/app`, `search-shadow/cli`,
+  `nested-wayland-session/cli`, `forbidden-strings/cli`, `mutation-test/cli`; `vm-builder/cli` passes 25): not
+  changed, to raise with the owner. Two gates run side by side: conversion with main
+  (`gpc-gate-conversion-with-main-20261103T012855-0500`, branch head `e0b6d03f19`) and the combination of main,
+  conversion and the dirty-main snapshot (`gpc-gate-dirty-snapshot-with-conversion-20261103T013458-0500`, head
+  `d919cb6f49`; host clippy clean, unit 3304, binary 550; the 19-minute foreground trash emptying is gone on the
+  merged build, add returned in 35.1 s). Plan: if the combination passes, merge it (it carries the conversion
+  branch) and release; if only the conversion gate passes, release that.
+- Package-manager branch (`feat/git-policy-cli-package-manager-aware-worktree-copy`, last code `6f91ba7635`): pnpm
+  offline frozen install, Cargo build-dir clone plus `cargo clean -p` (lock restored byte for byte), toolchain
+  repair; host unit 3205, binary 538. Adopted from standing instructions (veto open): failure lines stay visible
+  under `--quiet` (Git's own convention), repairs move out of the settlement lock ("Use as few locks as possible."),
+  uv waits for a uv project. Owner answers 2026-11-03: main `pnpm install`: "Run it now (Recommended)" (running);
+  online toolchain install during an add: "Install online during the add", against the offered ranking, with the
+  retire-other-checkouts consequence stated to the owner; `--ignore-scripts`: "Run scripts as allowBuilds says
+  (Recommended)"; symlink fallback: "No fallback rule (Recommended)". Being measured before asking: which pnpm
+  binary (shadow or direct), the absolute stub link into main, the ten stale `Cargo.lock` files.

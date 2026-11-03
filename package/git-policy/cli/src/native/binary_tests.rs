@@ -176,6 +176,10 @@ mod worktree_snapshot;
 #[path = "binary_worktree_clone_tests.rs"]
 mod worktree_clone;
 
+/// The line that says why an add took the slow way: the cause, the remedy, `--quiet`, and the journal entry.
+#[path = "binary_worktree_slow_route_tests.rs"]
+mod worktree_slow_route;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;
