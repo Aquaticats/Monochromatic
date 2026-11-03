@@ -254,7 +254,7 @@ fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// void child.exited.then(() => locks.sweep());
+/// void child.exited.then(() => locks.sweep(tree));
 /// ```
 pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<std::thread::JoinHandle<()>> {
     return std::thread::Builder::new()
@@ -266,7 +266,7 @@ pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedg
             while tree.iter().any(still_running) {
                 std::thread::sleep(POLL_PAUSE);
             }
-            locks.sweep();
+            locks.sweep(tree.as_slice());
         })
         .inspect_err(|error| {
             debug(TAG, &format!("could not start the thread that sweeps a stopped push's locks: {error}"));
@@ -287,7 +287,7 @@ pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedg
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep();
+/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep(tree.as_slice());
 /// ```
 pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
     // Read before the push is signalled: once it has exited, its helpers and hooks no longer point to it.
@@ -341,13 +341,13 @@ pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (collected && allEnded(tree)) { locks.sweep(); return undefined; } return sweepAfterExit(child, tree, locks);
+/// if (collected && allEnded(tree)) { locks.sweep(tree.as_slice()); return undefined; } return sweepAfterExit(child, tree, locks);
 /// ```
 pub fn settle_locks(child: Child, collected: bool, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<std::thread::JoinHandle<()>> {
     if collected {
         wait_for_tree(tree.as_slice(), grace);
         if tree.iter().all(|member| { return !still_running(member); }) {
-            locks.sweep();
+            locks.sweep(tree.as_slice());
             return None;
         }
     }

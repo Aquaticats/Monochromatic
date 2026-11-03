@@ -959,8 +959,8 @@ Every other pull is native Git's whole (a rebase, `--ff-only`, `--autostash`, `p
 
 Before Git's fast-forward changes anything, the merge waits for any program's hold on `index.lock`
  (the commit service's, a foreign `git`'s, or a lock nothing proves held):
- for as long as a holder proven alive keeps it, and
- 1000 ms for a lock whose owner nothing proves alive, after which it says what it found.
+ for as long as the lock stays there, whether its owner is proven alive or not
+ (the line for an unproven owner says what is known and how to remove the lock if no program uses the repository).
 The notice names the merge, says it has changed nothing yet, names the lock and the holder with its proof
  (an open descriptor or Git's PID file), and repeats every `CLI_GIT_WAIT_NOTICE_SECONDS`.
 No lock is ever removed.
@@ -1023,13 +1023,14 @@ When every conflicted file resolves, the operation is finished the way Git finis
  as Git applies them; a command with an option the wrapper does not read exactly is left stopped with the files staged and
  Git's status.
 What Git printed when it stopped (`CONFLICT` lines) is already out and stays.
-An autostash (`--autostash`, `merge.autoStash`, or a pull's)
- that would conflict when the ending commit applies it stops the
- finish: the merge stays stopped as Git leaves it, with the resolved files staged
- and your work still in `MERGE_AUTOSTASH`,
- because the commit's scratch repository would keep the stash entry and the unmerged entries to itself.
-Known gap: when you conclude such a merge yourself with `git commit`, the same happens and the stash entry is lost
- (the conflict markers are in the worktree files); the control for it is ignored until the stash is carried back.
+An autostash (`--autostash`, `merge.autoStash`, or a pull's) is applied by the commit that ends the finished merge,
+ as in Git.
+When the stash conflicts with the merged files, the merge commit is still made, the stash is kept in your repository as
+ `stash@{0}: autostash`, the files it conflicted in are unmerged in your index with the markers in the worktree,
+ and the exit status is the commit's, as after Git's own apply.
+The same holds when you conclude such a merge yourself with `git commit`,
+ and when you have edited a file the stash touches
+ since the merge stopped (Git's apply then refuses and keeps the whole stash).
 Standard error lists every part that was merged, with the file and the lines in the base, your side and the other side,
  and the text it became:
 
@@ -1077,9 +1078,9 @@ Each of these still ends a commit with a nonzero status, with its cause; none is
 - The branch keeps changing: `LANDING_ATTEMPTS` (3, `service_land.rs`) landings lost to other commits end with
    `BranchKeepsChanging`, and `REBUILD_ATTEMPTS` (`service_commit.rs`) builds by Git on a moved branch end the commit.
 - A commit that concludes a merge, an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
-- `index.lock` is held by an owner nothing proves alive for 1000 ms (a diagnostic lists the evidence),
-  or by a dead one. A holder
-   proven alive is waited for with no bound.
+- `index.lock` is left by a dead owner (Git's lock PID file names a process that is gone; a diagnostic names it).
+  A holder
+   proven alive, or one nothing proves alive, is waited for with no bound.
 - The content a commit captured was pruned from the object store before it landed (`ClientFailure::ContentPruned`).
 - A policy finding at error severity, an empty message or a failing signer. A named path in conflict is no longer one of these: it is committed with the markers it holds and a warning that names it (owner, 2026-11-03: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."). A plain `git commit` with no paths while files are still unmerged finishes the merge the same way, with the markers in those files and the same warning for each (owner, 2026-11-03: "Warn and finish the merge (Recommended)"); Git's "Committing is not possible because you have unmerged files" no longer ends it. `git commit -a` over unmerged files commits their markers and warns for each file in the same words.
 
@@ -1307,8 +1308,7 @@ See "Discarding commands" for the pass.
    default `1000`.
   Inert:
   it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven,
-   and nothing reads it now (the commit service waits as long as a holder is proven alive,
-   and 1000 ms when nothing proves it).
+   and nothing reads it now (the commit service waits for as long as the lock stays there, proven alive or not).
   Older files that set it still load;
   the value is checked and ignored,
    and `git cli-git doctor` names the key and asks for it to be removed.
@@ -1331,9 +1331,13 @@ and never waits without saying so.
 A process that works is waited for however long it takes: a limit ends a wait for quiet, never for slowness.
 It also waits with no limit for a lock holder that is proven alive (an open
 descriptor on the lock, or Git's lock PID file naming a running process), which will let go,
+and for an owner nothing proves
+alive (the person's own `git commit` with its editor open holds the lock so), saying what is known about it,
 and for the commit service for as long
 as it keeps sending heartbeats, once a second.
-An owner nothing proves alive is waited for 1000 ms, and a service that goes silent for five seconds is asked again.
+A service that goes silent for five seconds is asked again. Where no inotify watch can be set,
+the waits poll every 50 ms.
+A unit the service manager reports inactive after the start wait is asked to start.
 These picks were made by the coordinator while the owner was away and are open to the owner's veto
 (`doc/planning/cli-git-shipped-limits-audit.md`, picks 2,
 4,
@@ -1437,6 +1441,8 @@ fractional or non-numeric value is ignored.
    once it is gone the wrapper judges the reference locks of the repository it worked in and removes only those whose holder
    is proven gone (the rules are in the push deadline entry of `SPEC.md`),
    so a later `git fetch` or `git commit` does not fail with "Unable to create ... File exists".
+  A lock whose pid file names a process of the stopped tree is removed on the wrapper's own knowledge that it stopped that
+   process, also inside a container, where the general proof is not available.
   A lock it cannot prove stale, such as an empty lock without a pid file, is left, because a live Git of another program holds
    exactly such a lock for as long as its transaction lasts; the wrapper says what it found and prints the command that clears it.
   The same stop applies to a Git step that shows no sign of work for `CLI_GIT_CHILD_WAIT_SECONDS`.

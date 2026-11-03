@@ -18,7 +18,7 @@ fn handoff(root: &std::path::Path, activation: Activation) -> ServiceHandoff {
             activation,
             start_wait: Duration::from_millis(100),
             heartbeat_silence: Duration::from_secs(1),
-            start_watch: None,
+            start_watch: None, keep_fresh: None,
         },
         repository: root.join("worktree"),
         git_dir: root.join("common"),

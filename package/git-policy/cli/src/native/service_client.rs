@@ -67,6 +67,26 @@ pub struct ClientConfig {
     pub heartbeat_silence: Duration,
     /// How to ask the service manager whether the service failed to start; absent where the client cannot ask.
     pub start_watch: Option<ManagerWatch>,
+    /// A scratch directory of this command to keep from being swept as stale while the command waits.
+    pub keep_fresh: Option<FreshScratch>,
+}
+
+/// What:
+///  A scratch directory a waiting command keeps fresh, and how often.
+/// Why:
+///   The scratch sweep removes entries by age, and a wait with no bound can outlast any age; a waiter that is alive says so by
+///  touching its directory, one that died stops and the sweep collects the directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FreshScratch = { path: string; every: number };
+/// ```
+#[derive(Clone, Debug)]
+pub struct FreshScratch {
+    /// The directory.
+    pub path: std::path::PathBuf,
+    /// How often its modification time is renewed while the command waits.
+    pub every: Duration,
 }
 
 /// What:
@@ -77,7 +97,7 @@ pub struct ClientConfig {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ManagerWatch = { bus: string; unit: string; every: number; hasFailed: (bus: string, unit: string) => boolean };
+/// type ManagerWatch = { bus: string; unit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean };
 /// ```
 #[derive(Clone, Debug)]
 pub struct ManagerWatch {
@@ -87,19 +107,26 @@ pub struct ManagerWatch {
     pub unit: String,
     /// How often the manager is asked while the greeting has not come.
     pub every: Duration,
-    /// Whether the manager reports the unit as failed now; nothing when the manager cannot be asked, which leaves the wait
-    ///  to the start wait.
-    pub has_failed: fn(&std::path::Path, &str) -> Option<bool>,
+    /// The unit's `ActiveState` now (`active`, `activating`, `inactive`, `failed`, ...); nothing when the manager cannot be
+    ///  asked, which leaves the wait to the start wait.
+    pub state: fn(&std::path::Path, &str) -> Option<String>,
+    /// Asks the manager to start the unit; whether the manager took the request.
+    pub start: fn(&std::path::Path, &str) -> bool,
 }
 
 /// How often the service manager is asked whether the service unit failed, while a start is waited for.
 pub const MANAGER_ASK_EVERY: Duration = START_NOTICE_GRACE;
 
-/// Whether the manager reports `unit` as failed: nothing when the bus or the unit cannot be asked about.
-fn unit_has_failed(bus: &std::path::Path, unit: &str) -> Option<bool> {
+/// The manager's `ActiveState` of `unit`: nothing when the bus or the unit cannot be asked about.
+fn unit_state(bus: &std::path::Path, unit: &str) -> Option<String> {
     let mut connection: Bus = Bus::connect(bus, EXCHANGE_WAIT).ok()?;
-    let state: Option<String> = connection.active_state(unit).ok()?;
-    return Some(state.as_deref() == Some("failed"));
+    return connection.active_state(unit).ok()?;
+}
+
+/// Asks the manager to start `unit`; whether the request was taken.
+fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
+    return connection.start_unit(unit).is_ok();
 }
 
 /// What:
@@ -112,7 +139,7 @@ fn unit_has_failed(bus: &std::path::Path, unit: &str) -> Option<bool> {
 /// const watch = managerWatchFor(host)
 /// ```
 pub fn manager_watch_for(host: &ProvisionHost) -> ManagerWatch {
-    return ManagerWatch { bus: host.bus.clone(), unit: service_unit_instance(host.instance.as_str()), every: MANAGER_ASK_EVERY, has_failed: unit_has_failed };
+    return ManagerWatch { bus: host.bus.clone(), unit: service_unit_instance(host.instance.as_str()), every: MANAGER_ASK_EVERY, state: unit_state, start: start_unit };
 }
 
 /// What the client heard from the service in one read.
@@ -202,6 +229,7 @@ fn reach(
     let mut last_asked: Instant = started;
     let mut failed_answers: u32 = 0;
     let mut cannot_ask: bool = false;
+    let mut last_start_request: Option<Instant> = None;
     loop {
         trace.tries += 1;
         match connect(&config.address) {
@@ -243,9 +271,19 @@ fn reach(
             Some(watch) => {
                 if last_asked.elapsed() >= watch.every {
                     last_asked = Instant::now();
-                    let answer: Option<bool> = (watch.has_failed)(watch.bus.as_path(), watch.unit.as_str());
+                    let answer: Option<String> = (watch.state)(watch.bus.as_path(), watch.unit.as_str());
+                    // A unit still `inactive` after the start wait, with the client's connection waiting on its socket, is one the
+                    //  manager did not start; it is asked to, again after each further start wait, and the client goes on waiting.
+                    // A unit that is `activating` is being started and is left alone.
+                    if answer.as_deref() == Some("inactive")
+                        && started.elapsed() >= config.start_wait
+                        && last_start_request.is_none_or(|at| { return at.elapsed() >= config.start_wait; })
+                    {
+                        let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
+                        last_start_request = Some(Instant::now());
+                    }
                     cannot_ask = answer.is_none();
-                    failed_answers = if answer == Some(true) { failed_answers + 1 } else { 0 };
+                    failed_answers = if answer.as_deref() == Some("failed") { failed_answers + 1 } else { 0 };
                 }
                 // One answer of "failed" can be the unit's last run, before the connection made the manager start it again.
                 if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) {
@@ -383,6 +421,17 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let mut holder: Option<String> = None;
     let mut service_seen: bool = false;
     let mut last_break_was_silence: bool = false;
+    // The scratch directory of a command that waits is renewed at once and then as often as the config says, whatever the
+    //  service sends, so a wait longer than the sweep's age never has its directory swept.
+    let mut last_renewed: Option<Instant> = None;
+    let mut renew_scratch = |settings: &ClientConfig| {
+        if let Some(fresh) = settings.keep_fresh.as_ref()
+            && last_renewed.is_none_or(|at| { return at.elapsed() >= fresh.every; })
+        {
+            super::scratch_location::renew(fresh.path.as_path());
+            last_renewed = Some(Instant::now());
+        }
+    };
     loop {
         let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach, service_seen)?;
         service_seen = true;
@@ -397,9 +446,14 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             continue;
         }
         trace.sends += 1;
+        renew_scratch(config);
         let written_at: Instant = Instant::now();
         let answered: Option<Result<Submitted, ClientFailure>> = loop {
-            match listen(&mut reader) {
+            let heard: Heard = listen(&mut reader);
+            if matches!(heard, Heard::Message(_)) {
+                renew_scratch(config);
+            }
+            match heard {
                 Heard::Message(ServiceMessage::Position { number, of }) => {
                     if last_position != Some(number) {
                         last_position = Some(number);

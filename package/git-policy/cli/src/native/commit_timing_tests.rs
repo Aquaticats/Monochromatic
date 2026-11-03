@@ -274,7 +274,7 @@ fn the_holder_kind_follows_what_the_notice_says() {
     let proven: String = crate::index_lock_evidence::proven_holder_line(42, true, Some("git"), Path::new("/r/.git/index.lock"));
     assert_eq!(holder_kind_of(proven.as_str()), "proven-alive");
     assert_eq!(
-        holder_kind_of(crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), Duration::from_secs(1)).as_str()),
+        holder_kind_of(crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None).as_str()),
         "unproven"
     );
     assert_eq!(

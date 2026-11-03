@@ -333,6 +333,7 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
             start_wait: START_WAIT,
             heartbeat_silence: HEARTBEAT_SILENCE,
             start_watch: provision.as_ref().map(manager_watch_for),
+            keep_fresh: None,
         },
         repository: watch.layout.worktree_root.clone(),
         git_dir: watch.layout.git_dir.clone(),

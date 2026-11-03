@@ -2048,3 +2048,71 @@ reader could answer without a Git start. A fast-forward or a merge of nothing no
 ### Needs the owner's decision
 
 1. Whether the pull's queries are to be answered in process to bring a fast-forwarding pull toward native Git's time.
+
+## 2026-11-03T12:13:49-05:00: the conflict warning reads the content, and the conflicted autostash is carried back
+
+### The conflict-marker warning
+
+Seen live in the shipped 0.5.27: a path resolved by editing and not staged, committed by name during a merge,
+ was reported as
+still holding conflict markers although the committed blob had none, and the remedy given (another commit of the path)
+ never
+finishes the merge. `conflict_markers.rs` now reads the committed blob and the `conflict-marker-size` attribute
+ (seven by
+default) and claims markers only for a blob that has a line of equal `<`
+ or `>` characters of that size followed by white
+space, as Git's `is_conflict_marker` reads it (a line of `=` alone underlines a heading and is not a claim).
+ A commit of named
+paths that leaves a merge or a cherry-pick open now says so in one line with the commands that finish it, whether
+ or not markers
+were committed. Red before the code:
+ `a_resolved_but_unstaged_path_committed_by_name_makes_no_marker_claim_and_says_how_to_finish`,
+`a_path_committed_by_name_with_marker_lines_keeps_the_claim_and_says_the_merge_is_open` and
+`the_claim_follows_the_conflict_marker_size_attribute`; green after, with the five existing controls of
+`binary_commit_during_merge_tests.rs` and four unit controls.
+
+### Carry-back A
+
+Git's apply of a merge's autostash runs inside the commit's scratch repository. When it conflicts,
+ its `git stash store` writes the
+scratch repository's `refs/stash` and the conflict stages stay in the commit's private index.
+ The scratch repository writes its
+objects into the real object store, so nothing is copied: `autostash_carry.rs` stores the stash in the repository
+ (once, with the
+`autostash` message) from `remove_conclusion_state`, and puts the stages into the index the landing installs,
+ in `follow_up`, under
+the lock the landing holds. `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` was red
+ (empty stash
+list, `M` for `UU`) and is green with its ignore removed; removing either half fails it (the stash list,
+ then the status).
+The finish's own decline of a conflicting autostash (pick B) is kept: with carry-back it could be retired,
+ and the finish would
+then end like Git's, which is the owner's choice to make.
+
+## 2026-11-03T12:28:44-05:00: option B retired, the finish applies a conflicting autostash as Git does
+
+The coordinator's pick under the owner's delegation (veto open), because of "Auto merging should never fail.":
+ with carry-back A
+the finish needs no dry run. `autostash_blocks_finish`
+ and its unit control are removed from `merge_second_pass_finish.rs`,
+`merge_second_pass_worktree.rs` and `merge_second_pass_finish_tests.rs`; nothing else used the dry run.
+Red first, with B in place: `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it` and
+`a_pull_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
+ rewritten to compare the end state with a twin
+repository on which real Git stops, the resolution is made as the word pass makes it, and `git commit` concludes
+ (stash list,
+status, merged file, the second file, and the commit's exit status); the wrapper had left the merge stopped (status 1,
+ not the
+commit's 0). Green after the removal,
+ with `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` and
+the clean-apply controls unchanged.
+The case B's dry run did not model, unsaved changes in the worktree to a file the stash touches, is compared with Git in
+`a_commit_over_unsaved_changes_to_a_stash_file_keeps_the_stash_as_git_keeps_it`:
+ a file the stash touches is written again after
+the merge stopped, Git's apply refuses and keeps the whole stash, and the wrapper's commit ends identically.
+ That control passed
+before the removal too, because it goes through the person's commit, which carry-back A already covered;
+ the finish makes the same
+commit, so it is the same end.
+ A finish cannot meet such unsaved changes unless another program writes the file in the moment
+between the pass and the commit; that interleaving is not constructed.

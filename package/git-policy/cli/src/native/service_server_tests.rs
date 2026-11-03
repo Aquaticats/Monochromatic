@@ -190,7 +190,6 @@ fn a_restart_says_each_batch_it_settled() {
         git: GitContext { real_git: std::path::PathBuf::from("/usr/bin/git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None },
         journal,
         on_objects_written: None,
-        index_wait: std::time::Duration::from_secs(1),
     };
     let entries = crate::service_timing::capture::entries_of(|| { let _reports = settle_open_batches(&context, None); });
     assert_eq!(entries.len(), 1, "{entries:?}");

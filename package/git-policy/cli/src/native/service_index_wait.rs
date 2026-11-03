@@ -14,6 +14,7 @@
 //! ```
 
 use super::service_index_lock::{LOCK_MARKER, Watch, lock_path_of};
+use super::service_index_watch::POLL_PAUSE;
 use super::service_index_marker::{holder_is_running, mark_names_a_gone_holder, marker_of};
 use super::wait_progress::{Cadence, Ticker};
 use std::io::{Read, Write};
@@ -188,8 +189,6 @@ fn wait_with_watches(real_index: &Path, command: &str, cadence: Cadence, out: &m
         if holder_of(&lock) != Holder::Service {
             return if held { Waited::Released } else { Waited::NotHeld };
         }
-        // Without a watch there is nothing to block on, and polling is not what this wait is for.
-        let Some(active) = watch.as_ref() else { return Waited::NotHeld };
         // A holder the mark names and the system no longer has will never release the lock, however young the lock is.
         if mark_names_a_gone_holder(&lock) {
             let _noted = out.write_all(gone_line(command).as_bytes()).and_then(|()| { return out.flush(); });
@@ -209,11 +208,21 @@ fn wait_with_watches(real_index: &Path, command: &str, cadence: Cadence, out: &m
             // A closed terminal is not a reason to stop the command the person asked for.
             let _noted = out.write_all(waiting_line(command, elapsed).as_bytes()).and_then(|()| { return out.flush(); });
         }
-        if !active.wait(ticker.next_in(elapsed).max(Duration::from_millis(1)), lock_name.as_os_str()) {
-            // The watch ended with its directory or by the directory being moved: the ended watch is dropped first, because a
-            //  new one may need the descriptor and the quota it holds, then the lock is looked at again with a new watch set.
-            drop(watch.take());
-            watch = lock.parent().and_then(set_watch);
+        let pause: Duration = ticker.next_in(elapsed).max(Duration::from_millis(1));
+        match watch.as_ref() {
+            Some(active) => {
+                if !active.wait(pause, lock_name.as_os_str()) {
+                    // The watch ended with its directory or by the directory being moved: the ended watch is dropped first, because
+                    //  a new one may need the descriptor and the quota it holds, then the lock is looked at again with a new watch set.
+                    drop(watch.take());
+                    watch = lock.parent().and_then(set_watch);
+                }
+            }
+            // No watch could be set: the lock is looked at again after a poll pause, and a watch is tried again each time.
+            None => {
+                std::thread::sleep(pause.min(POLL_PAUSE));
+                watch = lock.parent().and_then(set_watch);
+            }
         }
     }
 }

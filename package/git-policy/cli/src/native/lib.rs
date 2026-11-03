@@ -924,9 +924,6 @@ pub mod signal_relay;
 /// The per-branch file name of the push failure notice: a reversible, flat, case-safe key.
 pub mod auto_push_branch_key;
 
-/// How long an `index.lock` whose owner cannot be proven alive or dead is looked at again before the wait ends.
-pub mod unproven_backoff;
-
 /// The shared clock of every wait notice: the grace, the repeat interval and a queued commit's place in line.
 pub mod wait_progress;
 
@@ -1364,6 +1361,12 @@ pub mod service_hold_retry;
 
 /// The commit command's path through the commit service.
 pub mod service_commit;
+
+/// The marker lines a committed file still holds, and the line about an operation a commit left open.
+pub mod conflict_markers;
+
+/// The stash and conflict stages Git's apply of an autostash left in the commit's scratch repository, carried back.
+pub mod autostash_carry;
 
 /// The service's memory of when the bytes of the commits it landed were captured, per worktree.
 pub mod service_captures;

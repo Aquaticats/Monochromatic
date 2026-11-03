@@ -11,7 +11,8 @@
 //! const outcome = await submit(config, request); // while the fake service sends beats, however long
 //! ```
 
-use git_policy_cli::service_client::{Activation, ClientConfig, ManagerWatch, Submitted, submit};
+use git_policy_cli::scratch_location::{SCRATCH_STALE_AFTER, sweep_stale};
+use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit};
 use git_policy_cli::service_messages::{ClientFailure, SILENT_NOTICE};
 use git_policy_cli::service_protocol::{
     ALLOWED_MODES, Change, CommitRequest, PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_service,
@@ -94,7 +95,7 @@ fn config(name: &str) -> ClientConfig {
         activation: Activation::Managed,
         start_wait: PATIENCE,
         heartbeat_silence: QUICK_SILENCE,
-        start_watch: None,
+        start_watch: None, keep_fresh: None,
     };
 }
 
@@ -165,14 +166,33 @@ fn a_service_that_stops_sending_heartbeats_ends_the_wait_and_the_request_is_sent
 /// Whether the fake manager says the unit failed.
 static MANAGER_SAYS_FAILED: AtomicBool = AtomicBool::new(false);
 
+/// Whether the fake manager says the unit is inactive (it is `activating` otherwise).
+static MANAGER_SAYS_INACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// How many times the fake manager was asked to start the unit.
+static START_REQUESTS: AtomicUsize = AtomicUsize::new(0);
+
 /// The fake manager's answer.
-fn fake_manager(_bus: &Path, _unit: &str) -> Option<bool> {
-    return Some(MANAGER_SAYS_FAILED.load(Ordering::SeqCst));
+fn fake_manager(_bus: &Path, _unit: &str) -> Option<String> {
+    let word: &str = if MANAGER_SAYS_FAILED.load(Ordering::SeqCst) {
+        "failed"
+    } else if MANAGER_SAYS_INACTIVE.load(Ordering::SeqCst) {
+        "inactive"
+    } else {
+        "activating"
+    };
+    return Some(String::from(word));
+}
+
+/// The fake manager takes a request to start the unit and counts it.
+fn fake_start(_bus: &Path, _unit: &str) -> bool {
+    START_REQUESTS.fetch_add(1, Ordering::SeqCst);
+    return true;
 }
 
 /// A watch on the fake manager that asks quickly.
 fn watched(name: &str) -> ClientConfig {
-    let watch: ManagerWatch = ManagerWatch { bus: PathBuf::from("/nowhere/bus"), unit: String::from("cli-git@fake.service"), every: Duration::from_millis(50), has_failed: fake_manager };
+    let watch: ManagerWatch = ManagerWatch { bus: PathBuf::from("/nowhere/bus"), unit: String::from("cli-git@fake.service"), every: Duration::from_millis(50), state: fake_manager, start: fake_start };
     return ClientConfig { start_wait: OLD_START_WAIT, heartbeat_silence: PATIENCE, start_watch: Some(watch), ..config(name) };
 }
 
@@ -223,19 +243,92 @@ fn a_service_that_starts_late_is_waited_for_while_the_manager_does_not_say_faile
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
 }
 
+/// A unit the manager reports `inactive` after the start wait, while the socket holds the client's connection and nothing starts
+/// it, is started by the client's request to the manager; the client goes on waiting and the service then answers. A unit the
+/// manager reports `activating` is never asked to start.
+#[test]
+fn an_inactive_unit_is_asked_to_start_after_the_start_wait_and_an_activating_one_is_not() {
+    let name: String = address("inactive-unit");
+    START_REQUESTS.store(0, Ordering::SeqCst);
+    MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);
+    MANAGER_SAYS_INACTIVE.store(false, Ordering::SeqCst);
+    let waiting = client(watched(name.as_str()));
+    // Activating for several start waits: the manager is starting the unit itself, so the client does not ask.
+    std::thread::sleep(OLD_START_WAIT * 4);
+    assert_eq!(START_REQUESTS.load(Ordering::SeqCst), 0, "an activating unit is not asked to start");
+    MANAGER_SAYS_INACTIVE.store(true, Ordering::SeqCst);
+    let began: Instant = Instant::now();
+    while START_REQUESTS.load(Ordering::SeqCst) == 0 {
+        assert!(began.elapsed() < PATIENCE, "an inactive unit was never asked to start");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!waiting.is_finished(), "asking the manager to start the unit ends no wait");
+    // The manager started the service: it listens, greets and answers.
+    let service: UnixListener = listen(name.as_str());
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let commit: String = "e".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    let (answered, _notices) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
+    MANAGER_SAYS_INACTIVE.store(false, Ordering::SeqCst);
+}
+
 /// A manager that cannot be asked leaves the wait to the start wait, as before.
 #[test]
 fn a_manager_that_cannot_be_asked_leaves_the_wait_to_the_start_wait() {
     let name: String = address("unaskable");
-    fn unreachable_manager(_bus: &Path, _unit: &str) -> Option<bool> {
+    fn unreachable_manager(_bus: &Path, _unit: &str) -> Option<String> {
         return None;
     }
     let mut unaskable: ClientConfig = watched(name.as_str());
-    unaskable.start_watch = unaskable.start_watch.map(|watch| { return ManagerWatch { has_failed: unreachable_manager, ..watch }; });
+    unaskable.start_watch = unaskable.start_watch.map(|watch| { return ManagerWatch { state: unreachable_manager, ..watch }; });
     let service: UnixListener = listen(name.as_str());
     let held = std::thread::spawn(move || { return service.accept().map(|(stream, _)| { return stream; }); });
     let (answered, _notices) = client(unaskable).join().expect("client thread");
     assert_eq!(answered, Err(ClientFailure::DidNotStart));
     drop(UnixStream::connect_addr(&SocketAddr::from_abstract_name(name.as_bytes()).expect("name")));
     drop(held);
+}
+
+/// A command that waits on the service keeps its scratch directory from aging out: the sweep that removes entries older than
+/// `SCRATCH_STALE_AFTER` finds a waiter's directory fresh however long the wait lasts, and removes the same directory of a
+/// command that is no longer waiting (the positive control).
+#[test]
+fn a_waiting_command_keeps_its_scratch_directory_from_being_swept() {
+    let name: String = address("keeps-scratch");
+    let fixture: super::support::Fixture = super::support::fixture("heartbeat-keeps-scratch");
+    let root: PathBuf = fixture.root.join("scratch-root");
+    let waiting_dir: PathBuf = root.join("waiting");
+    let left_behind: PathBuf = root.join("left-behind");
+    std::fs::create_dir_all(&waiting_dir).expect("waiting directory");
+    std::fs::create_dir_all(&left_behind).expect("left-behind directory");
+    // Both directories are two stale ages old, as a wait of more than a day would make them.
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - SCRATCH_STALE_AFTER * 2;
+    for directory in [&waiting_dir, &left_behind] {
+        std::fs::File::open(directory).expect("open").set_modified(long_ago).expect("age");
+    }
+    let service: UnixListener = listen(name.as_str());
+    let mut fresh_config: ClientConfig = config(name.as_str());
+    fresh_config.keep_fresh = Some(FreshScratch { path: waiting_dir.clone(), every: FAKE_BEAT });
+    let waiting = client(fresh_config);
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    let began: Instant = Instant::now();
+    while began.elapsed() < FAKE_BEAT * 8 {
+        (&stream).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    // The sweep runs while the command still waits.
+    let removed: usize = sweep_stale(root.as_path(), std::time::SystemTime::now(), SCRATCH_STALE_AFTER);
+    let commit: String = "f".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    let (answered, _notices) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
+    assert!(waiting_dir.exists(), "the waiting command's directory was swept");
+    assert!(!left_behind.exists(), "the positive control: a directory nobody keeps fresh is swept");
+    assert_eq!(removed, 1);
+    super::commit::remove_settled(&fixture);
 }

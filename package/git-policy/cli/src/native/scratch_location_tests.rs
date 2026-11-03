@@ -271,3 +271,27 @@ fn a_private_directory_is_left_untouched() {
     assert_eq!(mode_of(scratch.as_path()), 0o1700);
     remove(root.as_path());
 }
+
+/// A directory whose modification time is renewed is not swept however old it was, and one that is not renewed is.
+#[test]
+fn a_renewed_entry_survives_the_sweep_and_an_unrenewed_one_does_not() {
+    let root: std::path::PathBuf = fixture("scratch-renew");
+    let kept: std::path::PathBuf = root.join("kept");
+    let left: std::path::PathBuf = root.join("left");
+    std::fs::create_dir_all(&kept).expect("kept");
+    std::fs::create_dir_all(&left).expect("left");
+    let long_ago: SystemTime = SystemTime::now() - SCRATCH_STALE_AFTER * 2;
+    for directory in [&kept, &left] {
+        std::fs::File::open(directory).expect("open").set_modified(long_ago).expect("age");
+    }
+    renew(kept.as_path());
+    assert_eq!(sweep_stale(root.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER), 1);
+    assert!(kept.exists() && !left.exists());
+    remove(root.as_path());
+}
+
+/// The renewal comes many times in the stale age, so a sweep at any moment finds a waiter's entry well inside it.
+#[test]
+fn the_renewal_pace_is_far_inside_the_stale_age() {
+    assert!(SCRATCH_REFRESH_EVERY * 2 < SCRATCH_STALE_AFTER, "{SCRATCH_REFRESH_EVERY:?}");
+}

@@ -222,9 +222,9 @@ An older file that sets one still loads, and the value is checked and ignored.
   non-negative safe integer,
   default `1000`.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
-  The service's wait for a foreign `index.lock` replaced it: a holder proven alive is waited for with no bound,
-  and an owner
-  nothing proves alive for a fixed 1000 ms (`src/native/unproven_backoff.rs`), which this key no longer sets.
+  The service's wait for a foreign `index.lock` replaced it:
+  a holder proven alive and an owner nothing proves alive are both
+  waited for for as long as the lock stays there, and this key no longer sets anything.
   `git cli-git doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
   positive safe integer,
@@ -1485,20 +1485,18 @@ which is gone.
   file)"), repeats every notice interval with the time so far,
   and says the wait lasts as long as the process holds the lock.
 - An owner nothing proves alive:
-  waited for `UNPROVEN_OWNER_BACKOFF` (1000 ms, ten times the longest hold measured for Git's own `status`, `add -A`,
-  `reset`
-  and `update-index --refresh` in this repository on 2026-11-03: 100 ms;
-  the measurement is in `src/native/unproven_backoff.rs`).
-  The wait then stops with a diagnostic that lists what was found (processes with the lock open,
-  the Git lock PID file), says
-  nothing was changed, leaves the lock in place, and names the file to remove when no program is using the repository.
-  The merge then reports what Git says; the commit service fails the commit with the lock's code and the message
-  "Another program is using this repository's index".
-  The fixed backoff replaces the record's quadratic backoff with jitter;
-  the key `indexLock.unprovenOwnerTimeoutMs` stays
-  retired (see the configuration section above).
+  waited for like one proven alive, with no bound (delegated follow-up pick 1, 2026-11-03).
+  The person's own `git commit` with its editor open holds `index.lock` with no proof,
+  so any bound would make our commit fail
+  after that bound.
+  The line says what is known ("whose owner cannot be proven alive (no process has the lock open,
+  and no Git lock PID file
+  beside it ...)"), repeats every notice interval, and names the file to remove when no program is using the repository,
+  which is the one case the wait cannot end by itself.
+  This replaces the 1000 ms backoff and the diagnostic of the first version of these picks; the key
+  `indexLock.unprovenOwnerTimeoutMs` stays retired (see the configuration section above).
 - A dead owner (the PID file names a process that no longer runs):
-  nothing will release the lock, so the wait stops at once with the same kind of diagnostic naming the process.
+  nothing will release the lock, so the wait stops at once with a diagnostic naming the process.
   This deviates from the record, which gives a dead owner the same backoff as an unproven one.
 - The service's own hold, for a forwarded `git add`, `rm` or `mv`:
   a hold whose mark proves the service runs is waited for with no bound;
@@ -1508,11 +1506,17 @@ which is gone.
   The earlier 60 seconds took those live holds for leftovers.
 - The index reconciliation of a commit whose corrections left no change waits like the merge does;
   `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) now cover only a lock that was gone by the time it was looked at.
+- Where no inotify watch can be set (the watch limit is reached, or the file system gives none), the merge wait,
+  the landing
+  and the forwarded writers' wait for the service's hold poll every `POLL_PAUSE` (50 ms)
+  and try for a watch again each time,
+  instead of failing the commit or running the command into Git's refusal.
+  The pause is a poll pace, classed as exempt in the audit.
 
 Not built here: the owner's chosen answer for a commit that meets a live foreign `index.lock`, "Same as the ref lock
 (Recommended)" (a commit lands and exits 0 and the index catches up when the lock frees).
 It comes with the commits-never-fail design.
-Until then a commit behind an owner nothing proves alive, or a dead one, still fails with the diagnostic.
+Until then a commit behind a dead owner still fails with the diagnostic; one behind any other owner waits.
 
 The wait for the commit service has no clock of the client's own:
 
@@ -1538,14 +1542,23 @@ The wait for the commit service has no clock of the client's own:
   ten times
   the slowest of 52 measured cold starts, 1041 ms) as before.
   The wait for an older service to retire keeps `START_WAIT` too.
+  A unit the manager reports `inactive` once `START_WAIT` has passed (the socket holds the connection and nothing
+  starts the
+  service) is asked to start through the manager, again after each further `START_WAIT`;
+  a unit that is `activating` is left
+  alone (delegated follow-up pick 3).
 - The protocol version is 6: a service of the version before sends no heartbeat,
   and the client retires it as it retires any
   service of another release.
 - A deadlocked landing thread behind a live connection thread is not detected by this beat;
   only a service that stops as a
-  process, or freezes, is. A unit that stays `inactive` after a connection, with the socket still listening,
-  is not detected
-  either (open questions in the audit).
+  process, or freezes, is (open question in the audit).
+- A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`,
+  a twenty-fourth of
+  the stale age) at each message from the service, so the scratch sweep never removes the directory of a command that is
+  still waiting, however long the wait; a directory whose command died stops being renewed and ages out as before
+  (delegated
+  follow-up pick 4). Scratch files that have no name are not swept at all.
 
 #### Commands that add commits
 
@@ -1887,8 +1900,15 @@ in-process reader can) gives every value of the multi-valued keys.
   which writes no pid file, holds an empty lock with no descriptor open for as long as its transaction lasts, so neither
   the lifetime of the stopped child, the birth time of the lock nor its being empty ties the lock to that child, and a pid
   file older than the lock names an earlier holder.
-  A lock the child left with a pid file that names it is removed by the same proof as any other (the process is gone), once
-  it is older than the margin; a younger one is judged by the next fetch or push of the repository, which judges first.
+  A lock whose pid file names a process of the stopped tree that has ended is removed on the wrapper's own proof: the wrapper
+  started that process, stopped it and saw it end, so the number is one of its own PID namespace and names a process that is
+  gone, and this needs no view of the whole machine, which a container lacks (the container gate found the sweep leaving the
+  lock of the wrapper's own stopped child when it required one).
+  The proof holds only when the pid file was born at or after the lock (an older pid file names an earlier holder, and must
+  not vouch for a newer foreign lock), the lock was born after the child started, and nothing in the process table has the
+  number again; it needs no margin, because the holder is known to be gone.
+  A lock whose pid file names any other process is judged by the proofs below, once it is older than the margin; a younger
+  one is judged by the next fetch or push of the repository, which judges first.
   A lock without a pid file is left, and the notice names it with the command that clears it.
   Only reference locks are looked at: `index.lock`, `shallow.lock`, object and pack locks are neither removed nor mentioned.
   The repository is the one of the child's working directory or its `GIT_DIR`; a step that names its repository with
@@ -2098,9 +2118,25 @@ would be read as a reference), so the private name is never written over;
 the identity of what was moved is compared with the judged one;
 a match is removed, and a difference is put back with a hard link, which fails instead of replacing a lock that has been
 created at the path since (that file is then left under its private name and the wrapper says so).
-Two wrappers that judge the same lock at the same time therefore cannot remove a lock that a live Git created between them.
-The one cost is that a file that was not the judged one is missing from its path for the moment between the move and the
-put back; a Git that tries to rename that lock into place in that moment fails loudly, and loses nothing.
+Two wrappers that judge the same lock at the same time therefore cannot delete a lock that a live Git created between them.
+The step does not make the removal safe against every schedule, and the residue is open for the owner (the ninth design
+review, finding R9-S, 2026-11-03).
+If, between the judgement and the move, another cleaner removes the judged lock and a live Git creates a new one at the path,
+the move takes that live lock away from its path for the moment before the put back.
+A Git that tries to rename that lock into place in that moment fails loudly and loses nothing.
+But if a third Git creates a lock at the path in that moment, the put back fails (it never replaces), two Gits then each
+believe they hold the lock of one reference, and the wrapper only reports the displaced file.
+The second identity check just before the move leaves a window of microseconds instead of the length of the judgement, and
+the schedule needs three writers and another cleaner inside it, but it is not closed: Linux has no removal of a path
+conditional on the file that stands there.
+The choice, made for now under the owner's delegation, is to keep removing on a proof; the owner is to be asked whether
+to leave all removal to the person, with the command, instead.
+The fix of 2026-11-03 for the container (the wrapper's own proof above) does not change the step, so each removal has the
+same residue as before; it makes more removals happen (a container now removes the lock of its own stopped child, and a
+young lock of an ended child is judged without waiting out the margin), so it widens the number of occasions and narrows
+nothing.
+The occasions it adds have the fewest chances of the schedule: the lock is the freshest, and the sweep that judges it is
+the first cleaner to look.
 The pid file, and for `packed-refs.lock` the staging file `packed-refs.new` that Git creates with `O_EXCL` while it holds that
 lock (`refs/packed-backend.c:1398`), are looked at before the lock is judged and go through the same step after the lock has
 been removed, each against that earlier look, so a pid file or staging file that a live Git made at the same paths in
@@ -2946,10 +2982,10 @@ Each commit passes through three phases:
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
     A holder proven alive is waited for with no bound.
-    An owner nothing proves alive is waited for 1000 ms and a dead one not at all;
-    either ends the commit before the branch moved,
+    An owner nothing proves alive is waited for the same way, and a dead one not at all;
+    a dead owner ends the commit before the branch moved,
     removing the batch's intent and scratch branch,
-    with a diagnostic that lists the evidence and a plain message naming the process
+    with a diagnostic naming the dead process and a plain message
     ("Waits on a lock holder and on the service", in "Merges and commits never fail").
     The variable belongs in the environment of the unit that runs the service.
 3.  After landing:
@@ -3539,6 +3575,18 @@ even if conflict markers will be committed."):
 the commit takes the bytes the worktree holds, conflict markers included,
 and once it has landed standard error says in plain words that the path still has conflict markers,
 that they were committed, and how to fix them in a follow-up commit.
+That claim is made only for a path whose committed blob holds a marker line as Git writes it
+(`conflict_markers.rs`: the size of `conflict-marker-size` from the attributes, seven by default, equal `<`
+ or `>` characters
+followed by white space, as Git's `is_conflict_marker` reads a line); a path the person resolved by editing,
+ with no marker line
+left, is counted as resolved and nothing is said about markers for it.
+Whenever a commit of named paths leaves a merge or a cherry-pick in progress, with markers committed or not,
+ standard error
+carries one more line that says so and names how to finish it: stage any file still unmerged,
+ then `git commit` with no paths,
+or `git merge --continue` (`git cherry-pick --continue`);
+ a follow-up commit of the path alone never finishes the operation.
 The merge stays unfinished, and the index entry of that path is the committed one.
 A plain `git commit` that names no paths while files are still unmerged finishes the merge (owner, 2026-11-03, question tool:
 "Warn and finish the merge (Recommended)"):
@@ -3930,19 +3978,23 @@ What Git does after a clean run, from the Git 2.56.0 source:
   `MERGE_AUTOSTASH` after it concludes the merge (`builtin/commit.c` line 1982), as a clean merge's `finish` does
   (`builtin/merge.c` line 1848). The wrapper's commit builds the commit in a shadow repository, which now holds a private copy of
   `MERGE_AUTOSTASH`; landing removes the real pseudoref when the shadow consumed it (`conclusion_cleanup.rs`).
-  The wrapper's own finish dry-runs the apply first (`write-tree`,
-  then `merge-tree --write-tree --merge-base=<stash>^1 <tree> <stash>`,
-  `autostash_blocks_finish` in `merge_second_pass_finish.rs`) and does not finish when it conflicts
-  or cannot be tried, so the merge
-  stays stopped with the work in `MERGE_AUTOSTASH`.
-  A stash whose apply conflicts when the person concludes the merge with
-  their own `git commit` is stored by Git in the shadow's private `refs/stash`,
-  and its unmerged index entries stay in the private
-  index; neither is carried back, so the real stash list stays empty and the files show as modified, not unmerged
-  (the conflict
-  markers are in the worktree files).
-  The control `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it`
-  states Git's result and is ignored: fixed by carry-back A, queued after the index writer's third round. A
+  A stash whose apply conflicts when the commit concludes the merge (the finish's, or the person's own `git commit`)
+  is stored by Git in the
+  scratch repository's private `refs/stash`, with its conflict stages in the commit's private index.
+  The landing carries both back
+  (`autostash_carry.rs`): the stash is stored in the repository with `git stash store -m autostash` (once;
+  the objects are
+  already in the repository's store, because the scratch repository writes there),
+  by `remove_conclusion_state` before it removes
+  the pseudoref, and the stages are put into the index the landing installs, under the lock it holds (`follow_up` in
+  `service_land.rs`).
+  The finish therefore ends a conflicting autostash as Git does and declines nothing (the dry run of the apply that once
+  declined it was retired). The controls `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
+  `a_pull_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
+  `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` and
+  `a_commit_over_unsaved_changes_to_a_stash_file_keeps_the_stash_as_git_keeps_it` compare the stash list, the status,
+  the files and
+  the exit status with a twin repository that real Git runs. A
   `branch.<name>.mergeoptions` value of the checked-out branch is split as Git splits it (`alias.c` lines 126 to 180) and read
   before the command line (`merge.c` lines 1407 to 1409), so `--no-commit`, `--squash`, `--edit` or `-m` set there is honoured.
   Hooks: the wrapper switches every hook event off in every Git it starts, so a user's hooks see nothing on a clean merge and

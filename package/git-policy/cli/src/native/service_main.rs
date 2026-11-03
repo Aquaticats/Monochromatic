@@ -65,7 +65,6 @@ fn main() {
         git: GitContext { real_git: git, overlay: git_policy_cli::child_environment::lockfile_pid_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
         on_objects_written: None,
-        index_wait: git_policy_cli::unproven_backoff::UNPROVEN_OWNER_BACKOFF,
     };
     let idle: Duration = option(&arguments, "--idle-seconds")
         .and_then(|text| { return text.parse::<u64>().ok(); })
@@ -83,7 +82,7 @@ fn main() {
     // The single service of the earlier releases kept one journal above every instance's own: this worktree's open batches in
     //  it are finished before the first connection is accepted.
     if let (Some(instance), Some(shared)) = (settings.instance.as_deref(), context.journal.parent()) {
-        let earlier: LandContext = LandContext { git: context.git.clone(), journal: shared.to_path_buf(), on_objects_written: None, index_wait: context.index_wait };
+        let earlier: LandContext = LandContext { git: context.git.clone(), journal: shared.to_path_buf(), on_objects_written: None };
         let _reports = recover_instance(&earlier, instance);
         // Nothing reads that journal's finished batches any more; the newest are kept and the rest go, so it stops growing.
         let _pruned = prune_done(shared, DONE_RETAINED);

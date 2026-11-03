@@ -21,6 +21,7 @@ use super::service_journal::{INDEXED_EXTENSION, Indexed, Intent, Recovery, OPEN_
 use super::service_land_start::split_by_start;
 use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait, remove_stale, try_acquire};
 use super::service_timing::{LandTiming, wait_line};
+use super::autostash_carry::carry_stages;
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
 use super::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
@@ -39,9 +40,6 @@ pub struct LandContext {
     pub journal: PathBuf,
     /// Test seam: called after the batch's objects exist and before the branch moves.
     pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
-    /// How long a landing looks again at an index lock whose holder cannot be proven alive or dead before it gives up with nothing
-    ///  changed; a holder proven alive is waited for with no bound.
-    pub index_wait: std::time::Duration,
 }
 
 /// What became of one request of a batch.
@@ -159,6 +157,13 @@ fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLo
     let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), &lock, intent.seq) else {
         return false;
     };
+    // The files a conflicted autostash apply left unmerged are unmerged in the index the landing installs.
+    if let Some(cleanup) = intent.cleanup.as_ref()
+        && !carry_stages(git, repository, cleanup, built.as_path())
+    {
+        let _removed = std::fs::remove_file(&built);
+        return false;
+    }
     let recorded = || -> std::io::Result<()> { return mark_indexed(journal, intent.seq, intent.new.as_str()); };
     return lock.release_with_record(built.path(), &recorded).is_ok() && cleaned;
 }
@@ -369,7 +374,7 @@ pub fn land_batch_timed(
         //  the index stays as it was.
         let waiting_since: Instant = Instant::now();
         let mut notes: WaitNotes = WaitNotes::default();
-        let taken = acquire_noting_wait(first.index.as_path(), seq, context.index_wait, announce, &mut notes);
+        let taken = acquire_noting_wait(first.index.as_path(), seq, announce, &mut notes);
         let waited: std::time::Duration = waiting_since.elapsed();
         timing.lock_wait += waited;
         // A pass over the batch that found the lock free has nothing to add to what an earlier pass found held.

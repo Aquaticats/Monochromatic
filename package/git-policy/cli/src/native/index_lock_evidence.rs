@@ -467,25 +467,6 @@ pub fn proven_holder_progress_line(pid: i64, by_descriptor: bool, command: Optio
     );
 }
 
-/// What:
-///  The line that says a lock's owner cannot be proven alive and for how long it is looked at again.
-/// Why:
-///   Nothing proves the lock held and nothing proves it abandoned, so the wait is short and the person is told what it ends
-///  in.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function unprovenWaitLine({ lockPath, backoffMs }): string;
-/// ```
-pub fn unproven_wait_line(lock_path: &Path, backoff: std::time::Duration) -> String {
-    return format!(
-        "cli-git: waiting for {}, whose owner cannot be proven alive; this waits {} milliseconds in all and then stops waiting \
-         and says what it found.\n",
-        lock_path.display(),
-        backoff.as_millis()
-    );
-}
-
 /// What the evidence says about the lock's owner, in words that fit after "found".
 fn evidence_words(evidence: &Evidence) -> String {
     let descriptors: String = match &evidence.holders {
@@ -506,40 +487,25 @@ fn evidence_words(evidence: &Evidence) -> String {
 }
 
 /// What:
-///  The diagnostic for a lock whose owner could not be proven alive in the time it was looked at.
+///  The line that says a lock's owner cannot be proven alive, what is known about it, and what a person can do.
 /// Why:
-///   The wait ends with the evidence listed and every way out named, so the person never has to guess why it stopped: a
-///  program may still hold the lock, or a killed one may have left it.
+///   An owner nothing proves alive is waited for like one proven alive, with no bound, because the person's own `git commit`
+///  with its editor open holds the lock exactly so; the line says what was looked at and names the file to remove if no program
+///  is using the repository, which is the only case the wait cannot end by itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unprovenDiagnostic({ evidence, waitedSeconds, consequence }): string;
+/// function unprovenWaitLine({ lockPath, evidence }): string;
 /// ```
-pub fn unproven_diagnostic(evidence: &Evidence, waited_seconds: u64, consequence: &str) -> String {
+pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>) -> String {
+    let known: String = match evidence {
+        Some(found) => format!(" ({})", evidence_words(found)),
+        None => String::from(" (the evidence about its owner could not be read)"),
+    };
     return format!(
-        "cli-git: {lock} was still there after {waited_seconds} seconds and nothing proves a program holds it: {words}. \
-         {consequence}; nothing was changed and the lock was left in place. If a program is still using this repository, \
-         wait for it to finish and run the command again; if none is, the lock was left by a program that was killed, and \
-         removing the file {lock} lets the command run.\n",
-        lock = evidence.lock_path.display(),
-        words = evidence_words(evidence)
-    );
-}
-
-/// What:
-///  The diagnostic for a lock that stays and whose evidence could not be read at all.
-/// Why:
-///   The person is told the lock was not looked into, which is different from a lock that was looked into and showed no owner.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function unreadableDiagnostic({ lockPath, waitedSeconds, consequence }): string;
-/// ```
-pub fn unreadable_diagnostic(lock_path: &Path, waited_seconds: u64, consequence: &str) -> String {
-    return format!(
-        "cli-git: {lock} was still there after {waited_seconds} seconds and the evidence about its owner could not be read. \
-         {consequence}; nothing was changed and the lock was left in place. If a program is still using this repository, \
-         wait for it to finish and run the command again; if none is, removing the file {lock} lets the command run.\n",
+        "cli-git: waiting for {lock}, whose owner cannot be proven alive{known}; this waits for as long as the lock stays there. \
+         If no program is using this repository, the lock was left by a program that was killed, and removing the file {lock} \
+         lets the command run.\n",
         lock = lock_path.display()
     );
 }
