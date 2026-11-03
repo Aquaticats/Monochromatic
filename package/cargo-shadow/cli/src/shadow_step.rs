@@ -133,7 +133,7 @@ use crate::catalog_warning::warn_about_manifest;
 /// ```
 use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};
 /// What:
-/// `use crate::git_base::{base_from_environment, git_base_lock_reader};` imports `base_from_environment`,
+/// `use crate::git_base::{explicit_base_from_environment, git_lock_reader_at, resolve_trust_base};` imports `base_from_environment`,
 /// `git_base_lock_reader` from another module of this crate so this file can name them unqualified.
 /// Why:
 /// `base_from_environment` is used by `lock_base_reader`;
@@ -143,7 +143,7 @@ use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};
 /// ```ts
 /// import { base_from_environment, git_base_lock_reader } from 'crate/git_base';
 /// ```
-use crate::git_base::{base_from_environment, git_base_lock_reader};
+use crate::git_base::{explicit_base_from_environment, git_lock_reader_at, resolve_trust_base};
 /// What:
 /// `use crate::http::UreqFetcher;` imports `UreqFetcher` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -575,13 +575,13 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // ```ts
     // function f(registry: Registry) { ... }  // an interface type
     // ```
-    let lock_base: Option<OwnedLockBaseFactory> = lock_base_factory(&catalog_root, &document);
+    let (trust_base, lock_base): (String, Option<OwnedLockBaseFactory>) = trust_base_setup(&catalog_root, &document, in_ci);
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
     return Ok(Some(Prepared {
         start,
         lock_base,
-        trust_base: base_from_environment(),
+        trust_base,
         runner: RealCargo { program, toolchain },
         // Borrow `&catalog_root`: lends the value without copying or giving it away.
         // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
@@ -613,23 +613,37 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
 pub type OwnedLockBaseFactory = Box<dyn Fn() -> Result<LockBaseReader, String>>;
 
 /// What:
-/// `pub fn lock_base_factory(catalog_root, document) -> Option<OwnedLockBaseFactory>` makes the maker of the base-revision
-/// lockfile reader when the catalog sets `trustLockfile = true`, and `None` otherwise.
+/// `pub fn trust_base_setup(catalog_root, document, in_ci) -> (String, Option<OwnedLockBaseFactory>)` chooses the trust base
+/// under `trustLockfile = true` and returns the key a remembered pass is filed under, with the maker of the lockfile reader.
 /// Why:
-/// Review finding (the freshness stamp): git must not start on a call whose checks are all remembered, so the base is
-/// resolved only when the factory is called; its spelling (`CARGO_SHADOW_TRUST_BASE`) is read once, here.
+/// Delegated pick (2026-11-03): a local run compares with the upstream branch, CI keeps its base, and the key is the resolved
+/// commit, not how the base is spelled, so a base that moves is a different base. A base that names no commit yields the
+/// key `unresolved:<spelling>` and a factory that says why, so only a check that needs the base fails.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function lockBaseFactory(catalogRoot: string, document: CatalogDocument): (() => Reader) | undefined
+/// export function trustBaseSetup(catalogRoot: string, document: CatalogDocument, inCi: boolean): [string, (() => Reader) | undefined]
 /// ```
-pub fn lock_base_factory(catalog_root: &Path, document: &CatalogDocument) -> Option<OwnedLockBaseFactory> {
+pub fn trust_base_setup(catalog_root: &Path, document: &CatalogDocument, in_ci: bool) -> (String, Option<OwnedLockBaseFactory>) {
     if !document.settings.trust_lockfile {
-        return None;
+        return (String::new(), None);
     }
+    let base = resolve_trust_base(catalog_root, in_ci, explicit_base_from_environment().as_deref());
+    let key: String = match &base.commit {
+        Ok(commit) => commit.clone(),
+        Err(_) => format!("unresolved:{}", base.spelling),
+    };
     let root: PathBuf = catalog_root.to_path_buf();
-    let base: String = base_from_environment();
-    return Some(Box::new(move || { return git_base_lock_reader(&root, &base); }));
+    let factory: OwnedLockBaseFactory = Box::new(move || {
+        return match &base.commit {
+            Ok(commit) => {
+                eprintln!("cargo-shadow: comparing lockfiles with {} ({commit})", base.spelling);
+                Ok(git_lock_reader_at(&root, commit))
+            }
+            Err(message) => Err(message.clone()),
+        };
+    });
+    return (key, Some(factory));
 }
 
 /// What:

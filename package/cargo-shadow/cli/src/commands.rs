@@ -158,17 +158,15 @@ use crate::real_binary::find_real_cargo;
 /// ```
 use crate::registry::CratesIo;
 /// What:
-/// `use crate::shadow_step::lock_base_factory;` imports `lock_base_factory` from another module of this crate so this file can name it unqualified.
+/// `use crate::shadow_step::trust_base_setup;` imports `trust_base_setup` from another module of this crate so this file can name it unqualified.
 /// Why:
-/// `lock_base_factory` is used by `run_command`.
+/// `trust_base_setup` is used by `run_command`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { lock_base_factory } from 'crate/shadow_step';
+/// import { trust_base_setup } from 'crate/shadow_step';
 /// ```
-use crate::shadow_step::lock_base_factory;
-/// Imports `base_from_environment`, which reads how the base revision is spelled.
-use crate::git_base::base_from_environment;
+use crate::shadow_step::trust_base_setup;
 /// What:
 /// `use crate::toolchain::cargo_toolchain;` imports `cargo_toolchain` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -572,8 +570,7 @@ pub fn run_command(command: Command) -> i32 {
             };
             // `match`: picks the arm whose pattern fits the value.
             // Borrow `&root`: lends the value without copying or giving it away.
-            let reader = lock_base_factory(&root, &document);
-            let trust_base: String = base_from_environment();
+            let (trust_base, reader) = trust_base_setup(&root, &document, is_continuous_integration(&std::env::var("CI").unwrap_or_default()));
             let outcome = install_rust_lockfiles(&InstallRequest {
                 // Borrow `&root`: lends the value without copying or giving it away.
                 root: &root,

@@ -126,24 +126,22 @@ use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles};
 /// ```
 use crate::lockfile::direct_dependency_names;
 /// What:
-/// `use crate::shadow_step::{Prepared, lock_base_factory, now_millis, prepare};` imports `Prepared`,
-/// `lock_base_factory`,
+/// `use crate::shadow_step::{Prepared, now_millis, prepare};` imports `Prepared`,
 /// `now_millis`,
 /// `prepare` from another module of this crate so this file can name them unqualified.
 /// Why:
 /// `Prepared` is used by `run_update_command`,
 /// `run_full_update`,
 /// `run_update`;
-/// `lock_base_factory` is used by `run_update_command`;
 /// `now_millis` is used by `run_update_command`,
 /// `run_update`;
 /// `prepare` is used by `run_update_command`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Prepared, lock_base_factory, now_millis, prepare } from 'crate/shadow_step';
+/// import { Prepared, now_millis, prepare } from 'crate/shadow_step';
 /// ```
-use crate::shadow_step::{Prepared, lock_base_factory, now_millis, prepare};
+use crate::shadow_step::{Prepared, now_millis, prepare};
 /// What:
 /// `use crate::tighten::FileEnforcer;` imports `FileEnforcer` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -360,7 +358,6 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
             };
             // `match`: picks the arm whose pattern fits the value.
             // Borrow `&prepared.document`: lends the value without copying or giving it away.
-            let reader = lock_base_factory(root, &prepared.document);
             let outcome = install_rust_lockfiles(&InstallRequest {
                 root,
                 // Borrow `&crate_dirs`: lends the value without copying or giving it away.
@@ -375,7 +372,7 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
                 runner: &prepared.runner,
                 // Borrow `&prepared.registry`: lends the value without copying or giving it away.
                 registry: &prepared.registry,
-                lock_base: reader.as_deref(),
+                lock_base: prepared.lock_base.as_deref(),
                 trust_base: &prepared.trust_base,
                 known_consistent: false,
             });

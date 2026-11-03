@@ -55,13 +55,11 @@ pub const BASE_VARIABLE: &str = "CARGO_SHADOW_TRUST_BASE";
 /// The base used when the variable is absent or empty.
 pub const DEFAULT_BASE: &str = "HEAD";
 
-/// The base revision from the environment.
-pub fn base_from_environment() -> String {
-    return match std::env::var(BASE_VARIABLE) {
-        Ok(found) if !found.trim().is_empty() => found.trim().to_string(),
-        _ => DEFAULT_BASE.to_string(),
-    };
-}
+/// The upstream branch of the current branch, the first base a local run tries.
+const UPSTREAM_BASE: &str = "@{upstream}";
+
+/// The remote default branches a local run tries when the current branch has no upstream.
+const DEFAULT_REMOTE_BASES: [&str; 2] = ["origin/main", "origin/master"];
 
 /// What:
 /// `fn git_start_failure(error: std::io::Error) -> String` words the failure to start `git`.
@@ -75,44 +73,6 @@ pub fn base_from_environment() -> String {
 /// ```
 fn git_start_failure(error: std::io::Error) -> String {
     return format!("could not start git: {error}");
-}
-
-/// What:
-/// `pub fn git_base_lock_reader(root: &Path, base: &str) -> Result<Box<dyn Fn(&str) -> String>, String>` resolves the base to a
-/// commit once and returns a reader of `<commit>:<crate>/Cargo.lock`.
-/// Why:
-/// A base that is not a commit is an error naming the remedy (in CI,
-/// fetch it first);
-/// a lockfile absent at the base reads as the
-/// empty string,
-/// so every version it holds counts as new.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export async function createGitBaseLockReader({ root, base }): Promise<ReadBaseLock>
-/// ```
-pub fn git_base_lock_reader(root: &Path, base: &str) -> Result<Box<dyn Fn(&str) -> String>, String> {
-    let resolved = Command::new("git")
-        .args(["rev-parse", "--verify", "--end-of-options", &format!("{base}^{{commit}}")])
-        .current_dir(root)
-        .output()
-        .map_err(git_start_failure)?;
-    if !resolved.status.success() {
-        return Err(format!(
-            "The verification base {base:?} is not a commit in this repository: {}\nSet {BASE_VARIABLE} to a revision that exists locally (in CI, fetch it first), or leave it unset to compare with HEAD.",
-            String::from_utf8_lossy(&resolved.stderr).trim()
-        ));
-    }
-    let commit: String = String::from_utf8_lossy(&resolved.stdout).trim().to_string();
-    eprintln!("cargo-shadow: comparing lockfiles with {base} ({commit})");
-    let root_path = root.to_path_buf();
-    return Ok(Box::new(move |crate_dir: &str| -> String {
-        let object: String = format!("{commit}:{crate_dir}/{LOCKFILE_NAME}");
-        return match Command::new("git").args(["show", &object]).current_dir(&root_path).output() {
-            Ok(shown) if shown.status.success() => format!("{}\n", String::from_utf8_lossy(&shown.stdout)),
-            _ => String::new(),
-        };
-    }));
 }
 
 /// How a trust base was chosen and what it resolved to.
@@ -150,19 +110,36 @@ fn resolve_commit(root: &Path, base: &str) -> Result<String, String> {
 /// What:
 /// `pub fn resolve_trust_base(root, in_ci, explicit) -> TrustBase` chooses the revision whose lockfiles count as trusted.
 /// Why:
-/// An explicit `CARGO_SHADOW_TRUST_BASE` wins; otherwise CI compares with `HEAD`.
+/// An explicit `CARGO_SHADOW_TRUST_BASE` wins; otherwise CI compares with `HEAD` and a local run with `@{upstream}`,
+/// else `origin/main`, else `origin/master`, else `HEAD`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function resolveTrustBase(root: string, inCi: boolean, explicit?: string): TrustBase
 /// ```
-pub fn resolve_trust_base(root: &Path, _in_ci: bool, explicit: Option<&str>) -> TrustBase {
-    let spelling: String = match explicit {
-        Some(found) if !found.trim().is_empty() => found.trim().to_string(),
-        _ => DEFAULT_BASE.to_string(),
-    };
-    let commit: Result<String, String> = resolve_commit(root, &spelling);
-    return TrustBase { spelling, commit };
+pub fn resolve_trust_base(root: &Path, in_ci: bool, explicit: Option<&str>) -> TrustBase {
+    // An explicit base wins everywhere.
+    if let Some(found) = explicit
+        && !found.trim().is_empty()
+    {
+        let spelling: String = found.trim().to_string();
+        let commit: Result<String, String> = resolve_commit(root, &spelling);
+        return TrustBase { spelling, commit };
+    }
+    // CI keeps its base.
+    if in_ci {
+        let commit: Result<String, String> = resolve_commit(root, DEFAULT_BASE);
+        return TrustBase { spelling: DEFAULT_BASE.to_string(), commit };
+    }
+    // Delegated pick (2026-11-03): a local run compares with what is already on the upstream branch, so a lockfile that arrived
+    // with a commit not pushed yet is new since the base; the first candidate that names a commit wins.
+    for candidate in [UPSTREAM_BASE, DEFAULT_REMOTE_BASES[0], DEFAULT_REMOTE_BASES[1]] {
+        if let Ok(commit) = resolve_commit(root, candidate) {
+            return TrustBase { spelling: candidate.to_string(), commit: Ok(commit) };
+        }
+    }
+    let commit: Result<String, String> = resolve_commit(root, DEFAULT_BASE);
+    return TrustBase { spelling: DEFAULT_BASE.to_string(), commit };
 }
 
 /// What:
@@ -185,4 +162,21 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
             _ => String::new(),
         };
     });
+}
+
+/// What:
+/// `pub fn explicit_base_from_environment() -> Option<String>` is the base named by `CARGO_SHADOW_TRUST_BASE`, when it is set
+/// and not blank.
+/// Why:
+/// CI sets it to the pushed range's previous commit or the pull request's base; it wins over every default.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const explicitBaseFromEnvironment = (): string | undefined => process.env.CARGO_SHADOW_TRUST_BASE?.trim() || undefined;
+/// ```
+pub fn explicit_base_from_environment() -> Option<String> {
+    return match std::env::var(BASE_VARIABLE) {
+        Ok(found) if !found.trim().is_empty() => Some(found.trim().to_string()),
+        _ => None,
+    };
 }
