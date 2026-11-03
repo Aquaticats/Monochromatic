@@ -1,12 +1,10 @@
 # Automatic resolution of "non-conflicting" merge conflicts in the Git wrapper
 
 Status:
-proposal.
-The owner answered three of four decisions on 2026-11-03 (recorded in "Owner decisions of 2026-11-03");
-the fourth,
-where the merge code comes from,
-is open and is to be asked again with the source check in this document.
-Nothing is implemented and nothing in `package/git-policy/cli` was changed.
+decided and implemented on `feat/git-policy-cli-word-level-second-merge-pass` (see the last section,
+"Implemented: the word-level second merge pass").
+The first part of this document is the research that preceded the decisions and is kept as it was written;
+"Owner decisions of 2026-11-03" and the sections after "merge-code options measured" record what the owner chose.
 Scope:
 `package/git-policy/cli` (crate `monochromatic-git-policy-cli`,
 licence `LGPL-3.0-or-later` in its `Cargo.toml`),
@@ -1618,3 +1616,120 @@ arms `arm-a`,
   which tree supplies attributes to `git merge-tree` in the wrapper's
   object-only merges,
   so that the union line also applies there.
+
+## 2026-11-03T03:39:36-05:00: implemented, the word-level second merge pass
+
+Implemented in `package/git-policy/cli` on `feat/git-policy-cli-word-level-second-merge-pass` as the owner decided
+(question tool, 2026-11-03): the pass for merges a person runs, the same pass in the wrapper's unattended merges,
+the merge code of the wrapper's own on `similar` 3.2.1 with the Myers diff, and the `union` line of `doc/handover/*.md`
+applying in the merges from objects.
+The rules are in `SPEC.md` ("Word-level second merge pass") and the user's view in `README.md`.
+
+### What was built
+
+- `src/native/word_merge.rs`: the prototype of the measurement (`arm-c-myers`) with the report of the merged regions
+  (line spans in base, ours and theirs, and the merged text).
+  The 41 inputs of the stored corpus (`src/native/word_merge_corpus/`: the 44 of the measurement without the three large
+  benchmark inputs `large_spec_*`, whose 520 KB of text a test does not need) get Jujutsu 0.46.0's verdict and, when resolved,
+  its bytes; the README conflict of merge `14601b28d3` resolves to the committed blob; both-append stays a conflict.
+  The 600 seeded random edit pairs of the measurement are not repeated: they compared two programs, and the `jj` binary is not
+  in the tests; a generated property (no inserted word and no base word is dropped, both verdicts occur) replaces them.
+- `src/native/merge_second_pass.rs`: which conflicted files may be re-merged (all three stages, one plain-file mode, no NUL
+  byte in the first 8000 bytes, at most 1 MiB, `merge` attribute unspecified, set or `text`), the re-merge, the blob and
+  tree writing, and the report words.
+  The 8000 bytes are Git's own binary probe; the 1 MiB is this implementation's bound on the cost of a diff of two
+  unrelated large files, not a measured value.
+- `src/native/merge_second_pass_worktree.rs`: merge, rebase, cherry-pick and revert forwarded to Git.
+  `src/native/index_writer_forward.rs` reads the unmerged paths in process before Git starts and again when Git exits with
+  a status other than 0; the paths unmerged only afterwards are the pass's, so a file a person is resolving by hand is never replaced.
+- `src/native/merge_second_pass_tree.rs`: the pass for merges from objects, used by `merge_isolation.rs` (the isolated merge),
+  `auto_push_reconcile.rs` (the reconcile merge) and `replay_merge.rs` with `service_replay.rs` (the commit replay),
+  and the attribute source.
+
+### Where the second pass runs, with file and function
+
+- A person's merge, rebase, cherry-pick, revert: `run_coordinated_forward` in `index_writer_forward.rs`, after Git's status
+  is known (`watch_before` and `resolve_after`).
+  `git pull` is not included: its merge runs inside Git and the owner named four commands.
+- The isolated merge (`git merge` with another session's staged index): `merge_tree` in `merge_isolation.rs`.
+- The reconcile merge: `commit_merge` in `auto_push_reconcile.rs`.
+- The commit replay: `merge_captured` in `service_replay.rs`, last, after the subsumption rules and their second merge
+  (`word_pass`), so a captured file that already holds the landed edit is still settled by subsumption first.
+
+### Which tree supplies the attributes
+
+`GIT_ATTR_SOURCE` is set to the first side's tip for the three merges from objects (the isolated merge's `HEAD`, the reconcile
+merge's branch tip, the landed tip of a replay), unless the environment already sets it.
+Reasons: the planning measurement showed that a bare or worktree-less `git merge-tree` reads no `.gitattributes` without a
+source; the first side is the branch whose checkout would apply its attributes; Git takes one tree only, so a `.gitattributes`
+that only the second side has is not read; the variable beats `attr.tree`, so a person's `attr.tree` is overridden (a person's own
+`GIT_ATTR_SOURCE` is kept).
+The same source makes the second pass's `git check-attr` agree with the merge.
+The controls: a both-append in `doc/handover/log.md` merges by `union` in the reconcile merge and in the replay merge when the
+checkout holds no `.gitattributes`, which conflicts without the source.
+
+### Logging
+
+- Standard error: one line per part, `cli-git: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines>
+  became "<text>"`, and for a person's merge a closing line that names the staged files.
+- Journal: one `warning` entry per merged file (`SYSLOG_IDENTIFIER=cli-git`), fields `CLI_GIT_WORD_MERGE_FILE`,
+  `CLI_GIT_WORD_MERGE_OPERATION` and `CLI_GIT_WORD_MERGE_PARTS`.
+- "With the commit" for the unattended merges, as implemented: the reconcile merge commit's message ends with the part lines;
+  the replayed commit's message is the person's and is not changed, so the replay reports the parts in a new `word-merged` event
+  next to the commit's other events (`SPEC.md`, "Word merged event").
+
+### Measurements
+
+Method: the unchanged baseline executable (`e27dd206de`, built with `mise run //package/git-policy/cli:build`) and the new one
+(`5d7d068382`'s code; the executable is 224632 bytes larger, 12526832 against 12751464) run alternately, with a second copy of
+the baseline in every round as the same-binary control that gives the run-to-run spread (rule QNB), on the shared host at a load
+average between 14 and 21 (nobody waits for a quiet host).
+Scratch scripts, not in the repository: `${HOME}/temp/agent/wlmp/merge-perf.ts` and the raw samples in `merge-perf-*.json`,
+`nperf-*.json`; they do not survive a reboot reliably.
+
+- A merge Git completes by itself (`git merge --no-edit`, 400 tracked files, 60 rounds): medians 20.80 ms (baseline), 21.34 ms
+  (second baseline copy), 21.18 ms (new), 16.57 ms (real Git without the wrapper).
+  New minus baseline: +0.38 ms; baseline copy minus baseline: +0.54 ms; the interquartile range of one arm is about 1.7 ms.
+  The difference is inside the spread.
+- The same with 20000 tracked files (30 rounds): 340.9, 360.2, 358.9 and 338.3 ms; new minus baseline +18.0 ms, baseline copy
+  minus baseline +19.3 ms, interquartile range about 100 ms.
+  The in-process read of the index before Git starts is inside the spread there too; it is not separated from it.
+- A merge Git stops on, with an edit and an insertion right after it (400 files, 60 rounds): the baseline stops with the conflict
+  at 18.44 ms; the new executable resolves it in 24.85 ms, +6.41 ms for the five Git starts of the pass (`check-attr`,
+  `cat-file --batch`, `hash-object`, `update-index`, `checkout-index`).
+  At 20000 files the difference (+15.3 ms) is inside that run's spread (+7.7 ms between the two baseline copies).
+- `mise run //package/git-policy/cli:native:perf` (30 samples per scenario), eight runs of each executable, alternating
+  (baseline, new, baseline, new, then new, baseline, baseline, new, new, baseline, baseline, new, new, baseline, baseline, new):
+  commit through the service, paired delta median: baseline 41.3 ms (run medians 40.3 to 57.0), new 43.0 ms (40.5 to 76.2),
+  +1.7 ms; signed commit: baseline 51.4 ms, new 54.6 ms, +3.3 ms.
+  The forwarded commands' added p95 stays about 2 ms (baseline medians of the run p95s 1.8 to 2.1 ms, new 2.0 to 2.5 ms).
+  The largest paired commit delta seen was 876 ms for the baseline and 3878 ms for the new executable (one loaded run),
+  against the bound of 5000 ms; the signed maximum was 1328 ms and 767 ms.
+  So a commit through the new executable is about 1.7 ms (4 percent) slower in the median in these runs, more than the 0.4 ms
+  between two baseline runs but inside the 40 to 45 ms range of the baseline's run medians; the cause was not isolated
+  (the commit path has no new code except one `Option` in the preparation; the executable is 1.8 percent larger).
+  Every bound of the tool held.
+- Tests at `7b26167ecd` (the last code change; later commits add one control and remove a duplicate guard): the whole library
+  suite 3340 passed and 5 skipped, the whole binary suite 557 passed and 1 skipped, Clippy clean.
+- Guard removal (each guard removed in turn, the controls that must fail run, the file restored): every guard listed in the commit
+  messages failed at least one control, after two additions (the isolated merge refused whole, and the redundant early driver skip removed).
+
+
+### Needs the owner's decision
+
+1. After a person's merge where every conflicted file resolved, the wrapper stages the files and keeps Git's exit status
+   (the operation is not finished: `git commit`, `--continue`). Finishing the operation itself (`git commit --no-edit`)
+   was not done; it is the broader reading of "accept a file".
+2. `git pull` (its inner merge or rebase) is not covered.
+3. The attribute source is the first side's tip; a merged `.gitattributes` of both sides is not built, and `attr.tree` is overridden.
+4. The merged blobs and trees are written with `git hash-object`, `read-tree`, `update-index` and `write-tree` (the spawns the
+   crate already uses for this), not in process; that is only on the conflict path. Writing loose objects in process is possible
+   (the crate has an inflate and a SHA-1 and SHA-256 already, and `miniz_oxide` can deflate) and would remove those starts.
+5. The 1 MiB and 8000-byte bounds of the candidate test are this implementation's choices.
+6. The replay's journal entries are sent when the merge is used, before the policies run again on the merged tree, so a commit
+   that a policy then refuses still has its entries.
+7. The entries carry the identifier `cli-git` (the wrapper's), also the ones the replay sends from inside `cli-git-service`;
+   the service's own entries carry its own identifier.
+8. A commit through the new executable is about 1.7 ms slower in the median (see "Measurements"); the owner's bound
+   (five seconds longer than native Git) holds by three orders of magnitude, but the cause of the 1.7 ms is not isolated.
+9. The corpus holds 41 of the 44 measured inputs and no random-edit comparison against the `jj` binary (see "What was built").
