@@ -30,10 +30,11 @@
 use std::fs;
 /// Imports the borrowed and owned path types.
 use std::os::unix::fs::MetadataExt;
+/// Imports `std::path::{Path, PathBuf}` for this file.
 use std::path::{Path, PathBuf};
 
 /// Imports the parsed configuration and the lexer entry point.
-use crate::git_config::{ConfigEntry, ParsedConfig, parse_config};
+use crate::git_config::ParsedConfig;
 // What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
 // Why:      The code below names these items directly instead of spelling their full paths each time.
 //
@@ -45,7 +46,10 @@ use crate::git_config::{ConfigEntry, ParsedConfig, parse_config};
 use crate::git_objects::OBJECT_NAME_DIGITS;
 // Imports `crate::git_refspec::{is_plain_ref_name, map...`.
 /// Imports the refspec checks and the mapping through them.
-use crate::git_refspec::{check_refspec, is_plain_ref_name, map_through_refspecs};
+use crate::git_refspec::{is_plain_ref_name, map_through_refspecs};
+/// Re-exports the configuration reader,
+/// which lives in `git_settings.rs`.
+pub use crate::git_settings::read_config;
 
 /// The environment variables that move the repository,
 /// its references,
@@ -96,7 +100,9 @@ pub struct NativeEnvironment {
     /// The Git program that answers when this reader declines.
     pub git: GitProgram,
     /// Other places a Git build reads its system configuration from;
-    /// when one exists, the file this reader would not see could change the answer, so the answer is Git's.
+    /// when one exists,
+    /// the file this reader would not see could change the answer,
+    /// so the answer is Git's.
     pub other_system_configs: Vec<PathBuf>,
     /// The user id Git compares the repository's owner with (its dubious-ownership check).
     pub user_id: u32,
@@ -107,8 +113,10 @@ pub struct NativeEnvironment {
 pub struct GitProgram {
     /// The program to start.
     pub program: PathBuf,
-    /// The longest one Git call may take (owner rule of 2026-11-03: "nothing should ever wait forever or indefinitely");
-    /// a bound chosen for local repository reads, not measured.
+    /// The longest one Git call may take (owner rule of 2026-11-03:
+    /// "nothing should ever wait forever or indefinitely");
+    /// a bound chosen for local repository reads,
+    /// not measured.
     pub bound: std::time::Duration,
     /// Start Git with an empty environment plus `environment` instead of this process's own.
     pub clean_environment: bool,
@@ -116,12 +124,15 @@ pub struct GitProgram {
     pub environment: Vec<(String, String)>,
 }
 
-/// The bound of one Git call, in seconds.
+/// The bound of one Git call,
+/// in seconds.
 pub const GIT_CALL_SECONDS: u64 = 60;
 
+/// The methods of the type above.
 impl Default for GitProgram {
     /// What:
-    /// `fn default() -> GitProgram` is the Git on the search path, with the process environment and the standard bound.
+    /// `fn default() -> GitProgram` is the Git on the search path,
+    /// with the process environment and the standard bound.
     /// Why:
     /// Production starts `git` as the user's shell would.
     ///
@@ -130,6 +141,14 @@ impl Default for GitProgram {
     /// const defaultGit = { program: 'git', boundSeconds: 60, cleanEnvironment: false, environment: [] };
     /// ```
     fn default() -> GitProgram {
+        // Constructor `Vec::new()`: an empty owned collection or a boxed value.
+        // What:     `Duration` is a length of time and `Instant` a point on the monotonic clock (siblings: the wall-clock `SystemTime`).
+        // Why:      Spacing between requests is a length of time, measured on a clock that never jumps back.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: T[] / Set / Map / number
+        // ```
         return GitProgram { program: PathBuf::from("git"), bound: std::time::Duration::from_secs(GIT_CALL_SECONDS), clean_environment: false, environment: Vec::new() };
     }
 }
@@ -137,7 +156,8 @@ impl Default for GitProgram {
 /// What:
 /// `pub fn current_user_id() -> u32` is the effective user id of this process.
 /// Why:
-/// Git refuses a repository that another user owns unless it is declared safe; the reader leaves such a repository to Git.
+/// Git refuses a repository that another user owns unless it is declared safe;
+/// the reader leaves such a repository to Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -208,6 +228,16 @@ impl NativeEnvironment {
         // // TS has one type for this: string
         // ```
         let blocking_variable: Option<String> = BLOCKING_VARIABLES.iter().find(is_set).map(ToString::to_string);
+        // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
+        // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // Array.from(iterable)  // or [...iterable]
+        // ```
+        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+        // Adapter `.map(`: transforms or selects items with a closure.
+        // Typed binding: `other_system_configs: Vec<PathBuf>`.
         let other_system_configs: Vec<PathBuf> = ["/usr/local/etc/gitconfig", "/opt/homebrew/etc/gitconfig", "/usr/etc/gitconfig", "/etc/git/config"].iter().map(PathBuf::from).collect();
         return NativeEnvironment { home, xdg_config_home, system_config: PathBuf::from("/etc/gitconfig"), blocking_variable, git: GitProgram::default(), other_system_configs, user_id: current_user_id() };
     }
@@ -285,19 +315,6 @@ fn is_git_space(character: char) -> bool {
 }
 
 /// What:
-/// `fn is_extension(entry: &&ConfigEntry) -> bool` says whether a variable is a repository extension (`extensions.*`).
-/// Why:
-/// It names the test that finds a setting only Git applies.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isExtension = (entry: ConfigEntry): boolean => entry.name.startsWith('extensions.');
-/// ```
-fn is_extension(entry: &&ConfigEntry) -> bool {
-    return entry.name.starts_with("extensions.");
-}
-
-/// What:
 /// `fn is_unsafe_component(part: &str) -> bool` says whether a path component of a reference name is empty,
 /// `.` or `..`.
 /// Why:
@@ -327,7 +344,8 @@ fn lacks_text(value: &Option<&str>) -> bool {
 /// What:
 /// `fn is_line_end(character: char) -> bool` says whether a character ends a line (`\n` or `\r`).
 /// Why:
-/// Review finding (3a 3): Git drops only the line ending from the path in a `.git` file or a `commondir` file;
+/// Review finding (3a 3):
+/// Git drops only the line ending from the path in a `.git` file or a `commondir` file;
 /// a space or tab at the end of the path belongs to the directory name.
 ///
 /// In TS you'd write (pseudocode):
@@ -335,20 +353,33 @@ fn lacks_text(value: &Option<&str>) -> bool {
 /// const isLineEnd = (character: string): boolean => character === '\n' || character === '\r';
 /// ```
 fn is_line_end(character: char) -> bool {
+    // Macro `matches!`: builds or prints text (or a list) from a template.
     return matches!(character, '\n' | '\r');
 }
 
 /// What:
 /// `fn is_symbolic_link(path: &Path) -> bool` says whether the path is a symbolic link (without following it).
 /// Why:
-/// Review finding (3a 1): Git reads a symbolic-link `HEAD` or reference as a symbolic reference
-/// (`core.preferSymlinkRefs`); reading through it would see the target's object name instead.
+/// Review finding (3a 1):
+/// Git reads a symbolic-link `HEAD` or reference as a symbolic reference
+/// (`core.preferSymlinkRefs`);
+/// reading through it would see the target's object name instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const isSymbolicLink = (path: string): boolean => lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink() ?? false;
 /// ```
 fn is_symbolic_link(path: &Path) -> bool {
+    // Closure `|metadata|`: an anonymous function, like a TS arrow function.
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
+    // Adapter `.map(`: transforms or selects items with a closure.
     return fs::symlink_metadata(path).map(|metadata| { return metadata.file_type().is_symlink(); }).unwrap_or(false);
 }
 
@@ -446,7 +477,7 @@ fn read_text(path: &Path) -> Result<String, String> {
 /// ```ts
 /// const readOptional = (path: string): string | undefined => ...
 /// ```
-fn read_optional(path: &Path) -> Result<Option<String>, String> {
+pub(crate) fn read_optional(path: &Path) -> Result<Option<String>, String> {
     return match fs::read_to_string(path) {
         // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
         // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
@@ -589,139 +620,19 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     check_git_directory(&common_dir)?;
     // Review finding (3a 8): Git refuses a repository another user owns unless it is declared safe; that decision is Git's.
     for owned in [root, git_dir.as_path(), common_dir.as_path()] {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // Borrow `&error`: lends the value without copying or giving it away.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
+        // Typed binding: `owner: u32`.
         let owner: u32 = fs::metadata(owned).map_err(|error| { return cannot_read(owned, &error); })?.uid();
         if owner != environment.user_id {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(format!("{} is owned by another user, so only Git decides whether it is safe to use", owned.display()));
         }
     }
     return Ok(GitLayout { git_dir, common_dir });
-}
-
-/// The remote and branch keys that mean true when written without a value.
-const BARE_KEYS: [&str; 7] = ["skipdefaultupdate", "skipfetchall", "prune", "prunetags", "mirror", "promisor", "rebase"];
-
-/// What:
-/// `fn check_remote_and_branch_settings(config: &ParsedConfig) -> Result<(), String>` checks every `remote.*` and `branch.*`
-/// variable, not only the ones the chosen branch uses.
-/// Why:
-/// Review finding (3a 6): Git loads all remote and branch configuration when it resolves an upstream, so one invalid refspec
-/// or one required string written without a value anywhere makes Git fail where a narrower check would not.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function checkRemoteAndBranchSettings(config: ParsedConfig): void  // throws: ask Git
-/// ```
-fn check_remote_and_branch_settings(config: &ParsedConfig) -> Result<(), String> {
-    for entry in &config.entries {
-        let Some(rest) = entry.name.strip_prefix("remote.").or_else(|| { return entry.name.strip_prefix("branch."); }) else {
-            continue;
-        };
-        let key: &str = rest.rsplit('.').next().unwrap_or("");
-        if entry.name.starts_with("remote.") && key == "fetch" {
-            match &entry.value {
-                Some(spec) => check_refspec(spec)?,
-                None => return Err(format!("{} is written without a value, which Git rejects", entry.name)),
-            }
-            continue;
-        }
-        if entry.value.is_none() && !BARE_KEYS.contains(&key) {
-            return Err(format!("{} is written without a value, which Git rejects", entry.name));
-        }
-    }
-    return Ok(());
-}
-
-/// What:
-/// `fn check_repository_settings(config: &ParsedConfig) -> Result<(), String>` refuses the settings that change what the
-/// reader would have to read.
-/// Why:
-/// Any `extensions.*` variable (a different reference format,
-/// object format,
-/// worktree configuration or one this reader has never
-/// heard of) and any repository format other than 0 or 1 are Git's to judge.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function checkRepositorySettings(config: ParsedConfig): void  // throws: ask Git
-/// ```
-fn check_repository_settings(config: &ParsedConfig) -> Result<(), String> {
-    // `Some`: the present or the absent value of an `Option`.
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    // Closure `|entry|`: an anonymous function, like a TS arrow function.
-    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-    if let Some(entry) = config.entries.iter().find(is_extension) {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("the configuration sets {}, a repository extension that only Git applies", entry.name));
-    }
-    // `Some`: the present or the absent value of an `Option`.
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    for format in config.values("core", None, "repositoryformatversion") {
-        match format {
-            Some("0" | "1") => {}
-            other => return Err(format!("core.repositoryformatversion is {other:?}, which only Git judges")),
-        }
-    }
-    return Ok(());
-}
-
-/// What:
-/// `pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Result<ParsedConfig, String>` reads the
-/// configuration files in Git's order (system,
-/// XDG or home,
-/// home,
-/// repository) and refuses what only Git can apply.
-/// Why:
-/// Later files override earlier ones;
-/// an `include`,
-/// an unreadable file or a refused setting makes the caller ask Git.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function readConfig(layout: GitLayout, env: NativeEnvironment): ParsedConfig  // throws: ask Git
-/// ```
-pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Result<ParsedConfig, String> {
-    // Review finding (3a 7): a system configuration in a place another Git build reads is a file this reader does not follow.
-    for other in &environment.other_system_configs {
-        if other.exists() {
-            return Err(format!("{} exists; a Git built for another prefix reads its system configuration there, so only Git can say what it holds", other.display()));
-        }
-    }
-    let mut files: Vec<PathBuf> = vec![environment.system_config.clone()];
-    if let Some(xdg) = &environment.xdg_config_home {
-        files.push(xdg.join("git/config"));
-    } else if let Some(home) = &environment.home {
-        files.push(home.join(".config/git/config"));
-    }
-    if let Some(home) = &environment.home {
-        files.push(home.join(".gitconfig"));
-    }
-    files.push(layout.common_dir.join("config"));
-    let mut merged: ParsedConfig = ParsedConfig::default();
-    for file in &files {
-        // `Some`: the present or the absent value of an `Option`.
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-        let Some(text) = read_optional(file)? else {
-            continue;
-        };
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|message|`: an anonymous function, like a TS arrow function.
-        // Borrow `&text`: lends the value without copying or giving it away.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Typed binding: `parsed: ParsedConfig`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        let parsed: ParsedConfig = parse_config(&text).map_err(|message| { return format!("{}: {message}", file.display()); })?;
-        merged.extend_with(parsed);
-    }
-    if merged.has_include {
-        return Err("a configuration file has include or includeIf, which only Git follows".to_string());
-    }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&merged`: lends the value without copying or giving it away.
-    check_repository_settings(&merged)?;
-    check_remote_and_branch_settings(&merged)?;
-    return Ok(merged);
 }
 
 /// What:
@@ -736,7 +647,10 @@ pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Resul
 /// ```
 pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
     let path: PathBuf = layout.git_dir.join("HEAD");
+    // Borrow `&path`: lends the value without copying or giving it away.
     if is_symbolic_link(&path) {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("{} is a symbolic link, which Git reads as a symbolic reference", path.display()));
     }
     let text: String = read_text(&path)?;
@@ -789,7 +703,10 @@ fn check_ref_name(name: &str) -> Result<(), String> {
 fn read_reference(layout: &GitLayout, name: &str) -> Result<Option<String>, String> {
     check_ref_name(name)?;
     let loose: PathBuf = layout.common_dir.join(name);
+    // Borrow `&loose`: lends the value without copying or giving it away.
     if is_symbolic_link(&loose) {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("{} is a symbolic link, which Git reads as a symbolic reference", loose.display()));
     }
     match fs::read_to_string(&loose) {
@@ -1029,8 +946,15 @@ pub fn tracking_ref(config: &ParsedConfig, layout: &GitLayout, branch: &str) -> 
     // The remote "." is the local repository: its own fetch refspecs map first, and only without a match the merge name is the
     // local reference (review finding 3a 2).
     return match map_through_refspecs(&texts, merge)? {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
         Some(mapped) => Ok(Some(mapped)),
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         None if remote == "." => Ok(Some(merge.to_string())),
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
         None => Ok(None),
     };
 }
@@ -1047,5 +971,6 @@ pub fn tracking_ref(config: &ParsedConfig, layout: &GitLayout, branch: &str) -> 
 /// export function tracksLocally(config: ParsedConfig, branch: string): boolean
 /// ```
 pub fn tracks_locally(config: &ParsedConfig, branch: &str) -> bool {
+    // `Some`: the present or the absent value of an `Option`.
     return config.last("branch", Some(branch), "remote") == Some(".");
 }

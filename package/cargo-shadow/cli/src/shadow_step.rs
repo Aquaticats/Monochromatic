@@ -583,6 +583,13 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
         start,
         lock_base,
         trust_base,
+        // What:     `Duration` is a length of time and `Instant` a point on the monotonic clock (siblings: the wall-clock `SystemTime`).
+        // Why:      Spacing between requests is a length of time, measured on a clock that never jumps back.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: T[] / Set / Map / number
+        // ```
         runner: RealCargo { program, toolchain, bound: std::time::Duration::from_secs(crate::cargo_run::CARGO_CALL_SECONDS) },
         // Borrow `&catalog_root`: lends the value without copying or giving it away.
         // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).

@@ -787,30 +787,50 @@ fn the_non_strict_release_age_warning_is_reported_on_the_frozen_path() {
     assert!(report.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the warning was dropped: {:?}", report.warnings);
 }
 
-/// Review finding (3c P2-1): a trust finding that the owners of the crate could still clear is provisional; when the owners request
-/// fails it is an incomplete evaluation (an operational failure), not a refusal.
+/// Review finding (3c P2-1):
+/// a trust finding that the owners of the crate could still clear is provisional;
+/// when the owners request
+/// fails it is an incomplete evaluation (an operational failure),
+/// not a refusal.
 #[test]
 fn an_owners_lookup_failure_does_not_turn_a_provisional_trust_finding_into_a_refusal() {
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let history: Vec<VersionRecord> = vec![record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")];
+    // Typed binding: `registry: RegistryWithoutOwners`.
     let registry: RegistryWithoutOwners = RegistryWithoutOwners { inner: registry_of(history) };
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     let versions = [crate::lockfile::LockedVersion { name: "dep".to_string(), version: "1.0.1".to_string() }];
 
+    // Borrow `&versions`: lends the value without copying or giving it away.
     let result = crate::checks::check_trust(&versions, &settings(), &registry, now());
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(result.is_err(), "a provisional finding was reported as a refusal: {result:?}");
 }
 
-/// Review finding (3c P2-4): a local pass that carried a release-age warning is not remembered, so the next call reports the
+/// Review finding (3c P2-4):
+/// a local pass that carried a release-age warning is not remembered,
+/// so the next call reports the
 /// warning again instead of silently skipping the release.
 #[test]
 fn a_local_pass_that_carried_a_warning_is_not_remembered() {
     let (root, dirs) = repository(STALE);
+    // Typed binding: `satisfied: String`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let satisfied: String = format!("# satisfied\n{}", lock_with("1.0.1"));
+    // Borrow `&satisfied`: lends the value without copying or giving it away.
+    // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&satisfied, false);
+    // Typed binding: `registry: FakeRegistry`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]);
+    // `let mut`: a binding that may change.
+    // Typed binding: `relaxed: Settings`.
     let mut relaxed: Settings = settings();
     relaxed.minimum_release_age_strict = false;
     let call = || {
+        // Borrow `&InstallRequest`: lends the value without copying or giving it away.
         return install_rust_lockfiles(&InstallRequest {
             root: root.path(),
             crate_dirs: &dirs,
@@ -821,16 +841,24 @@ fn a_local_pass_that_carried_a_warning_is_not_remembered() {
             settings: &relaxed,
             runner: &runner,
             registry: &registry,
+            // `None`: the present or the absent value of an `Option`.
             lock_base: None,
             trust_base: "HEAD",
             known_consistent: false,
         })
+        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         .expect("passes");
     };
 
     let first = call();
     let second = call();
 
+    // Closure `|warning|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(first.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the first call must warn: {:?}", first.warnings);
+    // Closure `|warning|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(second.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the pass with a warning was remembered: {:?}", second.warnings);
 }

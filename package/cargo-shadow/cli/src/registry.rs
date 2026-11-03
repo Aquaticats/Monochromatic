@@ -196,8 +196,10 @@ pub const API_MIN_INTERVAL: Duration = Duration::from_millis(1_100);
 const RATE_LIMIT_ATTEMPTS: u32 = 5;
 
 /// The longest pause for an HTTP 429 that cargo-shadow sits through.
-/// A bound chosen for the owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely"), not measured:
-/// crates.io asks for seconds, so a day-long request is a different problem and ends the call.
+/// A bound chosen for the owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely"),
+/// not measured:
+/// crates.io asks for seconds,
+/// so a day-long request is a different problem and ends the call.
 const MAX_PAUSE: Duration = Duration::from_secs(120);
 
 /// The first backoff when a 429 carries no `Retry-After`;
@@ -867,7 +869,9 @@ impl CratesIo {
                     // Owner rule of 2026-11-03, "nothing should ever wait forever or indefinitely": a pause longer than the bound ends
                     // the call with an error that names the blocker; every file is kept.
                     if error.retry_after_seconds > 0 && asked > MAX_PAUSE {
+                        // `Err(...)`: builds the success or the failure variant of a `Result`.
                         return Err(RegistryError {
+                            // Macro `format!`: builds or prints text (or a list) from a template.
                             message: format!(
                                 "{url} answered HTTP 429 and asks for a pause of {asked:?}, longer than the {MAX_PAUSE:?} cargo-shadow waits; every file is kept; wait that long, then run the command again"
                             ),
@@ -875,6 +879,7 @@ impl CratesIo {
                             retry_after_seconds: error.retry_after_seconds,
                         });
                     }
+                    // Typed binding: `pause: Duration`.
                     let pause: Duration = asked.min(MAX_PAUSE);
                     // Macro `eprintln!`: builds or prints text (or a list) from a template.
                     eprintln!("cargo-shadow: {url} answered HTTP 429 (attempt {attempt} of {RATE_LIMIT_ATTEMPTS}); retrying in {pause:?}");

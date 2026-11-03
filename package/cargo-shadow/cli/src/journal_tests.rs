@@ -12,7 +12,9 @@ use crate::crates::LockSnapshot;
 // import { Name } from './module.ts';
 // ```
 use crate::journal::{ReplaceOutcome, recover, restore_if_unchanged};
+// Imports `crate::journal_support::{journal_dir, journ...`.
 use crate::journal_support::{journal_dir, journal_dirs, plant};
+// Imports `crate::manifest_edit::ManifestEdit`.
 use crate::manifest_edit::ManifestEdit;
 use crate::test_scratch::scratch;
 
@@ -20,6 +22,8 @@ const CRATE_DIR: &str = "package/j/one";
 
 /// The journaled edit of the manifest next to the lockfile of the case.
 fn breaking_edit(root: &Path, before: &str) -> ManifestEdit {
+    // `None`: the present or the absent value of an `Option`.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     return ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: root.join(CRATE_DIR).join("Cargo.toml"), before: before.to_string(), produced: None };
 }
 
@@ -79,6 +83,7 @@ fn a_lock_that_already_equals_the_snapshot_needs_nothing_and_no_temporary_file_i
 #[test]
 fn a_killed_run_whose_lock_holds_refused_versions_is_saved_aside_and_the_snapshot_goes_back() {
     let root = repository("unchecked output of the killed run");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
 
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
@@ -92,12 +97,14 @@ fn a_killed_run_whose_lock_holds_refused_versions_is_saved_aside_and_the_snapsho
         "unchecked output of the killed run"
     );
     assert_eq!(messages.len(), 1);
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(journal_dirs(root.path()).is_empty());
 }
 
 #[test]
 fn a_killed_run_whose_lock_passes_the_policy_is_kept() {
     let root = repository("good output");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
 
     // Closure `|_pid, _identity|`: an anonymous function, like a TS arrow function.
@@ -116,6 +123,7 @@ fn a_killed_run_whose_lock_passes_the_policy_is_kept() {
 #[test]
 fn a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives() {
     let root = repository("first unchecked output");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
@@ -167,6 +175,7 @@ fn a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives
     // value ?? fallback
     // ```
     fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), "second unchecked output").expect("the second killed run");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
@@ -228,6 +237,7 @@ fn a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives
 fn a_recovery_that_fails_keeps_the_journal() {
     use std::os::unix::fs::PermissionsExt;
     let root = repository("unchecked output of the killed run");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
     let crate_dir = root.path().join(CRATE_DIR);
     // Borrow `&crate_dir`: lends the value without copying or giving it away.
@@ -254,6 +264,7 @@ fn a_recovery_that_fails_keeps_the_journal() {
 #[test]
 fn an_unreadable_live_lock_keeps_the_journal() {
     let root = repository("whatever");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::remove_file(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("remove the live lock");
@@ -272,6 +283,7 @@ fn an_unreadable_live_lock_keeps_the_journal() {
 #[test]
 fn an_unreadable_journal_is_kept() {
     let root = repository("whatever");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -294,6 +306,7 @@ fn an_unreadable_journal_is_kept() {
 #[test]
 fn recovery_leaves_a_lock_that_another_writer_published_while_the_policy_was_judged() {
     let root = repository("unchecked output of the killed run");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
     let lock_path = root.path().join(CRATE_DIR).join("Cargo.lock");
 
@@ -368,6 +381,7 @@ fn a_lockfile_published_between_the_comparison_and_the_replacement_is_not_lost()
 fn recovery_does_not_replace_a_lock_published_in_the_gap_after_the_last_comparison() {
     use crate::journal::recover_with;
     let root = repository("unchecked output of the killed run");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
     let lock_path = root.path().join(CRATE_DIR).join("Cargo.lock");
     // Closure `|_path: &Path|`: an anonymous function, like a TS arrow function.
@@ -478,6 +492,7 @@ fn a_killed_breaking_run_whose_lock_is_refused_gets_its_manifest_back_too() {
     let root = repository("unchecked output of the killed run");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[breaking_edit(root.path(), "manifest before")]);
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
@@ -505,6 +520,7 @@ fn a_killed_breaking_run_whose_lock_passes_keeps_its_manifest_edit() {
     let root = repository("good output");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[breaking_edit(root.path(), "manifest before")]);
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
@@ -525,6 +541,7 @@ fn a_killed_breaking_run_that_only_rewrote_the_manifest_gets_it_back() {
     let root = repository("original");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[breaking_edit(root.path(), "manifest before")]);
 
     // Closure `|_pid|`: an anonymous function, like a TS arrow function.
@@ -790,13 +807,16 @@ fn two_root_repository(one: &str, two: &str) -> tempfile::TempDir {
 fn a_kept_root_keeps_its_manifest_and_a_rejected_root_gets_its_own_back() {
     use crate::manifest_edit::ManifestEdit;
     let root = two_root_repository("good output", "refused output");
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     let second = LockSnapshot { crate_dir: "package/j/two".to_string(), source: "original two".to_string() };
     let edits = [
         ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: root.path().join(CRATE_DIR).join("Cargo.toml"), before: "one before".to_string(), produced: None },
         ManifestEdit { crate_dir: "package/j/two".to_string(), path: root.path().join("package/j/two").join("Cargo.toml"), before: "two before".to_string(), produced: None },
     ];
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original one"), second], &edits);
 
+    // Closure `|before, _live|`: an anonymous function, like a TS arrow function.
     recover(root.path(), &|before, _live| {
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // Macro `vec!`: builds or prints text (or a list) from a template.
@@ -824,6 +844,7 @@ fn an_unreadable_or_truncated_manifest_index_keeps_the_journal() {
     let root = repository("unchecked output of the killed run");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[breaking_edit(root.path(), "manifest before")]);
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     let journal = journal_dir(root.path());

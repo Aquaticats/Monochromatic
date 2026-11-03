@@ -85,6 +85,7 @@ fn a_manifest_the_call_rewrote_is_recorded_and_put_back() {
     // [a, b]            // vec![a, b]
     // ```
     assert_eq!(warnings.len(), 1, "the put-back names the file it kept: {warnings:?}");
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(warnings[0].contains("is kept as"), "{warnings:?}");
     assert_eq!(fs::read_to_string(&path).expect("read"), "before");
 }

@@ -163,6 +163,14 @@ fn run(world: &World, catalog_settings: &Settings, cargo: &FakeCargo, registry: 
             forward: &[],
             syncer: &RecordingSyncer { calls: RefCell::new(0) },
             prune_catalog: true,
+            // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+            // Why:      Absence is a value the caller must check; there is no `null`.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // // Some(value) is  value
+            // // None        is  undefined
+            // ```
             lock_base: None,
         },
         kind,
@@ -329,6 +337,7 @@ fn a_refused_version_whose_older_releases_cargo_refuses_restores_every_lockfile(
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
 
@@ -454,6 +463,7 @@ fn run_with_syncer(world: &World, cargo: &FakeCargo, registry: &FakeRegistry, sy
             forward: &[],
             syncer,
             prune_catalog: true,
+            // `None`: the present or the absent value of an `Option`.
             lock_base: None,
         },
         &UpdateKind::Targeted { cargo_args: args },
@@ -536,6 +546,7 @@ fn an_update_of_some_workspaces_never_prunes_the_catalog_because_other_lockfiles
             forward: &[],
             syncer: &RecordingSyncer { calls: RefCell::new(0) },
             prune_catalog: false,
+            // `None`: the present or the absent value of an `Option`.
             lock_base: None,
         },
         &UpdateKind::Full,
@@ -593,6 +604,7 @@ fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_wr
         forward: &[],
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
 
@@ -893,6 +905,7 @@ fn a_young_release_that_a_manifest_needs_resolves_when_the_crate_is_exempt_from_
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
 
@@ -931,6 +944,7 @@ fn a_young_release_that_a_manifest_needs_still_fails_a_strict_resolution_without
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
 
@@ -979,6 +993,7 @@ fn a_crate_that_is_not_exempt_is_still_held_to_the_cutoff_after_the_unconstraine
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
 
@@ -1078,6 +1093,7 @@ fn breaking_update(dry_run: bool) -> (World, Result<UpdateReport, UpdateError>) 
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
     // Borrow `&request`: lends the value without copying or giving it away.
@@ -1184,6 +1200,7 @@ fn breaking_update_that_passes() -> (World, Result<UpdateReport, UpdateError>) {
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
     // Borrow `&request`: lends the value without copying or giving it away.
@@ -1244,6 +1261,7 @@ fn a_sync_failure_after_the_catalog_write_restores_the_catalog_the_manifests_and
         forward: &[],
         syncer: &FailingSyncer,
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
 
@@ -1359,6 +1377,7 @@ fn a_catalog_edited_during_a_failing_sync_keeps_the_edit() {
         forward: &[],
         syncer: &syncer,
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
 
@@ -1434,6 +1453,7 @@ fn a_manifest_a_failing_sync_rewrote_goes_back_with_the_transaction() {
         forward: &[],
         syncer: &syncer,
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
 
@@ -1450,55 +1470,110 @@ fn a_manifest_a_failing_sync_rewrote_goes_back_with_the_transaction() {
 
 /// A lockfile that holds two versions of the crate `dep`.
 fn lock_with_two(first: &str, second: &str) -> String {
+    // Macro `format!`: builds or prints text (or a list) from a template.
     return format!("version = 4\n\n[[package]]\nname = \"dep\"\nversion = \"{first}\"\nsource = \"{REGISTRY}\"\n\n[[package]]\nname = \"dep\"\nversion = \"{second}\"\nsource = \"{REGISTRY}\"\n");
 }
 
-/// Review finding (3c P1-2): a full update that changes nothing still ends with a lockfile that holds a refused version; the update
-/// checks the lockfiles it leaves, not only what it added.
+/// Review finding (3c P1-2):
+/// a full update that changes nothing still ends with a lockfile that holds a refused version;
+/// the update
+/// checks the lockfiles it leaves,
+/// not only what it added.
 #[test]
 fn an_unchanged_full_update_still_refuses_a_refused_locked_version() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("1.0.1"), "");
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
+    // Typed binding: `cargo: FakeCargo`.
     let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
 
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = run(&world, &settings(), &cargo, &registry, false, &UpdateKind::Full).expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.written, "an update that leaves a refused version locked was kept");
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.problems.is_empty());
 }
 
-/// Review finding (3c P1-2): `cargo update -p dep@1.0.0` moves an edge to `1.0.1`, which was already in the lockfile for another
-/// edge; the version pair is not new, but the selection is.
+/// Review finding (3c P1-2):
+/// `cargo update -p dep@1.0.0` moves an edge to `1.0.1`,
+/// which was already in the lockfile for another
+/// edge;
+/// the version pair is not new,
+/// but the selection is.
 #[test]
 fn an_edge_moved_to_an_already_locked_refused_version_is_refused() {
+    // Borrow `&lock_with_two`: lends the value without copying or giving it away.
     let world = world(&lock_with_two("1.0.0", "1.0.1"), "");
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
+    // Typed binding: `cargo: FakeCargo`.
     let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "-p", "dep@1.0.0"].iter().map(|argument| { return argument.to_string(); }).collect();
 
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = run(&world, &settings(), &cargo, &registry, false, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.written, "the refused selection was kept");
 }
 
 /// A reader of the base lockfile that gives the same text for every crate root.
 fn base_holding(text: &str) -> impl Fn() -> Result<crate::install::LockBaseReader, String> + use<> {
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `owned: String`.
     let owned: String = text.to_string();
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // Closure `|_crate_dir: &str|`: an anonymous function, like a TS arrow function.
+    // `.clone()`: an independent owned copy.
+    // Constructor `Box::new(`: an empty owned collection or a boxed value.
     return move || { return Ok(Box::new({ let held = owned.clone(); move |_crate_dir: &str| { return held.clone(); } }) as crate::install::LockBaseReader); };
 }
 
-/// Review finding (3c P1-2): under `trustLockfile` the scope is "not at the base", so a version the working lockfile already held
+/// Review finding (3c P1-2):
+/// under `trustLockfile` the scope is "not at the base",
+/// so a version the working lockfile already held
 /// but the base did not is judged.
 #[test]
 fn under_trust_lockfile_a_version_the_base_did_not_hold_is_judged_even_if_the_working_lockfile_held_it() {
+    // Borrow `&lock_with_two`: lends the value without copying or giving it away.
     let world = world(&lock_with_two("1.0.0", "1.0.1"), "");
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
+    // Typed binding: `cargo: FakeCargo`.
     let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    // `let mut`: a binding that may change.
+    // Typed binding: `trusting: Settings`.
     let mut trusting: Settings = settings();
     trusting.trust_lockfile = true;
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let base = base_holding(&lock_with("1.0.0"));
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "-p", "dep@1.0.0"].iter().map(|argument| { return argument.to_string(); }).collect();
+    // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
     let syncer = RecordingSyncer { calls: RefCell::new(0) };
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -1511,25 +1586,47 @@ fn under_trust_lockfile_a_version_the_base_did_not_hold_is_judged_even_if_the_wo
         forward: &[],
         syncer: &syncer,
         prune_catalog: false,
+        // `Some`: the present or the absent value of an `Option`.
+        // Borrow `&base`: lends the value without copying or giving it away.
         lock_base: Some(&base),
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.written, "a version new since the base was kept unchecked");
 }
 
-/// Under `trustLockfile` a version the base held is trusted: the same update is kept.
+/// Under `trustLockfile` a version the base held is trusted:
+/// the same update is kept.
 #[test]
 fn under_trust_lockfile_a_version_the_base_held_is_trusted() {
+    // Borrow `&lock_with_two`: lends the value without copying or giving it away.
     let world = world(&lock_with_two("1.0.0", "1.0.1"), "");
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
+    // Typed binding: `cargo: FakeCargo`.
     let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    // `let mut`: a binding that may change.
+    // Typed binding: `trusting: Settings`.
     let mut trusting: Settings = settings();
     trusting.trust_lockfile = true;
+    // Borrow `&lock_with_two`: lends the value without copying or giving it away.
     let base = base_holding(&lock_with_two("1.0.0", "1.0.1"));
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "-p", "dep@1.0.0"].iter().map(|argument| { return argument.to_string(); }).collect();
+    // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
     let syncer = RecordingSyncer { calls: RefCell::new(0) };
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -1542,38 +1639,69 @@ fn under_trust_lockfile_a_version_the_base_held_is_trusted() {
         forward: &[],
         syncer: &syncer,
         prune_catalog: false,
+        // `Some`: the present or the absent value of an `Option`.
+        // Borrow `&base`: lends the value without copying or giving it away.
         lock_base: Some(&base),
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.written, "{:?}", report.problems);
 }
 
-/// A syncer that writes bytes that are not UTF-8 into a manifest, so reading the manifest back to record it fails.
+/// A syncer that writes bytes that are not UTF-8 into a manifest,
+/// so reading the manifest back to record it fails.
 struct UnreadableSyncer {
     manifest: PathBuf,
 }
 
 impl Syncer for UnreadableSyncer {
     fn sync(&self, _root: &Path) -> Result<String, String> {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // Borrow `&self.manifest`: lends the value without copying or giving it away.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         fs::write(&self.manifest, [0xff_u8, 0xfe_u8]).map_err(|error| { return error.to_string(); })?;
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Ok("synced".to_string());
     }
 }
 
-/// Review finding (3c P2-3): an error from recording the manifests around the sync must still put the raised catalog back.
+/// Review finding (3c P2-3):
+/// an error from recording the manifests around the sync must still put the raised catalog back.
 #[test]
 fn a_recording_error_around_the_sync_still_puts_the_catalog_back() {
+    // Typed binding: `original_catalog: &str`.
     let original_catalog: &str = "[catalog]\ndep = \">=0.9.0\"\n";
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), original_catalog);
+    // Typed binding: `directory: PathBuf`.
     let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
+    // `.clone()`: an independent owned copy.
     let cargo = cargo_that_edits_the_manifest(directory.clone());
+    // Typed binding: `trusted: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let trusted: Vec<VersionRecord> = vec![trusted_publish("0.9.0", "2026-01-01T00:00:00Z"), trusted_publish("1.0.1", "2026-02-01T00:00:00Z")];
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), trusted)]) };
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    // Typed binding: `syncer: UnreadableSyncer`.
     let syncer: UnreadableSyncer = UnreadableSyncer { manifest: directory.join("Cargo.toml") };
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -1586,35 +1714,73 @@ fn a_recording_error_around_the_sync_still_puts_the_catalog_back() {
         forward: &[],
         syncer: &syncer,
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
     let _outcome = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args });
 
+    // Borrow `&world.catalog`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(&world.catalog).expect("catalog"), original_catalog, "the raised catalog was left behind");
 }
 
 /// A syncer that counts its calls.
 struct CountingSyncer {
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
+    // What:     `Cell<T>` holds a value that can be replaced through a shared reference (interior mutability; sibling: `RefCell<T>`, for non-copy values).
+    // Why:      A method that takes `&self` still has to remember when it last made a request.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     calls: RefCell<u32>,
 }
 
 impl Syncer for CountingSyncer {
     fn sync(&self, _root: &Path) -> Result<String, String> {
         *self.calls.borrow_mut() += 1;
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Ok("synced".to_string());
     }
 }
 
-/// Review finding (3c P2-2): the manifest sync belongs to `--breaking` alone, where the manifests are journaled before cargo runs;
-/// an update without it never calls the sync, so there is no manifest edit to snapshot.
+/// Review finding (3c P2-2):
+/// the manifest sync belongs to `--breaking` alone,
+/// where the manifests are journaled before cargo runs;
+/// an update without it never calls the sync,
+/// so there is no manifest edit to snapshot.
 #[test]
 fn an_update_without_breaking_never_calls_the_manifest_sync() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("1.0.0"), "[catalog]\ndep = \">=0.9.0\"\n");
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
+    // Typed binding: `cargo: FakeCargo`.
     let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.0"));
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "-p", "dep"].iter().map(|argument| { return argument.to_string(); }).collect();
+    // Typed binding: `syncer: CountingSyncer`.
+    // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
     let syncer: CountingSyncer = CountingSyncer { calls: RefCell::new(0) };
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -1627,10 +1793,14 @@ fn an_update_without_breaking_never_calls_the_manifest_sync() {
         forward: &[],
         syncer: &syncer,
         prune_catalog: false,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let _report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
 
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(*syncer.calls.borrow(), 0);
 }

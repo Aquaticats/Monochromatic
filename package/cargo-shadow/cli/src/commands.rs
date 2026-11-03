@@ -615,6 +615,8 @@ pub fn run_command(command: Command) -> i32 {
             };
         }
         Command::Update { dry_run } => {
+            // Borrow `&root`: lends the value without copying or giving it away.
+            // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
             let (_update_trust_base, update_reader) = trust_base_setup(&root, &document, is_continuous_integration(&std::env::var("CI").unwrap_or_default()));
             let outcome = update_rust_lockfiles(
                 // Borrow `&UpdateRequest`: lends the value without copying or giving it away.

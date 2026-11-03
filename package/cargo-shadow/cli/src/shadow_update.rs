@@ -572,38 +572,73 @@ pub fn run_with_placeholder_lock(lock_path: &Path, keep_dir: &Path, dry_run: boo
 /// `fn remove_placeholder(lock_path: &Path, keep_dir: &Path)` takes the stand-in lockfile away from its path without ever
 /// unlinking an inode that something may still have open.
 /// Why:
-/// Review finding (3c P1-3): reading the taken file and then unlinking it still loses the data of a writer that opened the
+/// Review finding (3c P1-3):
+/// reading the taken file and then unlinking it still loses the data of a writer that opened the
 /// stand-in earlier and writes after the read.
-/// The file is taken by an exclusive rename to a unique name (an existing name is never overwritten), read, and then:
+/// The file is taken by an exclusive rename to a unique name (an existing name is never overwritten),
+/// read,
+/// and then:
 /// a stand-in is given a surviving name in `keep_dir` before the taken name is removed;
-/// anything else is linked back to the path (a link never replaces something published meanwhile), or stays under its taken
-/// name, reported on stderr.
+/// anything else is linked back to the path (a link never replaces something published meanwhile),
+/// or stays under its taken
+/// name,
+/// reported on stderr.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function removePlaceholder(lockPath: string, keepDir: string): void  // rename (no replace), read, keep, then unlink the taken name
 /// ```
 fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
-    let mut taken: Option<std::path::PathBuf> = None;
+    // `None`: the present or the absent value of an `Option`.
+    // `let mut`: a binding that may change.
+    // Typed binding: `taken: Option<std::path::PathBuf>`.
+    let mut taken_name: Option<std::path::PathBuf> = None;
     for _attempt in 0..MAX_TAKEN_NAMES {
+        // `let mut`: a binding that may change.
+        // Typed binding: `name: std::ffi::OsString`.
+        // What:     `OsString` is operating-system text that need not be valid UTF-8 (sibling: `String`, always valid UTF-8).
+        // Why:      Command-line arguments pass through byte for byte, so they are kept as the OS gave them.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: string
+        // ```
         let mut name: std::ffi::OsString = lock_path.as_os_str().to_os_string();
+        // Macro `format!`: builds or prints text (or a list) from a template.
         name.push(format!(".taken.{}", crate::journal::unique_suffix()));
+        // Typed binding: `candidate: std::path::PathBuf`.
         let candidate: std::path::PathBuf = std::path::PathBuf::from(name);
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&candidate`: lends the value without copying or giving it away.
         match renameat_with(CWD, lock_path, CWD, &candidate, RenameFlags::NOREPLACE) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(()) => {
-                taken = Some(candidate);
+                // `Some`: the present or the absent value of an `Option`.
+                taken_name = Some(candidate);
                 break;
             }
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(code) if code == Errno::EXIST => continue,
             // Nothing is at the path any more: nothing to remove.
             Err(code) if code == Errno::NOENT => return,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(code) => {
+                // Macro `eprintln!`: builds or prints text (or a list) from a template.
                 eprintln!("cargo-shadow: warning: the stand-in {} could not be taken for removal: {code}", lock_path.display());
                 return;
             }
         }
     }
-    let Some(taken) = taken else {
+    // `Some`: the present or the absent value of an `Option`.
+    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value !== undefined) { const inner = value; ... }
+    // ```
+    let Some(taken) = taken_name else {
+        // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: warning: no free name to take the stand-in {} under; it was left in place", lock_path.display());
         return;
     };
@@ -616,13 +651,23 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
         }
     };
     if is_placeholder {
+        // Typed binding: `keep: crate::journal::KeepAs`.
         let keep: crate::journal::KeepAs = crate::journal::KeepAs::in_directory(keep_dir, ".placeholder");
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&taken`: lends the value without copying or giving it away.
         match crate::journal_replace::keep_name(&taken, lock_path, &keep) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(_) => {
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
+                // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+                // Borrow `&taken`: lends the value without copying or giving it away.
                 if let Err(error) = std::fs::remove_file(&taken) {
+                    // Macro `eprintln!`: builds or prints text (or a list) from a template.
                     eprintln!("cargo-shadow: warning: the stand-in {} could not be removed: {error}", taken.display());
                 }
             }
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             Err(error) => eprintln!("cargo-shadow: warning: the stand-in is kept as {} ({error})", taken.display()),
         }
         return;
@@ -637,8 +682,11 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
     }
 }
 
-/// The most names tried to take the stand-in under (owner rule of 2026-11-03: "nothing should ever wait forever or indefinitely");
-/// the names carry the process id, the clock and a counter, so one try is the normal case.
+/// The most names tried to take the stand-in under (owner rule of 2026-11-03:
+/// "nothing should ever wait forever or indefinitely");
+/// the names carry the process id,
+/// the clock and a counter,
+/// so one try is the normal case.
 const MAX_TAKEN_NAMES: u32 = 100;
 
 /// What:

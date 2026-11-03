@@ -71,17 +71,31 @@ use crate::git_refs::{GitLayout, Head, NativeBase, NativeEnvironment, find_layou
 /// `fn lookup_tracked(config, layout, branch, tracking) -> Result<Option<String>, String>` reads the upstream reference and
 /// declines when a local upstream is missing.
 /// Why:
-/// For the remote `.` Git expands a missing merge name (`refs/heads/refs/heads/base`), which this reader does not.
+/// For the remote `.` Git expands a missing merge name (`refs/heads/refs/heads/base`),
+/// which this reader does not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function lookupTracked(config: ParsedConfig, layout: GitLayout, branch: string, tracking: string): string | undefined  // throws: ask Git
 /// ```
 fn lookup_tracked(config: &ParsedConfig, layout: &GitLayout, branch: &str, tracking: &str) -> Result<Option<String>, String> {
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Typed binding: `found: Option<String>`.
     let found: Option<String> = lookup_ref(layout, tracking)?;
     if found.is_none() && tracks_locally(config, branch) {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+        // Why:      Text building and printing are written as one call instead of string concatenation.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // `..${x}..`   // template literal
+        // console.error(text);   // eprintln!
+        // [a, b]            // vec![a, b]
+        // ```
         return Err(format!("the local upstream {tracking} does not exist as written, and Git expands such names"));
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(found);
 }
 

@@ -172,14 +172,22 @@ fn a_file_that_is_not_utf8_text_is_an_error_not_an_empty_file() {
     assert!(claim_output(&path, "", window).is_err());
 }
 
-/// Review finding (3b 8): a window whose end lies before its start (the clock stepped back during the call) establishes nothing,
-/// so a changed file is treated as the call's output (it is restored with its displaced copy kept), never left live as foreign.
+/// Review finding (3b 8):
+/// a window whose end lies before its start (the clock stepped back during the call) establishes nothing,
+/// so a changed file is treated as the call's output (it is restored with its displaced copy kept),
+/// never left live as foreign.
 #[test]
 fn a_window_that_ends_before_it_starts_claims_the_changed_file() {
     let root = scratch();
     let path = root.path().join("Cargo.lock");
+    // Borrow `&path`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(&path, "changed").expect("lock");
     let inverted = crate::file_owner::Window { start_ns: crate::file_owner::clock_ns() + 3_600_000_000_000, end_ns: crate::file_owner::clock_ns() - 3_600_000_000_000 };
 
+    // Borrow `&path`: lends the value without copying or giving it away.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(claim_output(&path, "before", inverted).expect("claims"), Claim::Ours("changed".to_string()));
 }

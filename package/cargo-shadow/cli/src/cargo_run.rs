@@ -109,13 +109,16 @@ pub struct RealCargo {
     /// `RUSTUP_TOOLCHAIN` for the child;
     /// empty to inherit the caller's.
     pub toolchain: String,
-    /// The longest one cargo call may take (owner rule of 2026-11-03: "nothing should ever wait forever or indefinitely");
+    /// The longest one cargo call may take (owner rule of 2026-11-03:
+    /// "nothing should ever wait forever or indefinitely");
     /// at the bound cargo is stopped and the error names the call and the command to run again.
     pub bound: std::time::Duration,
 }
 
-/// The default bound of one cargo call, in seconds.
-/// Chosen generously (half an hour) because a first resolution may fetch an index over a slow network, not measured.
+/// The default bound of one cargo call,
+/// in seconds.
+/// Chosen generously (half an hour) because a first resolution may fetch an index over a slow network,
+/// not measured.
 pub const CARGO_CALL_SECONDS: u64 = 1_800;
 
 /// What:
@@ -156,10 +159,48 @@ impl CargoRunner for RealCargo {
         if !self.toolchain.is_empty() {
             command.env("RUSTUP_TOOLCHAIN", &self.toolchain);
         }
+        // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+        // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // String(value)  // JS strings are always owned values
+        // ```
+        // Typed binding: `bound: Bound`.
+        // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+        // Why:      Text building and printing are written as one call instead of string concatenation.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // `..${x}..`   // template literal
+        // console.error(text);   // eprintln!
+        // [a, b]            // vec![a, b]
+        // ```
         let bound: Bound = Bound { limit: self.bound, what: format!("`cargo {}`", args.join(" ")), rerun: "the same cargo command".to_string() };
+        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+        // Why:      Absence is a value the caller must check; there is no `null`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Some(value) is  value
+        // // None        is  undefined
+        // ```
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&mut command`: lends the value without copying or giving it away.
         let output = match output_within(&mut command, None, &bound) {
             Ok(found) => found,
+            // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+            // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // // Ok(value)  is  return value;
+            // // Err(error) is  throw error;   (the caller sees it as a returned value)
+            // ```
+            // Macro `format!`: builds or prints text (or a list) from a template.
             Err(RunError::Io(error)) => return Err(format!("could not start {}: {error}", self.program.display())),
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             Err(timed_out) => return Err(timed_out.to_string()),
         };
         let stdout: String = String::from_utf8_lossy(&output.stdout).to_string();

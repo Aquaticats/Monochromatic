@@ -66,6 +66,21 @@ use std::path::Path;
 use std::process::Command;
 /// Imports the bounded child run and the time types of its bound.
 use crate::bounded_run::{Bound, RunError, output_within};
+// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
+// Why:      The code below names these items directly instead of spelling their full paths each time.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { Name } from './module.ts';
+// ```
+// What:     `Duration` is a length of time and `Instant` a point on the monotonic clock (siblings: the wall-clock `SystemTime`).
+// Why:      Spacing between requests is a length of time, measured on a clock that never jumps back.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // TS has one type for this: T[] / Set / Map / number
+// ```
+/// Imports `std::time::Duration` for this file.
 use std::time::Duration;
 
 /// What:
@@ -134,9 +149,12 @@ pub trait Syncer {
     fn sync(&self, root: &Path) -> Result<String, String>;
 }
 
-/// The longest one `file-enforcer write` may take, in seconds.
-/// A bound chosen for the owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely"), not measured:
-/// it renders manifests from a catalog, which takes seconds.
+/// The longest one `file-enforcer write` may take,
+/// in seconds.
+/// A bound chosen for the owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely"),
+/// not measured:
+/// it renders manifests from a catalog,
+/// which takes seconds.
 const FILE_ENFORCER_SECONDS: u64 = 300;
 
 /// The real sync:
@@ -182,14 +200,82 @@ impl Syncer for FileEnforcer {
     /// sync(root: string): string  // throws with the remedy
     /// ```
     fn sync(&self, root: &Path) -> Result<String, String> {
+        // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+        // Why:      The value is built up or replaced step by step below.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // let x = ...;   // plain Rust `let` is TS `const`
+        // ```
+        // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+        // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const name: Type = value;
+        // ```
         let mut command: Command = Command::new("file-enforcer");
         command.arg("write").current_dir(root);
+        // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+        // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // String(value)  // JS strings are always owned values
+        // ```
+        // Typed binding: `bound: Bound`.
         let bound: Bound = Bound { limit: Duration::from_secs(FILE_ENFORCER_SECONDS), what: "`file-enforcer write`".to_string(), rerun: "the same cargo command".to_string() };
+        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+        // Why:      Absence is a value the caller must check; there is no `null`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Some(value) is  value
+        // // None        is  undefined
+        // ```
+        // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
+        // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // (a, b) => body
+        // ```
+        // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+        // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+        // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+        // ```
+        // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
+        // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // try { ... } catch (error) { throw new MyError(String(error)); }
+        // ```
         let output = output_within(&mut command, None, &bound).map_err(|error| {
+            // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
+            // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
+            // ```
             return match error {
                 RunError::Io(inner) => file_enforcer_start_failure(inner),
+                // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                 timed_out => timed_out.to_string(),
             };
+        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const value = await expr;   // throws to the caller on failure
+        // ```
         })?;
         if !output.status.success() {
             return Err(format!("file-enforcer write failed: {}", String::from_utf8_lossy(&output.stderr).trim()));

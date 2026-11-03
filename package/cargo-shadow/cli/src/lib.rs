@@ -56,7 +56,9 @@ pub mod commands;
 /// The restore of lockfiles after a run and the recording side of the journal that recovers a killed run.
 pub mod journal;
 
-/// The preservation protocol that replaces one file (an exchange; every inode that was live keeps a name; not an atomic
+/// The preservation protocol that replaces one file (an exchange;
+/// every inode that was live keeps a name;
+/// not an atomic
 /// conditional replace).
 pub mod journal_replace;
 
@@ -64,7 +66,12 @@ pub mod journal_replace;
 /// split out of `journal.rs`.
 pub mod journal_recover;
 
-/// The transaction handle: a journal held by a lock for the life of a run.
+/// The manifest side of a recovery,
+/// split out of `journal_recover.rs`.
+pub mod journal_manifests;
+
+/// The transaction handle:
+/// a journal held by a lock for the life of a run.
 pub mod journal_transaction;
 
 /// Runs a child process within a time bound.
@@ -94,6 +101,10 @@ pub mod git_refs;
 /// from the object files,
 /// that an object name in a reference names a commit.
 pub mod git_objects;
+
+/// The reading of the Git configuration files in Git's order,
+/// split out of `git_refs.rs`.
+pub mod git_settings;
 
 /// The fetch refspecs of a remote and the mapping of a branch's merge reference through them.
 pub mod git_refspec;

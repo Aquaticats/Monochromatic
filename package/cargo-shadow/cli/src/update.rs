@@ -323,8 +323,10 @@ pub struct UpdateRequest<'a> {
     /// an update of some workspaces must leave the lists alone.
     pub prune_catalog: bool,
     /// Makes the reader of one crate's lockfile text at the trust base (empty when absent there);
-    /// under `trustLockfile` the update checks every version the base did not hold, as an install does.
-    /// A factory, because resolving the base may start git.
+    /// under `trustLockfile` the update checks every version the base did not hold,
+    /// as an install does.
+    /// A factory,
+    /// because resolving the base may start git.
     pub lock_base: Option<LockBaseFactory<'a>>,
 }
 
@@ -783,8 +785,11 @@ fn workspace_manifests(request: &UpdateRequest, crate_dir: &str) -> Result<Vec<P
 /// What:
 /// `fn verify_update(request, snapshots) -> Result<CheckOutcome, UpdateError>` judges the lockfiles an update leaves.
 /// Why:
-/// Review finding (3c P1-2): under `trustLockfile` every version the base revision did not hold is judged, and otherwise every
-/// locked version is, exactly as an install judges them.
+/// Review finding (3c P1-2):
+/// under `trustLockfile` every version the base revision did not hold is judged,
+/// and otherwise every
+/// locked version is,
+/// exactly as an install judges them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -792,12 +797,28 @@ fn workspace_manifests(request: &UpdateRequest, crate_dir: &str) -> Result<Vec<P
 /// ```
 fn verify_update(request: &UpdateRequest, snapshots: &[LockSnapshot]) -> Result<CheckOutcome, UpdateError> {
     if request.settings.trust_lockfile {
+        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+        // Why:      Absence is a value the caller must check; there is no `null`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Some(value) is  value
+        // // None        is  undefined
+        // ```
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         let Some(factory) = request.lock_base else {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             return Err(other("trustLockfile is true in rust-catalog.toml, but no base-revision lockfile reader was given, so nothing can be trusted".to_string()));
         };
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         let reader = factory().map_err(other)?;
+        // Borrow `&*reader`: lends the value without copying or giving it away.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         return verify_added_since_base_outcome(snapshots, &*reader, request.settings, request.registry, request.now).map_err(other);
     }
+    // `.map_err(...)`: converts the callee's error into this function's error type.
     return verify_locked_entries_outcome(request.root, snapshots, request.settings, request.registry, request.now).map_err(other);
 }
 
@@ -1027,11 +1048,17 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             // `match`: picks the arm whose pattern fits the value.
             // Review finding (3c P2-3): an error from recording the manifests is a failed sync like any other, so the catalog goes back.
             let synced: Result<String, String> = if keep {
+                // `match`: picks the arm whose pattern fits the value.
                 match sync_recording(request, edits) {
+                    // `Ok(...)`: builds the success or the failure variant of a `Result`.
                     Ok(answer) => answer,
+                    // `Err(...)`: builds the success or the failure variant of a `Result`.
+                    // Macro `format!`: builds or prints text (or a list) from a template.
                     Err(error) => Err(format!("the manifests could not be recorded around the sync ({error})")),
                 }
             } else {
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
+                // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                 Err("the catalog was not raised".to_string())
             };
             // `match`: picks the arm whose pattern fits the value.
@@ -1152,6 +1179,8 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
             eprintln!("cargo-shadow: warning: {warning}");
         }
     }
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
     transaction.finish().map_err(other_text)?;
     // Closure `|mut report|`: an anonymous function, like a TS arrow function.
     // Adapter `.map(`: transforms or selects items with a closure.

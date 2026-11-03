@@ -271,10 +271,18 @@ fn an_option_value_equal_to_the_verb_is_not_the_verb() {
     assert_eq!(planned.forward, vec!["--config".to_string(), "update".to_string()]);
 }
 
-/// Review finding (3c 9): an attached option value that is empty is a missing value, not a path.
+/// Review finding (3c 9):
+/// an attached option value that is empty is a missing value,
+/// not a path.
 #[test]
 fn an_empty_attached_manifest_path_is_refused() {
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(plan(&["update", "--manifest-path="]).is_err());
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(plan(&["update", "-m="]).is_err());
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(plan(&["update", "--precise="]).is_err());
 }

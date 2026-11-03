@@ -341,8 +341,13 @@ pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> i
                 ReplaceOutcome::Replaced(kept) => warnings.push(format!(
                     "{} was put back to its text before the run; the text it held is kept as {}",
                     edit.path.display(),
+                    // `match`: picks the arm whose pattern fits the value.
                     match kept {
+                        // `Some`: the present or the absent value of an `Option`.
+                        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                         Some(found) => found.display().to_string(),
+                        // `None`: the present or the absent value of an `Option`.
+                        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                         None => "nothing (it had vanished)".to_string(),
                     }
                 )),
@@ -350,11 +355,13 @@ pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> i
                     "{} was changed by another process while it was being restored; it was left as that process wrote it",
                     edit.path.display()
                 )),
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 ReplaceOutcome::Displaced(kept) => warnings.push(format!(
                     "{} was restored, but the file it displaced was not the one this run wrote; that file is kept as {}",
                     edit.path.display(),
                     kept.display()
                 )),
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 ReplaceOutcome::Undone(kept) => warnings.push(format!(
                     "{} was changed twice by other processes while it was being restored; it was left as the last one wrote it, and the snapshot copy is kept as {}",
                     edit.path.display(),

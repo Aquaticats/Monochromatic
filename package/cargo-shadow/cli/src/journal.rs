@@ -106,7 +106,8 @@ pub use crate::journal_replace::{create_directories_synced, create_exclusive, un
 /// Re-exports the recovery entry points,
 /// which live in `journal_recover.rs`.
 pub use crate::journal_recover::{recover, recover_with};
-/// Re-exports the transaction handle, which lives in `journal_transaction.rs`.
+/// Re-exports the transaction handle,
+/// which lives in `journal_transaction.rs`.
 pub use crate::journal_transaction::{Transaction, begin};
 
 /// What:
@@ -167,7 +168,8 @@ pub(crate) const OWNER_FILE: &str = "owner";
 /// The file whose exclusive lock the owner of a transaction holds while it lives.
 pub(crate) const LOCK_FILE: &str = "lock";
 
-/// The record written last that lists every file a recovery needs, with its length.
+/// The record written last that lists every file a recovery needs,
+/// with its length.
 pub(crate) const READY_FILE: &str = "ready";
 
 /// The suffix of a journal directory whose transaction completed and whose removal may not have.
@@ -375,11 +377,13 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
                 "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
                 snapshot.crate_dir
             )),
+            // Macro `format!`: builds or prints text (or a list) from a template.
             ReplaceOutcome::Displaced(copy) => warnings.push(format!(
                 "{}/{LOCKFILE_NAME} was restored, but the file it displaced was not the one this run wrote; that file is kept as {}",
                 snapshot.crate_dir,
                 copy.display()
             )),
+            // Macro `format!`: builds or prints text (or a list) from a template.
             ReplaceOutcome::Undone(copy) => warnings.push(format!(
                 "{}/{LOCKFILE_NAME} was changed twice by other processes while the step ran; it was left as the last one wrote it, and the snapshot copy is kept as {}",
                 snapshot.crate_dir,

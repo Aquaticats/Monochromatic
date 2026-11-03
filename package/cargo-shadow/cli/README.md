@@ -218,9 +218,12 @@ The reader is tested against git itself
 each case builds a disposable repository with an isolated home,
 asks `/usr/bin/git` which base it chooses,
 and requires the reader to decline or to agree;
-`src/git_fallback_tests.rs` runs the whole choice, fallback included, with the same Git and home).
+`src/git_fallback_tests.rs` runs the whole choice,
+fallback included,
+with the same Git and home).
 When the batched start stops before every candidate was answered,
-each candidate is asked on its own, so an unanswered query is never read as a missing revision.
+each candidate is asked on its own,
+so an unanswered query is never read as a missing revision.
 Measured on 2026-11-03 (a throwaway repository with an upstream,
 `cargo metadata --offline` through the release binaries,
 4 arms alternated per round,
@@ -594,16 +597,23 @@ and an HTTP 429 is retried after its `Retry-After`.
   so cargo writes the live lockfile.
   What decides the outcome is not attribution.
   A restore never unlinks an inode that was live at a path:
-  the file it displaces, and the replacement it exchanged in, each get a surviving name first
+  the file it displaces,
+  and the replacement it exchanged in,
+  each get a surviving name first
   (`.cache/cargo-shadow/displaced/` or beside the target),
   so a write through a descriptor opened earlier still lands in a named file,
-  and a file that was misattributed is moved aside with a warning, not lost.
+  and a file that was misattributed is moved aside with a warning,
+  not lost.
   The inode change time (`ctime`) of a file against the window of the cargo call
   (a window that ends before it starts counts as the call's)
   only chooses between "put the snapshot back and keep the displaced file" and "leave the file alone";
-  it is a hint, not proof of authorship, and a clock step or a coarse file system can make it wrong in either direction.
-  Wrong one way, a foreign file is kept under a named copy.
-  Wrong the other way, cargo's output stays live and the step stops the command (`Unsettled`) instead of building it.
+  it is a hint,
+  not proof of authorship,
+  and a clock step or a coarse file system can make it wrong in either direction.
+  Wrong one way,
+  a foreign file is kept under a named copy.
+  Wrong the other way,
+  cargo's output stays live and the step stops the command (`Unsettled`) instead of building it.
   A filesystem that cannot exchange fails the restore visibly and overwrites nothing;
   a file that vanished after the comparison stays vanished.
   A lockfile or manifest that cannot be read as text is an error and is left alone,
@@ -617,42 +627,61 @@ and an HTTP 429 is retried after its `Retry-After`.
   The run holds an exclusive `flock` on a file in the journal for as long as it lives;
   the kernel releases it when the run dies.
   A recovery tries for that lock without waiting:
-  held means the owner lives (or another recovery is at work), so the journal is left alone;
-  free means the owner is gone, and the recovery confirms that the locked file is the one at the journal's path.
-  This is one lock per run, a pick open to the owner's veto.
-  No `/proc` lookup, process id or clock decides who lives.
+  held means the owner lives (or another recovery is at work),
+  so the journal is left alone;
+  free means the owner is gone,
+  and the recovery confirms that the locked file is the one at the journal's path.
+  This is one lock per run,
+  a pick open to the owner's veto.
+  No `/proc` lookup,
+  process id or clock decides who lives.
   A recovery decides every root of the journal:
   it keeps the leftover lockfile when its new versions pass the policy,
   and otherwise saves it as `Cargo.lock.refused` (or the first free `Cargo.lock.refused.N`)
   before putting the snapshot back.
-  A root a live transaction covers, a root that failed and a root with no decision are never restored,
+  A root a live transaction covers,
+  a root that failed and a root with no decision are never restored,
   so a lockfile and its manifests are never split.
-  A `--breaking` run's manifests are in the journal (lossless path bytes, a versioned record, required by the ready record):
+  A `--breaking` run's manifests are in the journal (lossless path bytes,
+  a versioned record,
+  required by the ready record):
   a ready journal with a missing or short file is kept.
   A journal that never became ready changed nothing and is removed.
-  A finished journal is renamed to `.done` (the completion marker), then removed;
+  A finished journal is renamed to `.done` (the completion marker),
+  then removed;
   a removal that stopped partway is finished by the next recovery.
   Data is synced before it is relied on:
-  the displaced file, each new directory with its parent, the kept outputs.
+  the displaced file,
+  each new directory with its parent,
+  the kept outputs.
   Power-loss behavior depends on the filesystem honoring `fsync` and is not tested by fault injection.
 - Nothing waits forever
-  (owner rule of 2026-11-03: "nothing should ever wait forever or indefinitely").
-  Locks are tried, never waited for.
+  (owner rule of 2026-11-03:
+  "nothing should ever wait forever or indefinitely").
+  Locks are tried,
+  never waited for.
   Every child process runs under a bound that ends in an error naming the call and the command to run again,
   with every file kept:
   a cargo call 30 minutes,
   a Git call 60 seconds,
   `file-enforcer write` 5 minutes.
-  A registry request has its own timeout, a pause for an HTTP 429 is at most 2 minutes
-  (a longer `Retry-After` ends the call), and the dump download ends after an hour.
-  These are chosen limits, not measurements.
-  The one exemption is the user's own command that the shim starts after the checks (`cargo build`, `cargo run` and the like):
-  it runs as long as the user lets it, and cargo-shadow does nothing while it runs.
+  A registry request has its own timeout,
+  a pause for an HTTP 429 is at most 2 minutes
+  (a longer `Retry-After` ends the call),
+  and the dump download ends after an hour.
+  These are chosen limits,
+  not measurements.
+  The one exemption is the user's own command that the shim starts after the checks (`cargo build`,
+  `cargo run` and the like):
+  it runs as long as the user lets it,
+  and cargo-shadow does nothing while it runs.
 - `cargo add` and `cargo remove` run cargo first and then only warn about dependencies that skip the catalog.
   They run no code of the dependency,
   and the policy is enforced by the install step of the next command that resolves or builds,
   which checks the lockfile they left.
-  The policy is not applied at the moment of the edit; that is a decision, not an oversight.
+  The policy is not applied at the moment of the edit;
+  that is a decision,
+  not an oversight.
 - Until the checks pass,
   cargo's output is in the live lockfile,
   so a plain cargo that is not the shadow can build on it.

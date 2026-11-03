@@ -788,13 +788,20 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // Review finding (3c P1-1): a policy refusal is a successful report with problems, not an error; a rollback that cannot
         // complete stops the command whether cargo failed or its output was refused, and the refusal travels in the message.
         if !still_live.is_empty() || restored.is_err() {
+            // `match`: picks the arm whose pattern fits the value.
+            // Borrow `&outcome`: lends the value without copying or giving it away.
+            // Typed binding: `refusal: String`.
             let refusal: String = match &outcome {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 Ok(report) if !report.problems.is_empty() => format!("\nThe policy refused it: {}", report.problems.join("; ")),
+                // Constructor `String::new()`: an empty owned collection or a boxed value.
                 _ => String::new(),
             };
             return Err(InstallError::Unsettled {
                 message: format!(
                     "cargo-shadow: this run's cargo changed {} and the change could not be put back ({}), so the command was not run{refusal}",
+                    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                     if still_live.is_empty() { "a lockfile".to_string() } else { still_live.join(", ") },
                     match &restored {
                         Ok(warnings) => warnings.join("; "),
@@ -812,6 +819,8 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             eprintln!("cargo-shadow: warning: {warning}");
         }
     }
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
     transaction.finish().map_err(io_error)?;
     // Closure `|mut report|`: an anonymous function, like a TS arrow function.
     // Adapter `.map(`: transforms or selects items with a closure.

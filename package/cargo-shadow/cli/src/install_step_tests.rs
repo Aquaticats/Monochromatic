@@ -542,6 +542,9 @@ fn a_frozen_policy_refusal_stops_the_command_and_a_frozen_stale_lock_does_not() 
 #[test]
 fn a_restore_that_cannot_complete_stops_the_command_instead_of_building_the_unrestored_lockfile() {
     use std::os::unix::fs::PermissionsExt;
+    if ignores_permissions() {
+        return;
+    }
     // Typed binding: `young: String`.
     // Macro `format!`: builds or prints text (or a list) from a template.
     let young: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
@@ -696,38 +699,82 @@ fn a_package_from_an_unsupported_registry_stops_the_command() {
     assert!(matches!(frozen, StepOutcome::Refused(_)), "frozen: {frozen:?}");
 }
 
-/// Whether the process may ignore directory permissions, which makes a read-only directory no obstacle.
+/// Whether the process may ignore directory permissions,
+/// which makes a read-only directory no obstacle.
 fn ignores_permissions() -> bool {
     use std::os::unix::fs::MetadataExt;
+    // Closure `|metadata|`: an anonymous function, like a TS arrow function.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
+    // Why:      They express one step of a pipeline without an index loop.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // list.map(f).filter(g)
+    // ```
     return fs::metadata("/proc/self").map(|metadata| { return metadata.uid() == 0; }).unwrap_or(true);
 }
 
-/// Review finding (3c P1-1): cargo succeeds, the policy refuses what it wrote, and the rollback cannot complete.
-/// A policy report is a result, not an error, so the rollback failure must not turn it into a warn-and-run fallback.
+/// Review finding (3c P1-1):
+/// cargo succeeds,
+/// the policy refuses what it wrote,
+/// and the rollback cannot complete.
+/// A policy report is a result,
+/// not an error,
+/// so the rollback failure must not turn it into a warn-and-run fallback.
 #[test]
 fn a_policy_refusal_whose_rollback_cannot_complete_stops_the_command() {
     use std::os::unix::fs::PermissionsExt;
     if ignores_permissions() {
         return;
     }
+    // Typed binding: `young: String`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let young: String = format!("# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
+    // `.clone()`: an independent owned copy.
     let directory = start.clone();
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        // Closure `|argument|`: an anonymous function, like a TS arrow function.
+        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
         }
+        // Closure `|argument|`: an anonymous function, like a TS arrow function.
+        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         if arguments[0] == "update" && !arguments.iter().any(|argument| { return argument == "--precise"; }) {
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Closure `|error|`: an anonymous function, like a TS arrow function.
+            // Borrow `&young`: lends the value without copying or giving it away.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // `.map_err(...)`: converts the callee's error into this function's error type.
             fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Closure `|error|`: an anonymous function, like a TS arrow function.
+            // Borrow `&directory`: lends the value without copying or giving it away.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // `.map_err(...)`: converts the callee's error into this function's error type.
             fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).map_err(|error| { return error.to_string(); })?;
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
         }
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // Constructor `String::new()`: an empty owned collection or a boxed value.
         return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
     };
 
+    // `None`: the present or the absent value of an `Option`.
+    // Borrow `&StepRequest`: lends the value without copying or giving it away.
     let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+    // Borrow `&start`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::set_permissions(&start, fs::Permissions::from_mode(0o755)).expect("make the directory writable again");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the refused lockfile: {outcome:?}");
 }

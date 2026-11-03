@@ -340,6 +340,15 @@ fn real_cargo_finds_the_path_workspace_stale_updates_it_offline_and_then_finds_i
     let root = scratch();
     write_stale_path_workspace(root.path());
     let dirs: Vec<String> = vec!["package/real/ws".to_string()];
+    // Typed binding: `cargo: crate::cargo_run::RealCargo`.
+    // Constructor `String::new()`: an empty owned collection or a boxed value.
+    // What:     `Duration` is a length of time and `Instant` a point on the monotonic clock (siblings: the wall-clock `SystemTime`).
+    // Why:      Spacing between requests is a length of time, measured on a clock that never jumps back.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let cargo: crate::cargo_run::RealCargo = crate::cargo_run::RealCargo { program, toolchain: String::new(), bound: std::time::Duration::from_secs(crate::cargo_run::CARGO_CALL_SECONDS) };
     let catalog_settings: Settings = settings();
     let registry: FakeRegistry = empty_registry();
@@ -490,6 +499,8 @@ fn a_lockfile_another_process_wrote_during_the_checks_is_not_discarded_by_a_refu
 #[test]
 fn a_run_killed_after_cargo_wrote_is_finished_by_the_next_install() {
     let (root, dirs) = repository(&[("package/a/one", &lock_with("dep", "1.0.1"))]);
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     crate::journal_support::plant(root.path(), &[crate::crates::LockSnapshot { crate_dir: "package/a/one".to_string(), source: SATISFIED.to_string() }], &[]);
     let cargo: FakeCargo = cargo_that_writes(SATISFIED);
     let registry: FakeRegistry = FakeRegistry {
