@@ -20,7 +20,7 @@
 // ```ts
 // import { explore, Limits, Report } from './model_explore';
 // ```
-use crate::model_explore::{Limits, Report, explore};
+use crate::model_explore::{Limits, Report, explore, push_step};
 
 /// What:
 ///  `enum Rules { ... }` is a closed set of named choices (TS: a union of string literals).
@@ -31,7 +31,7 @@ use crate::model_explore::{Limits, Report, explore};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'candidate-no-binding-sync' | 'candidate-no-record-sync';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'nine' | 'candidate-no-binding-sync' | 'candidate-no-record-sync';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -48,6 +48,12 @@ pub enum Rules {
     /// Revision 8 draft, C3 and C4: the complete binding is linked, a same-hash resend that finds no inbox record completes
     /// acceptance, and one that finds a record answers from its state (without making it durable).
     Eight,
+    /// Revision 9, C2 to C4: each writer spools into a private candidate directory (exclusive mkdir with a random nonce), the
+    /// binding routes by the identity's state, and a resend that finds a visible record redoes the fsyncs before answering.
+    Nine,
+    /// Revision 9 plus one correction found by the model: a no-replace link that fails because the name exists also redoes the
+    /// inbox fsyncs before answering (a proposal, not revision 9's text).
+    NineFsyncOnExists,
     /// The candidate with the fsync of the binding left out (a mutation that must stay red).
     CandidateNoBindingSync,
     /// The candidate with the fsync of the published record left out (a mutation that must stay red).
@@ -87,6 +93,10 @@ pub struct Slot {
 pub enum Phase {
     /// Nothing done yet.
     Start,
+    /// Revision 8: writing the spool into the shared `incoming/<id>.<hash>` directory.
+    Writing,
+    /// Revisions 8 and 9: the candidate directory is complete and synced (C2 done).
+    Cand,
     /// Revision 7: the binding file exists but its content is not yet written (creation is visible before content).
     Creating,
     /// The binding is complete but not yet made durable.
@@ -144,6 +154,8 @@ pub struct State {
     pub rules: Rules,
     /// Client A (index 0, hash 1) and client B (index 1, hash 2).
     pub clients: [Client; 2],
+    /// How many writers are inside one candidate directory at once (revision 8 shares it between same-content writers).
+    pub cand_writers: u8,
     /// `ids/<xx>/<id>`: the permanent binding of the identity to a content hash (revision 7 only).
     pub binding: Slot,
     /// `inbox/<id>`.
@@ -184,7 +196,7 @@ const NAMES: [&str; 2] = ["A", "B"];
 pub fn initial(rules: Rules) -> State {
     let a: Client = Client { hash: 1, phase: Phase::Start };
     let b: Client = Client { hash: 2, phase: Phase::Start };
-    return State { rules, clients: [a, b], binding: EMPTY, inbox: EMPTY, queue: EMPTY, ledger: EMPTY };
+    return State { rules, clients: [a, b], cand_writers: 0, binding: EMPTY, inbox: EMPTY, queue: EMPTY, ledger: EMPTY };
 }
 
 /// What:
@@ -299,6 +311,24 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
     let client: Client = state.clients[who];
     let seven: bool = state.rules != Rules::Six;
     let candidate: bool = state.rules != Rules::Six && state.rules != Rules::Seven;
+    let c2_first: bool = state.rules == Rules::Eight || state.rules == Rules::Nine || state.rules == Rules::NineFsyncOnExists;
+    if client.phase == Phase::Start && c2_first {
+        let mut after: State = state.clone();
+        if state.rules == Rules::Eight {
+            after.cand_writers += 1;
+            after.clients[who].phase = Phase::Writing;
+            push_step(&mut found, &format!("{}: C2 spool: writes the spool and record into the shared incoming/<id>.<hash> directory", name), after);
+        } else {
+            after.clients[who].phase = Phase::Cand;
+            push_step(&mut found, &format!("{}: C2 spool: writes the spool and record into its private candidate directory and fsyncs it", name), after);
+        }
+    }
+    if client.phase == Phase::Writing {
+        let mut after: State = state.clone();
+        after.cand_writers -= 1;
+        after.clients[who].phase = Phase::Cand;
+        push_step(&mut found, &format!("{}: C2 spool: fsyncs the shared candidate directory", name), after);
+    }
     if client.phase == Phase::Start && !seven {
         let known: u8 = recorded(state);
         let mut after: State = state.clone();
@@ -321,7 +351,7 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
             found.push((format!("{}: finds a different content recorded and is refused", name), after));
         }
     }
-    if client.phase == Phase::Start && seven {
+    if ((client.phase == Phase::Start && !c2_first) || client.phase == Phase::Cand) && seven {
         // `O_EXCL` creation of `ids/<xx>/<id>`: exactly one client creates it, the others read it.
         let mut after: State = state.clone();
         if state.binding.hash == 0 && !candidate {
@@ -404,6 +434,9 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
             // ```ts
             // after.clients[who].phase = inbox.hash === client.hash ? 'resent' : 'rejected';
             // ```
+            if state.rules == Rules::NineFsyncOnExists {
+                after.inbox.durable = true;
+            }
             after.clients[who].phase = if state.inbox.hash == client.hash { Phase::Resent } else { Phase::Rejected };
             found.push((format!("{}: the link fails because inbox/<id> exists", name), after));
         }
@@ -419,7 +452,9 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
             found.push((format!("{}: fsyncs the record, inbox/ and its parent", name), after));
         }
     }
-    let alive_midway: bool = client.phase == Phase::Creating
+    let alive_midway: bool = client.phase == Phase::Writing
+        || client.phase == Phase::Cand
+        || client.phase == Phase::Creating
         || client.phase == Phase::Bound
         || client.phase == Phase::Checked
         || client.phase == Phase::Temp
@@ -428,6 +463,9 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
     if alive_midway {
         // A client process can die between any two of its steps.
         let mut after: State = state.clone();
+        if client.phase == Phase::Writing {
+            after.cand_writers -= 1;
+        }
         after.clients[who].phase = Phase::Crashed;
         found.push((format!("{}: the process dies", name), after));
     }
@@ -475,6 +513,7 @@ fn after_power_loss(state: &State) -> State {
             client.phase = Phase::Start;
         }
     }
+    after.cand_writers = 0;
     return after;
 }
 
@@ -489,6 +528,9 @@ fn after_power_loss(state: &State) -> State {
 /// function invariant(s: State): string | undefined;
 /// ```
 pub fn invariant(state: &State) -> Option<String> {
+    if state.cand_writers > 1 {
+        return Some("two writers write into one candidate directory".to_string());
+    }
     let mut content: u8 = 0;
     // What:     `for slot in [a, b, c]` loops over a three-entry array, giving each `Slot` by value (`Slot` is `Copy`,
     //           a small type duplicated on use, so no `&` is needed).
@@ -559,6 +601,17 @@ pub fn limits() -> Limits {
 /// ```ts
 /// function check(rules: Rules): Report;
 /// ```
+pub fn initial_same_content(rules: Rules) -> State {
+    let mut state: State = initial(rules);
+    state.clients[1].hash = 1;
+    return state;
+}
+
+/// Explores every schedule under `rules`; revisions 8 and 9 also with both clients sending the same content.
 pub fn check(rules: Rules) -> Report {
-    return explore(vec![initial(rules)], steps, invariant, acceptable_end, limits());
+    let mut starts: Vec<State> = vec![initial(rules)];
+    if rules == Rules::Eight || rules == Rules::Nine || rules == Rules::NineFsyncOnExists {
+        starts.push(initial_same_content(rules));
+    }
+    return explore(starts, steps, invariant, acceptable_end, limits());
 }

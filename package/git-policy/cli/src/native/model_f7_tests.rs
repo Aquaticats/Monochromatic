@@ -18,7 +18,7 @@
 // import { check, Rules } from './model_f7_identity';
 // ```
 use crate::model_explore::{Report, replay};
-use crate::model_f7_identity::{Rules, State, acceptable_end, check, initial, invariant, steps};
+use crate::model_f7_identity::{Rules, State, acceptable_end, check, initial, initial_same_content, invariant, steps};
 
 /// The review's schedule under the revision-6 rule: the second client's rename replaces the first client's
 /// acknowledged record, before the lane adopts it and after.
@@ -138,16 +138,93 @@ fn eight_answers_a_resend_from_a_record_that_is_not_durable() {
         initial(Rules::Eight),
         steps,
         &[
+            "A: C2 spool: writes the spool and record into the shared incoming/<id>.<hash> directory",
+            "A: C2 spool: fsyncs the shared candidate directory",
             "A: links a complete binding ids/<xx>/<id> without replacing",
             "A: fsyncs the binding file and its directory",
             "A: writes its record under a temporary name",
             "A: links its record into inbox/<id> without replacing",
             "A: the process dies",
             "A: resends the same request",
+            "A: C2 spool: writes the spool and record into the shared incoming/<id>.<hash> directory",
+            "A: C2 spool: fsyncs the shared candidate directory",
             "A: finds its own hash in the binding and answers from the record",
             "power loss: unsynced files and directory entries are gone",
         ],
     );
     assert_eq!(invariant(&reached), Some("a client was answered from a record that does not exist".to_string()));
+    assert!(check(Rules::Eight).violation.is_some());
+}
+
+/// Revision 8 (red): two writers of the same identity and the same content both spool into the shared
+/// `incoming/<id>.<hash>` directory.
+#[test]
+fn eight_lets_two_same_content_writers_share_a_candidate_directory() {
+    let reached = replay(
+        initial_same_content(Rules::Eight),
+        steps,
+        &[
+            "A: C2 spool: writes the spool and record into the shared incoming/<id>.<hash> directory",
+            "B: C2 spool: writes the spool and record into the shared incoming/<id>.<hash> directory",
+        ],
+    );
+    assert_eq!(invariant(&reached), Some("two writers write into one candidate directory".to_string()));
+}
+
+/// Revision 9 as written has a defect the model finds: two same-content writers; the first links its record into `inbox/`
+/// (visible, not durable); the second, whose C3 found the binding reserved, runs C4 and its no-replace link fails because the
+/// name exists; C4 as written fsyncs only after a successful link, so the second writer answers `handed over` from a record
+/// that power loss then removes.
+#[test]
+fn nine_answers_from_a_record_that_a_failed_no_replace_link_found_not_durable() {
+    let reached = replay(
+        initial_same_content(Rules::Nine),
+        steps,
+        &[
+            "A: C2 spool: writes the spool and record into its private candidate directory and fsyncs it",
+            "A: links a complete binding ids/<xx>/<id> without replacing",
+            "A: fsyncs the binding file and its directory",
+            "A: writes its record under a temporary name",
+            "B: C2 spool: writes the spool and record into its private candidate directory and fsyncs it",
+            "B: finds its own hash in the binding and no record, and continues",
+            "A: links its record into inbox/<id> without replacing",
+            "B: fsyncs the binding file and its directory",
+            "B: writes its record under a temporary name",
+            "B: the link fails because inbox/<id> exists",
+            "power loss: unsynced files and directory entries are gone",
+        ],
+    );
+    assert_eq!(invariant(&reached), Some("a client was answered from a record that does not exist".to_string()));
+    assert!(check(Rules::Nine).violation.is_some());
+}
+
+/// With the one correction (fsync also when the no-replace link finds the name taken) every schedule is green: private
+/// candidates, routing by the identity's state, a resend after adoption and after retirement, same-content writers.
+#[test]
+fn nine_with_an_fsync_on_a_taken_name_routes_a_same_identity_by_state() {
+    let report: Report = check(Rules::NineFsyncOnExists);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F7 nine corrected: {} states, deepest {}", report.states, report.deepest);
+    let after_retirement = replay(
+        initial(Rules::NineFsyncOnExists),
+        steps,
+        &[
+            "A: C2 spool: writes the spool and record into its private candidate directory and fsyncs it",
+            "A: links a complete binding ids/<xx>/<id> without replacing",
+            "A: fsyncs the binding file and its directory",
+            "A: writes its record under a temporary name",
+            "A: links its record into inbox/<id> without replacing",
+            "A: fsyncs the record, inbox/ and its parent",
+            "A: answers that the request is handed over",
+            "lane: adopts the record, moving inbox/<id> to queue/<id>",
+            "lane: retires the request, appending its ledger line",
+            "B: C2 spool: writes the spool and record into its private candidate directory and fsyncs it",
+            "B: finds a different hash in the binding and is refused",
+        ],
+    );
+    assert_eq!(invariant(&after_retirement), None);
     assert!(check(Rules::Eight).violation.is_some());
 }
