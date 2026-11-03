@@ -141,9 +141,18 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   worktree `.claude/worktrees/index-lock-and-service-waits`.
 - Not agents:
   the 0.5.27 `native:release:wait`;
-  the second cross-vendor review of cargo-shadow (`pi`,
-  output `~/temp/agent/reviews/cargo-shadow-sol-2.txt`,
-  diff `cargo-shadow-src-2.diff` from `504a82aa3f` to `09bb7820ea`;
+  the second cross-vendor review of cargo-shadow,
+  split in three after the whole 733 KB diff timed out at 3600 s with no output
+  (2026-11-03T11:23:48-05:00):
+  the Git reader (`cargo-shadow-sol-2a.txt`,
+  90 KB diff),
+  the journal and restore (`cargo-shadow-sol-2b.txt`,
+  100 KB),
+  install,
+  verify,
+  policy and the planning record (`cargo-shadow-sol-2c.txt`,
+  212 KB),
+  each from `504a82aa3f` to `09bb7820ea` with the first review attached;
   the follow-ups are done:
   294 of 294 tests,
   the trust base read from Git's files with one `git` start only in the cases they cannot answer,
