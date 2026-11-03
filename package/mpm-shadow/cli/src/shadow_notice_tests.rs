@@ -72,7 +72,14 @@ fn the_added_text_names_the_shadow_its_version_and_the_real_mpm() {
     assert_eq!(line.matches('\n').count(), 1, "exactly one line");
     let section = help_section(Path::new("/real/bin/mpm"));
     assert!(section.starts_with("\nmpm-shadow "), "{section}");
-    for expected in [env!("CARGO_PKG_VERSION"), "/real/bin/mpm", "shadow of mpm", "`monochromatic-` crates", "deleted stale"] {
+    for expected in [env!("CARGO_PKG_VERSION"), "/real/bin/mpm", "shadow of mpm", "`monochromatic-` crates", "deleted stale", "mpm i -g"] {
         assert!(section.contains(expected), "{expected} missing from:\n{section}");
+    }
+    // Every word `mpm` hands to mpm-shadow is named, read from the same verb table.
+    for verb in crate::cli::declared_verbs() {
+        assert!(section.contains(verb.name), "{} missing from:\n{section}", verb.name);
+        for alias in verb.aliases {
+            assert!(section.contains(alias), "{alias} missing from:\n{section}");
+        }
     }
 }
