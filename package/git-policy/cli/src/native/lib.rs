@@ -818,6 +818,9 @@ pub mod forwarded_command;
 /// Index-writer classification and the commands that coordinate with a landing.
 pub mod index_writer_commands;
 
+/// The wait for any program's hold on `index.lock` before a command changes the checkout.
+pub mod index_holder_wait;
+
 /// Waiting for a foreign index.lock under the classification rules and Git's backoff schedule.
 pub mod index_lock_wait;
 
@@ -831,6 +834,9 @@ pub mod index_writer_forward;
 
 /// The `git merge` command lines the wrapper completes in isolation, and those it leaves to native Git.
 pub mod merge_options;
+
+/// The settling of an isolated merge whose branch moved while it was prepared or applied.
+pub mod merge_isolation_moved;
 
 /// The durable intent record of an isolated merge.
 pub mod merge_isolation_journal;

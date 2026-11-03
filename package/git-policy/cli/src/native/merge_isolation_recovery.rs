@@ -22,6 +22,8 @@ use super::diagnostic_log::debug;
 use super::merge_isolation_journal::{
     MergeIntent, list_merge_intents, parse_merge_intent, remove_merge_intent,
 };
+/// A merge whose branch moved while it was prepared.
+use super::merge_isolation_moved::settle_moved_branch;
 /// The raw differences and the worktree states.
 use super::merge_isolation_changes::{
     Change, WorktreeState, parse_raw_changes, worktree_path, worktree_state,
@@ -72,6 +74,10 @@ pub enum MergeRecoveryAction {
     Completed,
     /// The branch already names the merge commit; only the record was removed.
     AlreadyLanded,
+    /// The branch names a commit that is neither the merge's parent nor the merge: it moved while the merge was prepared.
+    /// What the merge had begun to install was put back to the moved head's content, so the checkout holds what it held
+    ///  before the merge, and the record was removed; the merge can be computed again on the moved head.
+    BranchMoved,
 }
 
 /// One record recovery visited.
@@ -210,7 +216,7 @@ fn resolve_commit(place: &RecoveryPlace, root: &Path, reference: &str) -> Result
 /// ```ts
 /// async function mergeChanges({ old, next }): Promise<Change[]>;
 /// ```
-fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Result<Vec<Change>, RecoveryError> {
+pub(super) fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Result<Vec<Change>, RecoveryError> {
     let request: GitRequest = GitRequest::new(
         root,
         &["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", intent.old_oid.as_str(), intent.new_oid.as_str()],
@@ -230,7 +236,7 @@ fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Re
 /// ```ts
 /// async function indexHoldsTheMerge({ place, root, oldOid, changes }): Promise<boolean>;
 /// ```
-fn index_holds_the_merge(
+pub(super) fn index_holds_the_merge(
     place: &RecoveryPlace,
     root: &Path,
     old_oid: &str,
@@ -261,7 +267,7 @@ fn index_holds_the_merge(
 /// type Standing = 'old' | 'new' | 'foreign';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Standing {
+pub(super) enum Standing {
     /// The old content, or no file where the old side has none.
     Old,
     /// The new content, or no file where the new side has none.
@@ -279,7 +285,7 @@ enum Standing {
 /// ```ts
 /// function standing(change: Change, state: WorktreeState): Standing;
 /// ```
-fn standing(change: &Change, state: &WorktreeState) -> Standing {
+pub(super) fn standing(change: &Change, state: &WorktreeState) -> Standing {
     let old_matches: bool = match state {
         WorktreeState::Missing => !change.existed(),
         WorktreeState::Content(oid) => change.existed() && *oid == change.old_oid,
@@ -338,16 +344,19 @@ pub fn settle_failed_merge(
         remove_record(record)?;
         return Ok(MergeRecoveryAction::AlreadyLanded);
     }
-    if current.as_deref() != Some(intent.old_oid.as_str()) {
-        return Err(RecoveryError(format!(
-            "{target} names {} although the interrupted merge in {} expected {}. Nothing was changed and the record \
-             {} was kept. Check `git status` and `git log {target}`; remove the record when {} is as you want it.",
-            current.as_deref().unwrap_or("no commit"),
-            root.display(),
-            intent.old_oid,
-            record.display(),
-            target
-        )));
+    match current.as_deref() {
+        Some(head) if head == intent.old_oid => {}
+        Some(head) => return settle_moved_branch(place, record, intent, head),
+        None => {
+            return Err(RecoveryError(format!(
+                "{target} names no commit although the interrupted merge in {} expected {}. Nothing was changed and the \
+                 record {} was kept. Check `git status` and `git log {target}`; remove the record when {target} is as you \
+                 want it.",
+                root.display(),
+                intent.old_oid,
+                record.display()
+            )));
+        }
     }
     let changes: Vec<Change> = merge_changes(place, root, intent)?;
     let mut standings: Vec<Standing> = Vec::with_capacity(changes.len());
@@ -393,7 +402,7 @@ pub fn settle_failed_merge(
 /// ```ts
 /// await rm(record, { force: true });
 /// ```
-fn remove_record(record: &Path) -> Result<(), RecoveryError> {
+pub(super) fn remove_record(record: &Path) -> Result<(), RecoveryError> {
     return remove_merge_intent(record).map_err(|error| { return io_failure("removing", record, &error); });
 }
 
@@ -412,6 +421,38 @@ fn complete(
     place: &RecoveryPlace,
     root: &Path,
     intent: &MergeIntent,
+    changes: &[Change],
+    standings: &[Standing],
+) -> Result<(), RecoveryError> {
+    install_entries(place, root, changes, standings)?;
+    let message: String = String::from("merge: Merge made by the 'ort' strategy. (completed by cli-git recovery)");
+    let mut arguments: Vec<&str> = vec!["update-ref", "-m", message.as_str()];
+    if intent.target_ref.is_none() {
+        arguments.push("--no-deref");
+    }
+    arguments.push(intent.target_ref.as_deref().unwrap_or("HEAD"));
+    arguments.push(intent.new_oid.as_str());
+    arguments.push(intent.old_oid.as_str());
+    run_git_checked(&place.git, &GitRequest::new(root, &arguments))
+        .map_err(|error| { return RecoveryError(error.to_string()); })?;
+    return Ok(());
+}
+
+/// What:
+///  Put the index entries and the worktree files of the changed paths to the state each change ends in.
+/// Why:
+///   The index entries are set first so a file written by `checkout-index` is recorded with the object it holds;
+///  deletions go before writes so a file replaced by a directory of the same name can be created; a path whose
+///  worktree already holds the end state is not written again. The merge's completion and the roll back to a moved
+///  branch both end here, with a different end state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function installEntries({ place, root, changes, standings }): Promise<void>;
+/// ```
+pub(super) fn install_entries(
+    place: &RecoveryPlace,
+    root: &Path,
     changes: &[Change],
     standings: &[Standing],
 ) -> Result<(), RecoveryError> {
@@ -443,16 +484,6 @@ fn complete(
         checkout.input = Some(checkout_input);
         run_git_checked(&place.git, &checkout).map_err(|error| { return RecoveryError(error.to_string()); })?;
     }
-    let message: String = String::from("merge: Merge made by the 'ort' strategy. (completed by cli-git recovery)");
-    let mut arguments: Vec<&str> = vec!["update-ref", "-m", message.as_str()];
-    if intent.target_ref.is_none() {
-        arguments.push("--no-deref");
-    }
-    arguments.push(intent.target_ref.as_deref().unwrap_or("HEAD"));
-    arguments.push(intent.new_oid.as_str());
-    arguments.push(intent.old_oid.as_str());
-    run_git_checked(&place.git, &GitRequest::new(root, &arguments))
-        .map_err(|error| { return RecoveryError(error.to_string()); })?;
     return Ok(());
 }
 
@@ -465,7 +496,7 @@ fn complete(
 /// ```ts
 /// await rm(file, { force: true }); for (const directory of parents(file)) { try { await rmdir(directory); } catch { break; } }
 /// ```
-fn remove_file_and_empty_parents(root: &Path, file: &Path) -> Result<(), RecoveryError> {
+pub(super) fn remove_file_and_empty_parents(root: &Path, file: &Path) -> Result<(), RecoveryError> {
     match std::fs::remove_file(file) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}

@@ -116,7 +116,7 @@ fn a_merge_whose_branch_moved_underneath_it_lands_on_the_new_head() {
         std::fs::create_dir(&markers).expect("marker directory");
         let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
         command.env(PHASE_SIGNAL_VARIABLE, format!("merge-intent:pause:{}", markers.display()));
-        let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the merge starts");
+        let child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the merge starts");
         let began = std::time::Instant::now();
         while !markers.join("merge-intent.reached").exists() {
             assert!(began.elapsed() < PATIENCE, "staged={staged}: the merge never reached the point between computing and applying");
