@@ -164,6 +164,10 @@ mod catalog_specifiers;
 #[path = "binary_worktree_copy_tests.rs"]
 mod worktree_copy;
 
+/// Worktree commands beside an add whose real Git still runs: none waits, and each new worktree gets exactly its own copy.
+#[path = "binary_worktree_copy_concurrent_tests.rs"]
+mod worktree_copy_concurrent;
+
 /// The cheap-worktree ladder: new worktrees are subvolumes, a forwarded removal destroys them, other forms stay Git's.
 #[path = "binary_worktree_ladder_tests.rs"]
 mod worktree_ladder;
