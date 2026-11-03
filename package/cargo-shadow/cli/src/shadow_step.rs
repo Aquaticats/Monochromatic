@@ -434,7 +434,10 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    let current: PathBuf = std::env::current_dir().map_err(|error| { return format!("cargo-shadow: no working directory: {error}"); })?;
+    let current: PathBuf = match std::env::current_dir() {
+        Ok(found) => found,
+        Err(error) => return Err(format!("cargo-shadow: no working directory: {error}")),
+    };
     // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
     // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
     // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
@@ -495,7 +498,10 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // Borrow `&catalog_root`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let (toolchain, warning) = cargo_toolchain(&catalog_root, &explicit).map_err(|message| { return format!("cargo-shadow: toolchain.lock.json is not readable: {message}"); })?;
+    let (toolchain, warning) = match cargo_toolchain(&catalog_root, &explicit) {
+        Ok(found) => found,
+        Err(message) => return Err(format!("cargo-shadow: toolchain.lock.json is not readable: {message}")),
+    };
     // `Some`: the present or the absent value of an `Option`.
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     if let Some(text) = warning {

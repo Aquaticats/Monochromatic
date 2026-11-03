@@ -336,7 +336,10 @@ fn read_catalog(catalog_root: &Path) -> Result<CatalogDocument, String> {
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    let text: String = fs::read_to_string(&path).map_err(|error| { return format!("{}: {error}", path.display()); })?;
+    let text: String = match fs::read_to_string(&path) {
+        Ok(found) => found,
+        Err(error) => return Err(format!("{}: {error}", path.display())),
+    };
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&text`: lends the value without copying or giving it away.
     // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).

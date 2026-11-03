@@ -222,7 +222,10 @@ fn read_table(entry: &mut dyn Read, columns: &[&str], on_row: &mut dyn FnMut(&[S
     if let Some(error) = failure {
         return Err(error);
     }
-    return outcome.map_err(|error| { return DumpFormatError { message: format!("reading the crates.io dump failed: {error}") }; });
+    return match outcome {
+        Ok(found) => Ok(found),
+        Err(error) => Err(DumpFormatError { message: format!("reading the crates.io dump failed: {error}") }),
+    };
 }
 
 /// What:
@@ -245,9 +248,15 @@ pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>
     let mut crates_read: bool = false;
     let mut versions_read: bool = false;
     let mut tar: Archive<GzDecoder<Box<dyn Read>>> = Archive::new(GzDecoder::new(archive));
-    let entries = tar.entries().map_err(|error| { return DumpFormatError { message: format!("the crates.io dump is not a tar archive: {error}") }; })?;
+    let entries = match tar.entries() {
+        Ok(found) => found,
+        Err(error) => return Err(DumpFormatError { message: format!("the crates.io dump is not a tar archive: {error}") }),
+    };
     for listed in entries {
-        let mut entry = listed.map_err(|error| { return DumpFormatError { message: format!("reading the crates.io dump failed: {error}") }; })?;
+        let mut entry = match listed {
+            Ok(found) => found,
+            Err(error) => return Err(DumpFormatError { message: format!("reading the crates.io dump failed: {error}") }),
+        };
         let path: String = entry.path().map(|found| { return found.to_string_lossy().to_string(); }).unwrap_or_default();
         if path.ends_with(CRATES_ENTRY) {
             read_table(&mut entry, &["id", "name"], &mut |row: &[String]| {

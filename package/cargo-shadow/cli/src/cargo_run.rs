@@ -144,7 +144,10 @@ impl CargoRunner for RealCargo {
         if !self.toolchain.is_empty() {
             command.env("RUSTUP_TOOLCHAIN", &self.toolchain);
         }
-        let output = command.output().map_err(|error| { return format!("could not start {}: {error}", self.program.display()); })?;
+        let output = match command.output() {
+            Ok(found) => found,
+            Err(error) => return Err(format!("could not start {}: {error}", self.program.display())),
+        };
         let stdout: String = String::from_utf8_lossy(&output.stdout).to_string();
         let mut text: String = stdout.clone();
         text.push_str(&String::from_utf8_lossy(&output.stderr));

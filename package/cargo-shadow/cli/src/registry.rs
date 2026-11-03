@@ -499,7 +499,10 @@ pub fn parse_version_history(text: &str) -> Result<Vec<VersionRecord>, RegistryE
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `body: Value`.
-    let body: Value = serde_json::from_str(text).map_err(|error| { return body_error("version list", error); })?;
+    let body: Value = match serde_json::from_str(text) {
+        Ok(found) => found,
+        Err(error) => return Err(body_error("version list", error)),
+    };
     // `let mut`: a binding that may change.
     // Typed binding: `records: Vec<VersionRecord>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -546,7 +549,10 @@ pub fn parse_owner_ids(text: &str) -> Result<BTreeSet<String>, RegistryError> {
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `body: Value`.
-    let body: Value = serde_json::from_str(text).map_err(|error| { return body_error("owner list", error); })?;
+    let body: Value = match serde_json::from_str(text) {
+        Ok(found) => found,
+        Err(error) => return Err(body_error("owner list", error)),
+    };
     // `let mut`: a binding that may change.
     // Typed binding: `ids: BTreeSet<String>`.
     // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
