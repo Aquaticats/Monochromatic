@@ -169,25 +169,30 @@ fn stop_process(pid: u32, locks: &LockLedger, incoming: &Receiver<Mark>) {
     // parent has exited; a step's helpers (a transport, a hook) would otherwise outlive it and hold its output open, and the
     // wait for that output would outlast the bound by as long as they live.
     let below: Vec<TreeMember> = descendants_of(raw);
-    let mut tree: Vec<TreeMember> = member_of(raw).into_iter().collect();
+    let root: Option<TreeMember> = member_of(raw);
+    let mut tree: Vec<TreeMember> = root.iter().cloned().collect();
     tree.extend(below.iter().cloned());
-    // SAFETY: `kill` takes no pointers. The watcher fires only while a wait is marked, and the waiting thread reaps
-    // the child only after it ends the mark, except for the window between a one-shot run's `wait_with_output`
-    // returning and its `end` call (microseconds), where a reaped identifier could in principle be reused by another
-    // process before the signal lands; the bound is far longer than that window, so a stop in it needs a wait that
-    // crossed the bound in the same instant.
-    unsafe {
-        libc::kill(raw, libc::SIGTERM);
-    }
+    // A process number can be reused once the waiting thread has reaped the child, and the child is reaped as soon as it
+    // ends, which may be well before the grace is over (a helper below it can outlive it). The signals therefore go to the
+    // root only while it is still the process that was found, by its recorded start time; where no start time can be read
+    // (a platform without `/proc`) the root is signalled without that check, and with nothing to look at the grace ends at once,
+    // as the kill alone did before.
+    let identified: bool = cfg!(target_os = "linux");
+    let signal_root = |signal: libc::c_int| {
+        if root.as_ref().map_or(!identified, still_running) {
+            // SAFETY: `kill` takes no pointers; the process was checked a moment ago to be the one that was found.
+            unsafe {
+                libc::kill(raw, signal);
+            }
+        }
+    };
+    signal_root(libc::SIGTERM);
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
     while asked.elapsed() < STOP_GRACE && tree.iter().any(still_running) {
         std::thread::sleep(STOP_POLL);
     }
-    // SAFETY: as above; a process that ended in the grace is gone or a zombie, and a zombie takes the signal harmlessly.
-    unsafe {
-        libc::kill(raw, libc::SIGKILL);
-    }
+    signal_root(libc::SIGKILL);
     kill_members(below.as_slice());
     // The waiting thread reaps the child, so the watcher only looks. A step in an uninterruptible call ends when the kernel
     // lets it go, which can be long after the bound; the locks it creates on the way out are swept then, or when the watch
