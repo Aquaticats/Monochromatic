@@ -1214,7 +1214,7 @@
     "Existing spare-file work and legacy-file cleanup remain outside the no-live-mapping property."
   ],
   "deliveryChecks": {
-    "recordedAt": "2026-11-03T20:19:14.644Z",
+    "recordedAt": "2026-11-03T20:27:46.966Z",
     "markdownLint": "passed",
     "typescriptChecks": "passed",
     "markdownRendering": "inspected",
@@ -1236,7 +1236,7 @@
         "path": "doc/planning/browser-disk-responsiveness/chromium-metrics-patch-comment.md"
       },
       {
-        "sha256": "051e468007c9053254e9d684755450363c3a748f9f40e40ae0e2c5722372127b",
+        "sha256": "e12fc8fe8894346b578619fab85e057bd259a682ce485a4730d53c902bb62d7f",
         "path": "doc/handover/chromium-live-histogram-contribution.md"
       },
       {
