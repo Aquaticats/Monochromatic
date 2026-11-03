@@ -10098,3 +10098,15 @@ by the coordinator at merge.
   `fix/git-policy-cli-deadline-stop-leaves-no-git-lock` and counting how often the 30 s deadline fires. The
   package-manager branch (repairs now after the lock, online toolchain install) merged main and runs its gate
   `gpc-gate-package-repair-with-main-20261103T015635-0500`.
+- Owner 2026-11-03, verbatim: "Do another pkg-wide pass to eliminate locks wherever possible now." AGENTS.md now
+  carries NLK (owner-chosen, `8b0f860390`). Lock families found in `package/git-policy/cli` and split so no two
+  agents edit one file: (1) settlement lock and the worktree add, move and copy path (`worktree_copy_lock.rs`,
+  `worktree_copy.rs`, `owner_lock_record.rs`, `worktree_completion.rs`, ladder, trash, dirty restore) on
+  `fix/git-policy-cli-worktree-add-without-settlement-lock`; (2) service single-instance claims, the handling of
+  Git's `index.lock` (`service_index_*`, `index_lock_*`, `recovery_files.rs`), the discarded store's `flock`, and
+  in-process mutexes in service modules on `fix/git-policy-cli-service-without-locks`; (3) the conversion's
+  `cli-git-convert.lock` `flock`, subvolume migration locks and `subvolume_index_files.rs`, plus `bin/` script locks,
+  on `fix/git-policy-cli-subvolume-tools-without-locks`; (4) the Git-child stop path and `child_watch.rs` on
+  `fix/git-policy-cli-deadline-stop-leaves-no-git-lock`. Git's own `index.lock` and ref locks are Git's protocol for
+  writing those files and stay; the work there is shorter holds and fewer waits. Each branch: red controls, guards
+  shown red, SPEC and README; then the coordinator gates, merges and releases.
