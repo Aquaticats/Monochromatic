@@ -48,30 +48,39 @@ fn pair() -> (TcpStream, TcpStream) {
     return (client, server);
 }
 
-/// A connected pair is reported established on both sides, with the bytes each side sent and had acknowledged and received.
+/// A connected pair is reported established on both sides, and the bytes each side sent and had acknowledged and received grow
+///  by exactly the bytes the test moved. The counts are compared as growth from the connected pair, because the kernel counts
+///  the opening side's `SYN` as an acknowledged byte (measured on 2026-11-03: 3073 for 3072 bytes on the client, 1024 for 1024 on
+///  the server), and growth is what the push meter uses.
 #[test]
 fn a_connected_pair_reports_its_state_and_the_bytes_of_both_directions() {
     let (mut client, mut server) = pair();
+    let (client_inode, server_inode): (u64, u64) = (inode_of(&client), inode_of(&server));
+    let before_client: TcpSocket = report_of(client_inode).expect("the client socket is listed");
+    let before_server: TcpSocket = report_of(server_inode).expect("the server socket is listed");
     client.write_all(&[1; CLIENT_BYTES]).expect("client sends");
     server.read_exact(&mut [0; CLIENT_BYTES]).expect("server reads");
     server.write_all(&[2; SERVER_BYTES]).expect("server sends");
     client.read_exact(&mut [0; SERVER_BYTES]).expect("client reads");
-    let (client_inode, server_inode): (u64, u64) = (inode_of(&client), inode_of(&server));
+    let grown = |now: &TcpSocket, before: &TcpSocket| -> (u64, u64) {
+        return (now.bytes_acked - before.bytes_acked, now.bytes_received - before.bytes_received);
+    };
     let began: Instant = Instant::now();
     loop {
-        let settled: bool = report_of(client_inode).is_some_and(|socket| { return socket.bytes_acked == CLIENT_BYTES as u64; })
-            && report_of(server_inode).is_some_and(|socket| { return socket.bytes_acked == SERVER_BYTES as u64; });
+        let on_client: Option<TcpSocket> = report_of(client_inode);
+        let on_server: Option<TcpSocket> = report_of(server_inode);
+        let settled: bool = on_client.is_some_and(|socket| { return grown(&socket, &before_client) == (CLIENT_BYTES as u64, SERVER_BYTES as u64); })
+            && on_server.is_some_and(|socket| { return grown(&socket, &before_server) == (SERVER_BYTES as u64, CLIENT_BYTES as u64); });
         if settled {
-            break;
+            assert_eq!((on_client.expect("listed").state, on_server.expect("listed").state), (ESTABLISHED, ESTABLISHED));
+            return;
         }
-        assert!(began.elapsed() < PATIENCE, "the acknowledgements never reached the report");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the counts never grew by the bytes moved: client {on_client:?} from {before_client:?}, server {on_server:?} from {before_server:?}"
+        );
         std::thread::sleep(LOOK);
     }
-    let on_client: TcpSocket = report_of(client_inode).expect("the client socket is listed");
-    let on_server: TcpSocket = report_of(server_inode).expect("the server socket is listed");
-    assert_eq!((on_client.state, on_server.state), (ESTABLISHED, ESTABLISHED));
-    assert_eq!((on_client.bytes_acked, on_client.bytes_received), (CLIENT_BYTES as u64, SERVER_BYTES as u64));
-    assert_eq!((on_server.bytes_acked, on_server.bytes_received), (SERVER_BYTES as u64, CLIENT_BYTES as u64));
 }
 
 /// A socket whose peer closed is no longer established, so it is not listed.

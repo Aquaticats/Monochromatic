@@ -15,11 +15,11 @@
 /// The attempt record a finished or stopped push produces.
 use super::auto_push_single_flight::{PushAttempt, SingleFlightError};
 /// The diagnostic log of the wrapper.
-use super::diagnostic_log::debug;
+use super::diagnostic_log::{debug, warn};
 /// How to allow a push longer, in the words of the program that runs it.
 use super::push_deadline_advice::{extend_ceiling_clause, extend_clause};
-/// The clock that stops a push on a stall or at its ceiling.
-use super::push_progress::Clock;
+/// The clock that stops a push on a stall or at its ceiling, and the wait it lets pass instead.
+use super::push_progress::{Clock, WaitReport};
 /// The helpers and hooks a stopped push leaves running.
 use super::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
 /// The lock files a stopped push leaves, and the ledger that finds them.
@@ -72,7 +72,6 @@ pub const LOW_SPEED_LIMIT: &str = "1000";
 pub const LOW_SPEED_TIME: &str = "60";
 
 /// What the line a push's output gains starts with when the push waited for the server's checks, after its pack was sent.
-// RED SCAFFOLD: nothing writes the line yet.
 pub const WAIT_NOTE_PREFIX: &str = "cli-git: git push is waiting for the server";
 
 /// Pause between two looks at the running push.
@@ -470,6 +469,25 @@ pub fn wait_until_done(
     outputs: &[&File],
     patience: Patience,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
+    let mut waits: Vec<WaitReport> = Vec::new();
+    return wait_until_done_noting(child, outputs, patience, &mut waits);
+}
+
+/// What:
+///  The same wait as `wait_until_done`, handing over the wait of a push that is waiting for the server's checks.
+/// Why:
+///   The push is not stopped while it waits; the caller says so once, in a line, and the wait ends the way any other does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.race([exited, stalled, ceiling, flood]); // waits.push(report) when the push begins to wait for the server
+/// ```
+pub fn wait_until_done_noting(
+    child: &mut Child,
+    outputs: &[&File],
+    patience: Patience,
+    waits: &mut Vec<WaitReport>,
+) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut clock: Clock = Clock::start(child.id(), patience);
     loop {
         if let Some(status) = child.try_wait().map_err(SingleFlightError::Start)? {
@@ -487,8 +505,38 @@ pub fn wait_until_done(
         if let Some(cause) = clock.check() {
             return Ok(Err(cause));
         }
+        if let Some(report) = clock.take_wait_note() {
+            // Said as the wait begins, so a long wait is read while it lasts (the service's log, or the person's terminal).
+            warn(TAG, &wait_line(&report, patience));
+            waits.push(report);
+        }
         std::thread::sleep(POLL_PAUSE);
     }
+}
+
+/// What:
+///  The line that names a push's wait for the server.
+/// Why:
+///   The person or the journal reads that the push is not stuck: its pack is sent, the connection is open, and what ends the
+///  wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${WAIT_NOTE_PREFIX}: its pack is sent and the connection to the remote is open (silent ${silent} seconds)`
+/// ```
+fn wait_line(report: &WaitReport, patience: Patience) -> String {
+    let ceiling: u64 = match patience {
+        Patience::Fixed(limit) => limit.as_secs(),
+        Patience::Progress { ceiling, .. } | Patience::Push { ceiling, .. } => ceiling.as_secs(),
+    };
+    return format!(
+        "{WAIT_NOTE_PREFIX}: its pack is sent and the connection to the remote is open, and nothing has moved for {} seconds \
+         (elapsed_seconds={}); the server may be checking the push. It is waited for until the connection closes or the push has run \
+         {ceiling} seconds; {}.",
+        report.silent.as_secs(),
+        report.elapsed.as_secs(),
+        extend_ceiling_clause()
+    );
 }
 
 /// What:
@@ -520,12 +568,22 @@ pub fn run_bounded_push(
     let locks: LockLedger = LockLedger::before_start(&command);
     let mut child: Child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
     drop(command);
-    let ended: Result<ExitStatus, StopCause> = wait_until_done(&mut child, &[&output], patience)?;
+    let mut waits: Vec<WaitReport> = Vec::new();
+    let ended: Result<ExitStatus, StopCause> = wait_until_done_noting(&mut child, &[&output], patience, &mut waits)?;
     if ended.is_err() {
         stop_push(child, grace, locks);
     }
     let captured: String = read_output(&mut output)?;
-    let shown: &str = strip_one_line_break(captured.as_str());
+    let mut shown_text: String = strip_one_line_break(captured.as_str()).to_owned();
+    // A wait is said once more, in the push's own output (the journal's `pushed` entry and the person's terminal carry it).
+    for report in &waits {
+        let line: String = wait_line(report, patience);
+        if !shown_text.is_empty() {
+            shown_text.push('\n');
+        }
+        shown_text.push_str(line.as_str());
+    }
+    let shown: &str = shown_text.as_str();
     return Ok(match ended {
         Ok(status) => PushAttempt {
             exit_code: i64::from(status.code().unwrap_or(1)),
@@ -553,10 +611,11 @@ pub fn run_bounded_push(
                     extend_clause()
                 ),
                 StopCause::Ceiling(report) => format!(
-                    "cli-git: git push was still running after {} seconds, though it kept moving data, and was stopped \
+                    "cli-git: git push was still running after {} seconds, {}, and was stopped \
                      (limit=ceiling, bytes_moved={}, elapsed_seconds={}); {}. Hint: your commit is already saved; \
                      push again when the connection is faster.",
                     report.limit.as_secs(),
+                    if waits.is_empty() { "though it kept moving data" } else { "most of it waiting for the server" },
                     report.moved,
                     report.elapsed.as_secs(),
                     extend_ceiling_clause()
