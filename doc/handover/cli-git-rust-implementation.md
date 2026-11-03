@@ -9956,3 +9956,15 @@ by the coordinator at merge.
   rename-race findings; the rescue pass that copies newer old-tree files over the installed tree exists only for
   concurrent writers and can itself overwrite an edit, so remove its overwriting. QUEUED for the conversion author when
   an agent slot frees (all five busy). The real conversion waits for these fixes.
+- Owner corrections 2026-11-03, verbatim: "Why are you even using magic numbers at all? There is a way banning
+  this." / "I meant a rule." / "No, you even put "Round 3" or "Round 5" in docs. That's another MGN violation." /
+  "Even just putting the timestamp there is better. There was never any reason to use "Round 3"." / "No no no, a
+  plain date won't cut it. Anything must be precise down to at least the second." Applied: numbered round headings
+  in `doc/planning/cli-git-main-worktree-ignored-copy.md` now start with the strict ISO 8601 time (to the second,
+  with offset, `git log --format=%cI`) of the commit that first wrote them, plus what they cover; references name
+  the heading. An agent is doing the same in `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`,
+  `doc/handover/cli-git-native-reader-fsmonitor.md` and `doc/handover/cli-git-native-service-survivors.md`. Every
+  running agent was told. Still to fix: in `markdown_linter_tests.rs` the test pin
+  `assert_eq!(LINT_DEADLINE, Duration::from_secs(60))` (a production value copied into a test) and the bare numbers
+  in my new comment there; this handover's older entries keep their "round N" labels as historical text (most name
+  review folders such as `review-planted-controls-3`), and new entries use timestamps.
