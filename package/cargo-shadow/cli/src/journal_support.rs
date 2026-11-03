@@ -16,7 +16,6 @@ pub fn plant(root: &Path, snapshots: &[LockSnapshot], manifests: &[ManifestEdit]
         transaction.add_manifests(manifests).expect("journals the manifests");
     }
     drop(transaction);
-    fs::rename(root.join(JOURNAL_DIR).join(std::process::id().to_string()), root.join(JOURNAL_DIR).join("4194305")).expect("pose as a killed process");
     let mut added: Vec<PathBuf> = journal_dirs(root).into_iter().filter(|path| { return !before.contains(path); }).collect();
     assert_eq!(added.len(), 1, "expected exactly one new journal: {added:?}");
     return added.remove(0);

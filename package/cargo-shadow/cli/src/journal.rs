@@ -79,7 +79,7 @@ use std::io::{self, Write};
 /// ```ts
 /// // Buffer.from(path) / Buffer.toString()
 /// ```
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::os::unix::ffi::OsStringExt;
 /// What:
 /// `use std::path::{Path, PathBuf};` imports the borrowed and owned path types.
 /// Why:
@@ -106,6 +106,8 @@ pub use crate::journal_replace::{create_directories_synced, create_exclusive, un
 /// Re-exports the recovery entry points,
 /// which live in `journal_recover.rs`.
 pub use crate::journal_recover::{recover, recover_with};
+/// Re-exports the transaction handle, which lives in `journal_transaction.rs`.
+pub use crate::journal_transaction::{Transaction, begin};
 
 /// What:
 /// `use crate::constants::LOCKFILE_NAME;` imports the lockfile's file name.
@@ -138,16 +140,6 @@ use crate::crates::LockSnapshot;
 /// import { Claim, Window, claimOutput, observe, timed } from 'crate/file_owner';
 /// ```
 use crate::file_owner::{Claim, Window, claim_output, observe, timed};
-/// What:
-/// `use crate::manifest_edit::ManifestEdit;` imports one manifest a `--breaking` run may rewrite.
-/// Why:
-/// The journal records the manifests with their root and their text before the run.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { ManifestEdit } from 'crate/manifest_edit';
-/// ```
-use crate::manifest_edit::ManifestEdit;
 
 /// Where journals live,
 /// relative to the repository root.
@@ -172,6 +164,15 @@ pub(crate) const INDEX_FILE: &str = "index.txt";
 /// the process id and the process start time.
 pub(crate) const OWNER_FILE: &str = "owner";
 
+/// The file whose exclusive lock the owner of a transaction holds while it lives.
+pub(crate) const LOCK_FILE: &str = "lock";
+
+/// The record written last that lists every file a recovery needs, with its length.
+pub(crate) const READY_FILE: &str = "ready";
+
+/// The suffix of a journal directory whose transaction completed and whose removal may not have.
+pub(crate) const DONE_SUFFIX: &str = ".done";
+
 /// The file in a journal directory that names the manifests a `--breaking` run may rewrite.
 /// Its first line is `v1`,
 /// each following line is `<crate root>`,
@@ -181,7 +182,7 @@ pub(crate) const OWNER_FILE: &str = "owner";
 pub(crate) const MANIFEST_INDEX_FILE: &str = "manifests.txt";
 
 /// What:
-/// `fn write_synced(path: &Path, text: &str) -> io::Result<()>` creates a file,
+/// `pub(crate) fn write_synced(path: &Path, text: &str) -> io::Result<()>` creates a file,
 /// writes it and forces it to disk.
 /// Why:
 /// A journal record counts as written only when its bytes are durable,
@@ -191,7 +192,7 @@ pub(crate) const MANIFEST_INDEX_FILE: &str = "manifests.txt";
 /// ```ts
 /// function writeSynced(path: string, text: string): void  // openSync, writeSync, fsyncSync
 /// ```
-fn write_synced(path: &Path, text: &str) -> io::Result<()> {
+pub(crate) fn write_synced(path: &Path, text: &str) -> io::Result<()> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
@@ -472,193 +473,6 @@ pub fn run_recording<T>(root: &Path, crate_dir: &str, produced: &RefCell<Vec<Loc
 }
 
 /// What:
-/// `fn journal_path(root: &Path, pid: u32) -> PathBuf` is where a process's journal lives.
-/// Why:
-/// The directory is named after the process id,
-/// so a recovering run can tell whose it is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const journalPath = (root: string, pid: number): string => join(root, JOURNAL_DIR, String(pid));
-/// ```
-fn journal_path(root: &Path, pid: u32) -> PathBuf {
-    return root.join(JOURNAL_DIR).join(pid.to_string());
-}
-
-/// What:
-/// `pub fn process_identity(pid: u32) -> Option<String>` is the start time of a process (field 22 of `/proc/<pid>/stat`),
-/// or `None` when the process does not exist.
-/// Why:
-/// A process id can be reused;
-/// the pair of process id and start time cannot.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function processIdentity(pid: number): string | undefined
-/// ```
-pub fn process_identity(pid: u32) -> Option<String> {
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // What:     `.ok()` turns a `Result` into an `Option` (dropping the error); `.ok_or(e)` turns an `Option` into a `Result` with the given error.
-    // Why:      The next step wants a value-or-nothing, or a value-or-error, not the other form.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // try { return compute(); } catch { return undefined; }
-    // ```
-    // Typed binding: `text: String`.
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    let text: String = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-    // The command name is in parentheses and may contain spaces; the fields after the last `)` are plain.
-    let after: &str = &text[text.rfind(')')? + 1..];
-    // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
-    // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // Array.from(iterable)  // or [...iterable]
-    // ```
-    // Typed binding: `fields: Vec<&str>`.
-    let fields: Vec<&str> = after.split_whitespace().collect();
-    // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
-    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // (a, b) => body
-    // ```
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-    // Why:      They express one step of a pipeline without an index loop.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // list.map(f).filter(g)
-    // ```
-    return fields.get(19).map(ToString::to_string);
-}
-
-/// What:
-/// `pub fn proc_usable() -> bool` says whether `/proc` can be read for process identities.
-/// Why:
-/// In a chroot or a container `/proc` may be absent;
-/// a process that cannot be looked up must be assumed alive,
-/// or a running transaction would be "recovered" under its own feet.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export const procUsable = (): boolean => existsSync('/proc/self/stat');
-/// ```
-pub fn proc_usable() -> bool {
-    return Path::new("/proc/self/stat").exists();
-}
-
-/// What:
-/// `pub fn process_exists(pid: u32, recorded_identity: &str) -> bool` says whether the process that wrote a journal is still running.
-/// Why:
-/// Without a usable `/proc` the answer is yes (never recover what cannot be shown dead);
-/// with it,
-/// the process must exist and,
-/// when the journal recorded a start time,
-/// have that start time.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function processExists(pid: number, recordedIdentity: string): boolean
-/// ```
-pub fn process_exists(pid: u32, recorded_identity: &str) -> bool {
-    if !proc_usable() {
-        return true;
-    }
-    // `match`: picks the arm whose pattern fits the value.
-    return match process_identity(pid) {
-        // `Some`: the present or the absent value of an `Option`.
-        Some(now) => recorded_identity.is_empty() || now == recorded_identity,
-        // `None`: the present or the absent value of an `Option`.
-        None => false,
-    };
-}
-
-/// What:
-/// `pub fn begin(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()>` writes this process's journal:
-/// the owner record,
-/// every snapshot,
-/// and last the index,
-/// each synchronized,
-/// with the journal directories synchronized after.
-/// Why:
-/// Cargo must not be started until the originals are safely copied;
-/// the index is the commit record,
-/// so a journal without it is known to be incomplete.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function begin(root: string, snapshots: LockSnapshot[]): void
-/// ```
-fn begin_old(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()> {
-    let directory: PathBuf = journal_path(root, std::process::id());
-    fs::create_dir_all(&directory)?;
-    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
-    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // value ?? fallback
-    // ```
-    // Typed binding: `identity: String`.
-    let identity: String = process_identity(std::process::id()).unwrap_or_default();
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&directory.join`: lends the value without copying or giving it away.
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    write_synced(&directory.join(OWNER_FILE), &format!("v1\n{}\n{identity}\n", std::process::id()))?;
-    let mut index: String = String::new();
-    for (position, snapshot) in snapshots.iter().enumerate() {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&directory.join`: lends the value without copying or giving it away.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        write_synced(&directory.join(format!("{position}.lock")), &snapshot.source)?;
-        index.push_str(&snapshot.crate_dir);
-        index.push('\n');
-    }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&directory.join`: lends the value without copying or giving it away.
-    atomic_write(&directory.join(INDEX_FILE), &index)?;
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&directory`: lends the value without copying or giving it away.
-    sync_directory(&directory)?;
-    // `Some`: the present or the absent value of an `Option`.
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    if let Some(parent) = directory.parent() {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        sync_directory(parent)?;
-    }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    return Ok(());
-}
-
-/// What:
-/// `fn encode_path(path: &Path) -> String` writes a path as the hexadecimal text of its bytes.
-/// Why:
-/// A lossy conversion would journal a different path than the one snapshotted when a directory name is not UTF-8.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const encodePath = (path: Buffer): string => path.toString('hex');
-/// ```
-fn encode_path(path: &Path) -> String {
-    // `let mut`: a binding that may change.
-    // Typed binding: `text: String`.
-    // Constructor `String::new()`: an empty owned collection or a boxed value.
-    let mut text: String = String::new();
-    for byte in path.as_os_str().as_bytes() {
-        // Borrow `&format`: lends the value without copying or giving it away.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        text.push_str(&format!("{byte:02x}"));
-    }
-    return text;
-}
-
-/// What:
 /// `fn decode_path(text: &str) -> Option<PathBuf>` reads back what `encode_path` wrote.
 /// Why:
 /// Recovery must find the exact manifest that was snapshotted;
@@ -698,113 +512,4 @@ pub(crate) fn decode_path(text: &str) -> Option<PathBuf> {
     // // TS has one type for this: string
     // ```
     return Some(PathBuf::from(std::ffi::OsString::from_vec(bytes)));
-}
-
-/// What:
-/// `pub fn add_manifests(root: &Path, edits: &[ManifestEdit]) -> io::Result<()>` records the manifests a `--breaking` run may rewrite
-/// in this process's journal,
-/// each with its crate root and its text before the run.
-/// Why:
-/// A killed run must be able to put them back too,
-/// root by root.
-/// Every snapshot is synchronized before the versioned index is published,
-/// and the index ends with a count,
-/// so a truncated record is detected.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function addManifests(root: string, edits: ManifestEdit[]): void  // throws when the journal cannot be written
-/// ```
-fn add_manifests_old(root: &Path, edits: &[ManifestEdit]) -> io::Result<()> {
-    // Typed binding: `directory: PathBuf`.
-    let directory: PathBuf = journal_path(root, std::process::id());
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `let mut`: a binding that may change.
-    // Typed binding: `index: String`.
-    let mut index: String = String::from("v1\n");
-    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
-    // Why:      The collection stays usable after the walk and no item is copied until it must be.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // for (const item of list) { ... }  // or list.map(...)
-    // ```
-    for (position, edit) in edits.iter().enumerate() {
-        if edit.crate_dir.contains('\n') || edit.crate_dir.contains('\t') {
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the crate root {:?} contains a line feed or tab, which the journal cannot list", edit.crate_dir)));
-        }
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&directory.join`: lends the value without copying or giving it away.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        write_synced(&directory.join(format!("m{position}.toml")), &edit.before)?;
-        // Borrow `&format`: lends the value without copying or giving it away.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        index.push_str(&format!("{}\t{}\n", edit.crate_dir, encode_path(&edit.path)));
-    }
-    // Borrow `&format`: lends the value without copying or giving it away.
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    index.push_str(&format!("end {}\n", edits.len()));
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&directory.join`: lends the value without copying or giving it away.
-    atomic_write(&directory.join(MANIFEST_INDEX_FILE), &index)?;
-    // Borrow `&directory`: lends the value without copying or giving it away.
-    return sync_directory(&directory);
-}
-
-/// What:
-/// `pub fn finish(root: &Path)` deletes this process's journal and synchronizes the journal directory.
-/// Why:
-/// The deletion must be durable too,
-/// or a completed journal could reappear after a power loss and be "recovered" over newer work.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function finish(root: string): void
-/// ```
-fn finish_old(root: &Path) {
-    let _ = fs::remove_dir_all(journal_path(root, std::process::id()));
-    // Borrow `&root.join`: lends the value without copying or giving it away.
-    // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
-    // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // void expr;   // or try { expr } catch {}
-    // ```
-    let _ = sync_directory(&root.join(JOURNAL_DIR));
-}
-
-/// One journaled transaction: the journal of snapshots a run keeps until it settles.
-pub struct Transaction {
-    /// The repository root the journal lives under.
-    root: PathBuf,
-}
-
-/// What:
-/// `pub fn begin(root, snapshots, expects_manifests) -> io::Result<Transaction>` journals the lockfile snapshots of a run.
-/// Why:
-/// Nothing may be mutated without a complete recovery record.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function begin(root: string, snapshots: LockSnapshot[], expectsManifests: boolean): Transaction
-/// ```
-pub fn begin(root: &Path, snapshots: &[LockSnapshot], _expects_manifests: bool) -> io::Result<Transaction> {
-    begin_old(root, snapshots)?;
-    return Ok(Transaction { root: root.to_path_buf() });
-}
-
-impl Transaction {
-    /// Journals the manifests a `--breaking` run may rewrite.
-    pub fn add_manifests(&self, edits: &[ManifestEdit]) -> io::Result<()> {
-        return add_manifests_old(&self.root, edits);
-    }
-
-    /// Settles the transaction and removes its journal.
-    pub fn finish(self) -> io::Result<()> {
-        finish_old(&self.root);
-        return Ok(());
-    }
 }

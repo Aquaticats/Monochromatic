@@ -64,6 +64,9 @@ pub mod journal_replace;
 /// split out of `journal.rs`.
 pub mod journal_recover;
 
+/// The transaction handle: a journal held by a lock for the life of a run.
+pub mod journal_transaction;
+
 /// The transaction around the manifests that cargo's `update --breaking` rewrites.
 pub mod manifest_edit;
 

@@ -229,3 +229,28 @@ fn a_journal_marked_done_is_removed_by_the_next_recovery() {
     assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "good output");
 }
+
+/// Finishing a transaction removes its journal, and a second recovery has nothing to do.
+#[test]
+fn finish_removes_the_journal() {
+    let root = repository("x");
+    let transaction = begin(root.path(), &[snapshot("x")], false).expect("begin");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 1);
+
+    transaction.finish().expect("finish");
+
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
+}
+
+/// A journal of a killed run whose snapshots match the live files needs nothing and is removed; the files are not touched.
+#[test]
+fn a_killed_run_that_changed_nothing_leaves_the_lockfile_alone() {
+    let root = repository("original");
+    plant(root.path(), &[snapshot("original")], &[]);
+
+    let messages = recover(root.path(), &|_before, _live| { return vec!["never asked".to_string()]; });
+
+    assert!(messages.is_empty(), "{messages:?}");
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "original");
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
+}
