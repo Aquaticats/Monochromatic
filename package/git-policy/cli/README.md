@@ -388,6 +388,11 @@ It also lists the hooks configured with `hook.<name>.event` (one `hook.<name> (e
 A commit does not scan for traditional hooks: it only warns when the configuration sets `core.hooksPath` or defines
  hooks, which it already knows without any extra file system access.
 
+The doctor also says whether Git's own fsmonitor is off, on standard error and before the filesystem section
+ (see "Git's own fsmonitor"): one line when `core.fsmonitor` is false or unset, and a finding with the file, the scope
+ and the command that turns it off when it is on.
+It never changes the exit status and never writes configuration.
+
 The doctor ends its standard error with a filesystem section for the main checkout of the repository Git selects
  (so `-C`, `--git-dir` and a linked worktree report the main checkout; a bare repository has none).
 It is informational: it never changes the exit status and starts no program.
@@ -963,7 +968,7 @@ Each of these still ends a commit with a nonzero status, with its cause; none is
 - A commit that concludes a merge, an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
 - `index.lock` is still refused after the service's own wait for it (`CLI_GIT_LOCK_WAIT_SECONDS`, 1800 seconds by default).
 - The content a commit captured was pruned from the object store before it landed (`ClientFailure::ContentPruned`).
-- A policy finding at error severity, an empty message or a failing signer. A named path in conflict is no longer one of these: it is committed with the markers it holds and a warning that names it (owner, 2026-11-03: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed.").
+- A policy finding at error severity, an empty message or a failing signer. A named path in conflict is no longer one of these: it is committed with the markers it holds and a warning that names it (owner, 2026-11-03: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."). A plain `git commit` with no paths while files are still unmerged finishes the merge the same way, with the markers in those files and the same warning for each (owner, 2026-11-03: "Warn and finish the merge (Recommended)"); Git's "Committing is not possible because you have unmerged files" no longer ends it. `git commit -a` over unmerged files commits their markers and warns for each file in the same words.
 
 ### Output and exit status
 
@@ -1256,11 +1261,18 @@ fractional or non-numeric value is ignored.
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
    default `30`.
   How long the push after a landed commit may show no sign of work (the stall window) before it is stopped.
-  The push and every process it started are watched: one that moves bytes, uses processor time, or has a task able to run
-   or waiting for the disk (an `fsync` on a slow volume) is working and is not stopped here, however slow;
-   one that does none of these, such as a push waiting on a server that says nothing, is stopped after this many seconds.
-  A server that checks the push for longer than this before it answers looks the same as a dead one, so raise the setting
-   for such a remote.
+  The push and every process it started are watched: one that moves bytes (on its pipes and files, and on its connected TCP
+   sockets), uses processor time, or has a task able to run or waiting for the disk (an `fsync` on a slow volume) is working
+   and is not stopped here, however slow; one that does none of these is stopped after this many seconds.
+  A push that has sent its pack and holds its connection to the remote is waiting for the server's checks and is not stopped
+   (the owner's decision of 2026-11-03: "Wait while connected (Recommended)"): the wrapper says so once, in a line that starts
+   with `cli-git: git push is waiting for the server`, and waits until the connection closes or the ceiling.
+  A connection that dies without a reset is noticed only when TCP gives up.
+  The wrapper adds no low-speed abort of its own to a push (it used to set `GIT_HTTP_LOW_SPEED_LIMIT=1000` and
+   `GIT_HTTP_LOW_SPEED_TIME=60`, which ended a silent check after 60 seconds): Git sets neither, and a limit and time you set
+   in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime` still reach Git and still end the wait.
+   The auto-push's fetch keeps the old defaults.
+  A push to a local path has no connection to wait on and is stopped after this many seconds, as before.
   The name is kept from the time when this was a fixed deadline, so an existing setting now sets the stall window.
   Where the system cannot count bytes (no `/proc/<pid>/io`, as on macOS),
    it is a fixed deadline for the whole push, as before.
@@ -1629,9 +1641,40 @@ and the crate refuses to compile under `panic = "abort"`.
 
 ### Git's own fsmonitor
 
-Git's file-system monitor stays exactly as the person configured it,
-in the wrapper and in all work on it (briefs, fixtures, measurements, repairs).
-The owner's words:
+Git's file-system monitor is off, by the owner's decision of 2026-11-03:
+
+- "If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully worked around,
+  disable git's fsmonitor globally entirely and make doctor say so."
+
+Why: Git 2.56.0's Linux daemon registers an inotify watch for every directory before it starts answering
+(`compat/fsmonitor/fsm-listen-linux.c`, then `ipc_server_start_async`),
+and a Git process that finds no listening daemon starts one and waits for it for up to `fsmonitor.startTimeout`
+(60 s by default; `builtin/fsmonitor--daemon.c`).
+On the owner's main checkout, where linked worktrees live inside the checkout, one daemon watched 2,269,377 directories
+and spent 117.7 s of CPU and 734 MB to start, and 261 daemons held 4,591,335 watches in all.
+A commit of 7.7 s spent 6.5 s with the wrapper's Git child waiting for `git fsmonitor--daemon start`,
+while a running daemon saved about 7 ms per `git status` (16 ms off, 9 ms on, five alternating runs each).
+The measurements and the cause are in `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+
+What the wrapper does now:
+
+- It still never passes `-c core.fsmonitor=...` to any Git child, never writes `core.fsmonitor` in any repository,
+  and never starts, stops or kills `git fsmonitor--daemon`.
+  The setting is the person's configuration, and it is off there: the person's global `~/.gitconfig` holds
+  `core.fsmonitor = false`.
+- `git cli-git doctor` says so on standard error.
+  When `core.fsmonitor` is false or unset it prints one line that Git's fsmonitor is off by the owner's decision of
+  2026-11-03, with the file and scope of the entry that decided (or "not set"), the reason in one sentence,
+  and the path of the document above.
+  When the last entry of `core.fsmonitor` in any scope turns it on (true, a true word, a number other than zero,
+  a key without a value, or a hook path) it prints a finding that names the file and the scope and the command that
+  turns it off for that scope, such as `git config --global core.fsmonitor false`.
+  A value from `-c` or the environment has no file, so the finding says to remove it there.
+  Doctor reports and never writes configuration, and its exit status does not depend on this line.
+  Doctor reads one more configuration listing with `--show-origin` for this, because the snapshot the commit path
+  reads names scopes but not files.
+
+The owner's earlier words, kept as history; each was superseded on 2026-11-03 by the decision above:
 
 - "\"To stop the fsmonitor program\" - we don't need to."
 - (2026-11-02) "Why are we messing with git's fsmonitor? I already told you it's fine for git to run it."
@@ -1639,17 +1682,35 @@ The owner's words:
   shouldn't mess with git's own fsmonitor s."
 - (2026-11-03) ".git/config overriding it to false is wrong."
 
-So nothing here sets, unsets, pins or passes `core.fsmonitor` (no `-c core.fsmonitor=…`, no `git config` write in any
-real repository), starts, stops or kills `git fsmonitor--daemon` in a real repository, or treats the monitor as a
-cause to chase or a speed lever.
-The person's `~/.gitconfig` sets `core.fsmonitor = true`, so Git starts a daemon for each repository it works in,
-scratch repositories included; that is Git doing its job.
-A main checkout's `.git/config` held `core.fsmonitor=false` until 2026-11-03, written by no code in this repository;
+Before that decision the person's `~/.gitconfig` set `core.fsmonitor = true`.
+A main checkout's `.git/config` had held `core.fsmonitor=false` until 2026-11-03, written by no code in this repository;
 it was removed at the owner's word.
-Tests that reproduce the person's `core.fsmonitor = true` inside their own temporary repositories
-check that the wrapper behaves as Git does under it (`repo_read_config_typed_tests.rs`, `reader_fsmonitor_tests.rs`,
-`binary_budget_tests.rs`); they never touch a real repository's monitor.
-`SPEC.md` (search "core.fsmonitor") records the same decision for each code path.
+Tests that reproduce `core.fsmonitor = true` inside their own temporary repositories stay:
+they check that the wrapper behaves as Git does under that setting
+(`repo_read_config_typed_tests.rs`, `reader_fsmonitor_tests.rs`, `binary_budget_tests.rs`),
+and they never touch a real repository's monitor.
+The controls of the doctor line are in `doctor_fsmonitor_tests.rs`, with an injected global file.
+`SPEC.md` (search "core.fsmonitor") records the decision for each code path.
+
+### No `--quiet` on the wrapper's own Git runs
+
+No Git run the wrapper or the service starts carries `--quiet` or `-q` where the option only hides messages or progress.
+The owner's words:
+
+- (2026-11-03) "No the wrapper should never append --quiet. Letting native git emit whatever it wants to is expected."
+- (2026-11-03) "Drop it everywhere (Recommended)", about the wrapper's own internal runs: maintenance, the auto-push fetch,
+  fast-forward merges, reset, clean and init.
+
+So no other output-hiding option or redirect stands in for it either.
+A `--quiet` stays on a run whose documented effect is the exit status or what is computed (`rev-parse --verify --quiet`,
+`symbolic-ref --quiet`, `diff-index --quiet`, `diff-files --quiet`; read in the Git 2.56.0 sources, listed in
+`doc/planning/cli-git-slow-server-and-inner-quiet.md`).
+The words of a run that said something are kept in the journal (`src/native/inner_git_words.rs`): the service writes one
+`info` entry in its log, and the wrapper writes one client entry (`journalctl --identifier=cli-git`), both with the field
+`CLI_GIT_INNER_COMMAND`.
+A test that starts such a run records its arguments with `recording_git.rs` and checks `quiet_starts`.
+`git reset` without `-q` lists the tracked paths whose files differ from the index, so the service's journal now names
+the paths of other uncommitted work for every landing.
 
 ### Container limits
 

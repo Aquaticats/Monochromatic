@@ -423,6 +423,9 @@ worktree are updated in the step; two worktrees of the same repository share the
 Resource limits: unit settings `MemoryMax`, `TasksMax`, `CPUQuota`, `IOWeight`; queue length, frame size and batch size
 limits in the service; a per-request wait bound; children of the service (Git) bounded by the existing per-class child
 bounds (60 s for a quick query, 300 s for a bulk step).
+Note of 2026-11-03: the unit settings were set without a measurement and are removed;
+the service unit sets no resource limits of its own
+(owner decision, recorded in `package/git-policy/cli/SPEC.md` beside the socket-activation paragraph).
 
 Observability: `status` request and a `cli-git service status` command; one structured line per batch (size, section
 milliseconds, queue wait of the oldest request) to the journal of the manager; the client prints queue position and

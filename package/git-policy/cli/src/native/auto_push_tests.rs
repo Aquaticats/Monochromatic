@@ -322,9 +322,11 @@ fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
     remove(&root);
 }
 
-/// The default environment of an auto-push gives Git's low-speed abort to the push it runs.
+/// The default environment of an auto-push sets no low-speed abort for the push it runs: a push waits while its connection is
+///  open (owner, 2026-11-03: "Wait while connected (Recommended)"), and Git sets neither variable itself (`http.c` reads them
+///  only when the configuration or the environment gives them).
 #[test]
-fn a_push_runs_with_git_s_low_speed_abort_by_default() {
+fn a_push_runs_without_a_low_speed_abort_of_the_wrappers_own() {
     let root = fixture("ap-low-speed");
     let (repo, _log) = repo_with_remote_and_pre_push(&root, 0);
     let hook = root.join("hooks").join("pre-push");
@@ -340,12 +342,12 @@ fn a_push_runs_with_git_s_low_speed_abort_by_default() {
     std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("mode");
     let (attempted, _err) = run(&repo, &head_oid(&repo));
     assert_eq!(attempted.expect("auto-push").outcome, AutoPushOutcome::Pushed);
-    assert_eq!(read_log(&seen), "1000 60\n");
+    assert_eq!(read_log(&seen), " \n");
     remove(&root);
 }
 
 /// A person's own low-speed variables reach the push unchanged,
-///  and the other default still applies.
+///  and the other one stays unset.
 #[test]
 fn a_push_keeps_the_low_speed_variables_the_person_set() {
     let root = fixture("ap-low-speed-set");
@@ -369,7 +371,7 @@ fn a_push_keeps_the_low_speed_variables_the_person_set() {
     let mut err: Vec<u8> = Vec::new();
     let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &mut err).expect("auto-push");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed);
-    assert_eq!(read_log(&seen), "5 60\n");
+    assert_eq!(read_log(&seen), "5 \n");
     remove(&root);
 }
 

@@ -301,7 +301,7 @@ pub fn land_batch_timed(
             }
             // Git moves a branch to a commit without looking at what the commit holds, so a tree or a blob that a prune took
             //  while the commit object survived would put a damaged commit on the branch.
-            let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", "--quiet", built] } else { vec!["rev-list", "--objects", "--quiet", built, "--not", old.as_str()] };
+            let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", built] } else { vec!["rev-list", "--objects", built, "--not", old.as_str()] };
             if !run(&git, repository, connected.as_slice(), None)?.succeeded() {
                 return Err(FailureCode::Unavailable);
             }
@@ -309,7 +309,12 @@ pub fn land_batch_timed(
         } else {
             let marks: PathBuf = context.journal.join(format!("marks-{seq}"));
             let marks_argument: String = format!("--export-marks={}", marks.display());
-            checked(&git, repository, &["fast-import", "--quiet", "--done", marks_argument.as_str()], Some(import_stream(scratch.as_str(), old.as_str(), &batch, amended_parents.as_slice())))?;
+            let imported: GitOutput = run(&git, repository, &["fast-import", "--done", marks_argument.as_str()], Some(import_stream(scratch.as_str(), old.as_str(), &batch, amended_parents.as_slice())))?;
+            if !imported.succeeded() {
+                return Err(classify(&imported));
+            }
+            // The import carries no `--quiet`, so its `--stats` report is kept in the service's log.
+            crate::inner_git_words::record_words(&["fast-import", "--done"], &imported);
             let marks_text: String = std::fs::read_to_string(&marks).map_err(|_| { return FailureCode::Unavailable; })?;
             let _marks_removed = std::fs::remove_file(&marks);
             let made: Vec<String> = commits_from_marks(marks_text.as_str(), batch.len()).ok_or(FailureCode::Unavailable)?;

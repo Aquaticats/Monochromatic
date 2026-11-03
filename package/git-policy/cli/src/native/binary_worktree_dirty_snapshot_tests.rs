@@ -306,15 +306,53 @@ fn the_journal_records_that_changes_were_left_out_even_when_quiet() {
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let mut buffer: Vec<u8> = vec![0; 65_536];
-    let length: usize = receiver.recv(buffer.as_mut_slice()).expect("an entry reached the journal stand-in");
-    let entry: BTreeMap<String, String> = String::from_utf8_lossy(&buffer[..length])
-        .lines()
-        .filter_map(|line: &str| { return line.split_once('=').map(|(field, value): (&str, &str)| { return (field.to_string(), value.to_string()); }); })
-        .collect();
+    // The wrapper's `clean` of the stage also makes an entry (the words of a run that carries no `--quiet`, `inner_git_words.rs`),
+    //  so the entries are read until the one about the left-out changes arrives.
+    let entry: BTreeMap<String, String> = loop {
+        let length: usize = receiver.recv(buffer.as_mut_slice()).expect("the entry about the left-out changes reached the journal stand-in");
+        let read: BTreeMap<String, String> = String::from_utf8_lossy(&buffer[..length])
+            .lines()
+            .filter_map(|line: &str| { return line.split_once('=').map(|(field, value): (&str, &str)| { return (field.to_string(), value.to_string()); }); })
+            .collect();
+        if read.get("MESSAGE").is_some_and(|message: &String| { return message.contains(LEFT_OUT_MARK); }) {
+            break read;
+        }
+    };
     let listed: usize = git(&fixture, repo.as_path(), &["status", "--porcelain=v1", "--no-renames"]).stdout.split(|byte: &u8| { return *byte == b'\n'; }).filter(|line: &&[u8]| { return !line.is_empty(); }).count();
     assert_eq!(entry.get("PRIORITY").map(String::as_str), Some("6"), "the ordinary level: {entry:?}");
     assert_eq!(entry.get("CLI_GIT_DIRTY_PATHS"), Some(&listed.to_string()), "{entry:?}");
     assert_eq!(entry.get("CLI_GIT_WORKTREE").map(String::as_str), Some(fixture.root.join("topic").to_string_lossy().as_ref()), "{entry:?}");
     assert!(entry.get("MESSAGE").is_some_and(|message: &String| { return message.contains(LEFT_OUT_MARK); }), "{entry:?}");
+    remove(&fixture);
+}
+
+/// What:
+///  What a snapshot add of a dirty main checkout prints on standard output.
+/// Why:
+///   The restore of the stage runs `git clean` without `--quiet` (the owner's rule), and Git then says "Removing <path>" for each
+///  untracked file of the stage, a stage the person's command never names and native `git worktree add` has no such lines for.
+///  Those words are kept in the journal, so the person sees only what native Git's add prints: the line of the checkout, and
+///  nothing under `--quiet`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await add(['-b', 'topic', '../topic']).stdout).toMatch(/^HEAD is now at \w+ third\n$/); expect(await add(['--quiet', ...]).stdout).toBe('');
+/// ```
+#[test]
+fn a_snapshot_add_does_not_print_what_its_clean_removes() {
+    let fixture: Fixture = fixture("dirty-clean-words");
+    if !on_btrfs_or_acknowledged(&fixture, "dirty-clean-words") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = dirty_repository(&fixture);
+    let plain: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "-b", "topic", "../topic"]);
+    assert_eq!(plain.code, Some(0), "{}", stderr_of(&plain));
+    let shown: String = String::from_utf8_lossy(&plain.stdout).into_owned();
+    assert!(!shown.contains("Removing"), "the clean of the stage is not the person's business: {shown}");
+    assert!(shown.starts_with("HEAD is now at "), "{shown}");
+    let quiet: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic2", "../topic2"]);
+    assert_eq!(quiet.code, Some(0), "{}", stderr_of(&quiet));
+    assert!(quiet.stdout.is_empty(), "--quiet stays silent: {}", String::from_utf8_lossy(&quiet.stdout));
     remove(&fixture);
 }

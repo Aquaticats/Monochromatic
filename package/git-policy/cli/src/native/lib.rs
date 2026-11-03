@@ -108,6 +108,19 @@ mod git_stop_lock_tests;
 #[cfg(test)]
 mod push_patience_tests;
 
+/// Controls for a push that waits for a slow server while connected, on probes that hold sockets and on Git over HTTP.
+#[cfg(test)]
+mod push_wait_tests;
+
+/// Controls for a push whose server runs a silent check after the pack is sent, over HTTP and over a local path.
+#[cfg(test)]
+mod push_slow_server_tests;
+
+/// A loopback HTTP server that serves `git http-backend`, for the controls of a push over HTTP.
+#[cfg(test)]
+#[cfg(unix)]
+mod smart_http_support;
+
 /// Disposable fixtures shared by unit tests;
 ///  never part of the release executable.
 #[cfg(test)]
@@ -646,6 +659,9 @@ mod service_lock_inventory_tests;
 /// What `git cli-git doctor` reports from the configuration: configured hooks and the retired `hooks` key.
 pub mod doctor_config;
 
+/// What `git cli-git doctor` says about Git's own fsmonitor: off by the owner's decision, or the setting that turns it on.
+pub mod doctor_fsmonitor;
+
 /// The configured external hooks, read from the snapshot, and the loud report that none runs.
 pub mod external_hooks;
 
@@ -940,6 +956,9 @@ pub mod process_use;
 
 /// The processes below one process, read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
+
+/// The connected TCP sockets of the machine with their byte counts, and the sockets a process holds.
+pub mod tcp_sockets;
 
 /// The real Git of a push, its query runner and the failure types of a push.
 pub mod auto_push_single_flight;
@@ -1351,6 +1370,9 @@ pub mod worktree_ladder_run;
 /// One entry from the wrapper a person ran to the journal, sent without waiting.
 #[cfg(target_os = "linux")]
 pub mod client_journal;
+
+/// Where the words of a Git run the wrapper or the service started on its own go, now that none carries `--quiet`.
+pub mod inner_git_words;
 
 /// The plain sentence that says why an add was not made as a snapshot, and where it goes.
 #[cfg(target_os = "linux")]

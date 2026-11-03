@@ -1024,3 +1024,80 @@ fn the_editor_opens_only_when_input_and_output_are_one_terminal() {
         remove_settled(&fixture);
     }
 }
+
+/// What:
+///  The Git starts of a wrapped true merge over staged work, recorded by a stand-in that runs the real Git.
+/// Why:
+///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`. The merge the wrapper completes ends in a
+///  fast-forward of the checkout to the merge commit it built (Git 2.56.0 `builtin/merge.c` reads the option as less
+///  output and nothing else), and that start is looked at. The stand-in stands where the wrapper looks for the real Git, ahead
+///  of the conventional locations, so every start the wrapper makes passes through it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await wrapped(['merge', 'feature'], dirty, { realGit: recordingGit }); expect(startsWith('--ff-only')).toHaveLength(1); expect(quietAmong(startsWith('--ff-only'))).toEqual([]);
+/// ```
+#[test]
+fn the_fast_forward_to_the_merge_commit_starts_without_quiet() {
+    let fixture: Fixture = fixture("merge-no-quiet");
+    let dirty: PathBuf = diverged(&fixture, "dirty");
+    stage_unrelated_work(&fixture, dirty.as_path());
+    let log: PathBuf = fixture.root.join("git-starts.log");
+    let spy_directory: PathBuf = fixture.root.join("spy");
+    std::fs::create_dir(&spy_directory).expect("stand-in directory");
+    let script: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexec {} \"$@\"\n", log.display(), super::support::REAL_GIT);
+    executable(spy_directory.join("git").as_path(), script.as_bytes());
+    let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
+    path.push(":");
+    path.push(spy_directory.as_os_str());
+    let observed: Observed = observe(wrapped_in(&fixture, dirty.as_path(), &["merge", "feature"]).env("PATH", path), b"");
+    assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
+    let starts: Vec<String> = std::fs::read_to_string(&log).expect("the stand-in saw the starts").lines().map(String::from).collect();
+    let forwards: Vec<&String> = starts.iter().filter(|start| { return start.split(' ').any(|word| { return word == "--ff-only"; }); }).collect();
+    assert_eq!(forwards.len(), 1, "one fast-forward of the checkout: {starts:?}");
+    for start in forwards {
+        assert!(!start.split(' ').any(|word| { return word == "--quiet" || word == "-q"; }), "the fast-forward carries neither --quiet nor -q: {start}");
+    }
+    remove_settled(&fixture);
+}
+
+/// What:
+///  What Git says of the wrapper's own fast-forward reaches the journal, and the person's merge prints what native Git's does.
+/// Why:
+///   The owner dropped `--quiet` from every run the wrapper starts, so the fast-forward says "Updating a..b" and "Fast-forward";
+///  those words are about the wrapper's step, not the merge the person asked for, whose output is compared with native Git's
+///  in `the_merge_equals_what_native_git_writes_on_a_clean_checkout`. They go to the journal, as one entry that names the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { stdout } = await wrapped(['merge', 'feature'], dirty, { journal }); expect(stdout).not.toContain('Fast-forward'); expect(await journal.next()).toContain('Fast-forward');
+/// ```
+#[test]
+fn what_git_says_of_the_fast_forward_reaches_the_journal_and_not_the_person() {
+    use std::os::linux::net::SocketAddrExt;
+    let fixture: Fixture = fixture("merge-words");
+    let dirty: PathBuf = diverged(&fixture, "dirty");
+    stage_unrelated_work(&fixture, dirty.as_path());
+    let name: String = format!("cli-git-test-journal-merge-{}", std::process::id());
+    let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("an abstract address");
+    let receiver = std::os::unix::net::UnixDatagram::bind_addr(&address).expect("bind the journal stand-in");
+    receiver.set_read_timeout(Some(std::time::Duration::from_secs(5))).expect("a read timeout");
+    let observed: Observed = observe(
+        wrapped_in(&fixture, dirty.as_path(), &["merge", "feature"]).env(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@{name}")),
+        b"",
+    );
+    assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
+    assert!(!text(&observed.stdout).contains("Fast-forward"), "{}", text(&observed.stdout));
+    assert!(text(&observed.stdout).contains("Merge made by the 'ort' strategy."), "{}", text(&observed.stdout));
+    let mut said: Option<String> = None;
+    let mut buffer: Vec<u8> = vec![0; 65_536];
+    while said.is_none() {
+        let length: usize = receiver.recv(buffer.as_mut_slice()).expect("the entry about the fast-forward reached the journal stand-in");
+        let entry: String = String::from_utf8_lossy(&buffer[..length]).into_owned();
+        if entry.contains("git merge --ff-only --no-edit") && entry.contains(" said: ") {
+            said = Some(entry);
+        }
+    }
+    assert!(said.is_some_and(|entry| { return entry.contains("Fast-forward"); }));
+    remove_settled(&fixture);
+}

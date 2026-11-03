@@ -11,6 +11,8 @@
 //!  A hook file that is byte for byte the shim `git lfs` writes for its own name is expected and harmless, because the
 //!  wrapper does the Git LFS upload itself and starts Git with traditional hooks off; it is explained apart from the
 //!  other hooks and does not make the exit status 1.
+//!  It also says on standard error whether Git's own fsmonitor is off (one line) or which file and scope turn it on
+//!  (a finding with the command); that never changes the exit status (`doctor_fsmonitor.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,6 +25,8 @@ use super::action::{Action, ENGINE_FAILURE_EXIT_CODE};
 /// Configured external hooks and the retired `hooks` key.
 use super::discarded_prune::doctor_section;
 use super::doctor_config::{ConfigFindings, config_findings, render_hook_lines, render_notes};
+/// Whether Git's own fsmonitor is off, or which setting turns it on.
+use super::doctor_fsmonitor::fsmonitor_report;
 /// Lexical path normalization, so one directory named two ways is scanned once.
 use super::lexical_path::normalized_path;
 /// One required Git start with the caller's context.
@@ -392,7 +396,7 @@ pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_s
         found.into_iter().partition(|path| { return is_lfs_shim(path.as_path()); });
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
     let findings: ConfigFindings = config_findings(context, cwd);
-    let notes: String = render_notes(&findings);
+    let notes: String = format!("{}{}", render_notes(&findings), fsmonitor_report(context, cwd));
     let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
     let section: String = filesystem_section(location.common_directory.as_path());
     if hooks.is_empty() && findings.hooks.is_empty() {

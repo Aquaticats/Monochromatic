@@ -375,6 +375,20 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   `1` when any other hook is found, also when Git LFS shims are present beside it,
   and `2` when Git cannot locate a repository or a scanned directory cannot be read.
   A directory that does not exist holds no hooks.
+- It says on stderr whether Git's own fsmonitor is off (see "Git's own fsmonitor" in `README.md`).
+  It reads one listing, `git config --list --show-origin --show-scope -z`, with the caller's global options,
+  because the configuration snapshot of the commit path names scopes but not files.
+  The last `core.fsmonitor` entry decides, as for `git config --get`.
+  When it is false (`false`, `no`, `off`, `0` or empty) or there is no entry,
+  one line says that Git's fsmonitor is off by the owner's decision of 2026-11-03, with the file and scope of the deciding entry (or "not set"),
+  the reason in one sentence, and `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+  When it is on (a true word, a number other than zero, a key without a value, or a hook path),
+  one finding names the file, the scope, the same reason and document, and the command that turns it off for that scope
+  (`git config --global core.fsmonitor false` for the global file; `--system`, `--local` and `--worktree` likewise);
+  a value from `-c` or the environment has no file, so the finding says to remove it there.
+  The line or finding comes after the other notes and before the filesystem section.
+  The exit status never depends on it, and doctor never writes configuration.
+  A listing that cannot be read or parsed is said plainly in place of the line.
 - It does not load configuration, recover transactions or take a lock, and it changes nothing.
 
 ## Lifecycle
@@ -546,11 +560,14 @@ installs that index as it is (stat data kept, `UNTR` and `FSMN` dropped), so the
 stat data still marks every file that was edited.
 Then, in the stage only and before it is swapped in, two real-Git steps run under the new worktree's Git directory and the
 stage as work tree: `git read-tree --reset -u <new commit>` (the index and the tracked files become the new commit's tree,
-rewriting exactly the paths whose files or entries differ) and `git clean --force -d --quiet` (untracked files that no
+rewriting exactly the paths whose files or entries differ) and `git clean --force -d` (untracked files that no
 ignore rule covers, and empty untracked directories, go; ignored files stay).
+The `clean` carries no `--quiet` (see "Wrapper output and options", the inner runs); it is run captured, in the same stage and
+under the same Git directory as the proof below, and what it says ("Removing <path>" for each untracked file of the stage) is
+kept in the journal and not printed, because those paths belong to a stage the person's command never names.
 These two steps and nothing else are run for the restore.
-They are started as real Git children by the lifecycle's runner, the same path as the `git read-tree -m -u` of a clean
-snapshot, so the wrapper's own guards of a person's `reset` and `clean` do not apply to them: they act on the wrapper's own
+The `read-tree` is started as a real Git child by the lifecycle's runner, the same path as the `git read-tree -m -u` of a clean
+snapshot, and the `clean` the same way as the proof's reads, so the wrapper's own guards of a person's `reset` and `clean` do not apply to them: they act on the wrapper's own
 new snapshot, never on a checkout of the person, and they refuse to start when the stage is the source's directory or the
 Git directory is the source's.
 The stage is then proven: `git diff-index --cached --quiet <new commit>` (the index equals the commit's tree),
@@ -567,7 +584,8 @@ The same words go to the journal as one entry of priority `info` under the `SYSL
 `--quiet`.
 Changes made to the main checkout while the snapshot is taken or restored are out of scope, as for every rung: using the
 command is accepting that risk, and no step defends against it.
-`core.fsmonitor` is left as configured, as everywhere in the wrapper.
+The wrapper passes no `core.fsmonitor` setting here; Git's fsmonitor is off in the person's global configuration
+(owner decision, 2026-11-03; see "Git's own fsmonitor" in `README.md`).
 
 Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and, for a source that is a
 linked worktree, no nested linked worktree that is an ordinary directory; a snapshot of the main checkout sets such a
@@ -651,7 +669,8 @@ The snapshot and clone rungs run no Git checkout of the whole tree and are not c
 Owner decision, 2026-11-03 (question tool, chosen against the coordinator's recommendation): "Pass only if unset".
 Basis: Git's parallel checkout made a 20,000-file checkout faster in all three paired runs another agent measured
 (36.9 s to 4.5 s, 3.1 to 2.3, 7.2 to 1.75).
-`core.fsmonitor` and its daemon are left alone, as everywhere in the wrapper.
+The wrapper passes no `core.fsmonitor` setting and does not touch its daemon;
+Git's fsmonitor is off in the person's global configuration (owner decision, 2026-11-03).
 
 Telling why an add was not made as a snapshot:
 when a `git worktree add` that the ladder serves succeeds without being made as a snapshot, and the person could change
@@ -1507,9 +1526,47 @@ in-process reader can) gives every value of the multi-valued keys.
   processor time makes a process that spins or polls look alive, at a resolution of one tick;
   state `D` makes a process wedged for ever in the kernel look alive, and state `R` one that only waits for a processor;
   the ceiling bounds all of these.
-  A server that checks the push before it answers is in state `S` with nothing moving, which cannot be told from a dead peer:
-  a check longer than the stall window is stopped, and raising `CLI_GIT_PUSH_DEADLINE_SECONDS` is the remedy.
-  The ceiling does not help there; it bounds the opposite case, a push that never stalls.
+  A server that checks the push after the pack arrived (GitHub's pre-receive hooks) is in state `S` with nothing moving.
+  Owner decision (2026-11-03), verbatim: "Wait while connected (Recommended)", meaning that bytes on the push's network socket
+  count as progress, and that once the pack is sent the push keeps waiting while the connection to the remote is open,
+  with a line naming the wait; the owner accepted that a connection that dies without a reset is noticed only when TCP gives up.
+  The sources are the kernel's socket diagnostics, read in the process (`tcp_sockets.rs`, `NETLINK_SOCK_DIAG`,
+  `man 7 sock_diag`): for each connected socket of the machine its state, its inode, and `tcpi_bytes_acked` plus
+  `tcpi_bytes_received` of its `struct tcp_info` (`include/uapi/linux/tcp.h`); the push's sockets are the `socket:[<inode>]`
+  links in `/proc/<pid>/fd` of the push and of each process below it.
+  Growth of those bytes is a fourth sign of work, and counts in `bytes_moved`.
+  The pack is sent, and the push waits instead of stalling, when the stall window runs out and all of these hold:
+  a process of the tree holds a socket in state `ESTABLISHED` (the connection is open);
+  no process of the tree runs `git pack-objects` (the pack is not being made);
+  and either a `git pack-objects` was seen at an earlier look or `git send-pack` is below the push
+  (what `git-remote-http` starts once the remote's refs are known; a push over `git://` or `ssh` has the first sign only).
+  A connection with neither sign is still waiting for the remote's first answer, and is a stall as before.
+  Only `git push` waits this way; a fetch, an LFS upload and every other bounded run keep the stall rule as it was.
+  The wait begins once the stall window has run out with these signs, and is said once, as a line that starts with
+  `cli-git: git push is waiting for the server` in the push's output and in the diagnostic log.
+  Silence during the wait is not counted against the window, so when the connection closes (no process of the tree holds an
+  established socket) the stall window runs again from that moment, and the push is stopped as before.
+  The ceiling, 30 minutes by default, still bounds the wait, and then says `most of it waiting for the server`.
+  Measured on 2026-11-03 over HTTP to Git's own `http-backend` with `receive.keepAlive` at 0 ("set to 0 to disable keepalives
+  entirely") and a `pre-receive` hook that sleeps four stall windows: the push is stopped at the first window before this change
+  and lands on its first try after it.
+  Git 2.56.0 sources the reading rests on: `builtin/receive-pack.c` `copy_to_sideband` sends `0005\1` (a sideband packet with no
+  payload) every `receive.keepAlive` seconds, default 5, once the hook phase begins; `send-pack.c` waits in `receive_status`
+  with the demultiplexer reading the sideband after `pack_objects` has returned; `http.c` sets `CURLOPT_TCP_KEEPALIVE` always.
+  Whether GitHub sends keepalives is unknown.
+  Over HTTP the wrapper used to set `GIT_HTTP_LOW_SPEED_LIMIT` (1000 bytes per second) and `GIT_HTTP_LOW_SPEED_TIME` (60 seconds)
+  for the push unless the person set them, and libcurl's `Curl_speedcheck` fails a transfer "Operation too slow" when the speed
+  stays under the limit for the time, which keepalives of five bytes every five seconds do not prevent: a silent check longer than
+  60 seconds ended in a failed push (measured on 2026-11-03: "curl 28 Operation too slow. Less than 1000 bytes/sec transferred
+  the last 60 seconds").
+  Decision of the coordinator, on the owner's answer and its accepted con: a `git push` of the wrapper now sets neither variable.
+  Git sets neither itself (`http.c`, Git 2.56.0: configuration at lines 453 to 460, environment at 1477 and 1478, libcurl only
+  when both are positive at 1218 to 1223), so the wait ends when the server answers, the connection closes or TCP gives up.
+  A limit and time the person set in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime` reach Git unchanged
+  and still apply (`push_slow_server_tests.rs` shows a 2 second setting ending a silent wait).
+  The auto-push's fetch and the LFS upload keep the defaults they had.
+  A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before.
+  The ceiling bounds the opposite case as well, a push that never stalls.
   Two limits apply, each in whole seconds and each ignored when zero, negative, fractional or non-numeric:
   the stall window, `CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 by default (`DEFAULT_PUSH_DEADLINE`),
   is how long the push may show no sign of work;
@@ -1519,7 +1576,8 @@ in-process reader can) gives every value of the multi-valued keys.
   is how long the push may run in all, however much it moves, so a trickle that never stalls cannot hold the service for good.
   A stop reports the limit that was hit:
   `limit=stall` with `made no progress for <window> seconds`,
-  or `limit=ceiling` with `was still running after <ceiling> seconds, though it kept moving data`,
+  or `limit=ceiling` with `was still running after <ceiling> seconds, though it kept moving data`
+  (`most of it waiting for the server` instead of the last words when the push waited),
   and in both `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output, which the service journals.
   Where `/proc/<pid>/io` cannot be read (a system without `/proc`, such as macOS, or a kernel without task I/O accounting)
   nothing is measured: the stall window is then a fixed deadline for the whole push, as it was before,
@@ -1650,7 +1708,8 @@ locks, with one rule: a lock is removed only when its holder is
 - "You should (almost) never be waiting."
 - "Invoke real git as rarely as possible."
 - "Fix even pre-existing issues of the pkgs you own."
-- Git's own file-system monitor stays as the person configured it (see the README section "Git's own fsmonitor").
+- Git's own file-system monitor is off in the person's global configuration, by the owner's decision of 2026-11-03
+  (see the README section "Git's own fsmonitor"; `git cli-git doctor` says so).
   Nothing here sets, unsets, pins or passes `core.fsmonitor`, and no tier of the judgement counts the daemon's descriptors
   or working directory as evidence of anything.
 
@@ -1852,15 +1911,16 @@ the auto-push, the reconcile and integration pushes, maintenance), carries
 The directory is below a device, so nothing can create it, and Git finds no hook file there.
 The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git knows, `pre-push` included, so a hook
 defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) does not run either.
-`core.fsmonitor` is left as configured, like the other programs Git starts for its own features (filters, editors,
+`core.fsmonitor` is not in this prefix, like the programs Git starts for its own features (filters, editors,
 signing programs, credential helpers): the program it names is not reached by the hooks path or by any event switch
-(measured on Git 2.56.0, including with `hook.fsmonitor-watchman.enabled=false`), and the built-in monitor daemon keeps
-working.
-This is the owner's decision ("To stop the fsmonitor program - we don't need to.",
-recorded in `README.md`,
-"Git's own fsmonitor"):
-Git runs its monitor as the configuration says,
-and the wrapper neither stops it, starts it, nor works around it.
+(measured on Git 2.56.0, including with `hook.fsmonitor-watchman.enabled=false`).
+Owner decisions, in order, quoted with the date each was superseded:
+"To stop the fsmonitor program - we don't need to." (kept the wrapper from stopping the monitor; superseded 2026-11-03),
+and, on 2026-11-03, "If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully worked around,
+disable git's fsmonitor globally entirely and make doctor say so."
+(recorded in `README.md`, "Git's own fsmonitor").
+So the setting is off in the person's global configuration, `git cli-git doctor` says so, and the wrapper still neither
+passes `-c core.fsmonitor=...` to a child nor starts or stops a monitor daemon.
 The wrapper injects no hook of its own, so no event is an exception.
 
 - The option is part of the argument vector, so it adds no system call and no process start.
@@ -2390,6 +2450,19 @@ one instance of the systemd template units `cli-git@.socket` and `cli-git@.servi
 started by the operating system on the first connection (socket activation).
 The wrapper never starts the service itself,
 and it has no other way to land a commit.
+The service unit sets no resource limits of its own
+(no `MemoryMax`,
+`CPUQuota`,
+`TasksMax` or `IOWeight`),
+so the service and the Git processes it starts get systemd's defaults,
+the same resources plain Git gets.
+The limits it once carried had no measurement behind them,
+and the 1 GiB memory cap made the service's Git read the same pack and index pages from disk again
+(on the main checkout 274,736 cap hits and 16,125,924 major page faults by 2026-11-03T08:40:51-05:00).
+Owner, 2026-11-03 (question tool):
+"Remove all three (Recommended)" for the CPU,
+task and disk limits,
+after asking why the service was capped "to the magic number of 1GB of memory w/o evidence".
 The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
 
 Each commit passes through three phases:
@@ -2953,6 +3026,23 @@ Owner decision (2026-11-03), verbatim:
 "No the wrapper should never append --quiet. Letting native git emit whatever it wants to is expected."
 A `--quiet` or `-q` that the user typed reaches Git untouched, and Git's own standard output and standard error
 reach the user as Git emits them.
+The same holds for every Git run the wrapper or the service starts on its own.
+Owner decision (2026-11-03), verbatim: "Drop it everywhere (Recommended)", answering whether the wrapper's own internal runs
+(maintenance, the auto-push fetch, fast-forward merges, reset, clean, init) should drop `--quiet` too.
+No such run carries `--quiet` or `-q` where the option only hides messages or progress.
+Git's words are not discarded with the capture of the run: the service records them as one entry at priority `info` in
+its log, which the service manager keeps in the journal of its unit, and the wrapper records the words of a run it made while
+carrying out the person's command as one client entry in the journal (`journalctl --identifier=cli-git`); both carry the field
+`CLI_GIT_INNER_COMMAND`, mask the userinfo of URLs, and are made only when the run said something.
+The person's own streams carry what native Git's command prints: the isolated merge's fast-forward says "Updating a..b" and
+"Fast-forward" on standard output, and that goes to the journal, while a warning on its standard error still reaches the person.
+`git reset` without `-q` lists as "Unstaged changes after reset:" every tracked path whose file differs from the index
+(measured on 2026-11-03), so the service's journal now names the paths of other uncommitted work for every landing.
+A `--quiet` stays on a run whose documented effect is the exit status or what is computed, read in the Git 2.56.0 sources:
+`rev-parse --verify --quiet` (`builtin/rev-parse.c`, `die_no_single_rev` exits 1 where it dies with 128),
+`symbolic-ref --quiet` (`builtin/symbolic-ref.c`, returns 1 where it dies), and `diff-index --quiet` and `diff-files --quiet`
+(`diff.c`: exit with status, no renames, an early quit).
+`doc/planning/cli-git-slow-server-and-inner-quiet.md` lists every use and the line that decided it.
 Consequently a commit that real Git builds prints Git's own summary (`[<branch> <name>] <subject>` and the change lines)
 from the scratch repository, and the wrapper prints no summary of its own for it.
 A commit the service builds itself, with no `git commit` run, still prints the one summary line the wrapper writes
@@ -2984,6 +3074,16 @@ the commit takes the bytes the worktree holds, conflict markers included,
 and once it has landed standard error says in plain words that the path still has conflict markers,
 that they were committed, and how to fix them in a follow-up commit.
 The merge stays unfinished, and the index entry of that path is the committed one.
+A plain `git commit` that names no paths while files are still unmerged finishes the merge (owner, 2026-11-03, question tool:
+"Warn and finish the merge (Recommended)"):
+Git refuses it (`builtin/commit.c:348`, `refresh_cache_or_die`: "Committing is not possible because you have unmerged files"),
+and the service instead stages the working copy of each unmerged file in the commit's private index, as `git add --all` stages it,
+and builds the merge commit Git would build for a resolved merge (the parents, the message and the removal of the merge state
+are Git's).
+The markers in those files are committed, and the same warning as for a named path names each file and says how to fix it in a
+follow-up commit.
+`git commit -a` over unmerged files does the same: it stages the working copy of every tracked file, so it commits their markers and warns for each
+such file in the same words (owner: "Committing a conflicted path is fine. Warn and commit anyway").
 Options that select the whole index (`--all`, `--no-only`, `--include`, `--interactive`, `--patch`) keep concluding it.
 
 #### Scratch repository layout
@@ -3199,7 +3299,9 @@ and the executable does not read the name it was started under.
 The wrapper itself executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`,
 not the git directory, not the environment.
 The programs Git starts for its own features (filters, editors, signing programs, credential helpers) are Git's, not the
-wrapper's, and stay, `core.fsmonitor` included; a program that is a hook event is switched off.
+wrapper's, and stay; a program that is a hook event is switched off.
+`core.fsmonitor` is among them, and the wrapper does not set it: it is off in the person's global configuration
+(owner decision, 2026-11-03), and `git cli-git doctor` says so.
 `cli-git.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
 (`Configuration key postCommit is not supported: cli-git runs no program named by any configuration ...`).
 What a hook checked belongs in a cli-git policy.

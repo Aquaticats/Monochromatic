@@ -138,3 +138,65 @@ fn a_commit_naming_a_conflicted_path_lands_with_its_markers_and_warns() {
     let _waited = service.wait();
     remove_settled(&fixture);
 }
+
+/// A repository whose merge of `other` into `main` stopped on a conflict in `y.txt`.
+fn conflicted_merge(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    git(fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    std::fs::write(repo.join("y.txt"), "base\n").expect("file");
+    git(fixture, &repo, &["add", "--", "y.txt"]);
+    git(fixture, &repo, &["commit", "--quiet", "--message=base"]);
+    git(fixture, &repo, &["switch", "--quiet", "--create", "other"]);
+    std::fs::write(repo.join("y.txt"), "other\n").expect("file");
+    git(fixture, &repo, &["commit", "--quiet", "--all", "--message=other"]);
+    git(fixture, &repo, &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("y.txt"), "main\n").expect("file");
+    git(fixture, &repo, &["commit", "--quiet", "--all", "--message=main"]);
+    let merged = super::support::direct(fixture).current_dir(&repo).args(["merge", "--no-edit", "other"]).output().expect("git runs");
+    assert_eq!(merged.status.code(), Some(1), "the merge conflicts");
+    return repo;
+}
+
+/// The owner (2026-11-03, question tool): "Warn and finish the merge (Recommended)". A plain `git commit` with no paths while
+///  files are still unmerged lands as the merge commit with the markers in those files, instead of Git's "Committing is not
+///  possible because you have unmerged files", and the warning is worded as the named-path warning is.
+#[test]
+fn a_plain_commit_with_unmerged_files_finishes_the_merge_with_their_markers_and_warns() {
+    let fixture: Fixture = fixture("plain-commit-conflicted");
+    let repo: PathBuf = conflicted_merge(&fixture, "repo");
+    let name: String = format!("pcc-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let landed: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=finish the merge"]);
+    let stderr: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert_eq!(landed.status.code(), Some(0), "the merge is finished: {stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-list", "--parents", "--max-count=1", "HEAD"]).split_whitespace().count(), 3, "a merge commit: one commit and two parents");
+    assert!(git_text(&fixture, &repo, &["show", "HEAD:y.txt"]).contains("<<<<<<<"), "the committed blob holds the markers");
+    assert!(!repo.join(".git/MERGE_HEAD").exists(), "the merge is concluded");
+    assert_eq!(git_text(&fixture, &repo, &["ls-files", "--unmerged"]), "", "nothing is unmerged any more");
+    assert!(stderr.contains("y.txt") && stderr.contains("conflict markers") && stderr.contains("committed"), "the warning names the file: {stderr}");
+    assert!(stderr.contains("follow-up commit"), "the warning says how to fix it: {stderr}");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// The owner (2026-11-03): "Committing a conflicted path is fine. Warn and commit anyway". `git commit -a` stages the working
+///  copy of every tracked file, an unmerged one included, so it commits the markers too, and it warns for each such file in the
+///  same words as a plain commit.
+#[test]
+fn a_commit_with_all_over_unmerged_files_commits_their_markers_and_warns() {
+    let fixture: Fixture = fixture("all-commit-conflicted");
+    let repo: PathBuf = conflicted_merge(&fixture, "repo");
+    let name: String = format!("acc-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let landed: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--no-enforce-only", "-a", "--message=finish the merge with -a"]);
+    let stderr: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert_eq!(landed.status.code(), Some(0), "the merge is finished: {stderr}");
+    assert!(git_text(&fixture, &repo, &["show", "HEAD:y.txt"]).contains("<<<<<<<"), "the committed blob holds the markers");
+    assert!(!repo.join(".git/MERGE_HEAD").exists(), "the merge is concluded");
+    assert!(stderr.contains("y.txt") && stderr.contains("conflict markers") && stderr.contains("committed"), "the warning names the file: {stderr}");
+    assert!(stderr.contains("follow-up commit"), "the warning says how to fix it: {stderr}");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}

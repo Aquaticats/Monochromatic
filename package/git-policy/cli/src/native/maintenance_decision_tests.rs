@@ -11,10 +11,10 @@ fn config(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
 }
 
 /// Arguments native `git commit` passes when maintenance detaches.
-const DETACHED: &[&str] = &["maintenance", "run", "--auto", "--quiet", "--detach"];
+const DETACHED: &[&str] = &["maintenance", "run", "--auto", "--detach"];
 
 /// Arguments native `git commit` passes when maintenance stays in the foreground.
-const FOREGROUND: &[&str] = &["maintenance", "run", "--auto", "--quiet", "--no-detach"];
+const FOREGROUND: &[&str] = &["maintenance", "run", "--auto", "--no-detach"];
 
 /// Config records keep the last value of each key and read a value-less key as `true`.
 #[test]
