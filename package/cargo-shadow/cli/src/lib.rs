@@ -113,7 +113,7 @@ pub mod version_order;
 /// The catalog update, the counterpart of `pnpm update`.
 pub mod update;
 
-/// Verification of newly locked versions against the trust policy.
+/// The check of every locked entry against the policy, the default of a frozen install.
 pub mod verify;
 
 /// Maps a `cargo update` or `cargo generate-lockfile` command line to the pnpm command it stands for.

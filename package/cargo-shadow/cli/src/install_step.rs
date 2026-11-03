@@ -149,7 +149,7 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
     };
     if !finished.problems.is_empty() {
         let mut lines: Vec<String> = vec![format!(
-            "Install refused; every Cargo.lock was restored: {} finding(s).",
+            "Install refused; no Cargo.lock was left changed: {} finding(s).",
             finished.problems.len()
         )];
         for problem in &finished.problems {

@@ -1,5 +1,5 @@
 //! What:
-//! Runs the repository-wide catalog commands for the CLI: install, update, verify.
+//! Runs the repository-wide catalog commands for the CLI: install, update.
 //! Why:
 //! They share one setup (repository root, real cargo under the pinned toolchain, crates.io registry) and one way of printing
 //! a report and turning findings into an exit code.
@@ -26,7 +26,6 @@ use crate::real_binary::find_real_cargo;
 use crate::registry::CratesIo;
 use crate::toolchain::cargo_toolchain;
 use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
-use crate::verify::{git_base_lock_reader, verify_rust_lockfiles};
 use crate::workspace::find_catalog_root;
 
 /// Prints findings under a heading, with the pointer to the settings.
@@ -132,29 +131,6 @@ pub fn run_command(command: Command) -> i32 {
         }
     };
     let registry: CratesIo = CratesIo::with_defaults(&root, Box::new(UreqFetcher::new()), Box::new(UreqFetcher::new()));
-    if let Command::Verify { base } = &command {
-        let reader = match git_base_lock_reader(&root, base) {
-            Ok(found) => found,
-            Err(message) => {
-                eprintln!("{message}");
-                return INSTALL_FAILED_EXIT_CODE;
-            }
-        };
-        return match verify_rust_lockfiles(&root, now_millis(), &document.settings, &registry, &reader) {
-            Ok(problems) if problems.is_empty() => {
-                println!("Every registry version locked since {base} passes the trust policy.");
-                0
-            }
-            Ok(problems) => {
-                print_findings("Trust verification failed", &problems);
-                INSTALL_FAILED_EXIT_CODE
-            }
-            Err(message) => {
-                eprintln!("{message}");
-                INSTALL_FAILED_EXIT_CODE
-            }
-        };
-    }
     let program: PathBuf = match find_real_cargo() {
         Some(found) => found,
         None => {
@@ -250,6 +226,5 @@ pub fn run_command(command: Command) -> i32 {
                 }
             };
         }
-        Command::Verify { .. } => return 0,
     }
 }

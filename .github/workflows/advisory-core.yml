@@ -141,10 +141,12 @@ jobs:
             echo "::error::package/config/pnpr/config.yaml differs from what pnpr's generator renders; run 'mise run //package/config/pnpr:generate:config' and commit the result (package/config/pnpr/README.md)"
             exit 1
           fi
-      # The frozen lockfile gate: pnpm's `install --frozen-lockfile` in CI, the counterpart for Cargo.lock files. It
-      # fails naming every first-party Cargo.lock that no longer satisfies its manifests and writes nothing
-      # (package/cargo-shadow/cli/README.md). It replaces the former `rust:install` mise task.
-      # The frozen check runs cargo under the toolchain toolchain.lock.json pins, which a hosted runner may not have yet.
+      # The frozen lockfile gate: pnpm's `install --frozen-lockfile` in CI, the counterpart for Cargo.lock files. It fails naming
+      # every first-party Cargo.lock that no longer satisfies its manifests and writes nothing, and, like pnpm 12.16.1, it
+      # re-validates every registry version the lockfiles hold against rust-catalog.toml's minimumReleaseAge and trustPolicy
+      # (package/cargo-shadow/cli/README.md). It replaces the former `rust:install` and `rust:verify` mise tasks; the cache keeps
+      # crates.io histories and the digests of lockfiles that passed, so only a changed lockfile costs registry requests. The
+      # database dump (about 2 GB, read once) fills a cold cache.
       - name: Install the pinned Rust toolchain
         id: rust_toolchain
         continue-on-error: true
@@ -153,46 +155,28 @@ jobs:
           set -euo pipefail
           toolchain="$(jq --raw-output '.tools.rust.version' toolchain.lock.json)"
           rustup toolchain install "$toolchain" --profile minimal --no-self-update
+      - name: Restore Rust trust cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: .cache/cargo-shadow
+          key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
+          restore-keys: |
+            rust-catalog-trust-
+      # A full cold check of all 1388 locked versions took 914 s and 187 API requests with the dump on 2026-10-29,
+      # so the 25-minute budget covers even a branch that relocks everything.
       - name: Rust lockfile frozen install
         id: rust_install
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 25
         shell: bash
         run: |
           set -euo pipefail
           cargo-shadow install --frozen-lockfile
-      - name: Restore Rust trust cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
-        with:
-          path: .cache/cargo-shadow/crates-io
-          key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
-          restore-keys: |
-            rust-catalog-trust-
-      # Checks only registry versions that no Cargo.lock held at the base revision, the counterpart of
-      # pnpm's trustLockfile: true: lockfile changes come only from the owner (doc/decision/rust-dependency-catalog.md).
-      # The base is the pushed range's previous commit, or the pull request's base; only that commit is fetched.
-      # A full cold check of all 1388 locked versions took 914 s and 187 API requests on 2026-10-29,
-      # so the 25-minute budget covers even a branch that relocks everything.
-      - name: Rust lockfile trust verification
-        id: rust_trust
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        env:
-          VERIFY_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
-        run: |
-          set -euo pipefail
-          base="${VERIFY_BASE}"
-          if [ -z "${base}" ]; then
-            base="$(git rev-parse HEAD~1)"
-          fi
-          git fetch --no-tags --depth=1 origin "${base}"
-          cargo-shadow verify --base "${base}"
       - name: Save Rust trust cache
         if: always()
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
-          path: .cache/cargo-shadow/crates-io
+          path: .cache/cargo-shadow
           key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
       - name: Static changed paths
         id: static

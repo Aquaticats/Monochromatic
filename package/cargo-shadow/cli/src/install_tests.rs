@@ -431,3 +431,22 @@ fn a_run_killed_after_cargo_wrote_is_finished_by_the_next_install() {
     );
     assert!(report.warnings.iter().any(|warning| { return warning.contains("killed"); }), "{:?}", report.warnings);
 }
+
+#[test]
+fn a_frozen_install_also_checks_every_locked_version_against_the_policy_like_pnpm() {
+    let (root, dirs) = repository(&[("package/a/one", &lock_with("dep", "1.0.1"))]);
+    let cargo: FakeCargo = cargo_that_writes(SATISFIED);
+    let registry: FakeRegistry = FakeRegistry {
+        histories: BTreeMap::from([(
+            "dep".to_string(),
+            vec![record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")],
+        )]),
+    };
+
+    let report = run_install(root.path(), &dirs, &cargo, &registry, true, false).expect("reports");
+
+    assert!(report.stale.is_empty());
+    assert_eq!(report.problems.len(), 1);
+    assert!(report.problems[0].contains("dep@1.0.1 has trust level 1"));
+    assert_eq!(lock_text(root.path(), "package/a/one"), lock_with("dep", "1.0.1"), "a frozen install writes nothing");
+}

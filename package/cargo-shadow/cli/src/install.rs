@@ -37,6 +37,7 @@ use crate::journal::{begin, finish, process_exists, recover, restore_if_unchange
 use crate::http::RegistryError;
 use crate::lockfile::{LockedVersion, added_versions};
 use crate::registry::Registry;
+use crate::verify::verify_locked_entries;
 
 /// Asks whether the lockfile satisfies the manifests: exits 0 without writing when it does.
 pub const CHECK_ARGS: [&str; 4] = ["update", "--workspace", "--locked", "--offline"];
@@ -300,7 +301,13 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             eprintln!("cargo-shadow: frozen install: {} stale lockfiles, nothing written", stale.len());
             return Err(InstallError::Stale { stale_dirs: stale });
         }
-        return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), ..InstallReport::default() });
+        // pnpm re-validates every lockfile entry against the release-age and trust policy on install, frozen or not, unless
+        // `trustLockfile` is set (verify.rs); a lockfile that passed before is remembered by its digest.
+        let locks: Vec<LockSnapshot> =
+            read_locks(request.root, request.crate_dirs).map_err(|error| { return InstallError::Io { message: error.to_string() }; })?;
+        let problems: Vec<String> = verify_locked_entries(request.root, &locks, request.settings, request.registry, request.now)
+            .map_err(|message| { return InstallError::Registry { message }; })?;
+        return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), problems, ..InstallReport::default() });
     }
     let recovered: Vec<String> = recover(request.root, &process_exists, &|old, live| { return policy_findings(request.settings, request.registry, request.now, old, live); });
     for message in &recovered {

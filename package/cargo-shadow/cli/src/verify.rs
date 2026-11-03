@@ -1,92 +1,98 @@
 //! What:
-//! Verification of newly locked registry versions against the trust policy: the check covers only versions that no lockfile
-//! held at a base revision.
+//! The check a frozen install makes of every registry version a lockfile already holds, against the release-age and trust
+//! policy.
 //! Why:
-//! This is the counterpart of pnpm's `trustLockfile: true` (https://pnpm.io/settings/store, read 2026-11-03): the owner never
-//! accepts pull requests that change a lockfile, so every committed lockfile comes from the owner's own sessions and is part
-//! of the trusted base. Release age is a resolution-time rule here, so locked versions are not re-gated on it. A crate whose
-//! lockfile did not exist at the base counts as new in full.
+//! pnpm 12.16.1 re-validates every entry of the lockfile on install, frozen or not, against the policies its resolvers were built
+//! with, unless `trustLockfile` is true (`pnpm11/installing/deps-installer/src/install/mutateModules.ts:314-343`,
+//! `startLockfileVerification`: "Re-validate every entry in the lockfile against the policies the resolver chain was built
+//! with"; skipped when `opts.trustLockfile`). A passing result is cached by a hash of the lockfile
+//! (`pnpm11/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts`). This is that check for `Cargo.lock`: the
+//! default, no separate command. The release-age rule needs the sparse index's publish time per crate; the trust rule needs the
+//! crate's history, which the database dump fills in bulk. A passing lockfile is remembered under
+//! `.cache/cargo-shadow/verified/`, keyed by a SHA-256 of the lockfile text and the policy settings, so an unchanged lockfile costs
+//! nothing the next time; a failing one is never remembered. There is no `trustLockfile` setting here: the catalog's settings
+//! library has no such key, and the owner has not asked for one.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // verify.ts
-//! export async function verifyRustLockfiles({ root, now, registry, readBaseLock }): Promise<string[]>
+//! export async function verifyLockedEntries({ root, snapshots, settings, registry, now }): Promise<string[]>
 //! ```
 
-use std::path::Path;
-use std::process::Command;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use monochromatic_dependency_catalog::Settings;
+use sha2::{Digest, Sha256};
 
-use crate::checks::check_trust;
-use crate::constants::LOCKFILE_NAME;
-use crate::crates::{LockSnapshot, locked_crate_dirs, read_locks};
-use crate::lockfile::{LockedVersion, added_versions};
+use crate::checks::{check_release_age, check_trust};
+use crate::crates::LockSnapshot;
+use crate::lockfile::{LockedVersion, registry_versions};
 use crate::registry::Registry;
 
-/// What:
-/// `pub type ReadBaseLock = dyn Fn(&str) -> String` reads one crate's lockfile text at the base revision, or the empty string
-/// when the lockfile did not exist there.
-/// Why:
-/// Tests give it canned texts; the command gives it `git show`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ReadBaseLock = (crateDir: string) => Promise<string>;
-/// ```
-pub type ReadBaseLock<'a> = &'a dyn Fn(&str) -> String;
+/// Where passing digests are remembered, relative to the repository root.
+pub const VERIFIED_DIR: &str = ".cache/cargo-shadow/verified";
 
-/// The trust problems of the registry versions that no lockfile held at the base revision.
-pub fn verify_rust_lockfiles(
-    root: &Path,
-    now: i64,
-    settings: &Settings,
-    registry: &dyn Registry,
-    read_base_lock: ReadBaseLock,
-) -> Result<Vec<String>, String> {
-    let crate_dirs: Vec<String> = locked_crate_dirs(root).map_err(|error| { return error.to_string(); })?;
-    let locks: Vec<LockSnapshot> = read_locks(root, &crate_dirs).map_err(|error| { return error.to_string(); })?;
-    let base_sources: Vec<String> = locks.iter().map(|snapshot| { return read_base_lock(&snapshot.crate_dir); }).collect();
-    let current: Vec<String> = locks.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
-    let versions: Vec<LockedVersion> = added_versions(&base_sources, &current)?;
-    eprintln!("cargo-shadow: verifying {} newly locked versions from {} lockfiles", versions.len(), locks.len());
-    if versions.is_empty() {
-        return Ok(Vec::new());
+/// The lowercase hex of a SHA-256 digest, written per byte (the digest type has no `LowerHex` in sha2 0.11).
+fn hex(digest: &[u8]) -> String {
+    let mut text: String = String::new();
+    for byte in digest {
+        text.push_str(&format!("{byte:02x}"));
     }
-    return check_trust(&versions, settings, registry, now).map_err(|error| { return error.message; });
+    return text;
+}
+
+/// The cache key of one lockfile under one policy: a digest of the text and of every setting.
+pub fn cache_key(snapshot: &LockSnapshot, settings: &Settings) -> String {
+    let mut hasher: Sha256 = Sha256::new();
+    hasher.update(snapshot.source.as_bytes());
+    hasher.update(format!("{settings:?}").as_bytes());
+    return hex(hasher.finalize().as_slice());
+}
+
+fn cache_file(root: &Path, snapshot: &LockSnapshot, settings: &Settings) -> PathBuf {
+    return root.join(VERIFIED_DIR).join(format!("{}.{}.ok", snapshot.crate_dir.replace('/', "__"), cache_key(snapshot, settings)));
 }
 
 /// What:
-/// `pub fn git_base_lock_reader(root: &Path, base: &str) -> Result<impl Fn(&str) -> String, String>` resolves the base to a
-/// commit once and returns a reader of `<commit>:<crate>/Cargo.lock`.
+/// `pub fn verify_locked_entries(...) -> Result<Vec<String>, String>` returns the findings against every registry version the
+/// given lockfiles hold, skipping a lockfile whose digest passed before.
 /// Why:
-/// A base that is not a commit is an error naming the remedy (in CI, fetch it first); a lockfile absent at the base reads as
-/// the empty string, so every version it holds counts as new.
+/// The findings are the release-age problems (strict) and the trust problems; the lockfiles that pass are remembered.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export async function createGitBaseLockReader({ root, base }): Promise<ReadBaseLock>
+/// export async function verifyLockedEntries(args): Promise<string[]>
 /// ```
-pub fn git_base_lock_reader(root: &Path, base: &str) -> Result<impl Fn(&str) -> String, String> {
-    let resolved = Command::new("git")
-        .args(["rev-parse", "--verify", "--end-of-options", &format!("{base}^{{commit}}")])
-        .current_dir(root)
-        .output()
-        .map_err(|error| { return format!("could not start git: {error}"); })?;
-    if !resolved.status.success() {
-        return Err(format!(
-            "The verification base {base:?} is not a commit in this repository: {}\nPass --base with a revision that exists locally (in CI, fetch it first), or omit --base to compare with HEAD.",
-            String::from_utf8_lossy(&resolved.stderr).trim()
-        ));
+pub fn verify_locked_entries(
+    root: &Path,
+    snapshots: &[LockSnapshot],
+    settings: &Settings,
+    registry: &dyn Registry,
+    now: i64,
+) -> Result<Vec<String>, String> {
+    let mut pending: Vec<&LockSnapshot> = Vec::new();
+    for snapshot in snapshots {
+        if !cache_file(root, snapshot, settings).exists() {
+            pending.push(snapshot);
+        }
     }
-    let commit: String = String::from_utf8_lossy(&resolved.stdout).trim().to_string();
-    eprintln!("cargo-shadow: comparing lockfiles with {base} ({commit})");
-    let root_path = root.to_path_buf();
-    return Ok(move |crate_dir: &str| -> String {
-        let object: String = format!("{commit}:{crate_dir}/{LOCKFILE_NAME}");
-        return match Command::new("git").args(["show", &object]).current_dir(&root_path).output() {
-            Ok(shown) if shown.status.success() => format!("{}\n", String::from_utf8_lossy(&shown.stdout)),
-            _ => String::new(),
-        };
-    });
+    if pending.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sources: Vec<String> = pending.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
+    let versions: Vec<LockedVersion> = registry_versions(&sources)?;
+    eprintln!("cargo-shadow: verifying {} locked versions from {} lockfiles", versions.len(), pending.len());
+    let mut problems: Vec<String> = check_release_age(&versions, settings, registry, now).map_err(|error| { return error.message; })?.problems;
+    problems.extend(check_trust(&versions, settings, registry, now).map_err(|error| { return error.message; })?);
+    if problems.is_empty() {
+        for snapshot in pending {
+            let path: PathBuf = cache_file(root, snapshot, settings);
+            if let Some(parent) = path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::write(path, "");
+        }
+    }
+    return Ok(problems);
 }

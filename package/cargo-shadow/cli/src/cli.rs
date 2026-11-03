@@ -3,7 +3,7 @@
 //! subcommand `cargo shadow`): the whole-repository catalog commands.
 //! Why:
 //! The shadow mode passes cargo's arguments through untouched and has no grammar of its own; the catalog commands that act on
-//! every lockfile at once (an install over the repository, an update over the repository, the CI trust verification) live
+//! every lockfile at once (an install over the repository, an update over the repository) live
 //! here, with pnpm's flag names.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,7 +20,7 @@ use crate::commands::run_command;
 /// `#[derive(Parser)]` writes the argument parser from the attributes; `#[command(subcommand)]` makes one required word
 /// select the command.
 /// Why:
-/// A shadow with no commands of its own would still answer `--help` and `--version` by its own name; these three do the rest.
+/// A shadow with no commands of its own would still answer `--help` and `--version` by its own name; these two do the rest.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,7 +30,7 @@ use crate::commands::run_command;
 #[command(
     name = "cargo-shadow",
     version,
-    about = "Shadows cargo. Started under the name `cargo` it makes the workspace's Cargo.lock satisfy its manifests under the rust-catalog.toml trust policy before a command that resolves dependencies, then runs the real cargo unchanged. Started under its own name it runs the repository-wide catalog commands: install, update, verify.",
+    about = "Shadows cargo. Started under the name `cargo` it makes the workspace's Cargo.lock satisfy its manifests under the rust-catalog.toml trust policy before a command that resolves dependencies, then runs the real cargo unchanged. Started under its own name it runs the repository-wide catalog commands: install, update.",
     long_about = None,
     arg_required_else_help = true
 )]
@@ -62,12 +62,6 @@ pub enum Command {
         /// Report what would change, then restore every Cargo.lock.
         #[arg(long)]
         dry_run: bool,
-    },
-    /// Check the registry versions locked since a base revision against the trust policy (pnpm's trustLockfile: true).
-    Verify {
-        /// The revision to compare with; the default is HEAD, so uncommitted lockfile changes are checked.
-        #[arg(long, default_value = "HEAD")]
-        base: String,
     },
 }
 

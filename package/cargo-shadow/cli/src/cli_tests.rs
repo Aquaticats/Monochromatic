@@ -29,22 +29,11 @@ fn the_two_frozen_flags_together_are_refused() {
 }
 
 #[test]
-fn there_is_no_reconcile_word_and_no_verify_flag_form() {
+fn there_is_no_reconcile_word_and_no_verify_command() {
     assert!(parse(&["install", "--reconcile"]).is_err());
     assert!(parse(&["reconcile"]).is_err());
     assert!(parse(&["--verify"]).is_err());
-}
-
-#[test]
-fn verify_defaults_to_head_and_takes_one_base() {
-    match parse(&["verify"]).expect("parses").command {
-        Command::Verify { base } => assert_eq!(base, "HEAD"),
-        _ => panic!("expected verify"),
-    }
-    match parse(&["verify", "--base", "abc123"]).expect("parses").command {
-        Command::Verify { base } => assert_eq!(base, "abc123"),
-        _ => panic!("expected verify"),
-    }
+    assert!(parse(&["verify"]).is_err());
 }
 
 #[test]
