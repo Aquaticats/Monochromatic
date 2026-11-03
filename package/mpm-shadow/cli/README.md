@@ -506,9 +506,9 @@ Adding it is the ordinary lifecycle,
 never `update --all`:
 
 ```sh
-# Run from the repository root: lock the new entry alone, then converge the machine-global tools.
-mise run toolchain:update:global -- llama.cpp-cpu
-mise run toolchain:install:global
+# Lock the new entry alone, then converge the machine-global tools; both work from any directory.
+mpm update -g llama.cpp-cpu
+mpm install -g
 ```
 
 The lock then records `llama-b9829-bin-ubuntu-x64.tar.gz` for `linux-x64`,
@@ -984,7 +984,7 @@ whichever route installed them.
   in the same words everywhere:
 
   ```text
-  <tool id> is locked at <locked> in this tree but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main
+  <tool id> is locked at <locked> in this tree but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade this tree's lock with `mpm update <tool id>` or merge main
   ```
 
   `install` and `list` print it as `toolchain <verb>: warning: ...` in their report on standard output;
@@ -1011,9 +1011,15 @@ the newest finished copy wins wherever it is.
   `update`,
   `outdated` and `bin`,
   and each time the tool runs through its launcher.
-- The warning names the upgrade command of that scope:
-  `mise run toolchain:update` for a tree,
-  and `mise run toolchain:update:global` for the machine-global lock.
+- The warning names the upgrade command of that scope as mpm's own pnpm-style verb with the tool id,
+  so it moves only that row:
+  `mpm update <tool id>` for a tree,
+  and `mpm update -g <tool id>` for the machine-global lock.
+  The id is printed as one shell word,
+  single-quoted when it holds anything other than letters, digits and `@%+=:,./_-`,
+  so the command can be pasted as it is.
+  It names no mise task,
+  because the repository is moving away from mise and `mpm update -g` works from any directory.
 - The exposed links,
   postinstall links and postinstall commands of both scopes use the winning copy,
   so `mpm-shadow install --global` makes `~/.local/bin/git` run the repository root's newest wrapper (through the global launcher) when that is the newest.
@@ -1023,7 +1029,7 @@ the newest finished copy wins wherever it is.
   in the same words everywhere the tree's sentence appears:
 
   ```text
-  <tool id> is locked at <locked> in this machine's global lock but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mise run toolchain:update:global`
+  <tool id> is locked at <locked> in this machine's global lock but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mpm update -g <tool id>`
   ```
 
 #### Older managed copies
@@ -1264,7 +1270,7 @@ when:
   or no finished managed copy of the bin exists (a version directory that cargo never recorded does not count),
   because the old copy may be the only working one.
 - cargo's record says the old copy is newer than the managed one:
-  upgrade this tree's lock with `mise run toolchain:update`.
+  upgrade this tree's lock with `mpm update <tool id>`.
 - the entry in the cargo bin directory is a symbolic link and not a copy.
 - some place could not be searched:
   git could not list the worktrees,

@@ -140,19 +140,50 @@ fn a_landed_merge_only_loses_its_record() {
     remove(world.parent.as_path());
 }
 
-/// A branch that moved to something else is not touched, and the record is kept with the way out named.
+/// A branch that moved to something else before the merge touched the checkout: nothing to put back, the record goes, and
+/// the merge can be computed again on the moved head.
 #[test]
-fn a_branch_that_moved_elsewhere_is_left_and_named() {
+fn a_branch_that_moved_before_the_checkout_changed_only_loses_its_record() {
     let world: World = world("merge-recovery-moved");
     std::fs::write(world.repo.join("h.txt"), b"h.txt again\n").expect("file");
     git(world.repo.as_path(), &["commit", "--quiet", "--all", "--message=elsewhere"]);
     let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
     let record: PathBuf = record_of(&world, dead_owner("55555555-0000-4000-8000-000000000005"), Some("refs/heads/main"));
-    let error = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect_err("fails closed");
-    assert!(error.0.contains(moved.as_str()) && error.0.contains(world.old_oid.as_str()), "{error}");
-    assert!(error.0.contains("Nothing was changed"), "{error}");
-    assert!(record.exists());
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::BranchMoved);
+    assert!(!record.exists());
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved);
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "");
+    remove(world.parent.as_path());
+}
+
+/// The branch moved after Git installed the merge's paths (the fast-forward lost the race for the branch between its
+/// checkout and its ref update): the paths go back to what the moved head holds, so the checkout matches the head, another
+/// session's staged entry is untouched, and nothing of the merge is left half applied.
+#[test]
+fn a_branch_that_moved_after_the_install_puts_the_merged_paths_back() {
+    let world: World = world("merge-recovery-moved-after-install");
+    std::fs::write(world.repo.join("u.txt"), b"u.txt staged by another session\n").expect("file");
+    git(world.repo.as_path(), &["add", "--", "u.txt"]);
+    let staged_entry: String = git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "u.txt"]);
+    // The winner: a commit on top of the old head that adds a file the merge does not touch, checked out.
+    std::fs::write(world.repo.join("z.txt"), b"committed meanwhile\n").expect("file");
+    git(world.repo.as_path(), &["add", "--", "z.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=meanwhile", "--", "z.txt"]);
+    let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
+    // The loser: Git's two-way update from the old head to the merge, whose ref update then failed.
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    assert!(world.repo.join("dir/new.txt").exists(), "the merge was installed");
+    let record: PathBuf = record_of(&world, dead_owner("77777777-0000-4000-8000-000000000007"), Some("refs/heads/main"));
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::BranchMoved);
+    assert!(!record.exists());
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the winner's");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "M  u.txt", "only the other session's work differs from the head");
+    assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "u.txt"]), staged_entry);
+    assert!(!world.repo.join("dir").exists() && world.repo.join("gone.txt").exists(), "the merge's changes are put back");
+    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("file"), b"f.txt base\n");
+    assert!(world.repo.join("z.txt").exists(), "the winner's file stays");
     remove(world.parent.as_path());
 }
 

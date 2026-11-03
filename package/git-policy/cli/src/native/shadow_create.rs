@@ -186,6 +186,30 @@ pub fn create_shadow_repository_at(
     shadow: &Path,
     transaction_directory: &Path,
 ) -> Result<(), GitFailure> {
+    return create_shadow_repository_carrying(context, cwd, capture, shadow, transaction_directory, true);
+}
+
+/// What:
+///  `create_shadow_repository_at`, with the merge, cherry-pick and revert conclusion state of the worktree either copied into
+///  the scratch repository or left out of it.
+/// Why:
+///   A commit of named paths while another session's merge is unfinished must build as an ordinary commit of those paths on
+///  `HEAD` (real Git refuses it as a partial commit during a merge); a scratch repository that holds no `MERGE_HEAD` builds
+///  exactly that, and the landing then leaves the worktree's own conclusion state alone because the scratch repository
+///  never held it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await createShadowRepositoryCarrying({ gitPath, cwd, capture, shadowPath, transactionDirectory, carryConclusion });
+/// ```
+pub fn create_shadow_repository_carrying(
+    context: &GitContext,
+    cwd: &Path,
+    capture: &InvocationCapture,
+    shadow: &Path,
+    transaction_directory: &Path,
+    carry_conclusion: bool,
+) -> Result<(), GitFailure> {
     let layout = &capture.layout;
     if layout.ref_format == super::transaction_journal::RefFormat::Reftable {
         // The reftable backend's tables are Git's to create, so this one case still starts `git init`.
@@ -211,14 +235,16 @@ pub fn create_shadow_repository_at(
     .map_err(|error| { return GitFailure(format!("writing the shadow alternates failed: {error}")); })?;
     link_shadow_entries(shadow, layout.common_dir.as_path(), layout.git_dir.as_path())
         .map_err(|error| { return GitFailure(format!("linking the shadow entries failed: {error}")); })?;
-    copy_conclusion_state(
-        context,
-        cwd,
-        layout.git_dir.as_path(),
-        shadow,
-        transaction_directory,
-        layout.ref_format,
-    )?;
+    if carry_conclusion {
+        copy_conclusion_state(
+            context,
+            cwd,
+            layout.git_dir.as_path(),
+            shadow,
+            transaction_directory,
+            layout.ref_format,
+        )?;
+    }
     write_shadow_refs(
         context,
         cwd,

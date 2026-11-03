@@ -66,7 +66,7 @@ pub fn notice_directory(git_dir: &Path) -> PathBuf {
 }
 
 /// A 64-bit FNV-1a hash of the text, in hexadecimal.
-fn fnv_hex(text: &str) -> String {
+pub fn fnv_hex(text: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in text.bytes() {
         hash ^= u64::from(byte);

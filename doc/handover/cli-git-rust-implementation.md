@@ -10710,3 +10710,146 @@ by the coordinator at merge.
     unknown.
   QUEUED (all five agent slots busy): the inner `--quiet` removal, red tests first; the slow-server change,
   red tests first, deterministic with a fixture remote whose hook sleeps silently.
+- 2026-11-03T07:24:19-05:00 (commit `a1c899d587`; first written with a guessed 07:35:00 label, corrected at
+  07:26:03): the owner ran `mpm i -g`: the shadow's global install ran (62 unchanged, 0 failed) and
+  warned that `cargo:monochromatic-git-policy-cli` was locked at 0.5.19 in the global lock while 0.5.25 runs. I
+  copied the global lock (`~/.config/monochromatic-dev/toolchain/toolchain.lock.json`, not under Git) to
+  `~/temp/agent/global-lock/toolchain.lock.json.before-2026-11-03T0715` (holds 0.5.19), ran
+  `mpm update -g cargo:monochromatic-git-policy-cli` (only that row moved, 0.5.19 to 0.5.25), and `mpm ls -g`
+  reports "62 tools in sync". The warning's remedy named `mise run toolchain:update:global`, a task that exists
+  only inside the repository; owner: "We're migrating away from mise soon TM." Fixed on
+  `fix/mpm-shadow-cli-older-lock-hint-names-the-tool` (red `d16ea31a83`, fix after it): the tree, global and
+  old-copy hints say `mpm update <id>` / `mpm update -g <id>`, the id quoted as one POSIX shell word (new
+  `shell_word`, adversarial test with space, `;`, quote, `$`, backtick, newline). 531 of 531 tests pass; clippy
+  clean. Merging to main, then mpm-shadow 0.2.5.
+  AGENTS.md rule DQB added on the owner's choice (`01465af6f5`): a brief quotes the component's recorded
+  `doc/decision/` owner decisions with path and lines.
+  Agent "test helpers die" done (`fix/git-policy-cli-test-helpers-die-and-prune-audit-read`, from `5c0b660c27`,
+  host 3484 and binary 593 pass, clippy clean): about 30 long-lived test helpers now die with their test (unit
+  and binary crates, guards shown red); the prune flake was the two test readers parsing an empty line the
+  writer documents as legal (shared `command_test_support::audit_records` skips empty and unterminated lines);
+  the `read_config_snapshot` abort was `binary_fault_limits_tests`' intended `RLIMIT_AS` sweep at 21 MiB (a 2-byte
+  allocation, `may_abort: true`), not a product bug. Merge into the 0.5.26 integration branch after the
+  retry-plan fix. QUEUED from its report (pre-existing test leaks, "Fix even pre-existing issues"): unbounded
+  fixture scripts started by product code (`binary_client_service_tests` `stalling_git`, `transaction_git_tests.rs:300`
+  `SLOW_GIT`, `push_patience_tests.rs:68` `TrickleForever`, `git_stop_lock_tests` 74 and 233,
+  `child_watch_tests.rs:220`, `binary_fault_signal_tests.rs:52`) and `transaction_phase.rs` `await_release`
+  polling without a deadline under `:pause:`.
+  cargo-shadow report 3 (`feat/cargo-shadow-cli` tip `383ec968eb`, 182 tests, clippy clean, all commits on
+  origin): `trustLockfile` (pnpm's name, default false) added to `monochromatic-dependency-catalog` (0.1.0 to
+  0.2.0) and the TS reader; with it true the frozen install checks only versions no lockfile held at
+  `CARGO_SHADOW_TRUST_BASE` (unset: `HEAD`); all 35 lockfiles at base `9ef2c198cf`: 0 findings, 5.6 s warm.
+  RELEASE ORDER (from its report, adopted): dependency-catalog 0.2.0 (publishes itself on merge through
+  `cargo-publish.yml`), then file-enforcer-cli rebuilt with it and `toolchain:update`, then `912e82a0c7`
+  (`trustLockfile = true` in `rust-catalog.toml`; the installed file-enforcer rejects the key until then), then
+  the cargo-shadow first publish. Sent back for lint first: `monochromatic-lint` on the crate reports 930
+  `markdown/semantic-line-breaks`, 275 `rust/require-rustdoc`, 8 `markdown/no-bare-urls` errors and 158
+  `rust/avoidable-closure` warnings; its 3381 generated comment lines are class-level, so first-occurrence Why
+  lines in `install.rs`, `update.rs`, `commands.rs` get rewritten. Cross-vendor review after that, before any
+  publish.
+  Agent launched on the two owner answers: `fix/git-policy-cli-no-inner-quiet-and-slow-server-waits`.
+- 2026-11-03T07:26:03-05:00: owner, verbatim: "never fail doesn't primarily mean retries!". CORRECTION of the
+  07:01:29 entry: I had adopted D5 as "no-progress bounds with retry" and briefed the commits-never-fail agent
+  retry-first (start dead things again, rebuild on a moved head, keep going while progressing). That reading is
+  retracted. "Commits should never fail." / "Auto merging should never fail." / "Manual merge should never fail
+  too." mean the design removes each failure mode by construction; a retry is at most a last resort for a cause
+  outside the system (network, full disk, a process someone else killed), and must say why that cause cannot be
+  designed out. Sent to the commits-never-fail agent: stop retry-based fixes, keep its commits, rewrite
+  `doc/planning/cli-git-commits-never-fail.md` per item as root cause, by-construction change, residue; add a
+  merge section (the merge-fixes branch's index-lock wait and 20-round moved-head loop); report the design
+  before building; quote the owner's sentence in `SPEC.md`. Suggested directions (revisable): one index owner
+  per worktree (the service) or new-index-and-rename, landings serialized by that owner so the head cannot move
+  under a landing, a commit that does not depend on a service that might not start, objects held reachable so
+  nothing prunes them, no time-based killing and the slow steps made fast (main's `diff-index --cached --quiet
+  HEAD` took over 50 s today). The design goes to a cross-vendor review and the owner's choices to the owner
+  before building. Still to weigh against this sentence: the merge-fixes branch already in the 0.5.26 candidate
+  (index-lock wait, 20-round loop), and the push retry plan (network failures are outside the system, so
+  retry stays there, with the by-construction parts named).
+  Owner answer (question tool): "Ship interim now (Recommended)": 0.5.26 gates and ships with the merge-fixes
+  branch's index-lock wait and 20-round loop; the by-construction design replaces them when built.
+- 2026-11-03T07:31:32-05:00: owner: "'causes outside our control.' - that would be very minimal. I advise we
+  settle on which causes exactly are outside our control NOW." Settled by the question tool (DECISION, binding
+  for every commit, merge and push design):
+  - Outside our control (the wrapper may stop with a clear message, or retry where the cause can clear by
+    itself; work already handed over stays on disk and the next run finishes it): network down (no route, DNS,
+    reset, refused); the remote refusing (login or auth, a server hook, GitHub's GH009, branch protection); disk
+    full or quota; disk I/O errors or a read-only remount; a memory or process-count cap set by someone else;
+    a kill (OOM killer, a person) or power loss or reboot; a corrupt repository (missing objects, broken
+    index) caused by a disk fault or another tool; the person's signer failing (gpg or ssh-agent).
+  - NOT outside, so designed out by construction: a slow remote (owner's earlier "wait while connected"),
+    other programs' locks (IDE or `/usr/bin/git` holding `index.lock` or a ref lock), Git's own crashes or bugs.
+    Everything not listed as outside is designed out too (for example the commits agent's residues "malformed
+    request" and "object format this release cannot read").
+  - Refusals that may still end a commit or merge with an error: policy errors at error severity; an empty
+    message; a content conflict no resolver settles (the merge stops with the conflict recorded).
+  - Owner, verbatim, on a commit naming a conflicted path: "Committing a conflicted path is fine. Warn and
+    commit anyway, even if conflict markers will be committed." This REVERSES `d8bcd95218` (merge-fixes branch,
+    in the 0.5.26 candidate), which keeps Git's refusal for a named unmerged path; it must change before 0.5.26
+    ships. Sent to the commits agent as `fix/git-policy-cli-commit-conflicted-path-warns` from `5c0b660c27`.
+  - Moved head under an amend, a merge conclusion or a revert (question tool): "Stack on the new head
+    (Recommended)": the result lands as a new commit on the new head and stderr says why; an amend that raced
+    becomes an extra commit (`A <- B <- C <- D`), a conclusion lands as the merge of the topic into the new head, a
+    revert lands as the revert on the new head; nothing another session landed is rewritten.
+  Commits agent design (`fix/git-policy-cli-commits-never-fail`, `e716f07ff6`,
+  `doc/planning/cli-git-commits-never-fail.md`): remove the class-bound kill and move the slow follow-up steps
+  in process; the client lands a commit itself when the service is absent (the service a speed-up, not a
+  dependency); heartbeats instead of `COMMIT_WAIT`; no landing counts, the service the one writer of its
+  worktree's branch, Git-built commits take a short branch turn; move the ref first and reconcile the index
+  when the lock is free (no Git work under the lock); a per-worktree hold ref keeps captured blobs from
+  pruning. 120 s case explained: two Git children of about 60 s each (`diff-tree` 59.4 s, `reset -q
+  --pathspec-from-file` 60.0 s) inside a 119 s `index.lock` hold; why each took 60 s is unexplained. Next: fold
+  the settled list, then a cross-vendor review, then build.
+  Stale-ref-locks agent done (`fix/git-policy-cli-clear-stale-ref-locks-of-killed-git`, tip `cc9faef3e5`, host
+  3508, binary 588, clippy clean): ref locks are cleared before the wrapper's fetch and push and a forwarded
+  fetch or push only when the holder is proven gone (pid file born at or after the lock and its process gone,
+  or reused by a non-Git started later; or no pid file and older than boot by over an hour); never
+  `index.lock`. It never ran the `pkill` string. For the 0.5.26 gate: confirm the container branch of
+  `a_fetch_after_a_killed_fetch_clears_the_locks_where_the_holder_is_provably_gone`.
+  0.5.26 candidate contents once the retry-plan fix builds: perf + merge-fixes (in the integration branch),
+  then merge test-helpers, stale-ref-locks and conflicted-path-warns.
+- 2026-11-03T07:36:08-05:00: owner, verbatim: "We also have the advantage of git itself being OSS so we're not
+  just wrapping a black box." Applied as design practice for every Git step the wrapper runs or replaces: read
+  Git 2.56.0's own source for what the step locks, waits on and can exit nonzero for, cite file and line, and
+  where a step moves in process port Git's logic so the result equals Git's (the stale-ref-locks work already
+  cites `a018953688`). Sent to the commits-never-fail agent (including the 60 s `diff-tree` and `reset` of the
+  120 s commit, and whether the 60.0 s `reset` met the wrapper's own 60 s quick-class bound) and to the
+  inner-quiet and slow-server agent (`--quiet` semantics per command; how `push` and `remote-curl` relay
+  sideband and keepalive packets). Git's fsmonitor stays out of scope as a cause.
+  mpm-shadow 0.2.5 PUBLISHED (crates.io 2026-11-03T12:28:18Z), locked (`toolchain:update -- mpm-shadow`, only it
+  moved), installed; a login shell's `mpm --version` names "mpm-shadow 0.2.5". The new hint wording is covered
+  by the package tests; it is not triggered live, because that needs a lock older than the running tool.
+  Measured on main meanwhile: the lock commit waited over 50 s in the client's `git add --all --
+  toolchain.lock.json`, and an earlier commit over 20 s in `git read-tree --reset` (sent to the commits agent).
+- 2026-11-03T07:38:40-05:00: owner: "I'm feeling pretty discouraged and disappointed, I would say. Anyway, we
+  gotta work this out." Misses I named to the owner: main still breaks "commits vs native git should not take 5s
+  longer" (50 s `add`, 20 s `read-tree`, 50 s merge `diff-index`, 120 s commits today); the owner had to correct
+  "never fail" (retries), the cargo-shadow `trustLockfile` brief, and a hint naming a mise task; my own rule
+  slips (guessed timestamps twice, waits on a process found by name twice). Focus question (question tool):
+  owner chose "Keep all lines": continue the five lines in parallel and release whenever a gate passes. My
+  own corrections stay in force: quote `doc/decision/` records in briefs (DQB), real `date` or `%cI`
+  timestamps only, wait on PIDs only, measure on main against native Git before calling commit work done.
+- 2026-11-03T07:50:09-05:00: 0.5.26 candidate (`integrate/git-policy-cli-merge-fixes-and-commit-speed`):
+  retry-plan fix done (`7f1acd22f4`: plan owned by the service loop and handed to workers as values, no lock;
+  kept on disk under `<journal>/push-retries` so a restart keeps trying, since the failure record is consumed by
+  the person's next command and a fresh service knows only its instance hash; login failures and server hook
+  declines final, texts cited from Git 2.56.0 and captured from fixtures; a 403 counts as login; host 3561,
+  binary 597). Merged into the candidate: stale-ref-locks, test-helpers (both rounds), conflicted-path-warns
+  (`7ec22c34da`; conflict in `service_commit.rs` resolved by keeping both the rebuilt-commit note and the
+  conflicted-path warning, `59d4268e99`). Interim gate `candidate-0-5-26-with-locks-and-helpers`: 4207 of 4209,
+  the 2 failures the test-helpers agent's red tests whose fix landed after; final gate
+  `release-0-5-26-final-candidate-20261103T074924-0500` running.
+  Owner answer (question tool) on a plain `git commit` with unmerged files: "Warn and finish the merge
+  (Recommended)": it lands as the merge commit with the markers and warns per file; sent to the commits agent as
+  `fix/git-policy-cli-plain-commit-finishes-conflicted-merge` from the candidate (for 0.5.27).
+  The commits agent's "silent" checkout refusal checked in a throwaway: not silent. Exit 1, file kept, and stderr
+  carries one JSON policy-event line (`linked-worktree-only/linked-worktree-required`) whose `message` holds the
+  plain-words explanation, per the README ("Policy events of a wrapped command are JSON lines on standard
+  error"). The agent missed it; the format is easy to miss when reading a command's output quickly.
+  cargo-shadow report 4: `monochromatic-lint` 0 errors (semantic-line-breaks 951 to 0, require-rustdoc 275 to 0,
+  bare URLs 8 to 0), `avoidable-closure` warnings 158 to 26 (4 from clap's derive, unfixable by a source edit;
+  4 need callee signature changes; 18 fixable, left), 62 generic Why lines rewritten, 182 tests, clippy clean.
+  Next for it: cross-vendor review, then the release order.
+  Cross-vendor review of the commits design running (`~/temp/agent/reviews/commits-never-fail-sol.txt`).
+  QUEUED: the binary test `a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait` aborted once
+  under load in the conflicted-path agent's run and passed alone (timing-dependent; fix its bound from the
+  measured wait as the merge-fixes agent did for its siblings).

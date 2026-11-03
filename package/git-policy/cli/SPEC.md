@@ -1158,6 +1158,46 @@ so the push takes no lock.
 A failed push never fails the commit:
 the service leaves a notice that the next command in the repository shows.
 
+#### Merges and commits never fail
+
+Owner rules (2026-11-03, verbatim):
+
+- "Auto merging should never fail."
+- "Manual merge should never fail too."
+- "Commits should never fail."
+
+The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
+for a `git merge` the person types, and for a `git commit`:
+nothing the machine or other processes do ends them with a nonzero status.
+That covers a held `index.lock`, a branch that moved underneath the command (the auto-push's own reconcile merge included),
+a slow disk, a stopped child and a deadline.
+Such a command waits, bounded and naming what it waits for, retries on the new head,
+or lands as a merge on the moved head.
+It never leaves a half-applied result: the index and the worktree hold either what they held before the command
+or the whole result, and no `MERGE_HEAD` is left behind by a merge that did not finish.
+A content conflict goes through the wrapper's conflict resolution and stops, as Git stops on a conflict
+with the conflicting paths named, only where no resolution exists.
+The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
+
+A merge, the person's or the auto-push's, never runs native Git's stash and never trusts the late ref update:
+the merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, the checkout moves with
+`git merge --ff-only`, and the whole is preceded by a bounded wait for `index.lock`.
+A fast-forward that finds the branch moved leaves the checkout as it was or puts the merge's paths back to the moved head's
+content, and the merge is computed again on the moved head (`src/native/merge_isolation_moved.rs`).
+A push the service stopped or that failed is tried again by the service on its own, with doubling pauses from
+`CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds, until it lands or the person must act (`src/native/push_retry.rs`).
+The person must act for a conflict, for a login the service does not have, and for a hook on the server that declined the push
+(owner decision, 2026-11-03: "Offline is retried, but auth and server hook declines stop until your next commit."):
+these stop the retry until the person's next commit, and the failure record says in plain words which one it was.
+Being offline, a stall, the ceiling and a held lock are tried again.
+A rejection by the server with a reason no rule names is tried again, and the journal names its line.
+The classification reads Git's own words, which are cited beside the rules in `src/native/push_retry.rs`.
+The plan is owned by the service's work loop alone: a round takes what is due for each repository out of it before the
+repositories are drained side by side, hands it to that repository's worker as a value, and applies the plans and forgets the
+workers return, so the workers share it with no lock (`src/native/service_work.rs`, `src/native/service_round.rs`).
+The plan survives a restart of the service: it is kept on disk, a file per branch, in the instance's own journal
+(`src/native/push_retry_store.rs`), rebuilt when the service starts, and the loop wakes for it with no wrapper command.
+
 #### Commands that add commits
 
 A command other than `git commit` hands the push over too (owner decision, 2026-11-02):
@@ -1540,6 +1580,218 @@ Not yet met by the native executable: it peels each update's object with its own
  runs `git rev-list <local> --not <published>`
 with arguments, and reads each range commit's delta with its own `git diff-tree` process; the handover lists this as an
 open divergence.
+
+### Reference locks left by a Git that was killed
+
+Release 0.5.23 removes the lock files of a Git child that the wrapper itself stopped (the push deadline entry of
+"Auto-push" holds those rules).
+A lock that any other killed Git leaves (a terminal closed mid-fetch, the out-of-memory killer, a reboot, a release before
+0.5.23) blocked every later `git fetch` and `git push` of the same reference with "Unable to create ... File exists"
+until someone deleted the file by hand.
+This entry extends the same code (`src/native/stopped_git_locks.rs` for the pid-file reader, `src/native/git_directory_roots.rs`
+for the Git directories it shares, `src/native/stale_ref_locks.rs` and the `stale_ref_lock_*` modules for the judgement) to those
+locks, with one rule: a lock is removed only when its holder is
+**proven** gone, and otherwise the wrapper says what it found and prints the command that clears it.
+
+#### Owner requirements
+
+- "never discard user data"
+- "Use as few locks as possible."
+- "You should (almost) never be waiting."
+- "Invoke real git as rarely as possible."
+- "Fix even pre-existing issues of the pkgs you own."
+- Git's own file-system monitor stays as the person configured it (see the README section "Git's own fsmonitor").
+  Nothing here sets, unsets, pins or passes `core.fsmonitor`, and no tier of the judgement counts the daemon's descriptors
+  or working directory as evidence of anything.
+
+#### What Git guarantees about who holds a lock
+
+The source read is Git 2.56.0 (commit `a018953688`, the installed version).
+Git guarantees only that a lock is a file created with `O_CREAT | O_EXCL` (`tempfile.c:142`) and removed by its holder when
+the holder ends or catches `SIGINT`, `SIGHUP`, `SIGTERM`, `SIGQUIT` or `SIGPIPE` (`tempfile.c:93-98`, `tempfile.c:112-120`,
+`sigchain.c:45-52`).
+It does not tell a reader who the holder is, and it never removes a lock it did not create:
+
+- The file holds no process number.
+  The optional companion `<name>~pid.lock` (`core.lockfilePid`, `lockfile.c:112-139`) is created **after** the lock
+  (`lockfile.c:182-184`), so a Git killed between the two leaves a lock with no pid file.
+- The pid file is created with `O_EXCL` and a failure to create it is silent (`lockfile.c:121-123`).
+  A holder that finds an older pid file in the way therefore writes none, and the older file names a process that is not the
+  holder.
+  A pid file is evidence only when it was born at or after the lock.
+- Git itself reads the pid file and probes the process with `kill(pid, 0)` only to word its refusal
+  ("appears to be stale", `lockfile.c:254-300`, with the caveat "PIDs can be reused" in the text), and then removes nothing.
+- The pid file is removed before the rename of the lock (`lockfile.c:352-358`) or its rollback (`lockfile.c:368-371`), so
+  a holder in the middle of a commit may have no pid file either.
+- Reading the descriptors of other processes does **not** find a live holder:
+  - `packed-refs.lock` is taken and the descriptor is closed at once, because the new content goes to a separate
+    temporary file (`refs/packed-backend.c:1254-1261`).
+    A live `packed-refs.lock` is therefore always empty and held by no open descriptor, for as long as the operation lasts.
+  - A reference lock whose reference already has the wanted value, or that is being deleted, is created, never written, and
+    closed to free the descriptor while the transaction goes on (`refs/files-backend.c:2888-2897`).
+  - A reference lock that was written is closed straight after the write (`refs/files-backend.c:2058-2073`) and is
+    renamed into place only in the commit phase, with the `reference-transaction` hook of the user in between
+    (`refs.c:2676`).
+    Its content is the new object name and it has no open descriptor for the whole of that window.
+  - The waits for a held lock are short: `core.filesRefLockTimeout` defaults to 100 ms (`refs.c:992-1005`) and
+    `core.packedRefsTimeout` to 1000 ms (`refs/packed-backend.c:1241-1245`), after which Git gives up.
+
+#### Rejected rule: nothing has the lock open
+
+The rule "a lock is stale when no live process has it open, past a margin after its modification time" is rejected.
+By the facts above it removes a live `packed-refs.lock`, a live lock of a ref that is only being deleted, and a live lock
+that is waiting for its commit phase.
+A live Git whose lock was deleted does not fail safely: its rename moves the lock path onto the reference, and if a second
+Git created a new lock there in the meantime, the first one installs the second one's half-written file as the reference.
+The handover proposal of the 0.5.23 entry (an empty lock with no pid file, past a settle time, that no process has open)
+is rejected for the same reason.
+The open descriptor is kept as one **veto** (a lock that a process has open is held, whatever else is known), never as proof.
+
+#### The rule: a lock is removed only on one of two proofs
+
+Candidates are reference locks of the Git directory and the common Git directory: `packed-refs.lock`, `HEAD.lock` and every
+`*.lock` under `refs/`.
+`index.lock`, `config.lock`, `shallow.lock`, object and pack locks and every `~pid.lock` file are never candidates (the index
+has its own protocol in this document).
+A candidate is judged without starting Git, from the file system and `/proc`, in this order, and the first answer wins:
+
+1. A candidate that is not a regular file, or that is younger than the margin (two seconds), is left and not mentioned.
+   The margin covers a lock that a live Git has just created and not yet filled, whose pid file is not yet written.
+2. A candidate on a file system that is not local (anything not on a fixed list of disk and memory file systems:
+   `btrfs`, `ext4`, `xfs`, `f2fs`, `tmpfs`, `overlay`, `zfs`, `bcachefs`) is unproven, because a Git on another machine is
+   invisible here.
+3. A process of the account that has the candidate open (same device and inode in `/proc/<pid>/fd`) makes it **held**.
+   A process list that cannot be read, or a Git process of the account whose descriptors cannot be read, makes it unproven.
+   A process of the account that is not Git and cannot be read is skipped: on the measured host `systemd --user` and
+   `ssh-agent` are never readable (`CapEff` and set-group-id), so refusing on them would make every proof unreachable, and a
+   program that is not Git does not create Git locks.
+4. A pid file born at or after the lock (Git creates it after the lock, so this is the order of a pid file the holder wrote),
+   naming a process, decides:
+   - a process that is gone, or a zombie, proves the lock stale;
+   - a process that runs, whose command name does not start with `git` **and** that started after the lock was made (its start
+     time from `/proc/<pid>/stat` and `/proc/uptime`, by more than the clock's resolution), proves the number was reused after
+     the holder ended, and the lock stale;
+   - any other running process is taken for the holder, and the lock is **held**: a Git, or a program under another name that
+     started before the lock (a copied Git binary, a launcher), so the two signs must agree to delete.
+   This proof exists only when the wrapper itself runs in the initial PID namespace (the link `/proc/self/ns/pid` names
+   `pid:[4026531836]`), where an absent number is absent from the whole kernel.
+   Anywhere else (a container) the number may belong to a namespace this process cannot see, and the lock is unproven.
+5. A lock born before the current boot of the kernel (its birth time and modification time both earlier than `btime` of
+   `/proc/stat` by more than one hour), with no usable pid file, is stale: no process of this boot can have created it.
+   `btime` is the wall clock minus the uptime, so a step of the clock after boot moves it; the hour keeps the usual step
+   of a hardware clock a few minutes off from making a lock of the first seconds of this boot look older than it.
+6. Anything else is unproven: the lock is left, and the wrapper says what it found.
+
+The removal itself takes no lock of the wrapper's own (`Use as few locks as possible.`).
+It sets the lock aside with one `rename` to a private name in the Git directory, reads the identity of what it moved (device,
+inode and size), removes it only if that is the file that was judged, and otherwise puts it back with a hard link.
+Two wrappers that judge the same lock at the same time therefore cannot remove a lock that a live Git created between them.
+The pid file, and for `packed-refs.lock` the staging file `packed-refs.new` that Git creates with `O_EXCL` while it holds that
+lock (`refs/packed-backend.c:1398`), are removed after the lock has been set aside.
+A killed Git leaves the staging file too, and a later packed-references update fails on it ("unable to create file
+packed-refs.new: File exists") exactly as on the lock, so a lock is cleared together with it, and the command given for a lock
+that is not cleared names it.
+A staging file with no lock beside it (the lock was removed by hand, or by an older release) is an orphan: Git makes it only
+while it holds the lock and renames it away before it releases the lock, so a file older than the margin that is still the same
+file after the lock was looked for and found absent has no live maker, and it is removed by the same set-aside step
+(`Proof::OrphanStaging`).
+
+#### Races, and how each is handled
+
+- A holder that wrote its lock, closed the file and has not yet renamed it: its pid file names a live Git (held), and where
+  there is none the lock is unproven, never stale, because the descriptor scan sees nothing.
+- A holder that is killed between creating the lock and its pid file: there is no pid file, so the lock is unproven unless it
+  predates the boot.
+  Such a lock is reported with the command that clears it.
+- An older pid file in front of a live holder (above): ignored because it is older than the lock.
+- A process number reused by another process: a running non-Git process proves the reuse, and a running Git is held.
+  A Git that is not the holder is kept apart from the holder only by its start time, which is not used because the wall
+  clock may step; the cost is one lock left that could have been removed.
+- Another account's process: it cannot be read, but a lock it holds has its pid file naming that process, which a running
+  number never proves stale.
+  A lock with no pid file stays unproven, and the descriptors it cannot see are said in the message.
+- A Git in another PID namespace or mount namespace (a container with the repository mounted in): the pid number means
+  something else here, so the pid-file proof needs the initial PID namespace, and a writer in a sibling container that is
+  visible from the host still writes numbers of its own namespace.
+  This is a limit of the pid-file proof that cannot be closed from the host; the veto of an open descriptor and the margin are
+  the only protection, and the SPEC records it as accepted.
+- A Git on NFS or another network or user-space file system (including a virtual machine's shared directory): the file
+  system must be on the fixed local list.
+- A clock that steps: the margin, the boot proof and the start time of a process read file times against the current clock.
+  A forward step after boot moves `btime` forward, so a lock a live Git made in the first seconds could look older than the
+  boot; the proof therefore needs a lock older than the boot by more than an hour, is used only when no pid file exists, and is
+  defeated only by a step larger than that across the whole life of a live lock, which Git holds for moments.
+  For a reused number a step can only make a process look newer, and the second sign (not a Git) must still agree.
+- Two wrappers removing the same stale lock: handled by setting aside with a rename and checking identity (above).
+- A removal that is raced by a new lock at the same path: the file that was set aside is checked, and put back if it is not
+  the judged one; if the path has been taken again by then, it is left set aside under its private name and the wrapper
+  says so, because deleting it could lose a live holder's update.
+
+#### Where it applies
+
+- The wrapper's own pushes and fetches (the commit service's auto-push and its reconcile fetch, the stacked push, the Git LFS
+  upload's pushes) all start through `run_bounded_push`, which judges and clears first (`src/native/push_lock_clearing.rs`).
+  Every repetition of a push starts through it too, so the service's repetitions after a refused tracking reference
+  (`PUSH_LOCK_RETRIES`) clear again before each one; no repetition of its own was added, and nothing waits.
+  These are the commands that run unattended, so a lock that blocks them is repaired with nobody present.
+- A plain forwarded `git fetch` or `git push` replaces the wrapper process with Git, so there is no "after" to look at: the
+  wrapper judges and clears before it hands over, and the notice (standard error) precedes Git's own words
+  (`src/native/forwarded_lock_notice.rs`, called from `stack_if_push` in `entry.rs`).
+  The repository is the one the wrapper's `-C` options and `GIT_DIR` name.
+  A push that the wrapper runs as a child (stacked or with an LFS upload) goes through the first item.
+- The cost on a command with no lock is one walk of `refs/` of the Git directory and the common Git directory plus two file
+  lookups: measured while this entry was written at a median 1.9 ms (25 runs, 1.85 to 2.15 ms) for 5000 loose references in 50 directories,
+  and no change with an unproven lock younger than the margin.
+  A lock old enough to be judged adds one scan of the descriptors of every process: median 53 ms (25 runs, 47 to 63 ms) with
+  1182 processes on the host, paid only when a lock exists.
+  No Git is started.
+- Not covered: `git pull`, `git merge` and every other command (they belong to the merge and index-writer paths); a command that
+  names its repository with `--git-dir` or any global option other than `-C`; the wrapper's own `update-ref` and other ref writes
+  of a commit; locks younger than the margin, which a command meets as Git's own refusal (the next push clears them once they have
+  aged); and the notice of a push that Git delivers and exits 0 for after being refused the tracking
+  reference (`cannot lock ref` in output with exit 0): the service's report shows only `remote:` lines for a push that exits 0,
+  so that notice reaches the service's log and is not shown, the retry loop of `auto_push.rs` being left as it is.
+
+#### Messages as printed
+
+Every line starts with `cli-git: `, and every path is quoted for a shell (a plain name as it is, other printable names in single
+quotes with `'\''` for a quote, names with a control character or a byte that is not UTF-8 as `$'...'`), so the command can be
+pasted and a terminal escape in a file name is never printed raw.
+
+```text
+# A lock the wrapper removed (the process of the pid file ended).
+cli-git: removed the reference lock /r/.git/refs/remotes/origin/gone.lock, left by a Git that is gone: process 2629996, named by the pid file beside it, has ended.
+# A lock whose pid number now belongs to a program that is not Git.
+cli-git: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.
+# A lock from before the boot, with no pid file.
+cli-git: removed the reference lock /r/.git/refs/heads/c.lock, left by a Git that is gone: it was made before this boot of the machine, so no process that exists now can hold it.
+# A lock a running Git holds.
+cli-git: the reference lock /r/.git/packed-refs.lock is in use: process 2630147 (git), which the pid file beside it names, is running; it was left alone.
+# A lock nothing proves stale.
+cli-git: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open.
+cli-git: it is 0 bytes, made 2026-11-03T11:57:55.882Z (2 seconds ago). If no Git process is running in this repository, clear it with:
+cli-git:   rm -- /r/.git/refs/remotes/origin/gone.lock
+cli-git: Git writes a process number beside its locks only when `core.lockfilePid` is on. The wrapper turns it on for the Git it starts; `git config --global core.lockfilePid true` does it for the rest, so the next lock can be proven.
+```
+
+For `packed-refs.lock` the `rm` line also names `packed-refs.new` and the pid file when they exist.
+Git's own refusal follows these lines unchanged, because the wrapper becomes Git.
+In a process that is not in the initial PID namespace the reason of a lock with a pid file is "the pid file beside it names process
+N, but this process runs in a PID namespace of its own and cannot see every process of the machine, so it cannot tell whether N is
+gone", and the lock is left with the same `rm` line.
+
+#### Measured while this entry was written (see the commit time of the entry)
+
+With real Git 2.56.0 (`git update-ref --stdin` told `start`, three `delete`/`update` lines, `prepare`, then held, and `git fetch
+--prune` held by a `reference-transaction` hook at `prepared`):
+
+- A live Git held four locks (`packed-refs.lock`, three reference locks) and their pid files with **no lock file descriptor open**:
+  its descriptors were its three standard streams and nothing else.
+  Every reference lock was empty, including the one whose reference already had the wanted value.
+- A Git killed with `SIGKILL` in that state left all of them, and `packed-refs.new`.
+- A push that delivers and then cannot lock the tracking reference prints "error: update_ref failed for ref ...: cannot lock ref"
+  and exits 0.
+
 
 ### Real Git starts with traditional hooks off
 
@@ -2684,9 +2936,21 @@ Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
 A `--` that is the value of an option (`git commit -m --`) is a value and not the separator.
 A pathspec commit during a revert or a cherry-pick, which Git accepts,
-and during a merge or a conflicted cherry-pick, which Git refuses with `cannot do a partial commit`,
 behaves as real Git does,
 including paths named like options (`--quiet`, `-o`, `-dash.txt`) and `--pathspec-from-file`.
+During a merge or a stopped cherry-pick, which Git refuses with `cannot do a partial commit`,
+the owner's rule "Commits should never fail." (2026-11-03) applies instead:
+the commit of the named paths is built in a scratch repository that holds none of the conclusion state,
+so it is an ordinary commit of those paths on `HEAD`;
+the worktree's `MERGE_HEAD` (or `CHERRY_PICK_HEAD`), message and staged result stay,
+and the commit without paths that concludes the merge sits on the new head.
+A named path in conflict is committed too (owner, 2026-11-03, verbatim: "Committing a conflicted path is fine. Warn and commit anyway,
+even if conflict markers will be committed."):
+the commit takes the bytes the worktree holds, conflict markers included,
+and once it has landed standard error says in plain words that the path still has conflict markers,
+that they were committed, and how to fix them in a follow-up commit.
+The merge stays unfinished, and the index entry of that path is the committed one.
+Options that select the whole index (`--all`, `--no-only`, `--include`, `--interactive`, `--patch`) keep concluding it.
 
 #### Scratch repository layout
 

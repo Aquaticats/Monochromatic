@@ -172,6 +172,50 @@ pub fn restrict_to_one_cpu() -> std::io::Result<()> {
     return Ok(());
 }
 
+/// The process groups the helper processes of one test thread lead, killed when the thread ends however its test ended.
+struct OwnedGroups {
+    /// The group numbers, which are the numbers of the group leaders.
+    groups: std::cell::RefCell<Vec<libc::pid_t>>,
+}
+
+/// A panic unwinds the test thread, and a thread that ends runs this.
+impl Drop for OwnedGroups {
+    fn drop(&mut self) {
+        for group in self.groups.borrow().iter() {
+            // SAFETY: `killpg` takes a group number and a signal and touches no memory; a group with no member is `ESRCH`.
+            unsafe { libc::killpg(*group, libc::SIGKILL) };
+        }
+    }
+}
+
+thread_local! {
+    /// The helper groups of the running test thread.
+    static OWNED_GROUPS: OwnedGroups = const { OwnedGroups { groups: std::cell::RefCell::new(Vec::new()) } };
+}
+
+/// What:
+///  Make the process group a child leads die with the test thread that started it, whether the test passes, fails or panics.
+/// Why:
+///   `Child` does not kill on drop, so a helper that a failing assertion never reached the end of (a service whose idle exit is
+///  hours away, a shell loop) kept running after its test. The child must lead a group of its own already (`process_group(0)`
+///  before the start), so what it starts is killed with it.
+pub fn own_group(child: &Child) {
+    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
+    OWNED_GROUPS.with(|owned| { owned.groups.borrow_mut().push(group); });
+}
+
+/// What:
+///  Start a helper process in a group of its own that dies with the test thread that started it.
+/// Why:
+///   The same reason as `own_group`, for a child started here.
+pub fn spawn_owned(command: &mut Command) -> std::io::Result<Child> {
+    use std::os::unix::process::CommandExt as _;
+    command.process_group(0);
+    let child: Child = command.spawn()?;
+    own_group(&child);
+    return Ok(child);
+}
+
 /// The commit services of one fixture, one per worktree as in production, stopped with the fixture.
 pub struct FixtureService {
     /// The running service of each worktree, by the worktree's own Git directory.
@@ -557,6 +601,8 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         // The service goes first: it writes into the fixture.
         let _stopped = self.service.lock().map(|mut service| { return service.take(); });
+        // Then whatever product code started here and a failed control never ended (a hook that waits with one `sleep`).
+        end_processes_working_in(self.root.as_path());
         settle_fixture(self.root.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
     }
 }
@@ -615,6 +661,7 @@ pub fn fixture(name: &str) -> Fixture {
 
 /// Create a fixture in `directory`, which may be on another filesystem than the build; see `fixture`.
 pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
+    forbid_core_dumps();
     std::fs::create_dir_all(directory).expect("fixture directory root");
     let created: PathBuf = directory.join(format!("native-binary-{}-{name}", std::process::id()));
     if created.exists() {
@@ -1164,6 +1211,12 @@ mod fixture_executable;
 
 pub use fixture_executable::executable;
 
+/// The shell condition that holds while the test that started a fixture script is still there.
+#[path = "test_alive.rs"]
+mod test_alive;
+
+pub use test_alive::{end_processes_working_in, while_test_lives};
+
 /// What:
 ///  Copy an executable through a child `cp` process,
 ///  keeping its mode.
@@ -1242,4 +1295,19 @@ pub fn dead_copy_owner() -> git_policy_cli::worktree_copy_owner::CopyOwner {
         birth_identity: birth,
         pid_namespace: git_policy_cli::pid_namespace::current_pid_namespace(),
     };
+}
+
+/// What:
+///  Forbid core dumps for this test process and everything it starts, once.
+/// Why:
+///   The binary tests kill services and abort wrappers on purpose, and each dump costs the system's core-dump handler processor
+///  time and disk writes on a disk other sessions share. The limit is inherited across `fork` and `exec`, and the hard limit
+///  stops a child from raising it; it is the harness's, and the product sets none.
+fn forbid_core_dumps() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let none: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        // SAFETY: `setrlimit` reads the one `rlimit` it is given and touches no memory of ours.
+        let _set = unsafe { libc::setrlimit(libc::RLIMIT_CORE, &none) };
+    });
 }

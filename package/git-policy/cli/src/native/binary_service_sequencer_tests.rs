@@ -264,14 +264,53 @@ fn a_pathspec_commit_after_a_conflicted_revert_is_what_git_makes() {
     agrees_with_git(State::ConflictedRevert);
 }
 
-/// Named paths after a conflicted cherry-pick was resolved, which Git refuses.
-#[test]
-fn a_pathspec_commit_after_a_conflicted_cherry_pick_is_refused_as_git_refuses_it() {
-    agrees_with_git(State::ConflictedCherryPick);
+/// One state that real Git refuses named paths in, every command line: real Git refuses, and the wrapper through the service
+///  lands an ordinary commit of the named paths on `HEAD` and carries the state forward (the owner's rule that commits never
+///  fail, `SPEC.md` "Merges and commits never fail"). `marker` is the file that names the state in the Git directory.
+fn lands_beside_the_state(state: State, marker: &str) {
+    let label: String = format!("sequencer-carry-{}", state.label());
+    let fixture: Fixture = fixture(label.as_str());
+    let lines: Vec<(&'static str, Vec<String>)> = command_lines(&fixture);
+    let pairs: Vec<(PathBuf, PathBuf)> = (0..lines.len())
+        .map(|index| {
+            return (state.prepare(&fixture, format!("wrapped-{index}").as_str()), state.prepare(&fixture, format!("native-{index}").as_str()));
+        })
+        .collect();
+    let name: String = format!("sc-{}-{}", state.tag(), std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let mut differences: Vec<String> = Vec::new();
+    for ((what, line), (wrapped_repo, native_repo)) in lines.iter().zip(pairs.iter()) {
+        let words: Vec<&str> = line.iter().map(String::as_str).collect();
+        let before: usize = landed(&fixture);
+        let base: String = git_text(&fixture, wrapped_repo, &["rev-parse", "HEAD"]).trim().to_owned();
+        let served: Output = through_service(&fixture, wrapped_repo, name.as_str(), &words);
+        let native: Output = direct(&fixture).current_dir(native_repo).args(&words).output().expect("real Git runs");
+        assert!(!native.status.success(), "{} / {what}: real Git refuses named paths here", state.label());
+        let parent: String = git_text(&fixture, wrapped_repo, &["rev-parse", "HEAD^"]).trim().to_owned();
+        let changed: String = git_text(&fixture, wrapped_repo, &["diff-tree", "-r", "--name-only", "HEAD^", "HEAD"]);
+        if served.status.code() != Some(0) || parent != base || changed.trim().is_empty() || !wrapped_repo.join(".git").join(marker).exists() || landed(&fixture) - before != 1 {
+            differences.push(format!(
+                "{} / {what}: the wrapper should land an ordinary commit and keep {marker}: code {:?}, parent {parent} (base {base}), changed {changed:?}, {}",
+                state.label(),
+                served.status.code(),
+                String::from_utf8_lossy(&served.stderr)
+            ));
+        }
+    }
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+    assert!(differences.is_empty(), "{}", differences.join("\n"));
 }
 
-/// Named paths during a merge, which Git refuses.
+/// Named paths after a conflicted cherry-pick was resolved: Git refuses; the wrapper lands them and the pick is carried on.
 #[test]
-fn a_pathspec_commit_during_a_merge_is_refused_as_git_refuses_it() {
-    agrees_with_git(State::Merge);
+fn a_pathspec_commit_after_a_conflicted_cherry_pick_lands_and_carries_the_pick() {
+    lands_beside_the_state(State::ConflictedCherryPick, "CHERRY_PICK_HEAD");
+}
+
+/// Named paths during a merge: Git refuses; the wrapper lands them and the merge is carried on.
+#[test]
+fn a_pathspec_commit_during_a_merge_lands_and_carries_the_merge() {
+    lands_beside_the_state(State::Merge, "MERGE_HEAD");
 }

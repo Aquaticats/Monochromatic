@@ -131,6 +131,10 @@ mod dependent_version;
 #[path = "binary_merge_isolation_tests.rs"]
 mod merge_isolation;
 
+/// A merge that waits for a held `index.lock` and lands on a branch that moved underneath it.
+#[path = "binary_merge_never_fails_tests.rs"]
+mod merge_never_fails;
+
 /// Real commits through the transaction: landing, policies, replay and conflict.
 #[path = "binary_commit_tests.rs"]
 mod commit;
@@ -294,6 +298,10 @@ mod push_failure;
 /// Merge, pull's merge, cherry-pick, revert and am hand the push to the service, as a commit does; a rebase does not.
 #[path = "binary_push_trigger_tests.rs"]
 mod push_trigger;
+/// A fetch after a Git was killed while it held reference locks: removed on a proof, described and kept otherwise.
+#[path = "binary_stale_ref_lock_tests.rs"]
+mod stale_ref_lock;
+
 
 /// The message and identity options through the service, compared with native Git field by field.
 #[path = "binary_service_options_tests.rs"]
@@ -344,6 +352,10 @@ mod service_native;
 /// A commit with named paths during a revert, a cherry-pick or a merge, compared with real Git.
 #[path = "binary_service_sequencer_tests.rs"]
 mod service_sequencer;
+
+/// A commit of named paths while another session's merge is unfinished lands, and the merge is carried forward.
+#[path = "binary_commit_during_merge_tests.rs"]
+mod commit_during_merge;
 
 /// Guard: no option of the wrapper's follows the person's `--` in any Git start, and no `--quiet` is added.
 #[path = "binary_option_order_guard_tests.rs"]

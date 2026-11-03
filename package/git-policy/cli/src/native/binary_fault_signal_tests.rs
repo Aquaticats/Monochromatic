@@ -49,7 +49,7 @@ case \" $* \" in
     done
     echo \"$$\" > 'PID'
     printf started > 'STARTED'
-    /usr/bin/sleep 60 </dev/null >/dev/null 2>&1 &
+    ( while LIVES; do /usr/bin/sleep 0.05; done ) </dev/null >/dev/null 2>&1 &
     stall=$!
     wait $stall
     exit 1
@@ -60,7 +60,9 @@ exec /usr/bin/git \"$@\"
     )
     .replace("LOG", &log.display().to_string())
     .replace("PID", &process_id.display().to_string())
-    .replace("STARTED", &started.display().to_string());
+    .replace("STARTED", &started.display().to_string())
+    // Last, because the condition holds a path that no other name may be looked for in.
+    .replace("LIVES", &super::support::while_test_lives(fixture.root.as_path()));
     executable(directory.join("git").as_path(), script.as_bytes());
     return directory;
 }

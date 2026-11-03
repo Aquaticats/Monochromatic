@@ -14,7 +14,7 @@
 //! ```
 
 use super::{Limits, ProblemKind, Reason, Stamped, YOUNG_FLOOR_MILLISECONDS, doctor_section, list_stamped, parse_stamp, plan, prune, prune_with};
-use crate::command_test_support::{fixture, remove};
+use crate::command_test_support::{audit_records, fixture, remove};
 use crate::conflict_sides::SAVED_DIRECTORY;
 use crate::discard_audit::AUDIT_FILE;
 use crate::iso_time::format_iso_milliseconds;
@@ -59,13 +59,30 @@ fn saved_root_of(common: &Path) -> PathBuf {
     return saved_root;
 }
 
-/// The audit lines of the fixture, parsed.
-fn audit(common: &Path) -> Vec<serde_json::Value> {
-    return std::fs::read_to_string(common.join(AUDIT_FILE))
-        .unwrap_or_default()
-        .lines()
-        .map(|line| { return serde_json::from_str(line).expect("a JSON audit line"); })
-        .collect();
+/// What:
+///  The audit file as a writer in the middle of a race can leave it: a whole record, an empty line, a whole record, and a last
+///  line that ends without its newline. Reading it gives the two whole records.
+/// Why:
+///  A writer that looks at the last byte while another writer is half-way through a page-crossing write sees no newline and
+///  starts its own record on a fresh line, which leaves an empty line between records (`append_line` states this and says that
+///  readers skip empty lines). A record is complete only at its newline, so a last line without one is not a record yet. A
+///  reader that parses either fails with "EOF while parsing" on an input that is not an error, which is how
+///  `passes_emptying_one_directory_together_audit_every_copy_once` failed once in a full host run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeFile(path, '{"copiesTotal":1}\n\n{"copiesTotal":2}\n{"copiesTotal":');
+/// expect(auditRecords(common).map((record) => record.copiesTotal)).toEqual([1, 2]);
+/// ```
+#[test]
+fn the_audit_reader_skips_an_empty_line_and_a_last_line_without_its_newline() {
+    let root: PathBuf = fixture("prune-audit-reader");
+    let common: PathBuf = root.join("repo.git");
+    std::fs::create_dir_all(&common).expect("the common directory");
+    std::fs::write(common.join(AUDIT_FILE), "{\"copiesTotal\":1}\n\n{\"copiesTotal\":2}\n{\"copiesTotal\":").expect("the audit file");
+    let totals: Vec<Option<u64>> = audit_records(common.as_path()).iter().map(|record| { return record["copiesTotal"].as_u64(); }).collect();
+    assert_eq!(totals, vec![Some(1), Some(2)]);
+    remove(root.as_path());
 }
 
 /// A folder of saved copies that is a link to a directory elsewhere is not the wrapper's store: what the link reaches is
@@ -82,7 +99,7 @@ fn a_folder_that_is_a_link_is_never_followed() {
     assert!(victim.join("precious.txt").exists(), "a directory the link reaches was removed");
     assert!(outcome.removed.is_empty());
     assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::StoreUnusable]);
-    assert!(audit(common.as_path()).is_empty(), "nothing was removed, so nothing is audited");
+    assert!(audit_records(common.as_path()).is_empty(), "nothing was removed, so nothing is audited");
     remove(root.as_path());
 }
 
@@ -142,7 +159,7 @@ fn a_replacement_under_the_chosen_name_is_kept() {
     assert_eq!(std::fs::read_to_string(chosen.join("young.txt")).expect("the replacement survived"), "written a moment ago");
     assert!(outcome.removed.is_empty(), "{:?}", outcome.removed);
     assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::EntryChanged]);
-    assert!(audit(common.as_path()).is_empty());
+    assert!(audit_records(common.as_path()).is_empty());
     remove(root.as_path());
 }
 
@@ -203,7 +220,7 @@ fn a_second_pass_while_one_runs_does_its_own_work_and_neither_loses_a_record() {
     assert_eq!(second.removed.len(), 1, "{second:?}");
     assert!(second.problems.is_empty(), "{second:?}");
     assert!(outcome.removed.is_empty() && outcome.problems.is_empty(), "the first pass found the directory gone and had nothing to say: {outcome:?}");
-    assert_eq!(audit(common.as_path()).len(), 1, "one directory removed, one line");
+    assert_eq!(audit_records(common.as_path()).len(), 1, "one directory removed, one line");
     remove(root.as_path());
 }
 
@@ -223,7 +240,7 @@ fn a_file_added_after_the_listing_keeps_the_directory() {
     assert!(chosen.join("old.txt").exists(), "nothing of the directory was removed");
     assert!(outcome.removed.is_empty(), "{:?}", outcome.removed);
     assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::EntryChanged]);
-    assert!(audit(common.as_path()).is_empty());
+    assert!(audit_records(common.as_path()).is_empty());
     remove(root.as_path());
 }
 
@@ -255,7 +272,7 @@ fn passes_emptying_one_directory_together_audit_every_copy_once() {
         assert!(outcome.problems.is_empty(), "{outcome:?}");
     }
     assert!(!chosen.exists(), "the directory is gone");
-    let audited: u64 = audit(common.as_path()).iter().map(|line| { return line["copiesTotal"].as_u64().unwrap_or(0); }).sum();
+    let audited: u64 = audit_records(common.as_path()).iter().map(|line| { return line["copiesTotal"].as_u64().unwrap_or(0); }).sum();
     assert_eq!(audited, u64::try_from(total).expect("a count"), "every copy is audited once across the passes: {outcomes:?}");
     remove(root.as_path());
 }
@@ -358,7 +375,7 @@ fn a_removal_that_fails_part_way_is_reported_and_audited_as_partial() {
     std::fs::set_permissions(chosen.join("locked"), std::fs::Permissions::from_mode(0o755)).expect("restore");
     assert!(outcome.removed.is_empty(), "a half-removed directory is not a removed one: {:?}", outcome.removed);
     assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::PartiallyRemoved], "{outcome:?}");
-    let lines = audit(common.as_path());
+    let lines = audit_records(common.as_path());
     assert_eq!(lines.len(), 1, "{lines:?}");
     assert_eq!(lines[0]["outcome"], "partial");
     let mut gone: Vec<String> = before.iter().filter(|name| { return !remaining.contains(name); }).map(|name| { return (*name).to_string(); }).collect();

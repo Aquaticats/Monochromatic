@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::push_failure_notice::{push_failure_text, take_push_failures};
+use crate::push_retry::FIRST_PAUSE;
 use crate::service_claim_renewal::{DrivenRenewal, RENEWALS_PER_LEASE, Renewal, renewal_interval};
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, requeue_expired, state_directory};
@@ -739,7 +740,7 @@ fn a_round_leaves_no_credential_in_the_handlers() {
         (first.common.clone(), None),
         (second.common.clone(), Some(key)),
     ];
-    run_round(wakes, &handlers, &ClaimTime::read());
+    run_round(wakes, &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
     assert_eq!(handlers.review_key_of(first.common.as_path()), None);
     assert_eq!(handlers.review_key_of(second.common.as_path()), None);
     remove(first.root.as_path());
@@ -781,7 +782,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     // The service's own context: no repository is named, because one service serves many.
     let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
     let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
-    run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &ClaimTime::read());
+    run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
     let seen: String = mock.finish().to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
         return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))

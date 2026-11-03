@@ -62,7 +62,7 @@ fn ended_member() -> TreeMember {
 
 /// A tree member that still runs, and its child to end afterwards.
 fn running_member() -> (TreeMember, Child) {
-    let child: Child = Command::new("sleep").arg("30").spawn().expect("start sleep");
+    let child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("start sleep");
     let member: TreeMember = crate::process_tree::member_of(i32::try_from(child.id()).expect("pid")).expect("a running process");
     return (member, child);
 }

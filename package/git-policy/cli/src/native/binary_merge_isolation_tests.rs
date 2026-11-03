@@ -363,20 +363,37 @@ fn an_untracked_file_in_the_way_is_refused_by_git_and_changes_nothing() {
     remove_settled(&fixture);
 }
 
-/// With nothing staged the wrapper hands the merge to native Git untouched: the output is native Git's.
+/// With nothing staged the wrapper completes the merge itself, because native Git's merge stashes first and moves the
+/// branch only after it changed the checkout: the merge commit, the output and the checkout equal what native Git
+/// writes on a clean copy.
 #[test]
-fn a_clean_index_merge_is_forwarded_unchanged() {
+fn a_clean_index_merge_is_completed_and_equals_what_native_git_writes() {
     let fixture: Fixture = fixture("merge-clean-index");
     let wrapped_repo: PathBuf = diverged(&fixture, "wrapped");
     let clean: PathBuf = copy_of(&fixture, wrapped_repo.as_path(), "native");
     let ours: Observed = run(&fixture, wrapped_repo.as_path(), &["merge", "--no-edit", "feature"]);
     let theirs: Observed = native(&fixture, clean.as_path(), &["merge", "--no-edit", "feature"]);
     assert_eq!((ours.code, text(&ours.stdout), text(&ours.stderr)), (theirs.code, text(&theirs.stdout), text(&theirs.stderr)));
-    assert!(!wrapped_repo.join(".git/cli-git-merges").exists(), "the isolated path never ran");
-    assert!(
-        git_text(&fixture, wrapped_repo.as_path(), &["reflog", "show", "--format=%gs", "-1"]).contains("Merge made by the 'ort' strategy"),
-        "native Git wrote the reflog entry"
-    );
+    assert_eq!(commit_shape(&fixture, wrapped_repo.as_path()), commit_shape(&fixture, clean.as_path()));
+    assert_eq!(git_text(&fixture, wrapped_repo.as_path(), &["status", "--porcelain=v1"]), "");
+    assert_eq!(records_in(wrapped_repo.join(".git/cli-git-merges").as_path()), Vec::<PathBuf>::new(), "no record is left");
+    remove_settled(&fixture);
+}
+
+/// A conflict with nothing staged is native Git's: it writes the markers for the person to resolve in the worktree.
+#[test]
+fn a_clean_index_conflict_is_native_gits() {
+    let fixture: Fixture = fixture("merge-clean-index-conflict");
+    let repo: PathBuf = diverged(&fixture, "wrapped");
+    std::fs::write(repo.join("f.txt"), b"f.txt main\n").expect("file");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main edits f"]);
+    let clean: PathBuf = copy_of(&fixture, repo.as_path(), "native");
+    let ours: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let theirs: Observed = native(&fixture, clean.as_path(), &["merge", "--no-edit", "feature"]);
+    assert_eq!((ours.code, text(&ours.stdout)), (theirs.code, text(&theirs.stdout)));
+    assert_eq!(theirs.code, Some(1));
+    assert!(repo.join(".git/MERGE_HEAD").exists(), "the merge waits for the person's resolution, as in native Git");
+    assert!(std::fs::read_to_string(repo.join("f.txt")).expect("file").contains("<<<<<<<"));
     remove_settled(&fixture);
 }
 

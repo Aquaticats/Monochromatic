@@ -540,6 +540,26 @@ fn wait_line(report: &WaitReport, patience: Patience) -> String {
 }
 
 /// What:
+///  Run a push command to its end or its deadline and capture its interleaved output, after the reference locks that a
+///  killed Git left in its repository have been cleared when their holder is proven gone.
+/// Why:
+///   Every start of the wrapper's own fetch and push, the repetitions of a push included, goes through here
+///  (`push_lock_clearing.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runBoundedPush({ command, patience, grace, environment }): Promise<PushAttempt>;
+/// ```
+pub fn run_bounded_push(
+    command: Command,
+    patience: Patience,
+    grace: Duration,
+    environment: &[(OsString, OsString)],
+) -> Result<PushAttempt, SingleFlightError> {
+    return super::push_lock_clearing::run_clearing_locks(command, patience, grace, environment, &super::stale_ref_lock_judge::Judge::here());
+}
+
+/// What:
 ///  Run a push command to its end or its deadline and capture its interleaved output.
 /// Why:
 ///   Both streams share one anonymous file so lines keep the order Git wrote them,
@@ -551,7 +571,7 @@ fn wait_line(report: &WaitReport, patience: Patience) -> String {
 /// ```ts
 /// async function runBoundedPush({ command, deadlineMs, graceMs }): Promise<PushAttempt>;
 /// ```
-pub fn run_bounded_push(
+pub fn run_bounded_push_once(
     mut command: Command,
     patience: Patience,
     grace: Duration,

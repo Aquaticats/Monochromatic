@@ -213,8 +213,9 @@ fn an_unmerged_index_is_refused_in_the_words_of_native_git() {
     for entry in [
         Case { index_commit: true, full_output: true, ..case("index", &["commit", "-m", "x"]) },
         Case { index_commit: true, full_output: true, ..case("index with -m twice", &["commit", "-m", "x", "-m", "y"]) },
-        Case { full_output: true, ..case("a named path", &["commit", "-m", "x", "--", "c.txt"]) },
-        Case { full_output: true, ..case("the unmerged path", &["commit", "-m", "x", "--", "b.txt"]) },
+        // A named path is no longer refused as real Git refuses it (a partial commit during a merge), the unmerged one included: it
+        //  lands as an ordinary commit with a warning and the merge is carried on (`binary_commit_during_merge_tests.rs`, "Commits
+        //  should never fail").
     ] {
         let (native, served) = compare(&fixture, &base, name.as_str(), &entry);
         assert_ne!(native.code, Some(0), "{}: native Git refuses", entry.name);

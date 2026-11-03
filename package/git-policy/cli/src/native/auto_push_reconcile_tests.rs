@@ -1492,3 +1492,38 @@ fn what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal() {
     assert_eq!(said("merge --ff-only").len(), 1, "Git's report of the fast-forward: {entries:?}");
     remove(&s.root);
 }
+
+/// The reconcile's fast-forward loses the race for the branch inside Git, after Git installed the published merge's paths and
+/// before its ref update (a stand-in for Git plays the person's commit, which wins, and then the loser's install, and reports
+/// Git's own failure): the paths go back to the winner's content so the checkout matches the branch, the report is the
+/// reason and not a failure, and no record is left. Owner's rule: "Auto merging should never fail."
+#[test]
+fn a_fast_forward_that_loses_the_race_inside_git_leaves_the_checkout_matching_the_branch() {
+    let s = scenario("ar-ff-race");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let old = text_of(&s.local, &["rev-parse", "HEAD"]);
+    let marker = s.root.join("raced");
+    let shim = s.root.join("racing-git");
+    let script = format!(
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = --ff-only ] && [ ! -e '{marker}' ]; then\n    : > '{marker}'\n    cd '{local}' || exit 1\n    echo 'committed meanwhile' > z.txt\n    /usr/bin/git add -- z.txt\n    /usr/bin/git commit --quiet --message=meanwhile -- z.txt\n    winner=$(/usr/bin/git rev-parse HEAD)\n    /usr/bin/git read-tree -m -u '{old}' '{target}'\n    echo \"fatal: update_ref failed for ref 'HEAD': cannot lock ref 'HEAD': is at $winner but expected {old}\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        marker = marker.display(),
+        local = s.local.display(),
+    );
+    std::fs::write(&shim, script).expect("stand-in");
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let mut racing = push_git(&s.local);
+    racing.real_git = shim;
+    let result = advance_local_branch(&racing, "refs/heads/main", &old, &target).expect("git");
+    assert!(marker.exists(), "the race was played");
+    let Err(reason) = result else { panic!("the move lost the race, so it is not reported as done") };
+    assert!(reason.contains("Git refused the fast-forward"), "{reason}");
+    let winner = text_of(&s.local, &["rev-parse", "HEAD"]);
+    assert_eq!(text_of(&s.local, &["log", "-1", "--format=%s", "HEAD"]), "meanwhile");
+    assert_ne!(winner, old);
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the checkout matches the branch");
+    assert_ne!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n", "a.txt is not the published merge's");
+    assert!(s.local.join("z.txt").exists());
+    assert_eq!(std::fs::read_dir(s.local.join(".git/cli-git-merges")).map_or(0, Iterator::count), 0, "no record is left");
+    remove(&s.root);
+}

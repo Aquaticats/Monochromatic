@@ -834,6 +834,15 @@ pub mod forwarded_command;
 /// Index-writer classification and the commands that coordinate with a landing.
 pub mod index_writer_commands;
 
+/// The wait for any program's hold on `index.lock` before a command changes the checkout.
+pub mod index_holder_wait;
+
+/// The service's own retry of a push it stopped or that failed: the pauses, the waiting branches, the final failure.
+pub mod push_retry;
+
+/// The retry plan on disk, in the service instance's journal, so that a restarted service keeps trying the pushes it was trying.
+pub mod push_retry_store;
+
 /// Waiting for a foreign index.lock under the classification rules and Git's backoff schedule.
 pub mod index_lock_wait;
 
@@ -847,6 +856,9 @@ pub mod index_writer_forward;
 
 /// The `git merge` command lines the wrapper completes in isolation, and those it leaves to native Git.
 pub mod merge_options;
+
+/// The settling of an isolated merge whose branch moved while it was prepared or applied.
+pub mod merge_isolation_moved;
 
 /// The durable intent record of an isolated merge.
 pub mod merge_isolation_journal;
@@ -898,6 +910,40 @@ pub mod bounded_push;
 
 /// The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
 pub mod stopped_git_locks;
+
+/// The Git directories a command works in, found without starting Git.
+pub mod git_directory_roots;
+
+/// The reference locks a killed Git left behind: judged one by one, removed on a proof, otherwise described.
+pub mod stale_ref_locks;
+
+/// The record of one judged reference lock and the outcome of a clearing pass.
+pub mod stale_ref_lock_found;
+
+/// Which files below a Git directory are reference locks.
+pub mod stale_ref_lock_walk;
+
+/// A file's identity at the moment it was judged, so the removal can tell it from a new file at the same path.
+pub mod stale_ref_lock_identity;
+
+/// How one reference lock is judged.
+pub mod stale_ref_lock_judge;
+
+/// Removal of a proven stale lock with its companions.
+pub mod stale_ref_lock_retire;
+
+/// The wrapper's own fetch and push, started after the stale reference locks of their repository are cleared.
+pub mod push_lock_clearing;
+
+/// The notice a forwarded fetch or push is preceded by when reference locks of a killed Git are found.
+pub mod forwarded_lock_notice;
+
+/// What the wrapper prints about reference locks, and the quoted command that clears one it will not remove.
+pub mod stale_ref_lock_message;
+
+/// Real Git processes killed with `SIGKILL` while they hold reference locks, for the controls.
+#[cfg(test)]
+mod stale_ref_lock_killed_git;
 
 /// The bytes a push and its processes move, sampled, and the clock that stops it on a stall or at its ceiling.
 pub mod push_progress;
