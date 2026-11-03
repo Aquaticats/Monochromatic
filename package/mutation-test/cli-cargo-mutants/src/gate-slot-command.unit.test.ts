@@ -152,5 +152,44 @@ await describe({
         expect(isAlive(commandPid)).toBe(false);
       },
     }),
+    it({
+      name: 'passes a termination signal on to every process of the command and ends only after all of them have ended, so no worker runs without its slot',
+      fn: async () => {
+        const run = await runInChild(['sh', '-c', 'sleep 30 >/dev/null & echo $!; wait']);
+        const workerPid = Number(run.line);
+        try {
+          run.child.kill('SIGTERM');
+          const [code] = await run.ended;
+          expect(code).toBe(signalStatusBase + terminationSignal);
+          expect(isAlive(workerPid)).toBe(false);
+        }
+        finally {
+          if (isAlive(workerPid))
+            process.kill(
+              workerPid,
+              'SIGKILL',
+            );
+        }
+      },
+    }),
+    it({
+      name: 'ends when the command ends on its own even if it left a background process running, because only a forwarded termination waits for the workers',
+      fn: async () => {
+        const run = await runInChild(['sh', '-c', 'sleep 30 >/dev/null & echo $!; exit 0']);
+        const workerPid = Number(run.line);
+        try {
+          const [code] = await run.ended;
+          expect(code).toBe(0);
+          expect(isAlive(workerPid)).toBe(true);
+        }
+        finally {
+          if (isAlive(workerPid))
+            process.kill(
+              workerPid,
+              'SIGKILL',
+            );
+        }
+      },
+    }),
   ],
 });
