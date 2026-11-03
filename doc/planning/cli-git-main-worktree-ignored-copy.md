@@ -981,10 +981,8 @@ Read at `0e432cd0b3` on `btrfs-worktree-ladder` (code in flux, not edited).
 
 ## Snapshotting a dirty main checkout (proposal, not built)
 
-Status: proposal for the owner's decision, 2026-11-03. No behavior changed for it; the wrapper still refuses to
-snapshot a
-source it cannot prove clean, and since this branch it says why (see "Telling why an add was not made as a snapshot" in
-`package/git-policy/cli/SPEC.md`).
+Status: proposal for the owner's decision, 2026-11-03. The owner chose option B, and the section
+"Snapshot of a main checkout with uncommitted changes: built, proved and measured" records what was built and measured.
 
 ### The question
 
@@ -1172,6 +1170,123 @@ changes the restore handles; take the index from the snapshot; add the reset, cl
 in
 `worktree_ladder_target.rs` with the guards listed above; pin `core.fsmonitor=false` for those Git runs.
 Two files named here are being edited by other agents at the time of writing, so this proposal touches neither.
+
+## 2026-11-03T01:09:00-05:00 Snapshot of a main checkout with uncommitted changes: built, proved and measured
+
+The owner chose option B ("B: snapshot, then reset") from the proposal "Snapshotting a dirty main checkout (proposal,
+not
+built)". Branch `feat/git-policy-cli-snapshot-dirty-main`, crate `package/git-policy/cli`, Linux on btrfs.
+The owner scoped races out: a change made to the main checkout while the snapshot is taken or restored is the person's
+accepted risk, and nothing here defends against it. What stays in scope is that the new worktree equals what a clean
+`git worktree add` makes.
+
+### What was built
+
+- `check_clean` returns a refusal with a kind and a reason. The kinds are an operation in progress (with the mark's
+  name), an
+  unreadable index or object database, an entry no reset can undo, a staged change, a changed tracked file, an index
+  entry the
+  stat data cannot vouch for, and an untracked file. Code decides by kind; the sentence for the person is chosen by
+  kind.
+  The conversion's own callers keep their string reasons through wrappers, and their controls stayed green.
+- A main checkout whose only trouble is an ordinary change is snapshotted with its own index, read from inside the
+  snapshot
+  before the snapshot's `.git` is replaced by the new worktree's pointer.
+- In the stage only, two real-Git steps run under the new worktree's Git directory:
+  `git read-tree --reset -u <new commit>` and
+  `git clean --force -d --quiet`. They go through the lifecycle's runner, which starts real Git directly, so the
+  wrapper's
+  guards of a person's `reset` and `clean` never see them. The restore refuses to start when the stage is the source's
+  directory
+  or the Git directory is the source's.
+- The stage is proven before the swap: the index equals the new commit's tree, Git lists no untracked file, and no
+  tracked file
+  differs from its entry. A failed step or proof destroys the stage and Git's own checkout makes the worktree, with
+  the sentence
+  that names the reason.
+- Unless `--quiet` is given, a line after the snapshot note says the uncommitted changes were left out. The journal
+  gets an
+  ordinary-level entry with the destination, the number of paths and the first path.
+- The main checkout is read to be snapshotted and listed, and is never written.
+
+### What stays a refusal
+
+An operation in progress or a held `index.lock`; an unmerged, intent-to-add, skip-worktree or assume-unchanged entry,
+or a
+submodule, anywhere in the index (the scan covers the whole index, because an ordinary change can come first and hide
+one);
+a changed or untracked `.gitattributes` file; a sparse checkout; a linked worktree as the source, because its index
+lies outside
+its directory and is not in the snapshot; and the clone rung, which is for clean sources only.
+
+### How it was verified
+
+- A binary matrix compares the new worktree with one real Git makes from the same commit: an unstaged edit, a file
+  staged and
+  then edited again, a staged deletion, an unstaged deletion, a staged rename, a mode change, an untracked file, an
+  untracked
+  directory holding an ignored file, an empty untracked directory, and an ignored `node_modules` that must be carried.
+  It also
+  checks the target commit older than the source's, `--quiet`, the journal entry, and that every file of the main
+  checkout and
+  its index are byte for byte what they were.
+- The refusals that stay are each driven in the same fixture: a merge, a held lock, skip-worktree, assume-unchanged,
+  and a
+  changed `.gitattributes`, each with a positive control that a snapshot serves the same fixture once the mark is gone.
+- Each guard was shown to fail once by removing it: the clean step (the proof then ended the rung with the reason
+  line), the
+  reset step (same), clean and proof together (the fixture's status listed the untracked files), the scan for entries
+  no reset
+  can undo, the `.gitattributes` check (the proof's last step still caught the changed line endings, and the control
+  failed on
+  the missing sentence), the restorable kinds, and the guard against running in the source.
+
+### Measured on the real repository
+
+The real main checkout is on another filesystem than the scratch area, so each run used a copy of it made by
+`btrfs subvolume snapshot` inside the same subvolume area, with the dirt created in the copy only; the main checkout was
+never written. The binary was the debug build of this branch. The host load average was between 24 and 29 on 28 threads.
+
+- Snapshot with restore, first run, started at 2026-11-03T00:36:24-05:00: the restore was proved 61.3 s later.
+- Snapshot with restore, second run with timing lines, started at 2026-11-03T01:04:35-05:00: the source was decided
+  dirty after
+  10.7 s and the choice of step took 6259 ms; the restore proved at 43.5 s. Inside the restore the reset took 1103 ms,
+  the clean
+  56 ms and the proof 57 ms, 1216 ms together. That copy listed 5 changed paths (4 made in the copy, 1 the real
+  checkout had).
+- Slow route with the same kind of dirt plus one skip-worktree entry, started at 2026-11-03T00:57:51-05:00: 142.3 s to
+  return, of which Git's checkout took 32.1 s and the ignored-state copy of 190365 entries 97.6 s.
+- A first attempt at the slow route failed with `smudge filter lfs failed` because `git-lfs` was not on the scrubbed
+  `PATH` of
+  my run; it was repeated with `git-lfs` on the `PATH`. The same condition would fail a restore that must rewrite an
+  LFS file.
+- The status of the new worktree after the first run: no changed path, no untracked file, the index equal to `HEAD`,
+  `node_modules` present, the mode and the deleted file restored.
+
+### Findings outside this work
+
+- Before the trash fixes of main, each snapshot add of the day printed `could not be handed to the service; emptying it here`,
+  and the foreground emptying of the set-aside directories decided when the command returned: the first run returned at
+  2026-11-03T00:55:50-05:00, 19 min 25.7 s after it started, though the worktree was complete and proven after 61.3 s.
+- Re-measured on the build that merged those fixes (copy of the real repository, real session runtime, started at
+  2026-11-03T01:20:22-05:00): no fallback line, the worktree was served 19.3 s after the start and the command returned at
+  2026-11-03T01:20:57-05:00, 35.1 s after it started. The trash was handed to a socket-activated service instance of the new
+  worktree (`cli-git@<instance>.socket` and `.service` started at 01:20:41 to 01:20:42 in the journal), which empties it
+  after the command has returned.
+- A copy of the main checkout made while a Git command ran carried a stale `index.lock` and an `index~pid.lock`; the
+  wrapper
+  rightly refused to treat the copy as a source until the lock was removed.
+- The real main checkout holds empty untracked directories that Git's checkout never makes; the restore removes them
+  from
+  the new worktree.
+
+### Limits
+
+- Concurrent edits to the main checkout are out of scope by the owner's decision.
+- An edit that kept the size and both timestamps of a file is invisible to Git's status and to the proof alike.
+- `core.fsmonitor` is left as configured, by the owner's decision.
+- The racy-entry content settling is not part of this work.
+- A linked worktree with uncommitted changes still takes the slow route.
 
 ## Review requests
 

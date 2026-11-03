@@ -182,7 +182,7 @@ impl RemoveOperations for LinuxOperations {
     }
 
     fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
-        return check_clean(request.context, request.plan.target.as_path(), admin, common_dir).map(drop);
+        return check_clean(request.context, request.plan.target.as_path(), admin, common_dir).map(drop).map_err(|refusal| { return refusal.reason; });
     }
 
     fn destroy(&self, held: &Held) -> Result<(), String> {

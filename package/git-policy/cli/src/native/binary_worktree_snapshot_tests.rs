@@ -165,16 +165,16 @@ fn an_older_target_commit_gets_the_difference_applied() {
     remove(&fixture);
 }
 
-/// A source with an uncommitted change is not snapshotted: Git checks the worktree out, into a subvolume.
+/// A source with an entry no reset can undo (skip-worktree here) is not snapshotted: Git checks the worktree out, into a subvolume.
 #[test]
-fn a_dirty_source_falls_to_gits_checkout() {
-    let fixture: Fixture = fixture("snapshot-dirty");
-    if !on_btrfs_or_acknowledged(&fixture, "snapshot-dirty") {
+fn a_source_with_an_entry_no_reset_can_undo_falls_to_gits_checkout() {
+    let fixture: Fixture = fixture("snapshot-skipped");
+    if !on_btrfs_or_acknowledged(&fixture, "snapshot-skipped") {
         remove(&fixture);
         return;
     }
     let repo: PathBuf = subvolume_repository(&fixture);
-    std::fs::write(repo.join("shared.txt"), b"dirty edit\n").expect("modify");
+    git(&fixture, repo.as_path(), &["update-index", "--skip-worktree", "shared.txt"]);
     let (created, _control) = add_pair(&fixture, repo.as_path(), "plain", "plaincontrol", &["-b", "NAME", "../NAME"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let plain: PathBuf = fixture.root.join("plain");
