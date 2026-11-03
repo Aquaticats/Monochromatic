@@ -2238,17 +2238,56 @@ holds the incident of release 0.5.26, 2026-11-03, the cause, the options weighed
   the file the starter chose as Git (`CLI_GIT_NATIVE_FORWARD_TARGET`), the `PATH` it saw, why it stops, and what to do:
   put the directory of the real Git (for example `/usr/bin`) on the `PATH` of the program that started the first
   cli-git, or remove the entry that leads back to cli-git from that `PATH`.
-- No real Git on `PATH` is a stop with exit status 2 as well. The message gives the counts, the `PATH` value, every
-  candidate with its verdict (skipped because it leads back to cli-git, or missing, not executable or unreadable),
-  and the ways out: install Git, add the real Git's directory to the `PATH` of the program that ran the command, or
-  remove an entry that should not be used. The wrapper does not search outside `PATH` except for the promotion of a
-  conventional location that `PATH` already exposes.
+- No real Git on `PATH` falls back to the Git the commit service was set up with, when a record names one that passes
+  the same checks (below). Without a usable record it is a stop with exit status 2. The message gives the counts, the
+  `PATH` value, every candidate with its verdict (skipped because it leads back to cli-git, or missing, not executable
+  or unreadable), the record when a unit named one that was refused, and the ways out: install Git, add the real Git's
+  directory to the `PATH` of the program that ran the command, or remove an entry that should not be used. The wrapper
+  does not search outside `PATH` except for the promotion of a conventional location that `PATH` already exposes and
+  this record.
 - `cli-git-service` is never started by the wrapper and refuses a `--git` that is a launcher of the wrapper (a unit
   written by a release that had the flaw holds such a path); the unit text includes `--git`, so the next wrapper that
   provisions the unit writes it again. Its Git starts go through the marked builders.
 - Not covered: a user script named `git` that starts the wrapper as a child, with no launch record and no marker
   string. The parent of the arriving wrapper is the script, not the starter; the message of a wrapper that cannot find
   Git lists every candidate, which shows the script as the entry to remove.
+
+### The wrapper falls back to the Git its commit service was set up with
+
+Recorded on 2026-11-03T11:26:52-05:00; the pick is the coordinator's, made before the build under the owner's
+delegation ("Pick options as if I had picked them and invite veto when I say I'm back."), open to the owner's veto:
+when no real Git follows the wrapper on `PATH`,
+the wrapper uses the real Git it recorded for its commit service, with a notice, instead of stopping.
+The reason: native Git in that `PATH` would not be found at all,
+but once the wrapper is found the person expects `git` to work; the owner's rules "Commits should never fail." and
+"never leak internal things that could be resolved to the user"
+(`package/git-policy/cli/DESIGN.md`, 2026-11-01). The deliberation is in `doc/planning/cli-git-no-self-invocation.md`,
+section "Falling back to the Git the commit service was set up with".
+
+- The record is the `--git` option on the `ExecStart` line of the unit `cli-git@.service` that the wrapper writes below
+  `$XDG_RUNTIME_DIR/systemd/user` (`service_provision.rs`) when it sets up the commit service. It is read only when
+  `PATH` offers no real Git, only from an absolute `XDG_RUNTIME_DIR`, as text up to 64 KiB, with no process started
+  (`real_git_record.rs`). No other file is read and no location is guessed: with no unit, no `--git` word, a relative
+  path, or an unset runtime directory, there is no record and the stop stays.
+- The recorded path passes the checks of a `PATH` candidate (`classify_candidate`): it must exist and be an executable
+  file, and it is refused when it is this executable, a link or a byte copy of it, a toolchain launcher of it, or a
+  script that starts the TypeScript wrapper. Another release of the wrapper passes the check and is stopped on arrival
+  by the marker. A refusal keeps the stop and adds one line naming the record, the unit and the verdict.
+- The notice is one line on standard error, ahead of anything else the invocation writes, once per planned invocation
+  (the merge push planned inside a stacked push does not repeat it), in this form; an empty or unset `PATH` is printed
+  as `empty or unset`:
+
+  ```text
+  cli-git: no real Git follows this wrapper on PATH (<PATH>); used <path>, the Git recorded in <unit> as the one the commit service starts; to silence this notice, add <directory of path> to the PATH of the program that ran this command.
+  ```
+
+- The same resolution serves every start of the real Git: forwarded commands, the announced queries, the commit steps,
+  the push work, `git cli-git doctor`, the direct commands, `service status` and `convert-worktree-to-subvolume`.
+  The service takes the resolved path in the `--git` of its unit as before; a fallback path is therefore written into
+  the unit it came from, unchanged.
+- Limits: the unit is in the runtime directory, so it exists only after a commit has provisioned the service in this
+  login and is gone after the account's last logout; before that, the stop stays. A `cli-git-service` started with no
+  `--git` still defaults to `/usr/bin/git`; that is a development path, since the wrapper always writes `--git`.
 
 ### Git LFS upload before a push
 

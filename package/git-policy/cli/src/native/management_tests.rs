@@ -42,6 +42,7 @@ fn no_git(root: &Path) -> ResolutionInputs {
         current_directory: root.to_path_buf(),
         common_paths: Vec::<PathBuf>::new(),
         own_executable: root.join("own-wrapper"),
+        service_unit: None,
     };
 }
 
