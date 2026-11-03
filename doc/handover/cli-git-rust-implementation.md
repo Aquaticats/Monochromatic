@@ -39,7 +39,12 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
 
 ### Release in flight
 
-None.
+0.5.27,
+dispatched 2026-11-03T10:28-05:00 from main after its gate passed (4264 of 4264,
+6 skipped),
+run https://github.com/Aquaticats/Monochromatic/actions/runs/41663034226;
+`native:release:wait` is running,
+then `upgrade-wrapper.ts 0.5.27` and the measurement on main against native Git.
 0.5.26 was published to crates.io at 2026-11-03T13:21:01Z and installed by `upgrade-wrapper.ts`.
 
 ### Unmerged branches and worktrees of this effort
@@ -85,26 +90,43 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   worktree `.claude/worktrees/limits-cite-measurements`.
 - The fsmonitor troubleshooting doc,
   `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
-- cargo-shadow follow-ups on `feat/cargo-shadow-cli` (tip `679ccce734` before them):
-  resolve the trust base in process instead of one `git` start per cargo call (measured 7 ms median),
-  full comment blocks,
-  a test for the double-publish restore branch,
-  and `file-enforcer write` output instead of the hand-written `Cargo.toml` line.
+- The in-process index review fixes,
+  the agent that wrote `perf/git-policy-cli-follow-up-index-in-process`.
+- The wrapper never runs itself as Git,
+  branch `fix/git-policy-cli-never-runs-itself-as-git` from main `7ea0414e80`,
+  worktree `.claude/worktrees/never-runs-itself-as-git`.
+  Found by the cargo-shadow agent's bench on 0.5.26:
+  `PATH` held `cli-git-bin/git` (a symlink to the toolchain launcher `.cache/toolchain-launchers/cli-git-native`)
+  and no real Git;
+  `git rev-parse ... @{upstream}^{commit}` became a parent-to-child chain of wrappers,
+  each adding its `-c hook.*.enabled=false` options,
+  exactly 100 at the scope's `TasksMax=100`,
+  all sleeping,
+  until the scope was stopped;
+  `git --version` still printed "shadowing git at /usr/bin/git".
+  Against "We should never invoke ourselves recursively."
+  (`doc/planning/cli-git-no-self-invocation.md`);
+  without a cap it can exhaust the host's process limit.
 - Shipped-limits picks 5 and 12,
   branch `feat/git-policy-cli-pushes-wait-while-connected-lfs-5xx`,
   worktree `.claude/worktrees/pushes-wait-lfs-5xx`.
-- Shipped-limits picks 10 and 11,
-  branch `feat/git-policy-cli-saved-copies-and-audit-generations-measured`,
-  worktree `.claude/worktrees/saved-copies-audit-generations`.
 - Not agents:
+  the second cross-vendor review of cargo-shadow (`pi`,
+  output `~/temp/agent/reviews/cargo-shadow-sol-2.txt`,
+  diff `cargo-shadow-src-2.diff` from `504a82aa3f` to `09bb7820ea`;
+  the follow-ups are done:
+  294 of 294 tests,
+  the trust base read from Git's files with one `git` start only in the cases they cannot answer,
+  saving 1.5 to 4 ms per call,
+  `file-enforcer write` from source reproduces the generated line,
+  and about 4300 comment lines,
+  partly from a regex tool,
+  which the review checks for false statements);
   the sixth cross-vendor design review (`pi`,
   output `~/temp/agent/reviews/commits-never-fail-sol-6.txt`);
   the gate of 0.5.27 (named under its branch below).
 Queued,
 in this order:
-the in-process index review fixes (below),
-resuming the agent that wrote that branch;
-the cargo-shadow second cross-vendor review once its follow-ups land;
 shipped-limits picks 4 and 9,
 then 2 and 6,
 each from the 0.5.27 candidate tip,
@@ -1025,10 +1047,33 @@ each stays open to the owner's veto and is listed for the owner on return.
 10. Saved conflict copies:
     C,
     defaults set from the measured growth.
+    Outcome:
+    no saved copy exists yet in any of the 11 repositories under the home directory,
+    so there is no growth to measure;
+    the agent's O3 is taken
+    (keep the owner's 2026-11-02 "Prune by both age and size." with 30 days and 1 GiB,
+    measure,
+    then set the numbers),
+    because the owner chose pruning knowing a saved copy can be the only copy
+    (`doc/handover/cli-git-logging.md`,
+    "Saved conflict copies");
+    nothing can be pruned for 30 days.
+    Question for the owner on return:
+    "never discard user data" was first recorded 2026-11-03T00:08:39-05:00 (`d4aab88c70`,
+    snapshot leave-out),
+    after the pruning decision;
+    does it override pruning a saved copy that is the only copy of a merged file?
+    Options and ranking:
+    `doc/planning/cli-git-shipped-limits-audit.md`,
+    "Only-copy finding".
 11. Audit and timing logs:
     C,
     audit generations kept up to a measured size and never dropped while they name a saved copy that exists;
     timing logs keep one generation.
+    Built:
+    `feat/git-policy-cli-saved-copies-and-audit-generations-measured` `5f453574e5`,
+    merged into the 0.5.28 base;
+    4 MiB derived from the measured busiest day (about 103 KB a day) times the 30-day copy age.
 12. LFS server errors:
     HTTP 5xx classed as outside our control (a server fault,
     like "Network down"),
