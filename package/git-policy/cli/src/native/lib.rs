@@ -1286,7 +1286,9 @@ pub mod service_fault;
 pub mod service_land;
 
 /// What the commit service's landing does once the branch has moved: index entries and conclusion state.
+pub mod service_land_copy;
 pub mod service_land_follow;
+pub mod service_land_start;
 
 /// The commit service's hold on Git's index lock across a landing.
 pub mod service_index_lock;

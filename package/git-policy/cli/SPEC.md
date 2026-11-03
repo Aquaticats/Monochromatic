@@ -3370,19 +3370,36 @@ the ported rules are in `doc/planning/cli-git-main-commit-within-native-plus-fiv
 index check in process").
 It runs only for the landing that holds the live index lock, and the type system says so: `reset_index_file` and `build_index`
 take a borrow of the held `IndexLock`, so only the holder can call them, and the in-process update takes a `PrivateCopy`,
-a file this landing created exclusively beside the live index (`service_land_follow.rs`), named from the live index's whole
-name and the batch and never reusing a name that is taken, so it is never the live index and never another client's index.
-The copy is filled from the live index while the lock is held, and the lock's release renames it over the live index
-(`IndexLock::release_with_record`).
+a directory this landing created for itself beside the live index (`service_land_copy.rs`), owner-only from its creation, named
+`cli-git-private-` and a random identifier, and holding the copy, a marker that names the owning process, and whatever Git or
+the in-process update makes for the copy (Git's lock for it, the temporary file of the write). No name beside the live index is
+shared, so the copy is never the live index and never another client's file, a foreign lock of the same name does not stop a
+landing whose live index is absent, the name does not grow with the live index's, and a pile of abandoned copies cannot use up
+names. The copy is created owner-only before its first byte, filled from the live index while the lock is held, and given the
+live index's own mode afterwards (the mode Git gave that file, which an index installed without a change keeps). The directory
+goes with the value; a landing sweeps the directories of a service that died, recognised by the name, the marker and the death
+of the process the marker names, never by the name alone. The lock's release renames the copy over the live index
+(`IndexLock::release_with_record`), after syncing the index's directory.
 The only caller is `follow_up` in `service_land.rs`, which owns the lock; it is reached from the landing with the lock that
 `acquire_noting_wait` gave, and from the restart with the lock that `try_acquire` gave.
 So a foreign `git add` finds the lock taken from the copy to the installation, and what it staged before is in the copy.
 The installed index is recorded in the journal (`<batch>.indexed`, holding the commit, synced) after the rename and before the
-lock is removed, and a record that cannot be made keeps the lock for the restart to reclaim.
+lock is removed, and a record that cannot be made (or an installation whose directory cannot be synced, or a panic that unwinds
+through the record) keeps the lock for the restart to reclaim. The finished batch is made durable (its journal directory synced)
+before its completion record is removed. A completion record that exists and cannot be read stops the restart, which leaves the
+batch open and the index alone, because only a missing record means the update was not installed.
 A restart that finds the record does not replay the index update, which would overwrite what another program staged after the
 lock was given up; it retries only the conclusion state, so a cleanup that failed never makes the index update replayable.
-The checked-out branch is read again once the lock is held and before the ref moves (a worktree can switch while the lock is
-awaited), and a restart that finds the worktree on another branch finishes the batch without touching its index.
+The checked-out branch is read from the Git directory of the worktree the request recorded (not from the directory the index
+sits in), again once the lock is held and before the ref moves (a worktree can switch while the lock is awaited), and once more
+after the ref moved, because Git refuses `symref-verify HEAD` beside an update of the branch `HEAD` names ("multiple updates
+for 'HEAD'"), so the move cannot verify it in its own transaction; a worktree that left the branch in that window keeps its own
+index. A restart that finds the worktree on another branch finishes the batch without touching the worktree's own index, still
+finishes an index kept in another file (`GIT_INDEX_FILE`), and keeps the batch open until the conclusion state is removed.
+The landing records the entries of its index paths under the lock before the branch moves (`<batch>.start`, synced), and a
+restart that has to replay an update that was never installed resets only the paths still at those entries; a path staged since
+keeps its staging and a one-line notice says so. A batch with no record (a commit Git built, an older batch, an index form the
+entries are not read from) replays every path as before; a record that cannot be read stops the replay.
 The result goes to a temporary file made exclusively beside the copy, given Git's index file mode before any byte is written
 (created as Git creates its lock file, so the mask and any default ACL of the directory apply, then `adjust_shared_perm`'s
 calculation from the mode the file really has), flushed to the disk, and renamed over the copy; an interrupted write is

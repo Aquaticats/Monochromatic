@@ -27,14 +27,22 @@ fn mode_of(path: &Path) -> u32 {
     return std::fs::metadata(path).expect("metadata").permissions().mode() & 0o7777;
 }
 
-/// The private copy has one name, built from the live index and the batch, in the live index's directory.
+/// Each private copy has a directory of its own beside the live index, named at random, so two copies never share a name.
 #[test]
-fn the_private_name_is_built_from_the_live_index_and_the_batch() {
-    let live: PathBuf = PathBuf::from("/repository/.git/index");
-    assert_eq!(crate::service_land_follow::private_index_path(live.as_path(), 7), PathBuf::from("/repository/.git/index.cli-git-7"));
-    assert_ne!(crate::service_land_follow::private_index_path(live.as_path(), 7), crate::service_land_follow::private_index_path(live.as_path(), 8));
-    let other: PathBuf = PathBuf::from("/repository/.git/index2");
-    assert_eq!(crate::service_land_follow::private_index_path(other.as_path(), 7).parent(), other.parent());
+fn the_private_copy_has_a_directory_of_its_own_beside_the_live_index() {
+    let root: PathBuf = fixture("index-reset-publish-copy-directory");
+    let live: PathBuf = root.join("index");
+    std::fs::write(&live, b"live").expect("live");
+    let lock = crate::service_index_lock::try_acquire(live.as_path(), 7).expect("the lock is free");
+    let first = crate::service_land_follow::PrivateCopy::make(&lock, 7).expect("a copy");
+    let second = crate::service_land_follow::PrivateCopy::make(&lock, 7).expect("another copy of the same batch");
+    assert_eq!(first.directory().parent(), Some(root.as_path()));
+    assert_ne!(first.directory(), second.directory());
+    assert_eq!(std::fs::read(first.path()).expect("copy"), b"live".to_vec());
+    drop(first);
+    drop(second);
+    drop(lock);
+    remove(root.as_path());
 }
 
 /// Git's `calc_shared_perm`: positive values add bits, negative values replace them, a read-only file gets no write bit, and an
@@ -203,6 +211,47 @@ fn concurrent_publications_of_different_payloads_are_always_whole() {
     assert!(reader.join().expect("reader") > 0);
     assert!(is_whole(std::fs::read(&built).expect("target").as_slice()));
     assert_eq!(names(root.as_path()), vec!["index".to_string(), "index.cli-git-7".to_string()]);
+    remove(root.as_path());
+}
+
+/// A reader that reads the target while a publication is in flight (during its writes, at its flush, on both sides of its rename)
+/// sees the old payload whole until the rename and the new one whole after it. The reads are made from inside the publication's own
+/// steps, on another thread each time, so each provably overlaps it: the stress test above can finish without one doing so.
+#[test]
+fn a_read_inside_each_step_of_a_publication_sees_one_whole_payload() {
+    let (root, _live, built) = directory("publish-overlap");
+    let old: Vec<u8> = payload(1, 4096);
+    let new: Vec<u8> = payload(2, 9000);
+    std::fs::write(&built, old.as_slice()).expect("first payload");
+    let during: RefCell<Vec<(&'static str, Vec<u8>)>> = RefCell::new(Vec::new());
+    let read_on_another_thread = |label: &'static str| {
+        let target: PathBuf = built.clone();
+        let bytes: Vec<u8> = std::thread::scope(|scope| { return scope.spawn(|| { return std::fs::read(&target).expect("read"); }).join().expect("reader"); });
+        during.borrow_mut().push((label, bytes));
+    };
+    let write = |file: &mut std::fs::File, part: &[u8]| -> std::io::Result<usize> {
+        let taken: usize = file.write(&part[..part.len().min(1000)])?;
+        read_on_another_thread("write");
+        return Ok(taken);
+    };
+    let sync = |file: &std::fs::File| -> std::io::Result<()> {
+        read_on_another_thread("flush");
+        return file.sync_all();
+    };
+    let rename = |from: &Path, to: &Path| -> std::io::Result<()> {
+        read_on_another_thread("before rename");
+        std::fs::rename(from, to)?;
+        read_on_another_thread("after rename");
+        return Ok(());
+    };
+    publish_with(&Steps { write: &write, sync: &sync, rename: &rename, ..SYSTEM }, built.as_path(), new.as_slice(), 0).expect("published");
+    let seen = during.into_inner();
+    assert!(seen.iter().filter(|(label, _)| { return *label == "write"; }).count() > 1, "the reader overlapped several writes: {}", seen.len());
+    for (label, bytes) in &seen {
+        let expected: &Vec<u8> = if *label == "after rename" { &new } else { &old };
+        assert!(bytes == expected, "a reader at {label} saw something other than the whole {} payload", if *label == "after rename" { "new" } else { "old" });
+    }
+    assert!(std::fs::read(&built).expect("target") == new);
     remove(root.as_path());
 }
 

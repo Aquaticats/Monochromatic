@@ -26,6 +26,8 @@ pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref
 /// reach('after-intent')
 /// ```
 pub fn reach(point: &str) {
+    #[cfg(test)]
+    hooks::run(point);
     if std::env::var(FAULT_VARIABLE).is_ok_and(|armed| { return armed == point; }) {
         crate::service_log!("test fault at {point}");
         #[cfg(unix)]
@@ -35,6 +37,23 @@ pub fn reach(point: &str) {
         }
         std::process::exit(137);
     }
+}
+
+/// What:
+///  Says that a step of a landing happened, for a control that checks the order of durable steps.
+/// Why:
+///   A directory sync cannot be seen from outside the process, so a control reads the order the landing reports; the release
+///  executable keeps nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// note('sync-index-dir')
+/// ```
+pub fn note(event: &str) {
+    #[cfg(test)]
+    hooks::record(event);
+    #[cfg(not(test))]
+    let _unused: &str = event;
 }
 
 /// Environment variable naming a directory in which the service leaves one file for each commit request it has queued.
@@ -57,5 +76,42 @@ pub fn queued(id: &str) {
     let path: std::path::PathBuf = std::path::Path::new(&directory).join(format!("queued-{name}"));
     if let Err(error) = std::fs::write(&path, b"") {
         crate::service_warn!("cannot leave the queued-request file {}: {error}", path.display());
+    }
+}
+
+/// Hooks a control sets to run its own code at a point of a landing, on the thread that reaches the point; never part of the
+///  release executable.
+#[cfg(test)]
+pub(crate) mod hooks {
+    use std::cell::RefCell;
+
+    thread_local! {
+        /// The steps of a landing on this thread, in the order they happened.
+        static EVENTS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+        /// The point and the code to run at it.
+        static HOOK: RefCell<Option<(String, std::rc::Rc<dyn Fn()>)>> = const { RefCell::new(None) };
+    }
+
+    /// Run `code` whenever the landing of this thread reaches `point`.
+    pub(crate) fn set(point: &str, code: std::rc::Rc<dyn Fn()>) {
+        HOOK.with(|hook| { *hook.borrow_mut() = Some((point.to_string(), code)); });
+    }
+
+    /// Remember that `event` happened.
+    pub(super) fn record(event: &str) {
+        EVENTS.with(|events| { events.borrow_mut().push(event.to_string()); });
+    }
+
+    /// The steps reported on this thread since the last call, in order.
+    pub(crate) fn take_events() -> Vec<String> {
+        return EVENTS.with(|events| { return std::mem::take(&mut *events.borrow_mut()); });
+    }
+
+    /// Run the hook if it is for `point`.
+    pub(super) fn run(point: &str) {
+        let found: Option<std::rc::Rc<dyn Fn()>> = HOOK.with(|hook| { return hook.borrow().as_ref().filter(|(named, _)| { return named == point; }).map(|(_, code)| { return std::rc::Rc::clone(code); }); });
+        if let Some(hook) = found {
+            hook();
+        }
     }
 }
