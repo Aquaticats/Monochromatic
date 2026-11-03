@@ -211,81 +211,181 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### One owner per worktree: the lock, the incarnation and the lifecycle authority
+### Normative state machine (revision 8)
 
-Revision 7 states one operative rule for each of: cancellation, inline-owner lifetime, optional index locking, background re-signing and
-the attachment guard. Earlier sections of this record that say otherwise are history and are marked so.
+This is the one operative statement of the protocol. The narrative subsections that follow explain it and add rationale and test
+requirements; where one of them reads differently, this section governs. Every transition names its preconditions (Pre), its durable
+effects in order (Do, each followed by an fsync of the file and then its directory unless it says otherwise), and what recovery
+does if the process dies at any point of it (Crash). "Journal" means a record the next owner can read. A transition never holds a lane
+state generation, the lane lock, the gate or `index.lock` across the execution of a person's program, except where it says so.
 
-The lane of a worktree (the process that publishes its requests and materializes them) is whoever holds an exclusive advisory lock on
-`lane/owner` in the worktree's private service directory (an open-file-description lock).
-There is no epoch, no fence ref and no unit watchdog. There is exactly one external supervisor, the client-triggered restart of
-"Restarting a quiet owner" below, and it acts only through the gate.
+Named entities. A worktree has one lane. The lane has an owner, an incarnation, a lock `lane/owner`, a gate `lane/gate`, a state file
+`lane/state` with a generation, a journal, an order file `lane/order`, a queue, an inbox, and a spool per request. The common directory
+`$GIT_COMMON_DIR/cli-git/` holds the identity bindings `ids/`, the ledger, and the maintenance registry `maintenance/`.
 
-Inline-owner lifetime (the operative rule).
-- The owner process alone holds the lock. Every child it starts has the lock description closed (close-on-exec), so no descendant can
-  keep the lane locked and acquisition is never blocked by an orphan. The owner starts children with the parent-death signal set from a
-  thread that lives as long as the owner.
-- Before it launches any child, the owner writes `lane/incarnation` (fsync): a fresh incarnation id, its process identity (pid and
-  start time), and the scope it will use. A service owner's scope is its unit's cgroup, which the manager ends with the unit. An
-  inline client owner first creates a transient scope through the manager's bus interface (`systemd_dbus.rs`), moves itself into it,
-  and launches every child inside it.
-- A client that finds no owner takes the lock and acts as the owner for as long as its own command lives: it drains the requests
-  adopted before its own, publishes its own, retires it and exits, leaving later arrivals for the service. It is the person's
-  foreground command, so the person can interrupt it; the request is already durable.
-- Lifecycle authority. A new owner acquires the lock. Acquisition proves the previous owner process is dead, because only that process
-  held the lock. Holding the lock, it reads `lane/incarnation`, and if the recorded scope still exists it terminates it
-  (`cgroup.kill`) and waits until the scope reports no processes. Only then does it write its own incarnation and begin any mutation.
-  It never targets a live owner and never a scope that is not the recorded previous incarnation's. Until termination completes the new
-  owner mutates nothing, which closes the case where a descendant that closed the description is still writing after the lock is free.
-  The case where a hook-made descendant kept the lock description cannot arise, since children do not inherit it.
-- Containment limit, stated: a hook can ask the manager to start another unit, and cgroup membership does not confine that work. That is
-  outside the wrapper's control. Where the manager is unavailable an inline owner is allowed only when the operation can start no
-  arbitrary child program at all: no configured hook, no clean or smudge filter, no signer or signing helper, no credential or
-  other helper that the operation would run. Otherwise the request stays handed over for the service.
-- Controls: a hook descendant that survives its owner and is in the scope; one outside it; the owner killed at every phase; a service
-  starting while a healthy inline owner lives (it waits and signals nobody); an owner whose scope cannot be terminated.
+Request states: `drafted` (client only) -> `bound` -> `accepted` -> `adopted` -> (`held` | `ready`) -> `publishing` -> (`published` |
+`pending` | `landing` | `rewritten-away`) -> (`materialized` | `voided`) -> `retired`; a hook may end a request as `refused`. A request
+that a client abandons before `accepted` is removed by the lane after the client's process identity is gone.
 
-The lock covers the smallest unit (one worktree) and exists for exactly the owner's life. The reason it is needed (the repository's
-rule is lock-free first): no lock-free claim can tell a new owner that the previous owner is gone. One lock per worktree and the gate
-below are the only locks added; "Use as few locks as possible" is met by the smallest set that gives these two kernel-atomic facts.
+Lane transitions (the owner and its incarnation)
+- L1 acquire. Pre: none. Do: open `lane/owner` (a file created once and never replaced) with close-on-exec, wait for the exclusive lock.
+  Crash: nothing to recover. Note: the wait ends when the previous owner and any child still between fork and exec have gone; a child
+  between fork and exec holds the description until it execs or dies, so this wait is bounded only by that child's own progress.
+- L2 reap. Pre: L1 done; `lane/incarnation` names a previous incarnation `P` that is not this process. Do: terminate the cgroup whose
+  name contains `P`'s identifier (each incarnation has its own cgroup: a transient scope for an inline client, a delegated sub-cgroup of
+  the unit for a service; the identifier is unique, so the target can never be this owner's own group) and wait until it reports no
+  processes. Crash: repeat L2. Until L2 completes the owner mutates nothing. Never targeted: a live owner, a group not named `P`.
+- L3 incarnate. Pre: L2 done. Do: write `lane/incarnation` (a fresh id, process identity, pid-namespace identity, the cgroup name),
+  create that cgroup, move this process into it. Crash: the next owner reaps this incarnation by L2.
+- L4 resume. Pre: L3 done. Do: complete or roll back any journaled mutation, repair torn tails of `lane/order` and the ledger, write an even
+  state generation, then continue each request from its recorded state. Crash: repeat L4.
+- L5 spawn a child. Pre: L3 done. Do: start the child inside the incarnation's cgroup with the lock and gate descriptions closed at exec
+  and the parent-death signal set. Crash: a child between fork and exec holds the lock description until it execs or dies (L1 waits for it).
+- L6 gate-shared. Pre: none. Do: take `lane/gate` shared before spawning any person's program (hook, filter, signer, helper) or any
+  ref-transaction child, and keep it until the whole execution tree of that invocation has no processes (its own cgroup is empty), not
+  until the immediate child exits. Crash: the kernel releases it; the program, if still running, was killed with the incarnation or
+  is reaped by L2.
+- L7 restart a quiet owner (client-triggered; shipped only with the measured interval; same pid namespace only). Pre: the owner's
+  recorded pid-namespace identity equals this process's; no progress for the measured interval. Do: (1) open a pidfd on the recorded
+  process and check its start time; (2) take `lane/gate` exclusively without waiting, abort if not taken; (3) re-read
+  `lane/incarnation`, abort if it changed; (4) create `lane/restart-intent` naming the incarnation (fsync); (5) end the owner through
+  the pidfd; (6) hold the gate until the owner is dead. Crash: before (4) nothing happened; after (4) the owner, when it next reaches an
+  admission point (L6) and finds the intent, admits nothing and exits, so the gate failing open cannot admit a program; a later
+  restarter may complete (5). No manager stop request is used, so no request can outlive the restarter.
 
-Restarting a quiet owner (question 2, picked A under the owner's delegation, and shipped only with the measured interval).
-A waiting command may end a quiet owner, under these rules, which also state what "the person's hook is never ended" requires:
-- The hook gate. A second advisory lock, `lane/gate`, is held shared by the owner for the whole time a person's program runs (a hook,
-  a filter, a signer or other helper) and for the whole time a ref transaction is in flight (below). A restarter may end the owner only
-  while holding the gate exclusively, taken without waiting; if it cannot take it, a person's program or a publication is running and
-  nothing is ended. The owner takes the shared gate before it dispatches such a program, so a dispatch after the restarter's check
-  blocks on the gate while the restarter holds it, and the owner is then ended without having started the program.
-- Incarnation. The restarter reads `lane/incarnation`, opens a pidfd for the recorded process and checks its start time, takes the
-  gate, reads `lane/incarnation` again and aborts if the incarnation changed, then ends the owner through the pidfd. A pidfd names that
-  process for good, so a delayed request cannot reach a replacement owner. It holds the gate until the owner is dead.
-- The manager's kill of the rest of the unit follows the owner's death (control-group kill mode); an inline owner's scope is reaped by
-  the next owner (lifecycle authority above).
-- Restart is not available while a ref transaction is in flight, because ending the owner then could leave a wrapper-made lock (see
-  cancellation); a quiet owner in that phase is handled by cancelling the Git child, not by restart.
+Capture and acceptance (client)
+- C1 capture. Pre: none. Do: read the branch tip `B` and the base closure from the immutable objects `B` names; read the lane generation
+  `g` (wait for the lane if it is odd); read the logical head, the consumption map, the worktree and the real index; re-read `g` and the
+  foreign inputs (the branch tip, and the index entries used); accept only an unchanged even `g` and unchanged foreign inputs, else
+  repeat. Crash: nothing durable.
+- C2 spool. Pre: C1. Do: write the spool files and the request record into `incoming/<id>.<hash>/`, fsync each, fsync the directory.
+  Crash: an `incoming` directory with no binding belongs to a dead client and is removed by the lane after the client's identity is gone.
+- C3 bind. Pre: C2. Do: write the binding content (hash of the immutable request and the path of `incoming/<id>.<hash>`) to a temporary
+  file, fsync, then `link` it to `ids/<xx>/<id>` (atomic: complete or absent); if the name exists, read it (always complete): the same
+  hash means resend, go to C4 if the request is not yet in the inbox, else answer from its state; a different hash is rejected with a
+  message. Crash: a binding with a durable `incoming` request and no inbox entry is a reserved request: any same-content resend, or the
+  lane at L4, completes C4.
+- C4 accept. Pre: C3. Do: publish the record into `inbox/<id>` with a no-replace rename or hard link, fsync `inbox/` and its parent,
+  answer `handed over`. Crash: repeated by C4 from the binding.
+- C5 adopt (lane). Pre: accepted, no `adopt <id>` yet, L4 done. Do: journal the state change; write generation odd; append
+  `adopt <id> <crc>` to `lane/order`; move the record to `queue/`; update the logical tail and consumption map; write generation even.
+  Crash: L4 completes the move and the state update; a second `adopt` is never appended.
 
-### Durable acceptance needs no ref write
+Build and publication (lane)
+- B1 build. Pre: adopted. Do: build the commit by replaying the captured delta on the logical tail; where a person's hook is configured
+  for the build, spawn it under L6 and mark the request `held` (it has no commit, it is not in the logical tail, its consumption entries
+  are kept and are keyed by request and version). Crash: the build is repeated; a held request's hook is the person's program and is
+  re-run by the repeated build.
+- B2 ordering exception. Pre: `R1` held. Do: a request `R2` whose changed-path set is disjoint from `R1`'s (adds, edits, deletions, modes,
+  directory-versus-file conflicts) and that is not a conclusion or an amendment of anything held proceeds ahead of `R1`; an overlapping
+  `R2` waits. When `R1` completes: success re-enters it at the tail (replayed on the then-tip); refusal ends it as `refused` with the
+  hook's message and changes nothing. A completion carries (request, version) and is accepted only for the active version; the
+  completion of a superseded version is discarded. Crash: as B1.
+- P1 publish-begin. Pre: `ready`, B2 clear. Do: journal `publishing <id> <attempt> <old> <new>` with the reflog anchor and, for a
+  repository with a `reference-transaction` hook, `hook-dispatch`; the request is in the logical tail from here. No generation change.
+  Crash: the next owner treats the attempt by the recovery classes (R1 to R5 below).
+- P2 swap. Pre: P1 and L6 held for the ref-transaction child. Do: run `update-ref refs/heads/<branch> <new> <old>`. A person's
+  `reference-transaction` hook may run inside it; nothing but L6 is held across it. Crash: recovery classes below.
+- P3 published. Pre: P2 succeeded. Do: write generation odd, record `published`, update the state, write even. Crash: recovery class R2.
+- P4 swap-failed. Pre: P2 failed with a held lock or an old-value mismatch. Do: record `swap-failed`, then the request becomes `pending`
+  (side ref written best effort, the command already answered, the lane waits for the branch) or is replayed once if the old-value
+  mismatch shows the branch moved (one operative rule: one try, then pending). Crash: recovery classes below.
+- Recovery classes for an attempt, in this order. R1 a durable `published`: published. R2 the new commit is the tip or an ancestor of
+  it: published. R3 a reflog entry after the anchor whose own recorded old value is the new commit: `rewritten-away` (saved, not
+  republished); this is checked before any `swap-failed`, because a failed invocation does not say the request was never satisfied.
+  R4 a recorded `swap-failed` and no R1 to R3 evidence: replay on the tip. R5 anything else: `landing`, owner decision 3: replay and
+  land with a message naming the commit and the command to drop it.
 
-A command is accepted when its immutable request is durable in the worktree's service directory:
-1. read the branch tip `B` (reading refs takes no lock) and read the base content the replay needs from `B` into the spool; if an
-   object is missing because a foreign rewrite and a prune raced the read, read the tip again (nothing was handed over yet);
-2. capture under the seqlock of "Capture consistency" below, reading the worktree and the real index, and write the captured bytes
-   into the spool;
-3. fsync each spool file, fsync the spool directory;
-4. bind the identity to its content, permanently and without overwrite: create `ids/<xx>/<id>` in the repository-owned location below
-   with `O_EXCL`, containing the hash of the immutable request, and fsync it and its directory; if it already exists, read it: the same
-   hash means this is a resend (answer from the record or the ledger), a different hash is rejected with a message and nothing is
-   accepted;
-5. write the request record to a temporary name, fsync it, then publish it into `inbox/<id>` with `renameat2(RENAME_NOREPLACE)` (or a
-   hard link, which cannot overwrite), fsync `inbox/` and its parent;
-6. answer that the request is handed over.
-The binding file of step 4 is never removed and never overwritten, so the comparison across the inbox, the queue and the ledger is one
-lookup that survives adoption moving the record and retirement removing it. Two clients that use the same identity with different
-content cannot both be accepted: only the one that created `ids/<xx>/<id>` proceeds.
+Materialization and retirement
+- M1 materialize (one path for every follow-up, whether the lock is free now or later). Pre: `published`, the attachment guard,
+  and a single try of `index.lock` after the publication (never before it, never across P2). Do: with the lock held, read `HEAD` before
+  and after reading the current index and decline unless it is attached to the request's branch in both reads (declined: M2); write
+  generation odd; apply the per-path entry rule to the index read under the lock; write the lock file and rename it over the index;
+  release the consumption entries of the paths installed; write even. Crash: the lock file of this process is removed by its own exit
+  handling; L4 repeats M1 from the journal.
+- M2 void. Pre: the guard declined, the branch was rewritten (the commit is not reachable from the tip), or a later foreign successor made
+  the entry rule decline. Do: record `voided` for the request and the paths, release their consumption entries, tell the person.
+  Crash: repeated.
+- T1 retire. Pre: published (materialized or voided) or terminal otherwise, and no overlapping open maintenance entry whose scope is
+  non-empty, and a connectivity check passed. Do: append the terminal line to the ledger, then release the retention of a request that
+  is not promised as saved. Crash: the ledger line exists, the release is completed; retention is never released first.
 
-Repository-owned location. Binding files and the ledger live in `$GIT_COMMON_DIR/cli-git/` (the common directory, shared by
-linked worktrees and untouched by `git worktree remove`), keyed by the worktree's instance, with lookups by identity alone (the
-identity is random and global). A worktree removal retires its lane with a final ledger line and leaves these files.
+Cancellation
+- X1 cancel a stalled child. Pre: the child makes no progress for the measured interval and its command cannot launch a protected
+  program (no hook configured for it; otherwise the child is exempt and waits). Do: send the terminate signal and a continue signal,
+  wait the grace. Crash: the child dies with the incarnation. If the child ignores the signal, nothing further happens automatically:
+  owner question A decides between ending it by force (leaving whatever lock it holds for the person) and never ending it (the
+  request stays pending). The wrapper never removes a ref lock file, for any reason.
+
+Maintenance (object-store-wide)
+- G1 reserve. Pre: a destructive run is to be started by the wrapper (a forwarded `gc`, `prune` or `maintenance` command, or the
+  service's automatic maintenance) and a manager is available. Do: create a transient scope `S` named by the run id and place the
+  launcher in it; write `maintenance/<run>` (state `reserved`, naming `S` and the launcher's identity) by the link method of C3; the
+  launcher inside `S` is the launch authority. Crash: see G3.
+- G2 run. Pre: G1. Do: the launcher, inside `S`, starts the destructive process; entry state `running`. Crash: see G3.
+- G3 terminal. Pre: `S` reports no processes and the launcher is dead or has recorded `end` after waiting. Do: record `terminal`.
+  A missing end marker never means finished; an empty or absent scope without a dead launcher never means finished, because the live
+  launcher inside `S` is still authorized to launch; the launcher's death with `S` empty proves launch can no longer happen. Crash:
+  repeated from the registry.
+- G4 no manager. Pre: no manager is available. Do: the wrapper treats the run as another tool's maintenance (the owner's outside list),
+  prints that it cannot contain it, and retains the recovery copy of every request whose lifetime overlapped it until the person
+  disposes of it explicitly, since an escaped descendant cannot be proved finished.
+
+Narrowed guarantees stated by the machine, plainly. Acceptance waits for the lane's short state updates (odd generations never span a
+person's program or a foreign lock) and never for a program. A quiet owner that holds the gate with no person's program running (wedged in
+our own code between L6 and the end of a ref transaction) is not restarted automatically; the command waits with a notice (owner
+question B). An owner wedged inside a person's program is never ended. L1 can wait for a child between fork and exec. G4 extends
+retention at the cost of disk. The wait of a publication behind a person's `reference-transaction` hook is the person's.
+
+### Rationale for the lane transitions L1 to L7 (explains; the state machine governs)
+
+Why one lock, one gate. The lane of a worktree is whoever holds the exclusive advisory lock on `lane/owner`. The repository's rule is lock-free
+first with an unavoidable lock on the smallest unit and its reason beside it; the reason is that no lock-free claim can tell a new owner that
+the previous owner is gone. The proof is stated as the review asks: acquisition proves that no conflicting lock remains on that lock inode;
+the previous owner's death follows from the enforced invariants, which are that only the owner process holds the description (children
+close it at exec, and a child between fork and exec is waited for by L1), that the lock file is created once and never replaced, that the
+owner never unlocks explicitly, and that the lane never executes a person's program in the owner process itself. The gate exists because the
+restart of a quiet owner and the admission of a person's program must be serialized by something both sides share; a kernel lock is the
+smallest such thing. These two locks are the only locks added, which meets "Use as few locks as possible" as the smallest set that gives these
+two kernel-atomic facts.
+
+Why an incarnation-specific cgroup. A unit's own cgroup path is reused by the replacement owner, so reaping "the recorded cgroup" can kill the
+replacement. Each incarnation therefore has a cgroup whose name contains its unique id: a transient scope created through the manager's bus
+interface the wrapper already speaks (`systemd_dbus.rs`) for an inline client, and a delegated sub-cgroup of the unit for a service (the
+template unit enables delegation, which is not a resource limit). L2 targets only the group named by the recorded previous id. Containment
+limit, stated: a hook can ask the manager to start another unit, and cgroup membership does not confine that work; that is outside the wrapper's
+control. Where the manager is unavailable an inline owner is allowed only when the operation can start no arbitrary child program at all: no
+configured hook, clean or smudge filter, signer or signing helper, credential or other helper; otherwise the request stays handed over for the
+service.
+
+Why inline ownership is narrow. A client that finds no owner takes the lock and acts as owner only to drain the requests adopted before its own,
+publish and retire its own, and exit; later arrivals stay for the service. It is the person's foreground command, so the person can interrupt
+it, and the request is already durable.
+
+Why restart goes through an intent and a pidfd. A restarter that dies holding the gate releases it, so the gate alone fails open during an
+incomplete cancellation; the durable `lane/restart-intent` makes it fail closed (an owner that finds the intent at its next admission admits
+nothing and exits). A pidfd names the process it opened, so a delayed request cannot reach a replacement owner; a recorded pid is interpreted
+in the right namespace only if the pid-namespace identities are equal, so restart is refused across namespaces. "The person's program" means
+the whole execution tree of the invocation, so the owner keeps the shared gate until that tree's cgroup is empty; a daemon a hook leaves
+behind keeps restart unavailable, which is the person's program being protected.
+
+What restart cannot do. The shared holder case (the owner wedged inside our own code between L6 and the end of a ref transaction, with no
+child and no person's program) cannot be restarted automatically, because the restarter cannot take the gate and ending the owner mid-transaction
+could leave a lock. That is a remaining internal wait, stated; owner question B.
+
+### Rationale for C1 to C5: durable acceptance needs no ref write (explains; the state machine governs)
+
+Acceptance is the durable existence of a complete immutable request in the worktree's own service directory; no Git ref is written and no
+foreign lock can stand in the way. The identity binding is published as a fully written file by `link`, so it is never empty or partial,
+and it names an already-durable request, so a client that dies between C3 and C4 leaves a reserved request that any same-content resend or
+the lane completes. A resend with different content is rejected because the binding is never overwritten or removed; the binding, the ledger and
+the maintenance registry live in the common directory, so removing a worktree does not remove them, and lookups use the identity alone (a
+resend of the same identity from another worktree is rejected as a mismatch). Capture reads the base closure from the immutable objects `B`
+names; if one is missing because a rewrite and a prune raced the read, capture starts again, which is legitimate because nothing was
+handed over. Capture waits for the lane's short state updates and never for a program; this is not wait-free, and it never waits on a foreign
+program. Capture-invalidating generations are written only around lane state updates (C5, P3, M1) and never across P2 or a person's program.
+The explicit red control is the reviewer's schedule: a reference-transaction hook waits for ever during P2, a disjoint request must still be
+accepted.
 
 ### Adoption order, recovery and the logical head
 
@@ -297,24 +397,10 @@ identity is random and global). A worktree removal retires its lane with a final
 - Each line is self-framing with a checksum; recovery truncates a torn last line to the last valid line before any append.
 - The lane is the only writer, so there is no allocator to go obsolete.
 
-Capture consistency (a seqlock; this replaces "read the state version twice").
-`lane/state` carries a generation `g`. The lane writes the in-progress generation before any mutation that a reader's view depends on,
-and the stable generation after it:
-- writer: journal the intent of the mutation (fsync); write `g` odd, meaning in progress (fsync); perform the mutation; write the new
-  state with `g` even and larger (fsync). The mutations are every transition of the logical head or the consumption map and every
-  externally visible effect on the real index or the refs: adoption, supersession by an amendment, publication, materialization,
-  voiding, retirement, and each map update;
-- reader (capture): read `g`; if it is odd, wait for the lane (a notice names the phase); read the logical head, the map, the refs and
-  the real index; read `g` again; accept only an unchanged even `g`, otherwise start again;
-- interrupted writer: a new owner finding an odd `g` completes or rolls back the journaled mutation (every mutation is journaled
-  before the in-progress mark and is idempotent), then writes an even generation;
-- foreign writers of refs and the index do not take part, so capture also re-reads the tips and the index's entries for the paths it
-  used and starts again if they changed; a foreign change that leaves them as read is undetectable and is not claimed.
-This closes the reviewer's execution, in which the lane's own materializer installed `x=1` and a plain commit read a stable-looking
-version: the materializer wrote `g` odd before touching the index, so the reader either waited or saw a changed generation.
-Starvation, stated: capture waits for the lane's short mutations and starts again when one completes during its reads; sustained lane
-activity delays a capture and the command waits on its own lane with a notice. It is not wait-free, and it never waits on a foreign
-program.
+Capture consistency: C1 and the seqlock rule of the state machine. The writer journals the intent, writes the generation odd, mutates, and
+writes it even, and only for lane state updates; an interrupted writer is completed or rolled back by L4. Foreign writers of refs and the
+index do not take part, so C1 re-reads the tip and the index entries it used; a foreign change that leaves them as read is undetectable and
+is not claimed.
 
 Capture against the logical head.
 A request records the logical head it was captured against (the newest published-or-pending, non-held commit, or the branch tip when
@@ -360,22 +446,20 @@ between steps: target unpublished, the amendment replaces it (the old version is
 published and still the tip, an amend of the tip; target published but no longer the tip, the amendment is stacked as a new commit on
 the tip, its change being the amend's tree relative to `D1`, and it never amends an unrelated successor.
 
-A request held by a person's hook (owner decision 1, with the ordering exception the sixth review asks for).
-A request whose commit build is held by a hook is `held`: it has no commit yet, and it is not part of the logical tail. A request `R2`
-behind it may publish ahead of it only if its changed-path set is disjoint from `R1`'s (adds, edits, deletions, modes, and the
-directory-versus-file conflicts of every path), and it is neither a conclusion nor an amendment of anything held. `R2` then publishes
-by replaying its own delta onto the actual tip, so it never carries `R1`'s change and `R1` is not exposed before its hook can refuse.
-`R2` overlapping `R1` is set aside too, with a notice that it waits for `R1`'s hook; its captured worktree content includes `R1`'s
-edits, so publishing it first would expose them.
-Afterwards: `R1`'s hook succeeds, so `R1` re-enters at the tail, builds, and publishes by replaying its delta on the tip that already
-holds `R2` (order `R2` then `R1`, an exception to adoption order, stated in the notice); `R1`'s hook refuses, so `R1` ends with the
-hook's own message and changes nothing, `R2` having been unaffected. The consumption map keeps `R1`'s entries until it is published,
-voided or refused. An amendment of a held request supersedes the held version, and the new version runs its hook again.
+A request held by a person's hook (owner decision 1; B1 and B2 of the state machine). A held request has no commit and is not part of the
+logical tail. Its consumption entries are keyed by request and version and are released by one rule: when the request that set them is
+materialized, voided or refused, never at publication (a published request whose follow-up is deferred keeps them, so a plain commit
+staging only `y` does not capture a reversal of it). An amendment of a held request is a new version that names the held version, not a
+commit: its immutable base is the held version's captured logical base and its delta replaces the held delta. The new version's build is
+queued behind the old version's hook, since a running hook is never ended; when the old hook completes, its completion carries
+(request, version) and is discarded because the version is no longer active, so a superseded version can neither publish nor change the
+active consumption entries. The reviewer's cases are the ordering model: `R1` held with disjoint `R2`, overlapping `R2`, `R1` refusing
+after `R2` landed, `R1` succeeding after `R2` landed, and an amendment of `R1` while its hook runs.
 
 The attachment guard (the operative rule; there is no attachment generation).
 A request records the worktree's attachment at capture (the branch, or detached). Publication is to the branch the commit was made on,
-by compare-and-swap, whatever the worktree has checked out now. Before a deferred index follow-up the lane, holding `index.lock`, reads
-the worktree's `HEAD` before and after reading the index; it declines the follow-up (nothing written, a line says where the commit
+by compare-and-swap, whatever the worktree has checked out now. Before every index follow-up (M1 is the only path, so the guard applies to the immediate follow-up as well; a switch that completed before
+the follow-up is not the accepted instant) the lane, holding `index.lock`, reads the worktree's `HEAD` before and after reading the index; it declines the follow-up (nothing written, a line says where the commit
 went) unless `HEAD` is attached to that branch in both reads. This is a guard against the usual cases and not a fence: `HEAD`
 can change after the last read without the index lock, and a change away and back is invisible. The reflog length is no condition: an
 ordinary commit, including the publication being materialized, can grow `logs/HEAD`, so growth is neither a complete switch detector
@@ -388,37 +472,21 @@ A signature cannot survive a changed parent, so the replayed commit is signed ag
 service does for the auto-push's reconcile merges. A failing signer is on the owner's outside list: the request stays pending with a
 clear message and the work stays on disk. The older rule of waiting for the person to sign again is withdrawn.
 
-### Publication and recovery
+### Rationale for P1 to P4 and the recovery classes (explains; the state machine governs)
 
-The publication is `update-ref refs/heads/<branch> <new> <old>`, a compare-and-swap, nothing else, and it runs inside the gate's
-shared section (a ref transaction is in flight). Before the swap the lane writes (fsync) `publishing <id> <attempt> <old> <new>` with an
-anchor of the branch's reflog read through Git (`git reflog show`, which also covers reftable): the entry count and the identity of
-the last entry, or `anchor-absent` when the log is empty or does not exist. After the swap it writes `published` (fsync). If the swap
-returns a failure that Git classifies as a held lock or an old-value mismatch, the lane writes `swap-failed <id> <attempt>` (fsync):
-that is the only recorded proof that a swap did not complete.
-Before its first publication on a branch the lane creates `logs/refs/heads/<branch>` on the files backend if it is missing (Git
-appends to a reflog file that exists), so later updates are logged with their old values.
-
-Recovery of the latest attempt, in this order. The rule that matters is that the absence of evidence is never evidence of absence:
-1. The record says `published` (durable): published.
-2. The record says `swap-failed`: the swap did not complete; publish again by replaying the captured delta on the tip.
-3. The new commit is the tip or an ancestor of the tip: published.
-4. A reflog line after the anchor has the new commit as its old value (the entry an update that moved the branch away writes): the
-   branch held a commit with exactly the requested content during the interval. Outcome `rewritten-away`, recorded durably: not
-   published again, kept under a hold and saved, the person told where. Object-level observation is enough here: who put the identical
-   commit on the branch does not matter, because the branch held what was requested.
-5. Anything else is unclear and owner decision 3 applies: the service lands the commit by replay, with a message that names it and
-   gives the command to drop it (for example `git reset --keep <old tip>` while it is the tip, or `git revert <commit>`), and says it
-   landed after an interruption. Unclear includes: no reflog or none readable; an anchor that is gone; and an intact anchor with no
-   old-value line after it. The last is the sixth review's case: a legitimate reflog operation can delete the post-anchor entries
-   while the prefix up to the anchor stays, so an intact anchor does not prove an intact suffix, and "no old-value line" is not "the
-   swap did not complete". It is never described as evidence of non-publication.
-
-Correlation to the attempt, because commit identifiers can repeat: only reflog lines after the anchor count. A reflog line that has the
-commit as its new value is never read as proof of a swap that began or finished.
-Nothing here claims once-only publication across repeated crashes and rewrites; each recovery decision uses only the evidence above.
-Anything promised as saved (`rewritten-away`, a pending commit) is retained permanently until the person disposes of it explicitly;
-the wrapper names the command.
+The publication is one compare-and-swap, `update-ref refs/heads/<branch> <new> <old>`, run with the gate shared. Before the swap the lane
+journals `publishing` with an anchor of the branch's reflog read through Git (`git reflog show`, which covers reftable); the entry count and
+the identity of the last entry, or `anchor-absent`. The lane creates `logs/refs/heads/<branch>` on the files backend if it is missing, since Git
+appends to a reflog file that exists. The old value of an entry is read from the entry's own recorded old value; it is never inferred from the
+adjacent displayed entry, because reflog editing can invalidate that inference. How the chosen Git interface exposes it on each backend is a
+backend inspection.
+The recovery classes R1 to R5 are ordered so that positive evidence comes before a failed invocation: a `swap-failed` record proves that one
+invocation did not complete, not that the request was never satisfied, because another writer can install exactly the requested commit and
+remove it after the failure. An intact anchor with no old-value line proves nothing about the suffix, since a legitimate reflog operation can
+delete post-anchor entries; it falls in R5, unclear, which owner decision 3 lands with a message. Object-level observation is enough for R3
+(the branch held what was requested). A reflog line with the commit as its new value is never read as proof of a swap that began or finished.
+Nothing claims once-only publication across repeated crashes and rewrites. Anything promised as saved (`rewritten-away`, a pending commit)
+is retained until the person disposes of it explicitly; the wrapper names the command.
 
 ### Retirement and permanent deduplication
 
@@ -437,40 +505,27 @@ ordinary worktree operations (a worktree removal retires its lane by a final lin
 resend that reuses an identity with different content (the ledger and the inbox record both carry a hash of the immutable request) is
 rejected with a message and published as nothing.
 
-### Obsolete workers
+### Rationale for X1 and the owner questions on cancellation (explains; the state machine governs)
 
-The argument is the lifecycle authority of "One owner per worktree": the lock proves the previous owner is dead, the recorded scope is
-reaped and has reported empty before any mutation, and children never hold the lock, so an orphan cannot block acquisition. Cleanup of
-a spool, a hold or a saved file is done only by the owner, only for requests whose ledger line is durable.
-To test (red controls first): the retained-descriptor scope deadlock (a hook descendant that keeps the lock description, the owner
-dies, the next owner must still acquire and reap); a closed-descriptor descendant that is still writing when the lock frees; the owner
-killed at every phase with the next owner at once; a healthy inline owner met by a starting service.
-
-### Cancelling a stalled Git child (the operative rule; "never stopped" is withdrawn)
-
-Two earlier statements disagreed, that `update-ref` is never stopped and that a stalled Git child is ended and redone. The rule is one:
-a stalled child is cancelled by a protocol that cannot leave a lock file the wrapper made.
-1. Git removes its own lock files when it ends on a signal it catches: lock files are registered as temporary files
-   (`lockfile.c:83`) and a handler for the common signals removes them (`tempfile.c:93`, installed at `tempfile.c:117`). The live owner
-   sends the terminate signal (and a continue signal, so a stopped child can act), and waits the existing grace
-   (`STOP_GRACE`, `child_watch.rs`).
-2. Only a child that ignores the terminate signal for the grace is killed outright, and only that path can leave a lock. For an
-   `update-ref`, the owner therefore journals before launching it (fsync) `ref-tx <id> <attempt> <lock path>` with the observation
-   that the lock path was absent, and records the child's process identity. After the kill, if the lock path exists, was absent before
-   launch, and its birth time lies within the child's life (statx birth time between the child's start and its death, which the live
-   owner measured), the owner removes exactly that lock, after checking that its inode and birth time are unchanged. A foreign program
-   cannot have created that lock inside that interval while the child held the ref, and a child that did not hold it would have
-   exited at once (Git waits 100 ms for a ref lock, `refs.c:996-997`). Where birth time is unavailable the lock is not removed and is
-   treated as foreign.
-3. This is not sweeping after a crash. After an owner crash or an outside kill (the OOM killer, a person) no live process knows the
-   interval, so the wrapper removes no ref lock, whatever its contents; the lock is treated as foreign, the request becomes pending,
-   and the notice names the file and says that if no Git process runs it can be removed by hand. That case is the owner's outside list.
-4. The restart of a quiet owner is not available while a ref transaction is in flight, because it could end the owner between the
-   creation and the removal of a lock. A quiet ref transaction is handled by step 1 on its child.
-5. A `reference-transaction` hook running under the child exempts it: the person's program is never ended (decision 1). The child
-   waits; later publications find the ref lock held and become pending in adoption order.
-6. The same protocol governs an embedded ref writer when one exists: its critical section is inside the gate's shared section, a
-   restart cannot interrupt it, and a stall inside it is a bug of ours to find by the journal, not a lock to sweep.
+The wrapper never removes a ref lock file: not after a crash, not after cancelling its own child, whatever its birth time or contents.
+Creation inside a child's lifetime does not prove creation by that child (a foreign program can take the lock while the child is stalled before
+acquiring it, or after the child released it and stalled before exiting), and a check of inode and birth time followed by an unlink is not an
+atomic conditional unlink. The earlier rule that deleted a lock born during the child's life is withdrawn and is not to be implemented.
+Git removes its own lock files when it ends on a signal it catches (`lockfile.c:83`, `tempfile.c:93`, installed at `tempfile.c:117`), so X1 sends
+the terminate signal and a continue signal and waits the existing grace (`STOP_GRACE`, `child_watch.rs`). That is all it does automatically.
+A child that ignores termination is the one case where the wrapper would have to kill what it started; killing a Git child that holds a ref
+lock manufactures a lock the wrapper may not remove, and not killing it leaves the child stuck. That is a real choice (owner question A); until
+it is decided the default is the conservative one: do not kill, leave the request pending with a notice that names the child and says it
+ignored the signal. A command that can launch a protected program (for instance `update-ref` while a `reference-transaction` hook exists, or a
+commit with `pre-commit` or `commit-msg` configured) is exempt from cancellation entirely, decided at spawn from the hooks directory, the hooks
+path and the `hook.*` configuration, not from a sample of the process tree, because Git can dispatch a hook between the sample and the signal.
+The restart of a quiet owner (L7) is unavailable while a ref-transaction child is in flight (the gate), so ending the owner can never leave a lock
+that cancellation would not have left. After an outside kill (the OOM killer, a person) a lock may remain; it is treated as foreign, the request
+becomes pending, and the notice names the file and says that if no Git process runs it can be removed by hand; that case is on the owner's
+outside list.
+Tests (red controls first): the retained-description deadlock in the fork-to-exec window; a closed-description descendant still writing when the
+lock frees; the service cgroup reused by a replacement owner (the replacement must not kill itself); restart versus hook dispatch; restarter
+death at every point of L7; a wedged shared gate holder; a pid read in another namespace.
 
 ### Retention lifecycle and the spool closure
 
