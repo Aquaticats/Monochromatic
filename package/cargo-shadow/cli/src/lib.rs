@@ -119,6 +119,9 @@ pub mod verify;
 /// Maps a `cargo update` or `cargo generate-lockfile` command line to the pnpm command it stands for.
 pub mod update_plan;
 
+/// The catalog half of `pnpm update --latest`: raise catalog floors, then sync.
+pub mod tighten;
+
 /// The command-word rules: what the shadow does for a cargo command line.
 pub mod verb;
 
@@ -170,6 +173,9 @@ mod policy_tests;
 
 #[cfg(test)]
 mod selectors_tests;
+
+#[cfg(test)]
+mod tighten_tests;
 
 #[cfg(test)]
 mod time_text_tests;

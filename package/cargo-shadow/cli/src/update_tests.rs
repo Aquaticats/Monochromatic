@@ -14,6 +14,7 @@ use crate::policy::VersionRecord;
 use crate::registry::Registry;
 use crate::test_scratch::scratch;
 use crate::time_text::parse_rfc3339_millis;
+use crate::tighten::Syncer;
 use crate::update::{UpdateError, UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
 
 const REGISTRY: &str = "registry+https://github.com/rust-lang/crates.io-index";
@@ -110,6 +111,18 @@ fn downgrading_history() -> Vec<VersionRecord> {
     return vec![record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")];
 }
 
+/// A sync that records the call instead of running file-enforcer.
+struct RecordingSyncer {
+    calls: RefCell<u32>,
+}
+
+impl Syncer for RecordingSyncer {
+    fn sync(&self, _root: &Path) -> Result<String, String> {
+        *self.calls.borrow_mut() += 1;
+        return Ok("synced".to_string());
+    }
+}
+
 struct World {
     root: tempfile::TempDir,
     dirs: Vec<String>,
@@ -141,6 +154,7 @@ fn run(world: &World, catalog_settings: &Settings, cargo: &FakeCargo, registry: 
             runner: cargo,
             registry,
             forward: &[],
+            syncer: &RecordingSyncer { calls: RefCell::new(0) },
         },
         kind,
     );
@@ -278,4 +292,77 @@ fn a_named_package_update_is_run_as_given_and_set_aside_when_the_newest_release_
     assert!(report.written, "{:?}", report.problems);
     assert_eq!(cargo.commands.borrow()[0], args.join(" "));
     assert_eq!(lock_of(&world), lock_with("1.0.0"));
+}
+
+fn run_with_syncer(world: &World, cargo: &FakeCargo, registry: &FakeRegistry, syncer: &RecordingSyncer, args: &[String]) -> UpdateReport {
+    let catalog_settings: Settings = settings();
+    return update_rust_lockfiles(
+        &UpdateRequest {
+            root: world.root.path(),
+            crate_dirs: &world.dirs,
+            dry_run: false,
+            now: now(),
+            settings: &catalog_settings,
+            catalog_path: &world.catalog,
+            runner: cargo,
+            registry,
+            forward: &[],
+            syncer,
+        },
+        &UpdateKind::Targeted { cargo_args: args },
+    )
+    .expect("updates");
+}
+
+fn passing_history() -> BTreeMap<String, Vec<VersionRecord>> {
+    return BTreeMap::from([(
+        "dep".to_string(),
+        vec![record("1.0.0", "2026-01-01T00:00:00Z", "7", ""), record("1.0.1", "2026-02-01T00:00:00Z", "7", "")],
+    )]);
+}
+
+#[test]
+fn breaking_is_pnpm_update_latest_it_raises_the_catalog_floor_and_runs_the_sync() {
+    let world = world(&lock_with("1.0.0"), "[catalog]\ndep = \">=1.0.0\"\n");
+    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    let registry: FakeRegistry = FakeRegistry { histories: passing_history() };
+    let syncer: RecordingSyncer = RecordingSyncer { calls: RefCell::new(0) };
+    let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+
+    let report = run_with_syncer(&world, &cargo, &registry, &syncer, &args);
+
+    assert!(report.written, "{:?}", report.problems);
+    assert!(fs::read_to_string(&world.catalog).expect("catalog").contains("dep = \">=1.0.1\""));
+    assert_eq!(*syncer.calls.borrow(), 1);
+    assert!(report.pruned.iter().any(|line| { return line.contains("dep: >=1.0.0 to >=1.0.1"); }) || report.warnings.iter().any(|line| { return line.contains("dep: >=1.0.0 to >=1.0.1"); }));
+}
+
+#[test]
+fn a_plain_update_is_pnpm_update_no_save_and_leaves_the_catalog_alone() {
+    let world = world(&lock_with("1.0.0"), "[catalog]\ndep = \">=1.0.0\"\n");
+    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    let registry: FakeRegistry = FakeRegistry { histories: passing_history() };
+    let syncer: RecordingSyncer = RecordingSyncer { calls: RefCell::new(0) };
+    let args: Vec<String> = ["update", "--package", "dep"].iter().map(|argument| { return argument.to_string(); }).collect();
+
+    run_with_syncer(&world, &cargo, &registry, &syncer, &args);
+
+    assert!(fs::read_to_string(&world.catalog).expect("catalog").contains("dep = \">=1.0.0\""));
+    assert_eq!(*syncer.calls.borrow(), 0);
+}
+
+#[test]
+fn a_refused_breaking_update_changes_neither_the_lock_nor_the_catalog() {
+    let world = world(&lock_with("1.0.0"), "[catalog]\ndep = \">=1.0.0\"\n");
+    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    let syncer: RecordingSyncer = RecordingSyncer { calls: RefCell::new(0) };
+    let args: Vec<String> = ["update", "--breaking", "--precise", "1.0.1", "dep"].iter().map(|argument| { return argument.to_string(); }).collect();
+
+    let report = run_with_syncer(&world, &cargo, &registry, &syncer, &args);
+
+    assert!(!report.written);
+    assert_eq!(lock_of(&world), lock_with("1.0.0"));
+    assert!(fs::read_to_string(&world.catalog).expect("catalog").contains(">=1.0.0"));
+    assert_eq!(*syncer.calls.borrow(), 0);
 }
