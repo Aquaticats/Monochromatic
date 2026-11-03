@@ -10238,3 +10238,13 @@ by the coordinator at merge.
   same instant (host-wide stalls). Adopted unasked from standing rules: the migration keeps `index.lock` over the
   catch-up ("never discard user data"); the one-hour patience for an owner in another PID namespace matches the
   wrapper's other owner records.
+- 2026-11-03T03:04:29-05:00, owner answers (question tool): push deadline: "Stop only on no progress (Recommended)" (stop a push
+  after 30 s without progress, bytes read or written by the push and its children, under a generous outer
+  ceiling); empty pidless locks: "Keep rule 2 (Recommended)"; service work lease: "Keep the lease
+  (Recommended)"; shared tooling flocks (`campaign-lock.ts`, `gate-slot.ts` in
+  `package/mutation-test/cli-cargo-mutants`): "Port both", against the offered ranking (keep both), with the
+  stated consequence that liveness becomes a pid-and-start-time judgement. QUEUED until a delegate slot frees
+  (five running): resume the deadline agent for the no-progress deadline on top of its branch; then port both
+  tooling flocks to numbered claim files (the wrapper's `single_owner_claim.rs` design, with a TypeScript process
+  start-time reader); then the snapshot-add timing split (parent fsync, second walk); then the service follow-ups
+  (scratch ref left by a killed landing, O(N squared) `claimed/` scan).
