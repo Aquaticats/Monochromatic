@@ -84,7 +84,8 @@ fn a_manifest_the_call_rewrote_is_recorded_and_put_back() {
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(warnings.len(), 1, "the put-back names the file it kept: {warnings:?}");
+    assert!(warnings[0].contains("is kept as"), "{warnings:?}");
     assert_eq!(fs::read_to_string(&path).expect("read"), "before");
 }
 
@@ -187,7 +188,7 @@ fn an_edit_to_a_manifest_the_call_did_not_write_is_not_recorded_and_survives() {
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(&second).expect("read"), "b edited by a person meanwhile");
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert_eq!(warnings.len(), 2, "one for the put-back of a, one for the untouched edit of b: {warnings:?}");
 }
 
 /// A change that lands after the call returned is outside its window and is not the call's output.

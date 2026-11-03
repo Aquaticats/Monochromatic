@@ -247,7 +247,8 @@ pub(crate) fn recover_manifests(manifests: &[JournaledManifest], decisions: &[(S
             Ok(ReplaceOutcome::LeftAlone) => messages.push(format!("{shown} was changed by another process while a killed run was being recovered; it was left as that process wrote it")),
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            Ok(ReplaceOutcome::Preserved(kept) | ReplaceOutcome::Displaced(kept) | ReplaceOutcome::Undone(kept)) => messages.push(format!("{shown} was changed twice by other processes while a killed run was being recovered; the file displaced is kept as {}", kept.display())),
+            Ok(ReplaceOutcome::Displaced(kept)) => messages.push(format!("{shown} was put back, but the file it displaced was not the one the killed run wrote; that file is kept as {}", kept.display())),
+            Ok(ReplaceOutcome::Undone(kept)) => messages.push(format!("{shown} was changed twice by other processes while a killed run was being recovered; it was left as the last one wrote it, and the snapshot copy is kept as {}", kept.display())),
             Err(error) => {
                 all_settled = false;
                 // Macro `format!`: builds or prints text (or a list) from a template.
@@ -515,14 +516,20 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32, &str) -> bool, judge: &d
                     decisions.push((old.crate_dir.clone(), RootDecision::LeftAlone));
                 }
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                Ok(ReplaceOutcome::Preserved(kept) | ReplaceOutcome::Displaced(kept) | ReplaceOutcome::Undone(kept)) => {
-                    // Macro `format!`: builds or prints text (or a list) from a template.
+                Ok(ReplaceOutcome::Displaced(kept)) => {
                     messages.push(format!(
-                        "{}/{LOCKFILE_NAME} was changed twice by other processes while a killed run was being recovered; the file displaced is kept as {}",
+                        "{}/{LOCKFILE_NAME} was left by a run that was killed; the earlier lockfile was put back, but the file it displaced was not the one that run wrote; that file is kept as {}",
                         old.crate_dir,
                         kept.display()
                     ));
-                    // `.clone()`: an independent owned copy.
+                    decisions.push((old.crate_dir.clone(), RootDecision::Restored));
+                }
+                Ok(ReplaceOutcome::Undone(kept)) => {
+                    messages.push(format!(
+                        "{}/{LOCKFILE_NAME} was changed twice by other processes while a killed run was being recovered; it was left as the last one wrote it, and the snapshot copy is kept as {}",
+                        old.crate_dir,
+                        kept.display()
+                    ));
                     decisions.push((old.crate_dir.clone(), RootDecision::LeftAlone));
                 }
                 Err(error) => {

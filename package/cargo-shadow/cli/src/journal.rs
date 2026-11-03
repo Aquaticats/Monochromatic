@@ -102,7 +102,7 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// export { KeepAs, ReplaceOutcome, replaceIfHolds } from './journal-replace.ts';
 /// ```
-pub use crate::journal_replace::{KeepAs, ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks, replace_keeping, replace_keeping_with_hook, replace_with_swap, sync_directory};
+pub use crate::journal_replace::{create_directories_synced, create_exclusive, unique_suffix, KeepAs, ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks, replace_keeping, replace_keeping_with_hook, replace_with_swap, sync_directory};
 /// Re-exports the recovery entry points,
 /// which live in `journal_recover.rs`.
 pub use crate::journal_recover::{recover, recover_with};
@@ -245,10 +245,9 @@ pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    let temp: PathBuf = directory.join(format!(".{}.shadow-{}.tmp", file_name_text(target), crate::file_owner::clock_ns()));
+    let (temp, _device, _inode): (PathBuf, u64, u64) = create_exclusive(&directory, &file_name_text(target), text, 0o644, &mut unique_suffix)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&temp`: lends the value without copying or giving it away.
-    write_synced(&temp, text)?;
     // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
     // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
     //
@@ -375,8 +374,13 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
                 "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
                 snapshot.crate_dir
             )),
-            ReplaceOutcome::Preserved(copy) | ReplaceOutcome::Displaced(copy) | ReplaceOutcome::Undone(copy) => warnings.push(format!(
-                "{}/{LOCKFILE_NAME} was changed twice by other processes while the step ran; the file displaced is kept as {}",
+            ReplaceOutcome::Displaced(copy) => warnings.push(format!(
+                "{}/{LOCKFILE_NAME} was restored, but the file it displaced was not the one this run wrote; that file is kept as {}",
+                snapshot.crate_dir,
+                copy.display()
+            )),
+            ReplaceOutcome::Undone(copy) => warnings.push(format!(
+                "{}/{LOCKFILE_NAME} was changed twice by other processes while the step ran; it was left as the last one wrote it, and the snapshot copy is kept as {}",
                 snapshot.crate_dir,
                 copy.display()
             )),

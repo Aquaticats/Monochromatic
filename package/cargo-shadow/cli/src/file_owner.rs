@@ -387,7 +387,9 @@ pub fn claim_output(path: &Path, before_text: &str, window: Window) -> io::Resul
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(Claim::Unchanged);
     }
-    if seen.changed_ns >= window.start_ns && seen.changed_ns <= window.end_ns {
+    // A window that ends before it starts means the clock stepped back during the call: it proves nothing, so the changed file is
+    // treated as the call's output. That is the safe direction, because a restore keeps the file it displaces.
+    if window.end_ns < window.start_ns || (seen.changed_ns >= window.start_ns && seen.changed_ns <= window.end_ns) {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(Claim::Ours(seen.text));
     }

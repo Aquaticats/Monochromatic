@@ -337,13 +337,26 @@ pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> i
             // `match`: picks the arm whose pattern fits the value.
             // Borrow `&edit.path`: lends the value without copying or giving it away.
             Some(produced) if *produced == live => match replace_keeping(&edit.path, produced, &edit.before, keep)? {
-                ReplaceOutcome::Replaced(_) => {}
+                // Review finding (3b 8): whoever wrote the text that is replaced, it is kept and named, never silently dropped.
+                ReplaceOutcome::Replaced(kept) => warnings.push(format!(
+                    "{} was put back to its text before the run; the text it held is kept as {}",
+                    edit.path.display(),
+                    match kept {
+                        Some(found) => found.display().to_string(),
+                        None => "nothing (it had vanished)".to_string(),
+                    }
+                )),
                 ReplaceOutcome::LeftAlone => warnings.push(format!(
                     "{} was changed by another process while it was being restored; it was left as that process wrote it",
                     edit.path.display()
                 )),
-                ReplaceOutcome::Preserved(kept) | ReplaceOutcome::Displaced(kept) | ReplaceOutcome::Undone(kept) => warnings.push(format!(
-                    "{} was changed twice by other processes while it was being restored; the file displaced is kept as {}",
+                ReplaceOutcome::Displaced(kept) => warnings.push(format!(
+                    "{} was restored, but the file it displaced was not the one this run wrote; that file is kept as {}",
+                    edit.path.display(),
+                    kept.display()
+                )),
+                ReplaceOutcome::Undone(kept) => warnings.push(format!(
+                    "{} was changed twice by other processes while it was being restored; it was left as the last one wrote it, and the snapshot copy is kept as {}",
                     edit.path.display(),
                     kept.display()
                 )),

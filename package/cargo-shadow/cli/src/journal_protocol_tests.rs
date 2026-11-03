@@ -142,3 +142,28 @@ fn a_failed_lockfile_restore_leaves_the_roots_manifest_alone() {
     fs::set_permissions(&crate_dir, fs::Permissions::from_mode(0o755)).expect("writable again");
     assert_eq!(fs::read_to_string(&manifest).expect("manifest"), "manifest rewritten by the killed run", "{messages:?}");
 }
+
+/// Review finding (3b 9): a temporary name that already exists is never truncated; the next name is used.
+#[test]
+fn a_temporary_name_that_exists_is_never_truncated() {
+    let root = scratch();
+    fs::write(root.path().join(".x.shadow-same.tmp"), "keep me").expect("existing temporary");
+    let mut names = ["same", "fresh"].into_iter().map(str::to_string);
+
+    let (created, _device, _inode) = crate::journal_replace::create_exclusive(root.path(), "x", "new", 0o644, &mut || { return names.next().expect("a name"); }).expect("creates");
+
+    assert_eq!(fs::read_to_string(root.path().join(".x.shadow-same.tmp")).expect("existing"), "keep me");
+    assert_eq!(fs::read_to_string(created).expect("created"), "new");
+}
+
+/// A name generator that never yields a free name ends in an error that names the directory, not in a loop that never ends.
+#[test]
+fn a_temporary_name_search_ends_with_an_error() {
+    let root = scratch();
+    fs::write(root.path().join(".x.shadow-same.tmp"), "keep me").expect("existing temporary");
+
+    let result = crate::journal_replace::create_exclusive(root.path(), "x", "new", 0o644, &mut || { return "same".to_string(); });
+
+    let message: String = result.expect_err("no free name").to_string();
+    assert!(message.contains(&root.path().display().to_string()), "{message}");
+}

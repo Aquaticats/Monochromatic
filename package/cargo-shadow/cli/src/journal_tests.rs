@@ -417,7 +417,7 @@ fn recovery_does_not_replace_a_lock_published_in_the_gap_after_the_last_comparis
     // for (const item of list) { ... }  // or list.map(...)
     // ```
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(messages.iter().any(|message| { return message.contains("another process"); }), "{messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("other process"); }), "{messages:?}");
 }
 
 #[test]
@@ -619,7 +619,7 @@ fn a_file_displaced_twice_is_kept_as_displaced_and_the_first_writers_file_is_put
     // structuredClone(value)  // or [...list] / {...object}
     // ```
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(outcome, ReplaceOutcome::Preserved(kept.clone()));
+    assert_eq!(outcome, ReplaceOutcome::Undone(kept.clone()));
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "first writer");
     // Borrow `&kept`: lends the value without copying or giving it away.
@@ -650,7 +650,7 @@ fn a_second_displaced_file_gets_its_own_name() {
     let kept = root.path().join(CRATE_DIR).join("Cargo.lock.displaced.1");
     // `.clone()`: an independent owned copy.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(outcome, ReplaceOutcome::Preserved(kept.clone()));
+    assert_eq!(outcome, ReplaceOutcome::Undone(kept.clone()));
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock.displaced")).expect("kept"), "an earlier displaced file");
@@ -804,7 +804,7 @@ fn a_replacement_edited_in_place_after_the_exchange_is_kept_not_deleted() {
     let outcome = replace_if_holds_with_hooks(&path, "expected", "new text", &first_writer, &in_place).expect("answers");
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(matches!(outcome, ReplaceOutcome::Preserved(_)), "{outcome:?}");
+    assert!(matches!(outcome, ReplaceOutcome::Undone(_)), "{outcome:?}");
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "first writer");
     // Closure `|name|`: an anonymous function, like a TS arrow function.
