@@ -23,19 +23,27 @@
 use crate::model_explore::{Limits, Report, explore};
 
 /// What:
-///  `enum Rules { Six }` is a closed set of named choices (TS: a union of string literals).
-///  The model runs under the revision-6 rule; the revision-7 rule is a second variant added with its fix.
+///  `enum Rules { ... }` is a closed set of named choices (TS: a union of string literals).
+///  The model runs under the revision-6 rule and under the revision-7 rule, and under two mutations of the
+///  revision-7 rule that each leave out one fsync.
 /// Why:
 ///  The rule revision lives in the state so the explorer's function pointers need no captured variable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six';
+/// type Rules = 'six' | 'seven' | 'seven-no-binding-sync' | 'seven-no-record-sync';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
     /// Revision 6: check the places, write a temporary record, rename it over `inbox/<id>`.
     Six,
+    /// Revision 7: create `ids/<xx>/<id>` with `O_EXCL`, fsync it, write the record, publish it with a no-replace
+    /// link, fsync `inbox/` and answer.
+    Seven,
+    /// Revision 7 with the fsync of the binding file left out (a mutation that must stay red).
+    SevenNoBindingSync,
+    /// Revision 7 with the fsync of the published record left out (a mutation that must stay red).
+    SevenNoRecordSync,
 }
 
 /// What:
@@ -65,12 +73,16 @@ pub struct Slot {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Phase = 'start' | 'checked' | 'temp' | 'published' | 'acked' | 'rejected' | 'resent';
+/// type Phase = 'start' | 'bound' | 'linked' | 'checked' | 'temp' | 'published' | 'acked' | 'rejected' | 'resent' | 'crashed';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Phase {
     /// Nothing done yet.
     Start,
+    /// Revision 7: the binding file is created but not yet made durable.
+    Bound,
+    /// Revision 7: the record is linked into `inbox/<id>` but not yet made durable.
+    Linked,
     /// The places were read and held no record of the identity.
     Checked,
     /// The client's record is written under a temporary name.
@@ -83,6 +95,8 @@ pub enum Phase {
     Rejected,
     /// The client found its own content recorded and was answered from the record.
     Resent,
+    /// The client process died; whatever it had written stays.
+    Crashed,
 }
 
 /// What:
@@ -118,6 +132,8 @@ pub struct State {
     pub rules: Rules,
     /// Client A (index 0, hash 1) and client B (index 1, hash 2).
     pub clients: [Client; 2],
+    /// `ids/<xx>/<id>`: the permanent binding of the identity to a content hash (revision 7 only).
+    pub binding: Slot,
     /// `inbox/<id>`.
     pub inbox: Slot,
     /// `queue/<id>`, where adoption moves the record.
@@ -144,7 +160,7 @@ const NAMES: [&str; 2] = ["A", "B"];
 pub fn initial(rules: Rules) -> State {
     let a: Client = Client { hash: 1, phase: Phase::Start };
     let b: Client = Client { hash: 2, phase: Phase::Start };
-    return State { rules, clients: [a, b], inbox: EMPTY, queue: EMPTY, ledger: EMPTY };
+    return State { rules, clients: [a, b], binding: EMPTY, inbox: EMPTY, queue: EMPTY, ledger: EMPTY };
 }
 
 /// What:
@@ -179,44 +195,21 @@ fn recorded(state: &State) -> u8 {
 pub fn steps(state: &State) -> Vec<(String, State)> {
     let mut found: Vec<(String, State)> = Vec::new();
     for who in 0..2 {
-        let name: &str = NAMES[who];
-        let client: Client = state.clients[who];
-        if client.phase == Phase::Start {
-            let known: u8 = recorded(state);
-            let mut after: State = state.clone();
-            if known == 0 {
-                after.clients[who].phase = Phase::Checked;
-                found.push((format!("{}: reads the inbox, the queue and the ledger and finds no record", name), after));
-            } else if known == client.hash {
-                after.clients[who].phase = Phase::Resent;
-                found.push((format!("{}: finds its own content recorded and answers from the record", name), after));
-            } else {
-                after.clients[who].phase = Phase::Rejected;
-                found.push((format!("{}: finds a different content recorded and is refused", name), after));
-            }
-        }
-        if client.phase == Phase::Checked {
-            let mut after: State = state.clone();
-            after.clients[who].phase = Phase::Temp;
-            found.push((format!("{}: writes its record under a temporary name", name), after));
-        }
-        if client.phase == Phase::Temp {
-            // The revision-6 publication: a rename over `inbox/<id>`, which replaces whatever is there.
-            let mut after: State = state.clone();
-            after.inbox = Slot { hash: client.hash, durable: true };
-            after.clients[who].phase = Phase::Published;
-            found.push((format!("{}: renames its record over inbox/<id>", name), after));
-        }
-        if client.phase == Phase::Published {
-            let mut after: State = state.clone();
-            after.clients[who].phase = Phase::Acked;
-            found.push((format!("{}: answers that the request is handed over", name), after));
-        }
+        // What:     `found.extend(list)` appends every entry of another list; `client_steps(state, who)` returns
+        //           a fresh `Vec` and `&` lends the state read-only.
+        // Why:      Add this client's enabled steps to the lane's.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // found.push(...clientSteps(state, who));
+        // ```
+        found.extend(client_steps(state, who));
     }
     if state.inbox.hash != 0 {
         // Adoption moves the record from `inbox/<id>` to `queue/<id>` with a rename, which replaces a record there.
         let mut after: State = state.clone();
-        after.queue = state.inbox;
+        // The lane fsyncs what it writes, so the queue entry is durable.
+        after.queue = Slot { hash: state.inbox.hash, durable: true };
         after.inbox = EMPTY;
         found.push(("lane: adopts the record, moving inbox/<id> to queue/<id>".to_string(), after));
     }
@@ -224,12 +217,164 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         // Retirement appends the terminal line; the first line of an identity is the one a later lookup reads.
         let mut after: State = state.clone();
         if after.ledger.hash == 0 {
-            after.ledger = state.queue;
+            after.ledger = Slot { hash: state.queue.hash, durable: true };
         }
         after.queue = EMPTY;
         found.push(("lane: retires the request, appending its ledger line".to_string(), after));
     }
+    if state.rules != Rules::Six && has_volatile(state) {
+        // A power loss drops what was never fsynced and ends every client that was not told an answer.
+        found.push(("power loss: unsynced files and directory entries are gone".to_string(), after_power_loss(state)));
+    }
     return found;
+}
+
+/// What:
+///  Every step of client `who` in `state`, under the rule the state names.
+/// Why:
+///  The two revisions differ only here, so the lane's steps stay shared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function clientSteps(s: State, who: number): [string, State][];
+/// ```
+fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
+    let mut found: Vec<(String, State)> = Vec::new();
+    let name: &str = NAMES[who];
+    let client: Client = state.clients[who];
+    let seven: bool = state.rules != Rules::Six;
+    if client.phase == Phase::Start && !seven {
+        let known: u8 = recorded(state);
+        let mut after: State = state.clone();
+        if known == 0 {
+            after.clients[who].phase = Phase::Checked;
+            found.push((format!("{}: reads the inbox, the queue and the ledger and finds no record", name), after));
+        } else if known == client.hash {
+            after.clients[who].phase = Phase::Resent;
+            found.push((format!("{}: finds its own content recorded and answers from the record", name), after));
+        } else {
+            after.clients[who].phase = Phase::Rejected;
+            found.push((format!("{}: finds a different content recorded and is refused", name), after));
+        }
+    }
+    if client.phase == Phase::Start && seven {
+        // `O_EXCL` creation of `ids/<xx>/<id>`: exactly one client creates it, the others read it.
+        let mut after: State = state.clone();
+        if state.binding.hash == 0 {
+            after.binding = Slot { hash: client.hash, durable: false };
+            after.clients[who].phase = Phase::Bound;
+            found.push((format!("{}: creates ids/<xx>/<id> with O_EXCL", name), after));
+        } else if state.binding.hash == client.hash {
+            after.clients[who].phase = Phase::Resent;
+            found.push((format!("{}: finds its own hash in the binding and answers from the record", name), after));
+        } else {
+            after.clients[who].phase = Phase::Rejected;
+            found.push((format!("{}: finds a different hash in the binding and is refused", name), after));
+        }
+    }
+    if client.phase == Phase::Bound {
+        let mut after: State = state.clone();
+        if state.rules == Rules::SevenNoBindingSync {
+            // Mutation: the binding is not fsynced before the record is written.
+            after.clients[who].phase = Phase::Checked;
+            found.push((format!("{}: goes on without syncing the binding", name), after));
+        } else {
+            after.binding.durable = true;
+            after.clients[who].phase = Phase::Checked;
+            found.push((format!("{}: fsyncs the binding file and its directory", name), after));
+        }
+    }
+    if client.phase == Phase::Checked {
+        let mut after: State = state.clone();
+        after.clients[who].phase = Phase::Temp;
+        found.push((format!("{}: writes its record under a temporary name", name), after));
+    }
+    if client.phase == Phase::Temp && !seven {
+        // The revision-6 publication: a rename over `inbox/<id>`, which replaces whatever is there.
+        let mut after: State = state.clone();
+        after.inbox = Slot { hash: client.hash, durable: true };
+        after.clients[who].phase = Phase::Published;
+        found.push((format!("{}: renames its record over inbox/<id>", name), after));
+    }
+    if client.phase == Phase::Temp && seven {
+        // The revision-7 publication: a link that fails when `inbox/<id>` exists and never replaces it.
+        let mut after: State = state.clone();
+        if state.inbox.hash == 0 {
+            after.inbox = Slot { hash: client.hash, durable: false };
+            after.clients[who].phase = Phase::Linked;
+            found.push((format!("{}: links its record into inbox/<id> without replacing", name), after));
+        } else {
+            // What:     `if c { a } else { b }` used as a value, like TS `c ? a : b`.
+            // Why:      Answer from the record when it is the client's own content, else refuse.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // after.clients[who].phase = inbox.hash === client.hash ? 'resent' : 'rejected';
+            // ```
+            after.clients[who].phase = if state.inbox.hash == client.hash { Phase::Resent } else { Phase::Rejected };
+            found.push((format!("{}: the link fails because inbox/<id> exists", name), after));
+        }
+    }
+    if client.phase == Phase::Linked {
+        let mut after: State = state.clone();
+        after.clients[who].phase = Phase::Published;
+        if state.rules == Rules::SevenNoRecordSync {
+            // Mutation: the record is answered for without fsyncing `inbox/` and its parent.
+            found.push((format!("{}: goes on without syncing inbox/", name), after));
+        } else {
+            after.inbox.durable = true;
+            found.push((format!("{}: fsyncs the record, inbox/ and its parent", name), after));
+        }
+    }
+    let alive_midway: bool = client.phase == Phase::Bound
+        || client.phase == Phase::Checked
+        || client.phase == Phase::Temp
+        || client.phase == Phase::Linked
+        || client.phase == Phase::Published;
+    if alive_midway {
+        // A client process can die between any two of its steps.
+        let mut after: State = state.clone();
+        after.clients[who].phase = Phase::Crashed;
+        found.push((format!("{}: the process dies", name), after));
+    }
+    if client.phase == Phase::Published {
+        let mut after: State = state.clone();
+        after.clients[who].phase = Phase::Acked;
+        found.push((format!("{}: answers that the request is handed over", name), after));
+    }
+    return found;
+}
+
+/// Whether some file or directory entry has not been made durable.
+fn has_volatile(state: &State) -> bool {
+    return !state.binding.durable || !state.inbox.durable;
+}
+
+/// What:
+///  The state after a power loss: unsynced entries vanish and every client without a final answer starts over
+///  (a client that was never told retries with the same identity and content).
+/// Why:
+///  This is the model's fsync ordering: a step that is not synced when the power goes is not there afterwards.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function afterPowerLoss(s: State): State;
+/// ```
+fn after_power_loss(state: &State) -> State {
+    let mut after: State = state.clone();
+    if !after.binding.durable {
+        after.binding = EMPTY;
+    }
+    if !after.inbox.durable {
+        after.inbox = EMPTY;
+    }
+    for who in 0..2 {
+        let phase: Phase = after.clients[who].phase;
+        if phase != Phase::Acked && phase != Phase::Rejected && phase != Phase::Resent && phase != Phase::Crashed {
+            after.clients[who].phase = Phase::Start;
+        }
+    }
+    return after;
 }
 
 /// What:
@@ -252,6 +397,9 @@ pub fn invariant(state: &State) -> Option<String> {
             return Some("two different contents are recorded for one identity".to_string());
         }
         content = slot.hash;
+    }
+    if state.binding.hash != 0 && content != 0 && state.binding.hash != content {
+        return Some("the binding of the identity names a different content than its record".to_string());
     }
     for client in state.clients {
         if client.phase == Phase::Acked && client.hash != content {

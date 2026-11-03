@@ -341,3 +341,41 @@ pub fn explore<S: Clone + Eq + Hash>(
     // ```
     return Report { states: nodes.len(), deepest, exhausted, violation: None };
 }
+
+/// What:
+///  Replays one named schedule from `start`: for each wanted label, takes the enabled step with that label.
+///  Panics (stops the test with a message) when a wanted label is not enabled in the state reached.
+///  `&[&str]` borrows a list of borrowed texts.
+/// Why:
+///  The review's counterexamples are literal schedules; a test can state one step by step and check the state
+///  it reaches, besides what the exhaustive search finds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function replay<S>(start: S, successors: (s: S) => [string, S][], labels: string[]): S;
+/// ```
+pub fn replay<S: Clone>(start: S, successors: fn(&S) -> Vec<(String, S)>, labels: &[&str]) -> S {
+    let mut state: S = start;
+    for wanted in labels {
+        let mut taken: Option<S> = None;
+        for (label, after) in successors(&state) {
+            if label.as_str() == *wanted {
+                taken = Some(after);
+                break;
+            }
+        }
+        // What:     `match taken { Some(after) => ..., None => panic!(...) }` splits the two cases of an `Option`.
+        // Why:      A schedule that names a step that is not enabled is a broken test, so say which step.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (taken === undefined) throw new Error(`step not enabled: ${wanted}`);
+        // state = taken;
+        // ```
+        match taken {
+            Some(after) => state = after,
+            None => panic!("the step is not enabled in the state reached: {}", wanted),
+        }
+    }
+    return state;
+}
