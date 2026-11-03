@@ -16,6 +16,14 @@ use std::time::{Duration, SystemTime};
 
 /// How long an owner of another PID namespace counts as alive, measured from when its record was written.
 ///  A commit or a lock hold lasts seconds to minutes; a crashed foreign owner stops blocking after this long.
+///  The record is written once and its modification time is not refreshed while the owner works, so the patience must outlast
+///  the longest an owner holds its record. Measured: the longest wrapper command in the commit timing log (1,051 commits,
+///  2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z, `totalMs`) took 750.6 s and the longest worktree add in the add timing log (48
+///  adds, 2026-11-03T08:55Z to 15:06Z) took 539.7 s, so an hour is 4.8 times the longest hold seen; it is also twice the
+///  1,800 s that a command may wait for a live lock holder (`wait_limit.rs`, `DEFAULT_LIVE_WAIT`), the longest wait the code
+///  allows. If that wait is lengthened or removed, this value must be revisited with it. The logs hold commands of the host's
+///  own PID namespace, so no foreign-namespace hold was observed directly. Kept at an hour as the coordinator's pick under the
+///  owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Foreign-owner patience").
 pub const FOREIGN_OWNER_PATIENCE: Duration = Duration::from_secs(3600);
 
 /// What:
