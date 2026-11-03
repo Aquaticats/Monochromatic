@@ -104,15 +104,14 @@ fn an_empty_source_clones_nothing() {
     assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &empty), BuildStatePlan::Nothing(_)));
 }
 
-/// Every member gets its own `--package`, the clean never changes the lock and never uses the network.
+/// Every member gets its own `--package` and the clean never uses the network; `--locked` would make a stale lock fail it.
 #[test]
 fn the_clean_names_every_member_and_stays_offline() {
     let members: Vec<String> = vec![String::from("app"), String::from("lib")];
     let arguments: Vec<String> = clean_arguments(&members).iter().map(|each| { return each.to_string_lossy().into_owned(); }).collect();
     assert_eq!(arguments.first().map(String::as_str), Some("clean"));
-    for flag in ["--locked", "--offline"] {
-        assert!(arguments.iter().any(|each| { return each == flag; }), "{flag} missing in {arguments:?}");
-    }
+    assert!(arguments.iter().any(|each| { return each == "--offline"; }), "--offline missing in {arguments:?}");
+    assert!(!arguments.iter().any(|each| { return each == "--locked"; }), "--locked would fail on a stale lock: {arguments:?}");
     for member in &members {
         let position: usize = arguments.iter().position(|each| { return each == member; }).expect("member present");
         assert_eq!(arguments[position - 1], "--package", "{arguments:?}");

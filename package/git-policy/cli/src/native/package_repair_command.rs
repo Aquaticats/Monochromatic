@@ -118,7 +118,9 @@ pub fn find_program(name: &str, search_path: Option<&OsStr>) -> Option<PathBuf> 
 fn tail_of(bytes: &[u8]) -> String {
     let cut: usize = bytes.len().saturating_sub(OUTPUT_TAIL_BYTES);
     let text: String = String::from_utf8_lossy(&bytes[cut..]).into_owned();
-    let trimmed: &str = text.trim();
+    // Lines that only say a tool waited for another process say nothing about why it failed.
+    let informative: String = text.lines().filter(|line: &&str| { return !line.trim_start().starts_with("Blocking waiting for file lock"); }).collect::<Vec<&str>>().join("\n");
+    let trimmed: &str = informative.trim();
     if cut == 0 {
         return trimmed.to_owned();
     }

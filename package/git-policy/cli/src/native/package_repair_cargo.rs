@@ -36,6 +36,9 @@ const PROGRAM: &str = "cargo";
 /// The manifest file that makes a directory a Cargo package or workspace root.
 const MANIFEST: &str = "Cargo.toml";
 
+/// The lock file beside a workspace's root manifest.
+const LOCK_FILE: &str = "Cargo.lock";
+
 /// What:
 ///  One Cargo workspace as `cargo metadata --no-deps` describes it.
 /// Why:
@@ -177,15 +180,16 @@ pub fn plan_build_state(destination: &Workspace, destination_root: &Path, facts:
 /// What:
 ///  The arguments of the clean that removes exactly the members' own artifacts.
 /// Why:
-///   `--locked --offline` keeps the clean from changing `Cargo.lock` or reaching the network; one `--package` per member
-///  keeps registry and git dependencies.
+///   `--offline` keeps the clean from reaching the network; one `--package` per member keeps registry and git dependencies.
+///  `--locked` is not used: a committed `Cargo.lock` that no longer matches its manifest (several do here) would make the clean
+///  fail, and the person's own clean would not; the file is put back as checked out instead (`restore_lock`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function cleanArguments(members: string[]): string[];
 /// ```
 pub fn clean_arguments(members: &[String]) -> Vec<OsString> {
-    let mut arguments: Vec<OsString> = ["clean", "--locked", "--offline"].iter().map(OsString::from).collect();
+    let mut arguments: Vec<OsString> = ["clean", "--offline"].iter().map(OsString::from).collect();
     for member in members {
         arguments.push(OsString::from("--package"));
         arguments.push(OsString::from(member));
@@ -256,6 +260,46 @@ fn read_workspace(cargo: &Path, directory: &Path, limit: std::time::Duration) ->
     };
 }
 
+/// What:
+///  The bytes of the workspace's `Cargo.lock`, or none when it has none.
+/// Why:
+///   `cargo clean --package` resolves the workspace, and Cargo rewrites a lock that no longer matches its manifest; the
+///  new worktree must stay as checked out, so the file is put back afterwards.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lock = readLock(root); // Uint8Array | undefined
+/// ```
+fn read_lock(root: &Path) -> Option<Vec<u8>> {
+    return std::fs::read(root.join(LOCK_FILE)).ok();
+}
+
+/// What:
+///  Put `Cargo.lock` back as `before` read it, removing a lock that did not exist before.
+/// Why:
+///   A write is made only when the content changed, so an untouched lock keeps its file time. A lock that cannot be put back
+///  is logged, and left for the person: it is the worktree's own file and the checkout shows the difference.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// restoreLock(root, before);
+/// ```
+fn restore_lock(root: &Path, before: Option<&[u8]>) {
+    let path: PathBuf = root.join(LOCK_FILE);
+    let after: Option<Vec<u8>> = std::fs::read(&path).ok();
+    if after.as_deref() == before {
+        return;
+    }
+    let outcome: std::io::Result<()> = match before {
+        Some(bytes) => std::fs::write(&path, bytes),
+        None => std::fs::remove_file(&path),
+    };
+    match outcome {
+        Ok(()) => debug(TAG, format!("{} was put back as checked out after the clean", path.display()).as_str()),
+        Err(error) => debug(TAG, format!("{} changed during the clean and could not be put back ({error})", path.display()).as_str()),
+    }
+}
+
 /// What a repair of one workspace did.
 enum Done {
     /// Nothing was needed; the text says why.
@@ -317,7 +361,9 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
         }
     };
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
+    let lock_before: Option<Vec<u8>> = read_lock(workspace.root.as_path());
     let run: ToolRun = run_tool(cargo, &command, request.environment.tool_limit);
+    restore_lock(workspace.root.as_path(), lock_before.as_deref());
     return match run.end {
         ToolEnd::Succeeded => Done::Cleaned { cloned },
         ToolEnd::Failed(reason) => failed(reason),
@@ -378,7 +424,7 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
         return Vec::new();
     }
     let Some(cargo) = find_program(PROGRAM, request.environment.path()) else {
-        return vec![missing_tool(Tool::Cargo, PROGRAM, "cargo clean --locked --offline --package <member> in each Cargo workspace of the worktree")];
+        return vec![missing_tool(Tool::Cargo, PROGRAM, "cargo clean --offline --package <member> in each Cargo workspace of the worktree")];
     };
     let workers: usize = request.environment.workers;
     let read: Vec<Result<Workspace, String>> = map_concurrent(directories.as_slice(), workers, &|directory: &PathBuf| { return read_workspace(cargo.as_path(), directory.as_path(), request.environment.tool_limit); });

@@ -99,3 +99,10 @@ fn reports_a_program_that_cannot_start() {
     assert!(matches!(run.end, ToolEnd::Failed(_)), "got {:?}", run.end);
     remove(&root);
 }
+
+/// Lines that only say the tool waited for another process are dropped from a failure's text; the reason stays.
+#[test]
+fn a_failure_text_drops_wait_notices() {
+    let text: String = tail_of(b"Blocking waiting for file lock on package cache\nerror: the real reason\n");
+    assert_eq!(text, "error: the real reason");
+}
