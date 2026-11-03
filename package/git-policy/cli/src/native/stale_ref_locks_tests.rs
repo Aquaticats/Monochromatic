@@ -378,3 +378,48 @@ fn the_roots_of_a_command_are_found_without_git() {
     assert_eq!(crate::git_directory_roots::roots_of_command(&command), stage.roots());
     stage.finish();
 }
+
+/// A process table with one process of this account whose descriptors cannot be read, as `systemd --user` is on a host.
+fn table_with_unreadable(stage: &Stage, command: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt as _;
+    let table: PathBuf = stage.root.join("proc");
+    let descriptors: PathBuf = table.join("4242").join("fd");
+    std::fs::create_dir_all(descriptors.as_path()).expect("fake process");
+    std::fs::write(table.join("4242").join("comm"), format!("{command}\n")).expect("comm");
+    std::fs::set_permissions(descriptors.as_path(), std::fs::Permissions::from_mode(0o000)).expect("hide the descriptors");
+    return table;
+}
+
+/// Make the fake table removable again.
+fn reveal(table: &Path) {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::set_permissions(table.join("4242").join("fd"), std::fs::Permissions::from_mode(0o700)).expect("reveal");
+}
+
+/// A process of this account that is not Git and cannot be looked into (the user's service manager) cannot hold a Git lock.
+#[test]
+fn an_unreadable_process_that_is_not_git_does_not_stop_a_proof() {
+    let stage: Stage = killed::stage("stale-refs-unreadable-service", false);
+    plant_lock(&stage, PLANTED_REF, None);
+    let table: PathBuf = table_with_unreadable(&stage, "systemd");
+    let after: Judge = Judge { proc_root: table.clone(), boot: Some(SystemTime::now() + Duration::from_secs(3600)), ..judge() };
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
+    reveal(table.as_path());
+    assert_eq!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::BeforeBoot)), "{outcome:?}");
+    stage.finish();
+}
+
+/// A Git process of this account that cannot be looked into may hold the lock, so nothing is proven.
+#[test]
+fn an_unreadable_git_process_stops_a_proof() {
+    let stage: Stage = killed::stage("stale-refs-unreadable-git", false);
+    plant_lock(&stage, PLANTED_REF, None);
+    let table: PathBuf = table_with_unreadable(&stage, "git");
+    let after: Judge = Judge { proc_root: table.clone(), boot: Some(SystemTime::now() + Duration::from_secs(3600)), ..judge() };
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
+    reveal(table.as_path());
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    assert!(stage.lock_of(PLANTED_REF).exists());
+    stage.finish();
+}

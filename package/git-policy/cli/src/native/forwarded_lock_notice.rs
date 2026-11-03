@@ -13,7 +13,7 @@
 //! ```
 
 use super::child_environment::environment_value;
-use super::diagnostic_log::warn;
+use super::diagnostic_log::debug;
 use super::git_directory_roots::roots_for;
 use super::stale_ref_lock_judge::Judge;
 use super::stale_ref_locks::clear_stale_ref_locks;
@@ -50,7 +50,8 @@ pub fn forwarded_lock_notice(word: &[u8], global_prefix: &[OsString], environmen
     let outcome = clear_stale_ref_locks(roots_for(start.as_path(), named).as_slice(), judge);
     let notice: String = outcome.notice();
     if !notice.is_empty() {
-        warn(TAG, notice.trim_end());
+        // The notice itself is printed on standard error, so the log keeps only a one-line record of it.
+        debug(TAG, "reference locks were judged before a forwarded fetch or push");
     }
     return notice;
 }
