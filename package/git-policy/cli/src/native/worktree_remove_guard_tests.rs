@@ -52,7 +52,7 @@ impl RemoveOperations for Stand {
         // The proof is made against the repository the worktree's own pointers name, so that a worktree of another
         // repository passes it, and only the scope of the registration can stop it.
         let own_common_dir: &Path = admin.parent().and_then(Path::parent).ok_or_else(|| { return String::from("no common directory"); })?;
-        check_clean(request.context, request.plan.target.as_path(), admin, own_common_dir)?;
+        check_clean(request.context, request.plan.target.as_path(), admin, own_common_dir).map_err(|refusal| { return refusal.reason; })?;
         Stand::fire(&self.after_proof);
         return Ok(());
     }
@@ -235,7 +235,7 @@ fn a_worktree_with_a_populated_submodule_is_left_to_git() {
     // Which rule refuses it, so that the result is not an accident of file times.
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let proof = check_clean(&git_context(), worktree.as_path(), admin_of(repo.as_path(), "wt").as_path(), common_dir.as_path());
-    assert_eq!(proof, Err(String::from("lib is a submodule")));
+    assert_eq!(proof.map_err(|refusal| { return refusal.reason; }), Err(String::from("lib is a submodule")));
     let stand: Stand = Stand::new(vec![worktree.clone()]);
     assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
     assert!(worktree.join("lib/tracked.txt").is_file(), "the submodule's files are untouched");

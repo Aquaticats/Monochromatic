@@ -117,16 +117,39 @@ fn replace_git_pointer(stage: &Path, pointer: &[u8]) -> Result<(), String> {
 /// ```ts
 /// await installIndex({ source, stage, admin });
 /// ```
-fn install_index(source: &SnapshotSource, stage: &Path, admin: &File) -> Result<(), String> {
-    let bytes: &[u8] = source.clean.index_bytes.as_slice();
-    let entries: Vec<StatEntry> = stored_stats(bytes, source.clean.hash_length).ok_or_else(|| { return String::from("the source's index changed shape"); })?;
+fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index: Option<&[u8]>) -> Result<(), String> {
     let root: File = open_root(stage).map_err(|error| { return format!("the stage cannot be opened ({error})"); })?;
-    if let Some(reason) = tree_differs_from_index_beneath(&root, entries.as_slice(), source.clean.index_seconds) {
-        return Err(format!("the source changed while it was copied ({reason})"));
+    // A clean source proved its index equal to its files, so it is compared with the snapshot. A source with changes has no such
+    //  proof: the snapshot's own index, one instant with its files, is installed as it is and the restore settles the rest.
+    let bytes: &[u8] = own_index.unwrap_or(source.clean.index_bytes.as_slice());
+    if own_index.is_none() {
+        let entries: Vec<StatEntry> = stored_stats(bytes, source.clean.hash_length).ok_or_else(|| { return String::from("the source's index changed shape"); })?;
+        if let Some(reason) = tree_differs_from_index_beneath(&root, entries.as_slice(), source.clean.index_seconds) {
+            return Err(format!("the source changed while it was copied ({reason})"));
+        }
     }
     let report: String = install_index_in(admin, bytes, &mut |path: &[u8]| { return stat_fields_beneath(&root, path); }, source.clean.hash_length)?;
     super::diagnostic_log::debug("takeSnapshot", report.as_str());
     return Ok(());
+}
+
+/// What:
+///  The bytes of the index inside the snapshot's own `.git`, read below handles that follow no link.
+/// Why:
+///   A source with uncommitted changes has no index that was proven equal to its files; the copy's index and the copy's files
+///  are one instant, whatever the source does next.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bytes = await readOwnIndex(stage); // throws a reason
+/// ```
+fn read_own_index(stage: &Path) -> Result<Vec<u8>, String> {
+    let root: File = open_root(stage).map_err(|error| { return format!("the stage cannot be opened ({error})"); })?;
+    let git_dir: File = open_directory_at(&root, OsStr::new(".git")).map_err(|error| { return format!("the snapshot has no .git directory ({error})"); })?;
+    let mut index: File = open_file_at(&git_dir, OsStr::new("index")).map_err(|error| { return format!("the snapshot has no index ({error})"); })?;
+    let mut bytes: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut index, &mut bytes).map_err(|error| { return format!("the snapshot's index is unreadable ({error})"); })?;
+    return Ok(bytes);
 }
 
 /// What:
@@ -144,10 +167,12 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     let made: Option<ObjectId> = open_root(stage.parent().unwrap_or(stage)).ok().and_then(|parent: File| { return identity_at(&parent, stage.file_name()?).ok(); });
     let failed = |reason: String| -> SnapshotFailure { return SnapshotFailure { reason, stage: made }; };
     std::fs::set_permissions(stage, std::fs::Permissions::from_mode(0o700)).map_err(|error| { return failed(format!("the stage cannot be made private ({error})")); })?;
+    // The snapshot's own index is read before its `.git` goes: it is the index of the same instant as the files.
+    let own_index: Option<Vec<u8>> = if source.dirty.is_some() { Some(read_own_index(stage).map_err(failed)?) } else { None };
     let pruned: Pruned = prune_snapshot(stage, source).map_err(failed)?;
     remove_stubs(stage, source, plan).map_err(failed)?;
     replace_git_pointer(stage, pointer).map_err(failed)?;
-    install_index(source, stage, admin).map_err(failed)?;
+    install_index(source, stage, admin, own_index.as_deref()).map_err(failed)?;
     let stage_id: ObjectId = made.ok_or_else(|| { return failed(String::from("the stage cannot be examined")); })?;
     return Ok(Snapshotted { stage: stage_id, trash: pruned.trash });
 }

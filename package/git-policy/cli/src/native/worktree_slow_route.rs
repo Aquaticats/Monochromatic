@@ -19,10 +19,11 @@ use super::client_journal::record_entry;
 use super::diagnostic_log::debug;
 use super::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
 use super::journald_native::Priority;
-use super::transaction_git::{GitContext, GitRequest, run_git};
+use super::transaction_git::GitContext;
 use super::worktree_add_plan::AddPlan;
 use super::worktree_identity::WorktreeIdentity;
-use super::worktree_snapshot_source::{Refusal, RefusalKind};
+use super::worktree_clean::CleanRefusalKind;
+use super::worktree_snapshot_source::{ChangedPaths, Refusal, RefusalKind, changed_paths, plain};
 use std::io::Write;
 use std::path::Path;
 
@@ -94,19 +95,6 @@ impl SlowRoute {
 }
 
 /// What:
-///  The text with every control character replaced by `?`.
-/// Why:
-///   A path in a sentence on a terminal or in the journal must not carry an escape sequence or start a line.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// text.replace(/\p{Cc}/gu, '?')
-/// ```
-fn plain(text: &str) -> String {
-    return text.chars().map(|character: char| { return if character.is_control() { '?' } else { character }; }).collect();
-}
-
-/// What:
 ///  How the source is called in a sentence: the main checkout, or the worktree the person ran the add from.
 /// Why:
 ///   The person knows which checkout they sit in; the sentence names it the way they would.
@@ -126,79 +114,32 @@ fn subject(identity: &WorktreeIdentity) -> &'static str {
 const THEN_QUICK: &str = "and the next add is a snapshot that takes seconds";
 
 /// What:
-///  How many paths `git status` lists as changed or untracked in the source, and the first of them.
+///  The cause and the sentence for an unclean source, chosen by the kind of the refusal.
 /// Why:
-///   Only Git's own status tells a real change from a stale record of file times, and the person is told the number and one
-///  name to look for. The read takes no optional lock, so it never disturbs the checkout a person works in.
+///   A running command and an unfinished operation are told as such; an entry no reset can undo is told as that; otherwise
+///  Git's own status decides between a real change and a record of file times that is out of date.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { count, first } = await changedPaths(context, root); // undefined when Git cannot say
+/// const route = explainUnclean({ context, root, subject, kind, reason });
 /// ```
-fn changed_paths(context: &GitContext, root: &Path) -> Option<(usize, String)> {
-    let request: GitRequest = GitRequest {
-        cwd: root.to_path_buf(),
-        arguments: ["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=normal", "--no-renames"].map(Into::into).to_vec(),
-        without_prefix: true,
-        ..GitRequest::default()
-    };
-    let output = match run_git(context, &request) {
-        Ok(found) if found.code == Some(0) => found,
-        Ok(found) => {
-            debug(TAG, format!("Git could not list the changes ({:?}: {})", found.code, String::from_utf8_lossy(found.stderr.as_slice()).trim()).as_str());
-            return None;
+fn explain_unclean(context: &GitContext, root: &Path, subject: &str, kind: CleanRefusalKind, reason: &str) -> SlowRoute {
+    match kind {
+        CleanRefusalKind::OperationInProgress("index.lock") => {
+            return SlowRoute { word: "git-running", detail: reason.to_string(), sentence: format!("another Git command is running in {subject} (its index.lock exists). Add again when it has finished, {THEN_QUICK}.") };
         }
-        Err(error) => {
-            debug(TAG, format!("Git could not list the changes ({error})").as_str());
-            return None;
+        CleanRefusalKind::OperationInProgress(name) => {
+            return SlowRoute { word: "operation-unfinished", detail: reason.to_string(), sentence: format!("{subject} is in the middle of an operation ({name} exists in its Git directory). Finish or abort it, {THEN_QUICK}.") };
         }
-    };
-    let entries: Vec<&[u8]> = output.stdout.split(|byte: &u8| { return *byte == 0; }).filter(|entry: &&[u8]| { return !entry.is_empty(); }).collect();
-    // Each entry is two status letters, a space, then the path.
-    let first: &[u8] = entries.first()?;
-    return Some((entries.len(), plain(String::from_utf8_lossy(first.get(3..).unwrap_or(first)).as_ref())));
-}
-
-/// What:
-///  Whether a check's reason says a Git command is running or an operation is unfinished, and the name of the file that says
-///  so.
-/// Why:
-///   `check_clean` reports `<name> exists in <directory>` for `index.lock`, `MERGE_HEAD` and the other marks of an
-///  operation in progress; the controls of this module run each against a real source, so a change of that wording fails there.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// reason.split(' exists in ')[0] // when the reason has that shape
-/// ```
-fn operation_mark(reason: &str) -> Option<&str> {
-    return reason.split_once(" exists in ").map(|(name, _directory): (&str, &str)| { return name; });
-}
-
-/// Whether a check's reason says the index cannot yet vouch for a file, which `git status` repairs.
-fn index_cannot_vouch(reason: &str) -> bool {
-    return reason.contains("is as new as the index") || reason.contains("differs from its index entry");
-}
-
-/// What:
-///  The cause and the sentence for an unclean source.
-/// Why:
-///   A running command and an unfinished operation are told as such; otherwise Git's own status decides between a real change
-///  and a record of file times that is out of date.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const route = explainUnclean({ context, root, subject, reason });
-/// ```
-fn explain_unclean(context: &GitContext, root: &Path, subject: &str, reason: &str) -> SlowRoute {
-    if let Some(name) = operation_mark(reason) {
-        let (word, sentence): (&'static str, String) = if name == "index.lock" {
-            ("git-running", format!("another Git command is running in {subject} (its index.lock exists). Add again when it has finished, {THEN_QUICK}."))
-        } else {
-            ("operation-unfinished", format!("{subject} is in the middle of an operation ({} exists in its Git directory). Finish or abort it, {THEN_QUICK}.", plain(name)))
-        };
-        return SlowRoute { word, detail: reason.to_string(), sentence };
+        CleanRefusalKind::NotPlain => {
+            return SlowRoute { word: "not-restorable", detail: reason.to_string(), sentence: format!("{subject} has an index entry that no reset can undo, a skip-worktree, assume-unchanged, intent-to-add, unmerged or submodule entry ({}).", plain(reason)) };
+        }
+        CleanRefusalKind::Unreadable => {
+            return SlowRoute { word: "unproven", detail: reason.to_string(), sentence: format!("{subject} could not be read to prove it unchanged ({}).", plain(reason)) };
+        }
+        CleanRefusalKind::StagedChange | CleanRefusalKind::FileChanged | CleanRefusalKind::StatStale | CleanRefusalKind::Racy | CleanRefusalKind::Untracked => {}
     }
-    if let Some((count, first)) = changed_paths(context, root) {
+    if let Some(ChangedPaths { count, first, .. }) = changed_paths(context, root) {
         let paths: &str = if count == 1 { "path" } else { "paths" };
         return SlowRoute {
             word: "uncommitted-changes",
@@ -206,7 +147,7 @@ fn explain_unclean(context: &GitContext, root: &Path, subject: &str, reason: &st
             sentence: format!("{subject} has uncommitted changes in {count} {paths} (for example {first}). Commit or stash them, {THEN_QUICK}."),
         };
     }
-    if index_cannot_vouch(reason) {
+    if matches!(kind, CleanRefusalKind::Racy | CleanRefusalKind::StatStale) {
         return SlowRoute {
             word: "stale-index",
             detail: reason.to_string(),
@@ -232,7 +173,7 @@ pub fn explain_refusal(context: &GitContext, identity: &WorktreeIdentity, refusa
         WorktreeIdentity::BareRepository { .. } | WorktreeIdentity::OutsideWorktree => return None,
     };
     return Some(match refusal.kind {
-        RefusalKind::Unclean => explain_unclean(context, root, subject(identity), refusal.reason.as_str()),
+        RefusalKind::Unclean(kind) => explain_unclean(context, root, subject(identity), kind, refusal.reason.as_str()),
         RefusalKind::Unsupported => explain_unsupported(refusal.reason.as_str()),
     });
 }

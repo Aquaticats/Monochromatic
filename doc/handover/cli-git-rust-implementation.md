@@ -10070,3 +10070,16 @@ by the coordinator at merge.
   retire-other-checkouts consequence stated to the owner; `--ignore-scripts`: "Run scripts as allowBuilds says
   (Recommended)"; symlink fallback: "No fallback rule (Recommended)". Being measured before asking: which pnpm
   binary (shadow or direct), the absolute stub link into main, the ten stale `Cargo.lock` files.
+- 2026-11-03T01:35:10-05:00, main reinstalled per the owner ("Run it now (Recommended)"): `pnpm install
+  --frozen-lockfile` in the main checkout (bounded scope, IOWeight 10) finished in 32.5 s; `node_modules/.modules.yaml`
+  now names `virtualStoreDir` `~/.local/share/pnpm/store/v11/links` (the global virtual store), so later adds from
+  main skip the measured 57 s conversion. Checked afterwards: `node_modules/.bin/oxlint --version` runs, and every
+  sampled declared dependency of the root, `package/git-policy/cli` and `package/mutation-test/cli-cargo-mutants`
+  resolves. Log `~/temp/agent/pnpm-main-gvs.log`. An empty-looking `node_modules/.pnpm` directory remains; not
+  investigated.
+- Owner decision 2026-11-03, verbatim: "The repair should start whatever pnpm is first on path." Kept as built;
+  the shadow-versus-binary measurement is dropped. The owner then approved the package-manager agent's denied
+  cleanup command as one exact string; run once from the main session after checking that no process used
+  `pm-bin` or `pm-measure-dir`: it removed the 22 five-entry build skeletons under `/var/mnt/encrypted/cargo-build`
+  created 2026-11-03T00:58:40 to 01:00:30-05:00 by the agent's real add; `pm-measure-dir` and `pm-bin` were already
+  gone; no `pm-` worktree or matching scope remains.

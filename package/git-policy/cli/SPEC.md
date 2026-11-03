@@ -474,6 +474,47 @@ submodule entry), every tracked file has the size, modification time, change tim
 bit its index entry recorded and is older than the index file, and `git ls-files --others --exclude-standard` lists
 nothing.
 A source is also refused for a sparse checkout, for any worktree-scope configuration entry, and for `core.sparseCheckout`.
+The clean check reports why it refused as a kind and a reason: an operation in progress (with the name of the mark), an
+index or object database the readers cannot read, an entry no reset can undo (unmerged, intent-to-add, skip-worktree,
+assume-unchanged, submodule), a staged change, a changed tracked file, an index entry the stat data cannot vouch for, or an
+untracked file.
+Callers and the sentence for the person decide by the kind, never by the words of the reason.
+
+Snapshot of a main checkout with uncommitted changes:
+a main checkout whose only trouble is an ordinary change (a staged change, an edited, deleted, renamed or mode-changed
+tracked file, an untracked file that no ignore rule covers, a tracked file the stat data cannot vouch for) is snapshotted
+all the same, and the new worktree is restored to what `git worktree add` makes from a clean checkout.
+Every other refusal stays: an operation in progress or a held `index.lock`; any unmerged, intent-to-add, skip-worktree or
+assume-unchanged entry, or a submodule, found anywhere in the index (not only at the first refusal); a `.gitattributes`
+file among the changes or untracked anywhere; a sparse checkout; a source that is a linked worktree, whose index lies outside
+its directory and so is not in the snapshot; and the clone rung, which is only for clean sources.
+The restore reads the index inside the snapshot before the snapshot's `.git` is replaced by the new worktree's pointer, and
+installs that index as it is (stat data kept, `UNTR` and `FSMN` dropped), so the index and the files are one instant and the
+stat data still marks every file that was edited.
+Then, in the stage only and before it is swapped in, two real-Git steps run under the new worktree's Git directory and the
+stage as work tree: `git read-tree --reset -u <new commit>` (the index and the tracked files become the new commit's tree,
+rewriting exactly the paths whose files or entries differ) and `git clean --force -d --quiet` (untracked files that no
+ignore rule covers, and empty untracked directories, go; ignored files stay).
+These two steps and nothing else are run for the restore.
+They are started as real Git children by the lifecycle's runner, the same path as the `git read-tree -m -u` of a clean
+snapshot, so the wrapper's own guards of a person's `reset` and `clean` do not apply to them: they act on the wrapper's own
+new snapshot, never on a checkout of the person, and they refuse to start when the stage is the source's directory or the
+Git directory is the source's.
+The stage is then proven: `git diff-index --cached --quiet <new commit>` (the index equals the commit's tree),
+`git ls-files --others --exclude-standard --directory --no-empty-directory` lists nothing, and `git diff-files --quiet`
+finds no tracked file different from its entry.
+A failed step or a failed proof ends the rung: the stage is destroyed and Git's own checkout makes the worktree, with the
+sentence of "Telling why an add was not made as a snapshot" naming the reason.
+The main checkout is read to be snapshotted and listed (`git --no-optional-locks status` and `ls-files`), and is never written:
+no step runs in it, and its files and index are what they were.
+Unless `--quiet` is given, a second line follows the snapshot note: the uncommitted changes of the main checkout (their number
+of paths) were left out of the new worktree, which holds what Git's own checkout holds.
+The same words go to the journal as one entry of priority `info` under the `SYSLOG_IDENTIFIER` `cli-git`, with the fields
+`CLI_GIT_WORKTREE`, `CLI_GIT_DIRTY_PATHS` (the number of paths) and `CLI_GIT_DIRTY_FIRST` (the first of them), also under
+`--quiet`.
+Changes made to the main checkout while the snapshot is taken or restored are out of scope, as for every rung: using the
+command is accepting that risk, and no step defends against it.
+`core.fsmonitor` is left as configured, as everywhere in the wrapper.
 
 Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and, for a source that is a
 linked worktree, no nested linked worktree that is an ordinary directory; a snapshot of the main checkout sets such a
@@ -545,10 +586,11 @@ copy summary.
 The line starts with `cli-git: this worktree was not made as a snapshot, so it took longer, because `, then the cause in
 plain words, then what makes the next add quick, and it names no internal step.
 The causes it tells are:
-uncommitted changes in the source (the number of paths `git --no-optional-locks status --porcelain=v1 --untracked-files=normal`
+uncommitted changes in a source that is not restored by a snapshot (a linked worktree; the number of paths `git --no-optional-locks status --porcelain=v1 --untracked-files=normal`
 lists, and the first of them, with control characters shown as `?`; the remedy is to commit or stash);
 a running Git command in the source (its `index.lock` exists; the remedy is to add again when it has finished);
 an unfinished operation (a merge, cherry-pick, revert, bisect or rebase mark exists; the remedy is to finish or abort it);
+an index entry no reset can undo (skip-worktree, assume-unchanged, intent-to-add, unmerged or a submodule);
 an index that cannot yet vouch for its files although Git lists no change (a file as new as the index, or a size, time or
 inode that differs; the remedy is `git status` once);
 a btrfs source that is no subvolume (the remedy is `git cli-git migrate-to-subvolume` for the main checkout and
@@ -561,7 +603,7 @@ A source or destination that is not on btrfs gets no line, because nothing the p
 A failed add gets no line either; Git's refusal is the thing to read.
 The same words go to the journal as one entry of priority `warning` under the `SYSLOG_IDENTIFIER` `cli-git`, with the
 fields `CLI_GIT_WORKTREE` (the destination), `CLI_GIT_SLOW_CAUSE` (`uncommitted-changes`, `git-running`,
-`operation-unfinished`, `stale-index`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
+`operation-unfinished`, `not-restorable`, `stale-index`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
 and `CLI_GIT_SLOW_DETAIL` (the check's reason as the debug log prints it), also under `--quiet`.
 The entry is one datagram on the journal's native socket, sent without waiting; a journal that is absent or full costs the
 command nothing, and `journalctl --identifier=cli-git` lists the entries.
@@ -586,7 +628,12 @@ The attribute sources are the tracked `.gitattributes` files from the root down 
 the system configuration path, and when its place cannot be established the worktree is refused.
 Attribute lines, patterns and paths are read as bytes: only space, tab, carriage return and line feed separate tokens, a NUL ends
 the text of a line, a byte order mark on the first line is skipped, `?` is one byte and only ASCII letters fold; a spelling the
-matcher does not model counts as applying.
+matcher does not model counts as applying, and so does a comparison past a fixed work budget.
+Every quoted line in an attributes file refuses the paths below the file's directory, whatever it says, at every source level.
+An attribute source chosen by `GIT_ATTR_SOURCE`, `attr.tree` or a command-line `--attr-source` or `-c attr.tree` refuses the content
+shortcut, because Git then reads attributes from a tree. An attributes file that is a named pipe or another file that is not plain is
+refused without being opened for waiting. Macro definitions are followed with reverse edges and a queue.
+The stat-only proof is read below a held root as well.
 Every tracked file and every `.gitattributes` below the worktree is opened below a held root without following a link (a
 directory replaced by a link is refused); the type and mode of a file are judged on its open handle, its state is compared
 before and after the read, and the read is bounded at the limit plus one byte, so the bytes that were hashed are the bytes of
@@ -605,12 +652,15 @@ records that this once held, so every resume before the swap copies and proves a
 It exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root, is the subvolume whose identity
 the journal recorded and holds the same `.git` bytes, and rewrites the index stat fields; a refresh that did not install the new
 index stops the conversion with the old tree kept.
-Before it removes the old tree it copies anything newer from the old tree into the worktree (an update-only pass, which never
-deletes), reads the process table again for anything holding the old tree, and keeps the old tree for that run, with a message,
-when it carried anything over or found a holder.
-It removes the old tree only when the directory at the name is the one whose device and inode the journal recorded, pinned by a
-descriptor opened below its parent, deleting beneath that descriptor and removing the name last only while it still names that
-object.
+Before it removes the old tree it reads the process table again for anything holding the old tree and compares the old tree
+with the installed one without changing either: every entry of the old tree must be in the installed tree in the same kind, with
+the same size and modification time for a file and the same target for a link, and none may be on another device (a nested
+subvolume or a mount point, which is not deleted).
+It copies nothing from the old tree to the installed one; a holder or a difference keeps the old tree, the journal stays, and the
+run says which entry or process it is.
+It removes the old tree only when the directory at the name is the one whose identity (device, inode and birth time) the journal
+recorded, pinned by a descriptor opened below its parent, deleting beneath that descriptor and removing the name last only while
+it still names that object; a name that holds anything else keeps the journal and ends the run as incomplete.
 Then it drops the journal and the lock.
 Nested registrations are read from the common directory whatever it is called (a bare repository included), and the refusals have
 kinds: only the `index.lock` that holds this command's token and the stage whose identity the journal recorded are exempt, never a
@@ -618,12 +668,17 @@ refusal because of its words.
 A rerun completes an unfinished conversion in place whatever phase it stopped at, including a stop between the exchange and
 its journal line; `--abandon` destroys only the subvolume whose identity the journal recorded, and only before the exchange.
 
-What keeps a writer out between the proof and the deletion: nothing excludes one while the old tree is still the worktree.
-The proof, the copy and the second pass see the tree at their instants; the process table is read before the swap and again before
-the removal, a write that lands in between is found by the update-only pass after the exchange (the old tree is then reachable by
-no name anyone uses), and the old tree is kept, never removed, whenever that pass carried anything over or a process still holds it.
-A process that wrote and exited between the second pass and the exchange is the case the update-only pass exists for; a write
-that keeps the size and modification time of the copy is the case it cannot see.
+Other processes: nothing in the command or the program excludes another process from changing the worktree while a command
+works on it. A rename or replacement mid-operation, a write through an open file or a shared mapping, and an edit between a
+check and the step that relies on it are accepted risk, stated in the help text, in one notice on standard error before the
+conversion runs, and in the README. The guards that cost little stay: the lock, the identity checks, the process table read
+before the swap and before the removal, and the read-only comparison before the removal.
+
+The journal names the path the conversion began at: a worktree moved while a conversion is unfinished is refused with both paths.
+A journal, a registration file or a `.git` that is a named pipe or any other file that is not plain ends the run with a reason
+instead of blocking while the lock is held.
+A dry run reconciles an exchange the journal has not recorded in memory, as a real run does, and writes nothing.
+The registrations are listed from the common directory; a listing or a registration that cannot be read is a refusal.
 
 Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the destination in one clone domain.
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links

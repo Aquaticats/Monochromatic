@@ -25,6 +25,7 @@ use super::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
 use super::worktree_copy::{GitRunner, GitStatus};
 use super::worktree_copy_stage_claim::StageClaim;
 use super::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
+use super::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirty};
 use super::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
 use super::worktree_slow_route::{SlowRoute, explain_failure};
 use super::worktree_snapshot::{PlaceError, put_in_place, settle_displaced, take_snapshot};
@@ -83,7 +84,11 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
         }
     };
     verify_association(bound)?;
-    apply_difference(source, &target, stage, token, run_git)?;
+    if source.dirty.is_some() {
+        restore_dirty(source, &target, stage, token, run_git, context)?;
+    } else {
+        apply_difference(source, &target, stage, token, run_git)?;
+    }
     let mode: u32 = std::fs::metadata(source.root.as_path()).map_err(|error| { return format!("the source's root is unreadable ({error})"); })?.mode() & 0o7777;
     put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id)?;
     for note in settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice()) {
@@ -296,6 +301,12 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             // A snapshot of the main checkout prints no copy summary, so it says what it did, on standard error; `--quiet` stays silent.
             if source.git_dir == source.common_dir && !plan.quiet {
                 let _noted = std::io::stderr().write_all(super::worktree_trash::MAIN_SNAPSHOT_NOTE.as_bytes());
+                if let Some(changed) = source.dirty.as_ref() {
+                    let _left_out = std::io::stderr().write_all(left_out_note(changed).as_bytes());
+                }
+            }
+            if let Some(changed) = source.dirty.as_ref() {
+                record_left_out(plan.destination.as_path(), changed);
             }
             LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()) }
         }

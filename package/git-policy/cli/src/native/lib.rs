@@ -1288,6 +1288,10 @@ pub mod worktree_slow_route;
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish;
 
+/// The restore of a snapshot of a main checkout with uncommitted changes, and its proof.
+#[cfg(target_os = "linux")]
+pub mod worktree_dirty_restore;
+
 /// The cheap-worktree ladder around one `git worktree add`: what runs before real Git and after it.
 #[cfg(unix)]
 pub mod worktree_ladder;
@@ -1430,7 +1434,17 @@ pub mod doctor_filesystem;
 /// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path, resumably.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert;
+
+/// The read-only comparison of the old tree of a conversion with the installed one.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_compare;
+
+/// The journal of a conversion and the lock that serializes conversions of one worktree.
+#[cfg(target_os = "linux")]
 pub mod worktree_convert_journal;
+
+/// The removal of the old tree of a conversion beneath a pinned descriptor.
+#[cfg(target_os = "linux")]
 pub mod worktree_convert_remove;
 
 /// The grammar of `git cli-git convert-worktree-to-subvolume`.

@@ -198,6 +198,12 @@ Read-only commands,
      new `HEAD` applied by `git read-tree -m -u`, and is swapped into place with `RENAME_EXCHANGE`.
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included), so the ignored-state copy is skipped for it.
+     A main checkout with uncommitted changes (staged, edited, deleted, renamed, mode-changed or untracked files) is
+     snapshotted too: in the new worktree only, `git read-tree --reset -u` and `git clean --force -d` make it equal to what
+     `git worktree add` makes from a clean checkout, the result is proven before the worktree is handed over, and the
+     changes stay in the main checkout, which is never written. A failed proof falls to Git's own checkout and says why.
+     A merge or other operation in progress, a held `index.lock`, a skip-worktree or assume-unchanged entry, a submodule
+     and a changed `.gitattributes` file still send the add the slow way, and so does a dirty linked worktree.
   2. Clones (`FICLONE`) of every tracked file of a clean worktree, with its index, on btrfs, XFS with reflink and
      overlayfs. It shares disk but takes about as long as Git's checkout.
   3. Git's own checkout, then the ignored-state copy.
@@ -243,6 +249,16 @@ Read-only commands,
    `SIGHUP` and `SIGQUIT` while it waits for Git.
   A signal sent by another process is relayed to the Git child,
    and the wrapper then ends without leaving state of its own behind.
+
+## Other processes changing files
+
+The wrapper checks files, copies them and, in a few commands, removes them, and no check or lock it takes can stop another
+process from changing them in the same moment.
+A rename or a replacement of a path, a write through an open file or a shared mapping, and an edit between a check and the step
+that relies on it are outside what the wrapper guards against, in every command and in the commit service.
+Running the program is accepting that risk.
+The cheap guards stay (a lock where one is free, a second look before a removal, an identity check on what is removed), but
+they narrow the window and do not close it.
 
 ## Requirements
 
@@ -498,11 +514,22 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   progress, a modified tracked file, a process with its working directory or an open file inside it, a worktree registered
   inside it, or a converting directory that no journal owns.
   Run it first; it changes nothing.
-- Without `--dry-run` the command quiesces the worktree (it takes the administrative directory's `index.lock` with its own
-  token), copies it into `<path>.cli-git-converting` with cloned data, proves the copy equal with a second pass, swaps the two
-  directories with one exchange, checks that the path is a subvolume with the same `.git` bytes, rewrites the index stat fields
-  so the first `git status` stays fast, and removes the old tree only when it is the directory it recorded.
+- Without `--dry-run` the command takes an exclusive lock for the worktree, takes the administrative directory's `index.lock`
+  with its own token, creates `<path>.cli-git-converting` as a subvolume and records its identity, copies the worktree into
+  it with cloned data, proves the copy equal with a second pass, swaps the two directories with one exchange, checks that the
+  path is the subvolume it created and has the same `.git` bytes, rewrites the index stat fields so the first `git status`
+  stays fast, and removes the old tree only when it is the directory it recorded and the installed worktree holds all of it.
   The registration never changes: the path and the bytes of the `.git` file are the same.
+- The old tree is kept, and the run says why, when a process still holds it, when anything in it differs from the installed
+  worktree (size, modification time, kind, link target) or is missing there, or when it contains a subvolume or a mount point,
+  which this command does not delete. Nothing is ever copied from the old tree into the installed one, so an edit made to the
+  installed worktree is never overwritten; whoever knows which version is wanted settles it by hand and runs the command again.
+- A quoted line in any attributes file, an attribute source chosen with `GIT_ATTR_SOURCE`, `attr.tree` or `--attr-source`, or a
+  filter, `ident` or encoding attribute that may apply to a file whose recorded size and times cannot vouch for it, makes the
+  command refuse that worktree and name the reason, instead of deciding by the file's content.
+- Risk you accept by running it: it deletes the old directory, and it cannot stop another process from changing the worktree
+  while it works (see "Other processes changing files").
+  It says so once on standard error before it starts, and in `--help`.
 - Run the same command again after any stop: it completes the conversion in place. `--abandon` undoes one that has not
   reached its swap, destroying only the subvolume its journal says it created.
 - Measured on a fixture of four ordinary worktrees of 22.3 thousand entries each: 4.2 s per worktree under a scope of

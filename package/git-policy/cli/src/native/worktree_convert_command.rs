@@ -16,7 +16,7 @@ use super::subvolume_command::main_checkout_root;
 use super::subvolume_error::Interrupt;
 use super::subvolume_index_files::linked_worktrees_inside;
 use super::subvolume_platform::{LinuxPlatform, Platform};
-use super::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments};
+use super::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments, RISK_NOTICE};
 use super::worktree_convert::{ConvertOptions, Verdict, convert_worktree};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -54,9 +54,13 @@ pub fn execute(platform: &dyn Platform, arguments: &ConvertArguments, cwd: &Path
             return REFUSED_EXIT_CODE;
         }
     };
-    let options: ConvertOptions = ConvertOptions { dry_run: arguments.dry_run, abandon: arguments.abandon };
+    let options: ConvertOptions = ConvertOptions { dry_run: arguments.dry_run, abandon: arguments.abandon, command_line_attributes: arguments.command_line_attributes };
     let mut refused: usize = 0;
     let mut converted: usize = 0;
+    // Said once, before the first worktree is touched, when the run can delete an old tree.
+    if !arguments.dry_run && !arguments.abandon && !list.is_empty() {
+        say(RISK_NOTICE);
+    }
     for path in &list {
         say(format!("{}", path.display()).as_str());
         match convert_worktree(platform, path.as_path(), options, interrupt, &mut *say) {

@@ -9,7 +9,7 @@ use crate::worktree_convert_journal::{LOCK_NAME, Phase as JournalPhase};
 use crate::worktree_convert_remove::remove_recorded_old_tree_seamed;
 
 /// The options of a real run.
-const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false };
+const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false, command_line_attributes: false };
 
 /// A checkout with one settled detached linked worktree `wt`: old files, a refreshed index, so it is quiet.
 fn quiet_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
@@ -64,7 +64,7 @@ fn the_journal_never_writes_through_a_file_that_is_in_the_way() {
 fn a_fresh_journal_never_replaces_one_that_exists() {
     let (parent, _root, worktree) = quiet_worktree("safety-journal-new");
     let admin: PathBuf = admin_of(worktree.as_path());
-    let made = Journal { phase: JournalPhase::Started, token: String::from("a"), path: b"/x".to_vec(), old_device: 1, old_inode: 2, git_file: b"g".to_vec(), new_identity: None };
+    let made = Journal { phase: JournalPhase::Started, token: String::from("a"), path: b"/x".to_vec(), old_identity: ObjectId { device: 1, inode: 2, birth: Some((3, 4)) }, git_file: b"g".to_vec(), new_identity: None };
     made.create_new(admin.as_path()).expect("first journal");
     let other = Journal { token: String::from("b"), ..made.clone() };
     assert!(other.create_new(admin.as_path()).is_err(), "the second one must not replace the first");
@@ -92,7 +92,7 @@ fn a_foreign_stage_is_never_synced_into_exchanged_or_destroyed() {
         assert!(reasons.contains("exists") && reasons.contains("owns it"), "{point}: {reasons}");
         assert_eq!(std::fs::read(converting.join("theirs")).expect("theirs"), b"theirs", "{point}: nothing was synced over it");
         assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "{point}: nothing was exchanged");
-        let (abandoned, lines) = run(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
+        let (abandoned, lines) = run(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false }, &Interrupt::never());
         assert_eq!(abandoned.expect("abandoned"), Verdict::Abandoned, "{point}");
         assert!(converting.join("theirs").exists(), "{point}: the abandon left the foreign directory: {lines:?}");
         assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(), "{point}: the journal is gone");
@@ -131,19 +131,27 @@ fn a_file_written_after_a_synced_kill_is_not_lost() {
     remove(parent.as_path());
 }
 
-/// A write that reaches the old tree after the exchange is carried into the worktree, the old tree is kept for that run, and
-///  the next run removes it.
+/// A difference between the old tree and the installed one keeps the old tree and is reported; nothing is ever copied from the
+///  old tree, so an edit made to the installed worktree is never overwritten.
 #[test]
-fn a_late_write_keeps_the_old_tree_until_it_is_carried_over() {
+fn a_difference_keeps_the_old_tree_and_nothing_is_copied() {
     let (parent, _root, worktree) = quiet_worktree("safety-late");
     let platform: PlainPlatform = PlainPlatform::new();
     let converting: PathBuf = converting_path(worktree.as_path());
     assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
-    std::fs::write(converting.join("late.txt"), b"written after the proof\n").expect("late file in the old tree");
+    std::fs::write(worktree.join("README.md"), b"an edit made to the installed worktree\n").expect("edit of the installed copy");
+    std::fs::write(converting.join("README.md"), b"a later write to the old tree\n").expect("write to the old tree");
+    std::fs::write(converting.join("late.txt"), b"only in the old tree\n").expect("late file in the old tree");
     let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
-    assert!(message.contains("written after the copy was proved") && message.contains("kept"), "{message}");
-    assert_eq!(std::fs::read(worktree.join("late.txt")).expect("carried over"), b"written after the proof\n");
-    assert!(converting.join("README.md").exists(), "the old tree is still there");
+    assert!(message.contains("differs") && message.contains("kept"), "{message}");
+    assert_eq!(std::fs::read(worktree.join("README.md")).expect("installed"), b"an edit made to the installed worktree\n", "the installed edit is not overwritten");
+    assert!(!worktree.join("late.txt").exists(), "nothing was copied from the old tree");
+    assert!(converting.join("late.txt").exists(), "the old tree is kept whole");
+    // The person settles it by hand; the next run then removes the old tree.
+    std::fs::remove_file(converting.join("late.txt")).expect("settled");
+    std::fs::copy(worktree.join("README.md"), converting.join("README.md")).expect("settled");
+    let mtime = std::fs::metadata(worktree.join("README.md")).expect("metadata").modified().expect("mtime");
+    std::fs::OpenOptions::new().write(true).open(converting.join("README.md")).expect("open").set_modified(mtime).expect("same time");
     let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(finished.expect("finished"), Verdict::Resumed, "{lines:#?}");
     assert!(std::fs::symlink_metadata(&converting).is_err(), "now the old tree is gone");
@@ -190,12 +198,12 @@ fn the_removal_follows_the_pinned_directory_not_the_name() {
     let platform: PlainPlatform = PlainPlatform::new();
     let old: PathBuf = parent.join("old");
     std::fs::create_dir(&old).expect("old");
-    std::fs::write(old.join("mine"), b"mine").expect("mine");
-    let metadata = std::fs::metadata(&old).expect("metadata");
-    let recorded = OldRoot { device: std::os::unix::fs::MetadataExt::dev(&metadata), inode: std::os::unix::fs::MetadataExt::ino(&metadata) };
+    let installed: PathBuf = parent.join("installed");
+    std::fs::create_dir(&installed).expect("installed");
+    let recorded: ObjectId = identity_at(&open_root(parent.as_path()).expect("held parent"), std::ffi::OsStr::new("old")).expect("identity");
     let held = open_root(parent.as_path()).expect("held parent");
     let moved: PathBuf = parent.join("moved");
-    let outcome = remove_recorded_old_tree_seamed(&platform, &held, std::ffi::OsStr::new("old"), recorded, &mut || {
+    let outcome = remove_recorded_old_tree_seamed(&platform, &held, std::ffi::OsStr::new("old"), recorded, installed.as_path(), &mut || {
         std::fs::rename(&old, &moved).expect("move the old tree away");
         std::fs::create_dir(&old).expect("another directory at the name");
         std::fs::write(old.join("theirs"), b"theirs").expect("theirs");
@@ -219,7 +227,7 @@ fn a_nested_registration_is_found_in_a_bare_layout() {
     git(outer.as_path(), &["update-index", "--refresh"]);
     git(bare.as_path(), &["worktree", "add", "--quiet", "--detach", "../outer/inner"]);
     let platform: PlainPlatform = PlainPlatform::new();
-    let reasons: String = skipped(run(&platform, outer.as_path(), ConvertOptions { dry_run: true, abandon: false }, &Interrupt::never()).0);
+    let reasons: String = skipped(run(&platform, outer.as_path(), ConvertOptions { dry_run: true, abandon: false, command_line_attributes: false }, &Interrupt::never()).0);
     assert!(reasons.contains("registered inside it") && reasons.contains("inner"), "{reasons}");
     remove(parent.as_path());
 }
@@ -254,5 +262,139 @@ fn a_failed_index_refresh_keeps_the_old_tree() {
     std::fs::set_permissions(&index, std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("restore");
     assert_eq!(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect("finished"), Verdict::Resumed);
     assert!(std::fs::symlink_metadata(&converting).is_err());
+    remove(parent.as_path());
+}
+
+/// Run `work` on a thread and fail when it does not finish within the patience: a blocked open would otherwise hang the run.
+fn finishes<T: Send + 'static>(what: &str, work: impl FnOnce() -> T + Send + 'static) -> T {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _sent = sender.send(work());
+    });
+    return receiver.recv_timeout(PATIENCE).unwrap_or_else(|_error| { panic!("{what} did not finish within {PATIENCE:?}") });
+}
+
+/// The mode of a file only its owner may use.
+const OWNER_ONLY: libc::mode_t = 0o600;
+
+/// A directory that can be searched but not listed.
+const SEARCH_WITHOUT_LISTING: u32 = 0o311;
+
+/// An ordinary directory mode.
+const LISTABLE: u32 = 0o755;
+
+/// How long a step that must not block may take in a control.
+const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// A named pipe at `path`, which blocks whoever opens it for reading until a writer comes.
+fn make_pipe(path: &Path) {
+    let name = std::ffi::CString::new(std::os::unix::ffi::OsStrExt::as_bytes(path.as_os_str())).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), OWNER_ONLY) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
+/// A registered-worktree listing that cannot be read is a refusal, not the absence of nested worktrees.
+#[test]
+fn an_unreadable_list_of_registrations_is_a_refusal() {
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let (parent, _root, worktree) = quiet_worktree("safety-registrations");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let registrations: PathBuf = inspect(worktree.as_path()).expect("registered").common.join("worktrees");
+    std::fs::set_permissions(&registrations, std::os::unix::fs::PermissionsExt::from_mode(SEARCH_WITHOUT_LISTING)).expect("search without listing");
+    let reasons: String = skipped(run(&platform, worktree.as_path(), ConvertOptions { dry_run: true, abandon: false, command_line_attributes: false }, &Interrupt::never()).0);
+    std::fs::set_permissions(&registrations, std::os::unix::fs::PermissionsExt::from_mode(LISTABLE)).expect("restore");
+    assert!(reasons.contains("cannot be listed"), "{reasons}");
+    remove(parent.as_path());
+}
+
+/// A worktree moved while a conversion was unfinished is refused loudly: the journal names the path it began at.
+#[test]
+fn a_worktree_moved_during_an_unfinished_conversion_is_refused() {
+    let (parent, root, worktree) = quiet_worktree("safety-moved");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("synced", 0)).0.is_err());
+    let moved: PathBuf = worktree.with_file_name("wt-moved");
+    git(root.as_path(), &["worktree", "move", worktree.to_str().expect("UTF-8"), moved.to_str().expect("UTF-8")]);
+    for dry_run in [false, true] {
+        let message: String = failure_of(run(&platform, moved.as_path(), ConvertOptions { dry_run, abandon: false, command_line_attributes: false }, &Interrupt::never()).0);
+        assert!(message.contains("moved") && message.contains(worktree.to_str().expect("UTF-8")), "dry run {dry_run}: {message}");
+    }
+    assert!(!platform.is_subvolume_root(moved.as_path()).expect("examined"), "nothing was exchanged");
+    remove(parent.as_path());
+}
+
+/// A journal or a `.git` that is a named pipe ends the run with a reason instead of blocking while the lock is held.
+#[test]
+fn a_named_pipe_in_the_place_of_a_file_does_not_block() {
+    let (parent, _root, worktree) = quiet_worktree("safety-pipe-journal");
+    let admin: PathBuf = admin_of(worktree.as_path());
+    make_pipe(admin.join(JOURNAL_NAME).as_path());
+    let at: PathBuf = worktree.clone();
+    let outcome = finishes("a run with a pipe for a journal", move || { return run(&PlainPlatform::new(), at.as_path(), RUN, &Interrupt::never()).0; });
+    assert!(outcome.is_err(), "{outcome:?}");
+    std::fs::remove_file(admin.join(JOURNAL_NAME)).expect("remove the pipe");
+    let (other, _other_root, second) = quiet_worktree("safety-pipe-git");
+    std::fs::remove_file(second.join(".git")).expect("remove the pointer");
+    make_pipe(second.join(".git").as_path());
+    let there: PathBuf = second.clone();
+    let skipped_run = finishes("a run with a pipe for .git", move || { return run(&PlainPlatform::new(), there.as_path(), RUN, &Interrupt::never()).0; });
+    assert!(matches!(skipped_run, Ok(Verdict::Skipped(_))), "{skipped_run:?}");
+    remove(parent.as_path());
+    remove(other.as_path());
+}
+
+/// A dry run after a kill between the exchange and its journal line sees the exchange, like a real run does.
+#[test]
+fn a_dry_run_sees_an_exchange_the_journal_has_not_recorded() {
+    let (parent, _root, worktree) = quiet_worktree("safety-dry-exchanged");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
+    let (verdict, lines) = run(&platform, worktree.as_path(), ConvertOptions { dry_run: true, abandon: false, command_line_attributes: false }, &Interrupt::never());
+    assert_eq!(verdict.expect("no failure"), Verdict::Resumed, "{lines:#?}");
+    let journal: Journal = Journal::load(admin_of(worktree.as_path()).as_path()).expect("load").expect("journal");
+    assert_eq!(journal.phase, JournalPhase::Synced, "a dry run writes nothing");
+    remove(parent.as_path());
+}
+
+/// The old root is recorded with its birth time: the journal keeps it, one written before it was recorded still reads, and a
+///  directory with the same inode but another birth time is not the old root.
+#[test]
+fn the_old_root_is_recorded_with_its_birth_time_and_compared_with_it() {
+    let (parent, _root, worktree) = quiet_worktree("safety-birth");
+    let admin: PathBuf = admin_of(worktree.as_path());
+    let identity = ObjectId { device: 1, inode: 2, birth: Some((3, 4)) };
+    let made = Journal { phase: JournalPhase::Started, token: String::from("a"), path: b"/x".to_vec(), old_identity: identity, git_file: b"g".to_vec(), new_identity: None };
+    made.save(admin.as_path()).expect("saved");
+    assert_eq!(Journal::load(admin.as_path()).expect("load"), Some(made));
+    let legacy: String = format!("cli-git-convert v1\nphase=started\ntoken=a\npath=2f78\nold_device=5\nold_inode=6\ngit_file=67\nnew_identity=-\n");
+    std::fs::write(admin.join(JOURNAL_NAME), legacy).expect("legacy journal");
+    let read = Journal::load(admin.as_path()).expect("load").expect("journal");
+    assert_eq!(read.old_identity, ObjectId { device: 5, inode: 6, birth: None });
+    let found = ObjectId { device: 5, inode: 6, birth: Some((7, 8)) };
+    assert!(is_recorded_object(&read.old_identity, &found), "a journal without a birth time compares device and inode");
+    assert!(is_recorded_object(&found, &found));
+    assert!(!is_recorded_object(&found, &ObjectId { birth: Some((9, 8)), ..found }), "another birth time is another directory");
+    assert!(!is_recorded_object(&found, &ObjectId { birth: None, ..found }), "a missing birth time does not match a recorded one");
+    remove(parent.as_path());
+}
+
+/// The removal checks the birth time on the descriptor it pins: the same inode with another birth time is left alone.
+#[test]
+fn a_directory_with_another_birth_time_is_not_removed() {
+    let (parent, _root, worktree) = quiet_worktree("safety-birth-removal");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let old: PathBuf = parent.join("old");
+    std::fs::create_dir(&old).expect("old");
+    let held = open_root(parent.as_path()).expect("held parent");
+    let real: ObjectId = identity_at(&held, std::ffi::OsStr::new("old")).expect("identity");
+    let other_birth: ObjectId = ObjectId { birth: Some((0, 0)), ..real };
+    assert_ne!(Some((0, 0)), real.birth, "the control needs a real birth time to differ from");
+    let outcome = remove_recorded_old_tree(&platform, &held, std::ffi::OsStr::new("old"), other_birth, worktree.as_path()).expect("no failure");
+    assert!(matches!(outcome, Removal::Kept(_)), "{outcome:?}");
+    assert!(old.exists(), "nothing was removed");
     remove(parent.as_path());
 }

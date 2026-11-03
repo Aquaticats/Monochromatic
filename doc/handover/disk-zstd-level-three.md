@@ -1,181 +1,127 @@
 # Persistent disk compression
 
-## Requested scope at 2026-11-03T01:11:03-05:00
+## Completed policy at 2026-11-03T01:36:09-05:00
 
 The user requested:
 "Set all my disks to use zstd level 3 and make it permanent."
-They extended this to all future disks,
+They included all future disks,
 volumes,
 subvolumes,
-and future subvolumes,
-then instructed:
+and future subvolumes.
+They then instructed:
 "For fs s that lack this setting,
 ignore them."
 
-## Host changes at 2026-11-03T01:11:03-05:00
+The current NVMe and encrypted SATA Btrfs filesystems use `compress=zstd:3`.
+The setting is saved in administrator configuration and the persistent boot arguments.
+Future host mounts are covered for Btrfs and compression-capable F2FS.
+All work in this record is complete.
 
-- `lsblk` and `btrfs filesystem show --mounted` identify the NVMe Btrfs filesystem,
-  spanning encrypted partitions,
-  and the encrypted SATA Btrfs filesystem.
-- Changed the Btrfs entries in `/etc/fstab` from `compress=zstd:1` to `compress=zstd:3`.
-- Changed `/etc/systemd/system/mount-860.service` from implicit `compress=zstd`
-  to explicit `compress=zstd:3`.
-  Reloaded systemd without restarting the mounted disk's unlock service.
-- Remounted `/var` with `compress=zstd:3`.
-  `findmnt --types btrfs --output TARGET,SOURCE,OPTIONS` subsequently reported level 3
-  on every Btrfs mount,
-  including `/etc`,
-  `/var/home`,
-  `/sysroot`,
-  and `/var/mnt/encrypted`.
-  `/sysroot` remains read-only.
-- Original configuration copies are in `${HOME}/temp/agent/zstd-level3.5DYHCrEG/`.
-- `findmnt --verify --verbose` reports no parse errors,
-  but reports `wrong order: /var/home specified before /var`,
-  a noncanonical `/home` warning,
-  and a swapfile warning.
-  Running the same command against the unchanged backup reproduced the same diagnostics.
-  These are pre-existing and outside the compression change.
+## Installed configuration
 
-## Remaining work at 2026-11-03T01:11:03-05:00
+- `/etc/fstab`:
+  the Btrfs entries for `/`,
+  `/home`,
+  and `/var` changed from level 1 to level 3.
+  The commented SATA entry also names level 3.
+- `/etc/systemd/system/mount-860.service`:
+  the encrypted SATA mount now explicitly requests `compress=zstd:3`.
+  The live filesystem already used the implicit default level of 3.
+  The unlock service was not restarted.
+- `/etc/udisks2/mount_options.conf`:
+  `btrfs_defaults=compress=zstd:3`
+  and `f2fs_defaults=compress_algorithm=zstd:3,compress_extension=*`.
+- `/etc/default/steamos-btrfs`:
+  Btrfs home and SD-card options use `compress-force=zstd:3`;
+  F2FS media options use `compress_algorithm=zstd:3,compress_extension=*`.
+  Other mount options were preserved.
+- `btrfs-zstd-policy.service` and `f2fs-zstd-policy.service`:
+  installed in `/etc/systemd/system/`,
+  enabled for `multi-user.target`,
+  and running.
+- Persistent `rootflags`:
+  `rootflags=subvol=root,user_subvol_rm_allowed,compress=zstd:3`.
+  Other kernel arguments were preserved.
 
-- Configure UDisks and SteamOS defaults for future Btrfs media.
-- Verify an event-driven systemd policy for Btrfs mounts outside those automounters,
-  using disposable disk images and checking subvolume inheritance.
-- Replace level 1 in the persistent `rootflags` boot argument.
-  An existing `rpm-ostree update check`,
-  PID `1403954`,
-  holds an Upgrade transaction.
-  A question asks whether the user authorizes cancelling that check.
-  Do not cancel without their answer.
-  The bounded wait is command session `48868`,
-  scope `run-p1778395-i35317046.scope`,
-  with a 600-second deadline.
-- Verify final runtime settings,
-  persisted configuration,
-  and generated units.
+The configuration files are root-owned with mode `0644`.
+Original copies of the changed pre-existing files are retained in
+`/home/user/temp/agent/zstd-level3.5DYHCrEG/`.
 
-## Scope and evidence limits
+## Future mounts and subvolumes
 
-The installed `btrfs(5)` manual documents filesystem-wide compression mount options,
-shared by subvolume mounts,
-and the default zstd level of 3.
-This changes the policy for eligible future writes.
-Existing extents are not recompressed.
-Swapfiles,
-inode exceptions,
-unsupported filesystem types,
-and read-only data must not be rewritten or reformatted.
-No reboot or disk-wide defragmentation is authorized by this work.
+UDisks and SteamOS defaults request compression at mount time.
+The policy services reconcile other writable host mounts,
+then wait for kernel mount/remount notifications using `findmnt --poll`.
+A 60-second deadline covers the gap between reconciliation and listener startup.
+Only mounts needing a change are remounted,
+using live mount options to preserve existing access and security flags.
 
-## Future mount coverage at 2026-11-03T01:19:52-05:00
+The F2FS filters require `compress_algorithm` to be reported by the mount,
+which excludes images without the on-disk compression feature.
+The F2FS policy also enables compression for newly created files with `compress_extension=*`.
+Btrfs subvolumes share the parent filesystem's mount-level compression policy.
 
-Configured `/etc/udisks2/mount_options.conf` with `btrfs_defaults=compress=zstd:3`.
-Updated the active Btrfs home and SD-card values in `/etc/default/steamos-btrfs` to level 3.
-
-Installed and enabled `btrfs-zstd-policy.service`.
-It reconciles writable Btrfs mounts using their existing live mount options,
-then waits for kernel mount/remount notifications through `findmnt --poll`.
-A 60-second wait deadline covers the gap between reconciliation and listener startup.
-It uses a quarter of a CPU core at most,
+Each service is limited to a quarter of a CPU core,
 128 MiB memory,
 16 tasks,
 and I/O weight 10.
-It must share the host mount namespace.
+The services share the host mount namespace.
 
-Disposable sparse images verified:
-the old UDisks default omitted compression;
-the configured default supplies `compress=zstd:3`;
-direct policy selection excludes read-only mounts;
-new manual mounts and later remounts are corrected;
-and newly created/mounted subvolumes inherit the filesystem setting.
-The `rw`,
-`nodev`,
-`nosuid`,
-and `noexec` options were preserved.
+## Verification
+
+Disposable sparse disk images exercised these boundaries:
+
+- The initial UDisks Btrfs default omitted compression.
+  With the new configuration,
+  UDisks mounted a new image with `compress=zstd:3`.
+  This test ran before the Btrfs reconciliation service was enabled.
+- Direct Btrfs reconciliation changed a fixture from level 1 to level 3.
+  Selection excluded a read-only bind mount,
+  which remained read-only.
+- The running Btrfs service corrected a new manual mount and a later remount.
+  A newly created and separately mounted subvolume inherited level 3.
+- Direct F2FS reconciliation changed a compression-capable image from its default lz4 algorithm
+  to zstd level 3.
+  A newly created file received the compression attribute.
+- The running F2FS service corrected a new manual mount.
+- UDisks F2FS defaults passed with the F2FS reconciliation service stopped,
+  proving the defaults independently.
+  The service was restarted afterward.
+- An F2FS image without compression support mounted successfully and remained uncompressed.
+- The fixture checks preserved `rw`,
+  `nodev`,
+  `nosuid`,
+  and `noexec`.
+  Correctly configured F2FS mounts were excluded from repeated extension changes.
+
 All fixture mounts and loop devices were removed.
-Test harnesses are retained in the private backup directory as `verify-policy.ts` and `verify-udisks.ts`.
-
-The user answered "Wait for the check to finish"
-and then requested "Please query the boot-arg update automatically."
-The expired 600-second wait has been replaced by `boot-args.ts`,
-running in `btrfs-zstd3-boot-args.scope`,
-command session `47909`.
-It waits for PID `1403954` with a 3600-second deadline,
-checks that no other rpm-ostree transaction is active,
-updates the current persistent rootflags while retaining unrelated options,
-and verifies the result.
-A successful run writes `boot-args-result.json`.
-Do not cancel the user's update check.
-The original handover commit is `9f5acfb801`.
-
-Remaining work:
-check F2FS compression support for future media,
-complete final verification and rendering of this record,
-and collect the automatic boot-argument result.
-
-## F2FS and final mount verification at 2026-11-03T01:26:10-05:00
-
-The running kernel configuration enables F2FS compression and zstd.
-A disposable F2FS image demonstrated that this kernel accepts a live change
-from its default lz4 algorithm to `compress_algorithm=zstd:3`.
-Adding `compress_extension=*` made a newly created file receive the compression attribute.
-
-Added F2FS defaults to UDisks and the SteamOS media configuration.
-Installed and enabled `f2fs-zstd-policy.service`,
-with the same limits and notification-driven lifecycle as the Btrfs policy.
-Its mount filters require a writable F2FS mount that reports `compress_algorithm`,
-so images without the on-disk compression feature are excluded.
-The policy changes the algorithm and ensures the wildcard extension is present.
-
-The `verify-f2fs.ts` disposable-image checks passed for direct reconciliation,
-the running system service,
-UDisks defaults with the reconciliation service stopped,
-and an F2FS image without compression support.
-The unsupported image mounted successfully and remained uncompressed.
-The test preserved `rw`,
-`nodev`,
-`nosuid`,
-and `noexec`;
-its new file had the compression attribute.
-The service was restarted after the UDisks-only check.
-
-The first UDisks F2FS harness used `udevadm settle --timeout=30`,
-which emitted `Timed out while waiting for udev queue to empty.`
-The installed `udevadm(8)` manual confirms that this waits for the entire udev queue.
-The corrected harness uses `udisksctl loop-setup`,
-as the already successful Btrfs harness does,
-and all F2FS checks then passed.
-No cause is attributed to the unrelated queued events.
+The private directory retains `verify-policy.ts`,
+`verify-udisks.ts`,
+and `verify-f2fs.ts`.
 
 `systemd-analyze verify` passed for both policy services and `mount-860.service`.
-Both policy services are enabled and running.
-`findmnt` still reports level 3 on every real Btrfs mount,
-and `lsblk` confirms that fixture loop devices were removed.
+`findmnt --types btrfs --output TARGET,OPTIONS` reported level 3 on every real Btrfs mount,
+including `/etc`,
+`/var/home`,
+`/sysroot`,
+and `/var/mnt/encrypted`.
+`/sysroot` remains read-only.
 
-The automatic boot-argument job observed the end of the update check
-and started a `KernelArgs` transaction.
-Its completion and result file remain to be collected.
-The staged deployment's `/etc` has not yet received the local files;
-do not mistake the pre-finalization tree for verified next-boot configuration.
-Verify OSTree's configuration-merge contract before declaring persistence complete.
+## Boot arguments and persistence
 
-## Coverage limits
+The user chose "Wait for the check to finish"
+for their existing `rpm-ostree update check`,
+then requested "Please query the boot-arg update automatically."
 
-The policy covers Btrfs and compression-capable F2FS mounts visible in the host mount namespace.
-UDisks and SteamOS defaults apply compression at mount time.
-The reconciliation services correct other writable mounts after notification,
-with a 60-second fallback for a listener startup race.
-A manually mounted filesystem can receive writes before reconciliation.
-
-Read-only mounts are not made writable.
-Subvolumes share the Btrfs filesystem compression setting.
-Existing extents and explicit per-inode compression exceptions are not rewritten.
-No unsupported filesystem is reformatted or given a new on-disk feature.
-Filesystems installed in the future with different compression APIs
-are outside the verified Btrfs/F2FS coverage.
-
-## Persistence checks at 2026-11-03T06:31:28+00:00
+The bounded `boot-args.ts` job waited for that process,
+confirmed the daemon was available,
+changed the persistent arguments,
+and re-read them.
+It completed successfully at `2026-11-03T06:36:09.936Z`.
+The daemon journal records
+`Txn KernelArgs on /org/projectatomic/rpmostree1/default successful`.
+The result is retained as `boot-args-result.json`.
+The temporary job has exited.
 
 `ostree admin config-diff` recognizes the local `fstab`,
 UDisks defaults,
@@ -183,17 +129,48 @@ SteamOS defaults,
 both policy units,
 both enablement symlinks,
 and the SATA mount service.
-The installed `ostree-finalize-staged.service` is active with `RemainAfterExit=yes`
-and invokes `ostree admin finalize-staged` through `ExecStop` at shutdown.
+The installed `ostree-finalize-staged.service` invokes
+`ostree admin finalize-staged` through `ExecStop` at shutdown.
 
 The repository's [OSTree configuration persistence record](../troubleshooting/rpm-ostree-inotify-persistence.md)
 documents the administrator `/etc` merge and the distinction between upgrades and rollback deployments.
-The packaged build's reported Git identifier is not available from upstream;
+The packaged build's reported Git identifier is unavailable from upstream;
 that existing source-version limitation remains.
-Persistence is configured and supported by the merge contract,
-not by a reboot performed during this task.
-
-The current upstream finalization path merges administrator configuration when finalizing a staged deployment.
-The staged tree before finalization is therefore not the completed next-boot configuration.
+The staged tree before finalization is not the completed next-boot configuration.
 No direct edits were made to the staged deployment.
-The KernelArgs transaction remains in progress.
+Persistence was verified through saved configuration and the supported merge mechanism,
+without rebooting the machine.
+
+## Diagnostics and limits
+
+`findmnt --verify --verbose` reported no parse errors,
+but reported `wrong order: /var/home specified before /var`,
+a noncanonical `/home` warning,
+and a swapfile warning.
+The same command against the original backup reproduced these diagnostics.
+They predate this change.
+
+The first F2FS UDisks harness used `udevadm settle --timeout=30`,
+which emitted `Timed out while waiting for udev queue to empty.`
+The installed `udevadm(8)` manual confirms that the command waits for the entire udev queue.
+The events keeping it nonempty were not identified.
+Using `udisksctl loop-setup` in the harness avoided that global prerequisite,
+and the F2FS checks passed.
+
+The policy covers Btrfs and compression-capable F2FS mounts visible in the host mount namespace.
+A manual mount can receive writes before notification-driven reconciliation.
+Read-only mounts are not made writable.
+Existing extents and explicit per-inode exceptions are not rewritten.
+Swapfiles and unsupported filesystems are left alone.
+A filesystem installed later with a different compression API is outside this verified coverage.
+No disk-wide defragmentation,
+reformatting,
+or reboot was performed.
+
+The handover was rendered with the installed CommonMark renderer.
+The scoped Markdown lint and `git diff --check` passed.
+Implementation progress was recorded in commits
+`9f5acfb801`,
+`99b09defa9`,
+`21d29590f0`,
+and `f34bfe56ee`.
