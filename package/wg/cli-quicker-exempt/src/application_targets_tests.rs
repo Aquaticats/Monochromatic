@@ -62,8 +62,12 @@ fn firefox_nightly_service_name_stays_channel_specific() {
     ));
 }
 
-/// What: Registers a unit test of release desktop-service identity.
-/// Why: A release exception must leave ESR, Nightly, and lookalike service names unchanged.
+/// What:
+/// Registers a unit test of release desktop-service identity.
+/// Why:
+/// A release exception must leave ESR,
+/// Nightly,
+/// and lookalike service names unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

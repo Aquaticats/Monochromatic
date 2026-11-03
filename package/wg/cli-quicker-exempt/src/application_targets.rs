@@ -104,8 +104,10 @@ pub fn is_firefox_nightly_service_name(name: &str) -> bool {
         && name.ends_with(".service");
 }
 
-/// What: Borrows candidate service text without allocating an owned `String`.
-/// Why: Select the release launcher while keeping ESR and similarly named scopes on the tunnel.
+/// What:
+/// Borrows candidate service text without allocating an owned `String`.
+/// Why:
+/// Select the release launcher while keeping ESR and similarly named scopes on the tunnel.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
