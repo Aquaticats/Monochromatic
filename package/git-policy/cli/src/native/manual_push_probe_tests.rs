@@ -492,3 +492,10 @@ fn a_revision_expression_with_a_colon_is_probed_as_the_commit_it_names() {
     assert_eq!(updates[0].remote_ref, "refs/heads/new");
     remove(repo.parent().expect("root"));
 }
+
+/// The estimate covers the measured peak of a query for the whole history, and is that measurement rounded up to a power of two.
+#[test]
+fn the_query_estimate_is_the_measured_whole_history_peak_rounded_up_to_a_power_of_two() {
+    const { assert!(QUERY_MEMORY >= MEASURED_WHOLE_HISTORY_QUERY, "the query estimate must cover the measured whole-history query") };
+    assert_eq!(QUERY_MEMORY, MEASURED_WHOLE_HISTORY_QUERY.next_power_of_two());
+}

@@ -30,11 +30,17 @@ use std::time::{Duration, Instant};
 pub const NOTICE_INTERVAL_VARIABLE: &str = "CLI_GIT_WAIT_NOTICE_SECONDS";
 
 /// How often a waiting command repeats its notice when the variable is absent or unusable.
+///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
+///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 pub const DEFAULT_NOTICE_INTERVAL: Duration = Duration::from_secs(10);
 
 /// How long a wait stays silent before its first notice:
 ///  a landing that holds the lock normally ends within this,
 ///  so brief contention between healthy commits prints nothing.
+///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
+///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 pub const NOTICE_GRACE: Duration = Duration::from_secs(1);
 
 /// The shortest interval a ticker divides by, so a zero interval cannot divide by zero.

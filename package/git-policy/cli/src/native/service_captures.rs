@@ -21,7 +21,10 @@ use super::service_protocol::LandedCapture;
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 
-/// How many landed commits are remembered for one worktree; older ones are forgotten, which makes them unknown.
+/// How many landed commits are remembered for one worktree; older ones are forgotten, which makes them unknown. Measured: in the
+///  service journal (1,085 landings of the `cli-git@` units, 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z) the busiest unit landed 15
+///  commits in its busiest ten minutes and 349 in all, so this many cover eight times the busiest ten minutes and over a third
+///  of everything the busiest worktree landed in the window. Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const REMEMBERED: usize = 128;
 
 type Key = (PathBuf, PathBuf);

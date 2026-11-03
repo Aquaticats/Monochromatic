@@ -30,6 +30,9 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const COMPARE_BUFFER_BYTES = 64 * 1_024;
 /// ```
+///  Exempt from a citation under `LQM` (class: buffer size): it sizes one read buffer, and the result of the comparison
+///  does not depend on it. Classed once in `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the
+///  coordinator's pick under the owner's delegation, open to the owner's veto.
 const COMPARE_BUFFER_BYTES: usize = 64 * 1_024;
 
 /// What:

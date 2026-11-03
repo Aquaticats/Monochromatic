@@ -206,3 +206,16 @@ fn the_directories_of_one_repository_are_drained_one_after_another() {
     assert_eq!(busiest.load(Ordering::SeqCst), 1);
     remove(root.as_path());
 }
+
+/// The estimate is at least the measured peak of one repository's service, so a budget never admits more drains than the memory
+///  they were measured to hold.
+#[test]
+fn the_repository_estimate_covers_the_measured_peak() {
+    const { assert!(REPOSITORY_MEMORY >= MEASURED_REPOSITORY_PEAK, "the repository estimate must cover the measured peak") };
+}
+
+/// The estimate is the measurement rounded up to a power of two and not more, so it stays tied to the figure it cites.
+#[test]
+fn the_repository_estimate_is_the_measurement_rounded_up_to_a_power_of_two() {
+    assert_eq!(REPOSITORY_MEMORY, MEASURED_REPOSITORY_PEAK.next_power_of_two());
+}

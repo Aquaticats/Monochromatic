@@ -1543,6 +1543,10 @@ pub mod subvolume_remove_walk;
 #[cfg(target_os = "linux")]
 pub mod subvolume_journal;
 
+/// The count of the entries under a checkout, from which the free space a migration needs follows.
+#[cfg(target_os = "linux")]
+pub mod subvolume_entry_count;
+
 /// The paths of a migration and the refusals that stop it before anything is created.
 #[cfg(target_os = "linux")]
 pub mod subvolume_preflight;

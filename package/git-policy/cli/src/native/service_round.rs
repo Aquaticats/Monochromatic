@@ -21,9 +21,17 @@ use super::service_work::{CLAIM_LEASE, Drained, WorkHandlers, common_directory_o
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// The bytes the drain of one repository holds at its peak, estimated: the items of a burst, the output of a push, and a review's
-///  patch and answer, which the review bounds; about 64 MiB.
-pub const REPOSITORY_MEMORY: u64 = 64 << 20;
+/// The 90th percentile of `MemoryPeak` over the 28 commit-service units of this host that `systemctl --user show 'cli-git@*.service'
+///  --property=MemoryPeak` reported on 2026-11-03 (the units' peaks since each one's last start; the Git processes a service
+///  starts are inside the unit): 130,482,176 bytes. The median was 33,000,000 bytes, the 75th percentile 49,000,000 bytes, and the
+///  largest 1,073,766,400 bytes, a unit that had run under the one-gibibyte cap this build no longer sets. A unit serves one
+///  worktree for its whole life, so a unit's peak is an upper bound of what one repository's drain holds at once.
+pub const MEASURED_REPOSITORY_PEAK: u64 = 130_482_176;
+
+/// The bytes the drain of one repository holds at its peak: `MEASURED_REPOSITORY_PEAK` rounded up to a power of two, as
+///  `CONVERSION_MEMORY` rounds its measurement. The coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
+pub const REPOSITORY_MEMORY: u64 = MEASURED_REPOSITORY_PEAK.next_power_of_two();
 
 /// What:
 ///  One directory of a round, with the pushes of it that are due again.

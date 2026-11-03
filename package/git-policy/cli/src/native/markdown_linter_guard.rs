@@ -149,6 +149,9 @@ fn wait_for<T>(
 }
 
 /// The longest the wait sleeps before it looks at the notice schedule again.
+///  Exempt from a citation under `LQM` (class: poll): it sets how often a condition is looked at again, so it adds at
+///  most one poll interval to a wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-audit.md`,
+///  "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const NOTICE_POLL: Duration = Duration::from_millis(50);
 
 /// What:

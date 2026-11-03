@@ -29,7 +29,9 @@ pub const DONE_EXTENSION: &str = "done";
 const TEMPORARY_EXTENSION: &str = "tmp";
 
 /// How old a temporary file must be before a listing treats it as the remains of a killed write and removes it. A write takes
-///  milliseconds; the grace covers a writer stalled on a slow disk or a loaded host.
+///  milliseconds; the grace covers a writer stalled on a slow disk or a loaded host. Measured: the longest journal write step of
+///  1,302 landings in the service journal (`journal_ms`, 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z) was 40,188 ms, the 99th
+///  percentile 3,792 ms, so ten minutes is fifteen times the longest. Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const TEMPORARY_GRACE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 
 /// What:
@@ -255,6 +257,10 @@ pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>
 ///  after a broken connection: at most `RECONNECTS` times, each after a pause of milliseconds and a wait for a service to
 ///  start of at most `START_WAIT` (`service_client.rs`), so the resend of a landed request arrives within seconds of the
 ///  landing. A service lands a batch in the time of a few Git processes, so this many batches reach back past any such resend.
+///  Measured: in the service journal (1,085 landings of the `cli-git@` units, 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z) the busiest
+///  unit landed 4 batches in its busiest 10 seconds, 4 in its busiest minute and 15 in its busiest ten minutes, and 349 in all, so
+///  this many reach back over sixty times the busiest ten minutes. Kept as the coordinator's pick under the owner's delegation,
+///  open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const DONE_RETAINED: usize = 1024;
 
 /// What:

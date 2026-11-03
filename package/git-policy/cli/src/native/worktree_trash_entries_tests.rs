@@ -100,3 +100,15 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     assert_eq!(busiest.load(Ordering::SeqCst), allowed);
     remove(root.as_path());
 }
+
+/// The estimate covers the measured peak of removing a flat directory of a million names.
+#[test]
+fn the_entry_estimate_covers_the_measured_peak() {
+    const { assert!(ENTRY_MEMORY >= MEASURED_MILLION_NAME_PEAK, "the entry estimate must cover the measured peak") };
+}
+
+/// The estimate is the measurement rounded up to a power of two and not more.
+#[test]
+fn the_entry_estimate_is_the_measurement_rounded_up_to_a_power_of_two() {
+    assert_eq!(ENTRY_MEMORY, MEASURED_MILLION_NAME_PEAK.next_power_of_two());
+}

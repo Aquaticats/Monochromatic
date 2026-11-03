@@ -512,7 +512,9 @@ The command refuses, with the cause and every way forward, and changes nothing, 
  the checkout is not on btrfs (overlayfs is named separately), is a mount point, is on another device than its parent
  or is a symbolic link;
  it already is a subvolume with no migration recorded;
- the parent directory has less than 5 GiB free;
+ the parent directory has fewer free bytes than the metadata of the checkout's entries needs
+ (2048 bytes per entry: one kibibyte measured per copied entry on btrfs, written twice by the `DUP` profile; the command
+ lists every directory once to count the entries, and the refusal names the count and both byte figures);
  `<root>.subvol-new` or `<root>.before-subvolume` exists without a journal that explains it;
  Git is in the middle of an operation (any of `index.lock`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`,
  `BISECT_LOG`, `rebase-merge`, `rebase-apply`, `sequencer`, `HEAD.lock`, `config.lock`, `packed-refs.lock` or

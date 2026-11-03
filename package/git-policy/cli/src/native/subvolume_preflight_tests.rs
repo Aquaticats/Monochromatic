@@ -115,19 +115,48 @@ fn the_filesystem_conditions_are_named() {
     remove(parent.as_path());
 }
 
-/// One byte under the requirement is refused with both numbers; exactly the requirement is accepted.
+/// The requirement grows with the entries of the checkout: one byte under it is refused with the entry count and both
+///  numbers, exactly the requirement is accepted.
 #[test]
-fn free_space_is_compared_with_the_requirement() {
+fn free_space_is_compared_with_the_requirement_of_the_entries() {
     let (parent, layout) = checkout("preflight-space");
     let journal: Journal = empty_journal(&layout);
+    let files: u64 = 7;
+    for number in 0..files {
+        std::fs::write(layout.root.join(format!("file-{number}")), b"x").expect("file");
+    }
+    // The `.git` directory of the fixture is an entry too.
+    let entries: u64 = files + 1;
+    let needed: u64 = required_free_bytes(entries);
     let mut platform: PlainPlatform = PlainPlatform::new();
-    platform.free = Some(MIN_FREE_BYTES - 1);
+    platform.free = Some(needed - 1);
     let found: Vec<Refusal> = migrate_refusals(&platform, &layout, &journal);
     let text: String = causes(found.as_slice());
-    assert!(text.contains(format!("{} bytes free", MIN_FREE_BYTES - 1).as_str()) && text.contains(MIN_FREE_BYTES.to_string().as_str()), "{text}");
-    platform.free = Some(MIN_FREE_BYTES);
+    assert!(text.contains(format!("{} bytes free", needed - 1).as_str()), "{text}");
+    assert!(text.contains(format!("{needed} bytes").as_str()), "{text}");
+    assert!(text.contains(format!("{entries} entries").as_str()), "{text}");
+    platform.free = Some(needed);
     assert_eq!(migrate_refusals(&platform, &layout, &journal), Vec::<Refusal>::new());
     remove(parent.as_path());
+}
+
+/// A small checkout does not need a fixed gibibytes: the need is the entries times the measured cost of one.
+#[test]
+fn a_small_checkout_needs_only_the_space_of_its_entries() {
+    let (parent, layout) = checkout("preflight-small");
+    let journal: Journal = empty_journal(&layout);
+    let mut platform: PlainPlatform = PlainPlatform::new();
+    platform.free = Some(required_free_bytes(1) * 2);
+    assert_eq!(migrate_refusals(&platform, &layout, &journal), Vec::<Refusal>::new());
+    remove(parent.as_path());
+}
+
+/// The cost of an entry multiplies by the entries and cannot overflow on an absurd count.
+#[test]
+fn the_requirement_is_linear_in_entries_and_saturates() {
+    assert_eq!(required_free_bytes(0), 0);
+    assert_eq!(required_free_bytes(10), required_free_bytes(1) * 10);
+    assert_eq!(required_free_bytes(u64::MAX), u64::MAX);
 }
 
 /// A mount point cannot be swapped, and a root on another device than its parent says so.
@@ -296,5 +325,19 @@ fn deleting_the_old_tree_needs_a_finished_migration_and_an_old_tree() {
     assert_eq!(remove_old_refusals(&layout, &journal), Vec::<Refusal>::new());
     journal.mark("verify", "started").expect("mark");
     assert_eq!(remove_old_refusals(&layout, &journal).len(), 1, "a started verification is not finished");
+    remove(parent.as_path());
+}
+
+/// Free space only matters where the copy writes btrfs metadata, so a filesystem that is not btrfs is refused for that and not
+///  also for space, and its tree is not listed to be counted.
+#[test]
+fn free_space_is_not_checked_where_the_filesystem_is_not_btrfs() {
+    let (parent, layout) = checkout("preflight-space-other");
+    let mut platform: PlainPlatform = PlainPlatform::new();
+    platform.kind = FilesystemKind::Other;
+    platform.free = Some(0);
+    let text: String = causes(migrate_refusals(&platform, &layout, &empty_journal(&layout)).as_slice());
+    assert!(text.contains("a filesystem other than btrfs"), "{text}");
+    assert!(!text.contains("bytes free"), "{text}");
     remove(parent.as_path());
 }

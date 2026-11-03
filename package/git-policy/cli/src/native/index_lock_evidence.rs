@@ -34,6 +34,9 @@ use std::path::{Path, PathBuf};
 
 /// Longest PID file text quoted in evidence,
 ///  in UTF-16 code units for ASCII text.
+///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
+///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const QUOTED_TEXT_LIMIT: usize = 64;
 
 /// What:

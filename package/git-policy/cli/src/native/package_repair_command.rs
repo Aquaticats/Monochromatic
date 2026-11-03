@@ -75,6 +75,9 @@ pub struct ToolRun {
 }
 
 /// The most bytes of a program's output kept for its failure text.
+///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
+///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const OUTPUT_TAIL_BYTES: usize = 600;
 
 /// How often a running program is checked against its limit.

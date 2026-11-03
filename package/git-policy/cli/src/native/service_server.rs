@@ -37,7 +37,11 @@ use std::sync::Arc;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-/// The most requests landed as one batch.
+/// The most requests landed as one batch. A prototype measured batches that "grow from 1 under light load to 21 to 64 in a burst"
+///  (`doc/planning/cli-git-resident-service.md`, lines 274 to 276), the largest equal to this cap. In production, 1,302 answered
+///  requests in the service journal (2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z, `size` and `position` fields) were all
+///  batches of one, so no observation of this build reaches the cap or shows where it should be; the value is the prototype's, kept
+///  as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const MAX_BATCH: usize = 64;
 
 /// How long a connection may take to send its request line before it is dropped.
@@ -45,6 +49,11 @@ pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// How long the service waits with nothing to do before it exits; the manager's socket stays, so the next connection starts it
 ///  again. Bazel's server does the same with `--max_idle_secs`, whose default is three hours, which is this value's precedent.
+///  Measured cost of exceeding it: of 1,051 commits in the commit timing log (2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z), the 10
+///  that followed an idle gap of more than three hours reached the service in at most 70 ms (`reachMs`) after a start wait of at
+///  most 47 ms (`startWaitMs`); 110 idle exits happened in that window. The 28 running services held 212 MiB together (7.9 MiB each,
+///  `systemctl --user show --property=MemoryCurrent`). A shorter exit would trade at most that start for that memory; the owner's
+///  bound is that a commit should not take 5 s longer than native Git (`SPEC.md`). Kept at three hours as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const IDLE_EXIT: Duration = Duration::from_secs(3 * 60 * 60);
 
 /// File descriptor the service manager passes the listening socket on (`SD_LISTEN_FDS_START`).

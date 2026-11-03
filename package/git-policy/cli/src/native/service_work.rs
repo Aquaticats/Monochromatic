@@ -332,6 +332,11 @@ fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, candidates:
 /// How long a claim goes without a renewal before another instance runs its item again; the holder renews it three times in this
 /// span while it works (`service_claim_renewal.rs`), so a holder that is slow keeps its claim and one that died loses it
 /// after this long.
+///  The data cannot support a value: no kill of a commit service appears in the user journal of this host (19 boots, 0 entries
+///  matching a kill, an out-of-memory stop or a failed result for a `cli-git@` unit), so the cost of waiting out a lease after a
+///  kill was never observed. The renewal thread is independent of the landing (`service_claim_renewal.rs`), so a landing that
+///  stalled for 119.8 s (the longest `total_ms` in the service journal) does not stop renewals. The value is
+///  the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping"); the options are listed there.
 pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 
 /// What:

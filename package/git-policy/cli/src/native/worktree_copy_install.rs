@@ -180,6 +180,10 @@ fn install_batch(
 ///  The leaves per worker below which a batch's files and links are created on one thread.
 /// Why:
 ///   A large batch spends its time in independent link calls; a small one is faster without the thread start.
+///  Not measured on the install itself. `clone_tree`, which makes files by the same calls, was faster with 8 workers than with
+///  one at every size it ran in parallel (13 ms against 39 ms at 555 entries, 20 ms against 74 ms at 1,077); its own threshold
+///  is 512. This value is the coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
