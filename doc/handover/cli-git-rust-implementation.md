@@ -9696,3 +9696,12 @@ by the coordinator at merge.
   `fault_trace::storage_that_fails_during_a_commit_...` ("a further commit must land ... Starting the commit
   service..."; both passed alone). Assigned (`fix/git-policy-cli-fault-trace-follow-up-commit`), with the routinely
   SLOW `a_service_killed_at_any_call_...`.
+- Mutation-test process-limit branch merged into main (after `7c0b1b4448` scoped `mise` and `1ef98b8317`): the shared
+  `run_test_files` runner caps concurrent files only when a package supplies `MONOCHROMATIC_TEST_FILE_TASKS`, and
+  otherwise behaves as before; it kills its test files on exit and signals. Under `TasksMax=300`: mutation-test
+  `pids.peak 205`, git-policy/cli 89, logger/core 126, all exit 0 with `pids.events max 0`. Not rerun at an unlimited
+  scope after the refactor (the no-estimate path reads no cgroup file). Fresh worktrees made by 0.5.17 lack
+  `dist/final` for packages such as `logger/core`, `async-time/core` and `or-throw/core` (built output is not copied by
+  the clone rung); the 0.5.18 snapshot route brings builds along once the nested worktrees are converted.
+  Corrective comment on `1a49aa2254`:
+  https://github.com/Aquaticats/Monochromatic/commit/1a49aa2254cfb6cd7b4b1cff6339db80423bf4d4#commitcomment-207866173
