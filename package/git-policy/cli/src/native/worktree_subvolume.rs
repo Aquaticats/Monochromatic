@@ -116,17 +116,6 @@ pub fn settle_subvolume_destination(created: &CreatedSubvolume) {
             return;
         }
     };
-    match identity_at(&parent, name) {
-        Ok(found) if found == expected => {}
-        Ok(_other) => {
-            warn(TAG, format!("{} is not the empty subvolume this command created, so it is left in place; remove it yourself if it is not wanted", shown.display()).as_str());
-            return;
-        }
-        Err(error) => {
-            debug(TAG, format!("{} cannot be looked up ({error}); left alone", shown.display()).as_str());
-            return;
-        }
-    }
     let held: std::fs::File = match open_directory_at(&parent, name) {
         Ok(held) => held,
         Err(error) => {
@@ -135,7 +124,7 @@ pub fn settle_subvolume_destination(created: &CreatedSubvolume) {
         }
     };
     if identity_of(&held).ok() != Some(expected) {
-        warn(TAG, format!("{} changed while it was being settled, so it is left in place", shown.display()).as_str());
+        warn(TAG, format!("{} is not the empty subvolume this command created, so it is left in place; remove it yourself if it is not wanted", shown.display()).as_str());
         return;
     }
     let mut listing = match std::fs::read_dir(handle_path(&held)) {

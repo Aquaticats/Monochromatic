@@ -205,6 +205,12 @@ Read-only commands,
   `git worktree remove <directory>` (no option) destroys a clean, unlocked subvolume worktree with one ioctl and deletes
    its administrative directory when the mount has `user_subvol_rm_allowed` (the doctor prints the commands that set it);
    in every other case Git removes it.
+  It does so only for a worktree that the repository you run it in registered and that Git would pick for the name you typed
+   (Git matches the name against the last components of every registered path before it resolves the path); an empty name,
+   another repository's worktree and a name that Git resolves differently go to Git, which words its answer.
+  If the files are destroyed but the registration cannot be removed, the command fails with status 2 and a report that
+   names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
+   (`git -C <repository> worktree prune`); it does not run Git afterwards.
   From the main checkout the copy carries the dependencies and builds a new worktree needs to run at once
    (`node_modules`, `target/`, `dist/`, local configuration files and the repository's `.cache/`),
    and leaves out caches, the records of earlier runs and any directory that is another checkout.
@@ -452,6 +458,9 @@ Files that only the new subvolume holds and this user may not read cannot be car
  their copy, and files the checkout lacks that are no older than the catch-up; older ones were deleted on purpose), then
  deletes the original.
 Both deletions make the directories this user owns writable on the way down, so a mode-555 directory does not stop them.
+Both refuse, before they delete anything, when a directory below the tree is a nested subvolume or a mount point, and
+ name it: its content is not part of the tree.
+ Move it out, delete it with `btrfs subvolume delete`, or unmount it, then run the deletion again.
 Deleting a subvolume uses the kernel's destroy call where the mount has `user_subvol_rm_allowed` and otherwise empties
  it and calls `rmdir`, which the kernel allows for an empty subvolume root.
 

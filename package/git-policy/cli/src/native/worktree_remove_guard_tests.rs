@@ -48,8 +48,11 @@ impl RemoveOperations for Stand {
         return true;
     }
 
-    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
-        check_clean(request.context, request.plan.target.as_path(), admin, common_dir)?;
+    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, _common_dir: &Path) -> Result<(), String> {
+        // The proof is made against the repository the worktree's own pointers name, so that a worktree of another
+        // repository passes it, and only the scope of the registration can stop it.
+        let own_common_dir: &Path = admin.parent().and_then(Path::parent).ok_or_else(|| { return String::from("no common directory"); })?;
+        check_clean(request.context, request.plan.target.as_path(), admin, own_common_dir)?;
         Stand::fire(&self.after_proof);
         return Ok(());
     }
@@ -197,6 +200,44 @@ fn an_ancestor_replaced_by_a_link_after_the_proof_does_not_redirect_the_destroy(
     remove(root.as_path());
 }
 
+/// An ancestor replaced by another real directory after the proof is not the directory that held the worktree: the held
+///  parent still leads to the proven worktree, but the path the person typed no longer does.
+#[test]
+fn an_ancestor_replaced_by_a_directory_after_the_proof_stops_the_removal() {
+    let root: PathBuf = fixture("remove-guard-replaced-ancestor");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("sub/wt").as_path(), "topic");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let (sub, moved) = (root.join("sub"), root.join("sub.moved"));
+    *stand.after_proof.borrow_mut() = Some(Box::new(move || {
+        std::fs::rename(sub.as_path(), moved.as_path()).expect("move the ancestor away");
+        std::fs::create_dir(sub.as_path()).expect("another directory at the same path");
+    }));
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../sub/wt")), RemoveOutcome::LeftToGit);
+    assert!(root.join("sub.moved/wt/tracked.txt").is_file(), "the proven directory is untouched");
+    remove(root.as_path());
+}
+
+/// Git refuses a worktree with a populated submodule ("working trees containing submodules cannot be moved or removed"),
+///  so the fast path must too.
+#[test]
+fn a_worktree_with_a_populated_submodule_is_left_to_git() {
+    let root: PathBuf = fixture("remove-guard-submodule");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let library: PathBuf = repository_with_file(root.as_path(), "library");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    git(worktree.as_path(), &["-c", "protocol.file.allow=always", "submodule", "add", "--quiet", library.to_str().expect("UTF-8"), "lib"]);
+    git(worktree.as_path(), &["commit", "--quiet", "--message=submodule"]);
+    for name in ["tracked.txt", ".gitmodules"] {
+        age(worktree.join(name).as_path());
+    }
+    git(worktree.as_path(), &["update-index", "--refresh"]);
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
+    assert!(worktree.join("lib/tracked.txt").is_file(), "the submodule's files are untouched");
+    remove(root.as_path());
+}
+
 /// A registration that cannot be removed after the destroy is reported as an incomplete removal that names the leftover
 ///  and the way to finish, never as a success.
 #[test]
@@ -274,5 +315,6 @@ fn an_administrative_directory_replaced_during_the_destroy_is_kept_and_reported(
     let RemoveOutcome::Incomplete(report) = outcome else { panic!("a registration that was not removed is not a success: {outcome:?}") };
     assert!(report.contains(admin.to_str().expect("UTF-8")), "{report}");
     assert_eq!(std::fs::read(admin.join("gitdir")).expect("the replacement registration is kept"), b"/elsewhere/.git\n");
+    assert!(repo.join(".git/worktrees/wt.moved/gitdir").is_file(), "the registration that was moved away is not emptied under its new name");
     remove(root.as_path());
 }
