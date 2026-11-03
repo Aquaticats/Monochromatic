@@ -17,7 +17,7 @@
 // import { check, initial, steps, invariant, endState, Rules } from './model_f9_hook_bypass';
 // ```
 use crate::model_explore::{Report, replay};
-use crate::model_f9_hook_bypass::{Rules, check, end_state, initial, invariant, steps};
+use crate::model_f9_hook_bypass::{Rules, State, check, end_state, initial, invariant, steps};
 
 /// Revision 6 builds the disjoint successor on the logical tail, which includes the unapproved held request.
 #[test]
@@ -124,4 +124,75 @@ fn candidate_orders_the_bypass_and_releases_the_map_at_materialization() {
     }
     assert!(report.exhausted);
     println!("F9 candidate: {} states, deepest {}", report.states, report.deepest);
+}
+
+/// The schedule shared by the next two tests: the hook succeeds, the request publishes, a foreign successor changes the path,
+/// M1's entry rule declines (M2), and a plain commit of another path follows.
+fn foreign_successor_then_plain_commit(rules: Rules) -> State {
+    return replay(
+        initial(rules, false, false),
+        steps,
+        &[
+            "environment: the hook of version one returns ok",
+            "lane: re-enters the held request at the tail and publishes it by replaying its delta on the tip",
+            "foreign: lands a successor on the held request's path",
+            "M2 void: the entry rule declined because a foreign successor changed the path",
+            "client: a plain commit stages only another path",
+        ],
+    );
+}
+
+/// Revision 8 (red): voiding releases the consumption entries, and the old entry returns as staging in an unrelated commit.
+#[test]
+fn eight_lets_a_voided_entry_return_as_staging() {
+    let reached = foreign_successor_then_plain_commit(Rules::Eight);
+    assert_eq!(
+        invariant(&reached),
+        Some("a plain commit captured a reversal of the held request that the person did not stage".to_string())
+    );
+}
+
+/// Revision 9 (green): M2 keeps the entry as `suppress`, so the same schedule captures nothing.
+#[test]
+fn nine_suppresses_a_voided_entry() {
+    let reached = foreign_successor_then_plain_commit(Rules::Nine);
+    assert_eq!(reached.r3, 1);
+    assert_eq!(invariant(&reached), None);
+}
+
+/// Revision 8 (red): a held version succeeds, the tip moves, and the replay spawns the hook again.
+#[test]
+fn eight_runs_the_hook_again_when_the_tip_moves() {
+    let reached = replay(
+        initial(Rules::Eight, false, false),
+        steps,
+        &[
+            "environment: the hook of version one returns ok",
+            "foreign: moves the tip after the hook succeeded",
+            "B1: the version is replayed on the moved tip and its hook is spawned again",
+        ],
+    );
+    assert_eq!(invariant(&reached), Some("a hook ran again for a version whose hook had already succeeded".to_string()));
+}
+
+/// Revision 8 (red): an amendment supersedes a held version and nothing records the old version's outcome. Revision 9 (green):
+/// B3 records it superseded.
+#[test]
+fn eight_leaves_a_superseded_version_without_a_terminal_outcome_and_nine_records_it() {
+    let amend: [&str; 1] = ["person: amends the held request, a new version supersedes it and runs its hook"];
+    let missing: Option<String> = Some("a superseded version never reached a durable terminal outcome".to_string());
+    assert_eq!(end_state(&replay(initial(Rules::Eight, false, true), steps, &amend)), missing);
+    assert_ne!(end_state(&replay(initial(Rules::Nine, false, true), steps, &amend)), missing);
+}
+
+/// Revision 9 exhaustive: all variants, no violation.
+#[test]
+fn nine_orders_the_bypass_suppresses_voids_runs_a_hook_once_and_records_superseded_versions() {
+    let report: Report = check(Rules::Nine);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F9 nine: {} states, deepest {}", report.states, report.deepest);
+    assert!(check(Rules::Eight).violation.is_some());
 }
