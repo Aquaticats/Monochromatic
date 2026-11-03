@@ -10517,3 +10517,15 @@ by the coordinator at merge.
   mpm-shadow agent on `fix/mpm-shadow-cli-export-tool-env-to-mise` (task 129): EAGAIN starts retried within a bound,
   start failures name outer command, nested command, stage, exit status and what completed, cleanup summarised in one
   line, `Closes #6259`. Ships in mpm-shadow 0.2.3 with the repository-only tool environment.
+- 2026-11-03T06:00:00-05:00: 0.5.24 gate `gpc-gate-release-0.5.24-no-wrapper-quiet-and-no-progress-push-20261103T051946-0500`
+  passed 4051/4051 (the first launch failed at CHDIR because I passed a full path to `launch-gate.ts`, which took a
+  name; the launcher now takes either and refuses a missing worktree). First merge into main failed after 98.6 s
+  ("error: could not write index / fatal: stash failed", exit 128, while a commit ran in main; main intact, no new
+  stash); the retry merged in 81.9 s. Auto-push of that merge (`1a5a8ee342`) was stopped at 05:40:19 by 0.5.23's fixed
+  30 s deadline and never retried; pushed by hand with `CLI_GIT_PUSH_DEADLINE_SECONDS=900` (112 s). Release 0.5.24
+  dispatched as run 41621630413. Main commits under IO pressure took 184 s and about 120 s (`read-tree --reset`,
+  `add --all -- <path>`, `diff-tree --shortstat` 20 to 30 s each; IO full pressure avg10 24.6 %, `pic-ov.service`
+  benchmark at about 190 MiB/s). A leaked push-progress test fixture loop (pid 2850604, since 04:09:11) was stopped
+  with the owner's approval. All five follow-ups are task 130 (QUEUED). Rebuilt-commit note done on
+  `feat/git-policy-cli-note-after-rebuilt-commit` (host 3398, binary 582/583 with one load flake that passed alone);
+  goes into 0.5.25.
