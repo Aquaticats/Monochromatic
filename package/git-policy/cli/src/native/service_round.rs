@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// The bytes the drain of one repository holds at its peak, estimated: the items of a burst, the output of a push, and a review's
-///  patch and answer, which `service_review.rs` bounds; about 64 MiB.
+///  patch and answer, which the review bounds; about 64 MiB.
 pub const REPOSITORY_MEMORY: u64 = 64 << 20;
 
 /// What:
@@ -80,8 +80,7 @@ pub fn drain_directories<H: WorkHandlers + Sync>(request: &RoundDrain<'_, H>) ->
             }
         }
     }
-    let _budget: usize = worker_budget(&BudgetRequest { items: lanes.len(), per_item_memory: REPOSITORY_MEMORY, ceiling: None, cap: None, host });
-    let workers: usize = 1;
+    let workers: usize = worker_budget(&BudgetRequest { items: lanes.len(), per_item_memory: REPOSITORY_MEMORY, ceiling: None, cap: None, host });
     let mut retries: Vec<(PathBuf, Duration)> = Vec::new();
     run_ordered(OrderedRun {
         items: directories,

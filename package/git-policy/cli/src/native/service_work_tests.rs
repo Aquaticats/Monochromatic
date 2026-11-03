@@ -711,25 +711,25 @@ fn a_claim_taken_over_when_no_renewal_has_run_is_not_run_from_the_old_claim() {
     remove(repo.root.as_path());
 }
 
-/// The credential a wake brought is held for that repository only, and is gone once its round ends.
+/// The credential a wake brought is held for that repository only, in the copy of the handlers made for its round; the handlers
+///  the service keeps never hold one.
 #[test]
-fn the_review_key_is_held_per_repository_and_forgotten() {
+fn the_review_key_is_held_per_repository_in_the_round_copy_only() {
     let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
     let first: PathBuf = PathBuf::from("/srv/one/.git");
     let second: PathBuf = PathBuf::from("/srv/two/.git");
     let key: ReviewKey = ReviewKey::new("test-key-not-a-secret").expect("a key");
     assert_eq!(handlers.review_key_of(first.as_path()), None);
-    handlers.remember_review_key(first.as_path(), key.clone());
-    assert_eq!(handlers.review_key_of(first.as_path()), Some(key));
-    assert_eq!(handlers.review_key_of(second.as_path()), None, "another repository does not see it");
-    handlers.forget_review_key(first.as_path());
-    assert_eq!(handlers.review_key_of(first.as_path()), None);
+    let round: GitHandlers = handlers.for_round(std::collections::HashMap::from([(first.clone(), key.clone())]));
+    assert_eq!(round.review_key_of(first.as_path()), Some(key));
+    assert_eq!(round.review_key_of(second.as_path()), None, "another repository does not see it");
+    assert_eq!(handlers.review_key_of(first.as_path()), None, "the handlers the service keeps hold none");
 }
 
-/// A round keeps a wake's credential only until its repository has been drained: nothing of it is left afterwards, for the
+/// A round keeps a wake's credential only for itself: nothing of it is left in the service's handlers afterwards, for the
 /// repository that brought it or any other, and a repeated directory is drained once.
 #[test]
-fn a_round_forgets_the_credentials_it_was_given() {
+fn a_round_leaves_no_credential_in_the_handlers() {
     let first: Repo = repo("work-round");
     let second: Repo = repo("work-round-other");
     let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());

@@ -28,7 +28,9 @@ use super::push_failure_notice::{clear_push_failures_before, record_push_failure
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use super::service_claim_renewal::{ClaimRenewal, HeldClaims, Renewal, held_claims, renewal_interval};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
+use super::parallel_budget::HostResources;
 use super::service_review_key::ReviewKey;
+use super::service_round::{RoundDrain, drain_directories};
 use super::service_timing::log_entry;
 use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
@@ -435,47 +437,48 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
 }
 
 /// What:
-///  Runs one round of wakes: keeps each wake's review credential in memory, drains each named repository once, and
-///  forgets the credentials when the repository is done. Gives, for each repository that has a claim another instance holds,
-///  how long until that claim's lease runs out.
+///  Runs one round of wakes: holds each wake's review credential in memory for the round, drains each named repository once,
+///  repositories side by side, and drops the credentials when the round ends. Gives, for each repository that has a claim
+///  another instance holds, how long until that claim's lease runs out, in the order the repositories were named.
 /// Why:
 ///   The credential is held only for the reviews of the round that brought it; a service that restarts before the round
 ///  runs has none, and its reviews record the plain "no key" outcome. The service looks at such a repository again when the
-///  time is over, because the holder may have died and nothing else would wake the work.
+///  time is over, because the holder may have died and nothing else would wake the work. Repositories share nothing, so the
+///  round drains them side by side (`service_round.rs`); the credentials are passed to the workers as values in a copy of the
+///  handlers made for this round, so nothing is shared mutably and no lock is taken.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const [dir, key] of wakes) { remember(dir, key); await drain(dir); forget(dir) }
+/// const round = handlers.forRound(keysOf(wakes)); await Promise.all(directories.map((dir) => drain(dir, round)));
 /// ```
 pub fn run_round(wakes: Vec<Wake>, handlers: &GitHandlers, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
+    return run_round_on(&HostResources::read(), wakes, handlers, now);
+}
+
+/// `run_round` with the host's resources chosen by the caller, so a control states a host of any size.
+pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandlers, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
     let mut directories: Vec<PathBuf> = Vec::new();
+    let mut keys: std::collections::HashMap<PathBuf, ReviewKey> = std::collections::HashMap::new();
     for (directory, review_key) in wakes {
         if let Some(key) = review_key {
-            handlers.remember_review_key(directory.as_path(), key);
+            keys.insert(directory.clone(), key);
         }
         if !directories.contains(&directory) {
             directories.push(directory);
         }
     }
-    let mut retries: Vec<(PathBuf, Duration)> = Vec::new();
-    for directory in directories {
-        let waits: [Option<Duration>; 2] = [drain(directory.as_path(), handlers, now), drain_common_records(directory.as_path(), handlers, now)];
-        if let Some(wait) = waits.into_iter().flatten().min() {
-            retries.push((directory.clone(), wait));
-        }
-        handlers.forget_review_key(directory.as_path());
-    }
-    return retries;
+    let round: GitHandlers = handlers.for_round(keys);
+    return drain_directories(&RoundDrain { directories: directories.as_slice(), handlers: &round, now, host });
 }
 
 /// The handlers that run real Git.
 pub struct GitHandlers {
     /// The context every Git child of the service runs in.
     pub context: GitContext,
-    /// The review credential of each repository whose wake message carried one. Held in memory only, removed when the
-    /// round that used it ends. The handlers belong to the work thread, which remembers, reads and forgets the keys in turn,
-    /// so the map is a plain cell of that thread and not shared, and nothing waits for it.
-    review_keys: std::cell::RefCell<std::collections::HashMap<PathBuf, ReviewKey>>,
+    /// The review credential of each repository whose wake message carried one, for the round these handlers were made for. Held
+    /// in memory only and never changed after the handlers are made: a round makes its own copy (`for_round`) and drops it when
+    /// the round ends, so the workers of a round only read it and nothing waits for it.
+    review_keys: std::collections::HashMap<PathBuf, ReviewKey>,
     /// Where tests point the review's gateway call, so no test reaches the real endpoint.
     #[cfg(test)]
     review_endpoint: Option<String>,
@@ -487,7 +490,7 @@ impl GitHandlers {
     pub fn new(context: GitContext) -> GitHandlers {
         return GitHandlers {
             context,
-            review_keys: std::cell::RefCell::new(std::collections::HashMap::new()),
+            review_keys: std::collections::HashMap::new(),
             #[cfg(test)]
             review_endpoint: None,
         };
@@ -500,18 +503,19 @@ impl GitHandlers {
         return self;
     }
 
-    /// Keep the credential for the reviews of this repository until `forget_review_key`.
-    pub fn remember_review_key(&self, git_dir: &Path, key: ReviewKey) {
-        self.review_keys.borrow_mut().insert(git_dir.to_path_buf(), key);
+    /// A copy of these handlers that holds `keys` as the review credentials of one round; the copy is dropped with the round.
+    pub fn for_round(&self, keys: std::collections::HashMap<PathBuf, ReviewKey>) -> GitHandlers {
+        return GitHandlers {
+            context: self.context.clone(),
+            review_keys: keys,
+            #[cfg(test)]
+            review_endpoint: self.review_endpoint.clone(),
+        };
     }
 
-    /// Drop the credential of this repository.
-    pub fn forget_review_key(&self, git_dir: &Path) {
-        self.review_keys.borrow_mut().remove(git_dir);
-    }
-
+    /// The credential held for this repository, if the round brought one.
     fn review_key_of(&self, git_dir: &Path) -> Option<ReviewKey> {
-        return self.review_keys.borrow().get(git_dir).cloned();
+        return self.review_keys.get(git_dir).cloned();
     }
 
     fn push_git(&self, item: &WorkItem) -> PushGit {
