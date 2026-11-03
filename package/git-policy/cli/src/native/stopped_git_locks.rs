@@ -51,11 +51,20 @@ const PID_TEXT_PREFIX: &str = "pid ";
 
 /// How far a file's birth may precede the clock reading taken before the child started.
 ///  The kernel stamps files from a coarse clock that lags the one `SystemTime` reads by up to one tick.
+///  Measured on this host (`CONFIG_HZ=1000`, so a tick is 1 ms): a new file's birth time lagged a clock read taken just before
+///  the create by at most 1.684 ms and 1.729 ms in two runs of 10,000 creates each, so 50 ms is about thirty times the
+///  longest lag. Kept; recorded in `doc/planning/cli-git-shipped-limits-audit.md`, "Margins for removing left-behind locks"
+///  (the coordinator's pick under the owner's delegation, open to the owner's veto).
 pub(crate) const COARSE_CLOCK_SLACK: Duration = Duration::from_millis(50);
 
 /// How long an empty lock without a pid file must have stayed empty before it counts as left behind.
 ///  Git creates a ref lock empty and fills it a moment later, so a lock that a live process just made is empty for
 ///  milliseconds; one that is still empty after this long has no writer. The sweep waits out what remains of it.
+///  Measured with real Git 2.56.0 on a throwaway repository, traced with `strace` (which slows each call, so these are upper
+///  bounds): a reference lock was empty for at most 2.244 ms between its creation and its first write over 7,700 updates in
+///  four alternating arms (median 0.38 ms), at load averages 3 to 14. One second is about four hundred times that longest
+///  gap; the load average of 80 to 145 that `doc/planning/cli-git-commit-timeouts.md` records was not present, so the factor is
+///  not a proof for it. Kept; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const EMPTY_LOCK_SETTLE: Duration = Duration::from_secs(1);
 
 /// The directory inside `objects` that Git locks files in; the other directories there hold only loose objects.

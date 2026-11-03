@@ -20,8 +20,20 @@ pub use super::stale_ref_lock_identity::{Identity, identity_of};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-/// How old a lock must be before it is judged: long enough for a live Git to have filled and renamed a lock it just made.
-pub const MARGIN: Duration = Duration::from_secs(2);
+/// The longest step of a landing that updates a reference, in a live service: 3,438 ms, the largest `ref_ms` of 1,302 `answered`
+///  entries of the service journal (`journalctl --user SYSLOG_IDENTIFIER=cli-git-service`, 2026-11-02T09:01:38Z to
+///  2026-11-03T15:11:58Z; 1 entry above 2,000 ms and 2 at or above 1,000 ms; median 2 ms, 99th percentile 64 ms). The step starts
+///  Git, takes the reference lock, fills it and renames it, so a lock a live Git holds is gone within it. Real Git on a
+///  throwaway repository, traced with `strace`, held a lock for at most 2.8 ms (7,700 updates, load average 3 to 14), so this
+///  is the loaded tail, not the common case.
+pub const LONGEST_LIVE_REF_STEP: Duration = Duration::from_millis(3438);
+
+/// How old a lock must be before it is judged: long enough for a live Git to have filled and renamed a lock it just made. The
+///  whole seconds above the longest step measured in `LONGEST_LIVE_REF_STEP`, because a lock younger than the longest live hold
+///  may still be live. The longest of a sample understates the tail, so the owner may want a larger multiple: this is the
+///  coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Margins for removing left-behind locks").
+pub const MARGIN: Duration = Duration::from_secs(LONGEST_LIVE_REF_STEP.as_secs() + 1);
 
 /// The kernel's name for the initial PID namespace, where every process of the machine has the number it is seen by.
 const INITIAL_PID_NAMESPACE: &str = "pid:[4026531836]";
@@ -30,14 +42,28 @@ const INITIAL_PID_NAMESPACE: &str = "pid:[4026531836]";
 ///  written by a Git on another machine, whose process numbers mean nothing here.
 const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
 
+/// One hour: the offset a hardware clock kept in local time shows against the true time after a time zone or daylight-saving change.
+pub const ZONE_OFFSET: Duration = Duration::from_secs(3600);
+
+/// The hour-scale clock step measured on this host: `chronyd` logged "System clock was stepped by -3599.507590 seconds" at
+///  2026-11-01T10:09:47-05:00 (`journalctl -u chronyd`, 19 boots since 2026-10-06). It is 0.49 s short of `ZONE_OFFSET`, so a step in the
+///  other direction can be as far over it.
+pub const MEASURED_ZONE_STEP: Duration = Duration::from_millis(3_599_508);
+
 /// How much older than the boot a lock must be for the boot proof. `btime` of `/proc/stat` is the wall clock minus the
 ///  uptime, so it moves when the clock is stepped after boot (a hardware clock that is hours off until the network time
 ///  arrives); a lock a live Git made in the first seconds could then look older than the boot. A real lock from before a
-///  reboot is old by more than this; a step larger than this, across the life of a live lock, is the one case left.
-pub const BOOT_SLACK: Duration = Duration::from_secs(3600);
+///  reboot is old by more than this. `ZONE_OFFSET` covers the hour-scale steps; the same journal also shows a step of 2,934,868 s
+///  (34 days, 2026-10-17) that no slack can cover without refusing every real reboot, and that case is the one left.
+///  The hour plus `MARGIN` (more than the 0.49 s the measured step was off the hour). The coordinator's pick under the
+///  owner's delegation, open to the owner's veto.
+pub const BOOT_SLACK: Duration = Duration::from_secs(ZONE_OFFSET.as_secs() + MARGIN.as_secs());
 
 /// How far after the lock's birth a process must have started to count as a later user of the same number, beyond the
-///  clock's resolution.
+///  clock's resolution. Measured: the start time derived from `/proc/<pid>/stat`, `/proc/uptime` and the clock read together
+///  exceeded the clock read just before the process was spawned by at most 2.331 ms and 2.329 ms in two runs of 1,000 spawns, so
+///  100 ms is over forty times the longest error beyond the 20 ms resolution. Kept; the coordinator's pick under the owner's
+///  delegation, open to the owner's veto.
 const REUSE_SLACK_MS: f64 = 100.0;
 
 /// The command name of Git, and of its helpers (`git-remote-https`), as the kernel reports it.
@@ -268,3 +294,8 @@ fn boot_time() -> Option<SystemTime> {
     let seconds: u64 = text.lines().find_map(|line| { return line.strip_prefix("btime ")?.trim().parse::<u64>().ok(); })?;
     return Some(SystemTime::UNIX_EPOCH + Duration::from_secs(seconds));
 }
+
+/// Controls on the margins stay out of the release executable.
+#[cfg(test)]
+#[path = "stale_ref_lock_judge_tests.rs"]
+mod tests;
