@@ -486,6 +486,58 @@ pub fn process_exists(pid: u32) -> bool {
 }
 
 /// What:
+/// `fn recover_manifests(directory, between, messages) -> bool` puts back the manifests a killed `--breaking` run journaled,
+/// saving the text it replaces as `<name>.refused` (or the first free `<name>.refused.N`), and says whether all were settled.
+/// Why:
+/// A journaled manifest that differs from its text before the run was rewritten by the killed run (or edited since, which the
+/// saved copy keeps), and a manifest that cannot be put back keeps the journal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function recoverManifests(directory: string, between: (path: string) => void, messages: string[]): boolean
+/// ```
+fn recover_manifests(directory: &Path, between: &dyn Fn(&Path), messages: &mut Vec<String>) -> bool {
+    let index: String = match fs::read_to_string(directory.join(MANIFEST_INDEX_FILE)) {
+        Ok(found) => found,
+        Err(_) => return true,
+    };
+    let mut all_settled: bool = true;
+    for (position, path_text) in index.lines().enumerate() {
+        let path: PathBuf = PathBuf::from(path_text);
+        let before: String = match fs::read_to_string(directory.join(format!("m{position}.toml"))) {
+            Ok(found) => found,
+            Err(error) => {
+                all_settled = false;
+                messages.push(format!("{path_text}: the journaled text of a manifest could not be read ({error}); its journal was kept"));
+                continue;
+            }
+        };
+        let live: String = fs::read_to_string(&path).unwrap_or_default();
+        if live == before {
+            continue;
+        }
+        let saved: io::Result<PathBuf> = save_aside(&path.with_file_name(format!("{}{REFUSED_SUFFIX}", path.file_name().map(|name| { return name.to_string_lossy().to_string(); }).unwrap_or_default())), &live);
+        let restored: io::Result<(PathBuf, ReplaceOutcome)> = match saved {
+            Ok(copy) => replace_if_holds(&path, &live, &before, between).map(|outcome| { return (copy, outcome); }),
+            Err(error) => Err(error),
+        };
+        match restored {
+            Ok((copy, ReplaceOutcome::Replaced)) => messages.push(format!(
+                "{path_text} was rewritten by a run that was killed and its lockfile was not kept; the earlier manifest was put back and the rewritten text is kept as {}",
+                copy.display()
+            )),
+            Ok((_, ReplaceOutcome::LeftAlone)) => messages.push(format!("{path_text} was changed by another process while a killed run was being recovered; it was left as that process wrote it")),
+            Ok((_, ReplaceOutcome::Preserved(kept))) => messages.push(format!("{path_text} was changed twice by other processes while a killed run was being recovered; the file displaced is kept as {}", kept.display())),
+            Err(error) => {
+                all_settled = false;
+                messages.push(format!("{path_text}: could not recover a killed run: {error}; its journal was kept"));
+            }
+        }
+    }
+    return all_settled;
+}
+
+/// What:
 /// `pub fn recover(root, is_alive, judge) -> Vec<String>` finishes the journals of processes that no longer exist.
 /// Why:
 /// For each such journal:
@@ -550,6 +602,9 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(
             }
         };
         let mut settled: bool = true;
+        // Whether a lockfile this journal lists was kept because its new versions pass the policy: the manifest edits that go
+        // with it are kept too.
+        let mut kept_a_lock: bool = false;
         for (old, now) in before.iter().zip(live.iter()) {
             if old.source == now.source {
                 continue;
@@ -558,6 +613,7 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(
             let path: PathBuf = root.join(&old.crate_dir).join(LOCKFILE_NAME);
             if problems.is_empty() {
                 messages.push(format!("{}/{LOCKFILE_NAME} was left by a run that was killed; its new versions pass the policy, so it was kept", old.crate_dir));
+                kept_a_lock = true;
                 continue;
             }
             // Review finding (compare-before-replace): the judgement above can take a long time, so the file is read again
@@ -597,6 +653,10 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(
                     messages.push(format!("{}/{LOCKFILE_NAME}: could not recover a killed run: {error}; its journal was kept", old.crate_dir));
                 }
             }
+        }
+        // Delegated pick (2026-11-03): the manifests of a killed `--breaking` run go back unless its lockfile was kept.
+        if !kept_a_lock && !recover_manifests(&directory, between, &mut messages) {
+            settled = false;
         }
         if settled {
             let _ = fs::remove_dir_all(&directory);
