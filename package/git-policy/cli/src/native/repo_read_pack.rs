@@ -50,6 +50,8 @@ pub struct Pack {
     cache: std::cell::RefCell<std::collections::HashMap<u64, RawObject>>,
     /// The bytes held in `cache`; once it passes `CACHE_BYTE_LIMIT` no entry is added.
     cached_bytes: std::cell::Cell<usize>,
+    /// How many reads of the index file the lookups made; a stand-in for the system calls a lookup costs.
+    index_reads: std::cell::Cell<u64>,
 }
 
 /// Read exactly `length` bytes at `position`, or `None`.
@@ -172,12 +174,23 @@ impl Pack {
         if &pack_header[..4] != b"PACK" || !matches!(pack_header[7], 2 | 3) || pack_header[4..7] != [0, 0, 0] || u64::from(pack_count) != count {
             return None;
         }
-        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0) });
+        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0), index_reads: std::cell::Cell::new(0) });
     }
 
     /// How many entries of this pack were decoded (inflated, with their delta applied) since it was opened.
     pub fn decoded_entries(&self) -> u64 {
         return self.decoded.get();
+    }
+
+    /// How many times the lookups of this pack read the index file since it was opened.
+    pub fn index_reads(&self) -> u64 {
+        return self.index_reads.get();
+    }
+
+    /// `length` bytes of the index at `position`, counted as one read.
+    fn read_index(&self, position: u64, length: usize) -> Option<Vec<u8>> {
+        self.index_reads.set(self.index_reads.get() + 1);
+        return read_at(&self.index, position, length);
     }
 
     /// The pack offset of the object named `name`, or `None` when this pack does not hold it.
@@ -191,7 +204,7 @@ impl Pack {
         let names_at: u64 = FANOUT_END;
         while low < high {
             let middle: u64 = low + (high - low) / 2;
-            let candidate: Vec<u8> = read_at(&self.index, names_at + middle * self.hash_length as u64, self.hash_length)?;
+            let candidate: Vec<u8> = self.read_index(names_at + middle * self.hash_length as u64, self.hash_length)?;
             match candidate.as_slice().cmp(name) {
                 std::cmp::Ordering::Equal => return self.offset_of(middle),
                 std::cmp::Ordering::Less => low = middle + 1,
@@ -204,12 +217,13 @@ impl Pack {
     /// The pack offset stored for the `position`th name, following the large-offset table.
     fn offset_of(&self, position: u64) -> Option<u64> {
         let offsets_at: u64 = FANOUT_END + self.count * (self.hash_length as u64 + 4);
-        let word: u32 = be32(&self.index, offsets_at + position * 4)?;
+        let bytes_word: Vec<u8> = self.read_index(offsets_at + position * 4, 4)?;
+        let word: u32 = u32::from_be_bytes([bytes_word[0], bytes_word[1], bytes_word[2], bytes_word[3]]);
         if word & 0x8000_0000 == 0 {
             return Some(u64::from(word));
         }
         let large_at: u64 = offsets_at + self.count * 4 + u64::from(word & 0x7fff_ffff) * 8;
-        let bytes: Vec<u8> = read_at(&self.index, large_at, 8)?;
+        let bytes: Vec<u8> = self.read_index(large_at, 8)?;
         let mut array: [u8; 8] = [0; 8];
         array.copy_from_slice(bytes.as_slice());
         return Some(u64::from_be_bytes(array));
