@@ -39,6 +39,14 @@ Package signature checks remain enabled.
 This opt-in also selects that endpoint for those repositories in the resulting VM image;
 the default build retains Fedora's metalink mirror selection.
 
+`mise run //package/vm-builder/cli:image:check` runs the installed OdyTTY as the image's `user`
+in disposable containers with networking disabled.
+It prints the version,
+effective OdyTTY preferences,
+KDE/XDG defaults,
+and desktop entry for inspection.
+It does not boot or replace a VM.
+
 The full build,
 conversion,
 and import task follows.
