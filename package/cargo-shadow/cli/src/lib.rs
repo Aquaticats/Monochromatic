@@ -280,6 +280,21 @@ mod real_binary_tests;
 mod shadow_notice_tests;
 
 /// What:
+/// `#[cfg(test)] mod shadow_update_tests;` declares the tests in `src/shadow_update_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the stand-in lockfile that a full update of a root without a lockfile uses."
+/// so the behavior of `shadow_update` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // shadow_update_tests.test.ts, run by the test runner only
+/// ```
+#[cfg(test)]
+mod shadow_update_tests;
+
+/// What:
 /// `#[cfg(test)] mod shadow_step_tests;` declares the tests in `src/shadow_step_tests.rs`;
 /// the attribute compiles it only for test builds (a TS test file that production code never imports).
 /// Why:

@@ -537,31 +537,27 @@ fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, 
 /// function runFullUpdate(args): number
 /// ```
 fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, forward: &[String], sink: &mut dyn Write) -> i32 {
-    // Borrow `&crate_dirs`: lends the value without copying or giving it away.
     let lock_path = prepared.catalog_root.join(&crate_dirs[0]).join(LOCKFILE_NAME);
-    // Borrow `&lock_path`: lends the value without copying or giving it away.
-    // Typed binding: `created_placeholder: bool`.
-    let created_placeholder: bool = !lock_path.is_file() && std::fs::write(&lock_path, EMPTY_LOCK).is_ok();
-    // Borrow `&UpdateKind`: lends the value without copying or giving it away.
-    // Typed binding: `code: i32`.
-    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
-    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: number
-    // ```
-    let code: i32 = run_update(prepared, crate_dirs, dry_run, &UpdateKind::Full, forward, sink);
+    return run_with_placeholder_lock(&lock_path, dry_run, &mut || {
+        return run_update(prepared, crate_dirs, dry_run, &UpdateKind::Full, forward, sink);
+    });
+}
+
+/// What:
+/// `pub fn run_with_placeholder_lock(lock_path, _dry_run, body) -> i32` runs `body` with a stand-in lockfile in place when the
+/// crate root has none, and removes the stand-in again if the update is refused.
+/// Why:
+/// The transaction needs a lockfile to snapshot; a root without one is created by the update itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function runWithPlaceholderLock(lockPath: string, dryRun: boolean, body: () => number): number
+/// ```
+pub fn run_with_placeholder_lock(lock_path: &Path, _dry_run: bool, body: &mut dyn FnMut() -> i32) -> i32 {
+    let created_placeholder: bool = !lock_path.is_file() && std::fs::write(lock_path, EMPTY_LOCK).is_ok();
+    let code: i32 = body();
     if created_placeholder && code != 0 {
-        // Borrow `&lock_path`: lends the value without copying or giving it away.
-        // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
-        // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // void expr;   // or try { expr } catch {}
-        // ```
-        let _ = std::fs::remove_file(&lock_path);
+        let _ = std::fs::remove_file(lock_path);
     }
     return code;
 }
