@@ -10,7 +10,7 @@
 //! expect(parseDatagram(datagram('info', 'a\nPRIORITY=0', []))).toEqual({ PRIORITY: '6', MESSAGE: 'a PRIORITY=0' });
 //! ```
 
-use super::{CUT_MARK, Delivery, FIELD_LIMIT, IDENTIFIER, MESSAGE_LIMIT, Priority, Sink, StreamWriter, Target, datagram, raw_address, one_line, stream_matches, valid_field_name};
+use super::{CUT_MARK, Delivery, FIELD_LIMIT, FIELD_NAME_LIMIT, LOST_FIELD, cut, IDENTIFIER, MESSAGE_LIMIT, Priority, Sink, StreamWriter, Target, datagram, raw_address, one_line, stream_matches, valid_field_name};
 use std::collections::BTreeMap;
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixDatagram};
@@ -66,17 +66,18 @@ fn priorities_are_the_syslog_levels() {
     assert_eq!((Priority::Error.number(), Priority::Warning.number(), Priority::Info.number()), (3, 4, 6));
 }
 
-/// A message or a field value with a newline cannot start a field: the entry has exactly the fields it was given.
+/// A message or a field value with a newline cannot start a field: the entry has exactly the fields it was given, and the
+/// newline is part of the value that held it.
 #[test]
 fn a_newline_in_a_message_or_a_value_cannot_start_a_field() {
     let hostile: String = String::from("landed\nPRIORITY=0\nSYSLOG_IDENTIFIER=sshd");
     let fields: [(&str, String); 1] = [("CLI_GIT_BRANCH", hostile.clone())];
-    let bytes: Vec<u8> = datagram(Priority::Info, hostile.as_str(), &fields);
-    let found = parsed(bytes.as_slice());
-    assert_eq!(found["PRIORITY"], "6");
-    assert_eq!(found["SYSLOG_IDENTIFIER"], IDENTIFIER);
-    assert_eq!(bytes.iter().filter(|byte| { return **byte == b'\n'; }).count(), 4, "one newline ends each of the four fields");
-    assert_eq!(found["MESSAGE"], "landed PRIORITY=0 SYSLOG_IDENTIFIER=sshd");
+    let found = decoded(datagram(Priority::Info, hostile.as_str(), &fields).as_slice());
+    assert_eq!(found.iter().map(|(name, _)| { return name.as_str(); }).collect::<Vec<_>>(), vec!["PRIORITY", "SYSLOG_IDENTIFIER", "MESSAGE", "CLI_GIT_BRANCH"]);
+    assert_eq!(found[0].1, b"6");
+    assert_eq!(found[1].1, IDENTIFIER.as_bytes());
+    assert_eq!(found[2].1, hostile.as_bytes());
+    assert_eq!(found[3].1, hostile.as_bytes());
 }
 
 /// A name journald would refuse (a leading underscore is the journal's own, a lower-case letter is not allowed) is left out.
@@ -243,4 +244,219 @@ fn a_stream_writer_on_a_file_writes_the_line() {
     writer.write_all(b"<6>cli-git-service: ready at_ms=1\n").expect("written");
     assert_eq!(std::fs::read_to_string(&path).expect("file"), "<6>cli-git-service: ready at_ms=1\n");
     crate::command_test_support::remove(root.as_path());
+}
+
+/// One field of a native entry as journald reads it: the simple form `NAME=value\n`, or the binary form `NAME\n`, eight
+/// bytes of little-endian length, the value and `\n` (journald-native.c, `manager_process_entry`).
+fn decoded(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let mut fields: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut rest: &[u8] = bytes;
+    while !rest.is_empty() {
+        let end: usize = rest.iter().position(|byte| { return *byte == b'\n'; }).expect("every field ends in a newline");
+        let head: &[u8] = &rest[..end];
+        if let Some(equals) = head.iter().position(|byte| { return *byte == b'='; }) {
+            fields.push((String::from_utf8(head[..equals].to_vec()).expect("a name"), head[equals + 1..].to_vec()));
+            rest = &rest[end + 1..];
+            continue;
+        }
+        let length: usize = usize::try_from(u64::from_le_bytes(rest[end + 1..end + 9].try_into().expect("eight length bytes"))).expect("small");
+        let value: &[u8] = &rest[end + 9..end + 9 + length];
+        assert_eq!(rest[end + 9 + length], b'\n', "the value is followed by a newline");
+        fields.push((String::from_utf8(head.to_vec()).expect("a name"), value.to_vec()));
+        rest = &rest[end + 9 + length + 1..];
+    }
+    return fields;
+}
+
+/// A value with a newline in it reaches the journal as it was, in the length-prefixed form, and starts no field; control
+/// bytes other than the newline are carried as they are.
+#[test]
+fn a_value_with_a_newline_is_carried_whole_in_the_length_prefixed_form() {
+    let hostile: &str = "landed\nPRIORITY=0\nSYSLOG_IDENTIFIER=sshd\u{0}tail\u{1b}[31m";
+    let fields: [(&str, String); 2] = [("CLI_GIT_BRANCH", String::from("one\ntwo")), ("CLI_GIT_PLAIN", String::from("no newline"))];
+    let found = decoded(datagram(Priority::Info, hostile, &fields).as_slice());
+    let names: Vec<&str> = found.iter().map(|(name, _)| { return name.as_str(); }).collect();
+    assert_eq!(names, vec!["PRIORITY", "SYSLOG_IDENTIFIER", "MESSAGE", "CLI_GIT_BRANCH", "CLI_GIT_PLAIN"], "the entry has exactly the fields it was given");
+    assert_eq!(found[0].1, b"6");
+    assert_eq!(found[1].1, IDENTIFIER.as_bytes());
+    assert_eq!(found[2].1, hostile.as_bytes(), "the message reads back as written");
+    assert_eq!(found[3].1, b"one\ntwo");
+    assert_eq!(found[4].1, b"no newline");
+}
+
+/// A name journald would take is 1 to 64 characters of upper-case letters, digits and underscores, starting with a letter:
+/// systemd's `journal_field_valid` refuses a digit first and a leading underscore (the journal's own fields), and a name over
+/// 64 characters. (The review said a name may start with a digit; the source it points at says it may not.)
+#[test]
+fn a_field_name_follows_systemds_rule_including_its_length_and_its_first_character() {
+    assert!(valid_field_name(&"A".repeat(64)), "64 is the longest");
+    assert!(!valid_field_name(&"A".repeat(65)), "65 is too long");
+    assert!(!valid_field_name("1STAGE") && !valid_field_name("9"), "a digit may not come first");
+    assert!(!valid_field_name("_PRIVATE") && !valid_field_name("_"), "an underscore may not come first");
+    assert!(valid_field_name("A1_") && valid_field_name("X"));
+    assert!(!valid_field_name("") && !valid_field_name("a") && !valid_field_name("A-B") && !valid_field_name("É"));
+}
+
+/// A writer that takes only part of what it is given and then has no room, until it is given room.
+struct Tight {
+    /// What the stream has taken.
+    taken: Vec<u8>,
+    /// How many more bytes it takes before it is full; `usize::MAX` for no limit.
+    room: usize,
+}
+
+impl std::io::Write for Tight {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if self.room == 0 {
+            return Err(std::io::ErrorKind::WouldBlock.into());
+        }
+        let count: usize = bytes.len().min(self.room);
+        self.taken.extend_from_slice(&bytes[..count]);
+        self.room = self.room.saturating_sub(count);
+        return Ok(count);
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// A line the stream took only in part is finished before the next one starts: the stream never carries half of one line into
+/// the next, and a later line is not lost to the unfinished one.
+#[test]
+fn a_line_taken_in_part_is_finished_before_the_next_starts() {
+    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-partial-{}", std::process::id()));
+    let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
+    let mut stream: Tight = Tight { taken: Vec::new(), room: 5 };
+    sink.deliver(Priority::Info, "one", &[], "first line\n", &mut stream);
+    stream.room = usize::MAX;
+    sink.deliver(Priority::Info, "two", &[], "second line\n", &mut stream);
+    assert_eq!(String::from_utf8(stream.taken).expect("text"), "<6>first line\n<6>second line\n");
+}
+
+/// A standard error that is a blocking pipe with no room never makes the writer wait: the write is refused at once.
+#[test]
+fn a_full_blocking_pipe_refuses_the_write_instead_of_waiting() {
+    use std::io::Write;
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    // SAFETY: `ends` is valid for the two descriptors `pipe` writes.
+    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0);
+    let (reader, writer) = (ends[0], ends[1]);
+    // SAFETY: the descriptor is open; the flags are read and set on it alone.
+    unsafe { libc::fcntl(writer, libc::F_SETFL, libc::O_NONBLOCK) };
+    let chunk: [u8; 4096] = [b'x'; 4096];
+    loop {
+        // SAFETY: `chunk` is valid for its length for the call.
+        if unsafe { libc::write(writer, chunk.as_ptr().cast(), chunk.len()) } < 0 {
+            break;
+        }
+    }
+    // The pipe is full and now blocks: a plain write would never return.
+    // SAFETY: the descriptor is open; the flags are set on it alone.
+    unsafe { libc::fcntl(writer, libc::F_SETFL, 0) };
+    let (done, finished) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let outcome = StreamWriter::on(writer).write(b"line\n");
+        let _sent = done.send(outcome.map_err(|error| { return error.kind(); }));
+    });
+    let outcome = finished.recv_timeout(std::time::Duration::from_secs(10)).expect("the write came back instead of waiting for room");
+    assert_eq!(outcome, Err(std::io::ErrorKind::WouldBlock));
+    // SAFETY: both descriptors are open and closed once.
+    unsafe {
+        libc::close(reader);
+        libc::close(writer);
+    }
+}
+
+/// A value is cut at its limit and the cut says so, but is otherwise unchanged: a newline and a control byte stay.
+#[test]
+fn a_cut_keeps_the_text_it_keeps() {
+    assert_eq!(cut("a\nb\u{1}c", 10), "a\nb\u{1}c");
+    assert_eq!(cut("a\nbcd", 3), format!("a\nb{CUT_MARK}"));
+    assert_eq!(cut("日本語です", 3), format!("日本語{CUT_MARK}"), "the limit counts characters, never splitting one");
+    assert_eq!(one_line("a\nb", 10), "a b", "the line on standard error is still one line");
+    assert_eq!(FIELD_NAME_LIMIT, 64);
+}
+
+/// An entry that finds no room is dropped, not waited for, and counted: the next entry that gets through says how many.
+#[test]
+fn a_dropped_entry_is_counted_and_the_next_stream_line_says_so() {
+    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-dropped-{}", std::process::id()));
+    let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
+    let mut stream: Tight = Tight { taken: Vec::new(), room: 0 };
+    assert_eq!(sink.deliver(Priority::Info, "one", &[], "first line\n", &mut stream), Delivery::Dropped);
+    assert_eq!(sink.deliver(Priority::Info, "two", &[], "second line\n", &mut stream), Delivery::Dropped);
+    assert!(stream.taken.is_empty());
+    stream.room = usize::MAX;
+    assert_eq!(sink.deliver(Priority::Info, "three", &[], "third line\n", &mut stream), Delivery::Stderr);
+    let text: String = String::from_utf8(stream.taken).expect("text");
+    assert!(text.starts_with("<4>cli-git-service: 2 log entries were dropped before this one"), "{text}");
+    assert!(text.ends_with("\n<6>third line\n"), "{text}");
+    let mut after: Tight = Tight { taken: Vec::new(), room: usize::MAX };
+    sink.deliver(Priority::Info, "four", &[], "fourth line\n", &mut after);
+    assert_eq!(String::from_utf8(after.taken).expect("text"), "<6>fourth line\n", "the count is said once");
+}
+
+/// The line that is still unfinished when no room comes back blocks the lines after it from starting, and each of those is
+/// counted as dropped.
+#[test]
+fn a_line_that_stays_unfinished_drops_the_lines_behind_it() {
+    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-stuck-{}", std::process::id()));
+    let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
+    let mut stream: Tight = Tight { taken: Vec::new(), room: 4 };
+    assert_eq!(sink.deliver(Priority::Info, "one", &[], "first line\n", &mut stream), Delivery::Stderr);
+    assert_eq!(sink.deliver(Priority::Info, "two", &[], "second line\n", &mut stream), Delivery::Dropped);
+    assert_eq!(String::from_utf8(stream.taken.clone()).expect("text"), "<6>f", "nothing of the second line started");
+    stream.room = usize::MAX;
+    assert_eq!(sink.deliver(Priority::Info, "three", &[], "third line\n", &mut stream), Delivery::Stderr);
+    let text: String = String::from_utf8(stream.taken).expect("text");
+    assert!(text.starts_with("<6>first line\n<4>cli-git-service: 1 log entries were dropped before this one"), "{text}");
+    assert!(text.ends_with("\n<6>third line\n"), "{text}");
+}
+
+/// A native entry that follows dropped ones carries their count as a field, and the count is said once.
+#[test]
+fn a_native_entry_after_dropped_ones_carries_their_count() {
+    let (socket, target) = receiver("journald-native-lost");
+    let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &target);
+    sink.lost.store(3, Ordering::Relaxed);
+    let mut stderr: Vec<u8> = Vec::new();
+    assert_eq!(sink.deliver(Priority::Info, "m", &[], "line\n", &mut stderr), Delivery::Native);
+    assert_eq!(sink.deliver(Priority::Info, "n", &[], "line\n", &mut stderr), Delivery::Native);
+    let mut buffer: Vec<u8> = vec![0; 4096];
+    let first: usize = socket.recv(buffer.as_mut_slice()).expect("the first datagram");
+    let found = decoded(&buffer[..first]);
+    assert_eq!(found.iter().find(|(name, _)| { return name == LOST_FIELD; }).map(|(_, value)| { return value.clone(); }), Some(b"3".to_vec()));
+    let second: usize = socket.recv(buffer.as_mut_slice()).expect("the second datagram");
+    assert!(!decoded(&buffer[..second]).iter().any(|(name, _)| { return name == LOST_FIELD; }), "said once");
+}
+
+/// A stream that takes the start of a line and nothing more is not waited for: the call returns at once with what it took.
+#[test]
+fn a_stream_socket_with_room_for_part_returns_what_it_took_without_waiting() {
+    use std::io::{Read, Write};
+    use std::os::fd::AsRawFd;
+    let (writer_end, mut reader_end) = std::os::unix::net::UnixStream::pair().expect("a pair");
+    let mut writer: StreamWriter = StreamWriter::on(writer_end.as_raw_fd());
+    let filler: Vec<u8> = vec![b'x'; 1024];
+    while writer.write(filler.as_slice()).is_ok() {}
+    reader_end.set_nonblocking(true).expect("non-blocking reader");
+    let mut drain: Vec<u8> = vec![0; 8192];
+    let drained: usize = reader_end.read(drain.as_mut_slice()).expect("room made for a little");
+    assert!(drained > 0);
+    let big: Vec<u8> = vec![b'y'; 1 << 20];
+    let took: usize = writer.write(big.as_slice()).expect("part of it went");
+    assert!(took > 0 && took < big.len(), "took {took}");
+    assert_eq!(writer.write(big.as_slice()).expect_err("then no room").kind(), std::io::ErrorKind::WouldBlock);
+}
+
+/// Two entries that each said the same count of dropped ones leave the count at zero, never wrapped below it.
+#[test]
+fn counting_the_same_dropped_entries_twice_stops_at_zero() {
+    let nobody: Target = Target::Abstract(format!("cli-git-test-journal-twice-{}", std::process::id()));
+    let sink: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE)), &nobody);
+    sink.lost.store(3, Ordering::Relaxed);
+    sink.forgive(3);
+    sink.forgive(3);
+    assert_eq!(sink.lost.load(Ordering::Relaxed), 0);
 }

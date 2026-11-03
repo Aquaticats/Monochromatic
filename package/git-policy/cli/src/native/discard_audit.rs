@@ -309,6 +309,24 @@ fn write_once(file: &mut std::fs::File, line: &[u8]) -> std::io::Result<()> {
     }
 }
 
+/// What:
+///  Whether the file at `target` can be opened to append, created when missing.
+/// Why:
+///   A pass that removes copies writes one line per removal; knowing before the first removal that the file cannot take it
+///  keeps a directory from going without its line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await (await open(target, 'a')).close();
+/// ```
+///
+/// # Errors
+/// The system's error when the file cannot be opened to append.
+pub fn check_appendable(target: &Path) -> std::io::Result<()> {
+    open_for_append(target)?;
+    return Ok(());
+}
+
 /// The file opened to append, created when missing, and readable for the check of its last byte. A file the user may
 /// write but not read is opened for appending alone: the check of the last byte is then skipped, never a record.
 fn open_for_append(target: &Path) -> std::io::Result<std::fs::File> {
