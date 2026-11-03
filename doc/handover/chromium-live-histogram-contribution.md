@@ -406,3 +406,32 @@ and `NonReportingPersistentHistogramsBrowserTest`.
 No native test had run with the incomplete filter.
 The corrected driver and final-source driver passed TypeScript checking,
 and the updated sources are retained in the validation record.
+
+## Final-source compilation resumed at 2026-11-03T18:26:39+00:00
+
+The original Siso process was identified by its exact PID and command line.
+It received `SIGINT` before any C++ input was changed.
+The original native-build step recorded exit `1` at `2026-11-03T18:24:56.992Z`,
+after `2684267 ms`;
+this was the intentional interruption,
+not a test failure.
+The container then exited and was removed.
+
+The final-source container is `chromium-metrics-final-build`.
+It has external networking disabled and uses the same retained build volume.
+Target revision,
+formatter-delta applicability,
+all candidate source checksums,
+the exact changed-path set,
+and whitespace checks passed.
+`git cl format --dry-run --diff --upstream=HEAD` exited `0` with no output.
+The final native build began at `2026-11-03T18:26:39.515Z`.
+Its patch SHA-256 is
+`57a30501ab2cba3fb21d815b0a750f5ce3c50d596a6ea154fd41bc28914e2a18`.
+
+After successful compilation,
+run the prepared local tasks `test`,
+`test:guard-control`,
+then `test:browser`.
+The final-source driver writes `/work/logs/latest-final-source.json` only on success.
+Native tests and live-browser verification remain outstanding.

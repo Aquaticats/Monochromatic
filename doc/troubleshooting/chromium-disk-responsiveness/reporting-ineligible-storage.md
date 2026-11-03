@@ -75,10 +75,12 @@ Compilation and behavioral verification remain pending.
 Chromium's formatter produced indentation and line-wrapping changes.
 They were applied in the separate prototype and committed as `ab9cdcd4e3`.
 The retained patch includes that formatting.
-The active compilation still uses its original inputs;
-the prepared `build:formatted` task will apply the exact formatter delta after that process stops,
-verify every changed file against the retained checksums,
-and build the final candidate.
+The original compilation was intentionally interrupted before its inputs changed.
+The `build:formatted` task applied the exact formatter delta,
+verified every changed file against the retained checksums,
+and confirmed the changed-path set and whitespace checks.
+Chromium's formatter then exited successfully with no remaining diff.
+Compilation resumed at `2026-11-03T18:26:39.515Z` using the retained build outputs.
 
 The native test driver now selects the actual `MetricsServiceBrowserDoUploadTest`
 and `MetricsServiceBrowserNoUploadTest` fixtures.
