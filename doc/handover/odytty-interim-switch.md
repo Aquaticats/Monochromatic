@@ -14,7 +14,7 @@ No new ranking or complete technology audit is claimed.
 
 ## Work queue
 
-- [ ] Switch KDE's terminal defaults and pinned taskbar launcher to the installed OdyTTY desktop entry.
+- [x] Switch KDE's terminal defaults and pinned taskbar launcher to the installed OdyTTY desktop entry.
   Verify the live Plasma configuration and actual command launch.
 - [ ] Switch the explicit terminal launcher preference and exercise command arguments,
   working directory,
@@ -70,6 +70,14 @@ The upstream RPM is cross-built and described as best-effort;
 installation and runtime checks remain necessary.
 
 ## Recovery
+
+Host configuration was switched with `kwriteconfig6 --notify` and Plasma's live scripting API.
+Taskmanager widget `30` now pins `applications:odytty.desktop` in Ghostty's former position.
+`kreadconfig6` passed a disposable fixture before the real write.
+The live API returned the changed launcher list,
+and the persisted files match.
+The before/after `odytty.conf` comparison was byte-identical.
+Backups are under `${HOME}/temp/agent/odytty-switch-20261102/host-before`.
 
 Retain the host Ghostty installation and configuration during this interim switch.
 Restoring the saved KDE terminal keys,
