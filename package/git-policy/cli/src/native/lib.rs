@@ -901,6 +901,12 @@ pub mod stale_ref_lock_judge;
 /// Removal of a proven stale lock with its companions.
 pub mod stale_ref_lock_retire;
 
+/// The wrapper's own fetch and push, started after the stale reference locks of their repository are cleared.
+pub mod push_lock_clearing;
+
+/// The notice a forwarded fetch or push is preceded by when reference locks of a killed Git are found.
+pub mod forwarded_lock_notice;
+
 /// What the wrapper prints about reference locks, and the quoted command that clears one it will not remove.
 pub mod stale_ref_lock_message;
 

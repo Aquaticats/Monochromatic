@@ -226,3 +226,32 @@ impl Drop for Helper {
         let _reaped = self.0.wait();
     }
 }
+
+/// A judge that sees the processes of this kernel completely, takes any lock as old enough, and trusts local disks.
+pub fn judge() -> crate::stale_ref_lock_judge::Judge {
+    return crate::stale_ref_lock_judge::Judge { margin: Duration::ZERO, pid_view_complete: true, boot: None, ..crate::stale_ref_lock_judge::Judge::here() };
+}
+
+/// Make a new commit and start `git push origin main`, held at the moment its transaction has taken the lock of the
+///  tracking reference, which is after the remote has taken the commit.
+pub fn hold_push(stage: &Stage) -> Held {
+    git(stage.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=ahead"]);
+    let hooks: PathBuf = stage.git_dir.join("hooks");
+    executable(hooks.join("reference-transaction").as_path(), HOLD_HOOK.as_bytes());
+    let mut command: Command = git_command(stage);
+    command.args(["push", "--quiet", "origin", "main"]).env("STALE_LOCK_READY", stage.ready.as_os_str());
+    let child: Child = command.spawn().expect("start git push");
+    let mut held: Held = Held { child, _input: None, hook: None };
+    let ready: PathBuf = stage.ready.clone();
+    wait_for("the push to take its locks", || { return ready.exists(); });
+    held.hook = std::fs::read_to_string(stage.ready.as_path()).expect("hook pid").trim().parse::<i32>().ok();
+    return held;
+}
+
+/// The command that runs real Git in the stage the way the wrapper's own runners start it: no system or global
+///  configuration, the stage as the working directory.
+pub fn plain_git(stage: &Stage, arguments: &[&str]) -> Command {
+    let mut command: Command = git_command(stage);
+    command.args(arguments);
+    return command;
+}
