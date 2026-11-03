@@ -471,8 +471,9 @@ owner) ends it.
 The retry-based attempt on the branch (stop a read-only step that shows no sign of work, start it again with a doubled
 window) can serve this residue for steps that only read; the owner decides whether it stays.
 It also serves as the containment of a Git bug in a retained child that is safe to run twice (a hung `fast-import` or `commit-tree`);
-`update-ref` is stopped and started again too, because the publication receipt makes the transaction safe to run twice (second review,
-accepted); a deterministic Git bug on one input cannot be restarted away, and "Transaction model" names the alternative.
+`update-ref` is stopped and started again only when no `reference-transaction` hook is configured, because the compare-and-swap
+is safe to run twice; with such a hook it waits, since the hook is the person's program (third review, "Transaction model, hung Git
+children"). A deterministic Git bug on one input is narrowed there to a pending request and a message.
 
 ## Item 2: the service does not start within `START_WAIT`
 
@@ -480,11 +481,12 @@ Root cause: the commit depends on a second process that the manager must start, 
 The commit's own work is complete before the service is asked.
 
 Change: the service stops being a correctness dependency.
-The client hands the request over by writing the record (state `handed-over`) and then asks the manager to start the instance.
-If no live owner of the lane answers, the client takes the fence of the lane by compare-and-swap and acts as the lane owner for this
-worktree, with the same code and the same record, until the service takes it over the same way.
-No second coordinator exists: ownership is the fence ref, and the publication transaction carries the fence, so the older owner
-cannot publish (review findings 3 and 1 of the second review, accepted; see "Transaction model").
+The client hands the request over by writing the record into `inbox/` (durable, no ref write) and then asks the manager to start
+the instance.
+If no owner holds the lane lock, the client takes the lock and runs the lane inline for its own queue, until empty; a service
+that starts later waits for that lock and takes the rest over. One lock per worktree, held by the kernel, replaces the ref fence,
+the epoch and the takeover of earlier drafts (third review, "Transaction model").
+If the owner is the service and it is alive, the client waits for its answer under item 3.
 
 Residue: none that ends a commit.
 Failures about the machine's setup (another account's service, a program that is missing, a unit file in the way) become
@@ -497,11 +499,12 @@ Root cause: silence is read as a fault, and a read timeout decides.
 Change: the commit waits on the record, not on a connection or a clock.
 The client reads the request's state (the service pushes it on the open connection and the client re-reads the record if
 the connection closes).
-The service's progress counter (written by the landing task after each phase, "Transaction model") replaces the heartbeat:
-a heartbeat shows that the sender runs, not that the request moves (review finding 7, accepted).
-A closed connection is a resend with the same id.
-A lane whose counter has not advanced for a lease period and whose process shows no sign of work is taken over by a swap of the fence, so a
-wedged service neither fails the commit nor lands it twice.
+The service's progress counter (written by the landing task after each phase, never by a timer thread) feeds the unit's watchdog:
+a heartbeat shows that the sender runs, not that the request moves.
+A closed connection is a resend with the same id, answered from the record or the ledger.
+A wedged owner is not taken over by another process (no live takeover): the manager ends the unit's whole control group when the
+counter stops, which releases the lane lock, and the next owner (a restarted service, or a client) takes it.
+In the meantime the command's answer is `handed over`, exit 0, with a message that the lane will finish it.
 `WaitedTooLong` and `RECONNECTS` leave the commit path.
 
 May wait: a service that is alive and slow makes the commit slow, and the notice names the phase and the process.
@@ -524,11 +527,13 @@ Change that removes it:
   compare-and-swap is another writer's commit.
   That is system-wide progress, not progress for this request: a compare-and-swap is not starvation-free (review finding 7).
 - Make the moves rare.
-  The lane of a worktree is the one writer of that worktree's branch: its commits, the push's reconcile merge and the merges
-  it completes are items of the same lane, served first in, first out, so the head moves under a landing only for a foreign
-  program that writes the ref with real Git directly.
-- For a commit Git must build (signed, hooked, editor) the build starts from the logical head and its publication is the fenced
-  transaction; a build whose base moved is built again, or, for a signed commit that cannot be replayed, becomes pending.
+  The lane of a worktree is the one writer of that worktree's publications: its commits, the push's reconcile merge and the
+  merges it completes are items of the same lane, served in adoption order. Another worktree of the same repository publishing to
+  the same branch is just another writer of the compare-and-swap (a branch checked out in one worktree is not a mutual-exclusion
+  primitive: forced checkouts and native ref writes exist), and a published result is materialized only into the worktree of the lane
+  that published it.
+- For a commit Git must build (signed, hooked, editor) the build starts from the logical head and its publication is the compare-and-swap;
+  a build whose base moved is replayed, or, for a signed commit that cannot be replayed, stays pending until the person signs again.
 - A conclusion, an amend or a revert whose head moved while the person worked is built by replaying the captured change on
   the new head (owner's choice, below).
 
@@ -592,14 +597,16 @@ May wait, off the command: the index catching up, for as long as a foreign progr
 Root cause: the objects a commit captured are unreferenced until the branch moves, and `git gc --prune=now` deletes every
 unreferenced object at once.
 
-Change: the retention lifecycle of "Transaction model": the hold on the base before any read, a spool that is a self-contained
-closure (new bytes, the base content the replay needs, and the conclusion's dependencies), the import with a hold ref in one
-stream, the owner of retention being the record until `closed`.
-A prune at any point after handover is repaired from the spool; before handover the client reads again, which is legitimate
-because nothing was handed over.
+Change: the retention lifecycle of "Transaction model": the spool is the source of truth until the ledger line exists; it is a
+self-contained closure (new bytes, the base content the replay needs, the conclusion's dependencies); the lane imports it with
+one stream and an extra hold ref when the store allows; a prune after handover is repaired by importing again; before handover the
+client reads again, which is legitimate because nothing was handed over. No base hold ref is needed at capture (no ref write).
 The earlier plan to prepare again from the worktree after handover is withdrawn: it would commit a later edit.
 
-Residue: none for pruning.
+Residue: a prune that is still running across the release of the spool. Git's source shows it can delete objects written after it took
+its view (`builtin/prune.c:36`, `:98`, `:172`); the lane checks connectivity before it releases the spool and imports again if
+anything is missing, and a loss after the release is a corrupt repository caused by another tool (the owner's outside list). A
+question for the owner.
 The spool is on the same disk, so a full disk or an I/O error while writing it is one of the owner's outside causes.
 
 ## Merges, by the same lens (design only)
@@ -621,38 +628,44 @@ The order stays: compute the merge commit (no index), materialize the worktree a
 - The twenty rounds: a lost swap is another writer's commit, so the count is artificial; the merge is an item of the worktree's
   lane (first in, first out with commits and the push) and a branch a foreign program keeps moving makes it pending.
 - `merge-isolation/paths-in-use` stops being a refusal (owner, "Carry edits forward"). Per file that the person edited and the
-  merge changes, under the lock and before the swap:
-  1. open the path with `O_NOFOLLOW`, read its bytes `E`, and keep that descriptor (inode `N`); a symlink, a directory or a
-     special file is not merged as text (below);
+  merge changes, under the lane lock, the index lock and before the swap (no obsolete worker can run it, because the lane lock is the
+  only authority). Every displaced inode is retained, and every step is journaled in `lane/carry/<path-id>` (fsync before the next):
+  1. open the path with `O_NOFOLLOW`, read its bytes `E`, keep the descriptor (inode `N`); a symlink, a directory or a special file is
+     not merged as text (below);
   2. compute `R`, Git's three-way text merge of the old head's content `O`, `E` and the merged result `M` (`git merge-file`
-     semantics, with the repository's conflict style and labels naming the person's edit and the merge), and write it to a
-     temporary file beside the path;
-  3. pin `N` under a saved name by a hard link to the inode itself (`linkat` through `/proc/self/fd/<n>`, same file system),
-     so a write through any descriptor still open on `N` lands in the saved file and cannot be lost; where a hard link is not
-     possible, make a copy and keep the descriptor until step 5;
-  4. exchange the temporary file and the path in one `renameat2(RENAME_EXCHANGE)`: the path now holds `R` and was never absent,
-     and the temporary name holds whatever inode was at the path at that instant;
-  5. read the exchanged-out inode again: if it is `N` with the bytes `E`, the merge is complete; if its bytes differ, or it is
-     another inode (an editor saved a new file between the read and the exchange), run the three-way merge once more with that
-     content as the person's file and exchange again. Two rounds at most: writes after the second exchange to an inode that
-     is no longer named by the path go to the saved file, which the line names; they are never discarded.
-  6. the index receives `M` for the path, so the person's edits are ordinary unstaged changes on the merged result, and a
-     conflict leaves markers with both sides and a line naming the file and the saved copy.
+     semantics, the repository's conflict style, labels naming the person's edit and the merge), and write it to a temporary file
+     beside the path (journal: `temp`);
+  3. pin `N` with a hard link to the inode itself under `saved/<path-id>.1` (`linkat` via `/proc/self/fd/<n>`, same file system)
+     (journal: `saved.1 = N`);
+  4. exchange the temporary file and the path in one `renameat2(RENAME_EXCHANGE)`: the path holds `R` and was never absent; the
+     temporary name holds whatever inode was at the path at that instant (journal: `exchanged`);
+  5. rename the temporary name to `saved/<path-id>.2` at once, so the displaced inode is a named, retained saved file (if it is `N`
+     it is the same inode as `saved/<path-id>.1`); read it: if its bytes are `E` the merge is complete; if they differ, or it is
+     another inode (an editor saved a new file between the read and the exchange), merge once more with those bytes as the person's
+     file, write `R2`, pin the inode as above and exchange again; the inode that `R` was (now displaced) is renamed to
+     `saved/<path-id>.3`. Two exchanges at most. Every inode involved is named under `saved/`; none is a disposable temporary;
+  6. the index receives `M` for the path, so the person's edits are ordinary unstaged changes on the merged result; a conflict
+     leaves markers with both sides, and a line names the file and every saved file.
+  A bounded protocol cannot incorporate every concurrent write; by design it leaves additional versions in named saved files rather
+  than lose one, and the line says so. Saved artifacts belong to the person's record, independent of request cleanup, and are
+  removed only by the existing saved-copies age rule (`discarded_store.rs`), never by retirement.
+  Recovery after a crash reads the journal: a `temp` without `exchanged` is removed (the path is untouched); an `exchanged` without
+  the saved rename completes the rename of the temporary name; a recorded step is never repeated.
+  Where a hard link is not possible (another file system) or the exchange is not supported, the person's file stays at its path and
+  the merged version is written beside it under a name the line gives; nothing is overwritten.
   A file that is not text, a mode or type change, a symlink, a directory in the way, or an untracked file colliding with a file the
-  merge adds keeps the person's version at its path; the merged version is written beside it under a name the line gives.
-  Where the file system does not support the exchange, the weaker protocol is move-aside then no-replace link, with the saved
-  hard link, and the line says that a write through an open descriptor after that moment is in the saved file.
-  Supported semantics, stated: an edit through a descriptor that is still open is preserved either in `R` or in the saved file;
-  an atomic-save editor that renames a new file over the path is treated as a new version of the person's file.
-  To test: a write through an open descriptor before the exchange, after it, a truncation, an atomic-save editor, a symlink at the
-  path.
+  merge adds keeps the person's version at its path the same way.
+  Supported semantics, stated: an edit through a descriptor that is still open is preserved in `R`, in `R2`, or in a saved file; an
+  atomic-save editor that renames a new file over the path is treated as a new version of the person's file.
+  To test: writes through an open descriptor before the first exchange, between the exchanges and after the second; a truncation; an
+  atomic-save editor; a symlink at the path; a crash after each journaled step.
 
 ## Residues, by class
 
 - A malformed request.
   Structural errors are detected before the record is written (the client builds it from typed values and validates it), and a
-  record carries a format version: a worker that does not know a record's version does not process it, and the fence passes to
-  a worker that does. A well-formed request that means something the lane cannot do is a policy decision, classified below.
+  record carries a format version: an owner that does not know a record's version does not process it and leaves it in `inbox/` for an
+  owner of a release that does (a service of the newer release is started by the manager). A well-formed request that means something the lane cannot do is a policy decision, classified below.
 - An object format or layout this release cannot read.
   Every in-process port is gated by eligibility (files or reftable ref backend, SHA-1 or SHA-256, no sparse or split index or
   unknown extension, attributes and filters covered), and every operation has a Git-command implementation complete for all
@@ -690,6 +703,8 @@ Each finding of `~/temp/agent/reviews/commits-never-fail-sol.txt`, with a decisi
 ## Answers to the second review
 
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol-2.txt`.
+This section is kept as history. Where it names the fence ref, the receipt ref, `queue/<n>` or the index checksum, those features
+are withdrawn and "Answers to the third review" gives the current answer.
 
 - Critical, epoch fencing does not fence an obsolete worker: accepted. The reviewer's execution is right: a check that precedes the
   swap proves nothing. The fence is now a ref verified inside the publication transaction, whose refs are all locked in
@@ -724,6 +739,78 @@ Each finding of `~/temp/agent/reviews/commits-never-fail-sol-2.txt`.
   carry-forward loop is bounded at two rounds. The reviewer's point that a wait is not a completion guarantee stands: the
   pending request and the lagging index complete only when the foreign program lets go, and the record says so.
 
+## Answers to the third review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-3.txt`, with a decision and a closure line. Closure is one of
+closed (the design answers it, to be tested), narrowed (the feature was reduced and the owner decision it still meets is named), or
+open (with the reason).
+
+1. The files-backend receipt does not prove publication happened (critical): accepted; the receipt ref is withdrawn.
+   Publication is a plain compare-and-swap; the record writes `publishing` before and `published` after; recovery treats
+   reachability from the tip as the only proof of publication, uses a branch-reflog entry only to avoid resurrecting a commit that
+   was on the branch, and otherwise publishes again by replay. The reviewer's execution (receipt, crash, foreign commit `C`) now
+   ends in a second publication by replay, not in a closed request. Closure: narrowed. Meets "never discard user data" (a commit is
+   published again or saved, never classified published without proof) and "never fail". The accepted residue is one commit
+   reappearing after a non-descendant rewrite with no reflog, and a question for the owner.
+2. Deleting the receipt removes duplicate protection (critical): accepted. Retirement appends a terminal line to `lane/ledger`
+   (fsynced) before any retention is released, a resend is answered from the ledger, and the ledger is kept for a horizon far longer
+   than a client lives. Closure: closed (to test: crash between the ledger line and the release; delayed retry after retirement).
+3. Ref fencing does not make obsolete worktree, index and cleanup operations harmless (critical): accepted. The ref fence is
+   withdrawn. One kernel lock per worktree, inherited by every child, means an obsolete worker or child cannot exist when a new
+   owner holds it; cleanup is done only by the owner and only after the ledger line. Closure: closed in the model (to test: kill at
+   every phase, next owner at once, no old child alive). Meets "Use as few locks as possible" by one lock per worktree and an
+   NLK reason; the lock-free alternative is a service-only lane, which is a question for the owner.
+4. An index checksum is not staging provenance (critical): accepted. Checksum provenance is withdrawn. When the lock is free the
+   lane takes it before the swap and installs in one critical section, so nothing interleaves; when it is held the deferred install
+   verifies the commit is still reachable from the tip (a rewritten branch voids the intent), and uses entry equality plus the
+   worktree file's content as a conflict guard, not as provenance. The ABA by value is stated as an accepted residue (the file, the
+   history and the index agree; no content is lost). Closure: narrowed. Meets "never discard user data".
+5. Two exchanges do not retain every displaced inode (high): accepted. Every inode involved (the person's file, the file displaced
+   by each exchange, the first merge result) is renamed to a named saved file, journaled per step with a crash recovery rule, and
+   saved files are independent of request cleanup. The protocol is bounded and says it may leave more versions in saved files
+   rather than incorporate every concurrent write; the copy fallback is replaced by "the person's file stays, the merged version is
+   written beside it". Closure: narrowed. Meets "Carry edits forward" and "never discard user data".
+6. Capture and takeover need ref writes a foreign lock blocks (high): accepted. Acceptance writes no ref: the request is durable in
+   `inbox/`; the base hold ref is replaced by reading the base content into the spool (a race with a prune is detected and read
+   again before handover); there is no fence ref and no takeover; an interrupted wrapper-owned ref transaction leaves lock files
+   that the next owner sweeps only when its own ledger lists them with matching content. Closure: closed.
+7. The fence namespace is repository-wide (high): accepted. No fence ref remains. The lane lock, the inbox, the order file, the
+   ledger and the hold and pending refs are per worktree (`refs/cli-git/<instance>/`), branch publication is only a compare-and-swap,
+   materialization is only into the publishing worktree, and "a branch is checked out in one worktree" is not used as an
+   exclusion. Closure: closed.
+8. `queue/<n>` is not a fenced durable acceptance, and recapture by base substitution is not a rebase of intent (high): accepted.
+   Acceptance is the durable existence of the complete record in `inbox/`; the single lane orders by an appended `adopt` line;
+   there is no numbered slot to stall; requests carry a delta against a logical base and the lane replays it, and the base is never
+   substituted under an unchanged tree. Closure: closed.
+9. Logical head needs a logical-index model; pending amendments need versions; signed replay needs a rule (high): accepted. A plain
+   commit captures the difference between the real index and the physical head's tree and applies it to the logical tail; the stated
+   limit is that staging a path back to the physical head's content cannot express a revert of a pending commit. Amendments are new
+   immutable requests that supersede, adopted by the one sequential lane. A signed commit publishes only on its own parent and
+   otherwise stays pending until the person signs again. Closure: narrowed for signed commits (a question for the owner), closed
+   for the rest.
+10. Index extensions cannot be kept byte for byte (high): accepted. A per-extension policy replaces the claim: the cache-tree is
+    dropped; the resolve-undo data and the untracked cache are carried unchanged; the offset tables are not written; fsmonitor,
+    split index, sparse index and unknown extensions make the index ineligible and the delta runs through Git on a copy under the
+    lock. Closure: closed (to test: differential against Git on each extension).
+11. Spool reclamation needs an overlapping-prune proof (high): accepted and checked in Git's source (`builtin/prune.c:36`, `:98`,
+    `:172`): a prune that took its view earlier can delete objects written later. A proof that no schedule loses data does not
+    exist and the design does not claim one. Closure: narrowed. The lane checks connectivity after publication and before releasing
+    the spool, imports again on a loss, and treats a loss after the release as a corrupt repository caused by another tool, on the
+    owner's outside list. A question for the owner.
+12. Push enforcement, reference-transaction hooks and deterministic hangs (high): accepted.
+    - Push: enforcement is on the effective updates found by a `--dry-run --porcelain` expansion, with a negative refspec for the
+      namespace, covering `refs/*:refs/*`, configured push refspecs and `--mirror`; whether the negative refspec combines with
+      `--mirror` is a control on the installed Git. Closure: closed pending that control.
+    - Hooks: internal transactions on `refs/cli-git/` run without the person's hooks; `update-ref` for the branch is not restarted
+      while a `reference-transaction` hook is configured. Closure: closed.
+    - Deterministic Git hangs: a child that stalls twice on identical input makes the request pending with a message and exit 0.
+      Closure: narrowed (the commit is saved, not landed); a question for the owner, because Git bugs were listed as designed out.
+    - Exit inventory: still a gate and not yet performed. Closure: open until the inventory is made from the 2.56.0 source.
+- Ref storage and reflog gates: accepted. They join the verification plan (packed refs, `pack-refs`, deletion, interrupted
+  transactions, reftable, the branch and worktree `HEAD` reflogs through the real service invocation).
+- Review's verdict: not ready to build as the live protocol. This revision removes live takeover, receipt refs, the ref fence, the
+  numbered queue and checksum provenance, and does not build; "What can safely be built first" is adopted as the build order below.
+
 ## Exits that stay nonzero
 
 - Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
@@ -735,18 +822,43 @@ Each finding of `~/temp/agent/reviews/commits-never-fail-sol-2.txt`.
   (committed with a warning); a live foreign ref lock or `index.lock` (the commit lands or is saved, exit 0); a merge that would
   overwrite unsaved edits (the edits are carried forward).
 
-## Questions for the owner that this revision raised, and the answers
+## Questions for the owner that this revision raises
 
-All three were answered on 2026-11-03 (question tool):
-- A branch that a foreign program keeps moving: "Save on the side ref (Recommended)" (the request becomes pending, exit 0).
-- A `--mirror` push while wrapper refs exist: "Leave out wrapper refs (Recommended)" (everything except `refs/cli-git/*`, with a line).
-- An amend while commits are pending: "Amend the pending commit (Recommended)" (the amend replaces the newest pending commit).
+The earlier three were answered on 2026-11-03 (question tool): a branch a foreign program keeps moving, "Save on the side ref
+(Recommended)"; a `--mirror` push, "Leave out wrapper refs (Recommended)"; an amend while commits are pending, "Amend the pending
+commit (Recommended)". These are new, each because a narrowing touches something the owner decided; none is decided here.
 
-## Verification plan
+1. One kernel lock per worktree for the lane, or a service-only lane with no client fallback. The lock keeps the client's ability to
+   land when the service does not start ("never fail") at the cost of one lock ("Use as few locks as possible", with the reason
+   written). The alternative removes the lock and makes the commit depend on the manager starting the service, answering `handed
+   over` when it has not.
+2. A signed commit whose parent moved while it was pending: it stays pending until the person signs again, instead of landing in
+   order by itself. This narrows "the service lands it in order when the branch lets it" for signed commits only.
+3. A Git bug that hangs the same input every time: the request becomes pending with a message and exit 0, and the commit is not on
+   the branch until the cause changes. This narrows "Git crashes or bugs are designed out".
+4. A prune that overlaps a request and deletes objects after the lane checked them: treated as a corrupt repository caused by
+   another tool. This narrows "ContentPruned is designed out" to prunes that start after handover.
+5. A commit published, removed by a non-descendant branch rewrite and then recovered after a crash, on a repository with no branch
+   reflog: it reappears once, with a message. The alternative is to keep it saved and not republish, which leaves a crash before the
+   swap (the common case) without a landed commit.
+
+## Verification plan and build order
 
 Nothing past the red controls and the conflicted-file changes is built.
-Before building: the two-worker model of the fenced publication; the receipt recovery cases under crash injection; the prune
-controls at every interval; the index delta against Git on a large index with concurrent foreign staging; the carry-forward
-controls with open descriptors; differential controls for each port; the exit inventory; measured times of each step with
-`strace`.
+The order is the reviewer's, adopted:
+1. Executable models and crash fixtures first: a model of the lane lock and the publication (kill at every phase, next owner at once),
+   receipt-free recovery cases including a native writer and disabled or expired reflogs, delayed retries after retirement, and the
+   adoption order after a crash.
+2. Immutable request and spool components: serialization, validation, the complete replay closure, integrity checks, the fsync
+   ordering, the ledger; during development retain everything and implement no reclamation.
+3. Pure tree comparison and captured-delta replay, differentially tested against Git with explicit base, result and current inputs,
+   changing no live ref, index or worktree.
+4. A narrowly eligible index writer with the extension policy above, under-lock delta only, no checksum provenance.
+5. Backend-specific publication experiments on disposable repositories: files and reftable, packed refs and `pack-refs`,
+   `reference-transaction` hooks, linked worktrees, interruption at real persistence boundaries, the branch and `HEAD` reflogs.
+Not built from this revision: automatic retention deletion, pending amendments and concurrent carry-forward, until their models
+pass.
+Also before building: the prune controls (starting before, during and after each phase, with and without `--expire=now`); the push
+controls (`refs/*:refs/*`, `--mirror`, configured refspecs, the auto-push); the exit inventory from the 2.56.0 source; measured times
+of each step with `strace`.
 Each item then keeps its red control, then the change, then a guard shown red once.
