@@ -405,11 +405,13 @@ Capture and acceptance (client)
   step, L4) without its completion record, found while no owner is alive; the journal of a publication attempt (`publishing`, P2 in flight) is
   never counted, because a reference-transaction hook may run for ever and C0 must not wait for it: a publication attempt is the owner's, and
   acceptance never waits for it. Do: if the lane lock is acquirable, the client starts a recovery helper: a separate process in its own
-  transient scope, recorded in `lane/incarnation` as a recovery incarnation, that performs L1 to L4 (it takes the lock and keeps it for its
+  transient scope, recorded in `lane/incarnation` as a recovery incarnation, that performs L1 to L4 (it makes one non-blocking try of the lock, never waits for it, and when the try fails it exits at once reporting `lost`; when the try succeeds it keeps the lock for its
   whole life, never unlocks, and exits when L4's repair is done without continuing any request: continuing requests would spawn hooks and make it
-  an owner). The client is neither the owner nor in that scope; it waits for the helper's exit (a pidfd) and repeats C1. The next owner's L2 then
+  an owner). The client is neither the owner nor in that scope; it waits for the helper's exit (a pidfd, within MARKER) and then re-evaluates C0 from its Pre, so a
+  recovery that another acquirer already completed is seen as done and the client never waits behind that acquirer's later hook (R10-5). The client's wait on a live
+  owner is tied to the outstanding condition, the marker changing or clearing, and ends at MARKER. The next owner's L2 then
   finds a previous incarnation that is dead and a scope that is empty, which is exactly the proof of L1 to L3; no relinquishment exists, and no
-  step ever unlocks `lane/owner`. If a live owner holds the lane, the client waits for it with a notice. Crash: the helper's death releases the
+  step ever unlocks `lane/owner`. If a live owner holds the lane, the client waits for the marker to change or clear, within MARKER, with a notice. Crash: the helper's death releases the
   lock, and the next acquirer (L1 to L4) repeats the repair. This is the route from a dead marker into recovery before any request is accepted.
 - C1 capture. Pre: C0 passed, and the publication target is determined (target rule below). Do: read `lane/state` once (taking `g`, the marker, the logical head, the consumption map); read the branch
   tip `B` and the base closure from the immutable objects `B` names; read the real index file once (it is replaced by rename, so one read is
@@ -452,12 +454,13 @@ Capture and acceptance (client)
 Publication target (applies to C1, P1 to P4 and M1). The target ref is the branch `HEAD` names; when `HEAD` is a symbolic reference to a branch
 that does not exist yet (an unborn branch), the base `B` is the empty tree, the commit has no parent, and P2 is `update-ref <ref> <new>
 0000...` (the zero value means "the ref must not exist"); when `HEAD` is detached the target is `HEAD` itself and P2 is
-`update-ref --no-deref HEAD <new> <old>`, the reflog anchor and R3 read `logs/HEAD`, and the attachment guard for M1 and the merge transitions is: `HEAD` detached in both reads and its value equals `new` or has `new` as an
+`update-ref` of `HEAD` without `--no-deref` (R10-12: the update follows what `HEAD` means when it runs, with the old-value check against the resolved value, as a native commit does; there is
+no check-then-act on `HEAD`'s type), the reflog anchor and R3 read `logs/HEAD` and the branch's log when `HEAD` has become attached, and the attachment guard for M1 and the merge transitions is: `HEAD` detached in both reads and its value equals `new` or has `new` as an
 ancestor (the wrapper's own successful `HEAD` update moves the detached value to `new`, so comparing with the captured value would decline it).
 Publication authority is the request's recorded target, re-checked at the start of every attempt: for an attached target the compare-and-swap on the
 recorded ref stands whatever `HEAD` names now and M1 declines when `HEAD` no longer names it; for a detached target `HEAD` must still be detached, and
 if it is symbolic now the commit is saved on `refs/cli-git/<instance>/pending/<id>` with a notice and the request is `pending` (it cannot be
-published to a detached `HEAD` that no longer exists, and `--no-deref` is never run against a symbolic `HEAD`). The logical head, the recovery classes and the ledger use the target ref in
+published to a detached `HEAD` that no longer exists, and `--no-deref` is never used: a `HEAD` attached between the check and P2 makes the update land on the branch it names, which is what a native commit would do, and M1 then declines as the guard says). The logical head, the recovery classes and the ledger use the target ref in
 place of the branch name. A repository state that has no such target (a bare worktree without `HEAD`) is not a lane.
 
 Client result (revision 11; three facts and the owner's bound answers). `handed over` is the durable acknowledgement of C4, printed as soon as it is
@@ -486,7 +489,8 @@ Build and publication (lane)
   Success is recorded as `hook-ok <id>` in the S1 replacement that ends `held`; a later replay of the same identity on a moved tip (Q1, P4) builds
   with `hook-ok` present and does not spawn the hook again, so there is no held, success, replay, held loop. The crash exception to H-version, stated: if the owner
   dies before `hook-ok` is durable, the result file may not exist, and the next owner's L2 ends the previous scope, hook included; the hook is then run
-  again once for that identity, and the notice says that it ran again because its first run did not finish recording. A result file that is durable is
+  again, one new invocation for each recovery episode that lacks a durable result (revision 11; R10-11: not a total of one; repeated deaths before a durable result repeat the
+  hook, see owner choice H), and the notice says that it ran again because its earlier run did not finish recording. A result file that is durable is
   honoured, so the hook is not re-run when its completion was recorded.
 - B2 ordering exception. Pre: `R1` held. Do: a request `R2` whose changed-path set is disjoint from `R1`'s (adds, edits, deletions, modes,
   directory-versus-file conflicts) and that is not a conclusion or an amendment of anything held proceeds ahead of `R1`; an overlapping
@@ -508,7 +512,7 @@ Build and publication (lane)
   between transitions, and it is what keeps another owner from reaping a live incarnation) is held across P2. Crash: before P2b the transaction aborts
   and recovery classes apply; after P2b and before `commit: ok` the decision `commit` stands and the recovery classes R1 to R5 decide what happened.
 - P3 published. Pre: P2 succeeded. Do: in one S1 replacement record `published` and update the logical state (no marker: nothing outside the document changes). Crash: recovery class R2.
-- P4 swap-failed. Pre: P2a failed and E1 proved a held ref lock or an old-value mismatch from Git's own event stream. Do: in one S1 replacement record
+- P4 swap-failed. Pre: P2a failed and E1 classified it `store-failure`. Do: in one S1 replacement record
   `swap-failed <id> <attempt> <class>`, keep the request live with `resume = B1` (`MG4` for a merge) and write the pending side ref best effort; the
   foreground command keeps waiting (FOREGROUND) and a later attempt is made by Q1 on a trigger, one at a time, each a full B1, P1 to P3 cycle with a higher
   attempt number. When the command reaches the FOREGROUND bound it is W1 and the request never lands later. A request without a client (a
@@ -523,34 +527,36 @@ Build and publication (lane)
   re-run); P1 follows from `ready`. `MG1`, `MG2`: re-enter that transition. `MG4`: if the tip is unchanged re-enter MG4, else MG5. `M1`: re-enter M1.
   The durable update is the replacement. Crash: the old record stays valid until the replacement is renamed, so a crash leaves the old state or the
   new one.
-- E1 classify a P2 exit (R9-8). Pre: P2's child ended while this incarnation was alive to observe it. Do: classify from the child's own result only,
-  its exit status and the last line of its diagnostic read with `LC_ALL=C`, before reading any ref, lock or reflog state, and record the class in
-  the next S1 replacement before anything else is done: a ref, lock or reflog state read after the exit can be changed by a foreign program
-  after the transaction finished, so it never decides between these classes.
-  (a) exit 0: `update-ref` reported success; published (P3).
-  (b) the diagnostic names a held ref lock (`Unable to create '...lock'`, `lockfile.c:266`) and exits nonzero: the invocation never reached a ref
-      write; P4 with class `lock-held`.
-  (c) the diagnostic names an old-value mismatch: P4 with class `old-mismatch`.
-  (d) exit status 128 and the last line is the hook-abort text (`in '<phase>' phase, update aborted by the reference-transaction hook`,
-      `refs.c:65-66`, die at `refs.c:2716,2726`, both in `ref_transaction_prepare` before any ref is written): the hook refused; record `refused`
-      with the hook's own stderr; nothing was changed; no retry of the hook. No predicate on the tip or on a lock file is part of this class: a
-      foreign advance after the refusal does not change it. The text is verified against the installed Git in step 1 and the classifier is
-      versioned with it; a hook that prints that text itself and exits nonzero for another reason is a classifier risk stated in the model.
-  (e) any other exit, a signal, or a result the owner could not record (the outside ended it; Git's own failure; the owner died before
-      recording): treated as a crash at P2, by the recovery classes below.
+- E1 classify a P2 exit (revision 11; R10-10 replaces the stderr text with Git's own channels). Pre: P2's child ended, or `prepare` returned, while this incarnation
+  was alive to observe it. Do: classify only from evidence that Git itself produces and that a hook or its descendants do not share: (i) the report lines on the
+  private standard-output pipe of `update-ref` (`start`, `prepare`, `commit`, `abort`: ok; a hook's own standard output is redirected to its standard error by
+  Git, so it cannot reach this pipe, a backend obligation); (ii) Git's trace2 event stream, requested with `GIT_TRACE2_EVENT=<path>` to a per-invocation file
+  in a lane-private directory, which records `child_start` and `child_exit` for each hook with its exit code; only events that Git wrote about its own child
+  count, and a line without that shape or pid structure is ignored; (iii) the exit status. The standard-error text is shown to the person and is never
+  parsed for a decision (`LC_ALL=C` stays so the shown text is stable). The class is recorded in the next S1 replacement before anything else is done, and no ref,
+  lock or reflog state read after the exit decides between the classes below.
+  (a) `prepare: ok` seen: the transaction is prepared; go to P2b. `commit: ok` seen: published (P3).
+  (b) a `child_exit` of the `reference-transaction` hook with a non-zero code during `preparing` or `prepared`: the hook refused; record `refused` with the
+      hook's own standard error as the message; nothing was changed; no retry of the hook.
+  (c) no hook failure event, no `prepare: ok`, and a non-zero exit: the ref store refused the update (a held lock, an old value that no longer matches, or
+      another store failure); class `store-failure`, P4. Retry happens only on a trigger (the tip moved, a lock was seen free), so a failure that has no
+      trigger ends at the FOREGROUND bound with the standard-error tail in the error.
+  (d) the event stream or the pipe is unavailable or inconsistent (no events at all, a signal, a result the owner could not record, or the owner died): class
+      `unknown`. With a client attached the lane creates the decision `withdraw` itself, so nothing lands and no hook is run again; the error shows the
+      standard-error tail. With no client it is treated as a crash at P2, by the recovery classes below.
   The positive evidence classes keep their own outcomes and are never collapsed: R1 and R2 give `published`; R3 gives `rewritten-away` (saved,
-  not republished, notice naming the commit); only R4 and R5 can make another attempt. X1 never cancels P2's child (update-ref is exempt).
-  Crash: as P2. Residue stated: a refusal not yet recorded when the owner dies is later judged by the recovery classes, so the hook may run again
-  at the next attempt.
+  not republished, notice naming the commit). X1 never cancels P2's child (update-ref is exempt). Crash: as P2. Residue stated: a refusal not yet
+  recorded when the owner dies is later judged by the recovery classes, so the hook may run again at the next attempt of a request that still lands.
+  Backend obligations (step 1): the trace2 events and the report lines exist in the shapes assumed on each supported Git version and backend, and hook
+  descendants that hold the error stream cannot alter them.
 - Recovery classes for an attempt, in this order. R1 a durable `published`: published. R2 the new commit is the tip or an ancestor of it:
   published. R3 a reflog entry after the anchor whose own recorded old value is the new commit: `rewritten-away` (saved, not republished); this
-  is checked before any `swap-failed`, because a failed invocation does not say the request was never satisfied. R4 a recorded `swap-failed` of
-  class `lock-held` recorded by the owner that observed it (E1 (b)) and no R1 to R3 evidence: the invocation never reached a ref write, so the
-  next attempt is a new commit built by Q1 (a different object, with a new committer date), silently. R5 anything else, including every
-  `swap-failed` of class `old-mismatch`, every attempt found after an owner's death, and an erased or missing reflog suffix (the log restored to
-  its anchor is also the observable state of an attempt that appended nothing, and the design has no oracle that separates them): `landing`,
-  owner decision 3: replay and land with a message naming the commit and the command to drop it. The F1 closure claim of revision 9, that R4
-  could require an intact suffix, is withdrawn: no `reflog_intact` observation exists to test.
+  is checked before any `swap-failed`, because a failed invocation does not say the request was never satisfied. R4 is withdrawn (revision 11; R10-8): a
+  `swap-failed` recorded by an owner that has since died proves only that this invocation wrote no ref, not that no other writer satisfied the request and
+  removed it, and the design has no oracle for an erased reflog suffix. R5 anything else, including every attempt found after an owner's death and every
+  `swap-failed`: `landing`, owner decision 3: replay and land with a message naming the commit and the command to drop it. Only a request whose client is gone or
+  that has no client lands this way; with a client attached the decision file lets the client withdraw it. The retry of a live owner after a proven `store-failure`
+  is Q1 and not a recovery class; its concession is owner choice N.
 
 Materialization and retirement
 - M1 materialize (one path for every follow-up, whether the lock is free now or later). Pre: `published`, the attachment guard,
