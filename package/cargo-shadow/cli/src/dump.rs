@@ -213,13 +213,31 @@ fn read_table(entry: &mut dyn Read, columns: &[&str], on_row: &mut dyn FnMut(&[S
     let mut failure: Option<DumpFormatError> = None;
     // The header's field count and the number of the row being read (the header is row 1), for the width check below.
     let mut header_width: usize = 0;
+    // `let mut`: a binding that may change.
+    // Typed binding: `row_number: usize`.
     let mut row_number: usize = 0;
     let outcome = read_csv(entry, &mut |row: &[String]| {
         row_number += 1;
         match &positions {
             None => match column_indexes(row, columns) {
+                // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+                // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // // Ok(value)  is  return value;
+                // // Err(error) is  throw error;   (the caller sees it as a returned value)
+                // ```
                 Ok(found) => {
                     header_width = row.len();
+                    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+                    // Why:      Absence is a value the caller must check; there is no `null`.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // // Some(value) is  value
+                    // // None        is  undefined
+                    // ```
                     positions = Some(found);
                 }
                 Err(error) => {
@@ -231,7 +249,17 @@ fn read_table(entry: &mut dyn Read, columns: &[&str], on_row: &mut dyn FnMut(&[S
                 // Review finding (padded short rows): a row that is not as wide as the header is a damaged table, so it
                 // stops the read instead of being completed with empty fields.
                 if row.len() != header_width {
+                    // `Some`: the present or the absent value of an `Option`.
                     failure = Some(DumpFormatError {
+                        // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+                        // Why:      Text building and printing are written as one call instead of string concatenation.
+                        //
+                        // In TS you'd write (pseudocode):
+                        // ```ts
+                        // `..${x}..`   // template literal
+                        // console.error(text);   // eprintln!
+                        // [a, b]            // vec![a, b]
+                        // ```
                         message: format!("row {row_number} of a crates.io dump table has {} fields, but its header has {header_width}", row.len()),
                     });
                     return false;
@@ -331,6 +359,8 @@ pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>
                 // The retained history of one crate is bounded.
                 let kept: usize = histories.get(name).map(Vec::len).unwrap_or(0);
                 if kept >= MAX_VERSIONS_PER_CRATE {
+                    // `Err(...)`: builds the success or the failure variant of a `Result`.
+                    // Macro `format!`: builds or prints text (or a list) from a template.
                     return Err(DumpFormatError { message: format!("the crates.io dump lists more than {MAX_VERSIONS_PER_CRATE} releases of {name}") });
                 }
                 histories.entry(name.clone()).or_default().push(VersionRecord {

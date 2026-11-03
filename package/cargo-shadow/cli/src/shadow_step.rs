@@ -639,23 +639,44 @@ pub type OwnedLockBaseFactory = Box<dyn Fn() -> Result<LockBaseReader, String>>;
 )]
 pub fn trust_base_setup(catalog_root: &Path, document: &CatalogDocument, in_ci: bool) -> (String, Option<OwnedLockBaseFactory>) {
     if !document.settings.trust_lockfile {
+        // `None`: the present or the absent value of an `Option`.
+        // Constructor `String::new()`: an empty owned collection or a boxed value.
         return (String::new(), None);
     }
     let base = resolve_trust_base(catalog_root, in_ci, explicit_base_from_environment().as_deref());
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&base.commit`: lends the value without copying or giving it away.
+    // Typed binding: `key: String`.
     let key: String = match &base.commit {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `.clone()`: an independent owned copy.
         Ok(commit) => commit.clone(),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         Err(_) => format!("unresolved:{}", base.spelling),
     };
+    // Typed binding: `root: PathBuf`.
     let root: PathBuf = catalog_root.to_path_buf();
+    // Typed binding: `factory: OwnedLockBaseFactory`.
+    // Constructor `Box::new(`: an empty owned collection or a boxed value.
     let factory: OwnedLockBaseFactory = Box::new(move || {
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&base.commit`: lends the value without copying or giving it away.
         return match &base.commit {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(commit) => {
+                // Macro `eprintln!`: builds or prints text (or a list) from a template.
                 eprintln!("cargo-shadow: comparing lockfiles with {} ({commit})", base.spelling);
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // Borrow `&root`: lends the value without copying or giving it away.
                 Ok(git_lock_reader_at(&root, commit))
             }
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // `.clone()`: an independent owned copy.
             Err(message) => Err(message.clone()),
         };
     });
+    // `Some`: the present or the absent value of an `Option`.
     return (key, Some(factory));
 }
 
@@ -761,6 +782,7 @@ pub fn preflight_of(outcome: StepOutcome) -> Option<Preflight> {
     match outcome {
         // `Some`: the present or the absent value of an `Option`.
         StepOutcome::Failed(message) => return Some(Preflight::Failed(message)),
+        // `Some`: the present or the absent value of an `Option`.
         StepOutcome::Refused(message) => return Some(Preflight::Refused(message)),
         StepOutcome::Updated { crate_dir, added } => {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.

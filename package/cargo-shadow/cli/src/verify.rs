@@ -218,6 +218,15 @@ pub fn cache_key(snapshot: &LockSnapshot, settings: &Settings, scope: &str) -> S
 /// cacheFile(root: string, snapshot: LockSnapshot, settings: Settings, scope: string): string
 /// ```
 fn cache_file(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: &str) -> PathBuf {
+    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+    // Why:      Text building and printing are written as one call instead of string concatenation.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // `..${x}..`   // template literal
+    // console.error(text);   // eprintln!
+    // [a, b]            // vec![a, b]
+    // ```
     return root.join(VERIFIED_DIR).join(format!("{}.{}.ok", snapshot.crate_dir.replace('/', "__"), cache_key(snapshot, settings, scope)));
 }
 
@@ -248,10 +257,41 @@ pub fn is_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, sc
 /// export function markVerified(root, snapshot, settings, scope): void  // best effort
 /// ```
 pub fn mark_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: &str) {
+    // Typed binding: `path: PathBuf`.
+    // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+    // Why:      Joined or stored paths are owned; paths passed in are borrowed.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let path: PathBuf = cache_file(root, snapshot, settings, scope);
+    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+    // Why:      Absence is a value the caller must check; there is no `null`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // Some(value) is  value
+    // // None        is  undefined
+    // ```
+    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value !== undefined) { const inner = value; ... }
+    // ```
     if let Some(parent) = path.parent() {
+        // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
+        // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // void expr;   // or try { expr } catch {}
+        // ```
         let _ = fs::create_dir_all(parent);
     }
+    // `let _ =`: discards the result on purpose.
     let _ = fs::write(path, "");
 }
 
@@ -338,6 +378,17 @@ pub fn verify_added_since_base(
     // Delegated pick (2026-11-03): the release age applies to the versions new since the base as well as the trust policy,
     // on this frozen path as on the local one.
     let mut problems: Vec<String> = check_release_age(&versions, settings, registry, now).map_err(message_of)?.problems;
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Borrow `&versions`: lends the value without copying or giving it away.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
     problems.extend(check_trust(&versions, settings, registry, now).map_err(message_of)?);
+    // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+    // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // Ok(value)  is  return value;
+    // // Err(error) is  throw error;   (the caller sees it as a returned value)
+    // ```
     return Ok(problems);
 }

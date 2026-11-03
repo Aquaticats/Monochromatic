@@ -169,7 +169,19 @@ fn read_header(rest: &str) -> Result<(String, Option<String>, &str), String> {
     // const close = rest.indexOf(']'); if (close === -1) throw new Error('...');
     // ```
     let close: usize = match rest.find(']') {
+        // `Some`: the present or the absent value of an `Option`.
         Some(position) => position,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
+        // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+        // Why:      Text building and printing are written as one call instead of string concatenation.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // `..${x}..`   // template literal
+        // console.error(text);   // eprintln!
+        // [a, b]            // vec![a, b]
+        // ```
         None => return Err(format!("a section header has no closing bracket: [{rest}")),
     };
     // What:     `&rest[..close]` is a borrowed slice of the text up to (not including) byte `close`; `.trim()` drops surrounding whitespace.
@@ -180,10 +192,14 @@ fn read_header(rest: &str) -> Result<(String, Option<String>, &str), String> {
     // const inner = rest.slice(0, close).trim();
     // ```
     let inner: &str = rest[..close].trim();
+    // Borrow `&rest`: lends the value without copying or giving it away.
+    // Typed binding: `after: &str`.
     let after: &str = &rest[close + 1..];
     // The quoted form: `section "subsection"`.
     if let Some(space) = inner.find(char::is_whitespace) {
+        // Typed binding: `section: String`.
         let section: String = inner[..space].to_lowercase();
+        // Typed binding: `quoted: &str`.
         let quoted: &str = inner[space..].trim();
         // What:     `strip_prefix` / `strip_suffix` return the text without the given end, as an `Option`; `?` is not used here because the failure needs a message.
         // Why:      The subsection must be wrapped in double quotes.
@@ -193,14 +209,26 @@ fn read_header(rest: &str) -> Result<(String, Option<String>, &str), String> {
         // if (!quoted.startsWith('"') || !quoted.endsWith('"')) throw new Error('...');
         // ```
         let unquoted: Option<&str> = match quoted.strip_prefix('"') {
+            // `Some`: the present or the absent value of an `Option`.
             Some(text) => text.strip_suffix('"'),
+            // `None`: the present or the absent value of an `Option`.
             None => None,
         };
+        // `match`: picks the arm whose pattern fits the value.
+        // Typed binding: `body: &str`.
         let body: &str = match unquoted {
+            // `Some`: the present or the absent value of an `Option`.
             Some(found) => found,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // `None`: the present or the absent value of an `Option`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             None => return Err(format!("a subsection name is not in double quotes: [{inner}]")),
         };
+        // `let mut`: a binding that may change.
+        // Typed binding: `subsection: String`.
+        // Constructor `String::new()`: an empty owned collection or a boxed value.
         let mut subsection: String = String::new();
+        // `let mut`: a binding that may change.
         let mut characters = body.chars();
         // `while let Some(c) = iterator.next()` runs until the iterator is used up.
         while let Some(character) = characters.next() {
@@ -213,12 +241,18 @@ fn read_header(rest: &str) -> Result<(String, Option<String>, &str), String> {
                 subsection.push(character);
             }
         }
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
         return Ok((section, Some(subsection), after));
     }
     // The older form: `section.subsection`, whose subsection is lowercased.
     if let Some(dot) = inner.find('.') {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
         return Ok((inner[..dot].to_lowercase(), Some(inner[dot + 1..].to_lowercase()), after));
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // `None`: the present or the absent value of an `Option`.
     return Ok((inner.to_lowercase(), None, after));
 }
 
@@ -236,19 +270,38 @@ fn read_header(rest: &str) -> Result<(String, Option<String>, &str), String> {
 /// function readValue(raw: string): string  // throws on an unknown escape or an unclosed quote
 /// ```
 fn read_value(raw: &str) -> Result<String, String> {
+    // `let mut`: a binding that may change.
+    // Typed binding: `value: String`.
+    // Constructor `String::new()`: an empty owned collection or a boxed value.
     let mut value: String = String::new();
+    // `let mut`: a binding that may change.
+    // Typed binding: `in_quotes: bool`.
     let mut in_quotes: bool = false;
+    // `let mut`: a binding that may change.
     let mut characters = raw.trim().chars();
+    // `Some`: the present or the absent value of an `Option`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     while let Some(character) = characters.next() {
         if character == '\\' {
             // Git's escapes in a value: `\n`, `\t`, `\b`, `\\` and `\"`.
             let escaped: char = match characters.next() {
+                // `Some`: the present or the absent value of an `Option`.
                 Some('n') => '\n',
+                // `Some`: the present or the absent value of an `Option`.
                 Some('t') => '\t',
+                // `Some`: the present or the absent value of an `Option`.
                 Some('b') => '\u{8}',
+                // `Some`: the present or the absent value of an `Option`.
                 Some('\\') => '\\',
+                // `Some`: the present or the absent value of an `Option`.
                 Some('"') => '"',
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
+                // `Some`: the present or the absent value of an `Option`.
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 Some(other) => return Err(format!("an unknown escape \\{other} in a configuration value")),
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
+                // `None`: the present or the absent value of an `Option`.
+                // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                 None => return Err("a configuration value ends with a lone backslash".to_string()),
             };
             value.push(escaped);
@@ -261,6 +314,8 @@ fn read_value(raw: &str) -> Result<String, String> {
         }
     }
     if in_quotes {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err("a configuration value has an unclosed double quote".to_string());
     }
     // Whitespace before an unquoted comment was collected into the value; Git drops trailing whitespace outside quotes.
@@ -280,8 +335,11 @@ fn read_value(raw: &str) -> Result<String, String> {
 /// const isValidKey = (key: string): boolean => /^[A-Za-z][A-Za-z0-9-]*$/.test(key);
 /// ```
 fn is_valid_key(key: &str) -> bool {
+    // `let mut`: a binding that may change.
     let mut characters = key.chars();
+    // `match`: picks the arm whose pattern fits the value.
     match characters.next() {
+        // `Some`: the present or the absent value of an `Option`.
         Some(first) if first.is_ascii_alphabetic() => {}
         _ => return false,
     }
@@ -306,53 +364,97 @@ fn is_valid_key(key: &str) -> bool {
 /// export function parseConfig(text: string): ParsedConfig  // throws on text it cannot read exactly
 /// ```
 pub fn parse_config(text: &str) -> Result<ParsedConfig, String> {
+    // `let mut`: a binding that may change.
+    // Typed binding: `parsed: ParsedConfig`.
     let mut parsed: ParsedConfig = ParsedConfig::default();
+    // `None`: the present or the absent value of an `Option`.
+    // `let mut`: a binding that may change.
+    // Typed binding: `section: Option<(String, Option<String>)>`.
     let mut section: Option<(String, Option<String>)> = None;
     // Join continuation lines first, so every logical line is one string.
     let mut logical: Vec<String> = Vec::new();
+    // `let mut`: a binding that may change.
+    // Typed binding: `pending: String`.
+    // Constructor `String::new()`: an empty owned collection or a boxed value.
     let mut pending: String = String::new();
     for physical in text.lines() {
+        // `Some`: the present or the absent value of an `Option`.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         if let Some(without) = physical.strip_suffix('\\') {
             pending.push_str(without);
             continue;
         }
         pending.push_str(physical);
+        // Borrow `&mut pending`: lends the value without copying or giving it away.
         logical.push(std::mem::take(&mut pending));
     }
     if !pending.is_empty() {
         logical.push(pending);
     }
+    // Borrow `&logical`: lends the value without copying or giving it away.
     for line in &logical {
+        // `let mut`: a binding that may change.
+        // Typed binding: `rest: &str`.
         let mut rest: &str = line.trim_start();
         if rest.is_empty() || rest.starts_with('#') || rest.starts_with(';') {
             continue;
         }
         // A header may be followed by a key on the same line.
         if let Some(after_bracket) = rest.strip_prefix('[') {
+            // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+            // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+            // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const value = await expr;   // throws to the caller on failure
+            // ```
             let (name, subsection, after) = read_header(after_bracket)?;
             if name == "include" || name == "includeif" {
                 parsed.has_include = true;
             }
+            // `Some`: the present or the absent value of an `Option`.
             section = Some((name, subsection));
             rest = after.trim_start();
             if rest.is_empty() || rest.starts_with('#') || rest.starts_with(';') {
                 continue;
             }
         }
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&section`: lends the value without copying or giving it away.
         let (section_name, subsection_name) = match &section {
+            // `Some`: the present or the absent value of an `Option`.
+            // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+            // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+            // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // structuredClone(value)  // or [...list] / {...object}
+            // ```
             Some(found) => found.clone(),
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // `None`: the present or the absent value of an `Option`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             None => return Err("a configuration line appears before any section header".to_string()),
         };
         // `key = value`, or a bare `key` that means true.
         let (key, value) = match rest.split_once('=') {
+            // `Some`: the present or the absent value of an `Option`.
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             Some((key_text, value_text)) => (key_text.trim(), read_value(value_text)?),
+            // `None`: the present or the absent value of an `Option`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             None => (rest.trim(), "true".to_string()),
         };
         // A key is a letter followed by letters, digits and hyphens.
         if !is_valid_key(key) {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(format!("a configuration key is not valid: {key:?}"));
         }
         parsed.entries.push(ConfigEntry { section: section_name, subsection: subsection_name, key: key.to_lowercase(), value });
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(parsed);
 }

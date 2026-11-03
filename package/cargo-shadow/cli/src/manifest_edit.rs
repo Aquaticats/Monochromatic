@@ -111,9 +111,55 @@ pub struct ManifestEdit {
 /// ```
 pub fn snapshot_manifests(paths: &[PathBuf], edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<()> {
     for path in paths {
+        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const value = await expr;   // throws to the caller on failure
+        // ```
+        // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+        // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const name: Type = value;
+        // ```
+        // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+        // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: string
+        // ```
         let before: String = fs::read_to_string(path)?;
+        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+        // Why:      Absence is a value the caller must check; there is no `null`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Some(value) is  value
+        // // None        is  undefined
+        // ```
+        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // structuredClone(value)  // or [...list] / {...object}
+        // ```
         edits.borrow_mut().push(ManifestEdit { path: path.clone(), before, produced: None });
     }
+    // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+    // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // Ok(value)  is  return value;
+    // // Err(error) is  throw error;   (the caller sees it as a returned value)
+    // ```
     return Ok(());
 }
 
@@ -129,6 +175,13 @@ pub fn snapshot_manifests(paths: &[PathBuf], edits: &RefCell<Vec<ManifestEdit>>)
 /// export function recordManifestOutput(edits: ManifestEdit[]): void
 /// ```
 pub fn record_manifest_output(edits: &RefCell<Vec<ManifestEdit>>) {
+    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
+    // Why:      The collection stays usable after the walk and no item is copied until it must be.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const item of list) { ... }  // or list.map(...)
+    // ```
     for edit in edits.borrow_mut().iter_mut() {
         // A manifest that cannot be read now stays unrecorded and is therefore never restored.
         edit.produced = fs::read_to_string(&edit.path).ok();
@@ -149,30 +202,87 @@ pub fn record_manifest_output(edits: &RefCell<Vec<ManifestEdit>>) {
 /// export function restoreManifests(edits: ManifestEdit[]): string[]  // throws when a write fails
 /// ```
 pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<Vec<String>> {
+    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+    // Why:      The value is built up or replaced step by step below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let x = ...;   // plain Rust `let` is TS `const`
+    // ```
+    // Typed binding: `warnings: Vec<String>`.
+    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const list: string[] = [];   // or new Set() / new Map()
+    // ```
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let mut warnings: Vec<String> = Vec::new();
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     for edit in edits.borrow().iter() {
+        // Borrow `&edit.path`: lends the value without copying or giving it away.
+        // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+        // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+        // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // value ?? fallback
+        // ```
+        // Typed binding: `live: String`.
         let live: String = fs::read_to_string(&edit.path).unwrap_or_default();
         if live == edit.before {
             continue;
         }
+        // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
+        // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
+        // ```
+        // Borrow `&edit.produced`: lends the value without copying or giving it away.
         match &edit.produced {
+            // `Some`: the present or the absent value of an `Option`.
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // `match`: picks the arm whose pattern fits the value.
+            // Borrow `&edit.path`: lends the value without copying or giving it away.
             Some(produced) if *produced == live => match replace_if_holds(&edit.path, produced, &edit.before, &no_hook)? {
                 ReplaceOutcome::Replaced => {}
+                // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+                // Why:      Text building and printing are written as one call instead of string concatenation.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // `..${x}..`   // template literal
+                // console.error(text);   // eprintln!
+                // [a, b]            // vec![a, b]
+                // ```
                 ReplaceOutcome::LeftAlone => warnings.push(format!(
                     "{} was changed by another process while it was being restored; it was left as that process wrote it",
                     edit.path.display()
                 )),
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 ReplaceOutcome::Preserved(kept) => warnings.push(format!(
                     "{} was changed twice by other processes while it was being restored; the file displaced is kept as {}",
                     edit.path.display(),
                     kept.display()
                 )),
             },
+            // Macro `format!`: builds or prints text (or a list) from a template.
             _ => warnings.push(format!(
                 "{} differs from its text before the run, but this run did not leave it that way, so another process did; it was left as it is, not restored",
                 edit.path.display()
             )),
         }
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(warnings);
 }

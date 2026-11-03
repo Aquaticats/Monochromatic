@@ -713,6 +713,7 @@ pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError
 /// const invalidLockToml = (message: string) => new InstallError(`a Cargo.lock is not valid TOML: ${message}`);
 /// ```
 fn invalid_lock_toml(message: String) -> InstallError {
+    // Macro `format!`: builds or prints text (or a list) from a template.
     return InstallError::Io { message: format!("a Cargo.lock could not be read for its registry versions: {message}") };
 }
 
@@ -757,55 +758,109 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
         run_or_fail(request, crate_dir, &VERIFY_ARGS)?;
         stale.push(crate_dir.clone());
     }
+    // Typed binding: `before_sources: Vec<String>`.
     let before_sources: Vec<String> = sources_of(before);
+    // `.clone()`: an independent owned copy.
+    // `let mut`: a binding that may change.
+    // Typed binding: `baselines: Vec<Vec<String>>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let mut baselines: Vec<Vec<String>> = vec![before_sources.clone()];
+    // `let mut`: a binding that may change.
+    // Typed binding: `notes: Vec<String>`.
+    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
     let mut notes: Vec<String> = Vec::new();
     // The versions this update newly locked.
     if !stale.is_empty() {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&before_sources`: lends the value without copying or giving it away.
         notes.extend(set_aside_pass(request, &before_sources, produced)?);
     }
     // The existing entries, unless a remembered pass covers this exact lockfile text, policy and base.
     let scope: String = verification_scope(request.settings, false, request.trust_base);
+    // Typed binding: `covered: bool`.
     let covered: bool = verification_cached(request.root, request.crate_dirs, request.settings, false, request.trust_base);
     if !covered {
+        // Typed binding: `baseline: Vec<String>`.
         let baseline: Vec<String> = if request.settings.trust_lockfile {
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Typed binding: `reader: LockBaseReader`.
             let reader: LockBaseReader = base_reader(request)?;
+            // `let mut`: a binding that may change.
+            // Typed binding: `texts: Vec<String>`.
+            // Constructor `Vec::new()`: an empty owned collection or a boxed value.
             let mut texts: Vec<String> = Vec::new();
             for dir in request.crate_dirs {
                 texts.push(reader(dir));
             }
             texts
         } else {
+            // Constructor `Vec::new()`: an empty owned collection or a boxed value.
             Vec::new()
         };
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&baseline`: lends the value without copying or giving it away.
         notes.extend(set_aside_pass(request, &baseline, produced)?);
         baselines.push(baseline);
     }
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
+    // Typed binding: `after: Vec<LockSnapshot>`.
     let after: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(io_error)?;
+    // Borrow `&after`: lends the value without copying or giving it away.
+    // Typed binding: `after_sources: Vec<String>`.
     let after_sources: Vec<String> = sources_of(&after);
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Borrow `&before_sources`: lends the value without copying or giving it away.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
+    // Typed binding: `added: Vec<LockedVersion>`.
     let added: Vec<LockedVersion> = added_versions(&before_sources, &after_sources).map_err(invalid_lock_toml)?;
     // Everything either baseline did not hold is checked, once.
     let mut checked: BTreeSet<LockedVersion> = BTreeSet::new();
+    // Borrow `&baselines`: lends the value without copying or giving it away.
     for baseline in &baselines {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&after_sources`: lends the value without copying or giving it away.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         for version in added_versions(baseline, &after_sources).map_err(invalid_lock_toml)? {
             checked.insert(version);
         }
     }
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Typed binding: `versions: Vec<LockedVersion>`.
     let versions: Vec<LockedVersion> = checked.into_iter().collect();
+    // Typed binding: `age: CheckOutcome`.
     let age: CheckOutcome = if versions.is_empty() {
         CheckOutcome::default()
     } else {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&versions`: lends the value without copying or giving it away.
         check_release_age(&versions, request.settings, request.registry, request.now)?
     };
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value !== undefined) { const inner = value; ... }
+    // ```
+    // Borrow `&versions`: lends the value without copying or giving it away.
+    // Typed binding: `trust: Vec<String>`.
+    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
     let trust: Vec<String> = if versions.is_empty() { Vec::new() } else { check_trust(&versions, request.settings, request.registry, request.now)? };
     let mut problems: Vec<String> = age.problems;
     problems.extend(trust);
     // Only a pass is remembered, and only for the text that is live now.
     if problems.is_empty() && !covered {
+        // Borrow `&after`: lends the value without copying or giving it away.
         for snapshot in &after {
+            // Borrow `&scope`: lends the value without copying or giving it away.
             mark_verified(request.root, snapshot, request.settings, &scope);
         }
     }
+    // `let mut`: a binding that may change.
+    // Typed binding: `warnings: Vec<String>`.
     let mut warnings: Vec<String> = age.warnings;
     warnings.extend(notes);
     let keep: bool = problems.is_empty() && !request.dry_run;
@@ -843,34 +898,60 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     if request.frozen {
         // The stamp showed the lockfiles consistent, so no cargo call asks again; the policy check below still runs.
         if !request.known_consistent {
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Typed binding: `stale: Vec<String>`.
             let stale: Vec<String> = stale_roots(request)?;
             if !stale.is_empty() {
+                // Macro `eprintln!`: builds or prints text (or a list) from a template.
                 eprintln!("cargo-shadow: frozen install: {} stale lockfiles, nothing written", stale.len());
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 return Err(InstallError::Stale { stale_dirs: stale });
             }
         }
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
+        // Typed binding: `locks: Vec<LockSnapshot>`.
         let locks: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(io_error)?;
         let problems: Vec<String> = if request.settings.trust_lockfile {
+            // Typed binding: `scope: String`.
             let scope: String = verification_scope(request.settings, true, request.trust_base);
+            // `let mut`: a binding that may change.
+            // Typed binding: `pending: Vec<LockSnapshot>`.
+            // Constructor `Vec::new()`: an empty owned collection or a boxed value.
             let mut pending: Vec<LockSnapshot> = Vec::new();
+            // Borrow `&locks`: lends the value without copying or giving it away.
             for snapshot in &locks {
+                // Borrow `&scope`: lends the value without copying or giving it away.
                 if !is_verified(request.root, snapshot, request.settings, &scope) {
+                    // `.clone()`: an independent owned copy.
                     pending.push(snapshot.clone());
                 }
             }
             if pending.is_empty() {
+                // Constructor `Vec::new()`: an empty owned collection or a boxed value.
                 Vec::new()
             } else {
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                // Typed binding: `read_base: LockBaseReader`.
                 let read_base: LockBaseReader = base_reader(request)?;
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                // Borrow `&pending`: lends the value without copying or giving it away.
+                // `.map_err(...)`: converts the callee's error into this function's error type.
+                // Typed binding: `found: Vec<String>`.
                 let found: Vec<String> = verify_added_since_base(&pending, &*read_base, request.settings, request.registry, request.now).map_err(registry_error)?;
                 if found.is_empty() {
+                    // Borrow `&pending`: lends the value without copying or giving it away.
                     for snapshot in &pending {
+                        // Borrow `&scope`: lends the value without copying or giving it away.
                         mark_verified(request.root, snapshot, request.settings, &scope);
                     }
                 }
                 found
             }
         } else {
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Borrow `&locks`: lends the value without copying or giving it away.
+            // `.map_err(...)`: converts the callee's error into this function's error type.
             verify_locked_entries(request.root, &locks, request.settings, request.registry, request.now).map_err(registry_error)?
         };
         return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), problems, ..InstallReport::default() });

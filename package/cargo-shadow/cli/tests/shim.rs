@@ -423,19 +423,87 @@ fn a_launcher_that_leads_back_to_the_shadow_is_skipped_by_the_install_step_and_t
 #[test]
 fn a_launcher_that_leads_back_to_the_shadow_is_skipped_for_add_which_the_shadow_starts_as_a_child() {
     let world = make_world();
+    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+    // ```
     write_lock(&world, SATISFIED);
+    // Borrow `&world`: lends the value without copying or giving it away.
     let (launcher_directory, _count) = write_launcher(&world);
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const name: Type = value;
+    // ```
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let path: String = path_of(&[&world.shadow_directory, &launcher_directory, &world.fake_directory]);
+    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+    // Why:      The value is built up or replaced step by step below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let x = ...;   // plain Rust `let` is TS `const`
+    // ```
     let mut command = Command::new(world.shadow_directory.join("cargo"));
     command
         .args(["add", "serde"])
         .current_dir(world.repository.join(CRATE_DIR))
         .env("PATH", path)
         .env("CI", "")
+        // Borrow `&world.log`: lends the value without copying or giving it away.
         .env("FAKE_CARGO_LOG", &world.log);
 
+    // Borrow `&mut command`: lends the value without copying or giving it away.
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
     let output = output_within(&mut command, 20).expect("the command timed out: the shadow keeps leading back into the launcher");
 
+    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+    // Why:      Absence is a value the caller must check; there is no `null`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // Some(value) is  value
+    // // None        is  undefined
+    // ```
+    // Borrow `&output.stderr`: lends the value without copying or giving it away.
+    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+    // Why:      Text building and printing are written as one call instead of string concatenation.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // `..${x}..`   // template literal
+    // console.error(text);   // eprintln!
+    // [a, b]            // vec![a, b]
+    // ```
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    // Borrow `&output.stdout`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} add serde"));
 }

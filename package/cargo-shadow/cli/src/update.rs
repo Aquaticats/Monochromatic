@@ -720,12 +720,26 @@ fn raised_floor_warning(change: &str) -> String {
 /// async function workspaceManifests(request, crateDir): Promise<string[]>  // throws when metadata fails
 /// ```
 fn workspace_manifests(request: &UpdateRequest, crate_dir: &str) -> Result<Vec<PathBuf>, UpdateError> {
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `let mut`: a binding that may change.
+    // Typed binding: `args: Vec<String>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let mut args: Vec<String> = vec!["metadata".to_string(), "--no-deps".to_string(), "--format-version".to_string(), "1".to_string()];
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     args.extend(request.forward.iter().cloned());
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Borrow `&request.root.join`: lends the value without copying or giving it away.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
+    // Typed binding: `outcome: CargoOutcome`.
     let outcome: CargoOutcome = request.runner.run(&request.root.join(crate_dir), &args).map_err(other)?;
     if !outcome.ok {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(UpdateError::Cargo { crate_dir: crate_dir.to_string(), command: format!("cargo {}", args.join(" ")), output: outcome.output });
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // Borrow `&outcome.stdout`: lends the value without copying or giving it away.
     return Ok(manifests_from_metadata(&outcome.stdout));
 }
 
@@ -793,7 +807,19 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             let breaking: bool = cargo_args.iter().map(String::as_str).any(is_breaking_option);
             if breaking {
                 for crate_dir in request.crate_dirs {
+                    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                    // Typed binding: `paths: Vec<PathBuf>`.
+                    // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+                    // Why:      Joined or stored paths are owned; paths passed in are borrowed.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // // TS has one type for this: string
+                    // ```
                     let paths: Vec<PathBuf> = workspace_manifests(request, crate_dir)?;
+                    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                    // Borrow `&paths`: lends the value without copying or giving it away.
+                    // `.map_err(...)`: converts the callee's error into this function's error type.
                     snapshot_manifests(&paths, edits).map_err(other_text)?;
                 }
                 // Delegated pick (2026-11-03): the manifests are journaled, so a killed run is recovered for them too.
@@ -806,6 +832,9 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                     let outcome: CargoOutcome = request.runner.run(&request.root.join(crate_dir), &args).map_err(other)?;
                     record_manifest_output(edits);
                     if !outcome.ok {
+                        // `Err(...)`: builds the success or the failure variant of a `Result`.
+                        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+                        // Macro `format!`: builds or prints text (or a list) from a template.
                         return Err(UpdateError::Cargo { crate_dir: crate_dir.to_string(), command: format!("cargo {}", args.join(" ")), output: outcome.output });
                     }
                 } else {
@@ -948,7 +977,11 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                 // the floors and the manifests disagreeing, so the catalog goes back and the caller restores the manifests and
                 // the lockfiles; the finding names the failure.
                 Err(message) => {
+                    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                    // Borrow `&source`: lends the value without copying or giving it away.
+                    // `.map_err(...)`: converts the callee's error into this function's error type.
                     fs::write(request.catalog_path, &source).map_err(other_text)?;
+                    // Macro `format!`: builds or prints text (or a list) from a template.
                     problems.push(format!("the catalog floors were not rendered into the manifests, so the update was not kept: {message}"));
                     keep = false;
                 }
@@ -1031,6 +1064,9 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         restore_warnings = restore_if_unchanged(request.root, &before, &produced.borrow()).map_err(other_text)?;
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&edits`: lends the value without copying or giving it away.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         restore_warnings.extend(restore_manifests(&edits).map_err(other_text)?);
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
         for warning in &restore_warnings {

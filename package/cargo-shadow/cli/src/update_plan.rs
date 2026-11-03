@@ -176,8 +176,16 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
     // The position of the command word itself: everything else is scanned, including the global options before it
     // (review finding: `cargo --locked update` and `cargo --offline update` must read like their later spellings).
     let mut verb_position: Option<usize> = None;
+    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
+    // Why:      The collection stays usable after the walk and no item is copied until it must be.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const item of list) { ... }  // or list.map(...)
+    // ```
     for (position, word) in words.iter().enumerate() {
         if verb_position.is_none() && !word.starts_with('+') && !word.starts_with('-') && *word == verb {
+            // `Some`: the present or the absent value of an `Option`.
             verb_position = Some(position);
         }
     }
@@ -189,6 +197,8 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
     let mut names: Vec<String> = Vec::new();
     let mut cargo_args: Vec<String> = vec!["update".to_string()];
     let mut forward: Vec<String> = Vec::new();
+    // `let mut`: a binding that may change.
+    // Typed binding: `index: usize`.
     let mut index: usize = 0;
     while index < words.len() {
         let word: &str = &words[index];
@@ -216,25 +226,46 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
             // runs inside it, so the option itself is dropped.
         } else if FORWARDED_VALUE_OPTIONS.contains(&word) {
             forward.extend([word.to_string(), value.clone()]);
+        // Borrow `&word`: lends the value without copying or giving it away.
         } else if FORWARDED_FLAGS.contains(&word) || word == "-vv" || word.starts_with("--color=") || word.starts_with("--config=") || (word.starts_with("-Z") && word.len() > 2) {
             forward.push(word.to_string());
         } else if word == "-p" || word == "--package" {
+            // Borrow `&value`: lends the value without copying or giving it away.
             names.push(package_name(&value));
             cargo_args.extend([word.to_string(), value.clone()]);
+        // `Some`: the present or the absent value of an `Option`.
+        // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+        // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (value !== undefined) { const inner = value; ... }
+        // ```
         } else if let Some(attached) = word.strip_prefix("--package=") {
             // Review finding: the attached spelling names the package like the separated one.
             names.push(package_name(attached));
             cargo_args.push(word.to_string());
+        // `Some`: the present or the absent value of an `Option`.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         } else if let Some(attached) = word.strip_prefix("-p")
             && !attached.is_empty()
             && !attached.starts_with('-')
         {
             names.push(package_name(attached));
+            // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+            // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // String(value)  // JS strings are always owned values
+            // ```
             cargo_args.push(word.to_string());
         } else if word == "--breaking" {
             breaking = true;
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             cargo_args.push(word.to_string());
         } else if word == "--recursive" {
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             cargo_args.push(word.to_string());
         } else if word.starts_with('-') {
             // Review finding (reject, do not broaden): an option the shadow has no mapping for would otherwise be dropped
@@ -274,5 +305,14 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
 /// const packageName = (spec: string) => spec.split('@')[0];
 /// ```
 fn package_name(spec: &str) -> String {
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
     return spec.split('@').next().unwrap_or("").to_string();
 }

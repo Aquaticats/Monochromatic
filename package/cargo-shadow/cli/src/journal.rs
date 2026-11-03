@@ -222,6 +222,7 @@ fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a
 /// export function restoreIfUnchanged({ root, snapshots, produced }): string[]
 /// ```
 pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot]) -> io::Result<Vec<String>> {
+    // Borrow `&no_hook`: lends the value without copying or giving it away.
     return restore_if_unchanged_with(root, snapshots, produced, &no_hook);
 }
 
@@ -247,16 +248,37 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
         // Review finding (unknown ownership): only a lockfile this run is known to have written may be replaced. A root the run
         // never recorded as produced, or one that holds something else than was recorded, belongs to somebody else.
         let expected: Option<&LockSnapshot> = snapshot_of(produced, &snapshot.crate_dir);
+        // `match`: picks the arm whose pattern fits the value.
         match expected {
+            // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+            // Why:      Absence is a value the caller must check; there is no `null`.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // // Some(value) is  value
+            // // None        is  undefined
+            // ```
             Some(found) if found.source == live => {}
+            // `Some`: the present or the absent value of an `Option`.
             Some(_) => {
+                // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+                // Why:      Text building and printing are written as one call instead of string concatenation.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // `..${x}..`   // template literal
+                // console.error(text);   // eprintln!
+                // [a, b]            // vec![a, b]
+                // ```
                 warnings.push(format!(
                     "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
                     snapshot.crate_dir
                 ));
                 continue;
             }
+            // `None`: the present or the absent value of an `Option`.
             None => {
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 warnings.push(format!(
                     "{}/{LOCKFILE_NAME} differs from the snapshot, but this run did not write it, so another process did; it was left as it is, not restored",
                     snapshot.crate_dir
@@ -264,12 +286,24 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
                 continue;
             }
         }
+        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const value = await expr;   // throws to the caller on failure
+        // ```
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&path`: lends the value without copying or giving it away.
         match replace_if_holds(&path, &live, &snapshot.source, between)? {
             ReplaceOutcome::Replaced => {}
+            // Macro `format!`: builds or prints text (or a list) from a template.
             ReplaceOutcome::LeftAlone => warnings.push(format!(
                 "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
                 snapshot.crate_dir
             )),
+            // Macro `format!`: builds or prints text (or a list) from a template.
             ReplaceOutcome::Preserved(copy) => warnings.push(format!(
                 "{}/{LOCKFILE_NAME} was changed twice by other processes while the step ran; the file displaced is kept as {}",
                 snapshot.crate_dir,
@@ -295,16 +329,35 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
 pub fn note_produced(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSnapshot>>) {
     // A lockfile that cannot be read right now is not recorded; an unrecorded root is never restored.
     let source: String = match fs::read_to_string(root.join(crate_dir).join(LOCKFILE_NAME)) {
+        // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+        // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Ok(value)  is  return value;
+        // // Err(error) is  throw error;   (the caller sees it as a returned value)
+        // ```
         Ok(found) => found,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(_) => return,
     };
+    // `let mut`: a binding that may change.
     let mut list = produced.borrow_mut();
+    // Borrow `&mut *list`: lends the value without copying or giving it away.
+    // Typed binding: `earlier: Vec<LockSnapshot>`.
     let earlier: Vec<LockSnapshot> = std::mem::take(&mut *list);
     for known in earlier {
         if known.crate_dir != crate_dir {
             list.push(known);
         }
     }
+    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // String(value)  // JS strings are always owned values
+    // ```
     list.push(LockSnapshot { crate_dir: crate_dir.to_string(), source });
 }
 
@@ -327,19 +380,60 @@ pub fn note_produced(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSn
 /// function saveAside(target: string, text: string): string  // writeFileSync(name, text, { flag: 'wx' }) per candidate name
 /// ```
 fn save_aside(target: &Path, text: &str) -> io::Result<PathBuf> {
+    // Typed binding: `base: String`.
     let base: String = file_name_text(target);
+    // `let mut`: a binding that may change.
+    // Typed binding: `number: u32`.
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
     let mut number: u32 = 0;
     loop {
+        // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+        // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (value !== undefined) { const inner = value; ... }
+        // ```
+        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // structuredClone(value)  // or [...list] / {...object}
+        // ```
+        // Typed binding: `name: String`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         let name: String = if number == 0 { base.clone() } else { format!("{base}.{number}") };
+        // Typed binding: `candidate: PathBuf`.
+        // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+        // Why:      Joined or stored paths are owned; paths passed in are borrowed.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: string
+        // ```
         let candidate: PathBuf = target.with_file_name(name);
         // `create_new(true)` fails with `AlreadyExists` instead of truncating, the exclusive-create flag `wx` of Node.
         let opened = fs::OpenOptions::new().write(true).create_new(true).open(&candidate);
+        // `match`: picks the arm whose pattern fits the value.
         match opened {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(mut file) => {
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 file.write_all(text.as_bytes())?;
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 return Ok(candidate);
             }
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => number += 1,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => return Err(error),
         }
     }
@@ -372,17 +466,43 @@ const MANIFEST_INDEX_FILE: &str = "manifests.txt";
 /// export function addManifests(root: string, edits: ManifestEdit[]): void  // throws when the journal cannot be written
 /// ```
 pub fn add_manifests(root: &Path, edits: &[ManifestEdit]) -> io::Result<()> {
+    // Typed binding: `directory: PathBuf`.
     let directory: PathBuf = journal_path(root, std::process::id());
+    // `let mut`: a binding that may change.
+    // Typed binding: `index: String`.
+    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const list: string[] = [];   // or new Set() / new Map()
+    // ```
     let mut index: String = String::new();
+    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
+    // Why:      The collection stays usable after the walk and no item is copied until it must be.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const item of list) { ... }  // or list.map(...)
+    // ```
     for (position, edit) in edits.iter().enumerate() {
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // Typed binding: `path_text: String`.
         let path_text: String = edit.path.to_string_lossy().to_string();
         if path_text.contains('\n') {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the manifest path {path_text:?} contains a line feed, which the journal cannot list")));
         }
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&edit.before`: lends the value without copying or giving it away.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         fs::write(directory.join(format!("m{position}.toml")), &edit.before)?;
+        // Borrow `&path_text`: lends the value without copying or giving it away.
         index.push_str(&path_text);
         index.push('\n');
     }
+    // Borrow `&directory.join`: lends the value without copying or giving it away.
     return atomic_write(&directory.join(MANIFEST_INDEX_FILE), &index);
 }
 
@@ -453,42 +573,78 @@ pub fn process_exists(pid: u32) -> bool {
 /// function recoverManifests(directory: string, between: (path: string) => void, messages: string[]): boolean
 /// ```
 fn recover_manifests(directory: &Path, between: &dyn Fn(&Path), messages: &mut Vec<String>) -> bool {
+    // `match`: picks the arm whose pattern fits the value.
+    // Typed binding: `index: String`.
     let index: String = match fs::read_to_string(directory.join(MANIFEST_INDEX_FILE)) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(found) => found,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(_) => return true,
     };
+    // `let mut`: a binding that may change.
+    // Typed binding: `all_settled: bool`.
     let mut all_settled: bool = true;
     for (position, path_text) in index.lines().enumerate() {
+        // Typed binding: `path: PathBuf`.
         let path: PathBuf = PathBuf::from(path_text);
+        // `match`: picks the arm whose pattern fits the value.
+        // Typed binding: `before: String`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         let before: String = match fs::read_to_string(directory.join(format!("m{position}.toml"))) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(found) => found,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => {
                 all_settled = false;
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 messages.push(format!("{path_text}: the journaled text of a manifest could not be read ({error}); its journal was kept"));
                 continue;
             }
         };
+        // Borrow `&path`: lends the value without copying or giving it away.
+        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+        // Typed binding: `live: String`.
         let live: String = fs::read_to_string(&path).unwrap_or_default();
         if live == before {
             continue;
         }
+        // Borrow `&path.with_file_name`: lends the value without copying or giving it away.
+        // Typed binding: `saved: io::Result<PathBuf>`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         let saved: io::Result<PathBuf> = save_aside(&path.with_file_name(format!("{}{REFUSED_SUFFIX}", file_name_text(&path))), &live);
+        // `match`: picks the arm whose pattern fits the value.
+        // Typed binding: `restored: io::Result<(PathBuf, ReplaceOutco...`.
         let restored: io::Result<(PathBuf, ReplaceOutcome)> = match saved {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `match`: picks the arm whose pattern fits the value.
+            // Borrow `&path`: lends the value without copying or giving it away.
             Ok(copy) => match replace_if_holds(&path, &live, &before, between) {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 Ok(outcome) => Ok((copy, outcome)),
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 Err(error) => Err(error),
             },
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => Err(error),
         };
+        // `match`: picks the arm whose pattern fits the value.
         match restored {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             Ok((copy, ReplaceOutcome::Replaced)) => messages.push(format!(
                 "{path_text} was rewritten by a run that was killed and its lockfile was not kept; the earlier manifest was put back and the rewritten text is kept as {}",
                 copy.display()
             )),
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             Ok((_, ReplaceOutcome::LeftAlone)) => messages.push(format!("{path_text} was changed by another process while a killed run was being recovered; it was left as that process wrote it")),
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             Ok((_, ReplaceOutcome::Preserved(kept))) => messages.push(format!("{path_text} was changed twice by other processes while a killed run was being recovered; the file displaced is kept as {}", kept.display())),
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => {
                 all_settled = false;
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 messages.push(format!("{path_text}: could not recover a killed run: {error}; its journal was kept"));
             }
         }
@@ -517,6 +673,7 @@ fn recover_manifests(directory: &Path, between: &dyn Fn(&Path), messages: &mut V
 /// export function recover({ root, isAlive, judge }): string[]
 /// ```
 pub fn recover(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>) -> Vec<String> {
+    // Borrow `&no_hook`: lends the value without copying or giving it away.
     return recover_with(root, is_alive, judge, &no_hook);
 }
 
@@ -550,7 +707,9 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(
         // so it is deleted only when every root it lists was settled. Any unreadable part or failed step keeps it.
         let before: Vec<LockSnapshot> = match read_journal(&directory) {
             Ok(found) => found,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => {
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 messages.push(format!("{}: the journal of a killed run could not be read ({error}); it was kept", directory.display()));
                 continue;
             }
@@ -558,11 +717,15 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(
         let dirs: Vec<String> = before.iter().map(LockSnapshot::crate_dir_text).collect();
         let live: Vec<LockSnapshot> = match read_locks(root, &dirs) {
             Ok(found) => found,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => {
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 messages.push(format!("{}: a lockfile of a killed run could not be read ({error}); its journal was kept", directory.display()));
                 continue;
             }
         };
+        // `let mut`: a binding that may change.
+        // Typed binding: `settled: bool`.
         let mut settled: bool = true;
         // Whether a lockfile this journal lists was kept because its new versions pass the policy: the manifest edits that go
         // with it are kept too.
@@ -582,39 +745,60 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(
             // right before it is replaced, and a lockfile that is no longer the judged one is another writer's and is left.
             let latest: String = fs::read_to_string(&path).unwrap_or_default();
             if latest != now.source {
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 messages.push(format!(
                     "{}/{LOCKFILE_NAME} was changed by another process while a killed run was being recovered; it was left as that process wrote it, not restored",
                     old.crate_dir
                 ));
                 continue;
             }
+            // Borrow `&path.with_file_name`: lends the value without copying or giving it away.
+            // Typed binding: `saved: io::Result<PathBuf>`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             let saved: io::Result<PathBuf> = save_aside(&path.with_file_name(format!("{LOCKFILE_NAME}{REFUSED_SUFFIX}")), &now.source);
+            // `match`: picks the arm whose pattern fits the value.
+            // Typed binding: `restored: io::Result<(PathBuf, ReplaceOutco...`.
             let restored: io::Result<(PathBuf, ReplaceOutcome)> = match saved {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // `match`: picks the arm whose pattern fits the value.
+                // Borrow `&path`: lends the value without copying or giving it away.
                 Ok(copy) => match replace_if_holds(&path, &now.source, &old.source, between) {
+                    // `Ok(...)`: builds the success or the failure variant of a `Result`.
                     Ok(outcome) => Ok((copy, outcome)),
+                    // `Err(...)`: builds the success or the failure variant of a `Result`.
                     Err(error) => Err(error),
                 },
                 Err(error) => Err(error),
             };
+            // `match`: picks the arm whose pattern fits the value.
             match restored {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 Ok((copy, ReplaceOutcome::Replaced)) => messages.push(format!(
                     "{}/{LOCKFILE_NAME} was left by a run that was killed and holds versions the policy refuses ({}); it was saved as {} and the earlier lockfile was put back",
                     old.crate_dir,
                     problems.join("; "),
+                    // Borrow `&copy`: lends the value without copying or giving it away.
                     file_name_text(&copy)
                 )),
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 Ok((copy, ReplaceOutcome::LeftAlone)) => messages.push(format!(
                     "{}/{LOCKFILE_NAME} was changed by another process while a killed run was being recovered; it was left as that process wrote it, not restored (the refused text is kept as {})",
                     old.crate_dir,
                     copy.display()
                 )),
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 Ok((_, ReplaceOutcome::Preserved(kept))) => messages.push(format!(
                     "{}/{LOCKFILE_NAME} was changed twice by other processes while a killed run was being recovered; the file displaced is kept as {}",
                     old.crate_dir,
                     kept.display()
                 )),
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 Err(error) => {
                     settled = false;
+                    // Macro `format!`: builds or prints text (or a list) from a template.
                     messages.push(format!("{}/{LOCKFILE_NAME}: could not recover a killed run: {error}; its journal was kept", old.crate_dir));
                 }
             }
@@ -624,6 +808,14 @@ pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(
             settled = false;
         }
         if settled {
+            // Borrow `&directory`: lends the value without copying or giving it away.
+            // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
+            // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // void expr;   // or try { expr } catch {}
+            // ```
             let _ = fs::remove_dir_all(&directory);
         }
     }

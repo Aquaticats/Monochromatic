@@ -216,20 +216,47 @@ impl State {
     fn end_field(&mut self) -> io::Result<()> {
         // A row wider than the bound is refused instead of grown, so one hostile row cannot exhaust memory.
         if self.row.len() >= MAX_ROW_FIELDS {
+            // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+            // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // // Ok(value)  is  return value;
+            // // Err(error) is  throw error;   (the caller sees it as a returned value)
+            // ```
+            // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+            // Why:      Text building and printing are written as one call instead of string concatenation.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // `..${x}..`   // template literal
+            // console.error(text);   // eprintln!
+            // [a, b]            // vec![a, b]
+            // ```
             return Err(malformed(format!("a row has more than {MAX_ROW_FIELDS} fields")));
         }
         self.row.push(String::from_utf8_lossy(&self.field).to_string());
         self.field.clear();
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(());
     }
 
     /// Hands the finished row to the callback;
     /// `false` from the callback stops the read.
     fn end_row(&mut self, on_row: &mut dyn FnMut(&[String]) -> bool) -> io::Result<bool> {
+        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const value = await expr;   // throws to the caller on failure
+        // ```
         self.end_field()?;
         let keep_going: bool = on_row(&self.row);
         self.row.clear();
         self.row_started = false;
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(keep_going);
     }
 
@@ -248,10 +275,13 @@ impl State {
     fn push_byte(&mut self, byte: u8) -> io::Result<()> {
         // A field longer than the bound is refused instead of grown, so a quote that never closes cannot exhaust memory.
         if self.field.len() >= MAX_FIELD_BYTES {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(malformed(format!("a field is longer than {MAX_FIELD_BYTES} bytes")));
         }
         self.field.push(byte);
         self.row_started = true;
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(());
     }
 }
@@ -267,6 +297,7 @@ impl State {
 /// const malformed = (message: string) => new Error(`malformed CSV: ${message}`);
 /// ```
 fn malformed(message: String) -> io::Error {
+    // Macro `format!`: builds or prints text (or a list) from a template.
     return io::Error::new(io::ErrorKind::InvalidData, format!("malformed CSV: {message}"));
 }
 
@@ -303,18 +334,28 @@ pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool
                 if state.quote_seen {
                     state.quote_seen = false;
                     if byte == QUOTE {
+                        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                         state.push_byte(QUOTE)?;
                         continue;
                     }
                     state.in_quotes = false;
                     // Only a field or row separator may follow a closing quote.
                     if byte != COMMA && byte != LINE_FEED && byte != CARRIAGE_RETURN {
+                        // `Err(...)`: builds the success or the failure variant of a `Result`.
+                        // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+                        // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+                        //
+                        // In TS you'd write (pseudocode):
+                        // ```ts
+                        // String(value)  // JS strings are always owned values
+                        // ```
                         return Err(malformed("text follows a closing quote".to_string()));
                     }
                 } else if byte == QUOTE {
                     state.quote_seen = true;
                     continue;
                 } else {
+                    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                     state.push_byte(byte)?;
                     continue;
                 }
@@ -323,15 +364,20 @@ pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool
                 state.in_quotes = true;
                 state.row_started = true;
             } else if byte == QUOTE {
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
+                // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                 return Err(malformed("a quote appears inside a bare field".to_string()));
             } else if byte == COMMA {
                 state.row_started = true;
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 state.end_field()?;
             } else if byte == LINE_FEED {
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 if !state.end_row(on_row)? {
                     return Ok(());
                 }
             } else if byte != CARRIAGE_RETURN {
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 state.push_byte(byte)?;
             }
         }
@@ -341,9 +387,12 @@ pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool
     }
     // A stream that ends inside an unclosed quote was cut off.
     if state.in_quotes {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err(malformed("the stream ends inside a quoted field".to_string()));
     }
     if state.row_started || !state.field.is_empty() || !state.row.is_empty() {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         state.end_row(on_row)?;
     }
     return Ok(());

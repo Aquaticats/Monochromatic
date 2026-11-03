@@ -146,13 +146,30 @@ pub type LockBaseFactory<'a> = &'a dyn Fn() -> Result<LockBaseReader, String>;
 /// export const verificationScope = (settings: Settings, frozen: boolean, trustBase: string): string
 /// ```
 pub fn verification_scope(settings: &Settings, frozen: bool, trust_base: &str) -> String {
+    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value !== undefined) { const inner = value; ... }
+    // ```
+    // Typed binding: `mode: &str`.
     let mode: &str = if frozen { "frozen" } else { "local" };
     if settings.trust_lockfile {
+        // Macro `format!`: builds or prints text (or a list) from a template.
         return format!("{mode}-since-base:{trust_base}");
     }
     if frozen {
+        // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+        // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // String(value)  // JS strings are always owned values
+        // ```
         return ALL_ENTRIES_SCOPE.to_string();
     }
+    // Macro `format!`: builds or prints text (or a list) from a template.
     return format!("{mode}-all-entries");
 }
 
@@ -170,12 +187,19 @@ pub fn verification_scope(settings: &Settings, frozen: bool, trust_base: &str) -
 /// export function verificationCached({ root, crateDirs, settings, frozen, trustBase }): boolean
 /// ```
 pub fn verification_cached(root: &Path, crate_dirs: &[String], settings: &Settings, frozen: bool, trust_base: &str) -> bool {
+    // `match`: picks the arm whose pattern fits the value.
+    // Typed binding: `snapshots: Vec<LockSnapshot>`.
     let snapshots: Vec<LockSnapshot> = match read_locks(root, crate_dirs) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(found) => found,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(_) => return false,
     };
+    // Typed binding: `scope: String`.
     let scope: String = verification_scope(settings, frozen, trust_base);
+    // Borrow `&snapshots`: lends the value without copying or giving it away.
     for snapshot in &snapshots {
+        // Borrow `&scope`: lends the value without copying or giving it away.
         if !is_verified(root, snapshot, settings, &scope) {
             return false;
         }
@@ -194,16 +218,32 @@ pub fn verification_cached(root: &Path, crate_dirs: &[String], settings: &Settin
 /// function baseReader(request: InstallRequest): (crateDir: string) => string  // throws
 /// ```
 pub(crate) fn base_reader(request: &InstallRequest) -> Result<LockBaseReader, InstallError> {
+    // `match`: picks the arm whose pattern fits the value.
+    // Typed binding: `factory: LockBaseFactory`.
     let factory: LockBaseFactory = match request.lock_base {
+        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+        // Why:      Absence is a value the caller must check; there is no `null`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Some(value) is  value
+        // // None        is  undefined
+        // ```
         Some(found) => found,
+        // `None`: the present or the absent value of an `Option`.
         None => {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             return Err(InstallError::Io {
+                // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                 message: "trustLockfile is true in rust-catalog.toml, but no base-revision lockfile reader was given, so nothing can be trusted".to_string(),
             });
         }
     };
+    // `match`: picks the arm whose pattern fits the value.
     return match factory() {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(reader) => Ok(reader),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(message) => Err(io_message(message)),
     };
 }
@@ -227,7 +267,14 @@ pub(crate) fn base_reader(request: &InstallRequest) -> Result<LockBaseReader, In
 /// async function setAsidePass(request, baseline, produced): Promise<string[]>
 /// ```
 pub(crate) fn set_aside_pass(request: &InstallRequest, baseline: &[String], produced: &RefCell<Vec<LockSnapshot>>) -> Result<Vec<String>, InstallError> {
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `forward: Vec<String>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
+    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
     let forward: Vec<String> = if request.offline { vec!["--offline".to_string()] } else { Vec::new() };
+    // Borrow `&SetAsideRequest`: lends the value without copying or giving it away.
+    // Typed binding: `lines: Vec<String>`.
     let lines: Vec<String> = set_aside_until_clean(&SetAsideRequest {
         root: request.root,
         crate_dirs: request.crate_dirs,
@@ -239,10 +286,28 @@ pub(crate) fn set_aside_pass(request: &InstallRequest, baseline: &[String], prod
         forward: &forward,
         produced,
     })
+    // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+    // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+    // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const value = await expr;   // throws to the caller on failure
+    // ```
+    // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
+    // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { ... } catch (error) { throw new MyError(String(error)); }
+    // ```
     .map_err(io_message)?;
+    // Borrow `&lines`: lends the value without copying or giving it away.
     for line in &lines {
+        // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: {line}");
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(lines);
 }
 

@@ -69,14 +69,44 @@ use crate::git_refs::{GitLayout, Head, NativeBase, NativeEnvironment, find_layou
 /// function headBase(layout: GitLayout): NativeBase  // throws: ask Git
 /// ```
 fn head_base(layout: &GitLayout) -> Result<NativeBase, String> {
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
+    // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
+    // ```
+    // Typed binding: `commit: Result<String, String>`.
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let commit: Result<String, String> = match read_head(layout)? {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Head::Detached(object) => Ok(object),
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&name`: lends the value without copying or giving it away.
         Head::Branch(name) => match lookup_ref(layout, &name)? {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `Some`: the present or the absent value of an `Option`.
             Some(object) => Ok(object),
             // An unborn branch names no commit, which Git reports as an error too.
             None => Err(crate::git_base::not_a_commit_message("HEAD")),
         },
     };
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // String(value)  // JS strings are always owned values
+    // ```
     return Ok(NativeBase { spelling: "HEAD".to_string(), commit });
 }
 
@@ -100,23 +130,52 @@ fn head_base(layout: &GitLayout) -> Result<NativeBase, String> {
 /// export function nativeBase(root: string, inCi: boolean, environment: NativeEnvironment): NativeBase  // throws: ask Git
 /// ```
 pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) -> Result<NativeBase, String> {
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Typed binding: `layout: GitLayout`.
     let layout: GitLayout = find_layout(root, environment)?;
     // The configuration is read even for CI's `HEAD`, because a reftable store or an include changes what `HEAD` means.
     let config: ParsedConfig = read_config(&layout, environment)?;
     if in_ci {
+        // Borrow `&layout`: lends the value without copying or giving it away.
         return head_base(&layout);
     }
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value !== undefined) { const inner = value; ... }
+    // ```
+    // Borrow `&layout`: lends the value without copying or giving it away.
+    // Typed binding: `Head: :Branch(full)`.
     if let Head::Branch(full) = read_head(&layout)?
+        // `Some`: the present or the absent value of an `Option`.
         && let Some(branch) = full.strip_prefix("refs/heads/")
+        // `Some`: the present or the absent value of an `Option`.
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&config`: lends the value without copying or giving it away.
         && let Some(tracking) = tracking_ref(&config, branch)?
+        // `Some`: the present or the absent value of an `Option`.
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&layout`: lends the value without copying or giving it away.
         && let Some(object) = lookup_ref(&layout, &tracking)?
     {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Ok(NativeBase { spelling: "@{upstream}".to_string(), commit: Ok(object) });
     }
     for candidate in ["origin/main", "origin/master"] {
+        // `Some`: the present or the absent value of an `Option`.
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+        // Borrow `&layout`: lends the value without copying or giving it away.
         if let Some(object) = lookup_short(&layout, candidate)? {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             return Ok(NativeBase { spelling: candidate.to_string(), commit: Ok(object) });
         }
     }
+    // Borrow `&layout`: lends the value without copying or giving it away.
     return head_base(&layout);
 }

@@ -526,7 +526,9 @@ fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, 
 /// ```
 fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, forward: &[String], sink: &mut dyn Write) -> i32 {
     let lock_path = prepared.catalog_root.join(&crate_dirs[0]).join(LOCKFILE_NAME);
+    // Borrow `&lock_path`: lends the value without copying or giving it away.
     return run_with_placeholder_lock(&lock_path, dry_run, &mut || {
+        // Borrow `&UpdateKind`: lends the value without copying or giving it away.
         return run_update(prepared, crate_dirs, dry_run, &UpdateKind::Full, forward, sink);
     });
 }
@@ -552,17 +554,36 @@ pub fn run_with_placeholder_lock(lock_path: &Path, dry_run: bool, body: &mut dyn
     // `create_new(true)` fails with `AlreadyExists` instead of truncating (the exclusive-create flag `wx` of Node), so the
     // check and the creation are one step another writer cannot slip into.
     let created_placeholder: bool = match std::fs::OpenOptions::new().write(true).create_new(true).open(lock_path) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(mut file) => file.write_all(EMPTY_LOCK.as_bytes()).is_ok(),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(_) => false,
     };
+    // Typed binding: `code: i32`.
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
     let code: i32 = body();
     if created_placeholder && (code != 0 || dry_run) {
         // Remove the stand-in only if it is still the stand-in.
         let still_placeholder: bool = match std::fs::read_to_string(lock_path) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(text) => text == EMPTY_LOCK,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(_) => false,
         };
         if still_placeholder {
+            // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
+            // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // void expr;   // or try { expr } catch {}
+            // ```
             let _ = std::fs::remove_file(lock_path);
         }
     }

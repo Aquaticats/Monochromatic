@@ -234,13 +234,25 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // of the run, so the notice and guard logic see the same line.
     if hops == 0
         && treatment == Treatment::InstallStep
+        // `Some`: the present or the absent value of an `Option`.
+        // Borrow `&arguments`: lends the value without copying or giving it away.
         && let Some(preflight) = before_cargo(&arguments)
     {
         // A local policy refusal stops the command: a release the policy refuses must never run, and `--locked` would not
         // stop its build script (the owner's decision of 2026-11-03).
         let message: String = match preflight {
             Preflight::Refused(text) => {
+                // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+                // Why:      Text building and printing are written as one call instead of string concatenation.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // `..${x}..`   // template literal
+                // console.error(text);   // eprintln!
+                // [a, b]            // vec![a, b]
+                // ```
                 eprintln!("{text}");
+                // Macro `eprintln!`: builds or prints text (or a list) from a template.
                 eprintln!("cargo-shadow: the command was not run because the lockfile holds a release the policy refuses and no older release in range passes");
                 return INSTALL_FAILED_EXIT_CODE;
             }
@@ -277,6 +289,8 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // notice classification. An `Other` request that has a catalog notice to print afterwards (`add`, `remove`) is started as a
     // child, so its guard is the spawn kind; only the exec branch below leaves an exec guard.
     let will_exec: bool = request == TopLevelRequest::Other && treatment != Treatment::CatalogWarning;
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // Typed binding: `guard_kind: GuardKind`.
     let guard_kind: GuardKind = if will_exec { GuardKind::Exec } else { GuardKind::Spawn };
     let guard_value: String = format_guard(&Guard { kind: guard_kind, pid: std::process::id(), hops: hops + 1, skipped });
 

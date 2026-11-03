@@ -44,8 +44,39 @@ fn a_refusal_stops_the_command_and_a_failure_runs_it_locked() {
     use crate::install_step::StepOutcome;
     use crate::shadow_step::{Preflight, preflight_of};
 
+    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+    // Why:      Absence is a value the caller must check; there is no `null`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // Some(value) is  value
+    // // None        is  undefined
+    // ```
+    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // String(value)  // JS strings are always owned values
+    // ```
+    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+    // Why:      Text building and printing are written as one call instead of string concatenation.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // `..${x}..`   // template literal
+    // console.error(text);   // eprintln!
+    // [a, b]            // vec![a, b]
+    // ```
     assert_eq!(preflight_of(StepOutcome::Refused("dep@1.0.1 refused".to_string())), Some(Preflight::Refused("dep@1.0.1 refused".to_string())));
+    // `Some`: the present or the absent value of an `Option`.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(preflight_of(StepOutcome::Failed("no network".to_string())), Some(Preflight::Failed("no network".to_string())));
+    // `None`: the present or the absent value of an `Option`.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(preflight_of(StepOutcome::Passed), None);
+    // `None`: the present or the absent value of an `Option`.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(preflight_of(StepOutcome::FastPath), None);
 }

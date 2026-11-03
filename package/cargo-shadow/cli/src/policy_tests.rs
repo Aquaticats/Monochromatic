@@ -185,30 +185,102 @@ fn a_version_missing_from_the_history_cannot_be_checked_and_is_reported() {
 /// skip the trust check when `trustPolicyIgnoreAfter` is set.
 #[test]
 fn a_release_with_an_unreadable_publish_time_never_gets_the_ignore_after_exemption() {
+    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+    // Why:      The value is built up or replaced step by step below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let x = ...;   // plain Rust `let` is TS `const`
+    // ```
+    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const name: Type = value;
+    // ```
     let mut with_ignore_after: Settings = settings();
+    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+    // Why:      Absence is a value the caller must check; there is no `null`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // Some(value) is  value
+    // // None        is  undefined
+    // ```
     with_ignore_after.trust_policy_ignore_after = Some(60);
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+    // Why:      Text building and printing are written as one call instead of string concatenation.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // `..${x}..`   // template literal
+    // console.error(text);   // eprintln!
+    // [a, b]            // vec![a, b]
+    // ```
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let history: Vec<VersionRecord> = vec![
         record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r", REPO),
         record("1.0.1", "not a timestamp", "9", "", REPO),
     ];
 
+    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+    // ```
+    // Typed binding: `problems: Vec<String>`.
+    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const list: string[] = [];   // or new Set() / new Map()
+    // ```
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &with_ignore_after, now(), &BTreeSet::new());
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!problems.is_empty(), "an unknown publish time granted the age exemption");
 }
 
 /// The same for a missing value.
 #[test]
 fn a_release_with_an_empty_publish_time_never_gets_the_ignore_after_exemption() {
+    // `let mut`: a binding that may change.
+    // Typed binding: `with_ignore_after: Settings`.
     let mut with_ignore_after: Settings = settings();
+    // `Some`: the present or the absent value of an `Option`.
     with_ignore_after.trust_policy_ignore_after = Some(60);
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let history: Vec<VersionRecord> = vec![
         record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r", REPO),
         record("1.0.1", "", "9", "", REPO),
     ];
 
+    // Borrow `&history`: lends the value without copying or giving it away.
+    // Typed binding: `problems: Vec<String>`.
+    // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
     let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &with_ignore_after, now(), &BTreeSet::new());
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!problems.is_empty(), "a missing publish time granted the age exemption");
 }
 
@@ -219,14 +291,22 @@ fn a_release_with_an_empty_publish_time_never_gets_the_ignore_after_exemption() 
 /// as well as the trust levels.
 #[test]
 fn a_trust_downgrade_names_the_earlier_and_the_new_publisher() {
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let history: Vec<VersionRecord> = vec![
         record("1.0.0", "2026-01-01T00:00:00Z", "", "o/trusted-ci", REPO),
         record("1.0.1", "2026-02-01T00:00:00Z", "4242", "", REPO),
     ];
 
+    // Borrow `&history`: lends the value without copying or giving it away.
+    // Typed binding: `problems: Vec<String>`.
+    // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
     let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &settings(), now(), &BTreeSet::new());
 
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(problems.len(), 1, "{problems:?}");
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(problems[0].contains("4242"), "the new publisher account is not named: {problems:?}");
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(problems[0].contains("o/trusted-ci") && problems[0].contains("1.0.0"), "the earlier publisher is not named: {problems:?}");
 }

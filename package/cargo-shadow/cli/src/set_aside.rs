@@ -372,6 +372,8 @@ fn age_allows(record: &VersionRecord, refused: &TrustRefusal, request: &SetAside
     if request.settings.minimum_release_age == 0 || !request.settings.minimum_release_age_strict {
         return true;
     }
+    // Borrow `&refused.name`: lends the value without copying or giving it away.
+    // Typed binding: `problems: Vec<String>`.
     let problems: Vec<String> = release_age_problems(&refused.name, &record.num, &record.created_at, request.settings, request.now);
     return problems.is_empty();
 }
@@ -405,21 +407,46 @@ fn is_candidate(record: &VersionRecord, refused: &TrustRefusal, prerelease_allow
     if !prerelease_allowed && is_prerelease_text(&record.num) {
         return false;
     }
+    // Borrow `&record.num`: lends the value without copying or giving it away.
     return compare_texts(&record.num, &refused.version) == std::cmp::Ordering::Less;
 }
 
 /// What:
-/// `fn newest_first(left: &String, right: &String) -> std::cmp::Ordering` orders two version texts with the newer first.
+/// `fn sort_newest_first(list: &mut [String])` orders version texts with the newer first,
+/// in place.
+/// `&mut [String]` is a borrowed view of a list that the function may reorder.
 /// Why:
-/// The candidates are tried newest first,
-/// and a named function is what `sort_by` takes where a closure would be flagged as avoidable.
+/// The candidates are tried newest first;
+/// the lists are short,
+/// so a plain insertion sort with the crate's version comparison does,
+/// and it avoids a closure for `sort_by`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const newestFirst = (left: string, right: string): number => compareVersions(right, left);
+/// const sortNewestFirst = (list: string[]): void => { list.sort((a, b) => compareVersions(b, a)); };
 /// ```
-fn newest_first(left: &String, right: &String) -> std::cmp::Ordering {
-    return compare_texts(right, left);
+fn sort_newest_first(list: &mut [String]) {
+    // `let mut`: a binding that may change.
+    // Typed binding: `position: usize`.
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
+    let mut position: usize = 1;
+    while position < list.len() {
+        // `let mut`: a binding that may change.
+        // Typed binding: `inner: usize`.
+        let mut inner: usize = position;
+        // Borrow `&list`: lends the value without copying or giving it away.
+        while inner > 0 && compare_texts(&list[inner - 1], &list[inner]) == std::cmp::Ordering::Less {
+            list.swap(inner - 1, inner);
+            inner -= 1;
+        }
+        position += 1;
+    }
 }
 
 /// What:
@@ -449,25 +476,40 @@ pub fn set_aside_candidates(refused: &TrustRefusal, request: &SetAsideRequest, r
     // Owners raise levels, so the candidate is judged with them, exactly as the final check judges it.
     let owners: BTreeSet<String> = request.registry.owners(&refused.name)?;
     let prerelease_allowed: bool = is_prerelease_text(&refused.version);
+    // `let mut`: a binding that may change.
+    // Typed binding: `same_class: Vec<String>`.
+    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
     let mut same_class: Vec<String> = Vec::new();
+    // `let mut`: a binding that may change.
+    // Typed binding: `other_class: Vec<String>`.
+    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
     let mut other_class: Vec<String> = Vec::new();
     for record in &history {
+        // Borrow `&yanked`: lends the value without copying or giving it away.
         if !is_candidate(record, refused, prerelease_allowed, &yanked, rejected, request) {
             continue;
         }
+        // Borrow `&refused.name`: lends the value without copying or giving it away.
+        // Typed binding: `trust: Vec<String>`.
         let trust: Vec<String> = trust_problems(&refused.name, &record.num, &history, request.settings, request.now, &owners);
         if !trust.is_empty() {
             continue;
         }
+        // Borrow `&refused.version`: lends the value without copying or giving it away.
         if caret_compatible(&refused.version, &record.num) {
+            // `.clone()`: an independent owned copy.
             same_class.push(record.num.clone());
         } else {
+            // `.clone()`: an independent owned copy.
             other_class.push(record.num.clone());
         }
     }
-    same_class.sort_by(newest_first);
-    other_class.sort_by(newest_first);
+    // Borrow `&mut same_class`: lends the value without copying or giving it away.
+    sort_newest_first(&mut same_class);
+    // Borrow `&mut other_class`: lends the value without copying or giving it away.
+    sort_newest_first(&mut other_class);
     same_class.extend(other_class);
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(same_class);
 }
 

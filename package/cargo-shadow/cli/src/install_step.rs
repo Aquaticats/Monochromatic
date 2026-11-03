@@ -480,7 +480,11 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
     // manifests, nothing about the policy, so the settings are read first and the fast path needs both the stamp and a
     // remembered policy pass of this mode, these settings and this base.
     let fresh: bool = is_fresh(&stamp, &lock);
+    // `.clone()`: an independent owned copy.
+    // Typed binding: `crate_dirs_for_cache: Vec<String>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let crate_dirs_for_cache: Vec<String> = vec![crate_dir.clone()];
+    // Borrow `&catalog_root`: lends the value without copying or giving it away.
     if fresh && verification_cached(&catalog_root, &crate_dirs_for_cache, &document.settings, request.frozen, request.trust_base) {
         return StepOutcome::FastPath;
     }

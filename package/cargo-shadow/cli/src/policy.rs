@@ -159,6 +159,14 @@ fn is_prerelease(version: &str) -> bool {
 /// const createdMillis = (record: VersionRecord): number | undefined => parseRfc3339Millis(record.createdAt);
 /// ```
 fn created_millis(record: &VersionRecord) -> Option<i64> {
+    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+    // ```
     return parse_rfc3339_millis(&record.created_at);
 }
 
@@ -175,6 +183,14 @@ fn created_millis(record: &VersionRecord) -> Option<i64> {
 /// const orderingMillis = (record: VersionRecord): number => parseRfc3339Millis(record.createdAt) ?? 0;
 /// ```
 fn ordering_millis(record: &VersionRecord) -> i64 {
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
     return created_millis(record).unwrap_or(0);
 }
 
@@ -194,6 +210,14 @@ fn earlier_releases(history: &[VersionRecord], record_millis: i64) -> Vec<Versio
     let mut earlier: Vec<VersionRecord> = Vec::new();
     for entry in history {
         if ordering_millis(entry) < record_millis {
+            // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+            // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+            // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // structuredClone(value)  // or [...list] / {...object}
+            // ```
             earlier.push(entry.clone());
         }
     }
@@ -222,26 +246,53 @@ pub fn owners_can_change_verdict(name: &str, versions: &[String], history: &[Ver
         return false;
     }
     for version in versions {
+        // Borrow `&settings.trust_policy_exclude`: lends the value without copying or giving it away.
         if is_excluded(&settings.trust_policy_exclude, name, version) {
             continue;
         }
+        // `match`: picks the arm whose pattern fits the value.
+        // Typed binding: `record: &VersionRecord`.
         let record: &VersionRecord = match version_record_of(history, version) {
+            // `Some`: the present or the absent value of an `Option`.
             Some(found) => found,
+            // `None`: the present or the absent value of an `Option`.
             None => continue,
         };
+        // `match`: picks the arm whose pattern fits the value.
+        // Typed binding: `record_millis: i64`.
         let record_millis: i64 = match created_millis(record) {
+            // `Some`: the present or the absent value of an `Option`.
             Some(found) => found,
+            // `None`: the present or the absent value of an `Option`.
             None => continue,
         };
+        // `Some`: the present or the absent value of an `Option`.
+        // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+        // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (value !== undefined) { const inner = value; ... }
+        // ```
         if let Some(ignore_after) = settings.trust_policy_ignore_after
+            // What:     `value as i64` converts a number to another numeric type (siblings: `i32`, `u32`, `u64`, `usize`, `f64`); it truncates silently if the value does not fit.
+            // Why:      Time arithmetic and sizes come in different integer widths and must be made equal.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // Number(value)  // JS has one number type, so no cast is needed
+            // ```
             && record_millis + (ignore_after as i64) * MS_PER_MINUTE <= now
         {
             continue;
         }
+        // Typed binding: `earlier: Vec<VersionRecord>`.
         let earlier: Vec<VersionRecord> = earlier_releases(history, record_millis);
         if earlier.is_empty() {
             continue;
         }
+        // Borrow `&earlier`: lends the value without copying or giving it away.
+        // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
         if trust_level(record, &earlier, &BTreeSet::new()) == FIRST_TIME_PUBLISHER_LEVEL {
             return true;
         }
@@ -265,11 +316,28 @@ pub fn owners_can_change_verdict(name: &str, versions: &[String], history: &[Ver
 /// ```
 fn publisher_text(record: &VersionRecord) -> String {
     if !record.trustpub_repository.is_empty() {
+        // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+        // Why:      Text building and printing are written as one call instead of string concatenation.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // `..${x}..`   // template literal
+        // console.error(text);   // eprintln!
+        // [a, b]            // vec![a, b]
+        // ```
         return format!("trusted publishing from {}", record.trustpub_repository);
     }
     if !record.publisher_id.is_empty() {
+        // Macro `format!`: builds or prints text (or a list) from a template.
         return format!("account {}", record.publisher_id);
     }
+    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // String(value)  // JS strings are always owned values
+    // ```
     return "an unknown publisher".to_string();
 }
 
@@ -374,18 +442,23 @@ pub fn trust_problems(
     };
     // An unknown publish time cannot be ordered against the earlier releases and never grants the age exemption.
     let record_millis: i64 = match created_millis(record) {
+        // `Some`: the present or the absent value of an `Option`.
         Some(found) => found,
+        // `None`: the present or the absent value of an `Option`.
         None => {
+            // Macro `vec!`: builds or prints text (or a list) from a template.
             return vec![format!(
                 "{name}@{version} has no readable publish time in the crates.io version list, so its trust cannot be ordered against earlier releases; add it to trustPolicyExclude if it is expected"
             )];
         }
     };
     if let Some(ignore_after) = settings.trust_policy_ignore_after
+        // Cast `as i64`: converts between numeric types.
         && record_millis + (ignore_after as i64) * MS_PER_MINUTE <= now
     {
         return Vec::new();
     }
+    // Typed binding: `earlier: Vec<VersionRecord>`.
     let earlier: Vec<VersionRecord> = earlier_releases(history, record_millis);
     let mut problems: Vec<String> = Vec::new();
     let level: u8 = trust_level(record, &earlier, owner_ids);
@@ -396,15 +469,31 @@ pub fn trust_problems(
         if !is_prerelease(version) && is_prerelease(&entry.num) {
             continue;
         }
+        // Borrow `&earlier`: lends the value without copying or giving it away.
+        // Typed binding: `entry_level: u8`.
         let entry_level: u8 = trust_level(entry, &earlier[..index], owner_ids);
         if entry_level >= best {
             best = entry_level;
+            // `Some`: the present or the absent value of an `Option`.
             best_entry = Some(entry);
         }
     }
     if best > level {
+        // `match`: picks the arm whose pattern fits the value.
+        // Typed binding: `earlier_text: String`.
+        // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+        // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: string
+        // ```
         let earlier_text: String = match best_entry {
+            // `Some`: the present or the absent value of an `Option`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             Some(entry) => format!("{} was published by {}", entry.num, publisher_text(entry)),
+            // `None`: the present or the absent value of an `Option`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             None => "the earlier release's publisher is not known".to_string(),
         };
         problems.push(format!(

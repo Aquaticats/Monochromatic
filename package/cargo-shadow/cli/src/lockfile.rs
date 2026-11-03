@@ -132,13 +132,52 @@ pub fn parse_registry_versions(source: &str) -> Result<Vec<LockedVersion>, Strin
         let name: Option<&str> = package.get("name").and_then(Item::as_str);
         let version: Option<&str> = package.get("version").and_then(Item::as_str);
         let source_text: &str = package.get("source").and_then(Item::as_str).unwrap_or("");
+        // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+        // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const name: Type = value;
+        // ```
         let from_registry: bool = source_text.starts_with(REGISTRY_SOURCE_PREFIX) || source_text.starts_with(SPARSE_SOURCE_PREFIX);
         if !from_registry {
             continue;
         }
+        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+        // Why:      Absence is a value the caller must check; there is no `null`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Some(value) is  value
+        // // None        is  undefined
+        // ```
+        // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+        // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (value !== undefined) { const inner = value; ... }
+        // ```
         if let (Some(found_name), Some(found_version)) = (name, version) {
             // Registry identity is not carried end to end, so a registry other than crates.io is refused explicitly.
             if !CRATES_IO_SOURCES.contains(&source_text) {
+                // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+                // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // // Ok(value)  is  return value;
+                // // Err(error) is  throw error;   (the caller sees it as a returned value)
+                // ```
+                // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+                // Why:      Text building and printing are written as one call instead of string concatenation.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // `..${x}..`   // template literal
+                // console.error(text);   // eprintln!
+                // [a, b]            // vec![a, b]
+                // ```
                 return Err(format!(
                     "{found_name}@{found_version} comes from the registry {source_text}, which the policy checks do not support: they ask crates.io only, so they would approve it by an unrelated crates.io release of the same name and version. Use crates.io, or a path or git dependency"
                 ));

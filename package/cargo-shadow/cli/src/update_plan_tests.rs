@@ -79,8 +79,32 @@ fn cargo_only_options_are_forwarded_with_their_values_and_the_manifest_path_is_d
 }
 
 fn names_of(words: &[&str]) -> Vec<String> {
+    // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
+    // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
+    // ```
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
     match plan(words).expect("plans").plan {
         UpdatePlan::Targeted { names, .. } => return names,
+        // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+        // Why:      Text building and printing are written as one call instead of string concatenation.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // `..${x}..`   // template literal
+        // console.error(text);   // eprintln!
+        // [a, b]            // vec![a, b]
+        // ```
         other => panic!("expected targeted, got {other:?}"),
     }
 }
@@ -91,8 +115,37 @@ fn names_of(words: &[&str]) -> Vec<String> {
 /// widen into a full update.
 #[test]
 fn the_attached_and_short_spellings_of_package_name_the_package() {
+    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+    // ```
+    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // String(value)  // JS strings are always owned values
+    // ```
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     assert_eq!(names_of(&["update", "--package=foo"]), vec!["foo".to_string()]);
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(names_of(&["update", "--package=foo@1.2.3"]), vec!["foo".to_string()]);
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(names_of(&["update", "-pfoo"]), vec!["foo".to_string()]);
 }
 
@@ -101,7 +154,13 @@ fn the_attached_and_short_spellings_of_package_name_the_package() {
 /// as after it.
 #[test]
 fn a_locked_or_frozen_before_the_verb_is_the_frozen_check() {
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(plan(&["--locked", "update"]).expect("plans").plan, UpdatePlan::FrozenCheck);
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(plan(&["+nightly", "--frozen", "update"]).expect("plans").plan, UpdatePlan::FrozenCheck);
 }
 
@@ -109,8 +168,12 @@ fn a_locked_or_frozen_before_the_verb_is_the_frozen_check() {
 /// cargo-only options before the verb are forwarded to every cargo call the procedure makes.
 #[test]
 fn cargo_only_options_before_the_verb_are_forwarded_too() {
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let planned = plan(&["--offline", "--color", "never", "update"]).expect("plans");
 
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(planned.forward, vec!["--offline".to_string(), "--color".to_string(), "never".to_string()]);
 }
 
@@ -119,9 +182,27 @@ fn cargo_only_options_before_the_verb_are_forwarded_too() {
 /// an option the shadow cannot map to pnpm update is refused by name.
 #[test]
 fn an_option_the_shadow_cannot_answer_is_refused_by_name_and_not_dropped() {
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const name: Type = value;
+    // ```
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let message: String = plan(&["update", "--bogus"]).expect_err("an unknown option must be refused");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains("--bogus"), "{message}");
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(plan(&["update", "serde", "--lockfile-path", "x"]).is_err());
 }
 
@@ -129,12 +210,19 @@ fn an_option_the_shadow_cannot_answer_is_refused_by_name_and_not_dropped() {
 #[test]
 fn every_option_of_cargo_update_help_is_still_accepted() {
     for words in [
+        // Macro `vec!`: builds or prints text (or a list) from a template.
         vec!["update", "--recursive", "serde"],
+        // Macro `vec!`: builds or prints text (or a list) from a template.
         vec!["update", "-vv"],
+        // Macro `vec!`: builds or prints text (or a list) from a template.
         vec!["update", "--ignore-rust-version"],
+        // Macro `vec!`: builds or prints text (or a list) from a template.
         vec!["update", "--manifest-path=a/Cargo.toml"],
+        // Macro `vec!`: builds or prints text (or a list) from a template.
         vec!["-C", "dir", "update"],
     ] {
+        // Borrow `&words`: lends the value without copying or giving it away.
+        // Macro `assert!`: builds or prints text (or a list) from a template.
         assert!(plan(&words).is_ok(), "{words:?}");
     }
 }

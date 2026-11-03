@@ -142,13 +142,47 @@ fn resolve_commit(root: &Path, base: &str, starts: &Cell<u32>) -> Result<String,
     // Every Git process started here is counted, so a test (and a measurement) can say how many a choice cost.
     starts.set(starts.get() + 1);
     let resolved = Command::new("git")
+        // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+        // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+        // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+        // ```
+        // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+        // Why:      Text building and printing are written as one call instead of string concatenation.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // `..${x}..`   // template literal
+        // console.error(text);   // eprintln!
+        // [a, b]            // vec![a, b]
+        // ```
         .args(["rev-parse", "--verify", "--quiet", "--end-of-options", &format!("{base}^{{commit}}")])
         .current_dir(root)
         .output()
         .map_err(git_start_failure)?;
     if !resolved.status.success() {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         return Err(not_a_commit_message(base));
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // Borrow `&resolved.stdout`: lends the value without copying or giving it away.
+    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // String(value)  // JS strings are always owned values
+    // ```
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     return Ok(String::from_utf8_lossy(&resolved.stdout).trim().to_string());
 }
 
@@ -163,6 +197,7 @@ fn resolve_commit(root: &Path, base: &str, starts: &Cell<u32>) -> Result<String,
 /// export const notACommitMessage = (base: string): string => `The verification base ${JSON.stringify(base)} is not a commit...`;
 /// ```
 pub fn not_a_commit_message(base: &str) -> String {
+    // Macro `format!`: builds or prints text (or a list) from a template.
     return format!(
         "The verification base {base:?} is not a commit in this repository.\nSet {BASE_VARIABLE} to a revision that exists locally (in CI, fetch it first), or leave it unset to compare with the upstream branch (HEAD in CI)."
     );
@@ -180,6 +215,7 @@ pub fn not_a_commit_message(base: &str) -> String {
 /// export function resolveTrustBase(root: string, inCi: boolean, explicit?: string): TrustBase
 /// ```
 pub fn resolve_trust_base(root: &Path, in_ci: bool, explicit: Option<&str>) -> TrustBase {
+    // Borrow `&NativeEnvironment`: lends the value without copying or giving it away.
     return resolve_trust_base_with(root, in_ci, explicit, &NativeEnvironment::from_process());
 }
 
@@ -206,12 +242,44 @@ pub fn resolve_trust_base(root: &Path, in_ci: bool, explicit: Option<&str>) -> T
 /// export function resolveTrustBaseWith(root, inCi, explicit, environment): TrustBase
 /// ```
 pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>, environment: &NativeEnvironment) -> TrustBase {
+    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const name: Type = value;
+    // ```
+    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const list: string[] = [];   // or new Set() / new Map()
+    // ```
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
+    // What:     `Cell<T>` holds a value that can be replaced through a shared reference (interior mutability; sibling: `RefCell<T>`, for non-copy values).
+    // Why:      A method that takes `&self` still has to remember when it last made a request.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let starts: Cell<u32> = Cell::new(0);
     // An explicit base wins everywhere, and Git verifies that it names a commit.
     if let Some(found) = explicit
         && !found.trim().is_empty()
     {
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // Typed binding: `spelling: String`.
         let spelling: String = found.trim().to_string();
+        // Borrow `&spelling`: lends the value without copying or giving it away.
+        // Typed binding: `commit: Result<String, String>`.
         let commit: Result<String, String> = resolve_commit(root, &spelling, &starts);
         return TrustBase { spelling, commit, git_starts: starts.get() };
     }
@@ -221,17 +289,28 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
     }
     // CI keeps its base.
     if in_ci {
+        // Borrow `&starts`: lends the value without copying or giving it away.
+        // Typed binding: `commit: Result<String, String>`.
         let commit: Result<String, String> = resolve_commit(root, DEFAULT_BASE, &starts);
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return TrustBase { spelling: DEFAULT_BASE.to_string(), commit, git_starts: starts.get() };
     }
     // Delegated pick (2026-11-03): a local run compares with what is already on the upstream branch, so a lockfile that arrived
     // with a commit not pushed yet is new since the base; the first candidate that names a commit wins.
     for candidate in [UPSTREAM_BASE, DEFAULT_REMOTE_BASES[0], DEFAULT_REMOTE_BASES[1]] {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+        // Borrow `&starts`: lends the value without copying or giving it away.
         if let Ok(commit) = resolve_commit(root, candidate, &starts) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             return TrustBase { spelling: candidate.to_string(), commit: Ok(commit), git_starts: starts.get() };
         }
     }
+    // Borrow `&starts`: lends the value without copying or giving it away.
+    // Typed binding: `commit: Result<String, String>`.
     let commit: Result<String, String> = resolve_commit(root, DEFAULT_BASE, &starts);
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     return TrustBase { spelling: DEFAULT_BASE.to_string(), commit, git_starts: starts.get() };
 }
 
@@ -252,8 +331,13 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
 )]
 pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> String> {
     let root_path = root.to_path_buf();
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `commit_text: String`.
     let commit_text: String = commit.to_string();
+    // Constructor `Box::new(`: an empty owned collection or a boxed value.
     return Box::new(move |crate_dir: &str| -> String {
+        // Typed binding: `object: String`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         let object: String = format!("{commit_text}:{crate_dir}/{LOCKFILE_NAME}");
         return match Command::new("git").args(["show", &object]).current_dir(&root_path).output() {
             Ok(shown) if shown.status.success() => format!("{}\n", String::from_utf8_lossy(&shown.stdout)),
@@ -275,8 +359,19 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
 /// export const explicitBaseFromEnvironment = (): string | undefined => process.env.CARGO_SHADOW_TRUST_BASE?.trim() || undefined;
 /// ```
 pub fn explicit_base_from_environment() -> Option<String> {
+    // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
+    // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
+    // ```
     return match std::env::var(BASE_VARIABLE) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         Ok(found) if !found.trim().is_empty() => Some(found.trim().to_string()),
+        // `None`: the present or the absent value of an `Option`.
         _ => None,
     };
 }

@@ -203,16 +203,118 @@ fn a_passing_update_keeps_the_lockfiles_uses_the_publish_time_cutoff_and_prunes_
 #[test]
 fn a_refused_version_whose_older_releases_cargo_refuses_restores_every_lockfile() {
     let world = world(&lock_with("0.9.0"), "");
+    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const name: Type = value;
+    // ```
+    // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+    // Why:      Joined or stored paths are owned; paths passed in are borrowed.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let lock_path: PathBuf = world.root.path().join(CRATE_DIR).join("Cargo.lock");
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let cargo = move |_cwd: &Path, args: &[String]| -> Result<CargoOutcome, String> {
+        // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
+        // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // (a, b) => body
+        // ```
+        // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
+        // Why:      The collection stays usable after the walk and no item is copied until it must be.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // for (const item of list) { ... }  // or list.map(...)
+        // ```
         if args.iter().any(|argument| { return argument == "--precise"; }) {
+            // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+            // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // // Ok(value)  is  return value;
+            // // Err(error) is  throw error;   (the caller sees it as a returned value)
+            // ```
+            // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+            // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // String(value)  // JS strings are always owned values
+            // ```
+            // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+            // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const list: string[] = [];   // or new Set() / new Map()
+            // ```
             return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
         }
+        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const value = await expr;   // throws to the caller on failure
+        // ```
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+        // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+        // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+        // ```
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
+        // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // try { ... } catch (error) { throw new MyError(String(error)); }
+        // ```
         fs::write(&lock_path, lock_with("1.0.1")).map_err(|error| { return error.to_string(); })?;
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // Constructor `String::new()`: an empty owned collection or a boxed value.
         return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
     };
+    // Typed binding: `first: Vec<VersionRecord>`.
+    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+    // Why:      Text building and printing are written as one call instead of string concatenation.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // `..${x}..`   // template literal
+    // console.error(text);   // eprintln!
+    // [a, b]            // vec![a, b]
+    // ```
     let first: Vec<VersionRecord> = vec![record("0.9.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")];
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), first)]) };
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -223,10 +325,20 @@ fn a_refused_version_whose_older_releases_cargo_refuses_restores_every_lockfile(
         runner: &cargo,
         registry: &registry,
         forward: &[],
+        // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
     let report = update_rust_lockfiles(&request, &UpdateKind::Full).expect("reports");
 
     assert!(!report.written);
@@ -438,13 +550,26 @@ fn an_update_of_some_workspaces_never_prunes_the_catalog_because_other_lockfiles
 /// The rollback must leave that lockfile alone.
 #[test]
 fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_writers_lock() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), "");
+    // Typed binding: `lock_path: PathBuf`.
     let lock_path: PathBuf = world.root.path().join(CRATE_DIR).join("Cargo.lock");
     let cargo = move |_cwd: &Path, _args: &[String]| -> Result<CargoOutcome, String> {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // Borrow `&lock_path`: lends the value without copying or giving it away.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         fs::write(&lock_path, "published by another writer meanwhile").map_err(|error| { return error.to_string(); })?;
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // Constructor `String::new()`: an empty owned collection or a boxed value.
         return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
     };
+    // Typed binding: `registry: FakeRegistry`.
+    // Constructor `BTreeMap::new()`: an empty owned collection or a boxed value.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::new() };
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -455,13 +580,18 @@ fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_wr
         runner: &cargo,
         registry: &registry,
         forward: &[],
+        // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
     let result = update_rust_lockfiles(&request, &UpdateKind::Full);
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(result.is_err());
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_of(&world), "published by another writer meanwhile");
 }
 
@@ -474,12 +604,20 @@ fn trusted_publish(num: &str, created_at: &str) -> VersionRecord {
 }
 
 fn set_aside_outcome(history: Vec<VersionRecord>, resolved_version: &str, catalog_settings: &Settings) -> (UpdateReport, String) {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), "");
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
+    // Typed binding: `cargo: FakeCargo`.
     let cargo: FakeCargo = cargo_resolving(&lock_with(resolved_version));
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
 
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = run(&world, catalog_settings, &cargo, &registry, false, &UpdateKind::Full).expect("reports");
 
+    // Borrow `&world`: lends the value without copying or giving it away.
     return (report, lock_of(&world));
 }
 
@@ -494,15 +632,20 @@ fn set_aside_outcome(history: Vec<VersionRecord>, resolved_version: &str, catalo
 /// the refused version.
 #[test]
 fn a_refused_release_may_be_replaced_by_an_older_release_of_an_earlier_major_version() {
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let history: Vec<VersionRecord> = vec![
         trusted_publish("1.0.0", "2026-01-01T00:00:00Z"),
         trusted_publish("1.9.9", "2026-02-01T00:00:00Z"),
         token_publish("2.0.0", "2026-03-01T00:00:00Z"),
     ];
 
+    // Borrow `&settings`: lends the value without copying or giving it away.
     let (report, lock) = set_aside_outcome(history, "2.0.0", &settings());
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.written, "{:?}", report.problems);
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock, lock_with("1.9.9"));
 }
 
@@ -510,17 +653,32 @@ fn a_refused_release_may_be_replaced_by_an_older_release_of_an_earlier_major_ver
 /// a crate exempt from the release age may be replaced by a young release.
 #[test]
 fn a_candidate_younger_than_the_cutoff_is_allowed_for_a_crate_exempt_from_the_release_age() {
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let history: Vec<VersionRecord> = vec![
         trusted_publish("1.0.0", "2026-01-01T00:00:00Z"),
         trusted_publish("1.0.1", "2026-10-29T01:00:00Z"),
         token_publish("1.0.2", "2026-02-01T00:00:00Z"),
     ];
+    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+    // Why:      The value is built up or replaced step by step below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let x = ...;   // plain Rust `let` is TS `const`
+    // ```
+    // Typed binding: `exempt: Settings`.
     let mut exempt: Settings = settings();
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     exempt.minimum_release_age_exclude = vec!["dep".to_string()];
 
+    // Borrow `&exempt`: lends the value without copying or giving it away.
     let (report, lock) = set_aside_outcome(history, "1.0.2", &exempt);
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.written, "{:?}", report.problems);
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock, lock_with("1.0.1"));
 }
 
@@ -528,17 +686,24 @@ fn a_candidate_younger_than_the_cutoff_is_allowed_for_a_crate_exempt_from_the_re
 /// with `minimumReleaseAgeStrict = false` the age is not a condition of the choice either.
 #[test]
 fn a_candidate_younger_than_the_cutoff_is_allowed_when_the_release_age_is_not_strict() {
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let history: Vec<VersionRecord> = vec![
         trusted_publish("1.0.0", "2026-01-01T00:00:00Z"),
         trusted_publish("1.0.1", "2026-10-29T01:00:00Z"),
         token_publish("1.0.2", "2026-02-01T00:00:00Z"),
     ];
+    // `let mut`: a binding that may change.
+    // Typed binding: `relaxed: Settings`.
     let mut relaxed: Settings = settings();
     relaxed.minimum_release_age_strict = false;
 
+    // Borrow `&relaxed`: lends the value without copying or giving it away.
     let (report, lock) = set_aside_outcome(history, "1.0.2", &relaxed);
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.written, "{:?}", report.problems);
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock, lock_with("1.0.1"));
 }
 
@@ -546,15 +711,20 @@ fn a_candidate_younger_than_the_cutoff_is_allowed_when_the_release_age_is_not_st
 /// a candidate whose publish time cannot be read does not pass the age condition.
 #[test]
 fn a_candidate_with_an_unreadable_publish_time_is_skipped_under_a_strict_release_age() {
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let history: Vec<VersionRecord> = vec![
         trusted_publish("1.0.0", "2026-01-01T00:00:00Z"),
         trusted_publish("1.0.1", "garbled"),
         token_publish("1.0.2", "2026-02-01T00:00:00Z"),
     ];
 
+    // Borrow `&settings`: lends the value without copying or giving it away.
     let (report, lock) = set_aside_outcome(history, "1.0.2", &settings());
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.written, "{:?}", report.problems);
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock, lock_with("1.0.0"));
 }
 
@@ -562,6 +732,13 @@ fn a_candidate_with_an_unreadable_publish_time_is_skipped_under_a_strict_release
 /// so the candidate trust evaluation can be compared with the final one.
 struct RegistryWithOwners {
     inner: FakeRegistry,
+    // What:     `BTreeSet<T>`/`BTreeMap<K, V>` are sorted sets/maps (siblings: `HashSet`/`HashMap`, unordered and faster).
+    // Why:      Sorted iteration makes the output and the tests deterministic.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     owners: BTreeSet<String>,
 }
 
@@ -576,6 +753,15 @@ impl Registry for RegistryWithOwners {
         return self.inner.history(name, versions);
     }
     fn owners(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // structuredClone(value)  // or [...list] / {...object}
+        // ```
         return Ok(self.owners.clone());
     }
 }
@@ -587,23 +773,49 @@ impl Registry for RegistryWithOwners {
 /// the final check would refuse it.
 #[test]
 fn a_candidate_that_the_final_check_would_refuse_for_its_owners_is_not_chosen() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), "");
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
+    // Typed binding: `cargo: FakeCargo`.
     let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.2"));
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let history: Vec<VersionRecord> = vec![
         record("1.0.0", "2026-01-01T00:00:00Z", "1", ""),
         record("1.0.1", "2026-02-01T00:00:00Z", "2", ""),
         record("1.0.2", "2026-03-01T00:00:00Z", "9", ""),
     ];
+    // Typed binding: `registry: RegistryWithOwners`.
     let registry: RegistryWithOwners = RegistryWithOwners {
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         inner: FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) },
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
+        // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // Array.from(iterable)  // or [...iterable]
+        // ```
+        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         owners: ["1".to_string()].into_iter().collect(),
     };
 
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = run(&world, &settings(), &cargo, &registry, false, &UpdateKind::Full).expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.written, "{:?}", report.problems);
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_of(&world), lock_with("1.0.0"));
+    // `.clone()`: an independent owned copy.
+    // Typed binding: `tried: Vec<String>`.
     let tried: Vec<String> = cargo.commands.borrow().clone();
+    // Closure `|command|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!tried.iter().any(|command| { return command.ends_with("--precise 1.0.1"); }), "a candidate the final check refuses was tried: {tried:?}");
 }
 
@@ -611,10 +823,22 @@ fn a_candidate_that_the_final_check_would_refuse_for_its_owners_is_not_chosen() 
 /// resolution locks that young release.
 fn cargo_needing_a_young_release(lock_path: PathBuf, young_lock: String) -> impl Fn(&Path, &[String]) -> Result<CargoOutcome, String> {
     return move |_cwd: &Path, args: &[String]| -> Result<CargoOutcome, String> {
+        // Closure `|argument|`: an anonymous function, like a TS arrow function.
+        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         if args.iter().any(|argument| { return argument == "--publish-time"; }) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             return Ok(CargoOutcome { ok: false, output: "failed to select a version for `dep`".to_string(), stdout: String::new() });
         }
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // Borrow `&lock_path`: lends the value without copying or giving it away.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         fs::write(&lock_path, &young_lock).map_err(|error| { return error.to_string(); })?;
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // Constructor `String::new()`: an empty owned collection or a boxed value.
         return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
     };
 }
@@ -628,12 +852,22 @@ fn cargo_needing_a_young_release(lock_path: PathBuf, young_lock: String) -> impl
 /// so the resolution must not fail before the exemption is applied.
 #[test]
 fn a_young_release_that_a_manifest_needs_resolves_when_the_crate_is_exempt_from_the_release_age() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), "");
     let cargo = cargo_needing_a_young_release(world.root.path().join(CRATE_DIR).join("Cargo.lock"), lock_with("1.0.0"));
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let history: Vec<VersionRecord> = vec![trusted_publish("1.0.0", "2026-10-29T10:00:00Z")];
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
+    // `let mut`: a binding that may change.
+    // Typed binding: `exempt: Settings`.
     let mut exempt: Settings = settings();
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     exempt.minimum_release_age_exclude = vec!["dep".to_string()];
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -644,13 +878,19 @@ fn a_young_release_that_a_manifest_needs_resolves_when_the_crate_is_exempt_from_
         runner: &cargo,
         registry: &registry,
         forward: &[],
+        // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = update_rust_lockfiles(&request, &UpdateKind::Full).expect("the exempt young release resolves");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.written, "{:?}", report.problems);
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_of(&world), lock_with("1.0.0"));
 }
 
@@ -658,9 +898,13 @@ fn a_young_release_that_a_manifest_needs_resolves_when_the_crate_is_exempt_from_
 /// as before.
 #[test]
 fn a_young_release_that_a_manifest_needs_still_fails_a_strict_resolution_without_an_exemption() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), "");
     let cargo = cargo_needing_a_young_release(world.root.path().join(CRATE_DIR).join("Cargo.lock"), lock_with("1.0.0"));
+    // Typed binding: `registry: FakeRegistry`.
+    // Constructor `BTreeMap::new()`: an empty owned collection or a boxed value.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::new() };
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -671,13 +915,19 @@ fn a_young_release_that_a_manifest_needs_still_fails_a_strict_resolution_without
         runner: &cargo,
         registry: &registry,
         forward: &[],
+        // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
     let result = update_rust_lockfiles(&request, &UpdateKind::Full);
 
+    // `Err(...)`: builds the success or the failure variant of a `Result`.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(result, Err(UpdateError::Cargo { .. })), "{result:?}");
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }
 
@@ -686,12 +936,22 @@ fn a_young_release_that_a_manifest_needs_still_fails_a_strict_resolution_without
 /// still refuses its young release and the lockfile is restored.
 #[test]
 fn a_crate_that_is_not_exempt_is_still_held_to_the_cutoff_after_the_unconstrained_resolution() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), "");
     let cargo = cargo_needing_a_young_release(world.root.path().join(CRATE_DIR).join("Cargo.lock"), lock_with("1.0.0"));
+    // Typed binding: `history: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let history: Vec<VersionRecord> = vec![trusted_publish("1.0.0", "2026-10-29T10:00:00Z")];
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
+    // `let mut`: a binding that may change.
+    // Typed binding: `exempt_other: Settings`.
     let mut exempt_other: Settings = settings();
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     exempt_other.minimum_release_age_exclude = vec!["other".to_string()];
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -702,14 +962,21 @@ fn a_crate_that_is_not_exempt_is_still_held_to_the_cutoff_after_the_unconstraine
         runner: &cargo,
         registry: &registry,
         forward: &[],
+        // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = update_rust_lockfiles(&request, &UpdateKind::Full).expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.written);
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(report.problems.len(), 1, "{:?}", report.problems);
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }
 
@@ -723,29 +990,66 @@ const NEW_REQUIREMENT_MANIFEST: &str = "[package]\nname = \"u\"\nversion = \"0.1
 fn cargo_that_edits_the_manifest(directory: PathBuf) -> impl Fn(&Path, &[String]) -> Result<CargoOutcome, String> {
     return move |_cwd: &Path, args: &[String]| -> Result<CargoOutcome, String> {
         if args[0] == "metadata" {
+            // Typed binding: `body: String`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             let body: String = format!(
                 "{{\"workspace_root\":\"{}\",\"packages\":[{{\"source\":null,\"manifest_path\":\"{}\"}}]}}",
                 directory.display(),
                 directory.join("Cargo.toml").display()
             );
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.clone()`: an independent owned copy.
             return Ok(CargoOutcome { ok: true, output: body.clone(), stdout: body });
         }
+        // Closure `|argument|`: an anonymous function, like a TS arrow function.
+        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         if args.iter().any(|argument| { return argument == "--precise"; }) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
         }
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         fs::write(directory.join("Cargo.toml"), NEW_REQUIREMENT_MANIFEST).map_err(|error| { return error.to_string(); })?;
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         fs::write(directory.join("Cargo.lock"), lock_with("1.0.1")).map_err(|error| { return error.to_string(); })?;
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // Constructor `String::new()`: an empty owned collection or a boxed value.
         return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
     };
 }
 
 fn breaking_update(dry_run: bool) -> (World, Result<UpdateReport, UpdateError>) {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), "");
+    // Typed binding: `directory: PathBuf`.
     let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
     let cargo = cargo_that_edits_the_manifest(directory);
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
+    // Why:      They express one step of a pipeline without an index loop.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // list.map(f).filter(g)
+    // ```
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -756,14 +1060,17 @@ fn breaking_update(dry_run: bool) -> (World, Result<UpdateReport, UpdateError>) 
         runner: &cargo,
         registry: &registry,
         forward: &[],
+        // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
     };
+    // Borrow `&request`: lends the value without copying or giving it away.
     let result = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args });
     return (world, result);
 }
 
 fn manifest_of(world: &World) -> String {
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     return fs::read_to_string(world.root.path().join(CRATE_DIR).join("Cargo.toml")).expect("read the manifest");
 }
 
@@ -776,10 +1083,16 @@ fn manifest_of(world: &World) -> String {
 fn a_refused_breaking_update_puts_the_edited_manifests_back_with_the_lockfiles() {
     let (world, result) = breaking_update_without_a_way_out();
 
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = result.expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.written);
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(manifest_of(&world), OLD_REQUIREMENT_MANIFEST, "the manifest kept cargo's edit although the update was refused");
 }
 
@@ -788,10 +1101,16 @@ fn a_refused_breaking_update_puts_the_edited_manifests_back_with_the_lockfiles()
 fn a_dry_run_of_a_breaking_update_puts_the_edited_manifests_back() {
     let (world, result) = breaking_update(true);
 
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = result.expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.written);
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(manifest_of(&world), OLD_REQUIREMENT_MANIFEST);
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }
 
@@ -800,9 +1119,13 @@ fn a_dry_run_of_a_breaking_update_puts_the_edited_manifests_back() {
 fn an_accepted_breaking_update_keeps_the_manifest_edit() {
     let (world, result) = breaking_update_that_passes();
 
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = result.expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.written, "{:?}", report.problems);
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(manifest_of(&world), NEW_REQUIREMENT_MANIFEST);
 }
 
@@ -811,13 +1134,27 @@ fn breaking_update_without_a_way_out() -> (World, Result<UpdateReport, UpdateErr
 }
 
 fn breaking_update_that_passes() -> (World, Result<UpdateReport, UpdateError>) {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), "");
+    // Typed binding: `directory: PathBuf`.
     let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
     let cargo = cargo_that_edits_the_manifest(directory);
+    // Typed binding: `trusted: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let trusted: Vec<VersionRecord> = vec![trusted_publish("0.9.0", "2026-01-01T00:00:00Z"), trusted_publish("1.0.1", "2026-02-01T00:00:00Z")];
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), trusted)]) };
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -828,9 +1165,11 @@ fn breaking_update_that_passes() -> (World, Result<UpdateReport, UpdateError>) {
         runner: &cargo,
         registry: &registry,
         forward: &[],
+        // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
     };
+    // Borrow `&request`: lends the value without copying or giving it away.
     let result = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args });
     return (world, result);
 }
@@ -841,6 +1180,8 @@ struct FailingSyncer;
 
 impl Syncer for FailingSyncer {
     fn sync(&self, _root: &Path) -> Result<String, String> {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err("could not start file-enforcer".to_string());
     }
 }
@@ -851,14 +1192,29 @@ impl Syncer for FailingSyncer {
 /// catalog goes back with the manifests and the lockfiles instead of being left raised and unrendered.
 #[test]
 fn a_sync_failure_after_the_catalog_write_restores_the_catalog_the_manifests_and_the_lockfiles() {
+    // Typed binding: `catalog_text: &str`.
     let catalog_text: &str = "[catalog]\ndep = \">=0.9.0\"\n";
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), catalog_text);
+    // Typed binding: `directory: PathBuf`.
     let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
     let cargo = cargo_that_edits_the_manifest(directory);
+    // Typed binding: `trusted: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let trusted: Vec<VersionRecord> = vec![trusted_publish("0.9.0", "2026-01-01T00:00:00Z"), trusted_publish("1.0.1", "2026-02-01T00:00:00Z")];
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), trusted)]) };
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -873,11 +1229,24 @@ fn a_sync_failure_after_the_catalog_write_restores_the_catalog_the_manifests_and
         prune_catalog: false,
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.written);
+    // Closure `|problem|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.problems.iter().any(|problem| { return problem.contains("file-enforcer"); }), "{:?}", report.problems);
+    // Borrow `&world.catalog`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(&world.catalog).expect("catalog"), catalog_text);
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(manifest_of(&world), OLD_REQUIREMENT_MANIFEST);
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }

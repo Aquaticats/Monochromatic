@@ -127,13 +127,34 @@ impl NativeEnvironment {
         // const home = process.env.HOME ? process.env.HOME : undefined;
         // ```
         let home: Option<PathBuf> = std::env::var_os("HOME").map(PathBuf::from);
+        // `match`: picks the arm whose pattern fits the value.
+        // Typed binding: `xdg_config_home: Option<PathBuf>`.
         let xdg_config_home: Option<PathBuf> = match std::env::var_os("XDG_CONFIG_HOME") {
+            // `Some`: the present or the absent value of an `Option`.
             Some(value) if !value.is_empty() => Some(PathBuf::from(value)),
+            // `None`: the present or the absent value of an `Option`.
             _ => None,
         };
+        // `None`: the present or the absent value of an `Option`.
+        // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+        // Why:      The value is built up or replaced step by step below.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // let x = ...;   // plain Rust `let` is TS `const`
+        // ```
+        // Typed binding: `blocking_variable: Option<String>`.
         let mut blocking_variable: Option<String> = None;
         for name in BLOCKING_VARIABLES {
             if std::env::var_os(name).is_some() {
+                // `Some`: the present or the absent value of an `Option`.
+                // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+                // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // String(value)  // JS strings are always owned values
+                // ```
                 blocking_variable = Some(name.to_string());
                 break;
             }
@@ -221,6 +242,15 @@ fn is_object_name(text: &str) -> bool {
 /// const cannotRead = (path: string, error: Error): string => `${path} cannot be read: ${error.message}`;
 /// ```
 fn cannot_read(path: &Path, error: &std::io::Error) -> String {
+    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+    // Why:      Text building and printing are written as one call instead of string concatenation.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // `..${x}..`   // template literal
+    // console.error(text);   // eprintln!
+    // [a, b]            // vec![a, b]
+    // ```
     return format!("{} cannot be read: {error}", path.display());
 }
 
@@ -235,8 +265,12 @@ fn cannot_read(path: &Path, error: &std::io::Error) -> String {
 /// function readText(path: string): string  // throws a worded error
 /// ```
 fn read_text(path: &Path) -> Result<String, String> {
+    // `match`: picks the arm whose pattern fits the value.
     return match fs::read_to_string(path) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(text) => Ok(text),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Borrow `&error`: lends the value without copying or giving it away.
         Err(error) => Err(cannot_read(path, &error)),
     };
 }
@@ -252,8 +286,12 @@ fn read_text(path: &Path) -> Result<String, String> {
 /// const settingIs = (config: ParsedConfig, key: string, expected: string): boolean => config.last('extensions', undefined, key)?.toLowerCase() === expected;
 /// ```
 fn setting_is(config: &ParsedConfig, key: &str, expected: &str) -> bool {
+    // `None`: the present or the absent value of an `Option`.
+    // `match`: picks the arm whose pattern fits the value.
     return match config.last("extensions", None, key) {
+        // `Some`: the present or the absent value of an `Option`.
         Some(value) => value.eq_ignore_ascii_case(expected),
+        // `None`: the present or the absent value of an `Option`.
         None => false,
     };
 }
@@ -275,9 +313,15 @@ fn setting_is(config: &ParsedConfig, key: &str, expected: &str) -> bool {
 /// export function findLayout(root: string, environment: NativeEnvironment): GitLayout  // throws: ask Git
 /// ```
 pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLayout, String> {
+    // `Some`: the present or the absent value of an `Option`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // Borrow `&environment.blocking_variable`: lends the value without copying or giving it away.
     if let Some(name) = &environment.blocking_variable {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("{name} is set, so only Git can say where the repository is"));
     }
+    // Typed binding: `dot_git: PathBuf`.
     let dot_git: PathBuf = root.join(".git");
     // What:     `fs::metadata(path)` reads a file's type and size; `Err` when it does not exist. `.is_dir()` / `.is_file()` test the kind.
     // Why:      A `.git` directory is a plain repository; a `.git` file points to the real directory.
@@ -287,15 +331,35 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     // const stat = statSync(dotGit);
     // ```
     let metadata = match fs::metadata(&dot_git) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(found) => found,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Borrow `&dot_git`: lends the value without copying or giving it away.
         Err(error) => return Err(cannot_read(&dot_git, &error)),
     };
+    // Typed binding: `git_dir: PathBuf`.
     let git_dir: PathBuf = if metadata.is_dir() {
         dot_git
     } else {
+        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const value = await expr;   // throws to the caller on failure
+        // ```
+        // Borrow `&dot_git`: lends the value without copying or giving it away.
+        // Typed binding: `text: String`.
         let text: String = read_text(&dot_git)?;
+        // `match`: picks the arm whose pattern fits the value.
+        // Typed binding: `target: &str`.
         let target: &str = match text.trim().strip_prefix("gitdir:") {
+            // `Some`: the present or the absent value of an `Option`.
             Some(found) => found.trim(),
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // `None`: the present or the absent value of an `Option`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             None => return Err(format!("{} is a file but does not say gitdir:", dot_git.display())),
         };
         // A relative target is relative to the directory that holds the `.git` file.
@@ -303,9 +367,20 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     };
     // A linked worktree's directory has a `commondir` file naming the directory that holds the shared files.
     let common_dir: PathBuf = match fs::read_to_string(git_dir.join("commondir")) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(text) => git_dir.join(text.trim()),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // structuredClone(value)  // or [...list] / {...object}
+        // ```
         Err(_) => git_dir.clone(),
     };
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(GitLayout { git_dir, common_dir });
 }
 
@@ -326,40 +401,79 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
 /// export function readConfig(layout: GitLayout, environment: NativeEnvironment): ParsedConfig  // throws: ask Git
 /// ```
 pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Result<ParsedConfig, String> {
+    // `.clone()`: an independent owned copy.
+    // `let mut`: a binding that may change.
+    // Typed binding: `files: Vec<PathBuf>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let mut files: Vec<PathBuf> = vec![environment.system_config.clone()];
     // The user's file: `$XDG_CONFIG_HOME/git/config` or `~/.config/git/config`, then `~/.gitconfig`.
     if let Some(xdg) = &environment.xdg_config_home {
         files.push(xdg.join("git/config"));
+    // `Some`: the present or the absent value of an `Option`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // Borrow `&environment.home`: lends the value without copying or giving it away.
     } else if let Some(home) = &environment.home {
         files.push(home.join(".config/git/config"));
     }
+    // `Some`: the present or the absent value of an `Option`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // Borrow `&environment.home`: lends the value without copying or giving it away.
     if let Some(home) = &environment.home {
         files.push(home.join(".gitconfig"));
     }
     files.push(layout.common_dir.join("config"));
+    // `let mut`: a binding that may change.
+    // Typed binding: `merged: ParsedConfig`.
     let mut merged: ParsedConfig = ParsedConfig::default();
+    // Borrow `&files`: lends the value without copying or giving it away.
     for file in &files {
         // A file that does not exist is skipped; one that exists and cannot be read or parsed makes the answer Git's.
         let text: String = match fs::read_to_string(file) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(found) => found,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             Err(error) => return Err(format!("{} cannot be read: {error}", file.display())),
         };
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&text`: lends the value without copying or giving it away.
+        // Typed binding: `parsed: ParsedConfig`.
         let parsed: ParsedConfig = match parse_config(&text) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(found) => found,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             Err(message) => return Err(format!("{}: {message}", file.display())),
         };
         merged.extend_with(parsed);
     }
     if merged.has_include {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err("a configuration file has include or includeIf, which only Git follows".to_string());
     }
+    // Borrow `&merged`: lends the value without copying or giving it away.
     if setting_is(&merged, "refstorage", "reftable") {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err("the repository stores references as reftable, which only Git reads".to_string());
     }
+    // Borrow `&merged`: lends the value without copying or giving it away.
     if setting_is(&merged, "worktreeconfig", "true") {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err("the repository has a worktree-specific configuration (extensions.worktreeConfig)".to_string());
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(merged);
 }
 
@@ -375,15 +489,28 @@ pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Resul
 /// export function readHead(layout: GitLayout): Head  // throws: ask Git
 /// ```
 pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
+    // Typed binding: `path: PathBuf`.
     let path: PathBuf = layout.git_dir.join("HEAD");
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Borrow `&path`: lends the value without copying or giving it away.
+    // Typed binding: `text: String`.
     let text: String = read_text(&path)?;
+    // Typed binding: `trimmed: &str`.
     let trimmed: &str = text.trim();
+    // `Some`: the present or the absent value of an `Option`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     if let Some(name) = trimmed.strip_prefix("ref:") {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Ok(Head::Branch(name.trim().to_string()));
     }
     if is_object_name(trimmed) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Ok(Head::Detached(trimmed.to_string()));
     }
+    // `Err(...)`: builds the success or the failure variant of a `Result`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     return Err(format!("{} holds neither a reference nor an object name", path.display()));
 }
 
@@ -398,6 +525,8 @@ pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
 /// function checkRefName(name: string): void  // throws on a name that could escape
 /// ```
 fn check_ref_name(name: &str) -> Result<(), String> {
+    // `let mut`: a binding that may change.
+    // Typed binding: `escapes: bool`.
     let mut escapes: bool = name.is_empty() || name.starts_with('/');
     for part in name.split('/') {
         if part.is_empty() || part == ".." || part == "." {
@@ -405,8 +534,11 @@ fn check_ref_name(name: &str) -> Result<(), String> {
         }
     }
     if escapes {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("{name:?} is not a reference name this reader will turn into a path"));
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(());
 }
 
@@ -425,24 +557,46 @@ fn check_ref_name(name: &str) -> Result<(), String> {
 /// export function lookupRef(layout: GitLayout, name: string): string | undefined  // throws: ask Git
 /// ```
 pub fn lookup_ref(layout: &GitLayout, name: &str) -> Result<Option<String>, String> {
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     check_ref_name(name)?;
+    // Typed binding: `loose: PathBuf`.
     let loose: PathBuf = layout.common_dir.join(name);
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&loose`: lends the value without copying or giving it away.
     match fs::read_to_string(&loose) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(text) => {
+            // Typed binding: `trimmed: &str`.
             let trimmed: &str = text.trim();
             if is_object_name(trimmed) {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // `Some`: the present or the absent value of an `Option`.
+                // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                 return Ok(Some(trimmed.to_string()));
             }
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(format!("{} holds something other than an object name (a symbolic reference?)", loose.display()));
         }
         // A missing file, or a directory where a file was looked for, means there is no loose reference of that name.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound || loose.is_dir() => {}
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         Err(error) => return Err(format!("{} cannot be read: {error}", loose.display())),
     }
+    // Typed binding: `packed_path: PathBuf`.
     let packed_path: PathBuf = layout.common_dir.join("packed-refs");
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&packed_path`: lends the value without copying or giving it away.
+    // Typed binding: `packed: String`.
     let packed: String = match fs::read_to_string(&packed_path) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(found) => found,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         Err(error) => return Err(format!("{} cannot be read: {error}", packed_path.display())),
     };
     for line in packed.lines() {
@@ -450,13 +604,20 @@ pub fn lookup_ref(layout: &GitLayout, name: &str) -> Result<Option<String>, Stri
         if line.starts_with('#') || line.starts_with('^') {
             continue;
         }
+        // `Some`: the present or the absent value of an `Option`.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         if let Some((object, reference)) = line.split_once(' ')
             && reference == name
             && is_object_name(object)
         {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `Some`: the present or the absent value of an `Option`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             return Ok(Some(object.to_string()));
         }
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // `None`: the present or the absent value of an `Option`.
     return Ok(None);
 }
 
@@ -478,16 +639,26 @@ pub fn lookup_ref(layout: &GitLayout, name: &str) -> Result<Option<String>, Stri
 /// export function lookupShort(layout: GitLayout, name: string): string | undefined  // throws: ask Git
 /// ```
 pub fn lookup_short(layout: &GitLayout, name: &str) -> Result<Option<String>, String> {
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     check_ref_name(name)?;
     // A file named like the short name directly in the repository directory would be a root reference.
     if layout.common_dir.join(name).exists() {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("{name:?} also names a file in the repository directory"));
     }
     for prefix in ["refs/", "refs/tags/", "refs/heads/"] {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&format`: lends the value without copying or giving it away.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         if lookup_ref(layout, &format!("{prefix}{name}"))?.is_some() {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(format!("{name:?} is ambiguous: {prefix}{name} exists"));
         }
     }
+    // Borrow `&format`: lends the value without copying or giving it away.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     return lookup_ref(layout, &format!("refs/remotes/{name}"));
 }
 
@@ -506,30 +677,61 @@ pub fn lookup_short(layout: &GitLayout, name: &str) -> Result<Option<String>, St
 /// function mapRefspec(spec: string, merge: string): string | undefined  // throws on a negative refspec
 /// ```
 fn map_refspec(spec: &str, merge: &str) -> Result<Option<String>, String> {
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
+    // Typed binding: `without_force: &str`.
     let without_force: &str = spec.trim().strip_prefix('+').unwrap_or(spec.trim());
     if without_force.starts_with('^') {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err("a negative fetch refspec is applied by Git".to_string());
     }
+    // `match`: picks the arm whose pattern fits the value.
     let (source, destination) = match without_force.split_once(':') {
+        // `Some`: the present or the absent value of an `Option`.
         Some(pair) => pair,
         // A refspec without a destination stores nothing.
         None => return Ok(None),
     };
+    // `match`: picks the arm whose pattern fits the value.
     match (source.split_once('*'), destination.split_once('*')) {
+        // `Some`: the present or the absent value of an `Option`.
         (Some((prefix, suffix)), Some((target_prefix, target_suffix))) => {
+            // `Some`: the present or the absent value of an `Option`.
+            // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
             if let Some(rest) = merge.strip_prefix(prefix)
+                // `Some`: the present or the absent value of an `Option`.
                 && let Some(middle) = rest.strip_suffix(suffix)
             {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // `Some`: the present or the absent value of an `Option`.
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 return Ok(Some(format!("{target_prefix}{middle}{target_suffix}")));
             }
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `None`: the present or the absent value of an `Option`.
             return Ok(None);
         }
+        // `None`: the present or the absent value of an `Option`.
         (None, None) => {
             if source == merge && !destination.is_empty() {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // `Some`: the present or the absent value of an `Option`.
+                // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                 return Ok(Some(destination.to_string()));
             }
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `None`: the present or the absent value of an `Option`.
             return Ok(None);
         }
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         _ => return Err("a fetch refspec has a pattern on one side only".to_string()),
     }
 }
@@ -550,31 +752,59 @@ fn map_refspec(spec: &str, merge: &str) -> Result<Option<String>, String> {
 /// export function trackingRef(config: ParsedConfig, branch: string): string | undefined  // throws: ask Git
 /// ```
 pub fn tracking_ref(config: &ParsedConfig, branch: &str) -> Result<Option<String>, String> {
+    // `Some`: the present or the absent value of an `Option`.
+    // `match`: picks the arm whose pattern fits the value.
+    // Typed binding: `remote: &str`.
     let remote: &str = match config.last("branch", Some(branch), "remote") {
+        // `Some`: the present or the absent value of an `Option`.
         Some(found) => found,
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
         None => return Ok(None),
     };
+    // `Some`: the present or the absent value of an `Option`.
+    // `match`: picks the arm whose pattern fits the value.
+    // Typed binding: `merge: &str`.
     let merge: &str = match config.last("branch", Some(branch), "merge") {
+        // `Some`: the present or the absent value of an `Option`.
         Some(found) => found,
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
         None => return Ok(None),
     };
     if !merge.starts_with("refs/") {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("branch.{branch}.merge is {merge:?}, not a full reference name"));
     }
     if remote == "." {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Ok(Some(merge.to_string()));
     }
+    // `Some`: the present or the absent value of an `Option`.
+    // Typed binding: `specs: Vec<&str>`.
     let specs: Vec<&str> = config.values("remote", Some(remote), "fetch");
     // A negative refspec can remove a match made by another one, so any of them makes the answer Git's.
     for spec in &specs {
         if spec.trim().starts_with('^') {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             return Err("a negative fetch refspec is applied by Git".to_string());
         }
     }
     for spec in specs {
+        // `Some`: the present or the absent value of an `Option`.
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         if let Some(mapped) = map_refspec(spec, merge)? {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `Some`: the present or the absent value of an `Option`.
             return Ok(Some(mapped));
         }
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // `None`: the present or the absent value of an `Option`.
     return Ok(None);
 }

@@ -181,15 +181,22 @@ fn long_option_value(words: &[String], name: &str) -> Option<String> {
 /// for `cargo update` its short spelling `-m <path>` (shown by `cargo update --help`) counts too,
 /// and the short spelling wins when both are given.
 pub fn manifest_path(arguments: &[OsString]) -> Option<PathBuf> {
+    // Typed binding: `words: Vec<String>`.
     let words: Vec<String> = words_before_double_dash(arguments);
+    // Borrow `&words`: lends the value without copying or giving it away.
+    // Typed binding: `long: Option<String>`.
     let long: Option<String> = long_option_value(&words, "--manifest-path");
     // Review finding (supported spellings): `-m` is read only for `cargo update`, where it means the manifest path; for
     // other commands it is not a cargo option the shadow knows.
     if find_verb(arguments).as_deref() == Some("update")
+        // `Some`: the present or the absent value of an `Option`.
+        // Borrow `&words`: lends the value without copying or giving it away.
         && let Some(short) = short_option_value(&words, "-m")
     {
+        // `Some`: the present or the absent value of an `Option`.
         return Some(PathBuf::from(short));
     }
+    // Adapter `.map(`: transforms or selects items with a closure.
     return long.map(PathBuf::from);
 }
 
@@ -203,10 +210,17 @@ pub fn manifest_path(arguments: &[OsString]) -> Option<PathBuf> {
 /// const shortOptionValue = (words: string[], name: string) => words[words.lastIndexOf(name) + 1];
 /// ```
 fn short_option_value(words: &[String], name: &str) -> Option<String> {
+    // `None`: the present or the absent value of an `Option`.
+    // `let mut`: a binding that may change.
+    // Typed binding: `found: Option<String>`.
     let mut found: Option<String> = None;
+    // `let mut`: a binding that may change.
+    // Typed binding: `index: usize`.
     let mut index: usize = 0;
     while index + 1 < words.len() {
         if words[index] == name {
+            // `Some`: the present or the absent value of an `Option`.
+            // `.clone()`: an independent owned copy.
             found = Some(words[index + 1].clone());
             index += 2;
             continue;

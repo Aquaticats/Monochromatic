@@ -88,6 +88,22 @@ fn registry() -> FakeRegistry {
 }
 
 fn step(start: &Path, frozen: bool, runner: &FakeCargo, registry: &FakeRegistry) -> StepOutcome {
+    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+    // Why:      Absence is a value the caller must check; there is no `null`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // Some(value) is  value
+    // // None        is  undefined
+    // ```
+    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+    // ```
     return run_install_step(&StepRequest { start_dir: start, frozen, offline: true, now: 0, runner, registry, lock_base: None, trust_base: "HEAD" });
 }
 
@@ -191,6 +207,15 @@ fn a_refused_new_version_fails_the_step_and_restores_the_lock() {
     let outcome = step(&start, false, &runner, &fake);
 
     match outcome {
+        // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+        // Why:      Text building and printing are written as one call instead of string concatenation.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // `..${x}..`   // template literal
+        // console.error(text);   // eprintln!
+        // [a, b]            // vec![a, b]
+        // ```
         StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
         other => panic!("expected a refusal, got {other:?}"),
     }
@@ -212,22 +237,67 @@ fn outside_a_catalog_repository_and_without_a_lockfile_the_step_does_nothing() {
 
 /// A registry whose one crate has a trusted `1.0.0` and a token-published `1.0.1` that the trust policy refuses.
 fn downgrading_registry() -> FakeRegistry {
+    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const name: Type = value;
+    // ```
+    // Macro `vec!`: builds or prints text (or a list) from a template.
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let history: Vec<VersionRecord> = vec![
         VersionRecord {
+            // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+            // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // String(value)  // JS strings are always owned values
+            // ```
             num: "1.0.0".to_string(),
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             created_at: "2026-01-01T00:00:00Z".to_string(),
+            // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+            // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const list: string[] = [];   // or new Set() / new Map()
+            // ```
+            // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+            // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // // TS has one type for this: string
+            // ```
             publisher_id: String::new(),
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             trustpub_repository: "o/r".to_string(),
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             repository: String::new(),
         },
         VersionRecord {
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             num: "1.0.1".to_string(),
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             created_at: "2026-02-01T00:00:00Z".to_string(),
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             publisher_id: "9".to_string(),
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             trustpub_repository: String::new(),
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             repository: String::new(),
         },
     ];
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     return FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
 }
 
@@ -239,18 +309,44 @@ fn downgrading_registry() -> FakeRegistry {
 /// policy skip the verification of the locked entries.
 #[test]
 fn a_stamp_recorded_under_a_lenient_policy_does_not_skip_the_verification_under_a_stricter_one() {
+    // Typed binding: `lock: String`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let lock: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    // Borrow `&lock`: lends the value without copying or giving it away.
     let root = repository(&lock);
+    // Borrow `&lock`: lends the value without copying or giving it away.
+    // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&lock);
     let start = root.path().join(CRATE_DIR);
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
     fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"off\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("lenient catalog");
+    // Borrow `&start`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(step(&start, true, &runner, &downgrading_registry()), StepOutcome::Passed);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("strict catalog");
 
+    // Borrow `&start`: lends the value without copying or giving it away.
     let outcome = step(&start, true, &runner, &downgrading_registry());
 
+    // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
+    // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
+    // ```
     match outcome {
+        // Macro `assert!`: builds or prints text (or a list) from a template.
         StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        // Macro `panic!`: builds or prints text (or a list) from a template.
         other => panic!("the stricter policy was never applied: {other:?}"),
     }
 }
@@ -258,15 +354,39 @@ fn a_stamp_recorded_under_a_lenient_policy_does_not_skip_the_verification_under_
 /// The lockfile used by the base tests:
 /// it holds the refused `dep@1.0.1`.
 fn refused_lock() -> String {
+    // Macro `format!`: builds or prints text (or a list) from a template.
     return format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
 }
 
 fn step_with_base(start: &Path, frozen: bool, runner: &FakeCargo, registry: &FakeRegistry, base_text: &str, trust_base: &str) -> StepOutcome {
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `text: String`.
     let text: String = base_text.to_string();
     let factory = move || -> Result<crate::install::LockBaseReader, String> {
+        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // structuredClone(value)  // or [...list] / {...object}
+        // ```
+        // Typed binding: `held: String`.
         let held: String = text.clone();
+        // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+        // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Ok(value)  is  return value;
+        // // Err(error) is  throw error;   (the caller sees it as a returned value)
+        // ```
+        // `.clone()`: an independent owned copy.
+        // Constructor `Box::new(`: an empty owned collection or a boxed value.
         return Ok(Box::new(move |_dir: &str| -> String { return held.clone(); }));
     };
+    // `Some`: the present or the absent value of an `Option`.
+    // Borrow `&StepRequest`: lends the value without copying or giving it away.
     return run_install_step(&StepRequest { start_dir: start, frozen, offline: true, now: 0, runner, registry, lock_base: Some(&factory), trust_base });
 }
 
@@ -275,17 +395,27 @@ fn step_with_base(start: &Path, frozen: bool, runner: &FakeCargo, registry: &Fak
 /// another base skip `verify_added_since_base`.
 #[test]
 fn a_pass_against_one_trust_base_does_not_stand_for_another_base() {
+    // Borrow `&refused_lock`: lends the value without copying or giving it away.
     let root = repository(&refused_lock());
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\ntrustLockfile = true\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    // Borrow `&refused_lock`: lends the value without copying or giving it away.
+    // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&refused_lock());
     let start = root.path().join(CRATE_DIR);
 
+    // Borrow `&start`: lends the value without copying or giving it away.
     let against_the_old_base = step_with_base(&start, true, &runner, &downgrading_registry(), &refused_lock(), "base-one");
+    // Borrow `&start`: lends the value without copying or giving it away.
     let against_a_base_without_it = step_with_base(&start, true, &runner, &downgrading_registry(), "", "base-two");
 
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(against_the_old_base, StepOutcome::Passed);
+    // `match`: picks the arm whose pattern fits the value.
     match against_a_base_without_it {
+        // Macro `assert!`: builds or prints text (or a list) from a template.
         StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        // Macro `panic!`: builds or prints text (or a list) from a template.
         other => panic!("the new base was never applied: {other:?}"),
     }
 }
@@ -295,13 +425,28 @@ fn a_pass_against_one_trust_base_does_not_stand_for_another_base() {
 /// the saving the stamp exists for.
 #[test]
 fn the_same_base_and_settings_take_the_fast_path() {
+    // Borrow `&refused_lock`: lends the value without copying or giving it away.
     let root = repository(&refused_lock());
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\ntrustLockfile = true\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    // Borrow `&refused_lock`: lends the value without copying or giving it away.
+    // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&refused_lock());
     let start = root.path().join(CRATE_DIR);
+    // Borrow `&start`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(step_with_base(&start, true, &runner, &downgrading_registry(), &refused_lock(), "base-one"), StepOutcome::Passed);
+    // Typed binding: `before: usize`.
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
     let before: usize = runner.commands.borrow().len();
 
+    // Borrow `&StepRequest`: lends the value without copying or giving it away.
     let again = run_install_step(&StepRequest {
         start_dir: &start,
         frozen: true,
@@ -309,11 +454,16 @@ fn the_same_base_and_settings_take_the_fast_path() {
         now: 0,
         runner: &runner,
         registry: &downgrading_registry(),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         lock_base: Some(&|| { return Err("git must not be started on the fast path".to_string()); }),
         trust_base: "base-one",
     });
 
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(again, StepOutcome::FastPath);
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(runner.commands.borrow().len(), before);
 }
 
@@ -324,17 +474,27 @@ fn the_same_base_and_settings_take_the_fast_path() {
 /// so the install stops).
 #[test]
 fn a_local_install_under_trust_lockfile_checks_only_what_is_new_since_the_base() {
+    // Borrow `&refused_lock`: lends the value without copying or giving it away.
     let root = repository(&refused_lock());
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\ntrustLockfile = true\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    // Borrow `&refused_lock`: lends the value without copying or giving it away.
+    // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&refused_lock());
     let start = root.path().join(CRATE_DIR);
 
+    // Borrow `&start`: lends the value without copying or giving it away.
     let trusted = step_with_base(&start, false, &runner, &downgrading_registry(), &refused_lock(), "base-one");
+    // Borrow `&start`: lends the value without copying or giving it away.
     let new_since_the_base = step_with_base(&start, false, &runner, &downgrading_registry(), "", "base-two");
 
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(trusted, StepOutcome::Passed);
+    // `match`: picks the arm whose pattern fits the value.
     match new_since_the_base {
+        // Macro `assert!`: builds or prints text (or a list) from a template.
         StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        // Macro `panic!`: builds or prints text (or a list) from a template.
         other => panic!("expected a refusal: {other:?}"),
     }
 }
@@ -346,17 +506,28 @@ fn a_local_install_under_trust_lockfile_checks_only_what_is_new_since_the_base()
 /// A stale lockfile in a frozen check stays a warning plus `--locked`.
 #[test]
 fn a_frozen_policy_refusal_stops_the_command_and_a_frozen_stale_lock_does_not() {
+    // Borrow `&refused_lock`: lends the value without copying or giving it away.
     let root = repository(&refused_lock());
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    // Borrow `&refused_lock`: lends the value without copying or giving it away.
+    // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&refused_lock());
     let start = root.path().join(CRATE_DIR);
 
+    // Borrow `&start`: lends the value without copying or giving it away.
     let refused = step(&start, true, &runner, &downgrading_registry());
 
+    // `match`: picks the arm whose pattern fits the value.
     match refused {
+        // Macro `assert!`: builds or prints text (or a list) from a template.
         StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        // Macro `panic!`: builds or prints text (or a list) from a template.
         other => panic!("a frozen refusal must stop the command: {other:?}"),
     }
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(start.join("Cargo.lock"), STALE).expect("make stale");
+    // Borrow `&start`: lends the value without copying or giving it away.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(step(&start, true, &runner, &downgrading_registry()), StepOutcome::Failed(_)));
 }
