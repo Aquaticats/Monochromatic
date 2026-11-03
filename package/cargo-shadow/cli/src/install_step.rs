@@ -20,7 +20,7 @@ use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};
 
 use crate::cargo_run::CargoRunner;
 use crate::constants::{CATALOG_MARKER, LOCKFILE_NAME};
-use crate::install::{InstallError, InstallReport, InstallRequest, VERIFY_ARGS, install_rust_lockfiles, owned_args};
+use crate::install::{InstallError, InstallReport, InstallRequest, VERIFY_ARGS, arguments_for, install_rust_lockfiles};
 use crate::lockfile::LockedVersion;
 use crate::registry::Registry;
 use crate::stamp::{is_fresh, manifests_from_metadata, record, stamp_file};
@@ -52,6 +52,8 @@ pub struct StepRequest<'a> {
     pub start_dir: &'a Path,
     /// Fail on a stale lockfile instead of updating it.
     pub frozen: bool,
+    /// Keep every cargo call offline; false in CI, where no registry index is cached yet.
+    pub offline: bool,
     /// The current time in milliseconds.
     pub now: i64,
     /// The cargo to run.
@@ -80,7 +82,7 @@ fn read_catalog(catalog_root: &Path) -> Result<CatalogDocument, String> {
 /// Records the stamp after a pass: one `cargo metadata` call lists the manifests the lockfile was resolved from.
 fn write_stamp(request: &StepRequest, catalog_root: &Path, crate_dir: &str) {
     let cargo_root: PathBuf = catalog_root.join(crate_dir);
-    let outcome = match request.runner.run(&cargo_root, &owned_args(&VERIFY_ARGS)) {
+    let outcome = match request.runner.run(&cargo_root, &arguments_for(&VERIFY_ARGS, request.offline)) {
         Ok(found) => found,
         Err(_) => return,
     };
@@ -134,6 +136,7 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         root: &catalog_root,
         crate_dirs: &crate_dirs,
         frozen: request.frozen,
+        offline: request.offline,
         dry_run: false,
         now: request.now,
         settings: &document.settings,

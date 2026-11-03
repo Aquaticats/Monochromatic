@@ -196,6 +196,7 @@ pub fn run_command(command: Command) -> i32 {
                 root: &root,
                 crate_dirs: &crate_dirs,
                 frozen,
+                offline: !is_continuous_integration(&std::env::var("CI").unwrap_or_default()),
                 dry_run,
                 now: now_millis(),
                 settings: &document.settings,

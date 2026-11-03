@@ -46,6 +46,21 @@ pub const UPDATE_ARGS: [&str; 3] = ["update", "--workspace", "--offline"];
 /// The consistency check run after the update.
 pub const VERIFY_ARGS: [&str; 5] = ["metadata", "--locked", "--offline", "--format-version", "1"];
 
+/// What:
+/// `pub fn arguments_for(args: &[&str], offline: bool) -> Vec<String>` is an argument list as owned text, without `--offline`
+/// when the run may use the network.
+/// Why:
+/// A fresh CI runner has no cached registry index, so an offline check cannot read it; a developer machine has one, and the
+/// offline form keeps the check from touching the network at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const argumentsFor = (args: string[], offline: boolean) => offline ? args : args.filter((a) => a !== '--offline');
+/// ```
+pub fn arguments_for(args: &[&str], offline: bool) -> Vec<String> {
+    return args.iter().filter(|argument| { return offline || **argument != "--offline"; }).map(|argument| { return argument.to_string(); }).collect();
+}
+
 /// The values of the `CI` variable that mean this is not a continuous integration run.
 const NOT_CI_VALUES: [&str; 3] = ["", "0", "false"];
 
@@ -150,6 +165,8 @@ pub struct InstallRequest<'a> {
     pub crate_dirs: &'a [String],
     /// Fail on a stale lockfile instead of updating it (pnpm's `--frozen-lockfile`, the CI default).
     pub frozen: bool,
+    /// Keep every cargo call offline; false in CI, where no registry index is cached yet.
+    pub offline: bool,
     /// Report what would be updated, then restore every lockfile.
     pub dry_run: bool,
     /// The current time in milliseconds.
@@ -162,16 +179,11 @@ pub struct InstallRequest<'a> {
     pub registry: &'a dyn Registry,
 }
 
-/// Turns the strings of an argument list into the owned list the runner takes.
-pub fn owned_args(args: &[&str]) -> Vec<String> {
-    return args.iter().map(|argument| { return argument.to_string(); }).collect();
-}
-
 /// Runs cargo in a crate root; a start failure is an `Io` error.
 fn run_cargo(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result<CargoOutcome, InstallError> {
     return request
         .runner
-        .run(&request.root.join(crate_dir), &owned_args(args))
+        .run(&request.root.join(crate_dir), &arguments_for(args, request.offline))
         .map_err(|message| { return InstallError::Io { message }; });
 }
 
@@ -186,7 +198,7 @@ fn run_or_fail(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Resu
     if !outcome.ok {
         return Err(InstallError::Cargo {
             crate_dir: crate_dir.to_string(),
-            command: format!("cargo {}", args.join(" ")),
+            command: format!("cargo {}", arguments_for(args, request.offline).join(" ")),
             output: outcome.output,
         });
     }

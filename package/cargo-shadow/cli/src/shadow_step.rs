@@ -75,6 +75,8 @@ pub struct Prepared {
     pub registry: CratesIo,
     /// Whether a stale lockfile is a failure: in CI, or the user's own command carries `--locked` or `--frozen`.
     pub frozen: bool,
+    /// Whether the install step keeps cargo offline: always, except in CI, where no registry index is cached yet.
+    pub offline: bool,
 }
 
 /// What:
@@ -104,6 +106,7 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     let catalog_text: String = std::fs::read_to_string(catalog_root.join(CATALOG_MARKER))
         .map_err(|error| { return format!("cargo-shadow: {CATALOG_MARKER}: {error}"); })?;
     let document: CatalogDocument = parse_catalog(&catalog_text, CATALOG_MARKER).map_err(|error| { return error.to_string(); })?;
+    let in_ci: bool = is_continuous_integration(&std::env::var("CI").unwrap_or_default());
     let crate_dir: Option<String> = find_cargo_root(&start).and_then(|cargo_root| { return cargo_root.strip_prefix(&catalog_root).ok().map(|relative| { return relative.to_string_lossy().replace('\\', "/"); }); });
     return Ok(Some(Prepared {
         start,
@@ -112,7 +115,8 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
         catalog_root,
         crate_dir,
         document,
-        frozen: is_continuous_integration(&std::env::var("CI").unwrap_or_default()) || asserts_lock(arguments),
+        frozen: in_ci || asserts_lock(arguments),
+        offline: !in_ci,
     }));
 }
 
@@ -135,6 +139,7 @@ pub fn before_cargo(arguments: &[OsString]) -> Option<String> {
     let outcome: StepOutcome = run_install_step(&StepRequest {
         start_dir: &prepared.start,
         frozen: prepared.frozen,
+        offline: prepared.offline,
         now: now_millis(),
         runner: &prepared.runner,
         registry: &prepared.registry,

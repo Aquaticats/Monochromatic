@@ -70,6 +70,7 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
                 root,
                 crate_dirs: &crate_dirs,
                 frozen,
+                offline: prepared.offline,
                 dry_run,
                 now: now_millis(),
                 settings: &prepared.document.settings,
