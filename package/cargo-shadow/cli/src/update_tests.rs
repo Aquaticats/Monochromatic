@@ -588,3 +588,72 @@ fn a_candidate_that_the_final_check_would_refuse_for_its_owners_is_not_chosen() 
     let tried: Vec<String> = cargo.commands.borrow().clone();
     assert!(!tried.iter().any(|command| { return command.ends_with("--precise 1.0.1"); }), "a candidate the final check refuses was tried: {tried:?}");
 }
+
+/// A cargo whose resolution under a publish-time cutoff fails (the manifest needs a young release) and whose unconstrained
+/// resolution locks that young release.
+fn cargo_needing_a_young_release(lock_path: PathBuf, young_lock: String) -> impl Fn(&Path, &[String]) -> Result<CargoOutcome, String> {
+    return move |_cwd: &Path, args: &[String]| -> Result<CargoOutcome, String> {
+        if args.iter().any(|argument| { return argument == "--publish-time"; }) {
+            return Ok(CargoOutcome { ok: false, output: "failed to select a version for `dep`".to_string(), stdout: String::new() });
+        }
+        fs::write(&lock_path, &young_lock).map_err(|error| { return error.to_string(); })?;
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    };
+}
+
+/// Review finding (the global cutoff defeats exemptions): the manifest needs a young release of a crate listed in
+/// `minimumReleaseAgeExclude`. Resolving under the strict cutoff cannot succeed, but the exemption means the young release is
+/// allowed, so the resolution must not fail before the exemption is applied.
+#[test]
+fn a_young_release_that_a_manifest_needs_resolves_when_the_crate_is_exempt_from_the_release_age() {
+    let world = world(&lock_with("0.9.0"), "");
+    let cargo = cargo_needing_a_young_release(world.root.path().join(CRATE_DIR).join("Cargo.lock"), lock_with("1.0.0"));
+    let history: Vec<VersionRecord> = vec![trusted_publish("1.0.0", "2026-10-29T10:00:00Z")];
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
+    let mut exempt: Settings = settings();
+    exempt.minimum_release_age_exclude = vec!["dep".to_string()];
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &exempt,
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &RecordingSyncer { calls: RefCell::new(0) },
+        prune_catalog: false,
+    };
+
+    let report = update_rust_lockfiles(&request, &UpdateKind::Full).expect("the exempt young release resolves");
+
+    assert!(report.written, "{:?}", report.problems);
+    assert_eq!(lock_of(&world), lock_with("1.0.0"));
+}
+
+/// Without an exemption the strict cutoff still stops the resolution, as before.
+#[test]
+fn a_young_release_that_a_manifest_needs_still_fails_a_strict_resolution_without_an_exemption() {
+    let world = world(&lock_with("0.9.0"), "");
+    let cargo = cargo_needing_a_young_release(world.root.path().join(CRATE_DIR).join("Cargo.lock"), lock_with("1.0.0"));
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::new() };
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &RecordingSyncer { calls: RefCell::new(0) },
+        prune_catalog: false,
+    };
+
+    let result = update_rust_lockfiles(&request, &UpdateKind::Full);
+
+    assert!(matches!(result, Err(UpdateError::Cargo { .. })), "{result:?}");
+    assert_eq!(lock_of(&world), lock_with("0.9.0"));
+}
