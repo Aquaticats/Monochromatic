@@ -105,6 +105,22 @@ pub(crate) fn arm_watchdog() {
     });
 }
 
+/// What:
+///  Forbid core dumps for this test process and everything it starts, once.
+/// Why:
+///   Tests make services abort or kill them on purpose, and each dump costs the system's core-dump handler processor time and
+///  disk writes on a disk other sessions share (several hundred dumps of `cli-git-service` from test runs on 2026-11-03). A
+///  process limit is inherited across `fork` and `exec` and the hard limit stops a child from raising it; this is the
+///  harness's, and the product sets none.
+pub(crate) fn forbid_core_dumps() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let none: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        // SAFETY: `setrlimit` reads the one `rlimit` it is given and touches no memory of ours.
+        let _set = unsafe { libc::setrlimit(libc::RLIMIT_CORE, &none) };
+    });
+}
+
 /// Environment variable that keeps every fixture on disk after its test ends, for looking at a failure.
 pub(crate) const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
 
@@ -204,6 +220,7 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
 ///  under a prefix that keeps the fixtures of different support modules apart.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     arm_watchdog();
+    forbid_core_dumps();
     let root: PathBuf = fixture_root().join(format!("{prefix}-{}-{name}", std::process::id()));
     if root.exists() {
         std::fs::remove_dir_all(&root).expect("remove stale fixture");

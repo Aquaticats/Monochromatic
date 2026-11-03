@@ -615,6 +615,7 @@ pub fn fixture(name: &str) -> Fixture {
 
 /// Create a fixture in `directory`, which may be on another filesystem than the build; see `fixture`.
 pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
+    forbid_core_dumps();
     std::fs::create_dir_all(directory).expect("fixture directory root");
     let created: PathBuf = directory.join(format!("native-binary-{}-{name}", std::process::id()));
     if created.exists() {
@@ -1242,4 +1243,19 @@ pub fn dead_copy_owner() -> git_policy_cli::worktree_copy_owner::CopyOwner {
         birth_identity: birth,
         pid_namespace: git_policy_cli::pid_namespace::current_pid_namespace(),
     };
+}
+
+/// What:
+///  Forbid core dumps for this test process and everything it starts, once.
+/// Why:
+///   The binary tests kill services and abort wrappers on purpose, and each dump costs the system's core-dump handler processor
+///  time and disk writes on a disk other sessions share. The limit is inherited across `fork` and `exec`, and the hard limit
+///  stops a child from raising it; it is the harness's, and the product sets none.
+fn forbid_core_dumps() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let none: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        // SAFETY: `setrlimit` reads the one `rlimit` it is given and touches no memory of ours.
+        let _set = unsafe { libc::setrlimit(libc::RLIMIT_CORE, &none) };
+    });
 }
