@@ -80,6 +80,7 @@ fn a_lookup_reads_the_index_a_few_times() {
     let root = crate::test_support::fixture("repo-read-pack-reads");
     let (index, names) = packed_repository(root.as_path());
     let pack = Pack::open(index.as_path(), 20).expect("pack");
+    let opened = pack.index_reads();
     // Positive control: the pack holds many objects, so a search that probes name by name needs far more than the bound.
     assert!(names.len() > 400, "the fixture pack holds many objects");
     for name in &names {
@@ -90,7 +91,7 @@ fn a_lookup_reads_the_index_a_few_times() {
     // The names of one first byte are read once however many lookups land in them: every lookup reads its own offset, and
     // each distinct first byte adds one read of its bucket.
     let buckets: std::collections::HashSet<u8> = names.iter().map(|name| { return name[0]; }).collect();
-    assert_eq!(pack.index_reads(), (names.len() + buckets.len()) as u64, "one read of the offset per name and one per bucket");
+    assert_eq!(pack.index_reads() - opened, (names.len() + buckets.len()) as u64, "one read of the offset per name and one per bucket");
     let mut absent: Vec<u8> = names[0].clone();
     absent[19] ^= 1;
     let before = pack.index_reads();

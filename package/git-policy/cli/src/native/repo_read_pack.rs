@@ -70,12 +70,6 @@ fn read_at(file: &File, position: u64, length: usize) -> Option<Vec<u8>> {
     return Some(buffer);
 }
 
-/// A big-endian `u32` at `position`.
-fn be32(file: &File, position: u64) -> Option<u32> {
-    let bytes: Vec<u8> = read_at(file, position, 4)?;
-    return Some(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]));
-}
-
 /// One delta size varint at `cursor`: seven bits per byte, low first.
 fn delta_size(delta: &[u8], cursor: &mut usize) -> Option<usize> {
     let mut size: usize = 0;
@@ -159,17 +153,13 @@ impl Pack {
     pub fn open(index_path: &Path, hash_length: usize) -> Option<Pack> {
         let index: File = File::open(index_path).ok()?;
         let data: File = File::open(index_path.with_extension("pack")).ok()?;
-        let mut reads: u64 = 0;
-        let header: Vec<u8> = read_at(&index, 0, 8)?;
-        reads += 1;
-        if header != b"\xfftOc\0\0\0\x02" {
+        // The header and the table of counts that follows it are one stretch of the file, read at once.
+        let table: Vec<u8> = read_at(&index, 0, FANOUT_END as usize)?;
+        let reads: u64 = 1;
+        if table[..8] != *b"\xfftOc\0\0\0\x02" {
             return None;
         }
-        let mut fanout: Vec<u32> = Vec::with_capacity(256);
-        for slot in 0..256_u64 {
-            fanout.push(be32(&index, 8 + slot * 4)?);
-            reads += 1;
-        }
+        let fanout: Vec<u32> = table[8..].chunks_exact(4).map(|word| { return u32::from_be_bytes([word[0], word[1], word[2], word[3]]); }).collect();
         if fanout.windows(2).any(|pair| { return pair[0] > pair[1]; }) {
             return None;
         }
