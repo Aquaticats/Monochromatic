@@ -113,12 +113,6 @@ linked by CL 8707393,
 denied anonymous access,
 so its discussion was not assessed.
 
-A separate historical Helium capture had the same mapped-write mechanism
-and a sampled blocked span of `6622 ms`.
-That downstream observation is not substituted for the fresh upstream run.
-There is no Chromium source patch or controlled filesystem-delay fixture in this report.
-The contribution is the current-build evidence and owner coordination for regression coverage.
-
 Prepared with AI assistance from retained captures and source inspection.
 The accompanying evidence is sanitized;
 no profile contents or raw private traces are included.

@@ -109,13 +109,41 @@ so absence of a captured stall does not disprove the mechanism.
 This is an intermittent reproduction rather than a deterministic regression fixture.
 
 The observer disables and removes only its own trace instance at its deadline.
-Close the owned browser and stop its launcher/desktop scopes after the run.
+Close the owned browser through `Browser.close`,
+wait for its process to exit,
+then stop any remaining owned scopes.
 Raw captures contain private paths,
 PIDs,
 addresses,
 and instance identifiers;
 keep them private.
 The public evidence contains selected sanitized fields.
+
+## Cleanup verification at 2026-11-03T10:15:25.739+00:00
+
+The primary measurement browser exited with code zero.
+The separate profile-placement probe emitted Chromium's
+`FATAL:content/common/zygote/zygote_communication_linux.cc:176`
+with `NOTREACHED hit. Did not receive ping from zygote child`
+and exited with code `134` when its desktop and launcher scopes were stopped together.
+That is a separate teardown observation,
+not part of the metrics fault evidence.
+
+A subsequent isolated lifecycle check sent `Browser.close`,
+received its acknowledgment,
+and waited for browser exit before scope cleanup.
+It exited with code zero,
+with neither `FATAL` nor `NOTREACHED` in its retained stderr.
+The final procfs executable scan found no processes from the owned snapshot directory.
+The observer's tracefs instance was absent after its normal cleanup.
+
+## Document verification command
+
+Run `mise run verify:metrics-ping` from `doc/planning/browser-disk-responsiveness`.
+The root-qualified lookup returned `mise ERROR no task` because this document configuration
+is outside the repository's package discovery roots.
+The invocation from the owning directory passed,
+following the [recorded Mise workaround](../mise-excluded-research-task-discovery.md).
 
 ## Observer source
 

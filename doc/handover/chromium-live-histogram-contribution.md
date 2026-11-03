@@ -70,12 +70,33 @@ Synthetic host load remains prohibited.
 Source research uses a same-vendor subagent,
 not independent review.
 
-## Remaining verification
+## Completion and handoff
 
-Complete the fresh-browser capture and inspect the consumer result,
-then update the public draft and sanitized artifact.
-Finish scoped Markdown lint and rendered checks,
-collect every command and cell result,
-close owned browser sessions,
-stop owned tracing and cgroups,
-and record final status and commits.
+The fresh capture,
+symbolization,
+native histogram counts,
+browser rendering of those counts,
+trace-loss checks,
+and sanitization are complete.
+Commit `51da9d59db` retains the reproduction clients and verification tasks.
+The source-selection pass verified `22` citations with `agent-browser`.
+Scoped Markdown lint and Pandoc rendering passed;
+the final verification record records the delivered source hashes.
+
+All owned browser processes and the tracefs instance are gone.
+The primary browser exited normally.
+A separate simultaneous-scope teardown emitted a zygote fatal error;
+the corrected `Browser.close` lifecycle check exited normally without that diagnostic.
+The existing user-authorized Helium recorder was not changed.
+
+The bundled Browser plugin and its browser-control server are disabled in user configuration.
+A fresh uncached local app-server catalog confirmed no Browser skills.
+The approved agent rules and generated copy are committed.
+
+The remaining upstream step requires the user's normal signed-in browser.
+Nothing has been posted.
+Submit the prepared report and sanitized JSON under `Internals>Metrics`,
+then record the issue URL here.
+Do not request sign-in through a testing browser.
+Human maintainer feedback requires a human reply.
+No telemetry redesign or Chromium source patch is queued by this task.

@@ -233,7 +233,7 @@ PX1:
  including recovery and missing reproductions/checks.
 While verifying,
  advance independent work without changing inputs.
-Stop only at completion or an external blocker.
+Stop at completion or an external blocker.
 
 MWK:
  Monitors,

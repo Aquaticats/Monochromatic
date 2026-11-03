@@ -16,4 +16,5 @@ run = [
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/codex-browser-disabled.html" ../../troubleshooting/codex-in-app-browser-unavailable.md',
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-agents.html" ../../../AGENTS.md',
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-claude.html" ../../../CLAUDE.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-helium-evidence.html" ../../troubleshooting/helium-window-freezes.md',
 ]

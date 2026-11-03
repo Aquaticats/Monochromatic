@@ -33,6 +33,14 @@ Other entries in both sections were retained.
 `codex plugin list --marketplace openai-bundled --json` returned empty installed and available arrays;
 that CLI result does not verify the current desktop session's already-loaded skill catalog.
 No desktop restart or fresh model session was performed during this change.
+A fresh local app-server inspection at `2026-11-03T10:07:18.877Z`
+resolved both disable settings through `config/read`.
+Its uncached `skills/list` returned `40` skills,
+no Browser plugin skills,
+and zero catalog errors.
+The inspection process exited with code zero and no stderr.
+This verifies the fresh local catalog;
+it does not erase instructions already present in an existing conversation.
 The fetched official Codex configuration reference documents both enable switches.
 The user chose `agent-browser` for browser work.
 
