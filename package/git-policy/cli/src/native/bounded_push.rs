@@ -71,6 +71,10 @@ pub const LOW_SPEED_LIMIT: &str = "1000";
 /// Seconds the transfer may stay below the lowest speed before Git aborts it.
 pub const LOW_SPEED_TIME: &str = "60";
 
+/// What the line a push's output gains starts with when the push waited for the server's checks, after its pack was sent.
+// RED SCAFFOLD: nothing writes the line yet.
+pub const WAIT_NOTE_PREFIX: &str = "cli-git: git push is waiting for the server";
+
 /// Pause between two looks at the running push.
 const POLL_PAUSE: Duration = Duration::from_millis(10);
 
@@ -170,6 +174,14 @@ pub enum Patience {
         /// How long the child may run in all.
         ceiling: Duration,
     },
+    /// The same as `Progress`, for a `git push`, which after it has sent its pack and while its connection to the remote is open
+    ///  is waiting for the server's checks and is not stalled.
+    Push {
+        /// How long the push may move nothing while it is not waiting for the server.
+        stall: Duration,
+        /// How long the push may run in all, waiting included.
+        ceiling: Duration,
+    },
 }
 
 /// The patience of a push from the environment: the stall window and the ceiling.
@@ -179,7 +191,7 @@ pub enum Patience {
 /// ({ kind: 'progress', stallMs: pushDeadline(env), ceilingMs: pushCeiling(env) })
 /// ```
 pub fn push_patience(environment: &[(OsString, OsString)]) -> Patience {
-    return Patience::Progress { stall: push_deadline(environment), ceiling: push_ceiling(environment) };
+    return Patience::Push { stall: push_deadline(environment), ceiling: push_ceiling(environment) };
 }
 
 /// What:
@@ -527,7 +539,7 @@ pub fn run_bounded_push(
                      offline connection, your commit is already saved; push again when the connection works.",
                     match patience {
                         Patience::Fixed(limit) => limit.as_secs(),
-                        Patience::Progress { stall, .. } => stall.as_secs(),
+                        Patience::Progress { stall, .. } | Patience::Push { stall, .. } => stall.as_secs(),
                     },
                     extend_clause()
                 ),

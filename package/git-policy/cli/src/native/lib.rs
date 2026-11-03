@@ -108,6 +108,19 @@ mod git_stop_lock_tests;
 #[cfg(test)]
 mod push_patience_tests;
 
+/// Controls for a push that waits for a slow server while connected, on probes that hold sockets and on Git over HTTP.
+#[cfg(test)]
+mod push_wait_tests;
+
+/// Controls for a push whose server runs a silent check after the pack is sent, over HTTP and over a local path.
+#[cfg(test)]
+mod push_slow_server_tests;
+
+/// A loopback HTTP server that serves `git http-backend`, for the controls of a push over HTTP.
+#[cfg(test)]
+#[cfg(unix)]
+mod smart_http_support;
+
 /// Disposable fixtures shared by unit tests;
 ///  never part of the release executable.
 #[cfg(test)]
@@ -894,6 +907,9 @@ pub mod process_use;
 
 /// The processes below one process, read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
+
+/// The connected TCP sockets of the machine with their byte counts, and the sockets a process holds.
+pub mod tcp_sockets;
 
 /// The real Git of a push, its query runner and the failure types of a push.
 pub mod auto_push_single_flight;

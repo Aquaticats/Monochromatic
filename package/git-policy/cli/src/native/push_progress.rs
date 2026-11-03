@@ -164,6 +164,15 @@ pub struct Meter {
     moved: u64,
 }
 
+/// What a push that has sent its pack and waits for the server's checks has shown, once it has waited for the stall window.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WaitReport {
+    /// How long the tree has shown no sign of work, with its connection open.
+    pub silent: Duration,
+    /// How long the push has run.
+    pub elapsed: Duration,
+}
+
 impl Meter {
     /// A meter that has seen nothing.
     pub fn new() -> Self {
@@ -173,6 +182,18 @@ impl Meter {
     /// Every byte the tree has moved so far.
     pub fn moved(&self) -> u64 {
         return self.moved;
+    }
+
+    /// Every byte the tree's connected sockets have sent (acknowledged) or received since the first sample.
+    // RED SCAFFOLD: counts nothing yet.
+    pub fn socket_bytes(&self) -> u64 {
+        return 0;
+    }
+
+    /// Whether the last sample found the pack sent and the connection to the remote open.
+    // RED SCAFFOLD: never waits yet.
+    pub fn waiting_on_server(&self) -> bool {
+        return false;
     }
 
     /// Take one look at one process: true when it moved bytes or used processor time since the last look, or is at work now.
@@ -232,7 +253,7 @@ impl Clock {
     /// Start the clock of a child that has just been started.
     pub fn start(pid: u32, patience: Patience) -> Self {
         let now: Instant = Instant::now();
-        let measured: bool = matches!(patience, Patience::Progress { .. }) && system_measures();
+        let measured: bool = matches!(patience, Patience::Progress { .. } | Patience::Push { .. }) && system_measures();
         return Self {
             root: i32::try_from(pid).unwrap_or(i32::MAX),
             patience,
@@ -250,6 +271,12 @@ impl Clock {
         return self;
     }
 
+    /// The wait the clock has let pass instead of a stop, once the stall window ran out with the pack sent and the connection open.
+    // RED SCAFFOLD: never waits yet.
+    pub fn wait_report(&self) -> Option<WaitReport> {
+        return None;
+    }
+
     /// The report of a stop now, for the limit that was hit.
     fn report(&self, limit: Duration, now: Instant) -> StopReport {
         return StopReport { limit, moved: self.meter.as_ref().map_or(0, Meter::moved), elapsed: now.duration_since(self.started) };
@@ -261,7 +288,7 @@ impl Clock {
         let elapsed: Duration = now.duration_since(self.started);
         let (stall, ceiling): (Duration, Duration) = match self.patience {
             Patience::Fixed(limit) => return (elapsed >= limit).then_some(StopCause::Deadline),
-            Patience::Progress { stall, ceiling } => (stall, ceiling),
+            Patience::Progress { stall, ceiling } | Patience::Push { stall, ceiling } => (stall, ceiling),
         };
         let Some(meter) = self.meter.as_mut() else {
             // Nothing is measured here, so the stall window is the whole deadline.

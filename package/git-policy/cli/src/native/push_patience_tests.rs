@@ -193,7 +193,7 @@ fn the_ceiling_and_the_patience_come_from_the_environment() {
         (OsString::from(PUSH_DEADLINE_VARIABLE), OsString::from("7")),
         (OsString::from(PUSH_CEILING_VARIABLE), OsString::from("70")),
     ];
-    assert_eq!(push_patience(&both), Patience::Progress { stall: Duration::from_secs(7), ceiling: Duration::from_secs(70) });
+    assert_eq!(push_patience(&both), Patience::Push { stall: Duration::from_secs(7), ceiling: Duration::from_secs(70) });
 }
 
 /// A push that waits for its disk for longer than the stall window (an fsync of an object or a ref on a slow volume) moves no
