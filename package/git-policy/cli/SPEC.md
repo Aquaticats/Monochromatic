@@ -515,6 +515,35 @@ A snapshot of the main checkout does not print the copy summary, because no copy
 line to standard error saying the worktree was made as a snapshot of the main checkout and that nested worktrees, caches and
 run records were left out.
 
+Telling why an add was not made as a snapshot:
+when a `git worktree add` that the ladder serves succeeds without being made as a snapshot, and the person could change
+the cause, the wrapper writes one line to standard error unless `--quiet` is given, after Git's own words and before the
+copy summary.
+The line starts with `cli-git: this worktree was not made as a snapshot, so it took longer, because `, then the cause in
+plain words, then what makes the next add quick, and it names no internal step.
+The causes it tells are:
+uncommitted changes in the source (the number of paths `git --no-optional-locks status --porcelain=v1 --untracked-files=normal`
+lists, and the first of them, with control characters shown as `?`; the remedy is to commit or stash);
+a running Git command in the source (its `index.lock` exists; the remedy is to add again when it has finished);
+an unfinished operation (a merge, cherry-pick, revert, bisect or rebase mark exists; the remedy is to finish or abort it);
+an index that cannot yet vouch for its files although Git lists no change (a file as new as the index, or a size, time or
+inode that differs; the remedy is `git status` once);
+a btrfs source that is no subvolume (the remedy is `git cli-git migrate-to-subvolume` for the main checkout and
+`git cli-git convert-worktree-to-subvolume` for a linked worktree);
+a destination on another btrfs filesystem than the source;
+a feature a snapshot does not reproduce (a sparse checkout, a worktree-specific configuration entry, a nested worktree
+reached through a link), told in the check's own words;
+and a snapshot that started and could not be finished, told with the reason, after which Git's own checkout made the worktree.
+A source or destination that is not on btrfs gets no line, because nothing the person does makes the add a snapshot there.
+A failed add gets no line either; Git's refusal is the thing to read.
+The same words go to the journal as one entry of priority `warning` under the `SYSLOG_IDENTIFIER` `cli-git`, with the
+fields `CLI_GIT_WORKTREE` (the destination), `CLI_GIT_SLOW_CAUSE` (`uncommitted-changes`, `git-running`,
+`operation-unfinished`, `stale-index`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
+and `CLI_GIT_SLOW_DETAIL` (the check's reason as the debug log prints it), also under `--quiet`.
+The entry is one datagram on the journal's native socket, sent without waiting; a journal that is absent or full costs the
+command nothing, and `journalctl --identifier=cli-git` lists the entries.
+The debug line with the reasons of every step stays (`MONOCHROMATIC_VERBOSE=true`).
+
 Converting a nested worktree:
 `git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)` converts a registered linked worktree
 that is an ordinary directory into a subvolume at the same path, one at a time.
