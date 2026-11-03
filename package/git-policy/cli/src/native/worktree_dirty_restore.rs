@@ -41,6 +41,26 @@ pub fn left_out_note(changed: &ChangedPaths) -> String {
 }
 
 /// What:
+///  Record in the journal, at the ordinary level, that a snapshot left the uncommitted changes of the main checkout out of the
+///  new worktree, with the destination and the number of paths as fields.
+/// Why:
+///   The line on standard error is gone when the command ends; the journal keeps what the add did with a dirty checkout.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// journal.info(note, { CLI_GIT_WORKTREE: destination, CLI_GIT_DIRTY_PATHS: count });
+/// ```
+pub fn record_left_out(destination: &Path, changed: &ChangedPaths) {
+    let note: String = left_out_note(changed);
+    let fields: [(&str, String); 3] = [
+        ("CLI_GIT_WORKTREE", destination.to_string_lossy().into_owned()),
+        ("CLI_GIT_DIRTY_PATHS", changed.count.to_string()),
+        ("CLI_GIT_DIRTY_FIRST", changed.first.clone()),
+    ];
+    super::client_journal::record_entry(super::journald_native::Priority::Info, note.trim_end(), &fields);
+}
+
+/// What:
 ///  Run one captured Git read in the stage under the new worktree's Git directory.
 /// Why:
 ///   The proof reads the stage the way the restore wrote it, never the main checkout.
@@ -73,7 +93,7 @@ fn ask(context: &GitContext, target: &Target, work_tree: &Path, arguments: &[&st
 /// await proveRestored({ context, target, workTree }); // throws the first thing that is not as Git's checkout leaves it
 /// ```
 pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path) -> Result<(), String> {
-    let (cached, _out) = ask(context, target, work_tree, &["diff-index", "--cached", "--quiet", target.commit.as_str()])?;
+    let cached: Option<i32> = ask(context, target, work_tree, &["diff-index", "--cached", "--quiet", target.commit.as_str()])?.0;
     if cached != Some(0) {
         return Err(String::from("the restored index does not equal the tree of the new HEAD"));
     }
@@ -84,7 +104,7 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path) -
     if let Some(name) = untracked.split(|byte: &u8| { return *byte == 0; }).find(|name: &&[u8]| { return !name.is_empty(); }) {
         return Err(format!("{} is still untracked in the restored worktree", super::worktree_snapshot_source::plain(String::from_utf8_lossy(name).as_ref())));
     }
-    let (files, _out) = ask(context, target, work_tree, &["diff-files", "--quiet"])?;
+    let files: Option<i32> = ask(context, target, work_tree, &["diff-files", "--quiet"])?.0;
     if files != Some(0) {
         return Err(String::from("a tracked file of the restored worktree differs from its index entry"));
     }
@@ -105,6 +125,7 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, tok
     if stage == source.root.as_path() || target.admin == source.git_dir || target.admin == source.common_dir {
         return Err(String::from("the restore would run in the source's own directory"));
     }
+    let began: std::time::Instant = std::time::Instant::now();
     let environment = checkout_environment(target.admin.as_path(), stage);
     let in_stage = |words: &[&str]| -> Vec<OsString> {
         let mut arguments: Vec<OsString> = vec![OsString::from("-C"), stage.as_os_str().to_os_string()];
@@ -115,12 +136,17 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, tok
     if !reset.succeeded() {
         return Err(format!("`git read-tree --reset -u` ended with {:?}", reset.code));
     }
+    let reset_ms: u128 = began.elapsed().as_millis();
     let clean = run_step(run_git_step, token, in_stage(&["clean", "--force", "-d", "--quiet"]).as_slice(), environment.as_slice())?;
     if !clean.succeeded() {
         return Err(format!("`git clean --force -d` ended with {:?}", clean.code));
     }
+    let clean_ms: u128 = began.elapsed().as_millis();
     prove_restored(context, target, stage)?;
-    super::diagnostic_log::debug(TAG, format!("restored {} to {} and proved it", stage.display(), target.commit).as_str());
+    super::diagnostic_log::debug(
+        TAG,
+        format!("restored {} to {} and proved it: reset done at {reset_ms} ms, clean at {clean_ms} ms, proof at {} ms", stage.display(), target.commit, began.elapsed().as_millis()).as_str(),
+    );
     return Ok(());
 }
 

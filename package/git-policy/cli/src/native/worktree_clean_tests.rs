@@ -195,7 +195,7 @@ fn a_dirty_source_is_found_only_when_nothing_a_reset_cannot_undo_hides_in_it() {
     let root: PathBuf = fixture("clean-dirty-source");
     let repo: PathBuf = aged_repository(root.as_path());
     let git_dir: PathBuf = repo.join(".git");
-    let why = |repo: &Path| -> CleanRefusal { return check(repo).expect_err("not clean"); };
+    let why = |tree: &Path| -> CleanRefusal { return check(tree).expect_err("not clean"); };
     // A staged change on the first path in index order.
     std::fs::write(repo.join(".gitignore"), b"ignored/
 staged

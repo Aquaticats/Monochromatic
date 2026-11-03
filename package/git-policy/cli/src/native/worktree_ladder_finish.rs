@@ -25,7 +25,7 @@ use super::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
 use super::worktree_copy::{GitRunner, GitStatus};
 use super::worktree_copy_stage_claim::StageClaim;
 use super::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
-use super::worktree_dirty_restore::{left_out_note, restore_dirty};
+use super::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirty};
 use super::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
 use super::worktree_slow_route::{SlowRoute, explain_failure};
 use super::worktree_snapshot::{PlaceError, put_in_place, settle_displaced, take_snapshot};
@@ -295,6 +295,9 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
                 if let Some(changed) = source.dirty.as_ref() {
                     let _left_out = std::io::stderr().write_all(left_out_note(changed).as_bytes());
                 }
+            }
+            if let Some(changed) = source.dirty.as_ref() {
+                record_left_out(plan.destination.as_path(), changed);
             }
             LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()) }
         }

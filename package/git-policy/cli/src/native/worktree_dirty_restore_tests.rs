@@ -94,15 +94,17 @@ fn a_restore_never_runs_in_the_source() {
     let repo: PathBuf = committed(root.as_path());
     let target: Target = target_of(repo.as_path());
     let mut runner = |_token: Option<&str>, _step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { panic!("no Git run is expected") };
-    let source = |source_root: PathBuf, git_dir: PathBuf| SnapshotSource {
-        root: source_root,
-        git_dir: git_dir.clone(),
-        common_dir: git_dir,
-        clean: crate::worktree_clean::CleanSource { head_commit: target.commit.clone(), head_tree: Vec::new(), tracked: 0, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: Vec::new() },
-        nested: Vec::new(),
-        config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
-        trash_ignored: false,
-        dirty: None,
+    let source = |source_root: PathBuf, git_dir: PathBuf| -> SnapshotSource {
+        return SnapshotSource {
+            root: source_root,
+            git_dir: git_dir.clone(),
+            common_dir: git_dir,
+            clean: crate::worktree_clean::CleanSource { head_commit: target.commit.clone(), head_tree: Vec::new(), tracked: 0, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: Vec::new() },
+            nested: Vec::new(),
+            config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
+            trash_ignored: false,
+            dirty: None,
+        };
     };
     let in_source = restore_dirty(&source(repo.clone(), repo.join(".git")), &target, repo.as_path(), None, &mut runner, &git_context()).expect_err("the stage is the source");
     assert!(in_source.contains("source's own directory"), "{in_source}");

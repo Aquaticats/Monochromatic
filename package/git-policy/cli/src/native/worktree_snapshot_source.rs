@@ -392,6 +392,7 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
             if changed.attributes_changed {
                 return Err(Refusal::unsupported("a .gitattributes file is among the uncommitted changes, and its rules could change how the restore writes other files"));
             }
+            super::diagnostic_log::debug("sourceOrDirty", format!("{} is snapshotted with {} uncommitted paths, the first {}; the restore follows ({})", root.display(), changed.count, changed.first, found.why).as_str());
             (found.source, Some(changed))
         }
         Err(why) => return Err(unclean(why)),

@@ -151,7 +151,15 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
 /// ```
 pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &WorktreeIdentity) -> Ladder {
     let Some(planned) = plan else { return Ladder { plan: None, rung: Rung::Git(None), slow: None } };
+    let began: std::time::Instant = std::time::Instant::now();
     let (rung, slow) = choose_rung(planned, context, identity);
+    let chosen: &str = match &rung {
+        Rung::Git(_) => "Git's checkout",
+        Rung::Clone(..) => "clones",
+        Rung::Snapshot(source, _claim) if source.dirty.is_some() => "a snapshot with a restore",
+        Rung::Snapshot(..) => "a snapshot",
+    };
+    debug(TAG, format!("{}: {chosen} chosen in {} ms", planned.destination.display(), began.elapsed().as_millis()).as_str());
     return Ladder { plan: Some(planned.clone()), rung, slow };
 }
 

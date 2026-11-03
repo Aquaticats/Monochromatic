@@ -509,6 +509,9 @@ The main checkout is read to be snapshotted and listed (`git --no-optional-locks
 no step runs in it, and its files and index are what they were.
 Unless `--quiet` is given, a second line follows the snapshot note: the uncommitted changes of the main checkout (their number
 of paths) were left out of the new worktree, which holds what Git's own checkout holds.
+The same words go to the journal as one entry of priority `info` under the `SYSLOG_IDENTIFIER` `cli-git`, with the fields
+`CLI_GIT_WORKTREE`, `CLI_GIT_DIRTY_PATHS` (the number of paths) and `CLI_GIT_DIRTY_FIRST` (the first of them), also under
+`--quiet`.
 Changes made to the main checkout while the snapshot is taken or restored are out of scope, as for every rung: using the
 command is accepting that risk, and no step defends against it.
 `core.fsmonitor` is left as configured, as everywhere in the wrapper.
