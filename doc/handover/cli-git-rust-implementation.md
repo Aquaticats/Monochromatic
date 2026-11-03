@@ -134,9 +134,8 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   and about 4300 comment lines,
   partly from a regex tool,
   which the review checks for false statements).
-- Design revision 7,
-  the design agent on `fix/git-policy-cli-commits-never-fail`,
-  from the sixth review's findings.
+- Step 1 of the commits-never-fail build (models and crash fixtures),
+  branch `feat/git-policy-cli-commit-protocol-models`.
 - Not an agent:
   the cross-vendor re-review of the in-process index fixes (`pi`,
   output `~/temp/agent/reviews/follow-up-index-sol-2.txt`);
@@ -151,10 +150,9 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   EWAH bitmaps checked and bounded,
   every protected-name spelling declined;
   the intent-to-add finding does not reproduce on Git 2.56.0 (a byte-for-byte differential pins it).
-Queued,
-in this order:
-the step 1 models and crash fixtures (see "Commits, merges and pushes that never fail");
-then gate the 0.5.28 base with each finished branch.
+Queued:
+gate the 0.5.28 base once the self-spawn fix and the remaining shipped-limits branches are merged into it,
+then release 0.5.28.
 
 0.5.27 ships without the in-process index work
 (coordinator's pick under the delegation,
@@ -596,10 +594,29 @@ Its findings (P1 unless marked):
   inline-owner lifetime,
   optional index locking,
   background re-signing and attachment generations.
-Remaining,
-queued first for the next free slots:
-revision 7 (resume the design agent with these findings);
-and step 1,
+Revision 7 `e2c2d9d8cc`,
+`2b65f37d52` and `b658f5f01f` (2026-11-03T10:45:46-05:00 to 10:47:38):
+a closure for each finding
+(evidence classes with everything unproven landed with the notice;
+children never hold the lane lock and the next owner reaps the recorded scope before mutating;
+a `lane/gate` lock shared around every person's program and ref transaction,
+taken exclusively by the restarter,
+which ends the owner through a pidfd;
+one cancellation protocol,
+terminate first,
+then remove only a lock absent before launch and born inside the child's life;
+a seqlock for capture;
+a permanent `ids/<xx>/<id>` binding created with `O_EXCL` under `$GIT_COMMON_DIR/cli-git/`;
+one maintenance registry per object store;
+held requests out of the logical tail);
+no new owner questions.
+Seventh cross-vendor review running (`~/temp/agent/reviews/commits-never-fail-sol-7.txt`).
+Step 1 building:
+branch `feat/git-policy-cli-commit-protocol-models` from the 0.5.28 base `5e8c96de21`,
+worktree `.claude/worktrees/commit-protocol-models`;
+its first output is the choice of model-checking approach
+(a new crate is reported for a pick before it is added).
+Step 1 is:
 failing models for F2 to F8 with the review's schedules as red controls,
 the hook-bypass ordering model,
 immutable request,
