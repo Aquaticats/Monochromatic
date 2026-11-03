@@ -169,3 +169,29 @@ fn git_refuses_the_protected_names_the_update_declines() {
     }
     finish(scene);
 }
+
+/// Names Git refuses by their NTFS short forms, among them the hashed short name of `.gitmodules` as a link, are in no index
+/// real `git reset --no-refresh` writes: it fails and leaves the index file as it was, and so does the update's decline; an
+/// ordinary link name in the same position is taken by both and gives equal files.
+#[test]
+fn ntfs_short_names_are_refused_by_git_and_declined_by_the_update() {
+    use super::support::{commit_with_raw_entry, copy_of, git_reset_status};
+    for name in ["GI7EBA~1", "gi7eba~2", "GI7EBA~1 .", "GITMOD~3", "GI7EBA~9"] {
+        let scene: Scene = changed_a("index-fallback-short-name");
+        let commit: String = commit_with_raw_entry(&scene, name, "120000", b"target");
+        let before: Vec<u8> = index_bytes(scene.repo.as_path());
+        let copy: PathBuf = copy_of(&scene);
+        assert!(!git_reset_status(scene.repo.as_path(), commit.as_str(), &named(&[name])), "Git accepted {name:?}");
+        assert!(before == index_bytes(scene.repo.as_path()), "Git changed the index for {name:?}");
+        assert!(!landing_reset(&git_context(), copy.as_path(), commit.as_str(), IndexPaths::Named(&named(&[name]))), "the update accepted {name:?}");
+        assert!(before == index_bytes(copy.as_path()), "the update changed the index for {name:?}");
+        finish(scene);
+    }
+    let scene: Scene = changed_a("index-fallback-short-name-control");
+    let commit: String = commit_with_raw_entry(&scene, "ordinary-link", "120000", b"target");
+    let copy: PathBuf = copy_of(&scene);
+    assert!(git_reset_status(scene.repo.as_path(), commit.as_str(), &named(&["ordinary-link"])));
+    assert!(landing_reset(&git_context(), copy.as_path(), commit.as_str(), IndexPaths::Named(&named(&["ordinary-link"]))));
+    assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()));
+    finish(scene);
+}
