@@ -1395,6 +1395,13 @@ Each task accepts overrides after the `--` of `mise run`, with these exact optio
 - `--pids-limit <count>` is a whole number of processes from `1`.
   It is accepted only where the container has a process cap, and rejected with a message otherwise.
 
+Every container also starts at the lowest disk weight, `--blkio-weight=10` and `--cgroup-conf=io.weight=10`
+(`lowestDiskWeight` and `diskWeightArguments` in `bin/container-limits.ts`); no option raises it.
+Podman writes the first to `io.bfq.weight`, which the BFQ I/O scheduler reads,
+and the second to `io.weight`, which the iocost controller reads, and each leaves the other file at the default weight,
+so passing both puts whichever file the host's disk scheduler reads at the lowest value.
+`podman build` accepts neither option, so the containers of image builds keep the default weight.
+
 A value is a separate token (`--memory 1g`); the `--memory=1g` form is not read and reaches the task's own option parser,
 which rejects it as an unknown argument.
 An invalid value stops the task before any container starts.
@@ -1519,6 +1526,7 @@ Limits are not parsed as Podman parses a command line.
 The runners write only `--rm`,
 `--init`,
 `--network=none`,
+the two disk-weight arguments (a record made before they existed lacks them and is still read),
 `--cpus=` and one `--memory=` and one `--pids-limit=`,
 so a recorded argument list with anything else
 (a repeated bound,
