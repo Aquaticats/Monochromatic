@@ -10,7 +10,7 @@
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
 use super::service_landing_selection::base_repository;
-use super::support::{Fixture, direct, executable, fixture, git, observe};
+use super::support::{Fixture, direct, executable, fixture, git, observe, spawn_owned, while_test_lives};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -58,21 +58,41 @@ fn service_with_limit(fixture: &Fixture, name: &str, limit: &str) -> Held {
     return Held(child);
 }
 
-/// A foreign `git commit` of `b.txt` whose editor stays open for `hold` seconds, started once its lock exists.
-pub(super) fn foreign_commit(fixture: &Fixture, repo: &Path, hold: u32) -> Child {
+/// A foreign `git commit` of `b.txt` whose editor runs `editor_body` (a shell script that ends by writing the message into
+///  its first argument), started once its lock exists.
+/// The commit leads a process group of its own that dies with the test.
+fn foreign_commit_with_editor(fixture: &Fixture, repo: &Path, editor_body: &str) -> Child {
     let editor: PathBuf = fixture.root.join("holding-editor");
-    executable(editor.as_path(), format!("#!/bin/sh\nsleep {hold}\nprintf 'foreign\\n' > \"$1\"\n").as_bytes());
+    executable(editor.as_path(), format!("#!/bin/sh\n{editor_body}printf 'foreign\\n' > \"$1\"\n").as_bytes());
     git(fixture, repo, &["config", "core.editor", editor.to_str().expect("UTF-8")]);
     // Git 2.54 can leave its process number beside the lock, which is what lets the service name the holder.
     git(fixture, repo, &["config", "core.lockfilePid", "true"]);
     std::fs::write(repo.join("b.txt"), "foreign edit\n").expect("b.txt");
-    let child: Child = direct(fixture).current_dir(repo).args(["commit", "--all", "--quiet"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().expect("foreign commit");
+    let child: Child = spawn_owned(direct(fixture).current_dir(repo).args(["commit", "--all", "--quiet"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped())).expect("foreign commit");
     let began: Instant = Instant::now();
     while !repo.join(".git/index.lock").exists() {
         assert!(began.elapsed() < PATIENCE, "the foreign commit never took the lock");
         std::thread::sleep(Duration::from_millis(5));
     }
     return child;
+}
+
+/// A foreign `git commit` of `b.txt` whose editor stays open for `hold` seconds, started once its lock exists.
+pub(super) fn foreign_commit(fixture: &Fixture, repo: &Path, hold: u32) -> Child {
+    return foreign_commit_with_editor(fixture, repo, format!("sleep {hold}\n").as_str());
+}
+
+/// What:
+///  A foreign `git commit` of `b.txt` that keeps its lock until the returned file exists and then for `hold` more seconds,
+/// started once its lock exists.
+/// Why:
+///   The commit that is to wait for the lock may reach it at any time on a loaded host; a holder that lets go after a fixed time
+///  can be gone before it does. This holder lets go only after the test has seen the commit waiting and created the file, and
+///  it lets go on its own if the test ends first, so the wait never depends on how fast the host runs the commit.
+pub(super) fn foreign_commit_until_released(fixture: &Fixture, repo: &Path, hold: u32) -> (Child, PathBuf) {
+    let release: PathBuf = fixture.root.join("holder-release");
+    let body: String = format!("while [ ! -e '{}' ] && {}; do sleep 0.02; done\nsleep {hold}\n", release.display(), while_test_lives(fixture.root.as_path()));
+    return (foreign_commit_with_editor(fixture, repo, body.as_str()), release);
 }
 
 /// The holder keeps the lock for longer than the old five tries of a tenth of a second: the commit waits, lands on top of the

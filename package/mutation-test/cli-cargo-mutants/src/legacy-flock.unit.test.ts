@@ -20,7 +20,10 @@ import {
   startOldHolder,
 } from './claim-test-support.ts';
 import { CargoMutantsToolingError } from './error.ts';
-import { probeLegacyLock } from './legacy-flock.ts';
+import {
+  holdLegacyLock,
+  probeLegacyLock,
+} from './legacy-flock.ts';
 
 /**
  Write a program that stands in for `flock`.
@@ -291,6 +294,84 @@ await describe({
               retireWhenFree: false,
             })).toBe('free');
             expect((await lstat(path)).isDirectory()).toBe(true);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: holdLegacyLock.name,
+      children: [
+        it({
+          name: 'creates a missing slot file when asked, keeps the lock on it so a probe finds it held, and leaves the file once the lock is given back',
+          fn: async () => {
+            await using directory = await scratchDirectory('legacy-hold-file-');
+            const path = join(
+              directory.path,
+              'slot-1.lock',
+            );
+            const hold = await holdLegacyLock({
+              path,
+              create: true,
+            });
+            if (hold.kind !== 'kept')
+              throw new Error(`Expected the lock to be kept, found ${hold.kind}.`);
+            expect(await probeLegacyLock({
+              path,
+              retireWhenFree: false,
+            })).toBe('held');
+            await hold.lock[Symbol.asyncDispose]();
+            expect(await probeLegacyLock({
+              path,
+              retireWhenFree: false,
+            })).toBe('free');
+            expect((await lstat(path)).isFile()).toBe(true);
+          },
+        }),
+        it({
+          name: 'reports busy for a file an old command holds, and absent for a missing directory it was not asked to create',
+          fn: async () => {
+            await using directory = await scratchDirectory('legacy-hold-busy-');
+            const path = join(
+              directory.path,
+              'slot-1.lock',
+            );
+            await using holder = await startOldHolder(path);
+            expect(holder).toBeDefined();
+            expect(await holdLegacyLock({
+              path,
+              create: true,
+            })).toEqual({ kind: 'busy' });
+            expect(await holdLegacyLock({
+              path: join(
+                directory.path,
+                'missing',
+              ),
+              create: false,
+            })).toEqual({ kind: 'absent' });
+          },
+        }),
+        it({
+          name: 'keeps the lock on a directory that exists, refusing a second hold until it is given back',
+          fn: async () => {
+            await using scratch = await scratchDirectory('legacy-hold-directory-');
+            const hold = await holdLegacyLock({
+              path: scratch.path,
+              create: false,
+            });
+            if (hold.kind !== 'kept')
+              throw new Error(`Expected the lock to be kept, found ${hold.kind}.`);
+            expect(await holdLegacyLock({
+              path: scratch.path,
+              create: false,
+            })).toEqual({ kind: 'busy' });
+            await hold.lock[Symbol.asyncDispose]();
+            const again = await holdLegacyLock({
+              path: scratch.path,
+              create: false,
+            });
+            expect(again.kind).toBe('kept');
+            if (again.kind === 'kept')
+              await again.lock[Symbol.asyncDispose]();
           },
         }),
       ],

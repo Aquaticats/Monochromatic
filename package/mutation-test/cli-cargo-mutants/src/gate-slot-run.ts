@@ -4,7 +4,9 @@
 
  Each slot is a numbered claim series (`src/owner-claim.ts`), so a free slot is taken with one exclusive `link` and a slot
  whose holder died is taken over by the next generation without a person. The cap is the slot count: a gate holds exactly one
- slot's claim for as long as its command runs. When all slots are held the gate says so, naming the holders, and waits for a
+ slot's claim for as long as its command runs, and the kernel lock on that slot's `slot-<n>.lock` file too, taken once without
+ waiting after the claim and given back before it, so a waiting gate of the earlier release (which polls that lock and reads no
+ claim) is refused (`src/legacy-flock.ts`). When all slots are held the gate says so, naming the holders, and waits for a
  change in the slot directory (a release renames a file there) with a bounded re-check as the fallback, because a holder that
  was killed makes no event. The wait is never a tight poll: it ends at the next change, the next notice or the re-check,
  whichever is first.
@@ -21,11 +23,16 @@ import {
   slotClaimPrefix,
   slotLockPath,
 } from './gate-slot.ts';
-import { probeLegacyLock } from './legacy-flock.ts';
 import {
+  holdLegacyLock,
+  probeLegacyLock,
+} from './legacy-flock.ts';
+import {
+  liveOwnerOf,
   type OwnerClaim,
   takeClaim,
 } from './owner-claim.ts';
+import { noLiveOwner } from './claim-liveness.ts';
 
 /**
  Milliseconds in a second, to say how long a gate has waited.
@@ -85,6 +92,11 @@ export type SlotTaken = {
    The claim, to release when the command ends.
    */
   readonly claim: OwnerClaim;
+  /**
+   The kernel lock on the slot file, which keeps a gate of the earlier release that polls the slot from starting a command
+   in it; released with the claim.
+   */
+  readonly legacyLock: AsyncDisposable;
 };
 
 /**
@@ -170,19 +182,61 @@ async function tryFrom({
       kind: 'full',
       holders,
     };
-  // A gate of the earlier release holds a kernel lock on the slot file instead of a claim: a held lock is a live owner, and
-  // a file nobody holds is removed so the leftover disappears after the upgrade.
+  /**
+   The earlier release's lock file of this slot.
+   */
+  const lockFile = slotLockPath({
+    lockDirectory: options.lockDirectory,
+    slot,
+  });
+  // A gate of the earlier release holds a kernel lock on the slot file instead of a claim, and a gate of this release holds
+  // that lock too while its command runs: a held lock is a live owner either way. The file is never removed, because a gate of
+  // the earlier release that is still waiting creates and locks it again on each poll.
   /**
    What the probe found at the earlier release's lock file.
    */
   const standing = await probeLegacyLock({
-    path: slotLockPath({
-      lockDirectory: options.lockDirectory,
-      slot,
-    }),
-    retireWhenFree: true,
+    path: lockFile,
+    retireWhenFree: false,
   });
   if (standing === 'held')
+    return await tryFrom({
+      options,
+      slot: slot + 1,
+      holders: [
+        ...holders,
+        await holderOfLockedSlot({
+          options,
+          slot,
+        }),
+      ],
+    });
+  /**
+   What taking this slot's claim came to.
+   */
+  const outcome = await takeClaim({
+    directory: options.lockDirectory,
+    prefix: slotClaimPrefix(slot),
+  });
+  if (outcome.kind === 'held') {
+    /**
+     The kernel lock a gate of the earlier release would poll for, kept for as long as the claim.
+     */
+    const hold = await holdLegacyLock({
+      path: lockFile,
+      create: true,
+    });
+    if (hold.kind === 'kept')
+      return {
+        kind: 'taken',
+        slot,
+        claim: outcome.claim,
+        legacyLock: hold.lock,
+      };
+    // A gate of the earlier release took the lock after the probe, or there is nothing a plain lock file could be: give the
+    // claim back, and count the slot as held by it.
+    await outcome.claim
+      .release();
     return await tryFrom({
       options,
       slot: slot + 1,
@@ -194,19 +248,7 @@ async function tryFrom({
         },
       ],
     });
-  /**
-   What taking this slot's claim came to.
-   */
-  const outcome = await takeClaim({
-    directory: options.lockDirectory,
-    prefix: slotClaimPrefix(slot),
-  });
-  if (outcome.kind === 'held')
-    return {
-      kind: 'taken',
-      slot,
-      claim: outcome.claim,
-    };
+  }
   return await tryFrom({
     options,
     slot: slot + 1,
@@ -220,6 +262,49 @@ async function tryFrom({
       },
     ],
   });
+}
+
+/**
+ Name who holds a slot whose lock file is locked: a live process with a claim in the slot, which holds the lock too, or else a
+ gate of the earlier release.
+
+ @param options - slot settings
+
+ @param slot - the slot
+
+ @returns the holder
+
+ @throws CargoMutantsToolingError when the slot's claim cannot be judged
+
+ @example
+ ```ts
+ await holderOfLockedSlot({ options, slot: 1 });
+ ```
+ */
+async function holderOfLockedSlot({
+  options,
+  slot,
+}: {
+  readonly options: GateSlotOptions;
+  readonly slot: number;
+}): Promise<SlotHolder> {
+  /**
+   The live owner of the slot's claim, if any.
+   */
+  const owner = await liveOwnerOf({
+    directory: options.lockDirectory,
+    prefix: slotClaimPrefix(slot),
+  });
+  if (owner === noLiveOwner)
+    return {
+      kind: 'earlier-release',
+      slot,
+    };
+  return {
+    kind: 'process',
+    slot,
+    pid: owner.pid,
+  };
 }
 
 /**
@@ -559,6 +644,8 @@ export async function runInSlot({
    */
   await using held = {
     async [Symbol.asyncDispose](): Promise<void> {
+      // The kernel lock goes first, so a gate that sees the claim given back also finds the lock free.
+      await taken.legacyLock[Symbol.asyncDispose]();
       try {
         await taken.claim
           .release();
