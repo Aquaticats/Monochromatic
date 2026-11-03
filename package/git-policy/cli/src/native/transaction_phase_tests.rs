@@ -134,6 +134,25 @@ fn pause_waits_for_the_release_file() {
     remove(&root);
 }
 
+/// A pause whose directory is gone has nobody left to release it, so it ends with an error instead of waiting for ever.
+///  The directory is removed once the reached marker shows the pause is waiting, so no timing is involved.
+#[test]
+fn a_pause_ends_with_an_error_when_its_directory_is_gone() {
+    let root: PathBuf = fixture("phase-pause-orphaned");
+    let value: String = format!("merge-intent:pause:{}", root.display());
+    let remover_root: PathBuf = root.clone();
+    let remover = std::thread::spawn(move || {
+        let reached: PathBuf = remover_root.join("merge-intent.reached");
+        while !reached.exists() {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        std::fs::remove_dir_all(&remover_root).expect("the test's directory goes");
+    });
+    let ended = reach_bounded(value, Phase::MergeIntent, None);
+    remover.join().expect("remover");
+    assert!(matches!(ended, Err(PhaseMarkerError::Io(_))), "{ended:?}");
+}
+
 /// A repeatable phase numbers its marker files by occurrence.
 #[test]
 fn repeatable_phase_numbers_its_files() {
