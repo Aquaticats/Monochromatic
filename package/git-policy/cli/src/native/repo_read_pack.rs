@@ -159,13 +159,16 @@ impl Pack {
     pub fn open(index_path: &Path, hash_length: usize) -> Option<Pack> {
         let index: File = File::open(index_path).ok()?;
         let data: File = File::open(index_path.with_extension("pack")).ok()?;
+        let mut reads: u64 = 0;
         let header: Vec<u8> = read_at(&index, 0, 8)?;
+        reads += 1;
         if header != b"\xfftOc\0\0\0\x02" {
             return None;
         }
         let mut fanout: Vec<u32> = Vec::with_capacity(256);
         for slot in 0..256_u64 {
             fanout.push(be32(&index, 8 + slot * 4)?);
+            reads += 1;
         }
         if fanout.windows(2).any(|pair| { return pair[0] > pair[1]; }) {
             return None;
@@ -183,7 +186,7 @@ impl Pack {
         if &pack_header[..4] != b"PACK" || !matches!(pack_header[7], 2 | 3) || pack_header[4..7] != [0, 0, 0] || u64::from(pack_count) != count {
             return None;
         }
-        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0), index_reads: std::cell::Cell::new(0), buckets: std::cell::RefCell::default(), bucket_bytes: std::cell::Cell::new(0) });
+        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0), index_reads: std::cell::Cell::new(reads), buckets: std::cell::RefCell::default(), bucket_bytes: std::cell::Cell::new(0) });
     }
 
     /// How many entries of this pack were decoded (inflated, with their delta applied) since it was opened.

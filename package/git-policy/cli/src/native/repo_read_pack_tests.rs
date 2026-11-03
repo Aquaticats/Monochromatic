@@ -98,3 +98,17 @@ fn a_lookup_reads_the_index_a_few_times() {
     assert_eq!(pack.index_reads() - before, 0, "an absent name whose bucket was read costs no read of the index");
     crate::test_support::remove(root.as_path());
 }
+
+/// Opening a pack reads its index twice at most, however many objects it holds: the header and the table of counts that
+/// follows it are one stretch of the file. The wrapper opens the object store afresh for each question it answers (a dozen for
+/// one commit, over every pack of the repository), and each open used to read the table in 256 pieces of four bytes.
+#[test]
+fn opening_a_pack_reads_its_index_a_few_times() {
+    let root = crate::test_support::fixture("repo-read-pack-open");
+    let (index, _names) = packed_repository(root.as_path());
+    let pack = Pack::open(index.as_path(), 20).expect("pack");
+    // Positive control: the counter counts what the open read, so an open that read the table piece by piece is seen.
+    assert!(pack.index_reads() > 0, "the open reads the index");
+    assert!(pack.index_reads() <= 2, "opening a pack read its index {} times", pack.index_reads());
+    crate::test_support::remove(root.as_path());
+}
