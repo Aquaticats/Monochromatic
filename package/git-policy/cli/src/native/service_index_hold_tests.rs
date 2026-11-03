@@ -81,25 +81,55 @@ fn a_failed_sync_of_the_copy_installs_nothing() {
     remove(root.as_path());
 }
 
-/// The access list of the live file, as `getfacl` prints it without the file name; nothing when the tool or the file system
-///  cannot give one.
-fn access_list(path: &Path) -> Option<String> {
-    let output = std::process::Command::new("getfacl").arg("--numeric").arg("--absolute-names").arg("--omit-header").arg(path).output().ok()?;
-    return output.status.success().then(|| { return String::from_utf8_lossy(output.stdout.as_slice()).into_owned(); });
+/// The bytes of a POSIX ACL (`system.posix_acl_access`) that gives user 4242 read access beside the owner's read and write and
+///  the group's read; the same layout `subvolume_sync_tests.rs` uses, set through the extended attribute so the gate image needs
+///  no `setfacl`.
+fn acl_with_named_user() -> Vec<u8> {
+    let mut bytes: Vec<u8> = 2u32.to_le_bytes().to_vec();
+    for (tag, bits, id) in [(1u16, 6u16, u32::MAX), (2, 4, 4242), (4, 4, u32::MAX), (0x10, 4, u32::MAX), (0x20, 0, u32::MAX)] {
+        bytes.extend_from_slice(&tag.to_le_bytes());
+        bytes.extend_from_slice(&bits.to_le_bytes());
+        bytes.extend_from_slice(&id.to_le_bytes());
+    }
+    return bytes;
+}
+
+/// Sets the access ACL of `path`; false where the file system refuses extended attributes.
+fn set_access_list(path: &Path, value: &[u8]) -> bool {
+    let (path_text, name) = (std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path"), std::ffi::CString::new("system.posix_acl_access").expect("name"));
+    // SAFETY: both strings are NUL-terminated and the value is readable for its length.
+    let set: libc::c_int = unsafe { libc::lsetxattr(path_text.as_ptr(), name.as_ptr(), value.as_ptr().cast(), value.len(), 0) };
+    if set != 0 {
+        eprintln!("ACL CONTROL NOT RUN: this file system refuses the access ACL ({})", std::io::Error::last_os_error());
+    }
+    return set == 0;
+}
+
+/// The access ACL bytes of `path`, or nothing when it has none.
+fn access_list(path: &Path) -> Option<Vec<u8>> {
+    let (path_text, name) = (std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path"), std::ffi::CString::new("system.posix_acl_access").expect("name"));
+    let mut value: Vec<u8> = vec![0; 512];
+    // SAFETY: the buffer is writable for its length and the strings are NUL-terminated.
+    let read: isize = unsafe { libc::lgetxattr(path_text.as_ptr(), name.as_ptr(), value.as_mut_ptr().cast(), value.len()) };
+    if read < 0 {
+        return None;
+    }
+    value.truncate(usize::try_from(read).expect("length"));
+    return Some(value);
 }
 
 /// A live index whose access list names another user, replaced by a copy made in a private directory, would get the list the
-///  directory gives its files. An unchanged copy replaces nothing, so the list the live file has is the list it keeps.
+///  directory gives its files. An unchanged copy replaces nothing, so the list the live file has is the list it keeps. The file
+///  system that refuses the attribute skips the control with a loud line, as the extended attribute control of the copy does.
 #[test]
 fn an_unchanged_copy_keeps_the_access_list_of_the_live_file() {
     let (root, index) = index_with("hold-acl", b"entries of the index", &[7; 20]);
-    let set = std::process::Command::new("setfacl").args(["--modify", "user:65534:r--"]).arg(&index).status();
-    if !set.is_ok_and(|status| { return status.success(); }) {
+    if !set_access_list(index.as_path(), acl_with_named_user().as_slice()) {
         remove(root.as_path());
         return;
     }
-    let before: Option<String> = access_list(index.as_path());
-    assert!(before.as_ref().is_some_and(|text| { return text.contains("user:65534:r--"); }), "the list was set: {before:?}");
+    let before: Option<Vec<u8>> = access_list(index.as_path());
+    assert_eq!(before.as_deref(), Some(acl_with_named_user().as_slice()), "the list was set");
     let built: PathBuf = root.join("built");
     std::fs::copy(&index, &built).expect("copy");
     let lock = try_acquire(index.as_path(), 1).expect("lock");

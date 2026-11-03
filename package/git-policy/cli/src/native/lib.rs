@@ -1318,6 +1318,12 @@ pub mod service_index_staging;
 /// How the service's marked file becomes the index lock, and the cleanup of staging files.
 pub mod service_index_placement;
 
+/// The removal of a stale index lock, by a rename and a second look.
+pub mod service_index_reclaim;
+
+/// Whether a new index file holds the live index's bytes.
+pub mod service_index_same;
+
 /// The inotify watch the wait for the index lock blocks on.
 pub mod service_index_watch;
 
