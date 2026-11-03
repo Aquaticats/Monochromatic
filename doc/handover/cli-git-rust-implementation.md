@@ -548,8 +548,8 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 
 ### Gate and tooling
 
-- Port of the gate-slot and campaign-lock `flock` to claim files is merged;
-  the open P1 about the one-hour foreign-namespace rule is listed under "Open review findings".
+- Gate-slot and campaign-lock claim files are merged,
+  with the 2026-11-03 liveness and signal fixes (see "Open review findings" for what remains).
 - Mutation campaigns for wrapper code merged since the last recorded campaigns (conversion,
   snapshot add,
   package repair,
@@ -714,32 +714,30 @@ Source:
 11 open,
 3 unknown).
 
-Open on shipped code:
-- `discard_audit.rs:317-326`:
-  the rotation check-then-rename race can lose audit history
-  (`~/temp/agent/logging/review/sol-review.txt`,
-  finding 1;
-  the folded-in fixes did not include rotation;
-  the reviewer's fix needs a cross-process lock or an off-path writer).
-- `claim-liveness.ts:16` (`package/mutation-test/cli-cargo-mutants`):
-  an owner in another PID namespace counts as alive for only
-  one hour,
-  so a live foreign-namespace gate loses its slot
-  (`~/temp/agent/review/sol-review.txt`,
-  finding 2).
-  The owner kept the same rule for the wrapper ("Keep rule 2 (Recommended)"),
-  but no line applies that choice to this review.
-
-Unknown,
-same review (`~/temp/agent/review/sol-review.txt`):
-- finding 1:
-  a one-shot probe cannot preserve exclusion with already-running legacy waiters;
-- finding 3:
-  unknown PID namespaces treated as the local one (not checked against `process-identity.ts`);
-- finding 4:
-  termination forwarded only to the direct child can release a slot while workers continue
-  (the owner's "Accept (Recommended)" covers a SIGKILL of only the gate,
-  not forwarded termination).
+The audit-rotation race and the four gate-slot findings were fixed with red tests on 2026-11-03:
+the wrapper fix `fix/git-policy-cli-audit-rotation-race` `2eb2cf1bfc` (lock-free:
+one rename takes the name,
+a mistaken take goes back by `hard_link`,
+a rotation error never costs the record;
+host 3611,
+binary 603) is merged into the 0.5.27 integration branch and ships with it;
+the gate fix `fix/mutation-test-cli-cargo-mutants-claim-liveness-foreign-namespace` `db01385349`
+(no age rule,
+foreign-namespace owners found in `/proc` by inner id and start time,
+termination forwarded to the whole process group,
+the legacy `flock` held beside the claim) is merged into main;
+its trade-offs are in `package/mutation-test/cli-cargo-mutants/README.md`.
+Still open from them:
+- a kill between the rotation's two renames leaves an orphan `.moving-*` file that audit readers do not read
+  (no line lost);
+- the next rotation still replaces `.1`,
+  dropping older audit history as before;
+  a question for the owner (does "never discard user data" cover the audit history?),
+  folded into the shipped-limits audit;
+- a non-file at `slot-N.lock` makes `holdLegacyLock` return `absent`,
+  which the gate treats as an earlier-release holder forever;
+- `package/git-policy/cli/SPEC.md` line 814 says the campaign's two kernel locks stay,
+  which is only partly accurate now.
 
 Accepted limit with a documented remedy,
 no code fix:
