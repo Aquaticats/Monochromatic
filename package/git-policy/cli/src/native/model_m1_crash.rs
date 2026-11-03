@@ -21,7 +21,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'eight' | 'nine' | 'nine-unlinks-any';
+/// type Rules = 'eight' | 'nine' | 'ten' | 'nine-unlinks-any';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -30,6 +30,9 @@ pub enum Rules {
     /// Revision 9: L4 unlinks `index.lock` when it is the journaled inode, finishes (7) when the index is the journaled inode,
     /// leaves any other inode alone, and otherwise repeats M1 from (1).
     Nine,
+    /// Revision 10, rule N: a name shared with other programs is never removed on the strength of an inode comparison (inode
+    /// numbers are reused and a pathname can be replaced between the comparison and the unlink); L4 reports the lock.
+    Ten,
     /// Revision 9 with the identity test left out (a mutation that must stay red).
     NineUnlinksAny,
 }
@@ -67,6 +70,10 @@ pub struct State {
     pub foreign_took: bool,
     /// Recovery ran.
     pub recovered: bool,
+    /// The file system gave a foreign `index.lock` the inode number of our dead unnamed file.
+    pub reuse: bool,
+    /// L4 reported a lock it did not remove.
+    pub reported: bool,
     /// Harm: a foreign `index.lock` or index was removed or replaced by the wrapper.
     pub foreign_touched: bool,
 }
@@ -84,6 +91,8 @@ pub fn initial(rules: Rules) -> State {
         released: false,
         foreign_took: false,
         recovered: false,
+        reuse: false,
+        reported: false,
         foreign_touched: false,
     };
 }
@@ -182,6 +191,14 @@ fn recovery(state: &State) -> (String, State) {
     after.recovered = true;
     after.dead = false;
     after.step = 7;
+    if state.rules == Rules::Ten {
+        after.reported = state.lock != 0;
+        if state.index == 1 {
+            after.released = true;
+        }
+        after.marker_odd = false;
+        return ("L4 (rule N): reports index.lock and removes nothing that another program may share".to_string(), after);
+    }
     if state.rules == Rules::Eight {
         // The repeat's single try fails when our stranded file is at index.lock, and the file is taken for a foreign one.
         if state.index == 1 && !state.released {
@@ -191,7 +208,9 @@ fn recovery(state: &State) -> (String, State) {
         return ("L4: repeats M1 from the journal".to_string(), after);
     }
     let remove_any: bool = state.rules == Rules::NineUnlinksAny && state.lock != 0;
-    if state.lock == 1 && state.journaled || remove_any {
+    // The comparison is by inode number, which a foreign file can carry after the number was reused.
+    let same_number: bool = state.lock == 1 || (state.lock == 2 && state.reuse);
+    if same_number && state.journaled || remove_any {
         if state.lock == 2 {
             after.foreign_touched = true;
         }
@@ -214,7 +233,7 @@ pub fn invariant(state: &State) -> Option<String> {
 
 /// The check at a state where only the environment can move: no stranded lock of ours, no installed index with unreleased entries.
 pub fn end_state(state: &State) -> Option<String> {
-    if state.lock == 1 {
+    if state.lock == 1 && !state.reported {
         return Some("a stranded index.lock of our own file is left for good".to_string());
     }
     if state.index == 1 && !state.released {
@@ -232,6 +251,18 @@ pub fn limits() -> Limits {
 }
 
 /// Explores every schedule under `rules`.
+pub fn initial_reuse(rules: Rules) -> State {
+    let mut state: State = initial(rules);
+    state.reuse = true;
+    return state;
+}
+
+/// Explores every schedule under `rules`, also with a foreign lock that carries a reused inode number.
 pub fn check(rules: Rules) -> Report {
+    return explore(vec![initial(rules), initial_reuse(rules)], steps, invariant, end_state, limits());
+}
+
+/// Explores every schedule under `rules` where inode numbers are never reused (the assumption revision 9 made).
+pub fn check_without_reuse(rules: Rules) -> Report {
     return explore(vec![initial(rules)], steps, invariant, end_state, limits());
 }
