@@ -7,7 +7,7 @@
  test that only checks an exit status then reports a bare status 1. The test run therefore sizes itself to the limit and
  names the limit when a program still fails against it.
  */
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { dirname } from 'node:path';
 
@@ -59,15 +59,15 @@ export type PidsLimit = {
 
  @example
  ```ts
- readSetting('/sys/fs/cgroup/pids.max');
+ await readSetting('/sys/fs/cgroup/pids.max');
  ```
  */
-function readSetting(path: string): readonly string[] {
+async function readSetting(path: string): Promise<readonly string[]> {
   try {
-    return [readFileSync(
+    return [(await readFile(
       path,
       'utf8',
-    )
+    ))
       .trim()];
   }
   catch (error) {
@@ -88,20 +88,26 @@ function readSetting(path: string): readonly string[] {
 
  @example
  ```ts
- nearestPidsLimit('/sys/fs/cgroup/user.slice/run-p1.scope');
+ await nearestPidsLimit('/sys/fs/cgroup/user.slice/run-p1.scope');
  ```
  */
-export function nearestPidsLimit(directory: string): readonly PidsLimit[] {
+export async function nearestPidsLimit(directory: string): Promise<readonly PidsLimit[]> {
   if (!directory.startsWith(cgroupRoot))
     return [];
-  const [text] = readSetting(`${directory}/pids.max`);
+  /**
+   The group's setting, which is `max` when it sets no limit.
+   */
+  const [text] = await readSetting(`${directory}/pids.max`);
+  /**
+   The setting as a number, which is not an integer for `max`.
+   */
   const limit = Number(text);
   if (Number.isInteger(limit) && (limit > 0))
     return [{
       directory,
       limit,
     }];
-  return directory === cgroupRoot ? [] : nearestPidsLimit(dirname(directory));
+  return directory === cgroupRoot ? [] : await nearestPidsLimit(dirname(directory));
 }
 
 /**
@@ -111,18 +117,26 @@ export function nearestPidsLimit(directory: string): readonly PidsLimit[] {
 
  @example
  ```ts
- ownPidsLimit();
+ await ownPidsLimit();
  ```
  */
-export function ownPidsLimit(): readonly PidsLimit[] {
-  const [membership] = readSetting('/proc/self/cgroup');
+export async function ownPidsLimit(): Promise<readonly PidsLimit[]> {
+  /**
+   The control group membership lines of this process.
+   */
+  const [membership] = await readSetting('/proc/self/cgroup');
   /**
    The control group line of the unified hierarchy.
    */
-  const path = membership?.split('\n')
-    .find((line) => line.startsWith('0::'))
-    ?.slice('0::'.length);
-  return path === undefined ? [] : nearestPidsLimit(`${cgroupRoot}${path}`);
+  const line = membership?.split('\n')
+    .find(function isUnified(entry) {
+      return entry.startsWith('0::');
+    });
+  /**
+   The group's path below the root.
+   */
+  const path = line?.slice('0::'.length);
+  return path === undefined ? [] : await nearestPidsLimit(`${cgroupRoot}${path}`);
 }
 
 /**
@@ -148,11 +162,15 @@ export function fileWorkersWithin({
 }): number {
   if (limit === undefined)
     return processors;
+  /**
+   Files that fit, each with one case.
+   */
+  const fitting = Math.floor((limit * plannedShare) / (testFileTasks + campaignCaseTasks));
   return Math.max(
     1,
     Math.min(
       processors,
-      Math.floor(limit * plannedShare / (testFileTasks + campaignCaseTasks)),
+      fitting,
     ),
   );
 }
@@ -184,11 +202,19 @@ export function casesWithin({
 }): number {
   if (limit === undefined)
     return wanted;
+  /**
+   Tasks one file may hold.
+   */
+  const share = (limit * plannedShare) / workers;
+  /**
+   Cases that fit in a file's share beside the file itself.
+   */
+  const fitting = Math.floor((share - testFileTasks) / campaignCaseTasks);
   return Math.max(
     1,
     Math.min(
       wanted,
-      Math.floor((limit * plannedShare / workers - testFileTasks) / campaignCaseTasks),
+      fitting,
     ),
   );
 }
@@ -204,6 +230,9 @@ export function casesWithin({
  ```
  */
 export function fileWorkers(): number {
+  /**
+   The runner's number.
+   */
   const told = Number(process.env[fileWorkersVariable]);
   return Number.isInteger(told) && (told > 0) ? told : availableParallelism();
 }
@@ -217,11 +246,14 @@ export function fileWorkers(): number {
 
  @example
  ```ts
- casesWithinOwnLimit(4);
+ await casesWithinOwnLimit(4);
  ```
  */
-export function casesWithinOwnLimit(wanted: number): number {
-  const [found] = ownPidsLimit();
+export async function casesWithinOwnLimit(wanted: number): Promise<number> {
+  /**
+   The limit that applies, as the only element.
+   */
+  const [found] = await ownPidsLimit();
   return found === undefined
     ? wanted
     : casesWithin({
@@ -240,15 +272,50 @@ export function casesWithinOwnLimit(wanted: number): number {
 
  @example
  ```ts
- processLimitMessage('node');
+ await processLimitMessage('node');
  ```
  */
-export function processLimitMessage(program: string): string {
-  const [found] = ownPidsLimit();
+export async function processLimitMessage(program: string): Promise<string> {
+  /**
+   The limit that applies, as the only element.
+   */
+  const [found] = await ownPidsLimit();
+  /**
+   Where the limit is set, or why it is not known.
+   */
   const where = found === undefined
     ? 'no control group sets a limit, so the per-user limit (`ulimit -u`) or the host is the cause'
     : `${found.directory}/pids.max is ${String(found.limit)} tasks, threads included`;
   return `${program} could not start a process or a thread, so the process limit was reached: ${where}. `
     + `Raise the limit (systemd \`TasksMax=\`), or lower the number of test files and cases that run at once; `
     + `the runner sizes both from the limit, and ${fileWorkersVariable} overrides the number of files.`;
+}
+
+/**
+ Words in the output of a program that failed to start a process or a thread: Node's failed `spawn`, its failed thread
+ creation, and the C library's reason.
+ */
+const processLimitWords: readonly string[] = [
+  'EAGAIN',
+  'uv_thread_create',
+  'pthread_create',
+  'Resource temporarily unavailable',
+];
+
+/**
+ Tell whether a program's output shows that it could not start a process or a thread.
+
+ @param text - the program's standard error, or the text of an error
+
+ @returns true when any of the telltale words is in it
+
+ @example
+ ```ts
+ mentionsProcessLimit('Error: spawn podman EAGAIN');
+ ```
+ */
+export function mentionsProcessLimit(text: string): boolean {
+  return processLimitWords.some(function appearsIn(word) {
+    return text.includes(word);
+  });
 }

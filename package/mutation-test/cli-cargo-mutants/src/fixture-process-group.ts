@@ -1,4 +1,23 @@
 import { spawn } from 'node:child_process';
+import { Socket } from 'node:net';
+
+/**
+ Tell whether an error says that the process or group is not there.
+
+ @param error - caught value
+
+ @returns true for the error code `ESRCH`
+
+ @example
+ ```ts
+ isNoSuchProcess(new Error('x'));
+ ```
+ */
+function isNoSuchProcess(error: unknown): boolean {
+  return Error.isError(error)
+    && ('code' in error)
+    && (error.code === 'ESRCH');
+}
 
 /**
  Kill every process of a process group.
@@ -22,16 +41,16 @@ export function killGroup(group: number): boolean {
   }
   catch (error) {
     // A group that is already gone is the wanted state; any other failure is logged, and the caller sees no effect.
-    if (!(Error.isError(error) && ('code' in error) && (error.code === 'ESRCH')))
+    if (!isNoSuchProcess(error))
       console.error(`Could not kill process group ${String(group)}: ${String(error)}`);
     return false;
   }
 }
 
 /**
- The watcher for this test process, started the first time a program starts.
+ The watcher for this test process, kept under one key once the first program has started it.
  */
-let reaper: ReturnType<typeof spawn> | undefined = undefined;
+const watchers = new Map<'reaper', ReturnType<typeof spawn>>();
 
 /**
  Tell the watcher about a process group, starting the watcher if this is the first.
@@ -44,7 +63,10 @@ let reaper: ReturnType<typeof spawn> | undefined = undefined;
  ```
  */
 function tellReaper(line: string): void {
-  reaper ??= spawn(
+  /**
+   The watcher, started now if it is not running.
+   */
+  const reaper = watchers.get('reaper') ?? spawn(
     process.execPath,
     [new URL(
       'fixture-reaper.ts',
@@ -60,10 +82,19 @@ function tellReaper(line: string): void {
       ],
     },
   );
+  watchers.set(
+    'reaper',
+    reaper,
+  );
   // Neither the watcher nor its pipe keeps this process alive; the watcher ends on its own when the pipe closes.
   reaper.unref();
-  reaper.stdin
-    ?.unref();
+  if (reaper.stdin instanceof Socket) {
+    /**
+     The pipe, which would otherwise keep this process alive.
+     */
+    const pipe = reaper.stdin;
+    pipe.unref();
+  }
   reaper.stdin
     ?.write(`${line}\n`);
 }

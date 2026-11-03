@@ -43,7 +43,7 @@ const wantedCampaignScriptConcurrency = 4;
  Campaign scripts a test file starts at once: the wanted width, narrowed so that the files the runner starts at once stay
  inside the process limit of the control group the run is in (a `TasksMax=` that counts threads as well as processes).
  */
-export const campaignScriptConcurrency = casesWithinOwnLimit(wantedCampaignScriptConcurrency);
+export const campaignScriptConcurrency: number = await casesWithinOwnLimit(wantedCampaignScriptConcurrency);
 
 /**
  Environment that gives the stand-in the mutants to score.
