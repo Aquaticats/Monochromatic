@@ -191,3 +191,42 @@ fn a_loop_and_an_environment_only_wait_both_fail() {
     let stuck = crate::model_explore::explore_bounded(vec![20], wait_steps, never, is_waiting, 50, limits());
     assert_eq!(stuck.violation.expect("environment only").message, "a wait with nothing of the protocol's own left that can end it");
 }
+
+/// The reviewer's example for `explore_bounded_by`: a waiting state whose only successor is another process's retry, which does not
+/// count as a step of the waiting process. The waiting process has no step of its own at all.
+fn other_lane_steps(state: &Counter) -> Vec<(String, Counter)> {
+    return vec![("other lane: retries".to_string(), *state)];
+}
+
+/// Only steps labelled as the waiting process's own count.
+fn counts_the_waiters_steps(label: &str) -> bool {
+    return label.starts_with("waiter:");
+}
+
+/// Always waiting.
+fn always_waiting(_state: &Counter) -> bool {
+    return true;
+}
+
+/// Review 2a P1: another process's retry loop is the only successor; the wait is not bounded and must not be reported green.
+#[test]
+fn a_wait_whose_only_successor_is_anothers_retry_is_not_bounded() {
+    let limits = Limits { max_states: 100, max_depth: 100 };
+    let report = crate::model_explore::explore_bounded_by(vec![0], other_lane_steps, never, always_waiting, counts_the_waiters_steps, 3, limits);
+    let violation = report.violation.expect("a wait with no step of the waiting process's own");
+    assert_eq!(violation.message, "a wait with nothing of the protocol's own left that can end it");
+}
+
+/// A cycle of the other process's steps over several waiting states, with a step of the waiter's own always available, passes only
+/// if that step ends the wait within the bound; here it does not (it loops among waiting states), so the bound is exceeded.
+fn cycle_steps(state: &Counter) -> Vec<(String, Counter)> {
+    return vec![("other lane: retries".to_string(), (*state + 1) % 2), ("waiter: looks again".to_string(), (*state + 1) % 2)];
+}
+
+/// Review 2a: noncounted multi-state cycles, and a counted step that does not end the wait.
+#[test]
+fn a_waiters_own_step_that_does_not_end_the_wait_exceeds_the_bound() {
+    let limits = Limits { max_states: 100, max_depth: 100 };
+    let report = crate::model_explore::explore_bounded_by(vec![0], cycle_steps, never, always_waiting, counts_the_waiters_steps, 3, limits);
+    assert_eq!(report.violation.expect("exceeded").message, "a wait lasted more than 3 steps of the protocol's own");
+}

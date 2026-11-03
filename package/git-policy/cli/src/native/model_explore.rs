@@ -492,7 +492,9 @@ pub fn explore_bounded_by<S: Clone + Eq + Hash>(
             deepest = depth;
         }
         let steps: Vec<(String, S)> = successors(&state);
-        let own_step: bool = steps.iter().any(|step| { return !is_environment(step.0.as_str()); });
+        // The waiting process must itself have a step that counts (not merely some other process's step): the same definition of its own
+        // progress that the counter uses.
+        let own_step: bool = steps.iter().any(|step| { return !is_environment(step.0.as_str()) && counts(step.0.as_str()); });
         let mut message: Option<String> = invariant(&state);
         if message.is_none() && waiting(&state) && !own_step {
             message = Some("a wait with nothing of the protocol's own left that can end it".to_string());

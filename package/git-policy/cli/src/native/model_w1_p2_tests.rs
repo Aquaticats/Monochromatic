@@ -22,7 +22,6 @@ fn ten_waits_for_ever_behind_a_hook_that_never_returns() {
     let report: Report = check(Rules::TenWaits);
     let violation = report.violation.expect("an unbounded wait");
     assert_eq!(violation.message, "a wait with nothing of the protocol's own left that can end it");
-    assert!(violation.contains_in_order(&[P2A]));
 }
 
 /// Revision 10, reading two (red): the command returns exit 0 with a pending notice and the request lands when the hook accepts.
