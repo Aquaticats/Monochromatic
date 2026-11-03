@@ -152,18 +152,38 @@ hold refs do not establish the pruning guarantee;
 some items remove an error return but not the liveness failure;
 the native fallback is not an end-to-end escape path;
 additional refusals and native failures are not classified.
+The revised design had a second cross-vendor review:
+`~/temp/agent/reviews/commits-never-fail-sol-2.txt`,
+verdict "Not ready for approval",
+four Critical and five High findings (file headings:
+an epoch check does not fence an obsolete worker;
+carry-forward does not protect writes through an already-open descriptor;
+the off-lock index build can erase unrelated foreign staging;
+current ancestry cannot show whether publication already happened;
+acknowledgement and transaction completion are conflated;
+pending requests need a logical head;
+the spool does not establish recoverability after pruning;
+the side-ref path does not remove every lock dependency;
+remaining Git hangs are acknowledged,
+not designed out;
+pending-ref non-transmission is an assertion without enforcement).
+Foreign-lock reclamation is closed,
+and captured-change replay and the refusal classes are substantively corrected.
 Remaining:
-fold the findings and the decisions under "Owner decisions in force" into the design,
+revise the design for the second review's findings (the revision is open work on this branch),
 review it again,
 then build with red tests first.
 Interim code in 0.5.26 (index-lock wait and a bounded moved-head loop) stays until the by-construction design replaces
 it
 (owner:
 "Ship interim now (Recommended)").
-The four 2026-11-03 question-tool answers listed in `SPEC.md`,
+The 2026-11-03 question-tool answers listed in `SPEC.md`,
 "Merges and commits never fail",
 still need building:
 "Save on a side ref" (commit meets a live foreign ref lock),
+"Same as the ref lock" (live foreign `index.lock`:
+a commit lands and exits 0 and the index catches up when the lock frees,
+a merge saves on a side ref and finishes the checkout when the lock frees),
 "Allowed refusals" (the person's hooks and required filters),
 "Carry edits forward" (merge over unsaved edits),
 and moved head stacks a new commit (amend,
@@ -235,11 +255,13 @@ so merge current main,
 regate,
 merge,
 release.
-Follow-ups on that branch that may or may not be done (unsure,
-the branch is the evidence):
-`git pull` that merges goes through
-the isolated merge;
-the plain commit finish of `--autostash` and `branch.<name>.mergeOptions`.
+Follow-ups the branch records as done (commit `8bc4b70b7a`,
+"finish autostash and mergeOptions...",
+and the former log),
+not verified by me:
+finishing `--autostash` and `branch.<name>.mergeOptions` cases as Git does.
+Follow-up not known to be done:
+`git pull` that merges goes through the isolated merge.
 Decisions:
 see "Merge auto-resolution" under owner decisions in force.
 
@@ -404,6 +426,7 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   not looked at).
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
+  (recorded 2026-11-02T21:49:28-05:00).
   Never rerun to chase one.
 
 ### Questions waiting for the owner
@@ -454,7 +477,8 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 ### Final re-review
 
 The owner's words,
-2026-11-01T07:22:00-05:00 on the original entry ("Final re-review"):
+2026-11-01T09:22:48-05:00 (when the entry was written;
+the owner spoke earlier that day) on the original entry ("Final re-review"):
 "You yourself do a re-review of the entire thing when all tasks are drained.
 During the re-review:
 Assume nothing on disk ever makes sense and I answered every question with via magic 8 ball."
@@ -578,7 +602,7 @@ the allowed refusals,
 "Committing a conflicted path is fine.
 Warn and commit anyway,
 even if conflict markers will be committed.",
-"Stack on the new head (Recommended)" and the four later
+"Stack on the new head (Recommended)" and the later
 answers.
 Also:
 "Offline is retried,
