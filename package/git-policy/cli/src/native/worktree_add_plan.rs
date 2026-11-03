@@ -174,8 +174,8 @@ const COPY_FLAG_OPTIONS: &[&[u8]] = &[
     b"--guess-remote", b"--no-guess-remote", b"--relative-paths", b"--no-relative-paths", b"--no-reason",
 ];
 
-/// The options of `git worktree add` that take a value in the next token (or attached to a short option).
-const COPY_VALUE_OPTIONS: &[&[u8]] = &[b"-b", b"-B", b"--reason"];
+/// The long options of `git worktree add` that take a value in the next token; `-b` and `-B` are read as short options.
+const COPY_VALUE_OPTIONS: &[&[u8]] = &[b"--reason"];
 
 /// The global options that change nothing about where a relative destination lies.
 const COPY_NEUTRAL_GLOBALS: &[&[u8]] = &[

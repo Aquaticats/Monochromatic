@@ -457,3 +457,32 @@ fn a_stage_that_cannot_be_examined_is_a_fault_and_not_a_missing_stage() {
     );
     remove(root.as_path());
 }
+
+/// Commands that race for one dead journal at the same instant produce exactly one winner, and the winner's journal is the
+/// only one left under any name.
+#[cfg(unix)]
+#[test]
+fn racing_commands_take_a_dead_journal_exactly_once() {
+    const RACERS: usize = 4;
+    let root: PathBuf = fixture("recovery-race");
+    let (source, topic) = linked_source(root.as_path());
+    let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let owners: Vec<_> = (0..RACERS).map(|_racer| { return dead_copy_owner(); }).collect();
+    let start: std::sync::Barrier = std::sync::Barrier::new(RACERS);
+    let wins: usize = std::thread::scope(|scope| {
+        let handles: Vec<_> = owners
+            .iter()
+            .map(|owner| {
+                return scope.spawn(|| {
+                    start.wait();
+                    return adopt_journal(&dead, owner).expect("rename works").is_some();
+                });
+            })
+            .collect();
+        return handles.into_iter().map(|handle| { return handle.join().expect("racer ends"); }).filter(|won| { return *won; }).count();
+    });
+    assert_eq!(wins, 1, "exactly one command takes the journal");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "one journal remains, under the winner's name");
+    remove(root.as_path());
+}

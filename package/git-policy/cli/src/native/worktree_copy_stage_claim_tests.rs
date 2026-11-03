@@ -507,3 +507,20 @@ fn unfinished_record_and_marker_writes_are_removed() {
     assert_eq!(journals.read_dir().expect("listing").count(), 0);
     remove(root.as_path());
 }
+
+/// A claim that is gone by the time it is read (its owner released it, or another command reaped it) is skipped, while a
+/// claim that is there and names no stage container is still refused.
+#[test]
+fn a_claim_that_vanished_is_skipped_and_a_malformed_one_is_refused() {
+    let (root, common, _destination) = scene("claim-vanished");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    assert_eq!(read_claim(journals.join("gone.stage").as_path()).expect("skipped"), None);
+    let malformed: PathBuf = journals.join("malformed.stage");
+    crate::private_storage::write_private_file(malformed.as_path(), b"relative/path\n").expect("claim");
+    read_claim(malformed.as_path()).expect_err("a claim that names no stage container is refused");
+    let owned: PathBuf = journals.join("owned.stage");
+    let container: String = format!("/parent/{STAGE_PREFIX}owned");
+    crate::private_storage::write_private_file(owned.as_path(), format!("{container}\nowner=7~linux:1~\n").as_bytes()).expect("claim");
+    assert_eq!(read_claim(owned.as_path()).expect("read"), Some((PathBuf::from(container), Some(String::from("7~linux:1~")))));
+    remove(root.as_path());
+}

@@ -1288,6 +1288,143 @@ never written. The binary was the debug build of this branch. The host load aver
 - The racy-entry content settling is not part of this work.
 - A linked worktree with uncommitted changes still takes the slow route.
 
+## 2026-11-03T02:42:59-05:00 The settlement lock is gone from worktree add
+
+### The owner's words
+
+- Standing: "Use as few locks as possible." and "You should (almost) never be waiting." and "Avoid serializing
+  embarrassingly parallel work."
+- 2026-11-03: "Didn't I say locks shouldn't be used whever possible? Why are we still using that?"
+- 2026-11-03, `AGENTS.md` rule `NLK`: "Concurrency is lock-free first (atomic rename, `O_EXCL`, one owner per item); an
+  unavoidable lock covers the smallest unit, never a whole repository, with its reason written beside it."
+- Races caused by other processes are out of scope ("That is not an our problem. By using this command or this
+  program, make the user understand and accept the risk."); the wrapper's own deterministic bugs are in scope.
+
+### What the lock cost
+
+- One `git worktree add` waited about 228 s for another session's add to release the lock, and a second waited over
+  20 minutes and was stopped (measured 2026-11-03).
+- The `git worktree add` that created the branch for this work took over 120 s in this session, for the same reason.
+- The lock was taken before real Git and released after the ladder, the copy and the trash hand-off, so it was held for
+  the whole add, minutes on a large repository.
+
+### The jobs the lock did, from the code at `b182ee767f`
+
+All paths are under `package/git-policy/cli/src/native`.
+
+- Attributing new worktrees to this invocation.
+  `worktree_copy.rs` took the lock at line 369 (`settle_invocation`), captured the set of administrative directories before
+  real Git (`worktree_copy_registry.rs`, `read_admin_ids`, line 126) and compared it after (`find_created_worktrees`, line
+  429).
+  Without a lock, a concurrent add's worktree falls into the window and is copied into by the wrong command.
+  This is the job the lock existed for.
+- Recovery before a creating command (`worktree_copy.rs`, `settle_under_lock`, lines 294 to 295) and the pending check of
+  every other command (`worktree_copy_recovery.rs`, `recover_pending_worktree_copies`, line 298, which took the lock with
+  `try_acquire_worktree_copy_lock`, line 305).
+  Recovery installs a journal and reaps stages, so it must never run on the journal or the stage claim of a copy that is
+  still running; the lock was the only proof of that.
+- Single winner among recovering commands: the lock again.
+- The re-read of the repository identity after the lock was acquired (`settle_under_lock`, lines 285 to 292, and
+  `worktree_copy_forward.rs`, lines 312 to 319), which only mattered because the wait could be long.
+- The inherited lease (`worktree_copy_lock.rs`, `validate_inherited_lease`, line 755, and the environment variable
+  `CLI_GIT_WORKTREE_COPY_LEASE` set at `worktree_copy_forward.rs`, line 283): a nested wrapper started by a filter or a hook
+  inside the locked add skipped the lock it was inside, and the outer add copied into the nested worktree.
+- The sweep of every temporary file in the journal root (`worktree_copy_stage_claim.rs`, `remove_unfinished_claims`, line
+  353), safe only because no writer was alive.
+- `git worktree move` was a locking command although it registers nothing new (`forwarded_command.rs`,
+  `creates_or_moves_worktrees`).
+- The ladder, the dirty restore, the trash hand-off and the snapshot (`worktree_ladder_run.rs`, `worktree_ladder_finish.rs`,
+  `worktree_dirty_restore.rs`, `worktree_trash_dispose.rs`) ran inside the lock but needed none of it: every name they use
+  (the stage, the claim records, the destination, the converting name, the new worktree's Git directory) belongs to one add,
+  and each step is a rename, an exclusive creation or a Git run on the add's own paths.
+
+### The replacement for each job
+
+- Attribution: the destination comes from the command line (`worktree_add_plan.rs`, `parse_copy_destination`), and the
+  registration is found by `bind_registration` (`worktree_add_binding.rs`), which follows the pointer in the destination's
+  `.git` file to the administrative directory and checks that the directory's `gitdir` file names the destination back.
+  Whether the destination was registered before Git ran is recorded first, so a destination Git refused is never copied
+  into.
+  No other worktree's registration is read, and `git worktree list` is asked only for the roots to exclude from the copy.
+- Ownership: a journal is `<id>.<owner>.json`, a stage claim carries `owner=<owner>` on its second line, and a temporary
+  file is `<item>.<owner>.<unique>.tmp` (`worktree_copy_owner.rs`).
+  An owner is the process id, the birth identity and the PID namespace; it is alive by the same proof the lock used.
+- Recovery and the pending check skip every item whose owner is alive and recover those whose owner is dead, never waiting.
+- Single winner: taking over a dead owner's journal is one `rename` to a name that carries the new owner
+  (`worktree_copy_journal.rs`, `adopt_journal`).
+  The loser finds the old name gone.
+  A winner that dies leaves a name with a dead owner, so no lock file exists to go stale.
+- Temporary files: the sweep removes only a dead writer's, so a live writer's rename can never lose its file.
+- The identity re-read and the lease are removed.
+  A hook or filter that runs the wrapper is an add of its own and copies its own source into its own worktree.
+- `git worktree move` is forwarded like any other command.
+- The ladder and the rest are unchanged; they were never protected by the lock.
+
+### Forms whose destination the wrapper cannot know
+
+- Aliases that expand to `worktree add` are read after expansion, so they have a destination.
+- Every option `git worktree add -h` lists is read, with short options bundled and `-b` or `-B` attached or detached,
+  after `-C`, `-c`, `--config-env` and Git's neutral global flags.
+- An abbreviated long option, `--git-dir`, `--work-tree` and an option between `worktree` and `add` leave the destination
+  unknown.
+  Real Git runs as it would without the wrapper, no copy is made, and when Git succeeded one line on standard error says
+  so.
+- The alternative considered was to keep comparing the set of registrations for these forms.
+  It is wrong whenever another add runs at the same time (the other add's worktree is copied into by the wrong command, or
+  twice), and making it right needs the lock back, so it was rejected.
+- A worktree created by a hook through an absolute path to Git was never copied into by the wrapper for want of an
+  invocation; before this change the outer add's comparison happened to cover it, and now it does not.
+  This is a behavior change the owner may want to veto.
+
+### Controls
+
+- `binary_worktree_copy_concurrent_tests.rs`, committed failing first (commit `aebdc9acf5`): two adds of different
+  worktrees, one held inside real Git by a smudge filter until a release file appears; a move, a removal and a conversion
+  check beside the held add; an add beside a conversion's kernel lock and `index.lock`; and an add after a killed add.
+  Two of the six failed on purpose with the message `waiting for PID`, the add and the move.
+- After the change all six pass, and the second add finishes while the first is still inside real Git, with a summary of
+  its own worktree only.
+
+### Guards shown red
+
+Each guard was removed once, the named tests failed, and the guard was restored.
+
+- Skip of a live owner's journal: `pending_check_leaves_a_live_journal_and_recovers_a_dead_one` and
+  `a_creation_leaves_a_live_journal_alone_and_does_not_wait`.
+- Skip of a live owner's claim in the reaper: `a_live_owners_claim_is_left_whole` and
+  `the_pending_check_reaps_abandoned_stages_only_without_a_live_owner`.
+- The rename of the take-over: `only_one_command_takes_over_a_dead_journal` and eight recovery tests that need a winner.
+- The dead-writer test of the temporary sweep: `an_unfinished_write_of_a_dead_writer_is_removed_and_a_live_writers_is_kept`.
+- The record of whether the destination was registered before Git: `a_destination_registered_before_is_not_created` and
+  `a_destination_registered_before_is_not_copied_into_again`.
+- Copying into every other registered worktree instead of the named destination:
+  `concurrent_registrations_are_told_apart_by_destination` and `a_creation_copies_only_into_the_destination_it_named`.
+- The tolerance of a journal or claim that vanished between listing and reading:
+  `a_vanished_journal_is_skipped_and_a_corrupt_one_is_not` and
+  `a_claim_that_vanished_is_skipped_and_a_malformed_one_is_refused`.
+- The notice for an unread destination: `a_creation_with_an_unread_destination_copies_nothing_and_says_so`.
+- The reading of a short option's value: three tests of `worktree_add_plan.rs`.
+- The exclusion of `move` from the creating commands: `only_worktree_add_creates_worktrees`.
+- The birth identity comparison: `the_running_process_is_alive_and_a_killed_one_is_dead`.
+- A first attempt to guard the reading of `-b` and `-B` through a list entry found the entry redundant, because the
+  short-option branch already reads them; the entry was removed.
+
+### Locks left on this path
+
+None are taken by the add, the copy, the ladder, the trash hand-off or the dirty restore.
+What remains is Git's own: `index.lock`, reference and configuration locks that real Git takes while it runs.
+The trash hand-off wakes the new worktree's own service, whose provisioning belongs to the service lock family.
+
+### For the owner
+
+- Hook-created worktrees through the wrapper now copy from their own source; through an absolute path to Git they get no
+  copy (see "Forms whose destination the wrapper cannot know").
+- The unread-destination forms get no copy and one line.
+  The alternative that keeps the copy needs the lock.
+- Moving the copy into the new worktree's service would remove the remaining "owner dies, next command recovers" step
+  too, because the service is one instance per worktree.
+  It was not done here: the summary line is printed by the add, so the add would have to wait for the service anyway.
+
 ## Review requests
 
 - The stamp argument under "What FICLONE guarantees and how a concurrent writer is detected", and the 20 ms settled
