@@ -8793,6 +8793,109 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   durability:
   the coordinator answered it (`build_index` writes through Git's `reset`,
   so `core.fsync` governs).
+- Index lock wait log (branch `index-lock-wait-log`,
+  from `index-lock-review-4`;
+  the 5.6 s `lock_wait_ms` of the 0.5.13
+  upgrade commit `4cad62c3d1`).
+  `lock_wait_ms` is the whole of `acquire`,
+  which since 0.5.12 includes the flush of the staged
+  marker before the first placement,
+  not only the wait for a holder.
+  Now split and described:
+  `lock_stage_ms` (create,
+  write,
+  flush),
+  `lock_place_ms` (placements),
+  `lock_looks`,
+  `lock_found` and `lock_last` (marker,
+  holder state,
+  age,
+  `open_by`
+  from `/proc/*/fd`),
+  in a `waited for the index lock` line written when the wait ends (when held,
+  or a step took a second)
+  and in the `answered` line;
+  the client's record has `lockHolderKind`.
+  From code and a fixture:
+  the client of N+1 retiring
+  a service of N never creates,
+  links,
+  renames or removes the real `index.lock` (strace of the client and its children in
+  `a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free`,
+  with a positive
+  control),
+  and the new service found it free at the first placement (`lock_wait_ms=8`,
+  all of it the flush).
+  So the wrapper
+  holds no lock of its own across an upgrade.
+  What remains for the 5.6 s:
+  a foreign holder (native `git status` of other
+  sessions refreshes the main worktree's index under that lock) or the marker flush under I/O pressure;
+  the measurement in
+  this very run showed `lock_stage_ms=1618` for a test commit while other agents' campaigns ran,
+  and the host's I/O
+  pressure was `some avg300 10%`.
+  Unresolved until the next slow commit writes its `waited` line.
+  Option,
+  not done:
+  stage
+  the next batch's marker (seq + 1) while the service is idle,
+  so the flush leaves the commit's path.
+- Marker made ahead (branch `index-lock-wait-log`):
+  the service makes the next batch's marker (seq + 1,
+  the index of the
+  last request) on a thread of its own while idle,
+  so a commit's lock path only places it (`service_index_prestage.rs`).
+  Created,
+  written and flushed before it can be placed,
+  so the power-loss property holds.
+  One file at most;
+  replaced when
+  the batch or index differs;
+  removed by a guard when the serve loop ends;
+  a crash's file is removed by the next
+  acquisition,
+  and now also by its text when a whole marker names a gone holder under a process number used again
+  (`holds_marker_of_gone_writer`;
+  an empty or half-written file is still kept).
+  A commit during the flush waits for it (one
+  flush,
+  test `a_commit_that_comes_during_the_flush_waits_for_it_and_starts_no_second`).
+  `lock_stage_ms` is the wait for
+  the file,
+  `lock_stage_kind` is `pre` or `cold`;
+  the first commit after a start is cold (the index is learned from a
+  request).
+  Measured with `measure_the_lock_path_with_and_without_the_marker_made_ahead` (ignored test;
+  alternating arms,
+  150 rounds each,
+  a second cold arm as spread;
+  host btrfs under the load there was,
+  io pressure some avg300 7%):
+  cold p50 2.3 and 2.4 ms,
+  p95 4.5 to 5.2,
+  max 7.1 to 296 ms (over 20 ms:
+  1,
+  2,
+  0,
+  1 of 150;
+  over 100 ms:
+  0,
+  2,
+  0,
+  1 of
+  150);
+  made ahead p50 0.27 ms,
+  p95 2.7,
+  max 5.2 and 6.2,
+  none over 20 ms;
+  the wait for the file 0.009 ms at p50 and 0.034
+  at the maximum.
+  On the gate image's overlayfs the flush is cheap and the arms equal (p50 0.29 and 0.27).
+  Burst case:
+  a
+  commit queued behind a landing finds the next marker still being made and waits for the flush,
+  as before.
 - Gate 44 on `integrate-070` (everything plus the ladder) FAILED one of 3343:
   `wrapper_store_guard::the_wait_for_a_copy_that_never_finishes_ends_at_the_cap` ("the wait should end at the cap, not
   at the end of the writes: 3.201608421s", `binary_wrapper_store_tests.rs:706`): a wall-clock assertion in the ladder
@@ -8913,6 +9016,49 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   executed; P2 a failed staging removal after a successful link leaves a published lock the caller never receives.
   Round-6 items otherwise confirmed fixed (UUID token, seeded-pass rule, `requirePublished`). Sent to the planted-control
   agent for a branch `planted-control-r7` from main.
+- Review of the marker made ahead (`~/temp/agent/review-index-prestage/sol-review.txt`;
+  no P1,
+  four P2,
+  one P3,
+  two
+  checks).
+  All verified against the code and fixed,
+  each with a test and a plant shown red
+  (`~/temp/agent/ilr3/guards-rv.ts`,
+  twelve plants,
+  all red):
+  `take` unlinked a pathname it had found to be another file
+  and `metadata()` followed links (now `symlink_metadata`,
+  a regular file,
+  the held descriptor's device and inode;
+  removal
+  only when the pathname still names the held file);
+  cleanup judged a number in the cleaner's PID namespace (names now
+  carry `<pid>.<namespace>`;
+  a whole marker decides alone and its verdict vetoes the name;
+  the name decides only for the
+  cleaner's own namespace with an agreeing `/proc`);
+  the holder scan ran twice and unbounded (once,
+  with the evidence of
+  the waiting notice,
+  bounded at 250 ms);
+  `lock_stage_ms` missed a failed join and a mismatched wait (now the whole
+  preparation);
+  `lock_place_ms` is always written.
+  Check 1:
+  `parse_marker` now requires the newline,
+  so a cut at any
+  point reads as no marker (test over every cut).
+  Check 2:
+  `open_by` is `/proc/<pid>/comm`,
+  never argv or environment
+  (test:
+  the holder's argument is not in the line);
+  the birth token is not needed,
+  so it is no longer in the line.
+  Not covered by a test:
+  that the service's waiting notice calls the bounded scan (the call is one line in
+  `holder_notice`).
 - Ladder add-path fixes DONE (`btrfs-worktree-ladder` `dc81164cd8`, `d99875d70a`, `0e432cd0b3`; all nine findings, none
   rejected; new `fs_beneath.rs` handle-relative no-link primitives, `worktree_add_rollback.rs`, clone rung claims the
   add, completion marker before the checkout line, recovery removes an unfinished add only when the repository confirms
@@ -9003,3 +9149,170 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   hit a reused PID; an unclaimed kill can still end in a passing test; `the_runner_is_bounded` and the dead-instance lock
   test now accept the bugs their removed bounds caught), 8 P2, 1 P3. Fix forward on `bound-supervisor-r2` from main
   (survivors agent). Gates run in containers (own PID namespace), so the PID-reuse risk is limited to host test runs.
+- `reader-fsmonitor` round-2 review (`~/temp/agent/review-reader-fsmonitor-2/sol-review.txt`): the daemon-contact P2 is
+  withdrawn on the agent's evidence; new P1 status with an unsupported selection option (`--git-dir`) counts any service;
+  new P2 configuration-enabled Trace2 (`trace2.normalTarget = 2`) writes to stderr that the reader does not reproduce;
+  P2 a fake listener on `.git/fsmonitor--daemon.ipc` returning a malformed pkt-line makes Git print a protocol error;
+  P3 a stale comment. Decision (owner's fsmonitor decision): the malformed-daemon P2 is an accepted limit, not fixed;
+  the P1, the Trace2 P2 and the P3 go to the survivors agent as round 3, ahead of the bound-supervisor fixes. Gate 51
+  continues on the round-2 state; a regate follows round 3.
+- Gate 51 on `integrate-073` (`reader-fsmonitor` round 2, `cfc5e23cee`) PASSED: 3287 of 3287. Round 3 (status selection
+  fallback, configuration Trace2, comment) is with the survivors agent; regate after.
+- `index-lock-wait-log` review fixes DONE (`b0df630af2`, `02c1cd13ad`, `04913bcc9b`; none rejected): pathname checks by
+  device and inode with no unlink on mismatch; staging names carry the PID namespace and a whole marker's verdict vetoes the
+  name; the holder scan runs once, bounded at 250 ms; `lock_stage_ms` covers the whole preparation; `lock_place_ms` always
+  present; truncated markers read as no marker (a real hole: a marker without its newline was accepted); `birth=` and the
+  boot ID no longer reach the journal. Host: library 2851 of 2851, binary 448 of 448. `02c1cd13ad` is labelled `test` but
+  changes code; corrective comment posted:
+  https://github.com/Aquaticats/Monochromatic/commit/02c1cd13ad998f10674ff1a26ee842c8a336a062#commitcomment-207818337.
+  `integrate-074` fast-forwarded to `04913bcc9b`; gate 52 running. Next on a pass: merge to main and release 0.5.15.
+- DECIDED BY THE OWNER (2026-11-02, question tool, plain-text answer): "Prune by both age and size." for
+  `<common git dir>/cli-git/discarded/` (it had no bound). My defaults, open to veto: delete copies older than 30 days; keep
+  the folder under 1 GiB by deleting oldest first, but size pruning never deletes a copy younger than 24 hours; both limits
+  configurable by Git config; every prune leaves an audit line naming what it removed; `git cli-git doctor` reports size,
+  count and oldest copy. To the logging agent (it owns `discard_audit.rs`).
+- Gate 52 on `integrate-074` (`index-lock-wait-log` `04913bcc9b`) PASSED: 3300 of 3300 (1 slow), 6 skipped. Main moved
+  since (bound supervisor, whose wall-clock audit edited the same lock test files), so the combination is regated:
+  `integrate-074` takes main, `reader-fsmonitor` round 3 and `child-watch-host` (`3e288ce925`: the test read a killed,
+  not-yet-reaped zombie as running because `systemd --user` reaps orphans late; the product was right; 25 of 25 green
+  after, 1 of 25 red before) for one gate, then main and release 0.5.15.
+- `logging-quality` DONE (head `186eb92850`): native journal datagrams when `$JOURNAL_STREAM` matches stderr (kernel send
+  time, `PRIORITY`, `CLI_GIT_*` fields, stderr fallback with `at_ms`), `requestId` in the timing line, worktree, gitDir,
+  instance and level in trigger lines with URL userinfo masked, shared appender with inode-checked rotation and torn-tail
+  repair, priority on failures, new lines for pushes, maintenance, reviews and settled batches. No crate added. Its own
+  cross-vendor review was started at `~/temp/agent/logging/review/sol-review.txt`. It merges main again after the
+  index-lock branch lands, then gets its gate.
+- Gate 53 on `integrate-074` (`3175c5662f` = `index-lock-wait-log` `04913bcc9b` + main + `reader-fsmonitor` round 3 +
+  `child-watch-host`) FAILED 1 of 3332: `service_work::tests::a_drain_beside_a_slow_push_leaves_its_claim_alone`
+  (`service_work_tests.rs:310`; the first instance's 300 ms test lease expired while its slow push ran, so the second
+  instance took the item). Passed in gates 49 to 52; the bundle touches that code only by log-macro renames, so it is a
+  load-dependent test (parallel gates on the host). Not rerun to chase it (owner: fix flaky tests properly); the index-lock
+  agent makes it scheduling-independent and checks whether a starved production service can lose its lease mid-push
+  (branch `claim-lease-load` from `integrate-074`). Then one gate on the bundle, main, release 0.5.15.
+- Conflict-side review timed out a second time (kept as `sol-review-timeout-2.txt`); relaunched a third time with only the
+  four source files and a word cap.
+- Pruning of `cli-git/discarded/` DONE on `logging-quality` (`5ab7004439`, `discarded_prune.rs`, run after each new
+  conflict-side copy is synced, no lock): 30-day age cut, 1 GiB size cut oldest first, a 24-hour floor for both, the copy
+  just written never chosen, age from the save directory's name, one audit line per removed save, doctor reports size,
+  count and oldest save. Also folded in its own cross-vendor review (non-blocking journal fallback, redaction before the
+  cut, write-only appender open, signal fallback priority prefix). Correction sent: my brief named Git config keys, but the
+  wrapper's settings live in `cli-git.config.jsonc`; the two limits move there.
+- DECIDED BY THE OWNER (2026-11-02, question tool): "Keep LFS on the fast path (Recommended)". The ladder's fast rungs keep
+  the exception for the standard Git LFS filter when its definition is identical in both contexts; any other filter
+  declines to Git's checkout.
+- Ladder round-2 fixes DONE (`btrfs-worktree-ladder` `43df6aa391`, `07c96ab1a5`, plus a measurement docs commit; all 14,
+  none rejected): planned records delete nothing, `bind_registration` captures both directory identities, deletion only
+  of objects with recorded identity via quarantine rename, ordered config comparison, non-LFS filters decline, success
+  only after the completion marker, `openat2` with RESOLVE_BENEATH, NO_SYMLINKS, NO_XDEV, NO_MAGICLINKS. On btrfs:
+  library 2949 of 2949, binary 467 of 467. Wall times under load average 39 to 41 do not separate builds; CPU per add 0.17
+  to 0.20 s (was 0.10 to 0.12); peak memory about 20 MB vs 495 MB for 0.5.14; 5 process starts vs 21.
+- `claim-lease-load` DONE (`dc39558554`, from `integrate-074`): the test drives renewal with an injected clock at the
+  production 120 s lease; production renews every 40 s, so a claim is lost only after an 80 s stall; real gap closed: the
+  holder now checks its claim file on disk right before acting (`HeldClaims::is_held_on_disk`).
+- `bound-supervisor-r2` DONE (`7e4d573f40`): pidfd pins with start-time checks and `pidfd_send_signal`, no process-group
+  kills, kill record published before the first signal and claimed before cleanup, exit handler fails a process with an
+  unclaimed kill, per-task states, explicit holds for test-controlled waits, zombie root finished, syscall counts out,
+  child page faults as a sign of life; double-forked escapees documented as a limit. Library 2826, binary 475.
+- `logging-quality` `eb6012af3b`: the pruning limits live in `cli-git.config.jsonc` as `discardedCopies.maxAgeDays` and
+  `discardedCopies.maxSize`; a bad value fails the command with exit 2 like every other bad value in that file (accepted:
+  it matches the file's validation and the owner's "loud, clear failure").
+- `main-ignored-copy` DONE (`f538c41379`, from main `0966fa439b`): a main-sourced add carries main's ignored state minus
+  nested checkouts, caches and run records (`worktree_copy_prune.rs`, `COPY_RUN_RECORDS = false`); FICLONE copies verified
+  by stamp; parallel stage, install and removal. Cost: about 32 s at load 7.5 (26.8 s of it the copy, 190,087 entries),
+  median about 89 s under load 16 to 38; without the copy (0.5.14) median 26.2 s. Above the owner's "not so heavy"; the
+  snapshot route (2 to 3 s) declines today because 48 of 139 nested worktrees are ordinary directories. Also found: a
+  worktree that is its own subvolume makes pnpm pick a per-project store, and `--offline` then fails
+  (`ERR_PNPM_NO_OFFLINE_TARBALL`); `--store-dir <main>/.pnpm-store` works. Not merged until the cost is put to the owner.
+- Three cross-vendor reviews timed out at 3600 s with no output (planted-control round 8, conflict-side attempt 3, and the
+  earlier two); checking the reviewer's health before relaunching.
+- DECIDED BY THE OWNER (2026-11-02, question tool): "Hold until snapshot measured". `main-ignored-copy` stays unmerged.
+  The research agent measures the snapshot route on fixtures only: snapshot of a main-like subvolume, removal of the
+  skipped sets (foreground and after the add returns), a one-time migration of the 48 ordinary nested worktrees into
+  subvolumes (design and fixture measurement only; needs owner approval before touching real worktrees), and a pnpm
+  store setting for subvolume worktrees (proposal only). Results go to
+  `doc/planning/cli-git-main-worktree-ignored-copy.md`, then back to the owner.
+- Reviewer health: a trivial prompt answers in 5 s, so the timeouts come from long reasoning on large inputs; I keep at
+  most three reviews running and split large ones. Running now: ladder round 3 part A (recovery and rollback, whole files,
+  the 235 KB diff dropped), the ladder remove path, and conflict-side as one narrow question. Queued: ladder round 3
+  part B (`fs_beneath.rs`, clone, index install), planted-control round 8, `bound-supervisor-r2`, the lease-claim product
+  change.
+- Claim lease under load (branch `claim-lease-load`,
+  from `integrate-074`;
+  gate 53 failed
+  `service_work::tests::a_drain_beside_a_slow_push_leaves_its_claim_alone` once).
+  The control used a 300 ms lease,
+  a renewal
+  every 100 ms by the real clock and `sleep(lease * 4)`,
+  so a host that did not schedule the renewal thread inside 200 ms
+  (the failing run took 3.4 s) let the second instance take the item:
+  the control measured the host.
+  It now drives the
+  renewal itself (`DrivenRenewal`,
+  `Renewal::Driven`,
+  `drain_with_renewal`) with the production lease of 120 s and readings
+  it makes (twelve thirds of the lease,
+  then a clock four leases on),
+  so nothing waits.
+  A positive control
+  (`a_holder_that_does_not_renew_loses_its_claim_to_the_next_instance`) shows the same four leases do lose the claim
+  without renewal;
+  with `HeldClaims::renew` made a no-op the control is red (plant T1).
+  The take-over control with a sleep
+  (`TakenOver`) drives the renewal as well.
+  Product:
+  the production lease is `CLAIM_LEASE` = 120 s,
+  renewed every third (40 s);
+  a holder loses its claim only when a
+  renewal is more than 80 s late,
+  which a loaded host does not do (the worst stalls measured on this host in this work
+  were seconds).
+  The gap that did exist:
+  a renewal that had not yet run since a take-over had not set the claim's `lost`
+  flag,
+  so the holder would still start the push from a claim that was already another instance's.
+  The holder now looks at
+  the claim's file under the name it last wrote just before it acts (`HeldClaims::is_held_on_disk`,
+  used by `still_held`
+  for pushes,
+  upkeep and reviews);
+  test `a_claim_taken_over_when_no_renewal_has_run_is_not_run_from_the_old_claim`,
+  red
+  without it (plant T2).
+  The look and the push are still two steps;
+  handlers tolerate a repeated push.
+- Owner (2026-11-02): "What is going on with all these extremely non-descriptive branch names? Is that your doing?" Yes:
+  the `integrate-NNN` series and round suffixes were mine. Owner decisions: "Delete, then rename open (Recommended)"; and,
+  on a proposed rule, "I believe there is already a similar rule you should extend?". No branch-naming rule existed; the
+  closest is GCG (commit subjects), already near the 200-character limit, so the extension is a sibling rule `GBN` right
+  under it (`AGENTS.md`, commit `a380f54cb2`): branch names are `<type>/<scope>-<subject>`, an integration branch names
+  what it bundles, never a bare counter or review-round suffix.
+- Cleanup DONE (`~/temp/agent/branch-cleanup.ts`, dry run first): 37 local branches deleted (31 merged into main, 6
+  superseded integration branches whose every commit is in main or an open branch), 29 of them also on origin; each
+  worktree that held one was detached, not removed, so files and mutation evidence stay. Renamed (`branch-rename.ts`):
+  `bound-supervisor-r2` to `fix/git-policy-cli-bound-supervisor`, `logging-quality` to
+  `feat/git-policy-cli-journal-logging`, `planted-control-r7` to `fix/mutation-test-cli-cargo-mutants-campaign-lock`.
+  Still to rename when their agents finish: `btrfs-worktree-ladder`, `main-ignored-copy`.
+- Bundle merged into main: `2a0b8e7417` (gate 54 on `integrate-074` PASSED 3335 of 3335: `index-lock-wait-log`,
+  `reader-fsmonitor` round 3, `child-watch-host`, `claim-lease-load`; no crate change on main since its base); pushed.
+  0.5.15 dispatched (run 41565744263).
+- Gate 55 on `fix/git-policy-cli-bound-supervisor` PASSED 3302 of 3302; it merges after it takes main (both it and
+  `child-watch-host` fix the same `child_watch` zombie check).
+- Ladder round 3 part A (`~/temp/agent/review-btrfs-ladder-add-3/sol-review.txt`): 7 P1, 2 P2, all recovery or
+  rollback deleting what it cannot prove it created. Decision (mine, under the owner's discard rules and "a loud, clear
+  failure"; veto open): recovery and rollback never delete or unregister; they complete in place or leave the worktree
+  and report the removal command. Sent to the ladder agent.
+- Campaigns finished: index lock round 4 (two passes; 215 mutants, 26 then 9 survivors) to the index-lock agent; the
+  resumed subvolume-2 (25 lines) and timing-service (73 mutants, 2 missed) to the survivors agent, who first separates
+  new survivors from ones dispositioned before the reboot.
+- Snapshot route measured (research agent, `main-ignored-copy` `e9394b1b12`, doc section "Snapshot route measured"):
+  snapshot 0.15 s median on a 700k-entry fixture; removing the skip set 13 to 14 s (27 µs per entry, no gain from
+  parallel workers); each nested ordinary worktree 0.5 s; rename-aside-and-return 1.6 s; nested `.git` pointers must go
+  before the add returns (about 50 ms for 48). One-time conversion of an ordinary nested worktree to a subvolume about
+  1.5 s each. pnpm: `storeDir: ${HOME}/.local/share/pnpm/store` in `pnpm-workspace.yaml` makes subvolume worktrees install
+  offline in 1.0 to 1.2 s.
+- DECIDED BY THE OWNER (2026-11-02, question tool): "Convert once + snapshot (Recommended)" (approves converting the 48
+  ordinary nested worktrees under main into subvolumes once; then each main-sourced add snapshots, unlinks copied `.git`
+  pointers, moves the skip set to a trash directory, returns in about 1.8 s, and the commit service empties the trash) and
+  "Set the shared store (Recommended)" (pnpm `storeDir` as above). Research agent builds, in order: pnpm consequences and
+  exact edit (I apply to main), a nested-worktree conversion tool with dry run (I run it on real worktrees only after it is
+  gated and released, skipping worktrees in use), then the snapshot route on a branch from the ladder.

@@ -1649,6 +1649,13 @@ GCG:
  `AGENTS.md`),
  or `*` for multi-package.
 
+GBN:
+ Branch names:
+ `<type>/<scope>-<subject>`,
+ like `feat/git-policy-cli-btrfs-worktree-add`;
+ an integration branch names what it bundles;
+ never a bare counter or review-round suffix.
+
 GCB:
  Multi-package commit bodies:
  per package,

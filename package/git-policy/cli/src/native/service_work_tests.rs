@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::push_failure_notice::{push_failure_text, take_push_failures};
+use crate::service_claim_renewal::{DrivenRenewal, RENEWALS_PER_LEASE, Renewal, renewal_interval};
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, requeue_expired, state_directory};
 use std::cell::RefCell;
@@ -287,22 +288,30 @@ impl WorkHandlers for Gate {
 
 /// A restarted service that drains while the instance it replaces is still in a slow push leaves that push's claim alone for
 /// as long as the holder renews it, however many leases the push outlasts; the push runs once and the holder settles it.
+/// The renewal is driven by the control and the clocks are readings it makes,
+/// so the host's scheduling decides nothing:
+/// the holder renews at every third of the lease while twelve thirds pass,
+/// and the second instance reads a clock four leases on.
 #[test]
 fn a_drain_beside_a_slow_push_leaves_its_claim_alone() {
     let repo: Repo = repo("work-overlap");
     let slow: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&slow));
-    let lease: Duration = Duration::from_millis(300);
+    let lease: Duration = CLAIM_LEASE;
     let (began, began_receiver) = std::sync::mpsc::channel();
     let (release, release_receiver) = std::sync::mpsc::channel();
     let dying: Gate = Gate { began, release: std::sync::Mutex::new(release_receiver), pushes: std::sync::atomic::AtomicUsize::new(0) };
     let restarted: Recorder = Recorder::answering(Verdict::Done);
+    let driver: DrivenRenewal = DrivenRenewal::default();
     let wait: Option<Duration> = std::thread::scope(|scope| {
-        let holder = scope.spawn(|| { drain_with_lease(repo.common.as_path(), &dying, &ClaimTime::read(), lease); });
-        began_receiver.recv_timeout(Duration::from_secs(30)).expect("the push began");
-        // Several leases pass while the push runs; only a renewing holder keeps its claim through them.
-        std::thread::sleep(lease * 4);
-        let wait: Option<Duration> = drain_with_lease(repo.common.as_path(), &restarted, &ClaimTime::read(), lease);
+        let holder = scope.spawn(|| { drain_with_renewal(repo.common.as_path(), &dying, &ClaimTime::read(), lease, Renewal::Driven(&driver)); });
+        began_receiver.recv_timeout(Duration::from_secs(60)).expect("the push began");
+        // Four leases pass while the push runs; only a renewing holder keeps its claim through them.
+        for third in 1..=(4 * RENEWALS_PER_LEASE) {
+            assert!(driver.renew(&ClaimTime::read().advanced(lease / RENEWALS_PER_LEASE * third)), "the drain registered its claims");
+        }
+        let later: ClaimTime = ClaimTime::read().advanced(lease * 4);
+        let wait: Option<Duration> = drain_with_lease(repo.common.as_path(), &restarted, &later, lease);
         release.send(()).expect("the push is waiting");
         holder.join().expect("the first instance finished");
         return wait;
@@ -312,6 +321,33 @@ fn a_drain_beside_a_slow_push_leaves_its_claim_alone() {
     assert_eq!(dying.pushes.load(std::sync::atomic::Ordering::SeqCst), 1);
     assert_eq!(names(&repo, DONE), vec![slow.id()], "the holder settled its own claim");
     assert!(names(&repo, CLAIMED).is_empty() && names(&repo, PENDING).is_empty());
+    remove(repo.root.as_path());
+}
+
+/// Without a renewal,
+/// the same four leases are enough for the second instance to take the item and run it:
+/// this is what the control above keeps from happening,
+/// and the reason it renews.
+#[test]
+fn a_holder_that_does_not_renew_loses_its_claim_to_the_next_instance() {
+    let repo: Repo = repo("work-no-renewal");
+    let slow: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&slow));
+    let lease: Duration = CLAIM_LEASE;
+    let (began, began_receiver) = std::sync::mpsc::channel();
+    let (release, release_receiver) = std::sync::mpsc::channel();
+    let dying: Gate = Gate { began, release: std::sync::Mutex::new(release_receiver), pushes: std::sync::atomic::AtomicUsize::new(0) };
+    let restarted: Recorder = Recorder::answering(Verdict::Done);
+    let driver: DrivenRenewal = DrivenRenewal::default();
+    std::thread::scope(|scope| {
+        let holder = scope.spawn(|| { drain_with_renewal(repo.common.as_path(), &dying, &ClaimTime::read(), lease, Renewal::Driven(&driver)); });
+        began_receiver.recv_timeout(Duration::from_secs(60)).expect("the push began");
+        let later: ClaimTime = ClaimTime::read().advanced(lease * 4);
+        drain_with_lease(repo.common.as_path(), &restarted, &later, lease);
+        release.send(()).expect("the push is waiting");
+        holder.join().expect("the first instance finished");
+    });
+    assert_eq!(restarted.pushes.borrow().len(), 1, "the lease ran out, so the second instance ran the item");
     remove(repo.root.as_path());
 }
 
@@ -588,13 +624,17 @@ fn a_drain_renews_the_claims_it_holds_while_it_works() {
 
 /// A handler whose first push is the moment another instance takes over every claim of the directory, and that waits for this
 /// instance's renewal to notice.
-struct TakenOver {
+struct TakenOver<'a> {
     work_dir: PathBuf,
     lease: Duration,
     pushed: RefCell<Vec<String>>,
+    /// The renewal of the drain under test,
+    /// driven once the other instance has taken the claims;
+    /// none when the control is of a holder whose renewal has not run.
+    renewal: Option<&'a DrivenRenewal>,
 }
 
-impl WorkHandlers for TakenOver {
+impl WorkHandlers for TakenOver<'_> {
     fn push(&self, items: &[WorkItem]) -> Verdict {
         let first: bool = self.pushed.borrow().is_empty();
         self.pushed.borrow_mut().extend(items.iter().map(|item| { return item.oid.clone(); }));
@@ -603,7 +643,9 @@ impl WorkHandlers for TakenOver {
             //  renews every third of the lease, and one renewal is all it takes to find its claims gone.
             let far_on: ClaimTime = ClaimTime::read().advanced(Duration::from_secs(3600));
             assert_eq!(requeue_expired(self.work_dir.as_path(), &far_on, self.lease, MAX_TRIES), 2, "both claims were taken over");
-            std::thread::sleep(self.lease);
+            if let Some(driver) = self.renewal {
+                assert!(driver.renew(&ClaimTime::read()), "the drain registered its claims");
+            }
         }
         return Verdict::Done;
     }
@@ -619,6 +661,8 @@ impl WorkHandlers for TakenOver {
 
 /// A claim that another instance took over while an earlier push of the round ran is not run from this instance's old claim:
 /// the item is claimed again and run once from the new claim, and the first push settles nothing of it.
+/// The renewal that finds the claims gone is driven by the control,
+/// so no wait decides the result.
 #[test]
 fn a_claim_taken_over_before_its_push_is_not_run_from_the_old_claim() {
     let repo: Repo = repo("work-taken-over");
@@ -626,8 +670,9 @@ fn a_claim_taken_over_before_its_push_is_not_run_from_the_old_claim() {
     let second: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/other");
     enqueue_all(&repo, &[first.clone(), second.clone()]);
     let lease: Duration = Duration::from_millis(300);
-    let handlers: TakenOver = TakenOver { work_dir: work_directory(repo.common.as_path()), lease, pushed: RefCell::new(Vec::new()) };
-    drain_with_lease(repo.common.as_path(), &handlers, &ClaimTime::read(), lease);
+    let driver: DrivenRenewal = DrivenRenewal::default();
+    let handlers: TakenOver = TakenOver { work_dir: work_directory(repo.common.as_path()), lease, pushed: RefCell::new(Vec::new()), renewal: Some(&driver) };
+    drain_with_renewal(repo.common.as_path(), &handlers, &ClaimTime::read(), lease, Renewal::Driven(&driver));
     // Run from the old claims, the round would push the first branch, then the second, then both again from their new claims.
     assert_eq!(*handlers.pushed.borrow(), vec![OID.to_string(), OID.to_string(), OTHER_OID.to_string()]);
     let mut done: Vec<String> = names(&repo, DONE);
@@ -636,6 +681,31 @@ fn a_claim_taken_over_before_its_push_is_not_run_from_the_old_claim() {
     expected.sort();
     assert_eq!(done, expected, "both settle once, from their new claims");
     assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
+    remove(repo.root.as_path());
+}
+
+/// A holder whose renewal has not run since another instance took its claims still does not run an item from a claim that is
+/// no longer its own:
+/// it looks at the claim's file just before it acts.
+/// Before,
+/// only a renewal that had found the claim gone stopped it,
+/// and the renewal of a starved holder is the one that is late.
+#[test]
+fn a_claim_taken_over_when_no_renewal_has_run_is_not_run_from_the_old_claim() {
+    let repo: Repo = repo("work-taken-over-late");
+    let first: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let second: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/other");
+    enqueue_all(&repo, &[first.clone(), second.clone()]);
+    let lease: Duration = Duration::from_millis(300);
+    let driver: DrivenRenewal = DrivenRenewal::default();
+    let handlers: TakenOver = TakenOver { work_dir: work_directory(repo.common.as_path()), lease, pushed: RefCell::new(Vec::new()), renewal: None };
+    drain_with_renewal(repo.common.as_path(), &handlers, &ClaimTime::read(), lease, Renewal::Driven(&driver));
+    assert_eq!(*handlers.pushed.borrow(), vec![OID.to_string(), OID.to_string(), OTHER_OID.to_string()], "the second item was not pushed from its old claim");
+    let mut done: Vec<String> = names(&repo, DONE);
+    done.sort();
+    let mut expected: Vec<String> = vec![first.id(), second.id()];
+    expected.sort();
+    assert_eq!(done, expected);
     remove(repo.root.as_path());
 }
 
@@ -725,4 +795,21 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     assert!(!written.contains(SECRET));
     assert_eq!(std::fs::read_to_string(log.as_path()).expect("tracked log"), "# Log\n", "the tracked log is never written");
     remove(parent.as_path());
+}
+
+/// The production lease is two minutes and the holder renews every third of it,
+/// so the margin for a starved service is two
+/// intervals,
+/// forty seconds each:
+/// a renewal has to be more than eighty seconds late for a second instance to take a push
+/// that is still running.
+/// The figures are stated from the constants,
+/// so a change of either shows here.
+#[test]
+fn the_production_lease_leaves_a_starved_holder_two_intervals_of_margin() {
+    assert_eq!(CLAIM_LEASE, Duration::from_secs(120));
+    assert_eq!(renewal_interval(CLAIM_LEASE), CLAIM_LEASE / RENEWALS_PER_LEASE);
+    let margin: Duration = CLAIM_LEASE - renewal_interval(CLAIM_LEASE);
+    assert_eq!(margin, Duration::from_secs(80));
+    assert!(margin >= renewal_interval(CLAIM_LEASE) * 2, "a renewal late by two intervals still beats the lease");
 }

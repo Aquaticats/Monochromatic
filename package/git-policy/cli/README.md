@@ -1643,6 +1643,10 @@ all durations in whole milliseconds taken from the monotonic clock:
   `positions` lists the queue positions the service reported,
   `waitingNotices` counts its notices that it was waiting for
   another program,
+  `lockHolderKind` says what the last of them said of that program
+  (`proven-alive` for a process proven to hold the lock,
+  `unproven` for an owner nobody could prove alive,
+  null when there was none),
   `reconnects` counts connections that broke and `sends` counts requests written.
 - `handoffMs` is one figure:
   leaving the work records and waking the service,
@@ -1699,9 +1703,27 @@ each prefixed `cli-git-service:`:
   `landing_ms` and `answer_ms`;
   `total_ms` is the whole stay
   from the connection being accepted.
-  `landing_ms` is the sum of `lock_wait_ms` (waiting for a foreign hold on the index,
+  `landing_ms` is the sum of `lock_wait_ms` (taking the index lock:
+  flushing the marker to storage,
+  `lock_stage_ms`,
+  with `lock_stage_kind=pre` when the marker was made while the service was idle and `cold` when the commit made it,
+  and waiting for a hold on the index,
+  `lock_place_ms`,
   with `lock_holder="Process <pid>"`
-  when the evidence names one),
+  when the evidence names one,
+  `lock_looks` for how many times the lock was found held,
+  and `lock_found` and `lock_last` for what the first and the last look found:
+  `service seq=.. pid=.. state=running|gone|unknown age_ms=..` for a lock with the service's marker,
+  `foreign no-marker size=.. age_ms=..` for any other,
+  with `open_by=[pid (comm)]` when a process has it open:
+  the program's name,
+  at most fifteen bytes,
+  never its arguments or environment;
+  the scan for them is made once,
+  with the evidence for the waiting notice,
+  and stops after a quarter of a second;
+  the marker's birth identity,
+  boot ID and PID namespace are not in the line),
   `reads_ms` (the branch reads and comparisons),
   `objects_ms`,
   `journal_ms`,
@@ -1712,6 +1734,12 @@ each prefixed `cli-git-service:`:
   so a sum can fall short of its total by less than one per term.
   The line never holds the commit's message,
   its author or its address.
+- `waited for the index lock batch=<n> result=taken|refused lock_wait_ms=.. lock_stage_ms=.. ...` comes when the lock was
+  found held or when flushing the marker or waiting took a second or more,
+  at the moment the wait ends;
+  it carries the same `lock_*` fields as the `answered` line,
+  and stays when the landing fails afterwards.
+  A slow commit with a long `lock_stage_ms` and no `lock_looks` lost its time to the disk and not to another program.
 - `retire requested by a client; this service is release "<release>" and exits after its batch` comes once for each retire
   request the service reads,
   and a client sends one in every round while the old service is still there,

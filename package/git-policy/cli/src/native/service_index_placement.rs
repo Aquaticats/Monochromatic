@@ -83,7 +83,7 @@ pub const SYSTEM: Platform<'static> = Platform {
     release: unlink_file,
 };
 
-fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
+pub fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
     return file.sync_all();
 }
 
@@ -210,7 +210,7 @@ pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io:
 /// ```
 pub fn log_placement_failure(lock: &Path, error: &std::io::Error) {
     if let Some(text) = placement_failure_text(lock, error) {
-        eprintln!("{text}");
+        crate::service_log!("{text}");
     }
 }
 
@@ -231,7 +231,7 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
         return None;
     }
     if error.kind() != std::io::ErrorKind::Unsupported {
-        return Some(format!("cli-git-service: cannot take the index lock {}: {error}", lock.display()));
+        return Some(format!("cannot take the index lock {}: {error}", lock.display()));
     }
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let filesystem: String = match read_mount_facts(directory) {
@@ -240,7 +240,7 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
         Err(reason) => format!("the filesystem of {} ({reason})", directory.display()),
     };
     return Some(format!(
-        "cli-git-service: cannot take the index lock {}: {filesystem} can neither rename a file without replacing another nor make a hard link ({error}), \
+        "cannot take the index lock {}: {filesystem} can neither rename a file without replacing another nor make a hard link ({error}), \
          so the lock cannot be created with its marker in one step, and the service takes no lock that a kill could leave empty. \
          Keep this repository's Git directory on a filesystem that supports one of the two (ext4, xfs, btrfs, tmpfs and overlayfs do), or update the kernel.",
         lock.display()
@@ -258,8 +258,7 @@ pub fn reclaim(platform: &Platform, lock: &Path) -> bool {
         Ok(()) => true,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
         Err(error) => {
-            eprintln!(
-                "cli-git-service: the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
+            crate::service_log!("the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
                  remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays",
                 lock.display()
             );
