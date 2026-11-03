@@ -22,6 +22,10 @@ use std::path::Path;
 /// The deepest delta chain this reader follows.
 const DELTA_DEPTH_LIMIT: usize = 100;
 
+/// The most decoded bytes one pack keeps for later reads: a listing of a large tree reads thousands of trees that share
+///  delta bases, and a stop at a fixed size keeps a long listing from growing without bound.
+const CACHE_BYTE_LIMIT: usize = 32 * 1024 * 1024;
+
 /// The bytes of the index header and fanout table: magic, version, 256 counts.
 const FANOUT_END: u64 = 8 + 256 * 4;
 
@@ -42,6 +46,10 @@ pub struct Pack {
     fanout: Vec<u32>,
     /// How many entries were decoded; a stand-in for the work a read costs.
     decoded: std::cell::Cell<u64>,
+    /// The entries decoded so far by their offset, so the base that many versions of one chain share is decoded once.
+    cache: std::cell::RefCell<std::collections::HashMap<u64, RawObject>>,
+    /// The bytes held in `cache`; once it passes `CACHE_BYTE_LIMIT` no entry is added.
+    cached_bytes: std::cell::Cell<usize>,
 }
 
 /// Read exactly `length` bytes at `position`, or `None`.
@@ -164,7 +172,7 @@ impl Pack {
         if &pack_header[..4] != b"PACK" || !matches!(pack_header[7], 2 | 3) || pack_header[4..7] != [0, 0, 0] || u64::from(pack_count) != count {
             return None;
         }
-        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0) });
+        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0) });
     }
 
     /// How many entries of this pack were decoded (inflated, with their delta applied) since it was opened.
@@ -217,6 +225,19 @@ impl Pack {
     /// read(offset: number, byName: (name: Uint8Array) => RawObject | undefined, depth = 0): RawObject | undefined;
     /// ```
     pub fn read(&self, offset: u64, by_name: &dyn Fn(&[u8]) -> Option<RawObject>, depth: usize) -> Option<RawObject> {
+        if let Some(kept) = self.cache.borrow().get(&offset) {
+            return Some(kept.clone());
+        }
+        let object: RawObject = self.decode(offset, by_name, depth)?;
+        if self.cached_bytes.get() + object.bytes.len() <= CACHE_BYTE_LIMIT {
+            self.cached_bytes.set(self.cached_bytes.get() + object.bytes.len());
+            self.cache.borrow_mut().insert(offset, object.clone());
+        }
+        return Some(object);
+    }
+
+    /// The entry at `offset` rebuilt from the pack file, as `read` does it when the entry is not kept.
+    fn decode(&self, offset: u64, by_name: &dyn Fn(&[u8]) -> Option<RawObject>, depth: usize) -> Option<RawObject> {
         if depth > DELTA_DEPTH_LIMIT || offset < 12 || offset >= self.data_length {
             return None;
         }
