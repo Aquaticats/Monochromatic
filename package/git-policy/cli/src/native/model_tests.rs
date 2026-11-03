@@ -99,3 +99,7 @@ mod model_fixture;
 /// Step 3: the immutable request, spool, identity binding and permanent ledger components, with no reclamation.
 #[path = "commit_components_tests.rs"]
 mod commit_components_tests;
+
+/// Step 4: pure tree comparison and captured-delta replay, differential against Git.
+#[path = "commit_replay_tests.rs"]
+mod commit_replay_tests;
