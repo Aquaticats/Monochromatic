@@ -77,3 +77,57 @@ fn cargo_only_options_are_forwarded_with_their_values_and_the_manifest_path_is_d
     );
     assert_eq!(planned.plan, UpdatePlan::Full { dry_run: false });
 }
+
+fn names_of(words: &[&str]) -> Vec<String> {
+    match plan(words).expect("plans").plan {
+        UpdatePlan::Targeted { names, .. } => return names,
+        other => panic!("expected targeted, got {other:?}"),
+    }
+}
+
+/// Review finding (`--package=foo`): the attached spelling names the package like `--package foo` does, and the plan must not
+/// widen into a full update.
+#[test]
+fn the_attached_and_short_spellings_of_package_name_the_package() {
+    assert_eq!(names_of(&["update", "--package=foo"]), vec!["foo".to_string()]);
+    assert_eq!(names_of(&["update", "--package=foo@1.2.3"]), vec!["foo".to_string()]);
+    assert_eq!(names_of(&["update", "-pfoo"]), vec!["foo".to_string()]);
+}
+
+/// Review finding (global options before the verb): `--locked` before the verb asks for the frozen check, as after it.
+#[test]
+fn a_locked_or_frozen_before_the_verb_is_the_frozen_check() {
+    assert_eq!(plan(&["--locked", "update"]).expect("plans").plan, UpdatePlan::FrozenCheck);
+    assert_eq!(plan(&["+nightly", "--frozen", "update"]).expect("plans").plan, UpdatePlan::FrozenCheck);
+}
+
+/// Review finding: cargo-only options before the verb are forwarded to every cargo call the procedure makes.
+#[test]
+fn cargo_only_options_before_the_verb_are_forwarded_too() {
+    let planned = plan(&["--offline", "--color", "never", "update"]).expect("plans");
+
+    assert_eq!(planned.forward, vec!["--offline".to_string(), "--color".to_string(), "never".to_string()]);
+}
+
+/// Review finding (reject, do not broaden): an option the shadow cannot map to pnpm update is refused by name.
+#[test]
+fn an_option_the_shadow_cannot_answer_is_refused_by_name_and_not_dropped() {
+    let message: String = plan(&["update", "--bogus"]).expect_err("an unknown option must be refused");
+
+    assert!(message.contains("--bogus"), "{message}");
+    assert!(plan(&["update", "serde", "--lockfile-path", "x"]).is_err());
+}
+
+/// The options of `cargo update --help` stay accepted.
+#[test]
+fn every_option_of_cargo_update_help_is_still_accepted() {
+    for words in [
+        vec!["update", "--recursive", "serde"],
+        vec!["update", "-vv"],
+        vec!["update", "--ignore-rust-version"],
+        vec!["update", "--manifest-path=a/Cargo.toml"],
+        vec!["-C", "dir", "update"],
+    ] {
+        assert!(plan(&words).is_ok(), "{words:?}");
+    }
+}
