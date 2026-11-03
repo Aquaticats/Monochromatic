@@ -552,9 +552,15 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   Open audit question:
   the heartbeat proves the service and its connection,
   not that the landing thread makes progress.
-  Its agent is resumed to merge the base `d300bb806d` into its branch and drop its handover edit
-  (the base branch's copy of this handover is stale;
-  main's copy wins when the base merges into main).
+  It merged the base `d300bb806d` with no conflicts (`db0e92df64`),
+  dropped its handover edit (`afbf402146`;
+  the base branch's copy of this handover is stale,
+  and main's copy wins when the base merges into main),
+  and the base was fast-forwarded to `afbf402146`
+  (260 wait,
+  68 carry-back and conflict,
+  29 binary tests;
+  clippy clean).
 - Passed:
   an early gate of the 0.5.28 base at its tip after the index writer's second round
   (unit `gpc-gate-candidate-0-5-28-early-20261103T111639-0500.service`,
@@ -741,7 +747,7 @@ in this order:
   `UU` entries),
   instead of leaving the merge stopped (picked under the delegation:
   "Auto merging should never fail.");
-  resume the word-level agent when a slot frees.
+  running with the word-level agent on `fix/git-policy-cli-finish-applies-a-conflicting-autostash`.
 - A gate after the regression fix,
   the index round 4 and the waits follow-ups merge,
   then release 0.5.28.
