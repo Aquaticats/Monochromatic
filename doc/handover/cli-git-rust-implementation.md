@@ -10070,3 +10070,10 @@ by the coordinator at merge.
   retire-other-checkouts consequence stated to the owner; `--ignore-scripts`: "Run scripts as allowBuilds says
   (Recommended)"; symlink fallback: "No fallback rule (Recommended)". Being measured before asking: which pnpm
   binary (shadow or direct), the absolute stub link into main, the ten stale `Cargo.lock` files.
+- 2026-11-03T01:35:10-05:00, main reinstalled per the owner ("Run it now (Recommended)"): `pnpm install
+  --frozen-lockfile` in the main checkout (bounded scope, IOWeight 10) finished in 32.5 s; `node_modules/.modules.yaml`
+  now names `virtualStoreDir` `~/.local/share/pnpm/store/v11/links` (the global virtual store), so later adds from
+  main skip the measured 57 s conversion. Checked afterwards: `node_modules/.bin/oxlint --version` runs, and every
+  sampled declared dependency of the root, `package/git-policy/cli` and `package/mutation-test/cli-cargo-mutants`
+  resolves. Log `~/temp/agent/pnpm-main-gvs.log`. An empty-looking `node_modules/.pnpm` directory remains; not
+  investigated.
