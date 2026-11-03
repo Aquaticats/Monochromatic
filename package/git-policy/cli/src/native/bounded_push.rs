@@ -248,13 +248,16 @@ fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
 /// ```ts
 /// void child.exited.then(() => locks.sweep(tree));
 /// ```
-pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<std::thread::JoinHandle<()>> {
+pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<std::thread::JoinHandle<()>> {
     return std::thread::Builder::new()
         .name(String::from("cli-git-lock-sweep"))
         .spawn(move || {
             // The exit status is not reported: the push was reported at its deadline.
             let _status = child.wait();
-            wait_for_tree(tree.as_slice(), grace);
+            // Nothing waits for this thread, so it waits for the rest of the tree as long as that runs.
+            while tree.iter().any(still_running) {
+                std::thread::sleep(POLL_PAUSE);
+            }
             locks.sweep(tree.as_slice());
         })
         .inspect_err(|error| {
@@ -322,7 +325,7 @@ pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
         wait_for_tree(tree.as_slice(), grace);
         locks.sweep(tree.as_slice());
     } else {
-        let _sweeper = sweep_after_exit(child, tree, locks, grace);
+        let _sweeper = sweep_after_exit(child, tree, locks);
     }
 }
 

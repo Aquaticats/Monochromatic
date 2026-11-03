@@ -352,7 +352,7 @@ fn a_child_released_late_has_its_lock_swept_when_it_ends() {
     let locks: LockLedger = LockLedger::before_start(&command);
     let child: Child = command.spawn().expect("start the child");
     let member: TreeMember = member_of(i32::try_from(child.id()).expect("pid")).expect("a running child");
-    let sweeper = sweep_after_exit(child, vec![member], locks, Duration::from_secs(2)).expect("the sweeping thread starts");
+    let sweeper = sweep_after_exit(child, vec![member], locks).expect("the sweeping thread starts");
     sweeper.join().expect("the sweeping thread ends");
     assert!(!lock.exists(), "the lock the child left is swept once it ended");
     crate::test_support::remove(root.as_path());

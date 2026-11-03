@@ -169,9 +169,7 @@ impl LockLedger {
                     continue;
                 }
                 let lock: PathBuf = path.with_file_name(format!("{stem}{LOCK_SUFFIX}"));
-                if self.born_since(lock.as_path()) {
-                    remove_recording(lock.as_path(), &mut removed);
-                }
+                remove_recording(lock.as_path(), &mut removed);
                 remove_recording(path.as_path(), &mut removed);
             } else if tree_ended
                 && !path.with_file_name(format!("{}{PID_LOCK_SUFFIX}", name.trim_end_matches(LOCK_SUFFIX))).exists()

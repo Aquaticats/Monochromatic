@@ -19,7 +19,7 @@ use crate::test_support::{fixture, git, git_text, remove, repository, scratch_en
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// The deadline of the held lock's command: long enough for Git to start and take the lock, short enough to wait for.
 const HOLD_DEADLINE: Duration = Duration::from_millis(2500);
@@ -205,4 +205,21 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
     assert_eq!(ended.expect_err("stopped at the bound").kind(), std::io::ErrorKind::TimedOut);
     assert!(marker.exists(), "the stop reached the TERM trap before any kill");
     remove(root.as_path());
+}
+
+/// How long the thread that sweeps for a child the kernel released late may take, in a test that releases it at once.
+const SWEEP_PATIENCE: Duration = Duration::from_secs(10);
+
+/// A stop with no grace kills at once and hands the child to a thread, which sweeps its locks when it has ended.
+#[test]
+fn a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own() {
+    let stage: Stage = stage("stop-lock-push-no-grace");
+    let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), HOLD_DEADLINE, Duration::ZERO, scratch_environment().as_slice()).expect("runs");
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
+    let waited: Instant = Instant::now();
+    while !lock_files(stage.repo.join(".git").as_path()).is_empty() && waited.elapsed() < SWEEP_PATIENCE {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert_clean_after_stop(&stage, Holder::Unresponsive, "bounded run without grace");
+    remove(stage.root.as_path());
 }
