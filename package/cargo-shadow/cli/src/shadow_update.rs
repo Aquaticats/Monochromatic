@@ -139,7 +139,7 @@ fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, 
             if report.problems.is_empty() {
                 0
             } else {
-                print_findings("Install refused; every Cargo.lock was restored", &report.problems);
+                print_findings("Install refused; no Cargo.lock was left changed", &report.problems);
                 INSTALL_FAILED_EXIT_CODE
             }
         }
