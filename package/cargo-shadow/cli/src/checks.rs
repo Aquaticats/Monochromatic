@@ -124,6 +124,9 @@ pub fn trust_refusals(
         return Ok(Vec::new());
     }
     let groups: Vec<(String, Vec<String>)> = group_by_name(versions);
+    if groups.is_empty() {
+        return Ok(Vec::new());
+    }
     eprintln!("cargo-shadow: checking the trust policy for {} versions of {} crates", versions.len(), groups.len());
     let mut refusals: Vec<TrustRefusal> = Vec::new();
     for (name, name_versions) in groups {
