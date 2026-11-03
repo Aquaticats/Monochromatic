@@ -1255,6 +1255,14 @@ pub mod worktree_ladder_target;
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_run;
 
+/// One entry from the wrapper a person ran to the journal, sent without waiting.
+#[cfg(target_os = "linux")]
+pub mod client_journal;
+
+/// The plain sentence that says why an add was not made as a snapshot, and where it goes.
+#[cfg(target_os = "linux")]
+pub mod worktree_slow_route;
+
 /// The ladder's steps after real Git returned: the snapshot rung and the fall back to Git's checkout.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish;
