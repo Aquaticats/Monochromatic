@@ -143,6 +143,7 @@ pub fn before_cargo(arguments: &[OsString]) -> Option<String> {
         now: now_millis(),
         runner: &prepared.runner,
         registry: &prepared.registry,
+        lock_base: None,
     });
     match outcome {
         StepOutcome::Failed(message) => return Some(message),

@@ -10,7 +10,7 @@ use crate::http::RegistryError;
 use crate::policy::VersionRecord;
 use crate::registry::Registry;
 use crate::test_scratch::scratch;
-use crate::verify::verify_locked_entries;
+use crate::verify::{verify_added_since_base, verify_locked_entries};
 
 const REGISTRY: &str = "registry+https://github.com/rust-lang/crates.io-index";
 
@@ -26,6 +26,7 @@ fn settings() -> Settings {
         trust_policy_exclude: Vec::new(),
         trust_policy_exclude_prune: false,
         trust_policy_ignore_after: None,
+        trust_lockfile: false,
     };
 }
 
@@ -123,4 +124,32 @@ fn a_changed_lockfile_or_a_changed_policy_is_checked_again() {
 
     assert!(after_new_lock > after_first);
     assert!(registry.lookups.get() > after_new_lock);
+}
+
+#[test]
+fn since_the_base_only_versions_no_lockfile_held_there_are_checked() {
+    let root = scratch();
+    let registry: CountingRegistry = CountingRegistry { lookups: Cell::new(0) };
+    let current: LockSnapshot = snapshot("1.0.1");
+    let base_with_it: String = snapshot("1.0.1").source;
+    let base_without_it: String = snapshot("1.0.0").source;
+    let _ = root;
+
+    let held = verify_added_since_base(std::slice::from_ref(&current), &|_dir| { return base_with_it.clone(); }, &settings(), &registry, 0).expect("verifies");
+    let lookups_when_held: u32 = registry.lookups.get();
+    let new = verify_added_since_base(std::slice::from_ref(&current), &|_dir| { return base_without_it.clone(); }, &settings(), &registry, 0).expect("verifies");
+
+    assert!(held.is_empty());
+    assert_eq!(lookups_when_held, 0, "a version the base held costs no registry lookup");
+    assert_eq!(new.len(), 1);
+    assert!(new[0].contains("dep@1.0.1 has trust level 1"));
+}
+
+#[test]
+fn since_the_base_a_lockfile_absent_there_counts_as_new_in_full() {
+    let registry: CountingRegistry = CountingRegistry { lookups: Cell::new(0) };
+
+    let problems = verify_added_since_base(&[snapshot("1.0.1")], &|_dir| { return String::new(); }, &settings(), &registry, 0).expect("verifies");
+
+    assert_eq!(problems.len(), 1);
 }

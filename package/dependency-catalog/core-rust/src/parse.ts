@@ -47,6 +47,7 @@ const TOP_LEVEL_KEYS: ReadonlySet<string> = new Set([
   'trustPolicyExclude',
   'trustPolicyExcludePrune',
   'trustPolicyIgnoreAfter',
+  'trustLockfile',
 ],);
 
 //endregion Shared state

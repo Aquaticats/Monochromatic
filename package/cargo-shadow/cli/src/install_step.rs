@@ -60,6 +60,8 @@ pub struct StepRequest<'a> {
     pub runner: &'a dyn CargoRunner,
     /// The registry for the policy checks.
     pub registry: &'a dyn Registry,
+    /// The base-revision lockfile reader a frozen install needs under `trustLockfile`.
+    pub lock_base: Option<&'a dyn Fn(&str) -> String>,
 }
 
 /// The crate root relative to the repository, with forward slashes; `None` when it is not inside it.
@@ -142,6 +144,7 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         settings: &document.settings,
         runner: request.runner,
         registry: request.registry,
+        lock_base: request.lock_base,
     });
     let finished: InstallReport = match report {
         Ok(found) => found,

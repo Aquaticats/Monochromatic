@@ -179,6 +179,9 @@ pub struct InstallRequest<'a> {
     pub runner: &'a dyn CargoRunner,
     /// The registry for the policy checks.
     pub registry: &'a dyn Registry,
+    /// Reads one crate's lockfile text at the base revision (empty when absent there); a frozen install under `trustLockfile`
+    /// checks only the versions this reader's lockfiles did not hold.
+    pub lock_base: Option<&'a dyn Fn(&str) -> String>,
 }
 
 /// Runs cargo in a crate root; a start failure is an `Io` error.

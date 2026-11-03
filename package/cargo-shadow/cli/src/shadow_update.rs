@@ -77,6 +77,7 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
                 settings: &prepared.document.settings,
                 runner: &prepared.runner,
                 registry: &prepared.registry,
+                lock_base: None,
             });
             return Some(report_install(outcome, dry_run, &mut sink));
         }

@@ -82,7 +82,7 @@ fn registry() -> FakeRegistry {
 }
 
 fn step(start: &Path, frozen: bool, runner: &FakeCargo, registry: &FakeRegistry) -> StepOutcome {
-    return run_install_step(&StepRequest { start_dir: start, frozen, offline: true, now: 0, runner, registry });
+    return run_install_step(&StepRequest { start_dir: start, frozen, offline: true, now: 0, runner, registry, lock_base: None });
 }
 
 #[test]

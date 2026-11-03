@@ -36,6 +36,7 @@ fn settings() -> Settings {
         trust_policy_exclude: Vec::new(),
         trust_policy_exclude_prune: false,
         trust_policy_ignore_after: None,
+        trust_lockfile: false,
     };
 }
 

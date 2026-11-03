@@ -96,3 +96,14 @@ pub fn verify_locked_entries(
     }
     return Ok(problems);
 }
+
+/// Stub for the red run.
+pub fn verify_added_since_base(
+    _snapshots: &[LockSnapshot],
+    _read_base_lock: &dyn Fn(&str) -> String,
+    _settings: &Settings,
+    _registry: &dyn Registry,
+    _now: i64,
+) -> Result<Vec<String>, String> {
+    return Ok(Vec::new());
+}

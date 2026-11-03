@@ -35,6 +35,7 @@ fn settings() -> Settings {
         trust_policy_exclude: Vec::new(),
         trust_policy_exclude_prune: false,
         trust_policy_ignore_after: None,
+        trust_lockfile: false,
     };
 }
 
@@ -129,6 +130,7 @@ fn run_install(root: &Path, dirs: &[String], cargo: &FakeCargo, registry: &FakeR
         settings: &catalog_settings,
         runner: cargo,
         registry,
+        lock_base: None,
     });
 }
 
@@ -312,6 +314,7 @@ fn real_cargo_finds_the_path_workspace_stale_updates_it_offline_and_then_finds_i
             settings: &catalog_settings,
             runner: &cargo,
             registry: &registry,
+            lock_base: None,
         };
     };
 
@@ -344,6 +347,7 @@ fn a_check_that_may_use_the_network_does_not_pass_offline() {
         settings: &catalog_settings,
         runner: &cargo,
         registry: &registry,
+        lock_base: None,
     })
     .expect("passes");
 
@@ -395,6 +399,7 @@ fn a_lockfile_another_process_wrote_during_the_checks_is_not_discarded_by_a_refu
         settings: &catalog_settings,
         runner: &cargo,
         registry: &registry,
+        lock_base: None,
     })
     .expect("reports");
 
@@ -449,4 +454,65 @@ fn a_frozen_install_also_checks_every_locked_version_against_the_policy_like_pnp
     assert_eq!(report.problems.len(), 1);
     assert!(report.problems[0].contains("dep@1.0.1 has trust level 1"));
     assert_eq!(lock_text(root.path(), "package/a/one"), lock_with("dep", "1.0.1"), "a frozen install writes nothing");
+}
+
+/// A frozen install of a satisfied lockfile that holds `dep@1.0.1`, whose history the trust policy refuses, under `trustLockfile`
+/// with the given lockfile text at the base revision.
+fn frozen_under_trust_lockfile(base_lock: &str, with_reader: bool) -> Result<InstallReport, InstallError> {
+    let (root, dirs) = repository(&[("package/a/one", &lock_with("dep", "1.0.1"))]);
+    let cargo: FakeCargo = cargo_that_writes(SATISFIED);
+    let registry: FakeRegistry = FakeRegistry {
+        histories: BTreeMap::from([(
+            "dep".to_string(),
+            vec![record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")],
+        )]),
+    };
+    let mut catalog_settings: Settings = settings();
+    catalog_settings.trust_lockfile = true;
+    let base: String = base_lock.to_string();
+    let reader = move |_crate_dir: &str| -> String { return base.clone(); };
+    return install_rust_lockfiles(&InstallRequest {
+        root: root.path(),
+        crate_dirs: &dirs,
+        frozen: true,
+        offline: true,
+        dry_run: false,
+        now: 0,
+        settings: &catalog_settings,
+        runner: &cargo,
+        registry: &registry,
+        lock_base: if with_reader { Some(&reader) } else { None },
+    });
+}
+
+#[test]
+fn under_trust_lockfile_a_version_the_base_already_held_is_not_checked() {
+    let report = frozen_under_trust_lockfile(&lock_with("dep", "1.0.1"), true).expect("reports");
+
+    assert!(report.problems.is_empty(), "{:?}", report.problems);
+}
+
+#[test]
+fn under_trust_lockfile_a_version_new_since_the_base_is_checked() {
+    let report = frozen_under_trust_lockfile(&lock_with("dep", "1.0.0"), true).expect("reports");
+
+    assert_eq!(report.problems.len(), 1);
+    assert!(report.problems[0].contains("dep@1.0.1 has trust level 1"));
+}
+
+#[test]
+fn under_trust_lockfile_a_lockfile_absent_at_the_base_counts_as_new_in_full() {
+    let report = frozen_under_trust_lockfile("", true).expect("reports");
+
+    assert_eq!(report.problems.len(), 1);
+}
+
+#[test]
+fn under_trust_lockfile_without_a_base_reader_the_install_refuses_instead_of_trusting_everything() {
+    let result = frozen_under_trust_lockfile(&lock_with("dep", "1.0.1"), false);
+
+    match result {
+        Err(InstallError::Io { message }) => assert!(message.contains("trustLockfile"), "{message}"),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
 }

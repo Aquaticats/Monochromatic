@@ -179,6 +179,7 @@ pub fn run_command(command: Command) -> i32 {
                 settings: &document.settings,
                 runner: &runner,
                 registry: &registry,
+                lock_base: None,
             });
             return match outcome {
                 Ok(report) => {

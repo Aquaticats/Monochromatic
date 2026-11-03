@@ -27,7 +27,7 @@ use crate::types::{CatalogDocument, EntryMap, Settings};
 
 /// Top-level keys the catalog file may declare,
 /// in the order the error message lists them.
-const TOP_LEVEL_KEYS: [&str; 12] = [
+const TOP_LEVEL_KEYS: [&str; 13] = [
     "catalog",
     "catalogPrune",
     "catalogs",
@@ -40,6 +40,7 @@ const TOP_LEVEL_KEYS: [&str; 12] = [
     "trustPolicyExclude",
     "trustPolicyExcludePrune",
     "trustPolicyIgnoreAfter",
+    "trustLockfile",
 ];
 
 /// Validates the `[catalogs.<name>]` tables into named catalogs in source order.

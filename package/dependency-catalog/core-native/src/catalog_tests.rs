@@ -107,6 +107,7 @@ fn applies_pnpm_defaults() {
     assert!(settings.trust_policy_exclude.is_empty());
     assert!(!settings.trust_policy_exclude_prune);
     assert_eq!(settings.trust_policy_ignore_after, None);
+    assert!(!settings.trust_lockfile);
 }
 
 /// An explicit `minimumReleaseAge` turns strict mode on,
@@ -123,6 +124,7 @@ fn reads_every_setting() {
         "trustPolicyExclude = [\"clap@4.6.7\"]",
         "trustPolicyExcludePrune = true",
         "trustPolicyIgnoreAfter = 525600",
+        "trustLockfile = true",
         "[catalog]",
     ])
     .expect("valid catalog");
@@ -136,6 +138,7 @@ fn reads_every_setting() {
     assert_eq!(settings.trust_policy_exclude, vec!["clap@4.6.7".to_string()]);
     assert!(settings.trust_policy_exclude_prune);
     assert_eq!(settings.trust_policy_ignore_after, Some(525_600));
+    assert!(settings.trust_lockfile);
 }
 
 /// An explicit `minimumReleaseAgeStrict = false` is honoured.
@@ -247,6 +250,7 @@ fn rejects_malformed_settings() {
             "minimumReleaseAgeStrict = \"yes\"",
             "trustPolicy = \"trust-everyone\"",
             "trustPolicyIgnoreAfter = 1.5",
+            "trustLockfile = \"yes\"",
             "[catalog]",
         ]),
         vec![
@@ -254,7 +258,8 @@ fn rejects_malformed_settings() {
             "trustPolicyIgnoreAfter",
             "minimumReleaseAgeExclude",
             "minimumReleaseAgeStrict",
-            "trustPolicy"
+            "trustPolicy",
+            "trustLockfile"
         ]
     );
 }
