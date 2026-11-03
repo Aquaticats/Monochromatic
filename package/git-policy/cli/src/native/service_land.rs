@@ -159,9 +159,9 @@ fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLo
     };
     // The files a conflicted autostash apply left unmerged are unmerged in the index the landing installs.
     if let Some(cleanup) = intent.cleanup.as_ref()
-        && !carry_stages(git, repository, cleanup, built.as_path())
+        && !carry_stages(git, repository, cleanup, built.path())
     {
-        let _removed = std::fs::remove_file(&built);
+        // The private copy goes with `built`, which is dropped here.
         return false;
     }
     let recorded = || -> std::io::Result<()> { return mark_indexed(journal, intent.seq, intent.new.as_str()); };
