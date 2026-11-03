@@ -21,10 +21,14 @@ construction, and, only where something outside the system remains, the residue:
 designed out.
 Nothing past the red controls and the conflicted-path change is built; the coordinator and the owner review the design first.
 
-Revision 11 and the owner's bound answers (2026-11-03T12:45, recorded as decisions 4 to 6 in "Owner decisions of 2026-11-03"): every blocked process has a bound and
-ends with an error at it, and a command that returned never has its commit land later by itself. Narrative text below that describes a command returning exit 0 with a
-commit that "lands later" (a foreign ref lock, a held `index.lock`, a request set aside as pending) describes the earlier owner answers and applies now only to a
-request that has no client; the normative state machine, its register of waits and W1 and W2 govern.
+Revision 11 and the owner's bound answers (2026-11-03T12:45, recorded as decisions 4 to 6 in "Owner decisions of 2026-11-03"): every blocked
+process has a bound in the register of rule B, and a command that returned never has its commit land later by itself. The exceptions are
+stated, not hidden: a push ends at its bound with exit 0 and is queued (the owner's own answer), the person's own programs in their foreground have no
+bound (owner question 3 asks), and a branch write that the command itself already issued when its bound passes cannot be recalled (owner question 1
+asks). Narrative text below that describes a command returning exit 0 with a commit that "lands later" (a foreign ref lock, a held `index.lock` before
+publication, a request set aside as pending) describes the earlier owner answers and applies now only to a request that has no client; the
+normative state machine, its register of waits, W1 and W2 govern. A different thing is not a commit landing later: derived index and worktree
+materialization after a commit or merge that is already published (M1, MG3).
 
 What exists on the branch from before the correction, kept and not discarded:
 
@@ -1003,7 +1007,8 @@ service.
 
 Why inline ownership is narrow. A client that finds no owner takes the lock and acts as owner only to drain the requests adopted before its own,
 publish and retire its own, and exit; later arrivals stay for the service. It is the person's foreground command, so the person can interrupt
-it, and the request is already durable.
+it, and the request is already durable. Revision 12 (R11-4): an inline owner never runs a protected program, and every normal exit of one with an
+unpublished request is W1 (see "Execution ownership" in the state machine).
 
 Why restart goes through an intent and a pidfd. A restarter that dies holding the gate releases it, so the gate alone fails open during an
 incomplete cancellation; the durable `lane/restart-intent` makes it fail closed (an owner that finds the intent at its next admission admits
@@ -1290,6 +1295,9 @@ the transitions here).
 
 ### The side ref for a held branch lock, or a branch a foreign program keeps moving
 
+Revision 12 reading: for a command with a client, "the command exits 0 and says the branch will show it" below is replaced by W1 at the FOREGROUND bound (the
+commit stays on the side ref and nothing lands by itself); the exit-0 answer applies to a request that has no client.
+
 Owner decisions (question tool, 2026-11-03): "Save on a side ref (Recommended)" for a held branch ref lock, and "Save on the side
 ref (Recommended)" for a branch a foreign program keeps moving.
 The publication is tried once and its failure classified from Git's message: the lock on the branch exists
@@ -1326,26 +1334,29 @@ with base `B`, ours `C`, theirs `T` (`git merge-tree --write-tree --merge-base=B
 A conflict is an allowed outcome: the replay stops with the conflict recorded and the captured inputs kept. The commit's parents
 are `C` (and `T`'s other parent for a conclusion).
 
-## What is guaranteed to complete, and what may wait
+## What is guaranteed to complete, and what may wait (revision 12)
 
-No wait below is called designed out.
+No wait below is called designed out, and every wait of a command ends at a bound of the register in rule B.
 
-Guaranteed to complete, with no wait on another program and no cap or count:
-- acceptance: local reads and fsynced writes in the worktree's own directory and the common directory, no ref write, no wait on a
-  program or on a foreign lock; it may wait for the lane's short state updates (a set marker never spans a person's program or a
-  foreign lock); failures are the owner's outside causes (a full disk, I/O errors);
-- the answer after a crash or a long stop (a resend returns the record's state or the permanent ledger's outcome);
+Completes without waiting on another program, with a bound where the lane's own state keeps changing:
+- acceptance: local reads and unsynced writes (rule V) in the worktree's own directory, no ref write, no wait on a program or on a foreign lock;
+  it waits for the lane's short state updates and for a recovery, within CAPTURE, and ends there with an error and no request when the lane kept
+  changing or recovering (nothing changed; run the command again); failures are the owner's outside causes (a full disk, I/O errors);
+- the answer after a crash or a long stop (a resend returns the request's state or the ledger's outcome);
 - retention of everything the request needs until its ledger line is durable, and permanently for anything promised as saved.
 
-May wait, with a notice that names what is waited for:
-- the next owner's acquisition, while a child of the previous owner is between fork and exec;
-- a quiet owner that holds the gate with no person's program running (owner question B);
-- the command, on its own lane (a slow or wedged owner of our own making; the person can interrupt at no cost; the request is
-  durable);
-- off the command (it has exited 0): publishing a pending request while a live foreign program holds the branch's ref lock or keeps
-  moving the branch; the index catching up while a live foreign program holds `index.lock` (owner: "Same as the ref lock
-  (Recommended)"; a merge saves its result on a side ref, exits 0 and finishes the checkout when the lock frees).
-The remaining waits are the person's own: an editor, a signer's prompt, a hook.
+Waits of a command, each ending at its bound with an error (W1) except where the register says otherwise:
+- the next owner's acquisition, while a child of the previous owner is between fork and exec (ACQUIRE, REAP);
+- a quiet owner that holds the gate with no person's program running (owner question B; the error names the unit);
+- the command's wait for its own request on its own lane, a held ref lock, a held `index.lock` before publication, a person's hook run by the
+  service, a held request (FOREGROUND);
+- a push (PUSH): the push is ended at its bound and queued, and the command exits 0 saying so;
+- the branch write already issued by the command's own `commit` (COMMITTING): the one corner that can pass the bound, owner question 1.
+
+Not waits of a command, and not a commit landing later: the index and worktree catching up after a commit or merge that is already published and
+that the command reported (M1, MG3, "derived index materialization"); a request that has no client (a service-originated reconcile merge, a request
+whose client was killed from outside) landing when the branch allows it. The remaining waits are the person's own programs in their own foreground
+(an editor, a signer's prompt, a hook the command runs before any request exists, a forwarded `git gc`; owner question 3).
 
 Stuck Git children and the person's hooks (decision 1; X1 of the state machine).
 A Git child that makes no progress (no processor time, disk activity or output) for the measured interval and whose command cannot launch a
@@ -1478,6 +1489,9 @@ May wait: a service that is alive and slow makes the commit slow, and the notice
 
 ## Item 4: the branch keeps changing; a commit cannot replay onto a moved head
 
+Revision 12 reading: "pending ... and the command answers success" below applies to a request that has no client. A command with a client waits to FOREGROUND
+and then ends in W1; the request stays pending only in the sense that its commit is kept on a side ref and nothing lands by itself.
+
 Root cause: the landing reads the tip, builds on it, then moves the ref only if it is still the tip
 (`update-ref` with the old value), and counts failed rounds (`LANDING_ATTEMPTS` 3 in the service, 5 builds and 3 prepares
 in the client).
@@ -1541,6 +1555,9 @@ The commit is built inside the worktree's lane from the captured inputs, not fro
 
 ## Item 5: `index.lock` is refused after the service's wait
 
+Revision 12 reading: what follows is derived materialization after a published commit (M1, MG3). It is not a commit landing later and not a wait, so rule B
+has no entry for it; the command has already reported `published`.
+
 Root cause: the landing needs the real index lock to install the updated index and holds it across Git work; a foreign program can
 hold it for as long as it likes, and after 1800 s, or at once when no inotify watch can be set, the commit fails although the
 commit itself did not need the index.
@@ -1577,6 +1594,10 @@ review left about overlapping prune is therefore settled by the outside list plu
 The spool is on the same disk, so a full disk or an I/O error while writing it is one of the owner's outside causes.
 
 ## Merges, by the same lens (design only)
+
+Revision 12 reading: the bullets below that say the command exits 0 and the checkout finishes later describe the earlier owner answers. The state machine's
+MG1 to MG3 govern: a merge publishes first, so a foreign `index.lock` delays only the install of an already published merge (derived data), and a held ref
+lock or a held hook before publication is a FOREGROUND wait that ends in W1 with nothing changed.
 
 The merge-fixes branch waits for any `index.lock` holder before the merge and computes the merge again on a moved head up to
 twenty rounds (`merge_isolation_moved.rs`).
@@ -1679,14 +1700,17 @@ Moved to `doc/planning/cli-git-commits-never-fail-review-history.md` with the re
 - `withdrawn` at a bound (owner, 2026-11-03T12:45, "Return with an error"): any wait of a command ends with an error naming the blocker, the commit is kept on a side
   ref for a retry and nothing lands by itself; the register in the state machine lists each wait and its bound.
 - A failing hook or a failing required clean filter (owner): the commit ends with its own message and changes nothing.
-- `sign-pending` (the configured signer failed, an outside cause): nonzero with a clear message; the work stays on disk and the next command of the lane
-  tries the signer again (revision 10, B1).
+- `sign-failed` (the configured signer failed, an outside cause; B1 (iii)): a command with a client waits for the signer to recover within
+  FOREGROUND and then ends `withdrawn` by W1 naming the signer, nonzero, with the work on disk; a request with no client stays `pending` and the next
+  trigger tries the signer again.
 - The causes the owner listed as outside our control, with a clear message, and work already handed over finished by the next
   run.
 - No longer here: a commit that names a conflicted path, a plain commit with unmerged files and `commit -a` over unmerged files
-  (committed with a warning); a live foreign ref lock or `index.lock` (revision 11: the command waits to its FOREGROUND bound and then ends `withdrawn` with an error, the commit kept on a side ref; before the
-  owner's bound answers it landed or was saved with exit 0); a merge that would
-  overwrite unsaved edits (the edits are carried forward).
+  (committed with a warning); a merge that would overwrite unsaved edits (the edits are carried forward). Two different things are told apart (R11-11):
+  a commit landing later, and derived index materialization after an already published commit. A live foreign ref lock, or a foreign `index.lock`
+  held before the publication of a merge, makes the command wait to its FOREGROUND bound and then end `withdrawn` with an error, the commit kept on a
+  side ref; before the owner's bound answers it landed or was saved with exit 0. A foreign `index.lock` held after the publication does not fail
+  or delay anything: the commit is on the branch, the command says the index will catch up when the lock is free, and M1 or MG3 finishes it.
 
 ## Questions for the owner
 
@@ -1816,6 +1840,8 @@ M. Merge order (new in revision 9, restated in revision 10; for the coordinator 
      path must wait for the install, which can wait on a foreign `index.lock`; C1 gains a rule and the models gain a class of schedules.
    - Ranking: M-A > M-B. M-A beats M-B because M-A's open residues are bounded and recoverable (saved files, a restoration report), while
      M-B's native-git window can silently lose the merge's content, which "never discard user data" excludes, and it adds a waiting state.
+   - Revision 12: the bound answers change the cost of this order (a withdrawal after the files were written must restore them through a lock a foreign
+     program may hold), so the order is put to the owner again as question 2 of "Owner questions for revision 12".
    - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): M-A, the machine's default. Revision 10 keeps it, repaired for
      the ninth review (delta install, attachment authority, atomic capture representation, restore from pins). Confirmed after revision 10
      (coordinator, same delegation): M-A stays, because M-B's window lets a native commit record the merge's reversal.
@@ -1844,8 +1870,8 @@ P. A merge that touches a path the person has staged (restated in revision 11 un
    - Option P-wait, wait up to FOREGROUND, then withdraw as in P-refuse. Pros: a commit of `x` made in another terminal resolves it. Cons: the same
      failure as P-refuse after a pointless wait, because the person is at the blocked terminal.
    - Ranking: P-carry > P-refuse > P-wait. P-carry beats P-refuse because it is the only option that neither fails nor waits, at the price of reshaping
-     staging without loss; P-refuse beats P-wait because it reaches the same end without the wait the owner wants gone. The coordinator picked P-wait
-     before the bound rule; the machine keeps P-wait as written in MG1 until the pick is re-made.
+     staging without loss; P-refuse beats P-wait because it reaches the same end without the wait the owner wants gone. The coordinator's earlier pick,
+     P-wait, was replaced by the owner's decision below; revision 12's MG1 and MG3 implement P-carry.
    - Earlier pick (coordinator, 2026-11-03, before the bound rule, veto open): P-wait, because of "never discard user data"; the wait was on a decision only the
      person can make, and Git itself refuses this merge. Re-opened by the bound rule.
    - Owner's decision (question tool, 2026-11-03, answered before the 12:56:51-05:00 commit that records it): "Merge anyway, unstage x", that is P-carry. The option read: "Your staged x becomes an
@@ -1858,14 +1884,14 @@ W. The attachment concession for merge file writes (restated in revision 11; for
    - Option W-detect, authority to do before the writes, a check again before the swap and at every lane event, and restoration by authority to undo
      (MG6) from pinned files. Pros: the merge never waits for the person's switch; nothing is lost. Cons: it is not a fence; a switch finishing after the
      last check leaves the merge's files visible as local modifications in the new branch's worktree until the next check, which is a persistent wrong-attachment
-     effect and not a momentary write; it needs the owner's explicit approval of that residue.
+     effect and not a momentary write; the owner approved that residue (the owner's decision below).
    - Option W-stop, never write worktree files for a merge unless the person asks (the merge is computed and kept, the error gives the finishing command).
      Pros: no wrong-attachment residue at all. Cons: "Auto merging should never fail." is met by saving, but the merge does not complete by itself, and it is an
      error exit under the bound answers.
    - Ranking: W-detect > W-stop. W-detect beats W-stop because it completes the merge as the owner asked and loses nothing, while W-stop returns the work to the
      person; the residue of W-detect is why this is an approval question and not a technical one.
    - Earlier pick (coordinator, 2026-11-03, before the tenth review, veto open): W-detect, because of "Auto merging should never fail." The tenth review does not
-     approve W-detect as specified in revision 10; revision 11 repairs it and the residue above needs the owner's explicit approval.
+     approve W-detect as specified in revision 10; revision 11 repaired it and the owner then approved the residue (the owner's decision below); revision 12 keeps it in MG6c and moves its trigger to a retained `attach-watch` entry.
    - Owner's decision (question tool, 2026-11-03, answered before the 12:56:51-05:00 commit that records it): "Allow the rare leftover", that is W-detect with the residue approved. The option read:
      "Merges keep completing by themselves; in the rare instant above, the merge's files can show up as changes in your new branch until the wrapper's next
      check restores them from saved copies." The option also named the cost: "a `git commit -a` in that window could commit them to the wrong branch."
