@@ -580,10 +580,14 @@ fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, r
             }
             Recovery::Finish => {
                 remove_stale(intent.index.as_path(), intent.seq);
-                // A worktree that has since switched away from the batch's branch has an index that describes another branch: the
-                //  branch has its commit, so there is no index update to finish and the batch is done.
-                if still_checked_out(&git, intent.repository.as_path(), intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) == Ok(false) {
-                    let _marked = mark_done(context.journal.as_path(), intent.seq);
+                // A worktree that has since switched away from the batch's branch has a default index that describes another
+                //  branch: the branch has its commit, so that index is not updated. An index kept in another file belongs to no
+                //  branch and is still finished, and the conclusion state is removed either way; the batch is done when both are.
+                let own_index: bool = intent.index == intent.git_dir.join("index");
+                if own_index && still_checked_out(&git, intent.repository.as_path(), intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) == Ok(false) {
+                    if cleanup_done(&git, intent.repository.as_path(), &intent) {
+                        let _marked = mark_done(context.journal.as_path(), intent.seq);
+                    }
                 } else {
                     match indexed_state(context.journal.as_path(), intent.seq, intent.new.as_str()) {
                         // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
