@@ -1025,7 +1025,15 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             // Macro `format!`: builds or prints text (or a list) from a template.
             warnings.extend(changes.iter().map(String::as_str).map(raised_floor_warning));
             // `match`: picks the arm whose pattern fits the value.
-            let synced: Result<String, String> = if keep { sync_recording(request, edits).map_err(other_text)? } else { Err("the catalog was not raised".to_string()) };
+            // Review finding (3c P2-3): an error from recording the manifests is a failed sync like any other, so the catalog goes back.
+            let synced: Result<String, String> = if keep {
+                match sync_recording(request, edits) {
+                    Ok(answer) => answer,
+                    Err(error) => Err(format!("the manifests could not be recorded around the sync ({error})")),
+                }
+            } else {
+                Err("the catalog was not raised".to_string())
+            };
             // `match`: picks the arm whose pattern fits the value.
             match synced {
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.

@@ -1549,3 +1549,88 @@ fn under_trust_lockfile_a_version_the_base_held_is_trusted() {
 
     assert!(report.written, "{:?}", report.problems);
 }
+
+/// A syncer that writes bytes that are not UTF-8 into a manifest, so reading the manifest back to record it fails.
+struct UnreadableSyncer {
+    manifest: PathBuf,
+}
+
+impl Syncer for UnreadableSyncer {
+    fn sync(&self, _root: &Path) -> Result<String, String> {
+        fs::write(&self.manifest, [0xff_u8, 0xfe_u8]).map_err(|error| { return error.to_string(); })?;
+        return Ok("synced".to_string());
+    }
+}
+
+/// Review finding (3c P2-3): an error from recording the manifests around the sync must still put the raised catalog back.
+#[test]
+fn a_recording_error_around_the_sync_still_puts_the_catalog_back() {
+    let original_catalog: &str = "[catalog]\ndep = \">=0.9.0\"\n";
+    let world = world(&lock_with("0.9.0"), original_catalog);
+    let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
+    let cargo = cargo_that_edits_the_manifest(directory.clone());
+    let trusted: Vec<VersionRecord> = vec![trusted_publish("0.9.0", "2026-01-01T00:00:00Z"), trusted_publish("1.0.1", "2026-02-01T00:00:00Z")];
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), trusted)]) };
+    let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    let syncer: UnreadableSyncer = UnreadableSyncer { manifest: directory.join("Cargo.toml") };
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &syncer,
+        prune_catalog: false,
+        lock_base: None,
+    };
+
+    let _outcome = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args });
+
+    assert_eq!(fs::read_to_string(&world.catalog).expect("catalog"), original_catalog, "the raised catalog was left behind");
+}
+
+/// A syncer that counts its calls.
+struct CountingSyncer {
+    calls: RefCell<u32>,
+}
+
+impl Syncer for CountingSyncer {
+    fn sync(&self, _root: &Path) -> Result<String, String> {
+        *self.calls.borrow_mut() += 1;
+        return Ok("synced".to_string());
+    }
+}
+
+/// Review finding (3c P2-2): the manifest sync belongs to `--breaking` alone, where the manifests are journaled before cargo runs;
+/// an update without it never calls the sync, so there is no manifest edit to snapshot.
+#[test]
+fn an_update_without_breaking_never_calls_the_manifest_sync() {
+    let world = world(&lock_with("1.0.0"), "[catalog]\ndep = \">=0.9.0\"\n");
+    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.0"));
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    let args: Vec<String> = ["update", "-p", "dep"].iter().map(|argument| { return argument.to_string(); }).collect();
+    let syncer: CountingSyncer = CountingSyncer { calls: RefCell::new(0) };
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &syncer,
+        prune_catalog: false,
+        lock_base: None,
+    };
+
+    let _report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
+
+    assert_eq!(*syncer.calls.borrow(), 0);
+}
