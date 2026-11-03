@@ -3,10 +3,10 @@
 use super::*;
 use std::path::PathBuf;
 
-/// The `cargo metadata --no-deps` text of a workspace, built from the fields the repair reads.
+/// The `cargo metadata --no-deps` text of a workspace, built from the fields the repair reads (the paths are plain text).
 fn metadata(root: &str, build: &str, target: &str, members: &[&str]) -> String {
-    let packages: Vec<serde_json::Value> = members.iter().map(|name| { return serde_json::json!({ "name": name, "version": "0.1.0", "id": format!("path+file://{root}/{name}#0.1.0") }); }).collect();
-    return serde_json::json!({ "packages": packages, "workspace_root": root, "build_directory": build, "target_directory": target, "workspace_members": [] }).to_string();
+    let packages: Vec<String> = members.iter().map(|name| { return format!("{{\"name\":\"{name}\",\"version\":\"0.1.0\",\"id\":\"path+file://{root}/{name}#0.1.0\"}}"); }).collect();
+    return format!("{{\"packages\":[{}],\"workspace_root\":\"{root}\",\"build_directory\":\"{build}\",\"target_directory\":\"{target}\",\"workspace_members\":[]}}", packages.join(","));
 }
 
 /// A workspace whose state is where the layout says.
@@ -24,8 +24,8 @@ fn parses_the_directories_and_the_member_names() {
 /// A Cargo too old to name the build directory falls back to the target directory, where it has always been.
 #[test]
 fn a_missing_build_directory_is_the_target_directory() {
-    let text: String = serde_json::json!({ "packages": [], "workspace_root": "/w/ws", "target_directory": "/w/ws/target" }).to_string();
-    assert_eq!(parse_metadata(text.as_str()).expect("parse").build_directory, PathBuf::from("/w/ws/target"));
+    let text: &str = "{\"packages\":[],\"workspace_root\":\"/w/ws\",\"target_directory\":\"/w/ws/target\"}";
+    assert_eq!(parse_metadata(text).expect("parse").build_directory, PathBuf::from("/w/ws/target"));
 }
 
 /// Text that is not metadata is an error that names the missing field.

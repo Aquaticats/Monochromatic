@@ -53,8 +53,8 @@ fn walk(source: &Path) -> Result<Vec<Entry>, String> {
     while let Some(relative) = pending.pop() {
         let directory: PathBuf = source.join(&relative);
         let listing = std::fs::read_dir(&directory).map_err(|error| { return format!("{} cannot be read ({error})", directory.display()); })?;
-        for item in listing {
-            let item = item.map_err(|error| { return format!("{} cannot be listed ({error})", directory.display()); })?;
+        for listed in listing {
+            let item = listed.map_err(|error| { return format!("{} cannot be listed ({error})", directory.display()); })?;
             let path: PathBuf = relative.join(item.file_name());
             let file_type = item.file_type().map_err(|error| { return format!("{} has no type ({error})", item.path().display()); })?;
             if file_type.is_dir() {

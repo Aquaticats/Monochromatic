@@ -335,8 +335,9 @@ fn cargo_control(name: &str, external: bool) {
     // The registry crate comes from the person's offline cache, reached through the fixture's home.
     let registry_home: Option<PathBuf> = cargo_home_with_registry_crate();
     if let Some(home) = registry_home.as_ref() {
-        std::fs::create_dir_all(fixture.root.join("home")).expect("home");
-        std::os::unix::fs::symlink(home, fixture.root.join("home/.cargo")).expect("link the cargo home");
+        // Only the registry is shared: the person's Cargo configuration (which keys the build directory) must not apply.
+        std::fs::create_dir_all(fixture.root.join("home/.cargo")).expect("fixture cargo home");
+        std::os::unix::fs::symlink(home.join("registry"), fixture.root.join("home/.cargo/registry")).expect("link the registry");
     } else {
         eprintln!("REGISTRY REUSE NOT EXERCISED: {name} (no {REGISTRY_CRATE} in the offline Cargo cache)");
     }

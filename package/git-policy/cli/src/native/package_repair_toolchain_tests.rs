@@ -14,7 +14,7 @@ const LAUNCHERS: &str = ".cache/toolchain-launchers";
 fn record(destination: &Path, name: &str, lock: &Path) {
     let directory: PathBuf = destination.join(LAUNCHERS);
     std::fs::create_dir_all(&directory).expect("launchers");
-    let text: String = serde_json::json!({ "toolId": name, "lockFile": lock, "real": "/tools/real", "scope": "repo" }).to_string();
+    let text: String = format!("{{\"toolId\":\"{name}\",\"lockFile\":\"{}\",\"real\":\"/tools/real\",\"scope\":\"repo\"}}", lock.display());
     std::fs::write(directory.join(format!("{name}.launch")), text).expect("record");
 }
 
