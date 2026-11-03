@@ -155,7 +155,9 @@ Measured on 2026-11-03 on throwaway copies of main's shape (20 672 tracked files
 turn, host not quiet): native 38 and 39 ms (37 to 41); the base wrapper (the branch point) 137 ms (132 to 213, median absolute
 deviation 2); the changed wrapper 139 ms (134 to 146, deviation 2). With nothing stalling the two are the same within their
 spread, as expected: in release the in-process update takes about 20 ms (read and parse 6, serialize 3.5, write and flush 10),
-where the process it replaces takes about as long. The effect is in what can stall: strace of the commit service over six
+where the process it replaces takes about as long. The measured services ran in a transient scope capped at 16 GiB of memory,
+with none of the unit's limits of that day; the scope's memory-limit events did not rise (none) and its major faults rose by
+81 over the run. The effect is in what can stall: strace of the commit service over six
 commits shows the base starting 6 `reset` processes of 54 Git starts, the change none of 48. The slow case needs the real
 checkout and its monitor, which no measurement here may touch (`README.md`, "Git's own fsmonitor"), so the fsmonitor-on branch
 of the port is checked against the source, not against a running Git; the fixtures cannot turn it on.
