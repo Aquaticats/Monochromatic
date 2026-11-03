@@ -338,8 +338,10 @@ pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
 pub fn settle_locks(child: Child, collected: bool, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<std::thread::JoinHandle<()>> {
     if collected {
         wait_for_tree(tree.as_slice(), grace);
-        locks.sweep(tree.as_slice());
-        return None;
+        if tree.iter().all(|member| { return !still_running(member); }) {
+            locks.sweep(tree.as_slice());
+            return None;
+        }
     }
     return sweep_after_exit(child, tree, locks);
 }
