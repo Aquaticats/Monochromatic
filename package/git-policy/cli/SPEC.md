@@ -1887,8 +1887,15 @@ in-process reader can) gives every value of the multi-valued keys.
   which writes no pid file, holds an empty lock with no descriptor open for as long as its transaction lasts, so neither
   the lifetime of the stopped child, the birth time of the lock nor its being empty ties the lock to that child, and a pid
   file older than the lock names an earlier holder.
-  A lock the child left with a pid file that names it is removed by the same proof as any other (the process is gone), once
-  it is older than the margin; a younger one is judged by the next fetch or push of the repository, which judges first.
+  A lock whose pid file names a process of the stopped tree that has ended is removed on the wrapper's own proof: the wrapper
+  started that process, stopped it and saw it end, so the number is one of its own PID namespace and names a process that is
+  gone, and this needs no view of the whole machine, which a container lacks (the container gate found the sweep leaving the
+  lock of the wrapper's own stopped child when it required one).
+  The proof holds only when the pid file was born at or after the lock (an older pid file names an earlier holder, and must
+  not vouch for a newer foreign lock), the lock was born after the child started, and nothing in the process table has the
+  number again; it needs no margin, because the holder is known to be gone.
+  A lock whose pid file names any other process is judged by the proofs below, once it is older than the margin; a younger
+  one is judged by the next fetch or push of the repository, which judges first.
   A lock without a pid file is left, and the notice names it with the command that clears it.
   Only reference locks are looked at: `index.lock`, `shallow.lock`, object and pack locks are neither removed nor mentioned.
   The repository is the one of the child's working directory or its `GIT_DIR`; a step that names its repository with
@@ -2098,9 +2105,25 @@ would be read as a reference), so the private name is never written over;
 the identity of what was moved is compared with the judged one;
 a match is removed, and a difference is put back with a hard link, which fails instead of replacing a lock that has been
 created at the path since (that file is then left under its private name and the wrapper says so).
-Two wrappers that judge the same lock at the same time therefore cannot remove a lock that a live Git created between them.
-The one cost is that a file that was not the judged one is missing from its path for the moment between the move and the
-put back; a Git that tries to rename that lock into place in that moment fails loudly, and loses nothing.
+Two wrappers that judge the same lock at the same time therefore cannot delete a lock that a live Git created between them.
+The step does not make the removal safe against every schedule, and the residue is open for the owner (the ninth design
+review, finding R9-S, 2026-11-03).
+If, between the judgement and the move, another cleaner removes the judged lock and a live Git creates a new one at the path,
+the move takes that live lock away from its path for the moment before the put back.
+A Git that tries to rename that lock into place in that moment fails loudly and loses nothing.
+But if a third Git creates a lock at the path in that moment, the put back fails (it never replaces), two Gits then each
+believe they hold the lock of one reference, and the wrapper only reports the displaced file.
+The second identity check just before the move leaves a window of microseconds instead of the length of the judgement, and
+the schedule needs three writers and another cleaner inside it, but it is not closed: Linux has no removal of a path
+conditional on the file that stands there.
+The choice, made for now under the owner's delegation, is to keep removing on a proof; the owner is to be asked whether
+to leave all removal to the person, with the command, instead.
+The fix of 2026-11-03 for the container (the wrapper's own proof above) does not change the step, so each removal has the
+same residue as before; it makes more removals happen (a container now removes the lock of its own stopped child, and a
+young lock of an ended child is judged without waiting out the margin), so it widens the number of occasions and narrows
+nothing.
+The occasions it adds have the fewest chances of the schedule: the lock is the freshest, and the sweep that judges it is
+the first cleaner to look.
 The pid file, and for `packed-refs.lock` the staging file `packed-refs.new` that Git creates with `O_EXCL` while it holds that
 lock (`refs/packed-backend.c:1398`), are looked at before the lock is judged and go through the same step after the lock has
 been removed, each against that earlier look, so a pid file or staging file that a live Git made at the same paths in

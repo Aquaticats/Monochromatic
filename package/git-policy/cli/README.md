@@ -1439,6 +1439,8 @@ fractional or non-numeric value is ignored.
    once it is gone the wrapper judges the reference locks of the repository it worked in and removes only those whose holder
    is proven gone (the rules are in the push deadline entry of `SPEC.md`),
    so a later `git fetch` or `git commit` does not fail with "Unable to create ... File exists".
+  A lock whose pid file names a process of the stopped tree is removed on the wrapper's own knowledge that it stopped that
+   process, also inside a container, where the general proof is not available.
   A lock it cannot prove stale, such as an empty lock without a pid file, is left, because a live Git of another program holds
    exactly such a lock for as long as its transaction lasts; the wrapper says what it found and prints the command that clears it.
   The same stop applies to a Git step that shows no sign of work for `CLI_GIT_CHILD_WAIT_SECONDS`.

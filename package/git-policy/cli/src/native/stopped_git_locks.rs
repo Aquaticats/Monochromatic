@@ -14,16 +14,19 @@
 //!  time. A cross-vendor review of 2026-11-03T11:33:50-05:00 (finding S-1) showed that neither is an ownership proof: a
 //!  live writer of another Git that does not write pid files holds its lock empty with no descriptor open, for as long as
 //!  its transaction lasts, and a pid file older than a lock names an earlier holder, so both rules could delete the lock
-//!  of a Git that is running, and two writers could then update one reference. The sweep now removes nothing of its own.
+//!  of a Git that is running, and two writers could then update one reference. The sweep removes nothing on those rules.
 //!  It hands the repository to the same judgement that runs before every fetch and push (`stale_ref_locks.rs`), which
 //!  removes a reference lock only on a proof and through a conditional removal, and it says what it found and which
-//!  command clears a lock it will not remove. Locks of other protocols (the index, the shallow file, object and pack
-//!  locks) are not touched or mentioned.
+//!  command clears a lock it will not remove. The judgement is given one proof of its own, which a container's view of the
+//!  machine cannot give it: the numbers of the processes of the stopped tree that have ended. A pid file born at or after a
+//!  lock that was itself born after the child started, naming one of them, names a process the wrapper started and saw end, in
+//!  its own namespace (the container gate found the sweep leaving its own child's locks without it).
+//!  Locks of other protocols (the index, the shallow file, object and pack locks) are not touched or mentioned.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const ledger = LockLedger.beforeStart(command); const tree = await stop(child);
-//! for (const lock of ledger.sweep()) log(`removed ${lock}`);
+//! for (const lock of ledger.sweep(tree)) log(`removed ${lock}`);
 //! ```
 
 /// The diagnostic log of the wrapper.
