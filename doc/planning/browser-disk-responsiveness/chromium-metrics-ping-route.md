@@ -26,8 +26,9 @@ and links to related issues.
 The [current bug reporting guidelines][reporting]
 link the public tracker at <https://issues.chromium.org/new>.
 They require a Google Account and ask reporters to verify against the latest Chromium or Chrome Canary.
-The absence of a latest-build reproduction is an evidence limit for this initial owner ping;
-the ping must not describe the Helium observation as a newly reproduced current-main Chromium bug.
+The main task is now acquiring and exercising a fresh upstream Chromium build.
+The ping must use the resulting measured evidence;
+the Helium observation alone is not a newly reproduced current-main Chromium bug.
 
 The owning issue component is `Internals>Metrics`,
 public component ID `1456863`,
@@ -115,7 +116,9 @@ The policy's separate self-review requirement applies to code and documentation 
 Do not transform that clause into an unsupported universal approval requirement for initial bug filing.
 
 The current contribution is an evidence-bearing owner ping.
-The missing latest-build reproduction and deterministic regression fixture must remain explicit.
+Fresh upstream reproduction is in progress in the main task at the user's explicit direction.
+The deterministic regression fixture remains a separate deliverable;
+do not substitute a static call-chain analysis for the running-browser result.
 The incident captured Helium's browser main thread writing through a regular-file-backed `BrowserMetrics` mapping;
 ordinary Chromium filesystem waits without an identified mapping are separate observations.
 A future patch needs its own tests,
