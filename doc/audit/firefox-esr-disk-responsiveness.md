@@ -159,7 +159,7 @@ No cache-hit assumptions or latency measurements were made.
 Confirmed parent-process download setup and helper-dialog paths,
 all desktop platforms.
 
-[`uriloader/exthandler/ExternalHelperAppParent.cpp:123-130`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/uriloader/exthandler/ExternalHelperAppParent.cpp#L123-L130)
+[`uriloader/exthandler/ExternalHelperAppParent.cpp:108-115`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/uriloader/exthandler/ExternalHelperAppParent.cpp#L108-L115)
 receives the parent-side start message and calls the stream listener's `OnStartRequest()`.
 [`nsExternalHelperAppService.cpp:1696-1701`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/uriloader/exthandler/nsExternalHelperAppService.cpp#L1696-L1701)
 returns early in content processes and calls `SetUpTempFile()` in the parent.
