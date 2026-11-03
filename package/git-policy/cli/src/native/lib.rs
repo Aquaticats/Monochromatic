@@ -626,6 +626,11 @@ pub mod lexical_path;
 #[path = "hook_self_invocation_tests.rs"]
 mod hook_self_invocation_tests;
 
+/// The lock inventory of the service and its support modules: a lock stands only on the inventory, with its reason beside it.
+#[cfg(test)]
+#[path = "service_lock_inventory_tests.rs"]
+mod service_lock_inventory_tests;
+
 /// What `git cli-git doctor` reports from the configuration: configured hooks and the retired `hooks` key.
 pub mod doctor_config;
 
