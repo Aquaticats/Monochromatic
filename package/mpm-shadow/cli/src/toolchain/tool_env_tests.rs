@@ -233,3 +233,16 @@ fn install_reports_a_refused_value_as_a_failure_of_the_tool_environment() {
     let failure = report.failed.iter().find(|(id, _)| return id == "tool environment").expect("the refusal is reported");
     assert!(failure.1.contains("ANDROID_HOME"), "{}", failure.1);
 }
+
+#[test]
+fn a_global_install_writes_no_tool_environment_fragment_because_tool_variables_are_for_the_repository_only() {
+    let mut rig = Rig::new();
+    set_env(&mut rig, "android-sdk", &[("ANDROID_HOME", "android-sdk/23.0")]);
+    rig.scope = global_scope(&rig.env).expect("a global scope");
+    let config_home = rig.scope.home.join(".config");
+    sync_tools(&rig.context(), None);
+    let outcome = write_tool_env(&rig.context()).expect("a global scope has nothing to write");
+    assert!(outcome.names.is_empty(), "{outcome:?}");
+    assert!(!config_home.join("mise/conf.d/30-toolchain-env.toml").exists(), "no machine-wide fragment");
+    assert!(!config_home.join("mise").exists(), "the global mise config directory is not even created");
+}
