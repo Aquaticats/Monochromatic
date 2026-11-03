@@ -31,6 +31,7 @@ import {
 import { join, } from 'node:path';
 
 import { generateDomainXml, } from './domain-xml.ts';
+import { diskWeightArguments, } from './disk-weight.ts';
 import { exec, } from './exec.ts';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
@@ -224,6 +225,7 @@ async function convertToQcow2(): Promise<void> {
       'podman',
       'run',
       '--rm',
+      ...diskWeightArguments(),
       '--privileged',
       '--security-opt',
       'label=type:unconfined_t',
