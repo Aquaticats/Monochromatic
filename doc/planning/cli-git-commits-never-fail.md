@@ -542,36 +542,27 @@ objects whose modification time is not later than its expiry, the default expiry
 `:98`, `:172`), so such a prune can delete objects written after it began. The boundary is whether a destructive operation can
 outlive the retained recovery copy.
 - Maintenance the wrapper starts (the service's automatic maintenance after commits, and a `gc`, `prune` or `maintenance` command
-  forwarded through the wrapper) is coordinated over its whole lifetime by one registry per object store, not per lane. The object
-  store is shared by every worktree, so the registry lives in `$GIT_COMMON_DIR/cli-git/maintenance/` and every lane consults it.
-  - Admission. The launcher creates `maintenance/<run-id>` with `O_EXCL` (fsync) before it launches anything, naming the operation, its
-    launcher's process identity and the scope it will run in, and creates that scope first through the manager (a transient scope per
-    run); only then does it launch the destructive process inside the scope. Git's own `gc.pid` in the common directory is read as a
-    second source: a `gc` that a foreign tool started is outside, but a live `gc.pid` of ours or theirs also holds spool release.
-  - Release rule. A lane releases a request's spool only if no registry entry is open whose interval overlaps the request's lifetime
-    (from acceptance to now), where an entry is closed only when its scope reports no processes. A missing end marker never means
-    finished, and the death of the launcher never means the operation finished: the scope is the identity of the destructive execution,
-    and a detached or forked process stays in it.
-  - Crash semantics. The launcher dies after launch and before writing the end: the entry stays open and the scope decides. The
-    operation detaches destructive work: it stays in the scope. A lane restarts while maintenance survives: the registry is on disk and
-    the scope is the manager's. The start entry is durable and the launch never happened: the scope is empty or absent, so the entry
-    closes with an observation record naming that, and no release was blocked beyond that observation. Where no manager exists the
-    scope is the process group recorded in the entry, and an entry whose group cannot be proven empty stays open (retention extended, the
-    disk cost only; the notice names the entry).
-  - After the run's end a connectivity check must pass before the spool is released. Retention is extended; the maintenance is not delayed.
+  forwarded through the wrapper) is coordinated over its whole lifetime by one registry per object store, G1 to G4 of the state machine,
+  not per lane. The reservation, the launch authority and the terminal state are separate: the launcher is placed in a per-run scope
+  before the entry is observable and starts the destructive process from inside it, so while the launcher lives the scope is non-empty and
+  an empty or absent scope is never read as finished; a run is terminal only when its scope reports no processes and the launcher is dead
+  or has recorded its end after waiting; the launcher's death with an empty scope proves launch can no longer happen. A lane releases a
+  request's spool only if no entry overlapping the request's lifetime is open and a connectivity check after the run passes. Git's own
+  `gc.pid` in the common directory is read as a second source and also holds release. Where no manager exists (G4) containment is not possible
+  (a descendant can leave a process group), so the wrapper treats the run as another tool's maintenance, prints that it cannot contain it, and
+  keeps the recovery copy of every overlapping request until the person disposes of it explicitly: disk is spent, nothing is claimed.
 - Maintenance another tool runs is outside the wrapper's control: a loss after recovery data is released is a corrupt repository
   caused by another tool, which is on the owner's outside list. The wrapper reports the missing object when it next reads it.
 
-### Installing into the current index
+### Installing into the current index (rationale for M1 and M2; the state machine governs)
 
-Only a delta applied to the index read under the lock; never a whole-file install built earlier. Optional index locking (the operative
-rule): the lane tries `index.lock` once before the swap. If it gets it, it swaps the ref, applies the delta and releases the lock in one
-critical section, so no index writer interleaves between the publication and its materialization. If a foreign program holds it, the
-commit is published without the index and the delta is applied later. Publication never waits for `index.lock` and never fails
-for it.
-The deferred steps: 1. take `index.lock` with a single try; 2. read the current index in process; 3. apply the attachment guard of
-"Adoption order" and check that the intent is current (below); 4. apply the per-path rule; 5. write the lock file and rename it over
-the index. The whole deferred section is inside the seqlock (generation odd while it runs).
+Only a delta applied to the index read under the lock; never a whole-file install built earlier. There is one path, M1, for every follow-up:
+the lane tries `index.lock` once after the publication, never before it and never across the swap (a lock taken before the swap could be held
+across a hook that waits for ever), applies the attachment guard, applies the entry rule, and renames the new index over the old. The earlier
+two-path design (an immediate critical section around the swap, and a deferred follow-up) is withdrawn: the immediate path skipped the
+attachment guard, and its only benefit, no index writer between the publication and its materialization, is exactly the by-value concession
+the owner accepted in decision 2. Publication never waits for `index.lock` and never fails for it. The generation is odd only while the
+index file is being replaced, which is local and short.
 
 Per-path supersession.
 An outstanding intent is never applied on its own authority. For each path the lane composes the chain of unapplied intents of
@@ -706,9 +697,10 @@ Two causes are stacked: the clock kills, and the steps are slow.
 
 Change that removes it:
 
-- Remove the kill.
-  The watcher keeps its notices (it names the process and what it waits for) and stops ending children.
-  A commit then has no time-based exit at all.
+- Replace the clock with a no-progress rule (owner decision 1).
+  The elapsed-time kill is removed. The watcher keeps its notices and cancels a child only for the stall rule of X1: no progress for the
+  measured interval, a command that cannot launch a protected program, the terminate signal first. A child that ignores it is owner
+  question A. A command that can launch a person's program is exempt and waits.
 - Remove the steps.
   The slow ones in the evidence are the follow-up's `diff-tree` (old to new commit, to learn which paths changed)
   and `reset` (to put those paths in the index), and the review's `diff-tree`.
@@ -747,16 +739,10 @@ Change that removes it:
   (`builtin/reset.c:352`) and removes the whole-index refresh.
   The follow-up `diff-tree` becomes an in-process tree comparison (`repo_read_diff.rs`), which also never reads the index.
 
-Residue: a Git child that never ends (a dead network file system under the repository, a process stopped by someone else).
-No time bound can tell it from a slow one without risking the commit, and killing a writer in the middle of its write
-can cost data, so the commit waits with a notice every interval that names the process, and the person (or the process's
-owner) ends it.
-The retry-based attempt on the branch (stop a read-only step that shows no sign of work, start it again with a doubled
-window) can serve this residue for steps that only read; the owner decides whether it stays.
-It also serves as the containment of a Git bug in a retained child that is safe to run twice (a hung `fast-import` or `commit-tree`);
-`update-ref` is stopped and started again only when no `reference-transaction` hook is configured, because the compare-and-swap
-is safe to run twice; with such a hook it waits, since the hook is the person's program (third review, "Transaction model, hung Git
-children"). A deterministic Git bug on one input is narrowed there to a pending request and a message.
+Residue: a Git child that never ends. X1 cancels it with the terminate signal only when its command cannot launch a protected program;
+one that ignores the signal is owner question A; one that can launch a person's program waits, and the wait is the person's. A deterministic
+Git bug is handled by the embedding direction adopted in the transaction model, not by pending as an end state. The retry-based attempt on
+this branch (a doubled window and a restart of the step) remains the redo half of X1 for the idempotent children.
 
 ## Item 2: the service does not start within `START_WAIT`
 
@@ -766,8 +752,9 @@ The commit's own work is complete before the service is asked.
 Change: the service stops being a correctness dependency.
 The client hands the request over by writing the record into `inbox/` (durable, no ref write) and then asks the manager to start
 the instance.
-If no owner holds the lane lock, the client takes the lock and runs the lane inline for its own queue, until empty; a service
-that starts later waits for that lock and takes the rest over. One lock per worktree, held by the kernel, replaces the ref fence,
+If no owner holds the lane lock, the client takes the lock and acts as owner only to drain the requests adopted before its own and to
+publish and retire its own, then exits (L1 to L4 and the inline-owner rule); a service that starts later waits for that lock and takes
+everything else over. One lock per worktree, held by the kernel, replaces the ref fence,
 the epoch and the takeover of earlier drafts (third review, "Transaction model").
 If the owner is the service and it is alive, the client waits for its answer under item 3.
 
@@ -804,10 +791,10 @@ the parents.
 
 Change that removes it:
 
-- Remove the counts, and say honestly what remains.
-  A commit built by the lane from a change list is rebuilt on the new tip with no cost to the person, and each lost
-  compare-and-swap is another writer's commit.
-  That is system-wide progress, not progress for this request: a compare-and-swap is not starvation-free (review finding 7).
+- Remove the counts. One operative transition (P4): the swap is tried once; a lost swap or a held branch lock makes the request
+  pending with a side ref and the command answers success, and the lane replays the captured delta on the tip when the branch allows it.
+  Repeating the build in the command on every lost swap is withdrawn. A compare-and-swap is not starvation-free (review finding 7), so a
+  request can stay pending while a foreign writer keeps winning; it is never lost.
 - Make the moves rare.
   The lane of a worktree is the one writer of that worktree's publications: its commits, the push's reconcile merge and the
   merges it completes are items of the same lane, served in adoption order. Another worktree of the same repository publishing to
@@ -815,13 +802,12 @@ Change that removes it:
   primitive: forced checkouts and native ref writes exist), and a published result is materialized only into the worktree of the lane
   that published it.
 - For a commit Git must build (signed, hooked, editor) the build starts from the logical head and its publication is the compare-and-swap;
-  a build whose base moved is replayed, or, for a signed commit that cannot be replayed, stays pending until the person signs again.
+  a build whose base moved is replayed on the tip (B1), and a signed commit is signed again in the background with the configured signer (the
+  operative rule; the older rule of waiting for the person to sign again is withdrawn).
 - A conclusion, an amend or a revert whose head moved while the person worked is built by replaying the captured change on
   the new head (owner's choice, below).
 
-May wait: a foreign program that writes the branch with real Git directly, faster than a commit can be built.
-Real Git offers only the compare-and-swap for a ref, so that program cannot be excluded; each lost round is that program's
-commit, and the request is built again on it with a notice that names the foreign tip. Not starvation-free for one request.
+May wait, off the command: a request pending behind a foreign program that holds or keeps moving the branch. The notice names the foreign tip.
 
 ### Decided: stack the result on the new head
 
@@ -885,10 +871,11 @@ one stream and an extra hold ref when the store allows; a prune after handover i
 client reads again, which is legitimate because nothing was handed over. No base hold ref is needed at capture (no ref write).
 The earlier plan to prepare again from the worktree after handover is withdrawn: it would commit a later edit.
 
-Residue: a prune that is still running across the release of the spool. Git's source shows it can delete objects written after it took
-its view (`builtin/prune.c:36`, `:98`, `:172`); the lane checks connectivity before it releases the spool and imports again if
-anything is missing, and a loss after the release is a corrupt repository caused by another tool (the owner's outside list). A
-question for the owner.
+Residue: a prune another tool runs that overlaps the request. Git's source shows it can delete objects written after it took its view
+(`builtin/prune.c:36`, `:98`, `:172`); the lane checks connectivity before it releases the spool and imports again if anything is missing, and a
+loss after the release by a tool the wrapper did not start is a corrupt repository caused by another tool, on the owner's outside list. Maintenance
+the wrapper starts is coordinated over its whole lifetime (G1 to G4), including its retention extension where no manager exists. The question the
+review left about overlapping prune is therefore settled by the outside list plus coordination; it is not an open owner question.
 The spool is on the same disk, so a full disk or an I/O error while writing it is one of the owner's outside causes.
 
 ## Merges, by the same lens (design only)
