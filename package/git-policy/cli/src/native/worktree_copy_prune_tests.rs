@@ -55,6 +55,8 @@ fn caches_are_left_out_except_the_root_cache() {
             "package/x/.cache/typescript/tsconfig.tsbuildinfo",
             "package/x/.gradle",
             "package/x/.kotlin/sessions",
+            "package/x/.zig-cache",
+            "package/x/.zig-cache/o/abc/main.o",
             "package/x/target/debug/incremental",
             "package/x/target/release/incremental/y",
             "package/x/target/x86_64-unknown-linux-gnu/debug/incremental",
@@ -63,6 +65,13 @@ fn caches_are_left_out_except_the_root_cache() {
             assert!(prune.skips_path(cache), "{cache} is a cache");
         }
     }
+}
+
+/// Zig's build outputs are not caches: only its project cache is, and the installed artifacts are the build a worktree needs.
+#[test]
+fn zig_outputs_are_kept() {
+    assert!(!SKIPPING.skips_path("package/x/zig-out"));
+    assert!(!SKIPPING.skips_path("package/x/zig-out/bin/tool"));
 }
 
 /// `incremental` and `zig-global-cache` are caches only inside a build output directory.

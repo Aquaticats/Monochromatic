@@ -144,6 +144,7 @@ fn added_worktree_receives_ignored_state_and_lock_is_released() {
             inherited_token: None,
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_token, _step| return Ok(run_real(source_canonical.as_path(), args.as_slice())),
         &mut || return Ok(identity.clone()),
@@ -196,6 +197,7 @@ fn opted_out_invocation_skips_synchronization() {
             inherited_token: None,
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |token, _step| {
             seen.push(token.map(str::to_string));
@@ -243,6 +245,7 @@ fn main_worktree_command_that_creates_nothing_is_not_settled() {
             inherited_token: None,
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |token, _step| {
             seen.push(token.map(str::to_string));
@@ -285,6 +288,7 @@ fn non_worktree_command_runs_without_settlement() {
             inherited_token: None,
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |token, _step| {
             seen.push(token.map(str::to_string));
@@ -326,6 +330,7 @@ fn inherited_lease_forwards_without_settlement() {
             inherited_token: Some(token),
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |lease, _step| {
             seen.push(lease.map(str::to_string));
@@ -426,6 +431,7 @@ fn add_from_main(root: &Path, main: &Path, common: &Path, flags: (bool, bool)) -
             inherited_token: None,
             context: git_context(),
             add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
         },
         &mut |_token, _step| return Ok(run_real(main, args.as_slice())),
         &mut || return Ok(identity.clone()),

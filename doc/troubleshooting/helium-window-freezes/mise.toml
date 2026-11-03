@@ -1,0 +1,7 @@
+[tasks."lint:types"]
+description = "Check the standalone Helium diagnostic launcher"
+run = "node ../../../node_modules/typescript/lib/tsc.js --project tsconfig.json"
+
+[tasks."verify:markdown"]
+description = "Render the Helium incident report for inspection"
+run = "pandoc --from=gfm --to=html5 --output=$HOME/temp/agent/helium-window-freezes-render.html ../helium-window-freezes.md"
