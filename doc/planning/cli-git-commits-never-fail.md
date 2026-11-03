@@ -263,8 +263,8 @@ The capture-visible mutations, each an S1 replacement: C5 adopt, B1 build/hold/r
 publish-begin, P3 published, P4 swap-failed/pending, Q1 resume, M1 and M2 (with the marker), MG3 (with the marker), L4 (with the marker).
 T1 retire changes no capture-visible state.
 Bound on the cost of a replacement (revision 10): `lane/state` holds only requests that are not terminal, the entries of the consumption map
-that still have an effect, and the logical tail; a terminal request leaves the document in the S1 replacement that records its outcome, and its
-history lives only in the lane's ledger. The document therefore grows with the work in flight and the unresolved suppressions, never with the
+that still have an effect, and the logical tail; a request with a final client-visible outcome leaves the document only after T0 has published that outcome to the lane's ledger, and its
+history then lives only in the ledger. The document therefore grows with the work in flight and the unresolved suppressions, never with the
 lane's history, and a replacement costs the write and fsync of that bounded document. `lane/order` is append-only history, but no transition
 reads it past the adopt line of a request being resumed (the document names each request's position), and it is compacted at a ledger boundary by a
 rotation (a new file started after the document records the old file as closed), so recovery reads one bounded file. The measurement gate: commit cost is
@@ -426,23 +426,25 @@ Capture and acceptance (client)
   dead client and is removed by the lane after the client's identity is gone; a candidate that a binding names is never removed here.
 - C3 bind. Pre: C2. Do: write the binding content (hash of the immutable request and the path of this candidate) to a temporary file,
   fsync, then `link` it to `ids/<xx>/<id>` (atomic: complete or absent) and fsync `ids/<xx>/` (and `ids/` if `<xx>` was created). If the name exists,
-  apply rule D to the binding and to the candidate it names before using either, read it (always complete) and route by the
-  identity's state, which the binding, the inbox, the queue and the named lane's ledger together define:
+  apply rule D to the binding before using it and read it (always complete); the binding names the lane instance, so the terminal route needs the ledger and nothing else: the
+  candidate and the spool are touched only by the routes that need them (reserved and accepted), and a retired request, whose candidate T1 has released,
+  is answered from the ledger (revision 11; R10-6). Route by the identity's state, which the binding, the inbox, the queue and the named lane's ledger together define:
   - different hash: reject with a message; nothing is accepted;
   - same hash and this writer lost the race: discard this candidate and use the winner's candidate named in the binding;
-  - reserved (bound, no record in `inbox/`, `queue/` or the ledger): go to C4 from the candidate;
-  - accepted (the record is in `inbox/`): apply rule D to the record, `inbox/` and its parent before answering, because the record may be
+  - reserved (bound, no record in `inbox/`, `queue/` or the ledger): apply rule D to the candidate directory and `incoming/`, then go to C4 from the candidate;
+  - accepted (the record is in `inbox/`): apply rule D to the record, `inbox/`, its parent and the candidate before answering, because the record may be
     visible without being durable, and power loss would remove it; only then answer `handed over`;
   - adopted (an `adopt` line in the named lane's order file, or the record in `queue/`): apply rule D to that line (fsync of the order file) and to `queue/`, then
     answer that it is handed over and adopted;
-  - terminal (a line in the named lane's ledger): apply rule D to that line, then answer the recorded outcome (a `superseded` line is followed to the request
+  - terminal (an `outcome` line in the named lane's ledger, published by T0): apply rule D to that line, then answer the recorded outcome (a `superseded` line is followed to the request
     that replaced it, see B3).
   Crash: a binding with a durable candidate and no inbox record is a reserved request: any same-content resend, or the lane at L4, completes C4.
 - C4 accept. Pre: C3. Do: publish the record into `inbox/<id>` from the candidate with a no-replace hard link (the candidate stays where it is
   and remains the spool the record points to), fsync `inbox/` and its parent, answer `handed over`; when the link finds the name taken (`EEXIST`, another writer or an earlier run of this step), the record is read
   and rule D is applied to it before the answer, so a record that is visible but not durable is never acknowledged. Crash: repeated by C4 from the candidate;
   a request that C5 has adopted is not repeated.
-- C5 adopt (lane). Pre: accepted, no `adopt <id>` yet, L4 done. Do: journal the intent; append `adopt <id> <crc>` to `lane/order` (this
+- C5 adopt (lane). Pre: accepted, no `adopt <id>` yet, L4 done. Do: apply rule D to the inbox record (fsync the record, `inbox/` and its parent: the lane is a relier on a
+  name a client may have linked and not yet made durable, revision 11; R10-6); journal the intent; append `adopt <id> <crc>` to `lane/order` (this
   line is the authority); link the record into `queue/`; create the hold ref `refs/cli-git/<instance>/hold/<id>` best effort (T1: extra protection, never a precondition of building or publishing); S1 replacement adding the request to the logical tail and the map
   with `resume = B1` (for a merge `resume = MG1`). Crash: L4
   completes the link and the S1 replacement; a second `adopt` is never appended.
@@ -596,6 +598,12 @@ Materialization and retirement
   execution tree is empty (L6). Release: T1-nocommit for `id` (ledger line exists, execution tree empty, no entry remains), spool released then.
   C3 lookup: the terminal route for `id` follows `superseded by` to `id2` and answers `id2`'s state, so "a terminal line exists for this
   identity" is not enough and a resend of `id` is answered as superseded by `id2`. Crash: repeated; the ledger line is idempotent per `id`.
+- T0 publish a terminal outcome (revision 11; R10-7). Pre: a request reaches a final client-visible outcome: `published` (P3), `refused`, `conflicted`, `withdrawn`,
+  `rewritten-away`, `superseded by` (B3). Do, in this order: append `outcome <id> <kind> <detail>` to this lane's ledger and fsync it; then the S1 replacement
+  that records the outcome and removes the request from `lane/state` (a published request stays in the document until M1 or M2 has finished with its consumption
+  entries, but its outcome line is already in the ledger). The outcome line is the lookup route of C3: reporting an outcome does not depend on being
+  eligible to release the recovery data, which is T1's separate and later operation (`retired <id>`). Crash: the ledger line without the replacement is completed by L4; a replacement
+  without the ledger line cannot occur because the line comes first.
 - T1 retire. Pre: the request has a terminal outcome already published to the ledger (T0 below) and every entry of the maintenance registry that overlaps the request's
   lifetime is `terminal` by G3 (an entry that is not `terminal` blocks, whatever its scope: an entry with an empty or absent scope and a live launcher is not
   terminal, because that launcher may still launch). Two kinds. T1-commit, for a request whose commit is in the object store and published (materialized
