@@ -993,11 +993,11 @@ each stays open to the owner's veto and is listed for the owner on return.
    chunk sizes and reader fallbacks are classed once as exempt with the reason (they still follow MGN).
 2. Index lock holder:
    A now (a proven-alive holder is waited for with no bound and a line naming it;
-   an unproven owner gets 1000 ms of backoff and then a diagnostic (replaced 2026-11-03 by the same unbounded wait,
-   with the line naming what is known);
+   an unproven owner gets 1000 ms of backoff and then a diagnostic;
    the dead constant goes),
    then B with the commits-never-fail design (the owner's "Same as the ref lock").
-   Built 2026-11-03 on `feat/git-policy-cli-index-lock-and-service-waits`, with two differences the owner may veto:
+   Built 2026-11-03 on `feat/git-policy-cli-index-lock-and-service-waits`, with three differences the owner may veto:
+   the 1000 ms is cited from a measurement of Git's own commands (at most 100 ms, ten times that),
    a dead owner ends the wait at once,
    and the service's own hold keeps a measured 150 seconds (`UNASKABLE_HOLD_AGE`)
    because live holds ran up to 120 seconds.
