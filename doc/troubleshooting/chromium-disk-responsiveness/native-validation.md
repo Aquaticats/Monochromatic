@@ -2,15 +2,22 @@
 
 These sources exercise the [candidate patch](reporting-ineligible-storage.patch)
 against the compiled Chromium browser and native test executables.
-They are retained before execution;
-their presence is not a passing test result.
-The [candidate status](reporting-ineligible-storage.md) records completed and pending checks.
+The [verification record](reporting-ineligible-storage-verification.json)
+contains the successful native tests,
+failing control,
+restored-candidate retest,
+and live browser results.
+The [candidate status](reporting-ineligible-storage.md) records their scope and limits.
 
 The container-owned checkout is `/work/check/src`,
 the build directory is `out/metrics`,
 and logs are under `/work/logs`.
 The source revision is `360d943d418b3d6645fea86766f5dcc4a7cc3b2e`.
-Apply the reviewed formatting delta and verify source checksums before the final native build.
+A fresh run applies the delivered formatted patch to the recorded upstream revision
+and builds the browser and native test executables using the recorded GN arguments.
+Keep the checkout HEAD at that upstream revision:
+the guard-control driver reads its original startup file from HEAD.
+The final-source driver records the formatting transition used during this validation.
 Run the native tests,
 then the failing startup control,
 then the live browser check on the restored candidate.

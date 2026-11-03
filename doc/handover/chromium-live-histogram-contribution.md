@@ -471,3 +471,49 @@ that helper also closed its browser.
 The next attempt identifies the exact disposable profile and bounds its actual browser scope.
 These are separate observations;
 no common cause or host-limit explanation is established.
+
+## Candidate verification completed at 2026-11-03T19:37:50+00:00
+
+The [patch verification record](../troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage-verification.json)
+retains the completed checks.
+The initial native run passed all expected names:
+`6` accessor-policy tests and `4` browser tests.
+Removing only the startup storage choice made the startup regression fail
+at `HasPersistentLocation()` with actual `true` and expected `false`.
+After restoration and rebuilding,
+all `10` native tests passed again.
+
+Standalone Chromium `159.0.8141.0` completed every live mode.
+Forced reporting had `1` live `BrowserMetrics` mapping;
+ordinary reporting-ineligible and recording-only runs each had `0`.
+Each mode recorded `60` boolean and `60` sparse samples.
+Counts,
+sums,
+and individual buckets matched the generated inputs.
+Every browser acknowledged `Browser.close` and exited `0` without a fatal shutdown diagnostic.
+All native tests and live runs had external networking disabled.
+The candidate source checksums matched again after these runs.
+
+The [follow-up comment](../planning/browser-disk-responsiveness/chromium-metrics-patch-comment.md)
+and validated patch are ready for human review and attachment to the existing issue.
+No patch attachment or follow-up comment has been posted.
+The user's refusal to sign into a testing browser still applies.
+Chromium requires the human submitter to understand the code sent for review
+and to respond personally to human maintainer feedback.
+
+## Related-work verification completed at 2026-11-03T19:53:07+00:00
+
+The [work-in-progress record](../troubleshooting/chromium-disk-responsiveness/upstream-work-check.json)
+retains the complete query results and selected commit descriptions.
+All selected source passages passed browser checks,
+including visibility in the viewport.
+The owned source browsers were closed.
+
+The process-identification helper's failure was separate from the earlier daemon-read error.
+The captured process data contained a space-separated process title inside one NUL-delimited string.
+Its argument-only checks therefore missed the private profile flag.
+The helper now handles that observed representation for its whitespace-free fixture path,
+identifies the exact owned profile,
+and bounds the browser's actual scope before navigating.
+The subsequent source checks passed.
+No cause was established for the original `outcome_unknown` navigation.
