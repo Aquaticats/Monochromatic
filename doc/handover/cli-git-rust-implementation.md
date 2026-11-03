@@ -9456,3 +9456,20 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Two reviews hit the one-hour bound with no output (both launched 21:13, while `pi` was slow): the ladder remove path
   and the conflict-side rule. Relaunched at 03:20 (`~/temp/agent/review-btrfs-ladder-remove-3/` with current branch
   files; `~/temp/agent/review-merge-sides/` with three files); recent reviews returned in about 10 minutes.
+- Main-sourced worktrees built (research agent, `feat/git-policy-cli-main-snapshot-worktree` `91c306da97`, based on the
+  ladder at `38e01bcd33` plus `main-ignored-copy`): `git cli-git convert-worktree-to-subvolume [--dry-run | --abandon]
+  (--all | <worktree>...)` (journaled, refuses busy or dirty worktrees, rerun completes after a kill at any phase;
+  about 4.2 s per 22k-entry worktree under load, so about 200 s once for the 48 real ones), and the snapshot route
+  (nested `.git` pointers unlinked, skip set moved to `.claude/cli-git-trash/<40 hex>`, handed to the service as a
+  `trash` work item; add returns in 3.4 s after conversion). Sent back to merge the current ladder head, replace the
+  misleading "copied 0" line, and test that an older service without `trash` support is replaced before hand-over.
+  QUEUED for the next free `pi` slot: cross-vendor review of `worktree_convert.rs` and `worktree_trash.rs` (both
+  delete). The conversion runs on real worktrees only after this branch is gated and released, skipping busy ones.
+- Timer races: `binary_service_replay_tests.rs` now waits on a test-only `queued-<id>` marker the service writes after
+  queueing (`CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DIRECTORY`, armed like the fault points; 600 ms injected stall: old 2 of 7
+  failed, new 7 of 7 passed); the supervisor test's script now shows life every 10 ms, so only a real 600 ms stall,
+  the monitor's own rule, can end it (`cca0e733f2`, `22f975caff`).
+- Push refusal pass-through done (`fix/git-policy-cli-push-refusal-pass-through` `9d9af780ef` to `d6f888edb8`): a push
+  Git's own dry run refuses ends with Git's exit code and stderr (six refusals checked against plain Git). One control
+  changed: `git push --no-such-option` now equals plain Git (exit 129). Same agent now makes the hint follow the cause
+  for the remaining probe failures.
