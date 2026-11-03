@@ -241,9 +241,7 @@ pub fn copy_start_directory(global_prefix: &[OsString], current: &Path) -> Optio
             if !target.is_empty() {
                 start = start.join(target);
             }
-        } else if COPY_SEPARATE_VALUE_GLOBALS.contains(&bytes) {
-            tokens.next()?;
-        } else if COPY_VALUED_GLOBALS.contains(&bytes) {
+        } else if COPY_SEPARATE_VALUE_GLOBALS.contains(&bytes) || COPY_VALUED_GLOBALS.contains(&bytes) {
             tokens.next()?;
         } else if COPY_VALUED_GLOBALS.iter().any(|name| { return bytes.strip_prefix(*name).is_some_and(|rest| { return rest.first() == Some(&b'='); }); })
             || bytes.starts_with(b"--exec-path=")
@@ -331,9 +329,9 @@ fn resolve_in<'a>(table: &'static [AddOption], arg: &'a str) -> Option<LongOptio
     if ambiguous {
         return None;
     }
-    let (option, unset) = abbreviated?;
+    let (matched, matched_unset) = abbreviated?;
     let attached: Option<&str> = if arg_end < arg.len() { Some(&arg[arg_end + 1..]) } else { None };
-    return Some(LongOption { option, unset, attached });
+    return Some(LongOption { option: matched, unset: matched_unset, attached });
 }
 
 /// What:

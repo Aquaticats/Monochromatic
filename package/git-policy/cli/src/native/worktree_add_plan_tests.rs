@@ -385,10 +385,10 @@ fn an_exact_name_wins_over_the_names_it_is_a_prefix_of() {
         AddOption { short: None, long: Some("re"), takes: Takes::Required },
         AddOption { short: None, long: Some("reset"), takes: Takes::Nothing },
     ];
-    let found = resolve_in(TABLE, "re").expect("the exact name");
-    assert_eq!(found.option.long, Some("re"));
-    assert!(resolve_in(TABLE, "res").is_some_and(|found| { return found.option.long == Some("reset"); }), "a unique prefix");
-    assert!(resolve_in(TABLE, "rea").is_some_and(|found| { return found.option.long == Some("reason"); }));
+    let exact = resolve_in(TABLE, "re").expect("the exact name");
+    assert_eq!(exact.option.long, Some("re"));
+    assert!(resolve_in(TABLE, "res").is_some_and(|prefix| { return prefix.option.long == Some("reset"); }), "a unique prefix");
+    assert!(resolve_in(TABLE, "rea").is_some_and(|prefix| { return prefix.option.long == Some("reason"); }));
     assert!(resolve_in(TABLE, "r").is_none(), "three names share the prefix");
-    assert!(resolve_in(TABLE, "re=1").is_some_and(|found| { return found.attached == Some("1"); }));
+    assert!(resolve_in(TABLE, "re=1").is_some_and(|valued| { return valued.attached == Some("1"); }));
 }
