@@ -320,6 +320,13 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
             push_step(&mut found, &format!("{}: C2 spool: writes the spool and record into the shared incoming/<id>.<hash> directory", name), after);
         } else {
             after.clients[who].phase = Phase::Cand;
+            // What:     `&mut x` lends `x` to a function for change: the callee may modify it and the caller sees the change. Sibling: `&x`, a read-only loan.
+            // Why:      Let a helper append to the caller's list without returning a new one.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // // objects and arrays are passed by reference already
+            // ```
             push_step(&mut found, &format!("{}: C2 spool: writes the spool and record into its private candidate directory and fsyncs it", name), after);
         }
     }

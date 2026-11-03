@@ -194,6 +194,13 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         push_step(&mut found, "lane: reads HEAD before its critical section", after);
     }
     let eight: bool = state.rules == Rules::Eight;
+    // What:     `|x| expr` is a closure (an unnamed function; TS: `(x) => expr`). It is passed to a method that calls it.
+    // Why:      Say in one place what to do for each element or error.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (x) => expr
+    // ```
     if !state.published && !state.lock_foreign && !eight && (!candidate || state.pre_read != 0) {
         let mut after: State = state.clone();
         after.published = true;

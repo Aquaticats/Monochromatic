@@ -124,6 +124,13 @@ pub fn initial(rules: Rules, manager: bool) -> State {
 
 /// Whether some destructive process of the run still lives.
 fn destructive_alive(state: &State) -> bool {
+    // What:     `|x| expr` is a closure (an unnamed function; TS: `(x) => expr`). It is passed to a method that calls it.
+    // Why:      Say in one place what to do for each element or error.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (x) => expr
+    // ```
     return state.running || state.escaped;
 }
 

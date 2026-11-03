@@ -207,6 +207,13 @@ fn child_alive(state: &State) -> bool {
 
 /// Whether the rule is one of the candidate's.
 fn is_candidate(rules: Rules) -> bool {
+    // What:     `|x| expr` is a closure (an unnamed function; TS: `(x) => expr`). It is passed to a method that calls it.
+    // Why:      Say in one place what to do for each element or error.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (x) => expr
+    // ```
     return rules == Rules::Candidate || rules == Rules::CandidateNoJournal || rules == Rules::CandidateRemovesAny;
 }
 
@@ -451,6 +458,13 @@ pub fn invariant(state: &State) -> Option<String> {
     if state.owner == OwnerPhase::Done && state.lock.present && own_creator && !child_alive(state) {
         return Some("the wrapper's own cancellation left a lock that nothing will ever remove".to_string());
     }
+    // What:     `None` is the absent case of `Option` (TS: `undefined`).
+    // Why:      Say there is no value, or no failure, without a sentinel.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return undefined;
+    // ```
     return None;
 }
 

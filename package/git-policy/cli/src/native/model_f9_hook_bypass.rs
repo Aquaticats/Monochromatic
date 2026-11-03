@@ -359,6 +359,13 @@ pub fn invariant(state: &State) -> Option<String> {
     if state.r3 == 2 {
         return Some("a plain commit captured a reversal of the held request that the person did not stage".to_string());
     }
+    // What:     `None` is the absent case of `Option` (TS: `undefined`).
+    // Why:      Say there is no value, or no failure, without a sentinel.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return undefined;
+    // ```
     return None;
 }
 

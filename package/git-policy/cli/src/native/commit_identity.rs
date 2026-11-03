@@ -60,6 +60,13 @@ pub enum IdentityError {
     Io(io::Error),
 }
 
+// What:     `impl From<A> for B` teaches the compiler to turn an `A` into a `B`, which is what `?` uses to convert an error on the way out.
+// Why:      Let every file call below propagate its I/O error as this module's own error with `?`.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// class B { static from(a: A): B { ... } }
+// ```
 impl From<io::Error> for IdentityError {
     /// Lets `?` turn an `io::Error` into `IdentityError::Io` (as in `commit_ledger.rs`).
     fn from(error: io::Error) -> IdentityError {
@@ -87,6 +94,13 @@ pub fn binding_path(root: &Path, id: &str) -> Result<PathBuf, IdentityError> {
 pub fn temporary_name(directory: &Path) -> io::Result<PathBuf> {
     let mut random: [u8; 8] = [0; 8];
     getrandom::fill(&mut random).map_err(|error| { return io::Error::other(error.to_string()); })?;
+    // What:     `format!("...{}...", x)` builds an owned `String`, putting each argument where `{}` is (a standard macro, called like a function).
+    // Why:      Build a label, a path or a line of text from parts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // `...${x}...`
+    // ```
     return Ok(directory.join(format!(".tmp-{}", super::commit_integrity::hex(&random))));
 }
 
@@ -125,6 +139,13 @@ pub fn set_fault_point(callback: Option<fn(&str)>) {
 
 /// Calls this thread's fault point callback, if any, with the name of the decision point reached; a no-op otherwise.
 pub fn fault_point(name: &str) {
+    // What:     `if let Some(x) = value { ... }` runs the block only when the `Option` (or `Result`) holds a value, naming it `x` inside; otherwise it is skipped.
+    // Why:      Handle the present case without a full `match`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value !== undefined) { const x = value; ... }
+    // ```
     if let Some(callback) = FAULT.with(|cell| { return cell.get(); }) {
         callback(name);
     }
@@ -132,6 +153,13 @@ pub fn fault_point(name: &str) {
 
 /// Starts recording, on this thread, the directories that `sync_directory` syncs, in order.
 pub fn start_sync_trace() {
+    // What:     `Vec::new()` makes an empty growable list (TS: `[]`); the type on the left says what it will hold. Siblings: `[T; N]`, a fixed-size array, and `&[T]`, a borrowed view.
+    // Why:      Collect results whose number is not known beforehand.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const found: T[] = [];
+    // ```
     TRACE.with(|trace| { *trace.borrow_mut() = Some(Vec::new()); });
 }
 
@@ -143,6 +171,13 @@ pub fn take_sync_trace() -> Vec<PathBuf> {
 /// Syncs a directory so entries made in it survive power loss.
 pub fn sync_directory(directory: &Path) -> io::Result<()> {
     TRACE.with(|trace| {
+        // What:     `Some(x)` is the present case of `Option` (TS: the value itself, as opposed to `undefined`); `None` is the absent case.
+        // Why:      Return or store a value that may be missing without using a sentinel.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return x; // or undefined
+        // ```
         if let Some(list) = trace.borrow_mut().as_mut() {
             list.push(directory.to_path_buf());
         }
@@ -182,6 +217,13 @@ pub fn sync_chain(from: &Path, anchor: &Path) -> io::Result<()> {
         if current == absolute_anchor {
             return Ok(());
         }
+        // What:     `match value { pattern => ..., }` compares a value against patterns top to bottom and runs the arm that fits; the compiler checks that every case is covered.
+        // Why:      Branch on the outcome of a call that can succeed or fail, or on which variant a value is.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // switch (value.kind) { case ...: ...; }
+        // ```
         match parent_of(&current) {
             Some(parent) => current = parent,
             None => return Ok(()),

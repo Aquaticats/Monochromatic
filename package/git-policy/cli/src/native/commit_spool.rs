@@ -44,6 +44,13 @@ pub enum SpoolError {
     Io(io::Error),
 }
 
+// What:     `impl From<A> for B` teaches the compiler to turn an `A` into a `B`, which is what `?` uses to convert an error on the way out.
+// Why:      Let every file call below propagate its I/O error as this module's own error with `?`.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// class B { static from(a: A): B { ... } }
+// ```
 impl From<io::Error> for SpoolError {
     /// Lets `?` turn an `io::Error` into `SpoolError::Io`.
     fn from(error: io::Error) -> SpoolError {
@@ -54,15 +61,43 @@ impl From<io::Error> for SpoolError {
 /// The directory of an identity's spool: `root/spool/<id>`.
 pub fn spool_directory(root: &Path, id: &str) -> Result<PathBuf, SpoolError> {
     if !is_identity(id) {
+        // What:     `Err(e)` is the failure case of `Result` (TS: throwing `e`).
+        // Why:      Report a failure to the caller as a value.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // throw e;
+        // ```
         return Err(SpoolError::InvalidIdentity);
     }
+    // What:     `Ok(x)` is the success case of `Result` (TS: returning `x`); `Err(e)` is the failure case (TS: throwing `e`).
+    // Why:      Return a value from a function that can also fail.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return x;
+    // ```
     return Ok(root.join("spool").join(id));
 }
 
 /// The manifest body for `files`: one `file <n> <length> <sha256>` line per file.
 fn manifest_body(files: &[Vec<u8>]) -> String {
     let mut body: String = String::new();
+    // What:     `.iter()` walks a list by reference; `.iter_mut()` lends each entry for change; `.into_iter()` consumes the list. The chained method (`any`, `all`, `map`, `find`) takes a closure.
+    // Why:      Ask a question of every entry in one expression.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // list.some((x) => ...)
+    // ```
     for (number, bytes) in files.iter().enumerate() {
+        // What:     `format!("...{}...", x)` builds an owned `String`, putting each argument where `{}` is (a standard macro, called like a function).
+        // Why:      Build a label, a path or a line of text from parts.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // `...${x}...`
+        // ```
         body.push_str(&format!("file {} {} {}\n", number, bytes.len(), sha256_hex(bytes)));
     }
     return body;
@@ -93,6 +128,13 @@ fn link_complete(target: &Path, bytes: &[u8]) -> Result<(), SpoolError> {
             // The name may have been linked by a writer that died before syncing the directory.
             sync_directory(directory)?;
             if fs::read(target)? == bytes {
+                // What:     `return Ok(x)` / `return Err(e)` ends the function with a success or a failure value.
+                // Why:      Hand the result to the caller.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // return x; // or throw
+                // ```
                 return Ok(());
             }
             return Err(SpoolError::Conflict);
@@ -165,6 +207,13 @@ pub fn verify_spool(root: &Path, id: &str) -> Result<Vec<String>, SpoolError> {
         return Err(SpoolError::Mismatch("manifest record count".to_string()));
     }
     let count: usize = lines.len() / 2;
+    // What:     `Vec::new()` makes an empty growable list (TS: `[]`); the type on the left says what it will hold. Siblings: `[T; N]`, a fixed-size array, and `&[T]`, a borrowed view.
+    // Why:      Collect results whose number is not known beforehand.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const found: T[] = [];
+    // ```
     let mut hashes: Vec<String> = Vec::new();
     for (position, line) in lines.iter().enumerate() {
         let kind: &str = if position < count { "file" } else { "old" };
@@ -176,6 +225,13 @@ pub fn verify_spool(root: &Path, id: &str) -> Result<Vec<String>, SpoolError> {
         }
         let name: String = if kind == "old" { format!("{}.old", number) } else { number.to_string() };
         let bytes: Vec<u8> = fs::read(directory.join(&name))?;
+        // What:     `|x| expr` is a closure (an unnamed function; TS: `(x) => expr`). It is passed to a method that calls it.
+        // Why:      Say in one place what to do for each element or error.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // (x) => expr
+        // ```
         if bytes.len().to_string() != parts[2] || sha256_hex(&bytes) != parts[3] {
             return Err(SpoolError::Mismatch(format!("file {}", name)));
         }
@@ -253,6 +309,13 @@ pub fn read_closure(root: &Path, request: &Request) -> Result<Vec<ClosureEntry>,
             if sha256_hex(&bytes) != change.sha256 {
                 return Err(SpoolError::Mismatch(format!("new bytes of change {}", number)));
             }
+            // What:     `Some(x)` is the present case of `Option` (TS: the value itself, as opposed to `undefined`); `None` is the absent case.
+            // Why:      Return or store a value that may be missing without using a sentinel.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // return x; // or undefined
+            // ```
             Some((change.mode.clone(), bytes))
         };
         let old: Option<(String, Vec<u8>)> = if change.old_mode == "000000" {

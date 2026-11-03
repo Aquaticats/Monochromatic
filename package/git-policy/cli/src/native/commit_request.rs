@@ -113,6 +113,13 @@ pub enum RequestError {
     Io(io::Error),
 }
 
+// What:     `impl From<A> for B` teaches the compiler to turn an `A` into a `B`, which is what `?` uses to convert an error on the way out.
+// Why:      Let every file call below propagate its I/O error as this module's own error with `?`.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// class B { static from(a: A): B { ... } }
+// ```
 impl From<io::Error> for RequestError {
     /// Lets `?` turn an `io::Error` into `RequestError::Io`.
     fn from(error: io::Error) -> RequestError {
@@ -123,6 +130,13 @@ impl From<io::Error> for RequestError {
 /// Whether `path` is a safe repository-relative path: non-empty, no NUL, no leading or trailing `/`, no empty, `.`,
 /// `..` or `.git` component.
 pub fn valid_path(path: &[u8]) -> bool {
+    // What:     `|x| expr` is a closure (an unnamed function; TS: `(x) => expr`). It is passed to a method that calls it.
+    // Why:      Say in one place what to do for each element or error.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (x) => expr
+    // ```
     if path.is_empty() || path.contains(&0) || path.starts_with(b"/") || path.ends_with(b"/") {
         return false;
     }
@@ -132,23 +146,58 @@ pub fn valid_path(path: &[u8]) -> bool {
 /// Checks every field of `request`.
 pub fn validate(request: &Request) -> Result<(), RequestError> {
     if !is_identity(&request.id) {
+        // What:     `Err(e)` is the failure case of `Result` (TS: throwing `e`).
+        // Why:      Report a failure to the caller as a value.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // throw e;
+        // ```
         return Err(RequestError::Invalid("id"));
     }
     if request.branch.is_empty() || request.branch.contains(&0) {
+        // What:     `return Ok(x)` / `return Err(e)` ends the function with a success or a failure value.
+        // Why:      Hand the result to the caller.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return x; // or throw
+        // ```
         return Err(RequestError::Invalid("branch"));
     }
     if !is_object_name(&request.base) {
         return Err(RequestError::Invalid("base"));
     }
+    // What:     `.iter()` walks a list by reference; `.iter_mut()` lends each entry for change; `.into_iter()` consumes the list. The chained method (`any`, `all`, `map`, `find`) takes a closure.
+    // Why:      Ask a question of every entry in one expression.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // list.some((x) => ...)
+    // ```
     if request.message.iter().all(|byte| { return byte.is_ascii_whitespace(); }) || request.message.contains(&0) {
         return Err(RequestError::Invalid("message"));
     }
+    // What:     `match value { pattern => ..., }` compares a value against patterns top to bottom and runs the arm that fits; the compiler checks that every case is covered.
+    // Why:      Branch on the outcome of a call that can succeed or fail, or on which variant a value is.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // switch (value.kind) { case ...: ...; }
+    // ```
     match &request.operation {
         Operation::Commit if request.changes.is_empty() => return Err(RequestError::Invalid("changes")),
         Operation::EmptyCommit if !request.changes.is_empty() => return Err(RequestError::Invalid("changes")),
         Operation::Amend(target) if !is_object_name(target) => return Err(RequestError::Invalid("amend target")),
         _ => {}
     }
+    // What:     `None` is the absent case of `Option` (TS: `undefined`).
+    // Why:      Say there is no value, or no failure, without a sentinel.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return undefined;
+    // ```
     let mut previous: Option<&[u8]> = None;
     for change in &request.changes {
         if !valid_path(&change.path) {
@@ -157,6 +206,13 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
         if previous.is_some_and(|before| { return before >= change.path.as_slice(); }) {
             return Err(RequestError::Invalid("path order"));
         }
+        // What:     `Some(x)` is the present case of `Option` (TS: the value itself, as opposed to `undefined`); `None` is the absent case.
+        // Why:      Return or store a value that may be missing without using a sentinel.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return x; // or undefined
+        // ```
         previous = Some(change.path.as_slice());
         let deletion: bool = change.mode == "000000";
         let mode_ok: bool = deletion || ["100644", "100755", "120000", "160000"].contains(&change.mode.as_str());
@@ -174,6 +230,13 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
             return Err(RequestError::Invalid("old entry"));
         }
     }
+    // What:     `Ok(x)` is the success case of `Result` (TS: returning `x`); `Err(e)` is the failure case (TS: throwing `e`).
+    // Why:      Return a value from a function that can also fail.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return x;
+    // ```
     return Ok(());
 }
 
@@ -207,7 +270,21 @@ pub fn encode(request: &Request) -> Result<Vec<u8>, RequestError> {
 /// The content hash of `request`: the SHA-256 of its body, as the end line carries it.
 pub fn content_hash(request: &Request) -> Result<String, RequestError> {
     let bytes: Vec<u8> = encode(request)?;
+    // What:     `.map_err(|e| ...)` converts the error of a `Result` into another error type and leaves a success alone; `|e| ...` is a closure (TS: `(e) => ...`).
+    // Why:      Make a library error fit this module's own error type before propagating it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { ... } catch (e) { throw new OwnError(e); }
+    // ```
     let text: String = String::from_utf8(bytes).map_err(|_| { return RequestError::Damaged("utf-8"); })?;
+    // What:     `.ok_or(error)` turns an `Option` into a `Result`: the present value becomes `Ok(value)` and `None` becomes `Err(error)`.
+    // Why:      Name the failure when a value that must exist is absent, so `?` can propagate it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value === undefined) throw error;
+    // ```
     let end_at: usize = text.rfind("end ").ok_or(RequestError::Damaged("end"))?;
     return Ok(sha256_hex(&text.as_bytes()[..end_at]));
 }
@@ -245,9 +322,23 @@ pub fn decode(bytes: &[u8]) -> Result<Request, RequestError> {
         "empty-commit" => Operation::EmptyCommit,
         other => Operation::Amend(other.strip_prefix("amend ").ok_or(RequestError::Damaged("operation"))?.to_string()),
     };
+    // What:     `Vec::new()` makes an empty growable list (TS: `[]`); the type on the left says what it will hold. Siblings: `[T; N]`, a fixed-size array, and `&[T]`, a borrowed view.
+    // Why:      Collect results whose number is not known beforehand.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const found: T[] = [];
+    // ```
     let mut changes: Vec<Change> = Vec::new();
     let mut end: Option<String> = None;
     for line in lines {
+        // What:     `if let Some(x) = value { ... }` runs the block only when the `Option` (or `Result`) holds a value, naming it `x` inside; otherwise it is skipped.
+        // Why:      Handle the present case without a full `match`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (value !== undefined) { const x = value; ... }
+        // ```
         if let Some(rest) = line.strip_prefix("change ") {
             let parts: Vec<&str> = rest.trim_end().split(' ').collect();
             if parts.len() != 5 || end.is_some() {

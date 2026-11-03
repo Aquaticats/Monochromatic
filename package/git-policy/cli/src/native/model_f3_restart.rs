@@ -193,6 +193,13 @@ fn owner_gone(state: &State, by_restart: bool) -> State {
 
 /// Whether the rule is revision 8 or revision 9, which share the gate, the restart-intent and the namespace rule.
 fn eight_like(rules: Rules) -> bool {
+    // What:     `|x| expr` is a closure (an unnamed function; TS: `(x) => expr`). It is passed to a method that calls it.
+    // Why:      Say in one place what to do for each element or error.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (x) => expr
+    // ```
     return rules == Rules::Eight || rules == Rules::Nine;
 }
 
