@@ -14,7 +14,7 @@
 
 use super::journald_native::Priority;
 use super::service_fault::reach;
-use super::service_head::head_names;
+use super::service_head::still_checked_out;
 use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
 use super::service_journal::{INDEXED_EXTENSION, Intent, Recovery, OPEN_EXTENSION, is_indexed, list_intents, mark_done, mark_indexed, recovery_for, write_intent};
@@ -239,14 +239,12 @@ pub fn land_batch_timed(
         if alone && first.base != old {
             return Ok(vec![Outcome::BranchMoved]);
         }
-        // Git's own compare does not refuse a symbolic `HEAD` when it is told not to follow it (measured: it replaces the
-        //  symbolic reference), so a head that became a branch since the commit was prepared is found here, before the move.
-        if first.reference == "HEAD" && run(&git, repository, &["symbolic-ref", "--quiet", "HEAD"], None)?.succeeded() {
-            return Ok(vec![Outcome::BranchMoved]);
-        }
         // Native Git updates `HEAD`, so a worktree that switched branches while the commit waited fails the commit with nothing
-        //  changed. The named branch would move all the same, and the index built for it would replace the other branch's.
-        if first.reference != "HEAD" && !head_names(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
+        //  changed. The named branch would move all the same, and the index built for it would replace the other branch's. A
+        //  symbolic `HEAD` is not refused by Git's own compare when it is told not to follow it (measured: it replaces the
+        //  symbolic reference), so a head that became a branch is found here, before the move. The same question is asked
+        //  again once the index lock is held, because the worktree can switch while the lock is awaited.
+        if !still_checked_out(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
             return Ok(vec![Outcome::BranchMoved; requests.len()]);
         }
         let amended_parents: Vec<String> = if alone && !unborn {
@@ -394,6 +392,17 @@ pub fn land_batch_timed(
             }
         };
         let hold_began: Instant = Instant::now();
+        // The worktree may have switched while the lock was awaited: the checked-out branch is read again with the lock held and
+        //  before the ref moves, and a landing that no longer belongs to this worktree's head stops with nothing changed.
+        let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str());
+        if !matches!(still, Ok(true)) {
+            let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+            let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+            return match still {
+                Ok(_) => Ok(vec![Outcome::BranchMoved; requests.len()]),
+                Err(code) => Err(code),
+            };
+        }
         // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
         let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
         // A detached head is the `HEAD` file itself: it is updated without following a symbolic reference, so a head that
@@ -500,7 +509,11 @@ fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, r
             }
             Recovery::Finish => {
                 remove_stale(intent.index.as_path(), intent.seq);
-                if is_indexed(context.journal.as_path(), intent.seq, intent.new.as_str()) {
+                // A worktree that has since switched away from the batch's branch has an index that describes another branch: the
+                //  branch has its commit, so there is no index update to finish and the batch is done.
+                if still_checked_out(&git, intent.repository.as_path(), intent.index.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) == Ok(false) {
+                    let _marked = mark_done(context.journal.as_path(), intent.seq);
+                } else if is_indexed(context.journal.as_path(), intent.seq, intent.new.as_str()) {
                     // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
                     if cleanup_done(&git, intent.repository.as_path(), &intent) {
                         let _marked = mark_done(context.journal.as_path(), intent.seq);

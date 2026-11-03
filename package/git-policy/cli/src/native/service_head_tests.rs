@@ -36,3 +36,24 @@ fn a_directory_of_another_repository_is_not_trusted() {
     assert!(belongs_to(theirs.as_path(), ours.as_path()), "a linked worktree points back to its common directory");
     crate::test_support::remove(root.as_path());
 }
+
+/// A detached head is what a commit on `HEAD` needs and a branch is what a commit on that branch needs; each is read from the
+/// `HEAD` file without starting Git, and the other answer is the opposite.
+#[test]
+fn the_checked_out_state_is_read_for_a_branch_and_for_a_detached_head() {
+    use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+    let root = fixture("head-still-checked-out");
+    let repo = repository(root.as_path(), "repo");
+    let common = repo.join(".git");
+    let index = common.join("index");
+    let context = git_context();
+    let ask = |reference: &str| -> Result<bool, FailureCode> { return still_checked_out(&context, repo.as_path(), index.as_path(), common.as_path(), reference); };
+    assert_eq!(ask("refs/heads/main"), Ok(true));
+    assert_eq!(ask("refs/heads/other"), Ok(false));
+    assert_eq!(ask("HEAD"), Ok(false), "a branch is checked out, so a commit on HEAD no longer applies");
+    let head = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["checkout", "--quiet", "--detach", head.as_str()]);
+    assert_eq!(ask("HEAD"), Ok(true));
+    assert_eq!(ask("refs/heads/main"), Ok(false));
+    remove(root.as_path());
+}

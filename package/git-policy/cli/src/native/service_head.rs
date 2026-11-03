@@ -77,6 +77,39 @@ pub fn head_names(git: &GitContext, repository: &Path, index: &Path, common_dir:
     return Ok(output.succeeded() && String::from_utf8_lossy(output.stdout.as_slice()).trim() == reference);
 }
 
+/// What:
+///  Whether the worktree still has the reference a commit was prepared on checked out in the way the commit needs: the branch
+///  `reference` for a named branch, and no branch at all (a detached head) for `HEAD`.
+/// Why:
+///   The landing asks it before it waits for the index lock and again once it holds the lock, because the worktree can switch
+///  while it waits; the detached case reads the same `HEAD` file as the branch case, so neither starts a Git ordinarily.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const same = await stillCheckedOut(git, { repository, index, commonDir }, reference)
+/// ```
+///
+/// # Errors
+///
+/// The failure code when Git must be asked and cannot be started.
+pub fn still_checked_out(git: &GitContext, repository: &Path, index: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
+    if reference != "HEAD" {
+        return head_names(git, repository, index, common_dir, reference);
+    }
+    let from_file: HeadFile = index
+        .parent()
+        .filter(|directory| { return belongs_to(directory, common_dir); })
+        .and_then(|directory| { return std::fs::read_to_string(directory.join("HEAD")).ok(); })
+        .map_or(HeadFile::Unreadable, |text| { return interpret(text.as_str()); });
+    match from_file {
+        HeadFile::Branch(_) => return Ok(false),
+        HeadFile::Detached => return Ok(true),
+        HeadFile::Unreadable => {}
+    }
+    let output = run_git(git, &GitRequest::new(repository, &["symbolic-ref", "--quiet", "HEAD"])).map_err(|_| { return FailureCode::Unavailable; })?;
+    return Ok(!output.succeeded());
+}
+
 /// Head controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_head_tests.rs"]
