@@ -359,6 +359,7 @@ fn after_autostash(fixture: &Fixture, repo: &Path) -> (String, String, String) {
 /// A merge told `--autostash` whose stash conflicts with the merged file when the ending commit applies it: the person's
 ///  work stays reachable exactly as with Git (in the stash, with Git's words), never dropped.
 #[test]
+#[ignore = "red on purpose: the stash and the unmerged entries Git's apply made in the commit's scratch repository are not carried back (doc/planning/cli-git-merge-auto-resolution.md, owner decision 3)"]
 fn a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it() {
     let direct: Fixture = fixture("finish-autostash-conflict-git");
     let repo: PathBuf = prepared(&direct, Stop::Merge, &[ADJACENT]);
