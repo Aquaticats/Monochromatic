@@ -1,7 +1,8 @@
 //! What:
 //! The program entry point.
 //! It looks at the name it was started under:
-//! `mpm` means shadow mode;
+//! `mpm` means shadow mode,
+//! except that a first word that is one of pnpm's verbs (`mpm i -g`) runs the command-line tool;
 //! anything
 //!           else (`mpm-shadow`) means the command-line tool.
 //! Why:
@@ -27,6 +28,9 @@
 /// import { runCli } from './cli.ts';
 /// ```
 use mpm_shadow::cli::run_cli;
+
+/// Imports the check that a word is one of this tool's pnpm verbs or their aliases.
+use mpm_shadow::cli::names_a_declared_verb;
 
 /// Imports the name the shadow answers to.
 use mpm_shadow::constants::SHADOWED_NAME;
@@ -73,16 +77,52 @@ fn main() {
     }
 
     if invoked_as == SHADOWED_NAME {
+        // What:     `all_arguments.get(1)` is the first word after argv[0] as an `Option` (absent when there is
+        //           none); `.and_then(|word| return word.to_str())` keeps it only when it is valid UTF-8 text.
+        //           The `if let Some(first) = ... && names_a_declared_verb(first)` runs the block only when that
+        //           word is present and is one of pnpm's verbs or aliases (`install`, `i`, `update`, `up`, ...).
+        // Why:      The owner wants pnpm's verbs on `mpm` itself ("I want pnpm style verbs.", 2026-11-03), so
+        //           `mpm i -g` is this tool's global install, the same as `mpm-shadow i -g`. Any other command
+        //           line, including one that starts with mpm's own options, stays the real mpm's.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const first = process.argv[2];
+        // if (first !== undefined && namesADeclaredVerb(first)) process.exit(runCli(textOf(process.argv.slice(1))));
+        // ```
+        if let Some(first) = all_arguments.get(1).and_then(|word| return word.to_str())
+            && names_a_declared_verb(first)
+        {
+            // argv[0] stays `mpm`, so the usage lines say `mpm install`, the command the person typed.
+            std::process::exit(run_cli(text_of(all_arguments)));
+        }
         // `all_arguments[1..].to_vec()` copies everything after argv[0] into a new owned list.
         let exit_code: i32 = run_shim(all_arguments[1..].to_vec());
         std::process::exit(exit_code);
     }
 
-    // The command-line tool wants plain text; clap would otherwise report invalid UTF-8 itself.
+    let exit_code: i32 = run_cli(text_of(all_arguments));
+    std::process::exit(exit_code);
+}
+
+/// What:
+/// `fn text_of(arguments: Vec<OsString>) -> Vec<String>` declares a private function that turns the raw
+///           arguments (`OsString`, the operating system's bytes) into owned texts (`String`),
+///           replacing bytes that are not UTF-8 with the replacement character.
+/// Why:
+/// The command-line tool wants plain text;
+/// clap would otherwise report invalid UTF-8 itself.
+///           Both the `mpm-shadow` start and an `mpm` start with a pnpm verb need it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function textOf(args: Buffer[]): string[] { return args.map((argument) => argument.toString('utf8')); }
+/// ```
+fn text_of(arguments: Vec<OsString>) -> Vec<String> {
     let mut text_arguments: Vec<String> = Vec::new();
-    for argument in all_arguments {
+    for argument in arguments {
+        // `.to_string_lossy().to_string()` reads the bytes as UTF-8 and copies them into an owned `String`.
         text_arguments.push(argument.to_string_lossy().to_string());
     }
-    let exit_code: i32 = run_cli(text_arguments);
-    std::process::exit(exit_code);
+    return text_arguments;
 }

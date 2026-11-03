@@ -215,7 +215,7 @@ const FAKE_MPM_WITH_VERSION_AND_HELP: &str = "#!/bin/sh\n\
 case \"$1\" in\n\
   --version) printf 'mpm, version 8.2.0\\nPython 3.13\\n' ;;\n\
   --help|-h) printf 'Usage: mpm [OPTIONS] COMMAND [ARGS]...\\n\\nOther commands:\\n  help\\n' ;;\n\
-  install) printf 'Usage: mpm install [OPTIONS] PACKAGE\\n' ;;\n\
+  installed) printf 'Usage: mpm installed [OPTIONS]\\n' ;;\n\
   --help-format) printf '{\"help\": true}\\n' ;;\n\
   *) printf 'other\\n' ;;\n\
 esac\n\
@@ -270,16 +270,19 @@ fn a_top_level_help_gets_a_section_after_mpms_own_help() {
     }
 }
 
-/// A subcommand's own help,
+/// The help of a subcommand only the real mpm has (`installed`),
 /// the `help` subcommand,
+/// a line that starts with mpm's own option,
 /// and another output format print exactly what mpm printed.
+/// (`mpm install --help` is the shadow's own `install` help:
+/// `install` is pnpm's verb.)
 #[test]
 fn non_top_level_help_and_other_outputs_pass_through_untouched() {
     let root = fixture_root();
     write_fake_mpm(&root.path().join("real"), FAKE_MPM_WITH_VERSION_AND_HELP);
 
     let cases: [(&[&str], &str); 4] = [
-        (&["install", "--help"], "Usage: mpm install [OPTIONS] PACKAGE\n"),
+        (&["installed", "--help"], "Usage: mpm installed [OPTIONS]\n"),
         (&["--verbose", "install", "--help"], "other\n"),
         (&["help", "install"], "other\n"),
         (&["--help-format", "json", "--help"], "{\"help\": true}\n"),

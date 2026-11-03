@@ -13,11 +13,31 @@ and shadows `mpm` ([Meta Package Manager](https://mpm.run)).
   `bin`,
   `prune`,
   and `verify-archive`.
-- As `mpm` (a link the toolchain plan creates) it finds the real `mpm` on `PATH`,
-  runs it with the arguments untouched and the standard streams inherited,
+- As `mpm` (a link the toolchain plan creates) it takes pnpm's verbs too:
+  a command line whose first word is one of the commands named here or one of their aliases
+  (`mpm i -g`,
+  `mpm up`,
+  `mpm ls`)
+  runs that command,
+  exactly as `mpm-shadow` would.
+  The owner's words (2026-11-03,
+  after `mpm i -g` had reached mpm 8.2.0 and failed with "No such command 'i'"):
+  "I want pnpm style verbs.
+  We talked about this!"
+- Every other command line typed to `mpm`,
+  including one that starts with one of mpm's own options
+  (`mpm --verbosity DEBUG outdated`),
+  goes to the real `mpm` found on `PATH`:
+  the shadow runs it with the arguments untouched and the standard streams inherited,
   waits for it,
   deletes the superseded cached versions of this repository's own crates from cargo's registry,
   and exits with mpm's own status.
+  mpm 8.2.0's own `install`,
+  `outdated`,
+  `upgrade` (and its alias `update`)
+  and the `list` alias of `installed` are therefore not reachable through `mpm`:
+  type `mpm installed` for the list,
+  and run the real `mpm` by its path for the others.
 
 ## Design rule: pnpm answers first
 
@@ -108,8 +128,14 @@ because pnpm has none.
   following the `--json` that pnpm's `list` and `outdated` pages document.
   It replaces `bin-paths`.
 - `--global` also has pnpm's short form `-g`.
+- `update`:
+  <https://pnpm.io/cli/update>,
+  "Aliases:
+  up,
+  upgrade"
+  (read 2026-11-03),
+  so `up` and `upgrade` are `update`.
 - Unchanged:
-  `update` (<https://pnpm.io/cli/update>),
   `prune`,
   which keeps its name,
   and `verify-archive`,
