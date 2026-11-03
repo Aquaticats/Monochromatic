@@ -113,7 +113,7 @@ linked by CL 8707393,
 denied anonymous access,
 so its discussion was not assessed.
 
-Prepared with AI assistance from retained captures and source inspection.
+An AI agent ran the reproduction and prepared this report from captured evidence and source inspection.
 The accompanying evidence is sanitized;
 no profile contents or raw private traces are included.
 

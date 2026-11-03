@@ -95,6 +95,10 @@ The approved agent rules and generated copy are committed.
 
 The remaining upstream step requires the user's normal signed-in browser.
 Nothing has been posted.
+For the live form,
+the advised role is `Chromium Contributor`
+and the advised template is `Defect on Linux`;
+the user supplied those exact available choices.
 Submit the prepared report and sanitized JSON under `Internals>Metrics`,
 then record the issue URL here.
 Do not request sign-in through a testing browser.
