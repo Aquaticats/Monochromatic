@@ -217,13 +217,19 @@ fn short_option_value(words: &[String], name: &str) -> Option<String> {
     // `let mut`: a binding that may change.
     // Typed binding: `index: usize`.
     let mut index: usize = 0;
-    while index + 1 < words.len() {
-        if words[index] == name {
+    while index < words.len() {
+        if words[index] == name && index + 1 < words.len() {
             // `Some`: the present or the absent value of an `Option`.
             // `.clone()`: an independent owned copy.
             found = Some(words[index + 1].clone());
             index += 2;
             continue;
+        }
+        // Review finding (2c 9): the attached form (`-m<path>` or `-m=<path>`) carries its value in the same word.
+        if let Some(attached) = words[index].strip_prefix(name)
+            && !attached.is_empty()
+        {
+            found = Some(attached.strip_prefix('=').unwrap_or(attached).to_string());
         }
         index += 1;
     }

@@ -217,6 +217,20 @@ pub fn words_before_double_dash(arguments: &[OsString]) -> Vec<String> {
 /// ```
 pub fn find_verb(arguments: &[OsString]) -> Option<String> {
     let words: Vec<String> = words_before_double_dash(arguments);
+    return find_verb_position(&words).map(|position| { return words[position].clone(); });
+}
+
+/// What:
+/// `pub fn find_verb_position(words: &[String]) -> Option<usize>` returns the index of the command word in the words before `--`.
+/// Why:
+/// Review finding (2c 10): matching the verb by its text finds an option value that spells the same word
+/// (`cargo --config update update`); the position skips each value option's value, so the real command word is the one found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function findVerbPosition(words: string[]): number | undefined
+/// ```
+pub fn find_verb_position(words: &[String]) -> Option<usize> {
     let mut index: usize = 0;
     if !words.is_empty() && words[0].starts_with('+') {
         index = 1;
@@ -224,7 +238,6 @@ pub fn find_verb(arguments: &[OsString]) -> Option<String> {
     while index < words.len() {
         let word: &String = &words[index];
         if word.starts_with('-') {
-            // An option that takes a value also consumes the next word; any other option is one word.
             if VALUE_OPTIONS.contains(&word.as_str()) {
                 index += 2;
             } else {
@@ -232,7 +245,7 @@ pub fn find_verb(arguments: &[OsString]) -> Option<String> {
             }
             continue;
         }
-        return Some(word.clone());
+        return Some(index);
     }
     return None;
 }

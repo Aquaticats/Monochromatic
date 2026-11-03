@@ -100,7 +100,7 @@ use std::ffi::OsString;
 /// ```ts
 /// import { find_verb, words_before_double_dash } from 'crate/verb';
 /// ```
-use crate::verb::{find_verb, words_before_double_dash};
+use crate::verb::{find_verb, words_before_double_dash, find_verb_position};
 
 /// What the command line stands for.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -175,20 +175,8 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
     let verb: String = find_verb(arguments).unwrap_or_default();
     // The position of the command word itself: everything else is scanned, including the global options before it
     // (review finding: `cargo --locked update` and `cargo --offline update` must read like their later spellings).
-    let mut verb_position: Option<usize> = None;
-    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
-    // Why:      The collection stays usable after the walk and no item is copied until it must be.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // for (const item of list) { ... }  // or list.map(...)
-    // ```
-    for (position, word) in words.iter().enumerate() {
-        if verb_position.is_none() && !word.starts_with('+') && !word.starts_with('-') && *word == verb {
-            // `Some`: the present or the absent value of an `Option`.
-            verb_position = Some(position);
-        }
-    }
+    // The position of the real command word; an option value that spells the same word is not it.
+    let verb_position: Option<usize> = find_verb_position(&words);
     let mut dry_run: bool = false;
     let mut frozen: bool = false;
     let mut workspace: bool = false;
@@ -208,7 +196,12 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
             continue;
         }
         let takes_value: bool = VALUE_OPTIONS.contains(&word);
-        let value: String = if takes_value { words.get(index + 1).cloned().unwrap_or_default() } else { String::new() };
+        // Review finding (2c 9): an option that needs a value and has none is cargo's argument error; it is refused here and never
+        // dropped, which would turn the command into a full update.
+        if takes_value && index + 1 >= words.len() {
+            return Err(format!("`{word}` needs a value and none was given, so the command was not run"));
+        }
+        let value: String = if takes_value { words[index + 1].clone() } else { String::new() };
         if word == "-n" || word == "--dry-run" {
             dry_run = true;
         } else if word == "--locked" || word == "--frozen" {
@@ -221,7 +214,7 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
         } else if let Some(attached) = word.strip_prefix("--precise=") {
             precise = true;
             cargo_args.push(format!("--precise={attached}"));
-        } else if word == "-m" || word == "--manifest-path" || word.starts_with("--manifest-path=") || word == "-C" {
+        } else if word == "-m" || word == "--manifest-path" || word.starts_with("--manifest-path=") || word == "-C" || (word.starts_with("-m") && word.len() > 2) {
             // The workspace these select is found before the plan runs (`options.rs`, `shadow_step.rs`), and each cargo call
             // runs inside it, so the option itself is dropped.
         } else if FORWARDED_VALUE_OPTIONS.contains(&word) {
