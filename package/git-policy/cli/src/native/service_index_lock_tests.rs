@@ -818,7 +818,8 @@ fn an_ended_watch_is_dropped_before_the_next_is_set() {
         }
         return Watch::on(directory);
     };
-    let platform: Platform = Platform { watch: &quota_of_one, ..SYSTEM };
+    let slow_flush = |_: &std::fs::File| -> std::io::Result<()> { std::thread::sleep(Duration::from_millis(600)); return Ok(()); };
+    let platform: Platform = Platform { watch: &quota_of_one, sync: &slow_flush, ..SYSTEM };
     let foreign: PathBuf = lock_path_of(&index);
     let release = std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(300));
