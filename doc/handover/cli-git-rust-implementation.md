@@ -258,11 +258,23 @@ a Git child that hangs twice on identical input leaves the commit pending with e
 a prune that overlaps a request and deletes after the lane's check is treated as corruption by another tool;
 after a crash on a repository with no branch reflog,
 a published commit removed by a non-descendant rewrite reappears once.
-Fourth review running,
-output `~/temp/agent/reviews/commits-never-fail-sol-4.txt`.
+Fourth review returned 2026-11-03T09:05:02-05:00:
+`~/temp/agent/reviews/commits-never-fail-sol-4.txt`,
+verdict "not ready to build as the live transaction protocol";
+one Critical (carry-forward crash recovery deletes an editor's newer inode)
+and five new High (kill-before-acquire and unsupervised inline owners;
+the watchdog is a time bound that can repeat a hook;
+lockfile contents do not prove ownership;
+dry-run expansion differs from the real push;
+reachability does not make an old index intent current).
+It judges the lock-versus-service question an implementation choice,
+and only the signed-commit,
+prune-boundary,
+deterministic-Git-bug and no-reflog cases owner decisions.
+Fifth revision sent to the design agent.
 Remaining:
-read it,
-fold it in,
+read the revision,
+review again,
 ask the owner the questions it leaves,
 then build in the reviewer's order (models and crash fixtures first),
 with the exit inventory as a gate.
