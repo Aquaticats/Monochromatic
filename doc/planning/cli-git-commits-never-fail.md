@@ -275,7 +275,9 @@ identifies nothing once the inode is freed (an unnamed `O_TMPFILE` inode dies wi
 removes a name only if no program but the lane ever creates that name: the unique names under `lane/`, `incoming/`, `saved/` and `lane/tmp/`
 (including the carry-forward temporaries, which are created in `lane/tmp/` and moved by `RENAME_EXCHANGE` across directories of one file system,
 or, where that fails, beside the path under a unique name that carries the incarnation id and a counter, which no other program picks). The lane
-never removes, displaces or exchanges a pathname that a foreign program may also create: `index.lock`, a ref lock, any file of the person.
+never removes or substitutes a lock that a foreign program may create (`index.lock`, a ref lock); a file of the person is displaced only by the
+carry-forward protocol's `RENAME_EXCHANGE`, which removes nothing: the displaced inode is retained under a name the lane owns, so the instant it
+leaves a different file at the pathname loses no content.
 Where recovery would need such a removal, it leaves the file, reports it, and keeps the request deferred (M1 and MG2 are `pending`). A journaled
 inode identity is a claim only while a name the lane owns pins the inode (a hard link under `lane/`), and is then used for reports, never as
 deletion authority at a shared name.
@@ -469,23 +471,30 @@ Materialization and retirement
   success or refusal, is read and thrown away (the invocation is the person's program and is not ended; the gate is released when its
   execution tree is empty, as in L6). The spool of `v` is released by the T1 rule after the ledger line and after that execution tree is
   empty. Crash: repeated; a second ledger line for the same (id, version) is a no-op.
-- T1 retire. Pre: published (materialized or voided) or terminal otherwise, and every entry of the maintenance registry that overlaps the
-  request's lifetime is `terminal` by G3 (an entry that is not `terminal` blocks, whatever its scope: an entry with an empty or absent scope
-  and a live launcher is not terminal, because that launcher may still launch), and a connectivity check passed. Do, in this order:
-  (1) write `releases/<instance>/<id>` (the release intent) by the link method of C3 and fsync; (2) re-read the registry and, if any
-  entry created after the Pre observation is not `terminal`, withdraw the intent and keep the retention (a later T1 repeats from the
-  Pre); (3) re-run the connectivity check from the tip; (4) append the terminal line to this lane's own ledger (this lane is the only
-  appender); (5) release the retention of a request that is not promised as saved; (6) remove the intent. Crash: the intent names an
-  unfinished release; L4 repeats from step (2); the ledger line exists before the release, so retention is never released first.
-  Why an admission after step (2) cannot threaten the released closure, stated as an argument and not as an ordering of two locks: the
-  release only happens for a request whose commit the step (3) check found reachable from the branch tip, and no request that is saved
-  (`landing`, `pending`, `rewritten-away`, `voided` without publication) is ever released by T1, so the released closure is reachable
-  from `refs/heads/<branch>`; `git prune` removes only objects not reachable from the refs, and only those older than its expiry
-  (`builtin/prune.c:36,98,172`). The residue that remains is a person rewriting the branch after step (3) and then pruning with an
-  expiry in the past; that is the person's destructive act on a published commit, outside this design's list, and the reflog entry written
-  by the swap keeps the object for the person's own reflog expiry. A handshake that makes the registry and the intent visible to each other
-  (G1 reads the intents after publishing its reservation and defers while one is open; T1 withdraws on seeing a reservation) was considered and not
-  adopted: it makes an automatic maintenance run wait on a dead lane's intent.
+- T1 retire. Pre: the request has a terminal outcome and every entry of the maintenance registry that overlaps the request's lifetime is `terminal`
+  by G3 (an entry that is not `terminal` blocks, whatever its scope: an entry with an empty or absent scope and a live launcher is not terminal,
+  because that launcher may still launch). Two kinds. T1-commit, for a request whose commit is in the object store and published (materialized
+  or voided): the connectivity check from the branch tip passes and the request holds its object-store root (below). T1-nocommit, for a request
+  that has no commit to publish (`superseded`, `refused`, `conflicted`, a held version): the hook execution tree of the version is empty, no
+  consumption entry remains for it, and nothing is claimed reachable; it needs no connectivity check. A request that is saved (`pending`,
+  `landing`, `rewritten-away`, or `conflicted` whose inputs the person has not disposed of) is never retired by T1 and never loses its spool.
+  Do, in this order: (1) write `releases/<instance>/<id>` (the release intent) by the link method of C3 and fsync; (2) re-read the registry and, if
+  any entry created after the Pre observation is not `terminal`, withdraw the intent and keep the retention (a later T1 repeats from the Pre);
+  (3) for T1-commit, re-run the connectivity check from the tip; (4) append the terminal line to this lane's own ledger; (5) release the spool;
+  (6) remove the object-store root `refs/cli-git/<instance>/hold/<id>` last; (7) remove the intent. Crash: the intent names an unfinished
+  release; L4 repeats from step (2); the ledger line exists before any release, so retention is never released first.
+  The object-store root (revision 10; R9-6): the lane creates `refs/cli-git/<instance>/hold/<id>`, naming the request's commit (or its imported
+  closure), at C5 adopt, and the request is not `ready` without it; if the ref store refuses it, the request is `unrooted`, T1 never releases its
+  spool, and the notice says so. The root is a ref in the lane's own namespace, so no foreign program contends for it, and it is excluded from
+  pushes. Why a late maintenance admission cannot take the closure, as an invariant over the interval of a destructive operation: a closure is
+  rooted from its import until step (6); a destructive run that takes its reachability view at any time before step (6) includes the root
+  (`git prune` marks from all refs), so the closure is reachable in that view whatever the branch did meanwhile, including a temporary loss of
+  reachability; a run that takes its view after step (6) takes it after step (3) found the commit reachable from the tip, and loses it only if a
+  person rewrites the branch after that check (the stated residue; the reflog keeps the object for the person's own expiry). That a prune view includes
+  `refs/cli-git/*` is a backend obligation, tested against the installed Git before the root is relied on. The alternative, a handshake in
+  which G1 reads the release intents after publishing its reservation and defers only on an intent whose lane has a live owner, T1 withdraws on
+  seeing a reservation, and a dead lane's intent is not waited on (its L4 repeats T1 from step (2) and sees the reservation), is the owner
+  choice G below.
 Merges (a merge is a request of the same lane, in the same order as commits and pushes; revision 10 rewrites MG1 to MG6 for R9-4 and R9-5; the
 order is checkout first, swap second, owner choice M-A of revision 9, with the alternative swap-first listed as a choice)
 - MG1 compute. Pre: adopted, the merge request. Do: compute the merge commit `M` from the logical tail and the other side with `merge-tree`
@@ -1899,6 +1908,17 @@ W. The attachment concession for merge file writes (a residue to confirm; for th
      finishing command). Pros: no concurrent-switch residue. Cons: "Auto merging should never fail" is met by saving, but the merge does not complete by itself.
    - Ranking: W-detect > W-stop. W-detect beats W-stop because it completes the merge as the owner asked and loses nothing, while W-stop moves
      the work back to the person.
+G. Retention against late maintenance (new in revision 10; for the coordinator to pick).
+   Case: T1 sees no open maintenance run; a run is admitted and takes its reachability view while the branch is temporarily elsewhere; the
+   branch moves back; T1 releases the recovery copy; the run deletes by its earlier view.
+   - Option G-root, the closure is rooted in the object store by a hold ref from import until the last step of T1 (default in the machine).
+     Pros: no coordination between lanes and maintenance, no waiting; the invariant is local and testable. Cons: it relies on a prune view
+     including the lane's own refs (a backend experiment), and a request whose root cannot be written keeps its spool until disposal.
+   - Option G-handshake, G1 reads release intents after its reservation and defers on an intent whose lane has a live owner; T1 withdraws on
+     seeing a reservation. Pros: no reliance on how a prune reads refs. Cons: a maintenance run waits (a few fsyncs) on a live lane, a wedged
+     live owner blocks maintenance, and the dead-lane exemption needs its own model.
+   - Ranking: G-root > G-handshake. G-root beats G-handshake because it adds no wait to maintenance and no lane-to-lane dependence, at the
+     price of one verified Git behaviour; the handshake's wedged-owner case makes a person's `git gc` wait on an internal fault.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
