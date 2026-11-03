@@ -9877,3 +9877,14 @@ by the coordinator at merge.
   would convert, 1 real difference. Controls were written with the fix, not red first; guard removal showed each red.
   Gate 69 and two cross-vendor re-reviews (`~/temp/agent/review-convert-2/`, `review-content-2/`) running; the real
   conversion waits for both re-reviews.
+- Owner decisions 2026-11-03 (question tool): Cargo state in new worktrees "Reuse deps, rebuild own" (clone the
+  source workspace's Cargo build state, then force only the worktree's own crates to rebuild); how to force it "Run
+  cargo clean -p" (the wrapper runs `cargo clean -p <member>` per workspace member and `cargo metadata` for the build
+  directory); conflict-side refusals under a pathspec mode "Add the note" (name the mode and say the command without
+  it would be saved, then allowed). Assigned: the note to the conflict-side agent; pnpm and Cargo handling plus a
+  survey of uv, Bun, npm, Gradle and Zig state to a new package-manager agent
+  (`feat/git-policy-cli-package-manager-aware-worktree-copy`).
+- Conflict-side fixes done (`fix/git-policy-cli-conflict-side-review-findings`, head `fc02164802`): finding 1 already
+  refused by the layout reader (pinned with tests), findings 2 to 4 fixed with red controls; host 3163 and 532 pass.
+  Sent back: the same option-value scan in `restores_index_only` (`command_discard.rs`), `conflict_sides.rs` over 300
+  lines, and the pathspec note.
