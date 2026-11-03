@@ -1,7 +1,7 @@
 //! Binary-level controls for the fixtures themselves: where they live and that they go away however their test ends
 //! (issue 1809).
 
-use super::support::{FIXTURE_ROOT_VARIABLE, Fixture, fixture, settle_fixture};
+use super::support::{FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, settle_fixture, start_fixture_service};
 use std::path::{Path, PathBuf};
 
 /// A fixture whose test panics after creating it leaves nothing behind.
@@ -134,4 +134,34 @@ fn a_fixture_service_outlives_the_thread_that_started_it() {
     // The signal arrives as the thread ends, but the kernel delivers it asynchronously: give a killed service time to be gone.
     std::thread::sleep(std::time::Duration::from_millis(500));
     assert!(std::os::unix::net::UnixStream::connect(&socket).is_ok(), "the service stopped with the thread that started it");
+}
+
+/// How long a fixture may take to say that its commit service ended before it listened. The patience for a service that is
+///  merely slow is a minute, so anything near it means the fixture waited for a service that was already gone.
+const ENDED_SERVICE_VERDICT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// What:
+///  A commit service that ends before it listens fails the fixture's start at once and says how it ended.
+/// Why:
+///   Under a memory limit close to what the service needs, it binds its socket, cannot start its acceptor thread and exits
+///  within a millisecond. The fixture used to poll for a listener until its minute of patience ran out ("never listened"),
+///  although the service had ended at the start: a poll that missed that millisecond waited for nothing. A program placed
+///  in front of the service that ends at once is the same event without the timing.
+#[test]
+fn a_fixture_service_that_ends_before_it_listens_fails_the_start_at_once() {
+    let created: Fixture = fixture("service-ends-first");
+    *created.service_launch.lock().expect("the service launch") =
+        ServiceLaunch { prefix: vec![std::ffi::OsString::from("/usr/bin/false")], ..ServiceLaunch::default() };
+    let services: FixtureService = start_fixture_service(&created);
+    let git_dir: PathBuf = created.root.join("repo").join(".git");
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { services.serve(&created, git_dir.as_path()); }));
+    let said: String = match outcome {
+        Ok(()) => panic!("the fixture reported a listening service although the service ended"),
+        Err(payload) => payload.downcast_ref::<String>().cloned().or_else(|| { return payload.downcast_ref::<&str>().map(ToString::to_string); }).unwrap_or_default(),
+    };
+    assert!(began.elapsed() < ENDED_SERVICE_VERDICT, "the fixture waited {:?} for a service that had ended: {said}", began.elapsed());
+    assert!(said.contains("ended"), "the failure must say that the service ended: {said}");
+    let status: String = std::process::Command::new("/usr/bin/false").status().expect("the stand-in program runs").to_string();
+    assert!(said.contains(status.as_str()), "the failure must give the exit status ({status}): {said}");
 }
