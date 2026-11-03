@@ -155,6 +155,7 @@ fn run(world: &World, catalog_settings: &Settings, cargo: &FakeCargo, registry: 
             registry,
             forward: &[],
             syncer: &RecordingSyncer { calls: RefCell::new(0) },
+            prune_catalog: true,
         },
         kind,
     );
@@ -308,6 +309,7 @@ fn run_with_syncer(world: &World, cargo: &FakeCargo, registry: &FakeRegistry, sy
             registry,
             forward: &[],
             syncer,
+            prune_catalog: true,
         },
         &UpdateKind::Targeted { cargo_args: args },
     )
@@ -365,4 +367,36 @@ fn a_refused_breaking_update_changes_neither_the_lock_nor_the_catalog() {
     assert_eq!(lock_of(&world), lock_with("1.0.0"));
     assert!(fs::read_to_string(&world.catalog).expect("catalog").contains(">=1.0.0"));
     assert_eq!(*syncer.calls.borrow(), 0);
+}
+
+#[test]
+fn an_update_of_some_workspaces_never_prunes_the_catalog_because_other_lockfiles_may_need_its_excludes() {
+    let world = world(&lock_with("1.0.0"), "trustPolicyExclude = [\"needed-elsewhere@1.0.0\"]\n");
+    let mut catalog_settings: Settings = settings();
+    catalog_settings.trust_policy_exclude = vec!["needed-elsewhere@1.0.0".to_string()];
+    catalog_settings.trust_policy_exclude_prune = true;
+    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.0"));
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+
+    let report = update_rust_lockfiles(
+        &UpdateRequest {
+            root: world.root.path(),
+            crate_dirs: &world.dirs,
+            dry_run: false,
+            now: now(),
+            settings: &catalog_settings,
+            catalog_path: &world.catalog,
+            runner: &cargo,
+            registry: &registry,
+            forward: &[],
+            syncer: &RecordingSyncer { calls: RefCell::new(0) },
+            prune_catalog: false,
+        },
+        &UpdateKind::Full,
+    )
+    .expect("updates");
+
+    assert!(report.written);
+    assert!(report.pruned.is_empty());
+    assert!(fs::read_to_string(&world.catalog).expect("catalog").contains("needed-elsewhere@1.0.0"));
 }
