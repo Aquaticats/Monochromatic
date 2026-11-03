@@ -7,7 +7,7 @@ After the crates.io attempt,
 the user requested the GitHub version instead.
 The final declaration selects GitHub release `v0.11.0`,
 commit `6d62fc1f705385dfa71474e7c984b34c868ad089`.
-Installation verification is pending.
+Installation and interactive live-view verification passed.
 
 The personal plan and generated lock stay in
 `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain/`.
@@ -91,8 +91,27 @@ Build limits are `CPUQuota=200%`,
 and `IOWeight=10`.
 Scratch files use a private directory under `${HOME}/temp/agent`.
 
-The failing catalog consists of the disabled-fallback attempt and the nightly compilation diagnostic.
-Successful installation and runtime checks remain pending.
+The failing catalog consists of the disabled-fallback attempt,
+the nightly compilation diagnostic,
+and the clang and incomplete-install cases documented in this file.
+
+The successful installation reported `1 installed, 61 unchanged, 0 failed`.
+`mise run toolchain:list:global` then reported `62 tools in sync with toolchain.lock.json`.
+Cargo's installation record identifies `below 0.11.0` and the selected GitHub commit.
+`command -v below` resolves to the global toolchain's `exposure/below`,
+and `below --help` succeeds.
+
+The installed executable's `live --interval-s 1` ran in a terminal with a disposable configuration.
+The header displayed `0.11.0`,
+CPU measurements changed after the first sample,
+and memory,
+process,
+and cgroup rows populated.
+Sending `q` exited with status `0`.
+The logs included an expected missing-history file in the empty disposable store
+and `WARN bpf error channel disconnected`.
+This verifies the live interface and ordinary sampling;
+it does not verify eBPF exit statistics or recording as a privileged service.
 
 ## What does not work
 
@@ -118,6 +137,16 @@ the repository's commit history contains the explicit-cast fix as
 `1fa6d036eb8fb9acd3a79c2eb393f1e2f5bd9448`.
 That fix is absent from release commit `6d62fc1f705385dfa71474e7c984b34c868ad089`.
 No upstream source was edited locally.
+
+The [release source at lines 130 to 150][below-exitstat] contains the failing assignments:
+
+```c
+// below/src/bpf/exitstat.bpf.c:140 and :145, GitHub v0.11.0
+const struct mm_struct___pre62 *mms = mm;
+const struct mm_struct___post62 *mms = mm;
+```
+
+`agent-browser read` of the commit-pinned selection returned both quoted statements.
 
 A direct compilation of the release's existing `exitstat.bpf.c`,
 using the installed libbpf headers and the build script's BPF arguments,
@@ -183,3 +212,5 @@ it does not repair the toolchain's general incomplete-install detection.
 - No upstream patch was prototyped because the matching explicit-cast fix already exists.
 
 There is no upstream filing artifact or external message.
+
+[below-exitstat]: https://github.com/facebookincubator/below/blob/6d62fc1f705385dfa71474e7c984b34c868ad089/below/src/bpf/exitstat.bpf.c#L130-L150
