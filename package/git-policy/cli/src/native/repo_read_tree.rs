@@ -16,6 +16,8 @@
 use super::repo_read_object::{ObjectKind, name_length};
 use super::repo_read_layout::ObjectFormat;
 use super::repo_read_odb::ObjectDatabase;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// The deepest tree nesting the flattener follows.
 const TREE_DEPTH_LIMIT: usize = 256;
@@ -143,8 +145,31 @@ fn walk(
 /// ```ts
 /// function flattenTreeShared(odb, tree, format): readonly FlatEntry[] | undefined; // same list, one read per process
 /// ```
-pub fn flatten_tree_shared(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat) -> Option<std::rc::Rc<Vec<FlatEntry>>> {
-    return Some(std::rc::Rc::new(flatten_tree(database, tree, format)?));
+pub fn flatten_tree_shared(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat) -> Option<Rc<Vec<FlatEntry>>> {
+    let key: Vec<u8> = tree.to_vec();
+    let kept: Option<Rc<Vec<FlatEntry>>> = SHARED_LISTS.with(|lists| {
+        return lists.borrow().iter().find(|(name, _)| { return *name == key; }).map(|(_, list)| { return Rc::clone(list); });
+    });
+    if let Some(found) = kept {
+        return Some(found);
+    }
+    let listed: Rc<Vec<FlatEntry>> = Rc::new(flatten_tree(database, tree, format)?);
+    SHARED_LISTS.with(|lists| {
+        let mut held = lists.borrow_mut();
+        if held.len() >= SHARED_LIST_LIMIT {
+            held.remove(0);
+        }
+        held.push((key, Rc::clone(&listed)));
+    });
+    return Some(listed);
+}
+
+/// How many trees' lists a thread keeps for later questions.
+const SHARED_LIST_LIMIT: usize = 3;
+
+thread_local! {
+    /// The lists `flatten_tree_shared` keeps, oldest first, by the tree's name.
+    static SHARED_LISTS: RefCell<Vec<(Vec<u8>, Rc<Vec<FlatEntry>>)>> = const { RefCell::new(Vec::new()) };
 }
 
 /// What:
