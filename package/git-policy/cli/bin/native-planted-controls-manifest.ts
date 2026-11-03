@@ -11,7 +11,7 @@ import { join } from 'node:path';
 
 import { passOneDirectoryName } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/campaign-passes.ts';
 import {
-  campaignProtocolFile,
+  attemptProtocolFile,
   containerStartedFile,
   startedMarkerProtocolVersion,
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/constants.ts';
@@ -284,32 +284,31 @@ export type StartEvidence =
     | 'unknown';
 
 /**
- Tell whether the campaign directory records that its runner wrote the started marker before every container start.
+ Tell whether an attempt directory records that its runner writes the started marker before every container start.
 
- @param campaign - the campaign's evidence directory, which is also where its record lives when the directory examined is a
- pass-1 directory
+ @param attemptDirectory - the attempt's directory
 
- @returns true only for a record of exactly this protocol; a missing, unreadable-as-JSON or other record vouches for nothing
+ @returns true only for a record of exactly this protocol; a missing, unparseable or other record vouches for nothing
 
  @throws Error when the record exists but cannot be read
 
  @example
  ```ts
- await recordsStartedMarkerProtocol('/e/native-mutation-abc');
+ await recordsStartedMarkerProtocol('/e/native-mutation-abc/attempt-001');
  ```
  */
-async function recordsStartedMarkerProtocol(campaign: string): Promise<boolean> {
+async function recordsStartedMarkerProtocol(attemptDirectory: string): Promise<boolean> {
   /**
-   The record's text, or none when the directory has no record.
+   The record's text, or none when the attempt has no record.
    */
   const [text] = await readText(join(
-    campaign,
-    campaignProtocolFile,
+    attemptDirectory,
+    attemptProtocolFile,
   ));
   if (text === undefined)
     return false;
   /**
-   The parsed record, or the reason it is not JSON.
+   The parsed record.
    */
   const { value } = parseJson(text);
   return isFields(value) && (value.version === startedMarkerProtocolVersion);
@@ -326,19 +325,17 @@ async function recordsStartedMarkerProtocol(campaign: string): Promise<boolean> 
  and no `pass-1` directory is a single-pass campaign or a first pass, whose exit record means it ran.
 
  Without any of them, the absence of the marker proves a run did not start only where the marker was always written before a
- start: a directory with no attempt at all cannot hold a container, and a directory whose campaign records the marker protocol
- (`campaign-protocol.json`, written only into a directory the newer runner created) holds none if it has no marker. An
- attempt in a directory with no such record may belong to a run of an older runner that was killed after it started a
- container and before cargo-mutants wrote an outcome list or an exit record, which looks the same as an attempt that was only
- opened or seeded; that is `unknown`, never `not-started`.
+ start. A directory with no attempt at all cannot hold a container. An attempt holds none if the attempt itself records the
+ marker protocol (`attempt-protocol.json`, written when a marker-aware runner makes the attempt directory). The record is
+ per attempt because an older runner can resume a directory a newer one began: its attempts have no record and may have
+ started a container, then been killed before cargo-mutants wrote an outcome list or an exit record, which looks the same as
+ an attempt that was only opened or seeded. If any attempt lacks the record the answer is `unknown`, never `not-started`.
 
  What does not count as a start: seeding an attempt (it writes only `previously_caught.txt`), an attempt opened and never
- started in a directory that records the protocol, a controls-only directory, and the root of a two-pass campaign whose
- pass 2 never started (it has an `exit.json` and a `pass-1` directory, and its own outcome lists do not exist).
+ started by a marker-aware runner, a controls-only directory, and the root of a two-pass campaign whose pass 2 never started
+ (it has an `exit.json` and a `pass-1` directory, and its own outcome lists do not exist).
 
  @param directory - the campaign's evidence directory or its pass-1 directory
-
- @param campaign - the campaign's evidence directory, whose protocol record covers both of its passes
 
  @returns `started` when any evidence of a run is there, `not-started` when its absence is proof, `unknown` when it is not
 
@@ -346,16 +343,10 @@ async function recordsStartedMarkerProtocol(campaign: string): Promise<boolean> 
 
  @example
  ```ts
- await startEvidenceOf({ directory: '/e/native-mutation-abc/pass-1', campaign: '/e/native-mutation-abc' });
+ await startEvidenceOf('/e/native-mutation-abc/pass-1');
  ```
  */
-export async function startEvidenceOf({
-  directory,
-  campaign,
-}: {
-  readonly directory: string;
-  readonly campaign: string;
-}): Promise<StartEvidence> {
+export async function startEvidenceOf(directory: string): Promise<StartEvidence> {
   if (await exists(join(
     directory,
     containerStartedFile,
@@ -393,7 +384,16 @@ export async function startEvidenceOf({
     return 'started';
   if (attempts.length === 0)
     return 'not-started';
-  return (await recordsStartedMarkerProtocol(campaign))
+  /**
+   Whether each attempt records the protocol.
+   */
+  const recorded = await Promise.all(attempts.map(function isRecorded(name) {
+    return recordsStartedMarkerProtocol(join(
+      directory,
+      name,
+    ));
+  }));
+  return recorded.every(Boolean)
     ? 'not-started'
     : 'unknown';
 }

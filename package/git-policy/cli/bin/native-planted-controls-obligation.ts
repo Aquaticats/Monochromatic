@@ -18,7 +18,7 @@
 import { join } from 'node:path';
 
 import { passOneDirectoryName } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/campaign-passes.ts';
-import { campaignProtocolFile } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/constants.ts';
+import { attemptProtocolFile } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/constants.ts';
 
 import {
   manifested,
@@ -174,8 +174,6 @@ async function lookUp({
 
  @param directory - the campaign's evidence directory or its pass-1 directory
 
- @param evidence - the campaign's evidence directory, whose protocol record covers both of its passes
-
  @param evidenceRoot - directory that keeps the evidence of every gate and campaign run
 
  @param evidencePrefix - name prefix of the campaigns' directories
@@ -184,23 +182,21 @@ async function lookUp({
 
  @returns one entry per obligation; one `invalid` entry for an unreadable manifest, an incomplete obligation, a directory in
  which a container was started (or that holds a non-aggregate `exit.json` or an outcome list) without a manifest, or an
- attempt without a manifest in a directory whose runner is not known to have written the started marker before every start;
+ attempt without a manifest in an attempt whose runner is not known to have written the started marker before every start;
  none for a directory that deferred nothing or has not run yet
 
  @example
  ```ts
- await validateDirectory({ directory, evidence, evidenceRoot, evidencePrefix: 'native-mutation-', inspect: inspectUnit });
+ await validateDirectory({ directory, evidenceRoot, evidencePrefix: 'native-mutation-', inspect: inspectUnit });
  ```
  */
 async function validateDirectory({
   directory,
-  evidence,
   evidenceRoot,
   evidencePrefix,
   inspect,
 }: {
   readonly directory: string;
-  readonly evidence: string;
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
   readonly inspect: (unit: string) => Promise<UnitState>;
@@ -219,10 +215,7 @@ async function validateDirectory({
     /**
      What the directory shows about a run having started in it.
      */
-    const started = await startEvidenceOf({
-      directory,
-      campaign: evidence,
-    });
+    const started = await startEvidenceOf(directory);
     if (started === 'started')
       return [{
         directory,
@@ -233,7 +226,7 @@ async function validateDirectory({
       ? [{
         directory,
         state: 'invalid',
-        reason: `${directory} holds an attempt and no manifest, and no record shows that its runner wrote the started marker (container-started.json) before every start (${campaignProtocolFile}); a run of an older runner killed before it scored anything looks the same, so whether it deferred anything cannot be known`,
+        reason: `${directory} holds an attempt and no manifest, and no attempt record shows that its runner wrote the started marker (container-started.json) before every start (${attemptProtocolFile}); a run of an older runner killed before it scored anything looks the same, so whether it deferred anything cannot be known`,
       }]
       : [];
   }
@@ -290,7 +283,6 @@ export async function validatePlanted({
   ].map(function validateIn(directory) {
     return validateDirectory({
       directory,
-      evidence,
       evidenceRoot,
       evidencePrefix,
       inspect,
