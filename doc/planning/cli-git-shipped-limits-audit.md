@@ -10,10 +10,12 @@ Two entries and their questions carry outcomes added later on
 "Saved copies of conflicted files" (delegated pick 10, no number could be set) and
 "Audit log rotation" (delegated pick 11, implemented).
 Each says it was the coordinator's pick under the owner's delegation and is open to the owner's veto.
-Two more groups of entries and their questions carry outcomes added on `feat/git-policy-cli-index-lock-and-service-waits`
+Two more groups of entries and their questions carry outcomes added on
+`feat/git-policy-cli-index-lock-and-service-waits`
 (2026-11-03): delegated pick 2 ("What a live or unproven index lock holder costs", option A) and delegated pick 6
 ("Waits on the commit service itself", option A).
-Each says it was the coordinator's pick under the owner's delegation ("Pick options as if I had picked them and invite veto
+Each says it was the coordinator's pick under the owner's delegation ("Pick options as if I had picked them and invite
+veto
 when I say I'm back.") and is open to the owner's veto.
 
 Audited commit: `d48d0a66f4` (main).
@@ -254,25 +256,33 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
 - Outcome (delegated pick 2, option A; open to the owner's veto):
   the 1800 seconds and `CLI_GIT_LOCK_WAIT_SECONDS` are gone, with `src/native/wait_limit.rs`.
   A holder proven alive is waited for with no bound, in the merge wait (`index_holder_wait.rs`), the service's landing
-  (`service_index_attempts.rs`), the index reconciliation (`service_land_follow.rs`) and the forwarded writers' wait for the
+  (`service_index_attempts.rs`), the index reconciliation (`service_land_follow.rs`)
+  and the forwarded writers' wait for the
   service's hold (`service_index_wait.rs`).
   The line names the holder and its proof and says the wait lasts as long as the process holds the lock.
   An owner nothing proves alive gets `UNPROVEN_OWNER_BACKOFF` and then a diagnostic that lists the evidence;
   a dead owner gets the diagnostic at once.
 - Citation of the new number (`src/native/unproven_backoff.rs`):
-  1000 ms is ten times the longest hold measured for Git's own commands in this repository's layout (20,739 tracked files,
-  2.9 MB index; 20 runs each of `git status`, `git add -A`, `git reset -q`, `git update-index --refresh` on a copy of the
+  1000 ms is ten times the longest hold measured for Git's own commands in this repository's layout (20,739 tracked
+  files,
+  2.9 MB index; 20 runs each of `git status`, `git add -A`, `git reset -q`,
+  `git update-index --refresh` on a copy of the
   index, 2026-11-03): at most 100 ms (medians 26 to 53 ms).
-  No journal or log holds a measurement of a foreign holder: none of 1,335 landings in the service journal recorded finding
-  the lock held (no `lock_looks`), and none of the 1,090 records of `.git/cli-git-commit-timing.jsonl` has a waiting notice.
+  No journal or log holds a measurement of a foreign holder:
+  none of 1,335 landings in the service journal recorded finding
+  the lock held (no `lock_looks`), and none of the 1,090 records of `.git/cli-git-commit-timing.jsonl` has a waiting
+  notice.
   The record's default (1000) is the same number.
-- Left for the owner: whether 1000 ms is the number he would pick (see "What a live or unproven index lock holder costs").
+- Left for the owner: whether 1000 ms is the number he would pick (see "What a live or unproven index lock holder
+  costs").
 - Earlier entry, kept for the record:
 - Where: `src/native/wait_limit.rs:26` (`DEFAULT_LIVE_WAIT`), variable `CLI_GIT_LOCK_WAIT_SECONDS`.
 - Value: 30 minutes, for a holder proven alive and also for one whose owner cannot be proven alive.
-- Conflict, yes, with the decision record's lines 151 to 158 and with "Commits should never fail." and "You should (almost) never
+- Conflict, yes, with the decision record's lines 151 to 158 and with "Commits should never fail." and "You should
+  (almost) never
   be waiting."; this is what the outcome above removes.
-- The record's lines 155 to 158 (quoted): "A dead or evidence-free owner gets Git-style quadratic backoff with jitter up to
+- The record's lines 155 to 158 (quoted): "A dead or evidence-free owner gets Git-style quadratic backoff with jitter
+  up to
   `indexLock.unprovenOwnerTimeoutMs` (default 1000), then a diagnostic listing the evidence."
 
 ### Service hold age limit, 60 seconds
@@ -282,32 +292,42 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
   A hold whose mark proves the service runs is waited for with no bound (it already was, apart from the 1800 seconds).
 - Citation: the service's journal logged the time the service held the lock (`lock_hold_ms`) for 715 landings
   (2026-11-02 to 2026-11-03): median 34 ms, 90th percentile 92 ms, 99th percentile 65,787 ms, longest 119,721 ms.
-  Thirteen holds ran 58 to 120 seconds, all in the disk sync of the new index (`sync_ms`), so a live service on a slow disk
-  holds the lock for two minutes. The earlier 60 seconds took those for leftovers whenever the holder could not be asked about
+  Thirteen holds ran 58 to 120 seconds, all in the disk sync of the new index (`sync_ms`),
+  so a live service on a slow disk
+  holds the lock for two minutes. The earlier 60 seconds took those for leftovers whenever the holder could not be
+  asked about
   (another PID namespace). 150 seconds is a quarter more than the longest measured hold.
-- Deviation from pick 2's "short backoff": the measurement contradicts a short age for a live service's own hold, so this
+- Deviation from pick 2's "short backoff": the measurement contradicts a short age for a live service's own hold,
+  so this
   number is not short. It is listed under the open questions.
 
 ### Look counts and pauses of the lock wait
 
-- Outcome: unchanged. They decide only whether an empty lock is read as the service's or as a foreign program's (8 to 40 ms),
-  and the 50 ms poll where no watch can be set. No measurement was made for them; the measured holds of Git's own commands
-  (15 to 100 ms) show an empty foreign lock is the usual case, so reading it as foreign after the looks is the right call
+- Outcome: unchanged. They decide only whether an empty lock is read as the service's or as a foreign program's (8 to
+  40 ms),
+  and the 50 ms poll where no watch can be set. No measurement was made for them;
+  the measured holds of Git's own commands
+  (15 to 100 ms) show an empty foreign lock is the usual case,
+  so reading it as foreign after the looks is the right call
   whatever the exact count. Still uncited.
 
 ### Service scan budget, 250 milliseconds
 
 - Outcome (delegated pick 2): cited beside the value (`index_lock_holders.rs`).
-  Walking every process's open descriptors (`ls -l /proc/[0-9]*/fd`) over 858 processes took 0.10 s in each of three runs on
-  2026-11-03, so 250 ms is two and a half times a whole walk. The scan is made at the first look and at each repeat of the
+  Walking every process's open descriptors (`ls -l /proc/[0-9]*/fd`)
+  over 858 processes took 0.10 s in each of three runs on
+  2026-11-03, so 250 ms is two and a half times a whole walk.
+  The scan is made at the first look and at each repeat of the
   notice, not at every wake of the watch.
 
 ### Index reconciliation tries, 5
 
 - Outcome (delegated pick 2): the reconciliation of a commit whose corrections left no change now waits through
-  `wait_for_index_release_here` like a merge: a holder proven alive is waited for with no bound, an owner nothing proves alive for
+  `wait_for_index_release_here` like a merge: a holder proven alive is waited for with no bound,
+  an owner nothing proves alive for
   the backoff, a dead one not at all.
-  `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) stay for a lock that was gone by the time it was looked at; 100 ms is the
+  `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) stay for a lock that was gone by the time it was looked at;
+  100 ms is the
   longest measured hold of Git's own short commands (`unproven_backoff.rs`).
   That commit still exits 1 in any case, because it has no change left to record.
 
@@ -356,8 +376,10 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
 
 ### Retired unproven-owner timeout
 
-- Outcome: the key stays retired. Its value, 1000 ms, is now the fixed `UNPROVEN_OWNER_BACKOFF` with a measurement beside it.
-  `doctor_config.rs` and `config_schema.rs` no longer mention `CLI_GIT_LOCK_WAIT_SECONDS`; the doctor says what the service
+- Outcome: the key stays retired. Its value, 1000 ms,
+  is now the fixed `UNPROVEN_OWNER_BACKOFF` with a measurement beside it.
+  `doctor_config.rs` and `config_schema.rs` no longer mention `CLI_GIT_LOCK_WAIT_SECONDS`;
+  the doctor says what the service
   does instead.
 
 ## Git child steps of a commit
@@ -533,13 +555,16 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 ### Service start wait, 10 seconds
 
 - Outcome (delegated pick 6, option A; open to the owner's veto):
-  where the client can ask the service manager (the route has the session bus and the worktree's instance), the wait has no clock:
-  every second the client asks for the state of `cli-git@<instance>.service`, and two answers of `failed` in a row end the wait
+  where the client can ask the service manager (the route has the session bus and the worktree's instance),
+  the wait has no clock:
+  every second the client asks for the state of `cli-git@<instance>.service`,
+  and two answers of `failed` in a row end the wait
   with the existing "The commit service did not start" message and the journal command.
   Where the manager cannot be asked (no bus, or a bus call that fails), the wait ends at `START_WAIT` as before.
   The wait for an older service to retire keeps `START_WAIT` as well.
 - Citation of the remaining 10 seconds: ten times the slowest of 52 cold starts in `.git/cli-git-commit-timing.jsonl`
-  (`startWaitMs` longest 1041 ms, 90th percentile 213 ms, median 47 ms); the 70 commits that asked an older service to retire
+  (`startWaitMs` longest 1041 ms, 90th percentile 213 ms, median 47 ms);
+  the 70 commits that asked an older service to retire
   all reached the service within the same 1041 ms (`reachMs`).
 - Open: a unit that stays `inactive` after a connection while the socket still listens has no bound-free detection; the
   client waits for it, and a person can interrupt the command. Options in the open questions.
@@ -548,30 +573,41 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 
 - Outcome (delegated pick 6, option A; open to the owner's veto):
   `COMMIT_WAIT` and its message "raise the waiting limit in the settings for the wrapper" (`WaitedTooLong`) are gone.
-  The service sends a `heartbeat` line once a second (`HEARTBEAT_EVERY`, `service_protocol.rs`) to every client whose request is
+  The service sends a `heartbeat` line once a second (`HEARTBEAT_EVERY`, `service_protocol.rs`)
+  to every client whose request is
   queued or landing, from the thread that read the request (`service_reply.rs`); the protocol version is 6.
   The client waits for the answer for as long as it keeps hearing from the service.
-  A service silent for `HEARTBEAT_SILENCE` (5 seconds) is taken for stopped: the client prints "The commit service stopped
+  A service silent for `HEARTBEAT_SILENCE` (5 seconds) is taken for stopped:
+  the client prints "The commit service stopped
   answering; asking it again with the same commit, which cannot land twice.", connects again and sends the same request
-  identity. A service that greets nothing then ends the command with `ServiceSilent`: "The commit service stopped answering
-  while this commit waited, and it did not answer when asked again, so it is not known whether the commit was made." followed by
+  identity. A service that greets nothing then ends the command with `ServiceSilent`:
+  "The commit service stopped answering
+  while this commit waited, and it did not answer when asked again,
+  so it is not known whether the commit was made." followed by
   `git log -1`, `git status`, the journal command and the restart command.
-- Citation: queue waits the journal shows reach 89.9 s (`queued_ms`, 1,332 requests, 99th percentile 0 ms), so no fixed client
+- Citation: queue waits the journal shows reach 89.9 s (`queued_ms`, 1,332 requests, 99th percentile 0 ms),
+  so no fixed client
   bound near the old 600 s is supported either way; the beat replaces it.
-  `HEARTBEAT_EVERY` is the pace of the other waiting notices; 300 one-second timers on this host fired a median of 1.0 ms and
-  at most 2.2 ms late, so five missed beats (`HEARTBEAT_SILENCE`) are a stopped process and not a late timer, and a wrong call
+  `HEARTBEAT_EVERY` is the pace of the other waiting notices;
+  300 one-second timers on this host fired a median of 1.0 ms and
+  at most 2.2 ms late, so five missed beats (`HEARTBEAT_SILENCE`) are a stopped process and not a late timer,
+  and a wrong call
   costs one resend of a request the service recognizes by identity.
-- Limit of the beat: it is sent by the thread that read the request, so it proves the process and the connection live, not that
+- Limit of the beat: it is sent by the thread that read the request, so it proves the process and the connection live,
+  not that
   the landing thread makes progress; a stuck Git child is ended by the step bounds, not by this.
 
 ### Reconnects, 5
 
-- Outcome: unchanged. A connection that closes before an answer (the service died) is sent the same request again up to five
-  times; a silence is asked again once per try as well, and the reach after a silence is bound by the same silence. Still uncited.
+- Outcome: unchanged. A connection that closes before an answer (the service died)
+  is sent the same request again up to five
+  times; a silence is asked again once per try as well, and the reach after a silence is bound by the same silence.
+  Still uncited.
 
 ### Request read timeout and accept backoff
 
-- Outcome (delegated pick 6): `REQUEST_READ_TIMEOUT` (10 s) is unchanged and now cited: the request line of 1,332 requests took
+- Outcome (delegated pick 6): `REQUEST_READ_TIMEOUT` (10 s) is unchanged and now cited:
+  the request line of 1,332 requests took
   at most 99 ms to arrive (`read_ms`; median 0, 99th percentile 0), so 10 s is about a hundred times the slowest.
   `ACCEPT_BACKOFF` is unchanged and uncited.
 
@@ -1489,40 +1525,62 @@ the failure but still waits ("You should (almost) never be waiting."); and A > C
 a
 number for a cause (another program's lock) that the owner put on the designed-out list.
 
-Outcome (delegated pick 2, option A, built on `feat/git-policy-cli-index-lock-and-service-waits`; the coordinator picked while
+Outcome (delegated pick 2, option A, built on `feat/git-policy-cli-index-lock-and-service-waits`;
+the coordinator picked while
 the owner was away, open to the owner's veto):
 a holder proven alive is waited for with no bound and a line that names it; an owner that cannot be proven alive gets
 `UNPROVEN_OWNER_BACKOFF` and then a diagnostic that lists the evidence; a dead owner gets the diagnostic at once;
 `CLI_GIT_LOCK_WAIT_SECONDS`, `DEFAULT_LIVE_WAIT` and `src/native/wait_limit.rs` are gone.
-Option B ("Same as the ref lock (Recommended)": a commit lands and exits 0, the index catches up when the lock frees) is not
+Option B ("Same as the ref lock (Recommended)": a commit lands and exits 0, the index catches up when the lock frees)
+is not
 built; it comes with the commits-never-fail design.
 
 Open questions this pick raised, for the owner:
 
 - Is 1000 ms the right backoff for an owner nothing proves alive?
-  The number is cited from a measurement of Git's own commands (at most 100 ms, ten times that), but no log holds a foreign
-  holder to set it against, and a person's `git commit` with an editor open and `core.lockfilePid` off holds the lock for
+  The number is cited from a measurement of Git's own commands (at most 100 ms, ten times that),
+  but no log holds a foreign
+  holder to set it against, and a person's `git commit` with an editor open and `core.lockfilePid` off holds the lock
+  for
   minutes with no proof, so that commit is refused after 1000 ms with the diagnostic.
   Options:
   (a) keep 1000 ms (the record's number);
-  (b) wait until the lock's change time stops moving for a quiet period (an editor-held lock never changes, so this does not help);
-  (c) treat evidence-free like proven alive (no bound; a leftover from a killed program then waits forever, and the diagnostic
+  (b) wait until the lock's change time stops moving for a quiet period (an editor-held lock never changes,
+  so this does not help);
+  (c) treat evidence-free like proven alive (no bound; a leftover from a killed program then waits forever,
+  and the diagnostic
   never appears);
   (d) 10 seconds, the notice interval, so a person sees one repeated line before the refusal.
-  Ranking: a > d > c > b, because a is the owner's recorded number and the only one with a measurement behind it; d > c because
+  Ranking: a > d > c > b, because a is the owner's recorded number and the only one with a measurement behind it;
+  d > c because
   d still ends a leftover's wait where c never does; c > b because b cannot tell an editor-held lock from a leftover.
 - Should a dead owner wait the backoff like an unproven one, as the record says?
-  It now ends at once, because the PID file names a process that cannot let go. Options: (a) at once (built); (b) the backoff, as
+  It now ends at once, because the PID file names a process that cannot let go. Options: (a) at once (built); (b)
+  the backoff, as
   the record says. Ranking: a > b, because b waits a second for nothing.
 - Is 150 seconds the right age for the service's own hold when its holder cannot be asked about?
-  Pick 2 said "short backoff"; the measurement (live holds up to 119.7 s) says a short age takes a live service for a leftover.
-  Options: (a) 150 seconds (built); (b) 1000 ms like the foreign owner; (c) no age at all, wait while the lock carries the
-  service's mark. Ranking: a > c > b, because a is cited and still ends a dead service's leftover; c never ends it; b would
+  Pick 2 said "short backoff"; the measurement (live holds up to 119.7 s)
+  says a short age takes a live service for a leftover.
+  Options: (a) 150 seconds (built); (b) 1000 ms like the foreign owner; (c) no age at all,
+  wait while the lock carries the
+  service's mark. Ranking: a > c > b, because a is cited and still ends a dead service's leftover; c never ends it;
+  b would
   refuse a `git add` during any landing longer than a second from a container.
-- `service_hold_retry::ATTEMPTS` (50 starts of a forwarded index writer while the service takes the index first) is unchanged and
+- The backoff clock of an owner nothing proves alive starts when the wait starts, not when the proof changes.
+  A holder proven
+  alive for a minute that is followed by a lock nothing proves alive gets a zero-length backoff and the diagnostic at
+  once, in
+  `index_holder_wait.rs` and in `service_index_attempts.rs`. Options: (a) as built; (b)
+  restart the backoff when the proof
+  changes from alive to nothing. Ranking: b > a,
+  because b gives the next owner the same second the first would have had.
+- `service_hold_retry::ATTEMPTS` (50 starts of a forwarded index writer while the service takes the index first)
+  is unchanged and
   still uncited.
-- When no inotify watch can be set, the landing's wait still counts as over at once, so a commit fails there even behind a holder
-  proven alive. Options: (a) leave (rare, a resource failure); (b) poll at the merge wait's 50 ms. Ranking: b > a, because b keeps
+- When no inotify watch can be set, the landing's wait still counts as over at once,
+  so a commit fails there even behind a holder
+  proven alive. Options: (a) leave (rare, a resource failure); (b) poll at the merge wait's 50 ms. Ranking: b > a,
+  because b keeps
   "never fail" for the one case the wait gives up on a live holder.
 
 ### Retry counts for moved branches and contended locks
@@ -1638,27 +1696,50 @@ Visible result: no "waited N minutes ... not made" and no "did not start" for a 
 Ranking: A > B > C, because A removes the failure the owner's rule says the system should resolve, and B keeps it but
 bases it on evidence; B > C because C makes the message honest without giving the number a basis.
 
-Outcome (delegated pick 6, option A, built on `feat/git-policy-cli-index-lock-and-service-waits`; the coordinator picked while
+Outcome (delegated pick 6, option A, built on `feat/git-policy-cli-index-lock-and-service-waits`;
+the coordinator picked while
 the owner was away, open to the owner's veto):
-the client waits on heartbeats from the service and has no wall-clock bound of its own; `COMMIT_WAIT` and the message that named a
+the client waits on heartbeats from the service and has no wall-clock bound of its own;
+`COMMIT_WAIT` and the message that named a
 setting that does not exist are gone.
-A service that stops sending for five seconds is asked again with the same request identity; one that then greets nothing ends the
-command with "The commit service stopped answering while this commit waited ... it is not known whether the commit was made".
+A service that stops sending for five seconds is asked again with the same request identity;
+one that then greets nothing ends the
+command with "The commit service stopped answering while this commit waited ...
+it is not known whether the commit was made".
 The start waits without a clock where the client can ask the service manager, and ends when the manager reports the unit
 `failed` twice in a row.
 
 Open questions this pick raised, for the owner:
 
-- A unit that stays `inactive` after the client connected (the socket listens, the manager starts nothing) is not detected without
-  a clock. Options: (a) leave it, the person interrupts the command; (b) after `START_WAIT` of unanswered connection, ask the
-  manager to start the unit and wait again; (c) fail after `START_WAIT` as before. Ranking: b > a > c, because b resolves it
-  without the person and without a failure; a > c because c brings the clock back for the one case the manager cannot explain.
+- A unit that stays `inactive` after the client connected (the socket listens, the manager starts nothing)
+  is not detected without
+  a clock. Options: (a) leave it, the person interrupts the command; (b) after `START_WAIT` of unanswered connection,
+  ask the
+  manager to start the unit and wait again; (c) fail after `START_WAIT` as before. Ranking: b > a > c,
+  because b resolves it
+  without the person and without a failure;
+  a > c because c brings the clock back for the one case the manager cannot explain.
   The wrapper never starting the service is another branch's work.
 - The beat proves the service process and the connection live, not that the landing thread makes progress.
-  Options: (a) as built; (b) the landing thread increments a counter at each phase and the beat stops while it does not move.
-  Ranking: a > b for now, because b needs a clock for "does not move", which the beat was chosen to avoid, and stuck Git children
+  Options: (a) as built; (b) the landing thread increments a counter at each phase and the beat stops while it does
+  not move.
+  Ranking: a > b for now, because b needs a clock for "does not move", which the beat was chosen to avoid,
+  and stuck Git children
   are ended by the step bounds of another branch.
 - `EXCHANGE_WAIT` (20 s) and `RETIREMENT_WAIT` (10 s) are in this question's list and are unchanged here.
+- A connection thread now lives through the whole queue and landing of its request,
+  so the service's thread count during a
+  batch is the queue depth plus the acceptors, and the 0.5.27 unit sets no `TasksMax`.
+  It is not a limit this change ships.
+- With a manager watch the read for the first greeting times out every second instead of at `START_WAIT`, so a slow
+  socket-activated start leaves one idle backlog connection per second until the service greets;
+  the service's acceptor drains
+  them harmlessly.
+- What the controls prove: the scripted listener of `binary_service_heartbeat_tests.rs` exercises the manager watch
+  with a
+  function standing in for the manager; no test calls the real D-Bus `unit_has_failed`,
+  and only the `start_watch: None` path
+  runs against a real `cli-git-service`.
 
 ### Foreign-owner patience
 

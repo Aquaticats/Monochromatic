@@ -221,7 +221,8 @@ An older file that sets one still loads, and the value is checked and ignored.
   non-negative safe integer,
   default `1000`.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
-  The service's wait for a foreign `index.lock` replaced it: a holder proven alive is waited for with no bound, and an owner
+  The service's wait for a foreign `index.lock` replaced it: a holder proven alive is waited for with no bound,
+  and an owner
   nothing proves alive for a fixed 1000 ms (`src/native/unproven_backoff.rs`), which this key no longer sets.
   `git cli-git doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
@@ -1322,35 +1323,45 @@ Owner decisions these waits follow, verbatim:
 - "You should (almost) never be waiting."
 - "Use as few locks as possible."
 - "Commits should never fail."
-- "socket activation (OS starts it) or a loud, clear failure - no, never leak internal things that could be resolved to the
+- "socket activation (OS starts it) or a loud, clear failure - no,
+  never leak internal things that could be resolved to the
   user." (2026-11-01T07:37:44-05:00, `DESIGN.md`)
 
 The decision record `doc/decision/cli-git-concurrent-commits.md`, "Locks", says, and is followed except where noted:
-"An `index.lock` owner proven alive (open holder matched by device and inode, or a PID file naming a live process started no
+"An `index.lock` owner proven alive (open holder matched by device and inode,
+or a PID file naming a live process started no
 later than the lock's ctime) gets an unbounded wait with one line naming the holder."
-"A dead or evidence-free owner gets Git-style quadratic backoff with jitter up to `indexLock.unprovenOwnerTimeoutMs` (default
+"A dead or evidence-free owner gets Git-style quadratic backoff with jitter up to `indexLock.unprovenOwnerTimeoutMs`
+(default
 1000), then a diagnostic listing the evidence."
-The code before this change stopped every one of these waits at `CLI_GIT_LOCK_WAIT_SECONDS` (1800 seconds), which is gone.
+The code before this change stopped every one of these waits at `CLI_GIT_LOCK_WAIT_SECONDS` (1800 seconds),
+which is gone.
 
 - A holder proven alive:
   waited for with no bound.
   The line names it ("waiting for PID n (command), which holds the lock (proven by an open descriptor | its Git lock PID
-  file)"), repeats every notice interval with the time so far, and says the wait lasts as long as the process holds the lock.
+  file)"), repeats every notice interval with the time so far,
+  and says the wait lasts as long as the process holds the lock.
 - An owner nothing proves alive:
-  waited for `UNPROVEN_OWNER_BACKOFF` (1000 ms, ten times the longest hold measured for Git's own `status`, `add -A`, `reset`
-  and `update-index --refresh` in this repository on 2026-11-03: 100 ms; the measurement is in `src/native/unproven_backoff.rs`).
-  The wait then stops with a diagnostic that lists what was found (processes with the lock open, the Git lock PID file), says
+  waited for `UNPROVEN_OWNER_BACKOFF` (1000 ms, ten times the longest hold measured for Git's own `status`, `add -A`,
+  `reset`
+  and `update-index --refresh` in this repository on 2026-11-03: 100 ms;
+  the measurement is in `src/native/unproven_backoff.rs`).
+  The wait then stops with a diagnostic that lists what was found (processes with the lock open,
+  the Git lock PID file), says
   nothing was changed, leaves the lock in place, and names the file to remove when no program is using the repository.
   The merge then reports what Git says; the commit service fails the commit with the lock's code and the message
   "Another program is using this repository's index".
-  The fixed backoff replaces the record's quadratic backoff with jitter; the key `indexLock.unprovenOwnerTimeoutMs` stays
+  The fixed backoff replaces the record's quadratic backoff with jitter;
+  the key `indexLock.unprovenOwnerTimeoutMs` stays
   retired (see the configuration section above).
 - A dead owner (the PID file names a process that no longer runs):
   nothing will release the lock, so the wait stops at once with the same kind of diagnostic naming the process.
   This deviates from the record, which gives a dead owner the same backoff as an unproven one.
 - The service's own hold, for a forwarded `git add`, `rm` or `mv`:
   a hold whose mark proves the service runs is waited for with no bound;
-  a hold whose holder cannot be asked about is taken for a leftover at `UNASKABLE_HOLD_AGE` (150 seconds, a quarter more than
+  a hold whose holder cannot be asked about is taken for a leftover at `UNASKABLE_HOLD_AGE` (150 seconds,
+  a quarter more than
   the longest of 715 measured holds, 119.7 s; 13 of them ran 58 to 120 seconds, all in the disk sync of the new index).
   The earlier 60 seconds took those live holds for leftovers.
 - The index reconciliation of a commit whose corrections left no change waits like the merge does;
@@ -1370,20 +1381,28 @@ The wait for the commit service has no clock of the client's own:
 - A client that hears nothing for `HEARTBEAT_SILENCE` (5 seconds) takes the service for stopped.
   It prints "The commit service stopped answering; asking it again with the same commit, which cannot land twice.",
   connects again and sends the same request identity, so nothing lands twice.
-  A service that greets nothing on that connection ends the command with "The commit service stopped answering while this
-  commit waited ... it is not known whether the commit was made", which gives `git log -1`, `git status`, the journal command
+  A service that greets nothing on that connection ends the command with "The commit service stopped answering while
+  this
+  commit waited ... it is not known whether the commit was made", which gives `git log -1`, `git status`,
+  the journal command
   and the restart command; the exit status is nonzero and the message does not claim that nothing changed.
-  A connection that closes (the service died) is sent the same request again up to `RECONNECTS` (5) times and then ends with
+  A connection that closes (the service died) is sent the same request again up to `RECONNECTS` (5)
+  times and then ends with
   the existing "stopped before it confirmed this commit" message.
 - The start of the service is waited for with no clock when the client can ask the service manager:
-  every second it asks for the state of the worktree's service unit, and two answers of "failed" in a row end the wait with
-  "The commit service did not start". Where the manager cannot be asked, the wait ends at `START_WAIT` (10 seconds, ten times
+  every second it asks for the state of the worktree's service unit,
+  and two answers of "failed" in a row end the wait with
+  "The commit service did not start". Where the manager cannot be asked, the wait ends at `START_WAIT` (10 seconds,
+  ten times
   the slowest of 52 measured cold starts, 1041 ms) as before.
   The wait for an older service to retire keeps `START_WAIT` too.
-- The protocol version is 6: a service of the version before sends no heartbeat, and the client retires it as it retires any
+- The protocol version is 6: a service of the version before sends no heartbeat,
+  and the client retires it as it retires any
   service of another release.
-- A deadlocked landing thread behind a live connection thread is not detected by this beat; only a service that stops as a
-  process, or freezes, is. A unit that stays `inactive` after a connection, with the socket still listening, is not detected
+- A deadlocked landing thread behind a live connection thread is not detected by this beat;
+  only a service that stops as a
+  process, or freezes, is. A unit that stays `inactive` after a connection, with the socket still listening,
+  is not detected
   either (open questions in the audit).
 
 #### Commands that add commits

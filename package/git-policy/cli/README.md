@@ -922,7 +922,8 @@ A merge killed while it runs is finished or discarded by the next invocation (se
 #### Waiting for the index lock
 
 Before Git's fast-forward changes anything, the merge waits for any program's hold on `index.lock`
- (the commit service's, a foreign `git`'s, or a lock nothing proves held): for as long as a holder proven alive keeps it, and
+ (the commit service's, a foreign `git`'s, or a lock nothing proves held):
+ for as long as a holder proven alive keeps it, and
  1000 ms for a lock whose owner nothing proves alive, after which it says what it found.
 The notice names the merge, says it has changed nothing yet, names the lock and the holder with its proof
  (an open descriptor or Git's PID file), and repeats every `CLI_GIT_WAIT_NOTICE_SECONDS`.
@@ -976,16 +977,20 @@ Each of these still ends a commit with a nonzero status, with its cause; none is
 
 - A Git step the client starts crosses its class bound (`child_class.rs`: 60 seconds for a quick query step, 300 seconds for a
    bulk step). `diff-tree` is in the quick class although it reads the index, so a slow index read fails it.
-- The commit service does not start: the wait for it has no clock where the client can ask the service manager, and ends when
-   the manager says twice in a row that the service unit failed ("commit service did not start"); where the manager cannot be
+- The commit service does not start: the wait for it has no clock where the client can ask the service manager,
+  and ends when
+   the manager says twice in a row that the service unit failed ("commit service did not start");
+   where the manager cannot be
    asked it ends at `START_WAIT` (10 seconds, `service_client.rs`).
-- The service stops answering: a waiting commit hears a heartbeat from the service once a second and has no wait limit of its
+- The service stops answering: a waiting commit hears a heartbeat from the service once a second and has no wait limit
+  of its
    own; five seconds without a word ask the service again with the same commit, and a service that does not answer then
    ends the command with "The commit service stopped answering while this commit waited".
 - The branch keeps changing: `LANDING_ATTEMPTS` (3, `service_land.rs`) landings lost to other commits end with
    `BranchKeepsChanging`, and `REBUILD_ATTEMPTS` (`service_commit.rs`) builds by Git on a moved branch end the commit.
 - A commit that concludes a merge, an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
-- `index.lock` is held by an owner nothing proves alive for 1000 ms (a diagnostic lists the evidence), or by a dead one. A holder
+- `index.lock` is held by an owner nothing proves alive for 1000 ms (a diagnostic lists the evidence),
+  or by a dead one. A holder
    proven alive is waited for with no bound.
 - The content a commit captured was pruned from the object store before it landed (`ClientFailure::ContentPruned`).
 - A policy finding at error severity, an empty message or a failing signer. A named path in conflict is no longer one of these: it is committed with the markers it holds and a warning that names it (owner, 2026-11-03: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."). A plain `git commit` with no paths while files are still unmerged finishes the merge the same way, with the markers in those files and the same warning for each (owner, 2026-11-03: "Warn and finish the merge (Recommended)"); Git's "Committing is not possible because you have unmerged files" no longer ends it. `git commit -a` over unmerged files commits their markers and warns for each file in the same words.
@@ -1214,7 +1219,8 @@ See "Discarding commands" for the pass.
    default `1000`.
   Inert:
   it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven,
-   and nothing reads it now (the commit service waits as long as a holder is proven alive, and 1000 ms when nothing proves it).
+   and nothing reads it now (the commit service waits as long as a holder is proven alive,
+   and 1000 ms when nothing proves it).
   Older files that set it still load;
   the value is checked and ignored,
    and `git cli-git doctor` names the key and asks for it to be removed.
@@ -1232,10 +1238,13 @@ Concurrent commits cannot be turned off.
 
 ### Waiting and time limits
 
-The wrapper waits with no limit for two things only, and says so while it waits: a lock holder that is proven alive (an open
-descriptor on the lock, or Git's lock PID file naming a running process), which will let go, and the commit service for as long
+The wrapper waits with no limit for two things only, and says so while it waits:
+a lock holder that is proven alive (an open
+descriptor on the lock, or Git's lock PID file naming a running process), which will let go,
+and the commit service for as long
 as it keeps sending heartbeats, once a second.
-An owner nothing proves alive is waited for 1000 ms, a service that goes silent for five seconds is asked again, and every other
+An owner nothing proves alive is waited for 1000 ms, a service that goes silent for five seconds is asked again,
+and every other
 wait ends at a limit.
 These two picks were made by the coordinator while the owner was away and are open to the owner's veto
 (`doc/planning/cli-git-shipped-limits-audit.md`, picks 2 and 6).
@@ -1375,7 +1384,8 @@ Each line names what the command waits for,
 
 ```text
 // standard error of a git add that waits for the commit service to finish a commit
-cli-git: git add is waiting for the commit service to finish a commit in this repository, 12 seconds so far; this waits for as long as the service holds the index.
+cli-git: git add is waiting for the commit service to finish a commit in this repository, 12 seconds so far;
+this waits for as long as the service holds the index.
 ```
 
 ## Reading the repository in process

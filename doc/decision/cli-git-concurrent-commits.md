@@ -172,7 +172,8 @@ broad when absent.
 - Windows holder detection uses the PID file and Restart Manager,
   never a `DELETE`-access probe.
 
-Implemented 2026-11-03 (delegated pick 2 of `doc/planning/cli-git-shipped-limits-audit.md`; the coordinator picked while the
+Implemented 2026-11-03 (delegated pick 2 of `doc/planning/cli-git-shipped-limits-audit.md`;
+the coordinator picked while the
 owner was away, open to the owner's veto):
 a proven-alive owner is waited for with no bound, which the code had not done (it stopped at 1800 seconds);
 a dead owner ends the wait at once instead of after the backoff (a deviation from the line above);
