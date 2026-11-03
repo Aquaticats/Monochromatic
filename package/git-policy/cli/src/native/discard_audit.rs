@@ -355,6 +355,18 @@ fn ends_with_newline(file: &std::fs::File, length: u64) -> bool {
 /// if (sameFile(await stat(target), await opened.stat())) await rename(target, `${target}.1`)
 /// ```
 fn move_aside_if_still_named(target: &Path, opened: &std::fs::File) -> std::io::Result<()> {
+    return move_aside_between(target, opened, &mut |_step| {});
+}
+
+/// The instants of a rotation at which another writer can act, named so a test can act there.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RotationStep {
+    /// The path was seen to name the opened file, and nothing has moved yet.
+    BeforeMove,
+}
+
+/// The rotation with a callback at each instant another writer can act; `move_aside_if_still_named` passes one that does nothing.
+fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn FnMut(RotationStep)) -> std::io::Result<()> {
     use std::os::unix::fs::MetadataExt;
     let Ok(named) = std::fs::metadata(target) else {
         return Ok(());
@@ -363,6 +375,7 @@ fn move_aside_if_still_named(target: &Path, opened: &std::fs::File) -> std::io::
     if (named.dev(), named.ino()) != (held.dev(), held.ino()) {
         return Ok(());
     }
+    at_step(RotationStep::BeforeMove);
     let mut aside: std::ffi::OsString = target.as_os_str().to_os_string();
     aside.push(".1");
     return std::fs::rename(target, aside);

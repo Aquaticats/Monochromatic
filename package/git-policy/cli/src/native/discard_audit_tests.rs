@@ -11,8 +11,8 @@
 
 /// The record, its line and the writer.
 use super::{
-    AUDIT_FILE, AuditOutcome, AuditRecord, ROTATE_AT_BYTES, append_line, audit_line, audit_place, move_aside_if_still_named,
-    parent_process, record_audit,
+    AUDIT_FILE, AuditOutcome, AuditRecord, ROTATE_AT_BYTES, RotationStep, append_line, audit_line, audit_place, move_aside_between,
+    move_aside_if_still_named, parent_process, record_audit,
 };
 use crate::command_test_support::{fixture, os_arguments, remove};
 use crate::rule_linked_worktree::GuardedCommand;
@@ -235,6 +235,62 @@ fn a_second_rotation_does_not_replace_the_history_with_the_new_file() {
     move_aside_if_still_named(target.as_path(), &current).expect("moved");
     assert!(!target.exists());
     assert_eq!(std::fs::read(&aside).expect("aside"), b"{\"new\":1}\n");
+    remove(root.as_path());
+}
+
+/// A writer that saw a full file and passed its check, but whose file another writer rotated before it moved anything, must
+/// not move the other writer's new file over the history: the history stays in `.1` and the new file stays where it is.
+#[test]
+fn a_rotation_that_loses_the_race_after_its_check_leaves_the_history_and_the_new_file() {
+    let root: PathBuf = fixture("audit-rotate-check-race");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    let aside: PathBuf = root.join(format!("{AUDIT_FILE}.1"));
+    std::fs::write(&target, b"the full history\n").expect("the full file");
+    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    let mut steps: Vec<RotationStep> = Vec::new();
+    move_aside_between(target.as_path(), &seen_full, &mut |step| {
+        steps.push(step);
+        // The other writer rotates and starts the new file after this writer's check and before its move.
+        std::fs::rename(&target, &aside).expect("the other writer's rotation");
+        std::fs::write(&target, b"{\"new\":1}\n").expect("the new file");
+    })
+    .expect("no error");
+    assert_eq!(steps.first(), Some(&RotationStep::BeforeMove), "the check passed, so the move was reached");
+    assert_eq!(std::fs::read(&aside).expect("aside"), b"the full history\n", "the history is still in .1");
+    assert_eq!(std::fs::read(&target).expect("target"), b"{\"new\":1}\n", "the new file is back at its name");
+    remove(root.as_path());
+}
+
+/// A file another writer rotated away after this writer's check leaves nothing to move, which is not an error: an error
+/// would drop the record this writer is about to append.
+#[test]
+fn a_file_that_vanished_after_the_check_is_not_an_error() {
+    let root: PathBuf = fixture("audit-rotate-vanished");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    let elsewhere: PathBuf = root.join("elsewhere");
+    std::fs::write(&target, b"the full history\n").expect("the full file");
+    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    let outcome: std::io::Result<()> = move_aside_between(target.as_path(), &seen_full, &mut |_step| {
+        std::fs::rename(&target, &elsewhere).expect("the other writer's rotation");
+    });
+    assert!(outcome.is_ok(), "{outcome:?}");
+    assert_eq!(std::fs::read(&elsewhere).expect("history"), b"the full history\n");
+    remove(root.as_path());
+}
+
+/// A rotation that cannot finish, here because `.1` is a directory, never costs the record: it lands in the file.
+#[test]
+fn a_rotation_that_fails_does_not_drop_the_record() {
+    let root: PathBuf = fixture("audit-rotate-fails");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    let mut filler: Vec<u8> = vec![b'x'; ROTATE_AT_BYTES as usize];
+    filler[ROTATE_AT_BYTES as usize - 1] = b'\n';
+    std::fs::write(&target, &filler).expect("a full file");
+    std::fs::create_dir(root.join(format!("{AUDIT_FILE}.1"))).expect("an obstacle where the old copy belongs");
+    append_line(target.as_path(), b"{\"kept\":1}\n").expect("the record is appended whatever the rotation did");
+    let text: Vec<u8> = std::fs::read(&target).expect("target");
+    assert!(text.ends_with(b"{\"kept\":1}\n"), "the record is the last line of the file at the name");
+    assert!(text.starts_with(&filler), "the full history is still in the file at the name");
     remove(root.as_path());
 }
 
