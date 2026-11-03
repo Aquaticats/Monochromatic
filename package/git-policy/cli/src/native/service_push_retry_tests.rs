@@ -16,6 +16,10 @@ use crate::push_failure_notice::notice_directory;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::work_item::enqueue;
 use std::os::unix::fs::PermissionsExt;
+use crate::push_retry::PLAN_DIRECTORY;
+use crate::service_retry::RETRY_SLACK;
+use crate::service_server::work_loop;
+use std::sync::mpsc::{Sender, channel};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -199,4 +203,61 @@ fn a_push_that_lands_cancels_the_plan_of_its_branch() {
     assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None);
     assert_eq!(handlers.pushes.load(Ordering::SeqCst), 1, "a forgotten plan is not pushed");
     remove(root.as_path());
+}
+
+/// How often the restart control looks at what the services have done.
+const LOOK_EVERY: Duration = Duration::from_millis(50);
+
+/// How long the restart control gives a restarted service to deliver: its first pause, the slack the schedule adds, and a margin
+/// far longer than a healthy local push.
+const RESTART_PATIENCE: Duration = Duration::from_secs(10).saturating_add(PAUSE).saturating_add(RETRY_SLACK);
+
+/// Run `work_loop` on a thread, as the service does, and give the way to wake it; dropping the sender stops it.
+fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+    let (sender, receiver) = channel::<Wake>();
+    let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(PAUSE, plans)); });
+    return (sender, running);
+}
+
+/// Wait until `done` holds, looking every `LOOK_EVERY` for at most `RESTART_PATIENCE`; gives whether it held.
+fn wait_until(done: &dyn Fn() -> bool) -> bool {
+    let began: Instant = Instant::now();
+    while began.elapsed() < RESTART_PATIENCE {
+        if done() {
+            return true;
+        }
+        std::thread::sleep(LOOK_EVERY);
+    }
+    return done();
+}
+
+/// A service that is stopped while a push waits for a new try does not take the plan with it: the service started in its place
+///  delivers the commit by itself, with no new commit and no wake from a wrapper command. The plan is not the person's failure
+///  record, which the next wrapper command shows and removes.
+#[test]
+fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
+    let stage: Stage = stage("push-retry-restart");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]);
+    let commits_before: String = git_text(stage.repo.as_path(), &["rev-list", "--count", "--all"]);
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        let (wake, first) = start_service(scope, &handlers, plans.as_path(), &busy);
+        wake.send((git_dir.clone(), None)).expect("the first service takes the wake");
+        assert!(wait_until(&|| { return notices(&stage) == 1; }), "the first service stopped the stalled push and told the person");
+        // The service is stopped while its plan is pending.
+        drop(wake);
+        first.join().expect("the first service ends");
+        assert_ne!(remote_tip(&stage), stage.landed, "nothing was delivered before the restart");
+        // The person's next command shows and removes the failure record, as it does in a day of work.
+        let _shown = crate::push_failure_notice::take_push_failures(git_dir.as_path());
+        let (nobody, second) = start_service(scope, &handlers, plans.as_path(), &busy);
+        assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the restarted service delivered the commit by itself");
+        drop(nobody);
+        second.join().expect("the second service ends");
+    });
+    assert_eq!(notices(&stage), 0, "the record of the failure is gone once the push landed");
+    assert_eq!(git_text(stage.repo.as_path(), &["rev-list", "--count", "--all"]), commits_before, "no commit was made");
+    remove(stage.root.as_path());
 }

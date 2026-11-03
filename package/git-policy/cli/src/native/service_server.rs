@@ -491,7 +491,7 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
 /// ```ts
 /// for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
 /// ```
-fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize, mut push_retries: PushRetries) {
+pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize, mut push_retries: PushRetries) {
     let mut retries: RetrySchedule = RetrySchedule::default();
     let mut counted_waiting: bool = false;
     // A plan that is already there when the loop starts (one rebuilt from disk) is woken for like one made by a round.

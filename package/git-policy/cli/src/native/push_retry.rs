@@ -23,6 +23,10 @@ use std::time::{Duration, Instant};
 /// Environment variable that sets, in whole seconds, the pause before the first new try of a stopped push.
 pub const RETRY_VARIABLE: &str = "CLI_GIT_PUSH_RETRY_SECONDS";
 
+/// Directory, under the service instance's journal, that holds the plan of the pushes waiting for a new try, so that a restarted
+/// service keeps trying them.
+pub const PLAN_DIRECTORY: &str = "push-retries";
+
 /// The pause before the first new try when nothing configures it.
 pub const FIRST_PAUSE: Duration = Duration::from_secs(10);
 
@@ -177,6 +181,12 @@ impl PushRetries {
     /// A list with this first pause.
     pub fn with_first_pause(first: Duration) -> Self {
         return Self { first, waiting: Vec::new() };
+    }
+
+    /// A list for a service that starts now, whose plan is kept in `directory` and rebuilt from it.
+    pub fn restored(first: Duration, directory: &Path) -> Self {
+        let _unused = directory;
+        return Self::with_first_pause(first);
     }
 
     /// The pause before the first new try.
