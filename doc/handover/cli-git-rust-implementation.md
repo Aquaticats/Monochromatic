@@ -486,10 +486,39 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   4468 of 4468,
   6 skipped,
   one slow.
-- Running:
+- Failed,
+  2 of 4575 (8 skipped):
   a third early gate at `9e0b06ad83` (after the index writer's third round,
   the lock-removal fix and the word-level pass),
   unit `gpc-gate-candidate-0-5-28-index-r3-locks-word-level-20261103T120421-0500.service`.
+  `index_reset_file::tests::the_file_mode_under_a_default_acl_equals_git`:
+  the gate's container has no `setfacl` (`NotFound`);
+  sent to the index round 4 agent (add the ACL tools to the image).
+  `git_stop_lock_tests::a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own`:
+  a regression from the lock-removal fix,
+  passing on the host;
+  the stopped child's lock and its pid file stay,
+  read as the general judge declining inside the container's own PID namespace,
+  so inside any container every Git child the wrapper ends would leave a lock.
+  Its agent is resumed on `fix/git-policy-cli-sweeps-its-own-reaped-childs-locks`:
+  the wrapper's own reaped child's pid file,
+  born at or after the lock,
+  is proof without namespace inference.
+- Done and merged into the 0.5.28 base (fast-forward to `d300bb806d`):
+  `fix/git-policy-cli-conflict-warning-reads-the-content`.
+  The marker claim reads the committed blob (`conflict_markers.rs`,
+  honouring `conflict-marker-size`,
+  default 7,
+  a lone `=======` not enough);
+  any named-path commit during a merge or cherry-pick prints one line saying how to finish it.
+  Carry-back A:
+  a conflicted autostash's `stash@{0}: autostash` and its unmerged stages reach the real repository
+  (objects already land in the real store;
+  `autostash_carry.rs`,
+  stored once so a restart does not store it twice);
+  removing either half turned its control red.
+  134 library and 90 binary tests,
+  clippy clean.
 - The index-lock and service waits follow-ups,
   its agent resumed with the picks;
   it merges the base `afc9a8621d` and the index round `01e4d4c610` into its branch first.
@@ -672,6 +701,17 @@ in this order:
     guarantee or a test;
     the non-Linux test imports stay paused.
 - The fifth index re-review once the fourth round writes `follow-up-index-fixes-4.diff` and its `index-r5-` files.
+- Retire option B of the autostash pick now that carry-back A exists,
+  so the wrapper's finish ends a conflicting autostash as Git does
+  (merge commit made,
+  stash kept,
+  `UU` entries),
+  instead of leaving the merge stopped (picked under the delegation:
+  "Auto merging should never fail.");
+  resume the word-level agent when a slot frees.
+- A gate after the regression fix,
+  the index round 4 and the waits follow-ups merge,
+  then release 0.5.28.
 - After revision 10:
   resume the step-1 agent to model it,
   build the ninth review's section-5 controls and the section-4 controls still missing
