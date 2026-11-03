@@ -430,3 +430,10 @@ median delta, the build 269 and 264 ms, with native at 274 to 295 ms in all four
 - The change in `push_progress.rs` is 23 lines in `Meter` and `Clock`; the branch
   `fix/git-policy-cli-every-wait-has-a-bound`
   edits the same module, so the merge needs a look at `Clock::check`.
+
+## Gate
+
+The container gate (`native:test:container`) on the branch tip passed: 4622 tests run, 4622 passed, 7 skipped, exit status 0
+(unit `gpc-gate-commits-fast-under-disk-pressure-20261103T160833-0500`).
+The three gate runs before it failed on the two intermittent controls above and, once, on a clippy finding in this work
+(`chunks_exact` with a constant size, fixed).
