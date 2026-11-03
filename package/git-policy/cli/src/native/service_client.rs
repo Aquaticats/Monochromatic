@@ -410,6 +410,17 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let mut holder: Option<String> = None;
     let mut service_seen: bool = false;
     let mut last_break_was_silence: bool = false;
+    // The scratch directory of a command that waits is renewed at once and then as often as the config says, whatever the
+    //  service sends, so a wait longer than the sweep's age never has its directory swept.
+    let mut last_renewed: Option<Instant> = None;
+    let mut renew_scratch = |config: &ClientConfig| {
+        if let Some(fresh) = config.keep_fresh.as_ref()
+            && last_renewed.is_none_or(|at| { return at.elapsed() >= fresh.every; })
+        {
+            super::scratch_location::renew(fresh.path.as_path());
+            last_renewed = Some(Instant::now());
+        }
+    };
     loop {
         let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach, service_seen)?;
         service_seen = true;
@@ -424,9 +435,14 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             continue;
         }
         trace.sends += 1;
+        renew_scratch(config);
         let written_at: Instant = Instant::now();
         let answered: Option<Result<Submitted, ClientFailure>> = loop {
-            match listen(&mut reader) {
+            let heard: Heard = listen(&mut reader);
+            if matches!(heard, Heard::Message(_)) {
+                renew_scratch(config);
+            }
+            match heard {
                 Heard::Message(ServiceMessage::Position { number, of }) => {
                     if last_position != Some(number) {
                         last_position = Some(number);

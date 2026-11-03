@@ -25,7 +25,8 @@ use super::policy_engine::StageRequest;
 use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
-use super::service_client::{Activation, ClientConfig, START_WAIT, ScratchWatch, Submitted, manager_watch_for, submit_traced, watch_scratch};
+use super::scratch_location::SCRATCH_REFRESH_EVERY;
+use super::service_client::{Activation, ClientConfig, FreshScratch, START_WAIT, ScratchWatch, Submitted, manager_watch_for, submit_traced, watch_scratch};
 use super::landed_summary::{rebuilt_note, short_name, subject_of, summary_line};
 use super::service_commit_args::{ServiceCommitArgs, opens_editor, parse_service_commit, with_fixed_message};
 use super::service_handoff::ServiceHandoff;
@@ -383,7 +384,13 @@ pub fn service_commit<F: RepositoryFacts>(
             provided.map_err(|failure| { return TransactionStop::Message(render(&failure)); })?;
             provisioned = true;
         }
-        match submit_traced(&config, &sent, &mut std::io::stderr(), &mut timing.submit) {
+        // The commit's scratch directory is renewed while the commit waits, however long: the sweep of a later command would
+        //  otherwise remove it from under a wait that outlasts its age.
+        let waiting_config: ClientConfig = ClientConfig {
+            keep_fresh: Some(FreshScratch { path: ready.scratch.0.clone(), every: SCRATCH_REFRESH_EVERY }),
+            ..config.clone()
+        };
+        match submit_traced(&waiting_config, &sent, &mut std::io::stderr(), &mut timing.submit) {
             Ok(Submitted::Landed { commit, .. }) => {
                 let after_landing: Instant = Instant::now();
                 if let Some(file) = fixed_message.as_ref() {
