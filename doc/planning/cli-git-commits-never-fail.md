@@ -1454,6 +1454,10 @@ A. A Git child that ignores the terminate signal and holds a ref lock.
      otherwise prints what it found and the command that clears it. That rule contradicts this revision's "the wrapper never removes a ref lock";
      the eighth review is asked whether the shipped proof survives the seventh review's foreign-lock schedule. If it does not, A2 stands as
      written (the notice names the file for the person), and the shipped rule is reopened too.
+     Outcome of the eighth review (2026-11-03T11:33:50-05:00): the shipped rule does not survive (S-1, S-2; fixed separately on
+     `fix/git-policy-cli-never-removes-a-live-lock`), so A2 stands as an explicitly accepted narrowing: ending a stalled Git child that
+     ignores the terminate signal can leave a lock that only the person clears, and the request behind it stays pending, with the notice
+     naming the file. This does not remove that exit by construction; it trades a stuck child for a named lock.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
@@ -1462,9 +1466,13 @@ B. A quiet owner that holds the gate with no person's program running.
    - Option B2, restart anyway: the waiting command ends the owner without the gate and the manager restarts the service. Visible: the commit lands after
      the restart, but if the owner was inside a ref transaction with a child, ending it can leave `main.lock` that the wrapper will not remove, with
      the pending state of A2.
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): B2. B1 hands an internal wedge of our own code to the person,
-     against "never leak internal things that could be resolved to the user" (`package/git-policy/cli/DESIGN.md`, 2026-11-01) and "never stuck";
-     a lock left by it goes through the same shipped rule as A2.
+   - Picked first (coordinator, 2026-11-03, under the owner's delegation): B2, withdrawn after the eighth review.
+     The eighth review (R8-1) showed B2 can end a person's hook: the restarter's correct "no program running" observation is followed by the
+     owner dispatching a ref transaction whose hook starts, and the restart then reaps it. That breaks the owner's explicit
+     "End Git, hold hooks (Recommended)" (a hook is never ended), which outranks the general "never leak internal things".
+   - Picked now (coordinator, under the delegation, veto open): B1. L7 keeps its gate requirement; a wedge of our own code inside the shared
+     gate is reported with how to restart the unit, and the request stays durable. A different admission and cancellation interlock that
+     can end such a wedge without ending a hook is open design work for revision 9.
 
 ## Verification plan and build order
 
