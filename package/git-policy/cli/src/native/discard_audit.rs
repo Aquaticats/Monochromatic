@@ -12,6 +12,7 @@
 //! ```
 
 use super::diagnostic_log::debug;
+use generations::{Retention, install_generation, retention_of, trim_generations};
 use super::iso_time::format_iso_milliseconds;
 use super::json_record::{quote, string_array};
 use super::service_protocol::RELEASE;
@@ -24,8 +25,24 @@ use std::path::{Path, PathBuf};
 /// The file inside the common Git directory that collects the lines of every worktree of the repository.
 pub const AUDIT_FILE: &str = "cli-git-audit.jsonl";
 
-/// The size at which the file moves to `cli-git-audit.jsonl.1`, replacing an older copy.
+/// The size at which a log file moves aside.
+///
+/// Measured on this host (read-only, 2026-11-03T14:55Z): `cli-git-audit.jsonl` of the main repository held 322,900 bytes in
+/// 950 lines from 2026-10-21T00:35:32Z to 2026-11-03T14:15:51Z, about 23 KB a day with a daily range of 1,074 to 71,328
+/// bytes, so one mebibyte is about 45 days of audit lines at the mean rate and about 15 days at the busiest measured day.
+/// `cli-git-commit-timing.jsonl` held 760,605 bytes in 1,040 lines from 2026-11-02T09:01:37Z to 2026-11-03T14:55:02Z, so it
+/// reaches one mebibyte in about two days. The commands and the window are in
+/// `doc/planning/cli-git-shipped-limits-audit.md`, "Audit log rotation, 1 MiB and one generation".
 const ROTATE_AT_BYTES: u64 = 1024 * 1024;
+
+/// The bytes of audit generations that name no saved copy still on disk, kept beside the live file.
+///
+/// Derived from the measurement at `ROTATE_AT_BYTES`: the busiest measured day was 211 lines, and the lines written now are
+/// about 489 bytes each (the newest day's 67 lines took 32,779 bytes), so about 103 KB; the saved copies that these lines
+/// explain are kept for `DEFAULT_MAX_AGE_DAYS` (30) days, and 30 such days are about 3.0 MiB. Four generations hold that
+/// with one to spare. The coordinator picked this under the owner's delegation (pick 11, option C), open to the owner's veto.
+/// It bounds only history that explains no saved copy, because a generation that names a copy still on disk is never removed.
+pub const AUDIT_HISTORY_BYTES: u64 = 4 * ROTATE_AT_BYTES;
 
 /// Module tag for diagnostics.
 const TAG: &str = "discardAudit";
@@ -268,6 +285,9 @@ pub fn record_audit_with_copies(
 ///  second rotation would put over the full history); a rotation that cannot finish never costs the record; and when the file ends without a newline (a write a full disk or a signal cut short) it starts its own line
 ///  on a fresh one, so one torn line never swallows the next record. A writer that looks while another is half-way
 ///  through a write can add an empty line the same way; readers skip empty lines, and nothing is lost.
+///  Where the moved file goes depends on the file: the audit file keeps a generation per rotation and trims them
+///  (`discard_audit_generations.rs`), and every other log (the timing logs and the push trigger log) keeps one, `.1`,
+///  which the next rotation replaces.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -280,8 +300,16 @@ pub fn append_line(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
         //  never what a failed housekeeping step costs.
         if let Err(error) = move_aside_if_still_named(target, &file) {
             debug(TAG, &format!("the audit file {} could not be moved aside: {error}", target.display()));
-        } else if let Ok(fresh) = open_for_append(target) {
-            file = fresh;
+        } else {
+            if retention_of(target) == Retention::Generations {
+                // Best effort as well: a pass that cannot run leaves the generations as they are, which is more history, not less.
+                if let Err(error) = trim_generations(target, AUDIT_HISTORY_BYTES) {
+                    debug(TAG, &format!("the generations of {} could not be trimmed: {error}", target.display()));
+                }
+            }
+            if let Ok(fresh) = open_for_append(target) {
+                file = fresh;
+            }
         }
     }
     let length: u64 = file.metadata()?.len();
@@ -432,8 +460,10 @@ fn give_back(taken: &Path, target: &Path) -> std::io::Result<()> {
 /// Why:
 ///   The check of the path and the move cannot be one step, so the move itself is the check: the name is taken with one
 ///  rename to a private path (the writer that renames owns whatever it got, with no lock), then the file taken is compared
-///  with the one opened. The same file goes to `.1`; any other file is a newer file that a writer that rotated first started,
-///  and it goes back to its name without replacing anything. Nothing is deleted, so no line is lost by the rotation.
+///  with the one opened. The same file goes to `.1` (a timing log, replacing the older `.1`) or to the next free generation
+///  number (the audit file, replacing nothing); any other file is a newer file that a writer that rotated first started,
+///  and it goes back to its name without replacing anything. The rotation itself deletes nothing that a reader could
+///  want except a timing log's older `.1`; the removal of audit generations is `trim_generations`, after the rotation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -468,16 +498,32 @@ fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn F
     if (taken.dev(), taken.ino()) != (held.dev(), held.ino()) {
         return give_back(taken_at.as_path(), target);
     }
-    let mut aside: std::ffi::OsString = target.as_os_str().to_os_string();
-    aside.push(".1");
-    if let Err(error) = std::fs::rename(&taken_at, aside) {
+    let placed: std::io::Result<()> = match retention_of(target) {
+        Retention::OneGeneration => {
+            let mut aside: std::ffi::OsString = target.as_os_str().to_os_string();
+            aside.push(".1");
+            std::fs::rename(&taken_at, aside)
+        }
+        Retention::Generations => install_generation(taken_at.as_path(), target),
+    };
+    if let Err(error) = placed {
         give_back(taken_at.as_path(), target)?;
         return Err(error);
     }
     return Ok(());
 }
 
+/// Where a rotated file goes, and which generations of the audit file may be removed.
+#[path = "discard_audit_generations.rs"]
+mod generations;
+
 /// The path, the line, the outcome words, and the limits.
 #[cfg(test)]
 #[path = "discard_audit_tests.rs"]
 mod tests;
+
+/// The generations kept, the bound on them, and the timing logs' single generation are controlled in the generation test
+/// module.
+#[cfg(test)]
+#[path = "discard_audit_generation_tests.rs"]
+mod generation_tests;

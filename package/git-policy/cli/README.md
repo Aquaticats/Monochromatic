@@ -770,7 +770,12 @@ The folder is bounded, because it would otherwise grow for as long as the reposi
  Each removed save leaves one line in `cli-git-audit.jsonl`
  (`"outcome":"pruned"`, with the time, `path`, `bytes`, `reason` `age` or `size`,
  the `limit` it was judged against and the names of the copies in it).
- The limits are the `discardedCopies` section of `cli-git.config.jsonc`:
+ The limits are the `discardedCopies` section of `cli-git.config.jsonc`.
+ The defaults are not yet based on a measurement of growth:
+ on 2026-11-03 no repository on the development host had a saved copy,
+ and a copy can be the only copy of your work, so the numbers are open to change
+ (`doc/planning/cli-git-shipped-limits-audit.md`, "Defaults for saved conflict copies").
+ An example that keeps saves for 90 days and the folder under 256 MiB:
 
  ```jsonc
  // cli-git.config.jsonc: keep saves for 90 days and the folder under 256 MiB
@@ -788,7 +793,13 @@ Each decision about a discarding form (rejected, run in a clean worktree, run in
  (a decision that saved conflicted files also lists where each copy went).
 When uncommitted work disappears, `git rev-parse --git-common-dir` locates the file;
  a line that says `allowed` or `hatch` near the time of the loss names the command that was let through.
-The file moves aside to `cli-git-audit.jsonl.1` at one mebibyte, and a failed write never changes a command's result.
+At one mebibyte the file moves aside to the next free number (`cli-git-audit.jsonl.1`, then `.2`, and on; the highest is
+ the newest) and a new file starts.
+ Rotated files that name no saved copy still on disk are kept up to four mebibytes, oldest removed first;
+ a rotated file with a `saved-conflict` line whose copy still exists is never removed.
+ The four mebibytes are derived from the measured rate of this file (about 23 KB a day) and the 30 days copies are kept;
+ the timing logs and the push trigger log keep one rotated file, `.1`.
+ A failed write never changes a command's result.
 
 The forms and their alternatives follow.
 Each alternative is run through the built executable by `src/native/binary_discard_tests.rs`.
@@ -2096,7 +2107,8 @@ beside
 in one append with no flush to disk.
 Every worktree of the repository writes to the one file,
 and a worktree's `instance` field tells the lines apart.
-The file moves aside to `cli-git-commit-timing.jsonl.1` at one mebibyte.
+The file moves aside to `cli-git-commit-timing.jsonl.1` at one mebibyte, replacing the older one.
+At the rate measured on 2026-11-03 (760,605 bytes in about 30 hours) that keeps three to four days of timing.
 A failed write never changes the commit's result.
 A commit that stops before it reaches the service,
 because the machine has no way to start one,

@@ -15,6 +15,7 @@ use super::{
     move_aside_if_still_named, parent_process, record_audit,
 };
 use crate::command_test_support::{fixture, os_arguments, remove};
+use crate::commit_timing::TIMING_FILE;
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::{Path, PathBuf};
@@ -216,12 +217,12 @@ fn a_torn_last_line_does_not_swallow_the_next_record() {
 }
 
 /// A writer that saw a full file but lost the race to another writer's rotation must not move the new, small file over
-/// the history that is already in `.1`.
+/// the history that is already in `.1` (a timing log keeps one generation; the audit file keeps many, in its own tests).
 #[test]
 fn a_second_rotation_does_not_replace_the_history_with_the_new_file() {
     let root: PathBuf = fixture("audit-rotate-race");
-    let target: PathBuf = root.join(AUDIT_FILE);
-    let aside: PathBuf = root.join(format!("{AUDIT_FILE}.1"));
+    let target: PathBuf = root.join(TIMING_FILE);
+    let aside: PathBuf = root.join(format!("{TIMING_FILE}.1"));
     std::fs::write(&target, b"the full history\n").expect("the full file");
     let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
     // Another writer rotates first and starts the new file.
@@ -282,15 +283,15 @@ fn a_file_that_vanished_after_the_check_is_not_an_error() {
     remove(root.as_path());
 }
 
-/// A rotation that cannot finish, here because `.1` is a directory, never costs the record: it lands in the file.
+/// A rotation that cannot finish, here because `.1` of a timing log is a directory, never costs the record: it lands in the file.
 #[test]
 fn a_rotation_that_fails_does_not_drop_the_record() {
     let root: PathBuf = fixture("audit-rotate-fails");
-    let target: PathBuf = root.join(AUDIT_FILE);
+    let target: PathBuf = root.join(TIMING_FILE);
     let mut filler: Vec<u8> = vec![b'x'; ROTATE_AT_BYTES as usize];
     filler[ROTATE_AT_BYTES as usize - 1] = b'\n';
     std::fs::write(&target, &filler).expect("a full file");
-    std::fs::create_dir(root.join(format!("{AUDIT_FILE}.1"))).expect("an obstacle where the old copy belongs");
+    std::fs::create_dir(root.join(format!("{TIMING_FILE}.1"))).expect("an obstacle where the old copy belongs");
     append_line(target.as_path(), b"{\"kept\":1}\n").expect("the record is appended whatever the rotation did");
     let text: Vec<u8> = std::fs::read(&target).expect("target");
     assert!(text.ends_with(b"{\"kept\":1}\n"), "the record is the last line of the file at the name");

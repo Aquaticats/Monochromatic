@@ -74,7 +74,9 @@ stamped by journald when it processes it (`journald-stream.c:309` passes no time
 
 ### Discard audit `<common git dir>/cli-git-audit.jsonl` (writer: wrapper, `discard_audit.rs`)
 
-- One line per decision about a guarded form; same appender and rotation.
+- One line per decision about a guarded form; same appender, but each rotation keeps its file under a new number
+  (`.1`, `.2`, and on) and generations that name no saved copy on disk are kept up to 4 MiB
+  (`doc/planning/cli-git-shipped-limits-audit.md`, "Audit log rotation").
 - Fields: `schemaVersion`, `timeMillis` (a quoted string), `pid`, `parentPid`, `worktree` (a kind word, not a path),
   `form`, `outcome`, `dirty`, `cwd`, `arguments`, optional `copies`.
 - Verdict: no ISO time, no release, no Git directory; arguments are not masked for URL userinfo.
