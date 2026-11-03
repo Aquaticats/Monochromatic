@@ -228,10 +228,48 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   and about 4300 comment lines,
   partly from a regex tool,
   which the review checks for false statements).
-- Step 1 of the commits-never-fail build (models and crash fixtures),
-  branch `feat/git-policy-cli-commit-protocol-models`.
 - Done,
-  not yet merged into the 0.5.28 base:
+  not merged anywhere (design code,
+  nothing live calls it):
+  step 1 of the commits-never-fail build,
+  `feat/git-policy-cli-commit-protocol-models` `22e0ba1f37`,
+  worktree `.claude/worktrees/commit-protocol-models`.
+  A hand-written schedule explorer (stateright is not in the offline registry;
+  loom and shuttle cannot model system calls)
+  and models F1 to F9,
+  each red under revisions 6 and 7 with literal replays and green for revision 8 or a candidate;
+  step 3 components (ledger,
+  identity binding,
+  request,
+  spool) and the step 4 pure replay,
+  differential against Git 2.56.0;
+  105 of 105 tests (`native:test:model`),
+  clippy clean.
+  Four findings against revision 8,
+  sent to the revision 9 agent:
+  a resend answered from a visible but not yet durable inbox record (F7);
+  an owner wedged with no gate cannot be ended by a catchable signal (F3,
+  L7);
+  L4 must raise the capture generation to odd first (F6);
+  a recorded swap-failed replays silently after the post-anchor reflog lines are erased (F1,
+  R4).
+  The eighth review's section-4 controls are not built;
+  they follow revision 9.
+  Its comment density is below the dum-dum skill's in the F2 to F9 models and three component files.
+- Done and merged into the 0.5.28 base (`afc9a8621d`,
+  both merges clean,
+  clippy clean on the result):
+  the fallback to the real Git the wrapper was installed over (task 150),
+  `feat/git-policy-cli-falls-back-to-installed-git` `6453c380b1`.
+  When `PATH` offers no real Git,
+  it uses the `--git` path from the commit service's unit file under `$XDG_RUNTIME_DIR/systemd/user`,
+  checked as every `PATH` candidate is,
+  and prints one line naming the path and the directory to add to `PATH`;
+  no usable record keeps the stop.
+  7 new binary tests and 17 new unit tests,
+  red first;
+  its four questions are in "Picks made under the owner's delegation".
+- Done and merged into the 0.5.28 base (`afc9a8621d`):
   the shipped-limits follow-ups after the citations (task 151),
   `fix/git-policy-cli-limits-cite-measurements` `e314460f79`
   (2026-11-03,
@@ -261,8 +299,14 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   the full gate was not run.
   The claim-kill probe's scope showed inactive before the tests ran,
   so that run was bounded only by the tests' five-minute limit.
-- Fallback to the real Git the wrapper was installed over (task 150),
-  branch `feat/git-policy-cli-falls-back-to-installed-git` from the 0.5.28 base `a7a19b590a`.
+- The third round on the in-process index writer,
+  its agent resumed with the third re-review's findings and told to merge the base `177f9ebc50` first.
+- Design revision 9 of `doc/planning/cli-git-commits-never-fail.md`,
+  its agent resumed with the eighth review and the step-1 models' four findings.
+- cargo-shadow fixes for all three second-review parts,
+  its agent resumed;
+  it writes the three diffs for the third review to `~/temp/agent/reviews/cargo-shadow-3a.diff`,
+  `-3b.diff` and `-3c.diff`.
 - The word-level second merge pass brought up to the 0.5.28 base (task 114):
   the agent merges the base into `feat/git-policy-cli-word-level-second-merge-pass`,
   verifies the `--autostash` and `branch.<name>.mergeOptions` follow-ups,
@@ -445,26 +489,23 @@ in this order:
     the reclamation check-then-unlink in `service_index_lock.rs` 285-289 needs a per-physical-index single-reclaimer
     guarantee or a test;
     the non-Linux test imports stay paused.
-- Merge the citations follow-ups (`e314460f79`) into the 0.5.28 base.
-- The index-lock and service waits follow-ups listed with that branch's merge in this handover's running list:
-  resume the waits agent with them.
-- Design revision 9 for the eighth review's R8-2 to R8-8,
-  with B1 in place of B2 and A2 as an accepted narrowing:
-  resume the design agent with `~/temp/agent/reviews/commits-never-fail-sol-8.txt`.
-- cargo-shadow fixes for all three second-review parts
-  (`cargo-shadow-sol-2a.txt`,
-  `-2b.txt`,
-  `-2c.txt`),
-  starting with the P1s,
-  then a third review split the same way:
-  resume the cargo-shadow agent.
-- Gate the 0.5.28 base once the index round,
-  the lock-deletion fix and the remaining shipped-limits branches are merged into it,
+- The index-lock and service waits follow-ups listed in "Picks made under the owner's delegation",
+  "Shipped-limits follow-ups":
+  resume the waits agent with them once the index round finishes,
+  because both change the index lock wait and the landing code.
+- A cross-vendor review of the step-1 models and components
+  (`feat/git-policy-cli-commit-protocol-models` from `5e8c96de21` to `22e0ba1f37`),
+  then the eighth review's section-4 controls against revision 9:
+  resume the step-1 agent.
+- The third cross-vendor review of cargo-shadow,
+  three parts,
+  once its fix round writes the diffs.
+- Gate the 0.5.28 base once the index round and the lock-deletion fix are merged into it
+  (and the word-level merge pass,
+  if it is ready by then;
+  it does not hold the release),
   then release 0.5.28,
   install it and time commits against native Git.
-- After 0.5.28:
-  fall back to the real Git the wrapper was installed over when `PATH` holds none after it,
-  with a one-line notice (task 150).
 
 0.5.27 ships without the in-process index work
 (coordinator's pick under the delegation,
@@ -1618,11 +1659,84 @@ on `fix/git-policy-cli-commits-never-fail`.
 4. The instant inside Git's `checkout` between the index write and the `HEAD` change:
    A (accept a rare staged change on the new branch).
 
+### Commits never fail, revision 8 (two questions)
+
+In `doc/planning/cli-git-commits-never-fail.md`,
+the owner-questions section,
+on `fix/git-policy-cli-commits-never-fail` (`3beecf2368`,
+`a7b917e47e`).
+These are options of the owner questions,
+not the state-machine transitions of the same names;
+revision 9 renames them.
+
+1. A Git child that ignores the terminate signal:
+   option A2 (end it with the kill signal,
+   the owner's "End Git"),
+   kept as an accepted narrowing after the eighth review:
+   it can leave a lock that only the person clears.
+2. A quiet owner that holds the gate:
+   option B2 (restart it) picked first,
+   then withdrawn for option B1 (hand it to the person with a line naming it),
+   because the eighth review showed a restart can end a person's hook that starts after the "no program running"
+   observation (R8-1).
+
+### Shipped-limits follow-ups
+
+- After the citations:
+  picked in `doc/planning/cli-git-shipped-limits-audit.md`,
+  "Picked for these follow-ups";
+  built (`e314460f79`).
+- After the index-lock and service waits (`008b74d3a3`):
+  an unproven lock owner is waited for like a proven one,
+  because an editor-held `git commit` would otherwise make ours fail after 1 s;
+  poll when no inotify watch is available;
+  ask the service manager to start an inactive unit after `START_WAIT`;
+  keep a scratch file from being aged out during a wait longer than a day.
+- For the owner to approve,
+  not picked:
+  the margin above the longest recorded quiet gap for each quiet window (picks 4 and 9),
+  and the 150 s hold-age margin (pick 2).
+
+### Fallback to the installed real Git (four questions)
+
+In `doc/planning/cli-git-no-self-invocation.md`,
+"Falling back to the Git the commit service was set up with";
+built on `feat/git-policy-cli-falls-back-to-installed-git` (`6453c380b1`).
+
+1. Fall back at all:
+   yes (picked) over keeping the stop,
+   because a found wrapper that cannot run Git is a failure the owner's rules name,
+   and the one-line notice keeps the cause visible.
+2. Which record names the real Git:
+   the commit service's unit file,
+   whose `ExecStart` carries `--git <path>` (picked),
+   over a new record written on every successful `PATH` search
+   (survives logout but adds a write to every command),
+   the version-cache entries (several,
+   unordered)
+   and a fixed `/usr/bin/git` (a guess).
+   Limit:
+   the unit lives in the runtime directory,
+   so before the first commit of a login,
+   and after the last logout,
+   the stop stays.
+3. The service's own checks of its `--git`:
+   left as they are (picked);
+   the wrapper always writes `--git` from its checked path,
+   so tighter checks guard only older or hand-written units.
+4. How often the notice prints:
+   on every command (picked),
+   because printing once per login needs a file that outlives the process and a rule for when it expires.
+
 ### Release contents
 
 - 0.5.27 ships without the in-process index work,
   which waits for its review's fixes and ships in 0.5.28;
   reasons under "Agents and gates running".
+- The fallback to the installed real Git was queued for after 0.5.28;
+  it finished first and is merged into the 0.5.28 base (`afc9a8621d`),
+  so it ships in 0.5.28 (coordinator's pick:
+  the owner's "Ship interim now" favours shipping a finished fix).
 
 ### cargo-shadow (agent's nine questions)
 
