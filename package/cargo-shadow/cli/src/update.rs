@@ -999,7 +999,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     problems.extend(trust);
     warnings.extend(age.warnings);
     // Typed binding: `keep: bool`.
-    let keep: bool = problems.is_empty() && !request.dry_run;
+    let mut keep: bool = problems.is_empty() && !request.dry_run;
     // `let mut`: a binding that may change.
     // Typed binding: `pruned: Vec<String>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -1070,7 +1070,14 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 Ok(done) => warnings.push(done),
                 // `Err(...)`: builds the success or the failure variant of a `Result`.
-                Err(message) => warnings.push(message),
+                // Delegated pick (2026-11-03): the sync belongs to the transaction. A catalog raised but not rendered would leave
+                // the floors and the manifests disagreeing, so the catalog goes back and the caller restores the manifests and
+                // the lockfiles; the finding names the failure.
+                Err(message) => {
+                    fs::write(request.catalog_path, &source).map_err(other_text)?;
+                    problems.push(format!("the catalog floors were not rendered into the manifests, so the update was not kept: {message}"));
+                    keep = false;
+                }
             }
         }
     }
