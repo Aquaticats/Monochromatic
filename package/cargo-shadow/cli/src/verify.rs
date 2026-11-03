@@ -1,6 +1,6 @@
 //! What:
-//! The check a frozen install makes of every registry version a lockfile already holds, against the release-age and trust
-//! policy.
+//! The two checks a frozen install makes of the registry versions in the lockfiles: every entry (`trustLockfile = false`, pnpm's
+//! default, below) or only the versions new since a base revision (`trustLockfile = true`, `verify_added_since_base`).
 //! Why:
 //! pnpm 12.16.1 re-validates every entry of the lockfile on install, frozen or not, against the policies its resolvers were built
 //! with, unless `trustLockfile` is true (`pnpm11/installing/deps-installer/src/install/mutateModules.ts:314-343`,

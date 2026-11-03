@@ -4,8 +4,7 @@ A shadow for `cargo`,
 modeled on `pnpm-shadow`,
 that keeps every `Cargo.lock` satisfying its manifests under the trust policy in `rust-catalog.toml`.
 It also holds the repository's Rust catalog tools (`install`,
-`update`,
-`verify`),
+`update`),
 which used to be the TypeScript package
  `package/dependency-catalog/cli-rust-update`.
 Design and decisions:
@@ -36,7 +35,6 @@ it is the shadow.
 Started under any other name it is the catalog CLI:
 `install`,
 `update`,
-`verify`,
 `--help`,
 `--version`.
 
