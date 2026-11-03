@@ -292,7 +292,7 @@ fn a_run_that_timed_out_or_could_not_start_fails_and_a_refused_sandbox_does_not(
 fn a_worktree_without_the_installed_program_fails_with_the_install_remedy_and_runs_nothing() {
     let base = crate::test_scratch::scratch().expect("directory");
     fs::write(base.path().join(PLAN_FILE), "{}\n").expect("plan");
-    let (state, seen) = resolve(&base.path().to_path_buf(), exited("must not run"));
+    let (state, seen) = resolve(base.path(), exited("must not run"));
     let ToolchainState::Failed(failed) = &state else {
         panic!("not failed: {state:?}");
     };
@@ -315,7 +315,7 @@ fn a_dangling_program_link_counts_as_not_installed() {
     let link = base.path().join(PROGRAM);
     fs::create_dir_all(link.parent().expect("parent")).expect("directory");
     std::os::unix::fs::symlink(base.path().join("gone"), &link).expect("link");
-    let (state, seen) = resolve(&base.path().to_path_buf(), exited("must not run"));
+    let (state, seen) = resolve(base.path(), exited("must not run"));
     assert!(matches!(state, ToolchainState::Failed(_)), "{state:?}");
     assert!(seen.is_empty());
 }

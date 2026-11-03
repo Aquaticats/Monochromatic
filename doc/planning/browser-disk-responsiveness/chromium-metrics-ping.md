@@ -1,27 +1,46 @@
-# BrowserMetrics live mapped writes can block browser main on Btrfs: owner coordination
+# BrowserMetrics mapped writes block browser main on Btrfs in Chromium 159.0.8141.0
 
-This is an initial metrics-owner coordination request based on a downstream capture,
-not a claim of a reproducible bug in latest upstream Chromium.
-Is live `BrowserMetrics` mapped-write blocking already tracked,
-and what crash-retention guarantees should a regression test preserve?
+A fresh upstream Chromium run reproduced browser-main blocking while writing through the live
+`BrowserMetrics` mapping.
+Is this live-write path already tracked by metrics owners,
+and which crash-retention guarantees should regression coverage preserve?
 
-## Observed boundary
+## Build and environment
 
-Helium `0.20.2.1`,
-based on Chromium `156.0.8078.73` (`2f9a11097447f226133bc1a31c787291a5eeab98`),
-showed whole-window unresponsiveness on Linux with Btrfs.
-A subsequent main-thread capture at `2026-11-03T07:05:04.385Z` correlated:
+- Official Linux Chromium snapshot `1733707`,
+  runtime version `159.0.8141.0`,
+  source revision `986947eb4afc18471e51b7cb473f7c2f779f62bf`.
+- Linux `7.2.15-ogc1.1.fc45.x86_64`,
+  Wayland,
+  Btrfs,
+  newly created disposable browser profile.
+- Headed browser with default histogram storage selection.
+  No synthetic host load,
+  filesystem cache dropping,
+  or injected storage delay.
+  The reproduction is intermittent under existing host activity.
 
-- A user-mode write-fault event with error code `0x7`.
-- Its instruction pointer matching the blocked main thread's sampled current instruction pointer.
-- Its target address at offset `0x1b61cc` inside a `4194304`-byte,
-  `rw-s` mapping of `<profile>/BrowserMetrics/<active-file>.pma (deleted)`.
-- This kernel stack:
+## Correlated evidence
+
+At `2026-11-03T09:44:15.429Z`,
+the browser main thread was blocked in `folio_wait_writeback` through `btrfs_page_mkwrite`.
+The latest write-fault instruction pointer exactly matched its sampled current instruction pointer.
+Both captured faulting instructions resolve to `base::SampleVectorBase::Accumulate(int, int)`.
+Disassembly identifies the faulting instruction as `lock xadd %r12d,(%rax)`.
+The fault address was offset `0x2d678` inside its live `4194304`-byte `rw-s` mapping of
+`<disposable-profile>/BrowserMetrics/<active-file>.pma (deleted)`.
+The recovery observation followed in a sampled blocked span of `104 ms`.
+
+At `2026-11-03T09:46:52.885Z`,
+a second matching write fault targeted offset `0x78ba0` in the same mapping.
+This stack shows a metadata-reservation wait:
 
 ```text
 # Sanitized browser-main procfs stack
-folio_wait_bit_common
-folio_wait_writeback
+handle_reserve_ticket
+reserve_bytes
+btrfs_reserve_metadata_bytes
+btrfs_delalloc_reserve_metadata
 btrfs_page_mkwrite
 do_page_mkwrite
 do_wp_page
@@ -32,66 +51,79 @@ exc_page_fault
 asm_exc_page_fault
 ```
 
-A matching observation at `2026-11-03T07:13:58.080Z`
-was followed by a recovery record reporting `6622 ms` in the sampled blocked interval.
-The observer waited `100 ms` between samples and logged changes of kernel stack.
-This is sampled blocked time,
-not an exact fault duration or an input-to-presentation measurement.
-The correlated boundary is established at the recorded sample;
-the interval may include additional waits.
-The mapping was marked deleted in procfs,
-and remained mapped.
+The sampled blocked span was `1484 ms`.
+A `Browser.getWindowForTarget` request started at `09:46:53.108Z`
+and took `1159.963 ms`,
+finishing within that span.
+These are a sampled blocked span and a browser-window command round trip,
+not an exact fault duration or input-to-presentation latency.
+The observations do not prove that the entire command delay was spent in this fault.
 
-The observer recorded write faults only.
-Read-fault samples with stale preceding write events were excluded from this attribution.
-Ordinary Chromium separately showed `btrfs_page_mkwrite` on browser main,
-but its faulting file was not identified.
-That separate observation does not confirm `BrowserMetrics` attribution in upstream Chromium.
+The trace filtered `page_fault_user` to writes by the browser main thread.
+Procfs state was checked with a `100 ms` delay between iterations.
+All kernel trace buffers reported zero overruns and dropped events;
+`4922` write-fault events were read.
+An unmatched read-fault sample was excluded from metrics attribution.
+The `.pma` file was marked deleted by procfs but remained mapped.
 
-## Relevant upstream code and nearby work
+## Recording scenario
 
-At inspected upstream revision `e436fd72f52814c1228fb16a8c8f7cae8253fb99`,
-[normal browser startup explicitly selects mapped persistent histograms before field trials][startup].
-[The mapping setup and local-memory fallback][allocation] explain why moving explicit flushes
-off the recording thread would not by itself remove a later filesystem-backed write fault.
-This is a source-based inference about the mechanism,
-not a runtime reproduction on that revision.
+The browser was launched with a disposable `--user-data-dir`,
+`--remote-debugging-port=0`,
+`--no-first-run`,
+`--no-default-browser-check`,
+and `--ozone-platform=wayland`.
+The probe opened `chrome://settings/`
+and dispatched these native API calls at a `1000 ms` cadence:
 
-[CL 8707393][segments] caches system-profile segment references to reduce cold mapped reads.
-[CL 8688624][sparse] moves scans outside a sparse-histogram lock and batches imports.
+```javascript
+// chrome://settings/ DevTools console, equivalent native recording inputs
+const sampleCount = 60;
+const cadenceMs = 1000;
+for (let sample = 0; sample < sampleCount; sample++) {
+  chrome.metricsPrivate.recordBoolean(
+    'Monochromatic.BrowserMetricsRepro.CurrentBoolean', sample % 2 === 0);
+  chrome.metricsPrivate.recordSparseValue(
+    'Monochromatic.BrowserMetricsRepro.CurrentSparse', sample);
+  await new Promise(resolve => setTimeout(resolve, cadenceMs));
+}
+```
+
+The automated probe also sent `Browser.getWindowForTarget` before each recording pair.
+`Browser.getHistogram` returned exactly `60` samples for each named histogram.
+The rendered `chrome://histograms/#Monochromatic.BrowserMetricsRepro.Current`
+confirmed the counts with subprocess imports disabled.
+The last part of the recording loop continued after the bounded kernel trace ended;
+the second correlated fault occurred during their overlap.
+
+At the tested source revision,
+[the native recording implementations][recording] directly call `UmaHistogramBoolean` and `UmaHistogramSparse`.
+[The extension dispatcher][dispatcher] is documented to live on the UI thread.
+The JavaScript recording functions have no completion callback,
+so renderer evaluation completion alone was not used as proof of recording completion.
+
+## Related work and scope
+
+[CL 8707393][segments] addresses cold mapped reads during system-profile scanning;
+[CL 8688624][sparse] addresses sparse-histogram import lock contention.
 Both were open when checked on `2026-11-03`.
-Their described mechanisms differ from the captured live mapped write.
-CL 8707393 references issue `580929788`,
-whose discussion was inaccessible during this check;
-its scope is therefore unknown.
+Their descriptions differ from this live-write fault.
+Issue `580929788`,
+linked by CL 8707393,
+denied anonymous access,
+so its discussion was not assessed.
 
-## Reproduction and design limits
+A separate historical Helium capture had the same mapped-write mechanism
+and a sampled blocked span of `6622 ms`.
+That downstream observation is not substituted for the fresh upstream run.
+There is no Chromium source patch or controlled filesystem-delay fixture in this report.
+The contribution is the current-build evidence and owner coordination for regression coverage.
 
-There is no deterministic reproduction or tested Chromium patch in this report.
-Latest Chromium/Canary has not been reproduced with a disposable profile,
-and the user-space instruction has not been symbolized.
-The historical capture came from ordinary use,
-without synthetic host load.
-No inference is made about freeze frequency on other systems.
+Prepared with AI assistance from retained captures and source inspection.
+The accompanying evidence is sanitized;
+no profile contents or raw private traces are included.
 
-A local fallback check removed the `.pma` mapping,
-but loses persistent metrics and does not prove that every freeze is fixed.
-Replacing live mapped recording with RAM-backed recording and separate persistence would need
-an agreed crash-loss window,
-allocator lifetime,
-cross-process import,
-snapshot consistency,
-and consent/deletion contract.
-No replacement design is proposed for landing here.
-
-The next contribution boundary is a disposable regression fixture that holds the relevant storage work pending
-while checking browser-main task progress and retained metrics.
-Please route this evidence to existing work if the live-write case is already covered.
-
-Prepared with AI assistance from retained local observations and Chromium source inspection.
-No profile contents or raw private trace files are included.
-
-[startup]: https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/chrome/app/chrome_main_delegate.cc#L1803-L1825
-[allocation]: https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/components/metrics/persistent_histograms.cc#L124-L222
+[recording]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/extensions/browser/api/metrics_private/metrics_private_api.cc#L193-L207
+[dispatcher]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/extensions/browser/extension_function_dispatcher.h#L35-L37
 [segments]: https://chromium-review.googlesource.com/c/chromium/src/+/8707393
 [sparse]: https://chromium-review.googlesource.com/c/chromium/src/+/8688624

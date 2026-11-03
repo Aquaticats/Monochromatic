@@ -465,6 +465,7 @@ await describe({
             expect((await readdir(evidence)).toSorted()).toEqual([
               'attempt-001',
               'campaign.json',
+              'campaign.owner.1',
               'container-started.json',
               'exit.json',
               'manifest.json',

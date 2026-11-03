@@ -621,6 +621,28 @@ fn a_kill_nobody_claimed_is_found_after_the_grace_only() {
     assert_eq!(unclaimed_kill(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE), None, "a claimed kill is not reported again");
 }
 
+/// How much longer than the grace the ending of a command takes in the control below, as on a starved host.
+const SLOW_ENDING_EXTRA: Duration = Duration::from_millis(500);
+
+/// The time a test has to claim a kill counts from the moment its command is gone, not from the moment the supervisor began
+/// to end it: a tree that is slow to end on a starved host must not leave the test less than the whole grace.
+#[test]
+fn the_grace_to_claim_a_kill_starts_when_the_ending_is_over() {
+    let mut command: Command = Command::new("/bin/sleep");
+    command.arg("60");
+    let mut child: Child = command.spawn().expect("sleep starts");
+    let pid: i32 = i32::try_from(child.id()).expect("fits");
+    let started: u64 = stat_of(pid).expect("the child runs").started;
+    let pin: Pin = Pin::open(pid, started).expect("the child can be pinned");
+    end_command(&pin, "a slow ending", &|named| {
+        std::thread::sleep(UNCLAIMED_GRACE + SLOW_ENDING_EXTRA);
+        end_tree(named);
+    });
+    assert_eq!(unclaimed_kill(Instant::now(), UNCLAIMED_GRACE), None, "the ending took longer than the grace and the test had none left");
+    assert!(take_kill(child.id()).is_some(), "the kill is still there to claim");
+    child.wait().expect("reaped");
+}
+
 /// The variable that makes the probe test below plant a kill nobody claims.
 const PROBE_VARIABLE: &str = "SUPERVISOR_UNCLAIMED_EXIT_PROBE";
 

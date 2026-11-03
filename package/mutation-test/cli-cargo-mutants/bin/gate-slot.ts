@@ -5,14 +5,10 @@
  */
 import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { setTimeout as sleep } from 'node:timers/promises';
 
-import {
-  parseGateSlotArguments,
-  runInSlot,
-} from '../src/gate-slot.ts';
-import { flockProgram } from '../src/constants.ts';
-import { runProgram } from '../src/run-program.ts';
+import { parseGateSlotArguments } from '../src/gate-slot.ts';
+import { runNicedCommand } from '../src/gate-slot-command.ts';
+import { runInSlot } from '../src/gate-slot-run.ts';
 
 /**
  Slot settings and command of this run.
@@ -30,14 +26,7 @@ await mkdir(
 // The command stays in the caller's cgroup: a `systemd-run --scope` wrapper would move it out of the shared CPU cap.
 process.exitCode = await runInSlot({
   options,
-  runFlock: async function runFlock(flockArguments) {
-    return (await runProgram({
-      program: flockProgram,
-      args: flockArguments,
-      inheritStdio: true,
-    })).status;
-  },
-  sleep: async function sleepFor(milliseconds) {
-    await sleep(milliseconds);
+  runCommand: async function runCommand({ command }) {
+    return await runNicedCommand({ command });
   },
 });

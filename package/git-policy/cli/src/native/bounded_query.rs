@@ -14,6 +14,8 @@
 use super::auto_push_single_flight::SingleFlightError;
 /// The deadline runner shared with the push, and its stop causes.
 use super::bounded_push::{MAX_PUSH_OUTPUT, StopCause, push_deadline, stop_push, wait_until_done};
+/// The lock files a stopped query leaves, and the ledger that finds them.
+use super::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
 /// The anonymous output files of the query, made in the per-user scratch directory.
 use super::scratch_location::scratch_file;
@@ -105,6 +107,8 @@ pub fn run_bounded_query(
         .stdin(Stdio::null())
         .stdout(Stdio::from(for_stdout))
         .stderr(Stdio::from(for_stderr));
+    // Taken before the query starts, so a lock born earlier is never taken for the query's.
+    let locks = LockLedger::before_start(&command);
     let mut child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
     drop(command);
     let ended: Result<ExitStatus, StopCause> =
@@ -116,7 +120,7 @@ pub fn run_bounded_query(
             stderr: read_back(&mut stderr)?,
         }),
         Err(cause) => {
-            stop_push(&mut child, grace);
+            stop_push(child, grace, locks);
             Err(match cause {
                 StopCause::Deadline => SingleFlightError::TimedOut {
                     arguments: arguments.to_owned(),

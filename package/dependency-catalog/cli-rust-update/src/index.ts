@@ -32,6 +32,7 @@ export {
   groupByName,
 } from './checks.ts';
 export {
+  isContinuousIntegration,
   main,
   parseMode,
   RustCatalogPolicyError,
@@ -64,6 +65,12 @@ export {
   USER_AGENT,
 } from './http.ts';
 export { pruneExcludes, } from './prune.ts';
+export {
+  CargoInstallError,
+  type InstallReport,
+  installRustLockfiles,
+  StaleLockfilesError,
+} from './install.ts';
 export {
   API_MIN_INTERVAL_MS,
   createRegistry,

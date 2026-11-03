@@ -117,3 +117,11 @@ fn the_clean_names_every_member_and_stays_offline() {
         assert_eq!(arguments[position - 1], "--package", "{arguments:?}");
     }
 }
+
+/// The report says how many entries the clone left out, in the singular and the plural, and nothing when none.
+#[test]
+fn the_report_counts_the_entries_left_out() {
+    assert_eq!(left_out_words(0), "");
+    assert_eq!(left_out_words(1), "; 1 unreadable entry was left out");
+    assert_eq!(left_out_words(3), "; 3 unreadable entries were left out");
+}
