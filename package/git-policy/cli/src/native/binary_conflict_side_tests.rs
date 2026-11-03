@@ -455,6 +455,28 @@ fn the_doctor_reports_the_folder_of_saved_copies() {
     remove(&fixture);
 }
 
+/// A folder of copies that is a link to a directory elsewhere is never followed by the pass: the command still runs and says that
+/// the limits did not apply, and an old save the link reaches stays.
+#[test]
+fn a_linked_folder_of_copies_is_not_pruned_and_the_notice_says_so() {
+    let fixture: Fixture = fixture("side-prune-link");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    let elsewhere: PathBuf = fixture.root.join("elsewhere");
+    let old: PathBuf = elsewhere.join(name_before_now(45 * A_DAY));
+    std::fs::create_dir_all(&old).expect("an old save elsewhere");
+    std::fs::write(old.join("planted.txt"), "not the wrapper's to remove").expect("planted copy");
+    let folder: PathBuf = saved_root(repo.as_path());
+    std::fs::create_dir_all(folder.parent().expect("the wrapper's directory")).expect("directory");
+    std::os::unix::fs::symlink(&elsewhere, &folder).expect("the link");
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(0), "{said}");
+    assert!(old.join("planted.txt").exists(), "a save the link reaches was removed");
+    assert!(said.contains("were not pruned") && said.contains("symbolic link"), "{said}");
+    assert!(audit_lines(repo.as_path()).iter().all(|line| { return !line.contains("\"outcome\":\"pruned\""); }));
+    remove(&fixture);
+}
+
 /// A limit that is no limit stops the command with the configuration failure that names the key, and removes nothing.
 #[test]
 fn a_zero_limit_is_a_configuration_failure_and_removes_nothing() {

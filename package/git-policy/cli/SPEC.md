@@ -2586,12 +2586,33 @@ and, where the line has them,
 `CLI_GIT_BRANCH`,
 `CLI_GIT_OUTCOME`,
 `CLI_GIT_BATCH` and `CLI_GIT_OID`.
+A value is carried as written: one that holds a newline goes in the protocol's length-prefixed form
+(`NAME`, a newline, the byte length as eight little-endian bytes, the value, a newline),
+so it starts no field, and other control bytes are kept.
+The line on standard error stays one line, with every control character replaced by a space.
+A field name is at most 64 characters of upper-case letters, digits and underscores, and starts with a letter:
+this is systemd's `journal_field_valid` (`src/libsystemd/sd-journal/journal-file.c`), which refuses a digit first,
+a leading underscore (the journal's own fields) and a longer name, and journald drops such a field without a word,
+so the datagram is built without it.
 The socket is unconnected and non-blocking,
-no lock is taken,
+no lock is taken on that path,
 and a line the socket does not take (the journal restarting, a full queue) is written to standard error,
-prefixed `<priority>` when standard error is the journal's stream,
-so a line is neither lost nor waited for.
-The signal handler sends its line the same way, with `sendto`.
+prefixed `<priority>` when standard error is the journal's stream.
+That write never waits:
+on a socket it is `MSG_DONTWAIT`,
+on a pipe or file a test or a redirection put there it happens only after a poll shows room,
+in pieces of at most a page.
+A line the stream took only in part is kept:
+its rest is written first, before any other line, so two lines never run together.
+A line that finds no room is dropped and counted;
+the next entry that gets through says how many were dropped,
+as `CLI_GIT_LOG_DROPPED` on a native entry or as a warning line on the stream.
+Dropped lines are lost, not spooled: a lost line is better than a stuck command.
+A partial line still unfinished when the process ends stays unfinished in the stream.
+The signal handler sends its line the same way, with `sendto`,
+and writes the fallback line to standard error through the same non-waiting send,
+using only `send`, `poll` and `write`, which `signal-safety(7)` lists:
+a standard error that is a full pipe or stream loses the line, and the service still ends by the signal.
 Without `$JOURNAL_STREAM` (a terminal, a file, a test) the lines are plain on standard error.
 Every line ends with `at_ms=<epoch milliseconds>`,
 and the userinfo of any URL in it is replaced by `<credentials>`.
@@ -2791,14 +2812,26 @@ and nothing is changed.
 
 The folder is bounded after each save that wrote at least one copy,
 once the copy is complete and synced (so a kill while copying costs no older copy),
-without a lock and without anything waiting on it.
+with nothing waiting on it.
+The folder is opened once without following a link at `cli-git` or `discarded`
+(a link there, or a non-directory, keeps every copy and is said in the notice and by the doctor),
+and everything is read and removed through that descriptor, never through a path walked again.
+A non-blocking exclusive lock on the folder lets one pass run at a time; a pass that finds it held does nothing.
+A directory is removed only when, opened by name without following a link,
+it is still the directory the listing saw (device, inode and change time):
+its files go through its descriptor, files of a directory before its subdirectories,
+then the empty directory is removed by inode,
+so a replacement under the same name is never touched.
+A link inside a save is removed as a link and never entered; a tree deeper than 128 levels is kept.
 The pass reads only directories whose names are a save time
 (`YYYY-MM-DDTHH-MM-SS`, with `-<number>` when a second save fell in one second);
-the age of a save is the time in its name, not a modification time.
+the age of a save is the time in its name, not a modification time,
+a name must be a real calendar date and time (February 30 and second 60 are not names the wrapper makes),
+and a name says only its second, so every age is counted from the end of that second.
 It removes every save older than `discardedCopies.maxAgeDays` days (default 30),
 then, while the folder's files total more than `discardedCopies.maxSize` bytes (default one gibibyte),
 the oldest remaining save, until the total is within the limit or nothing is within reach.
-A save younger than 24 hours is out of reach of both limits,
+A save younger than 24 hours (counted from the end of the second in its name) is out of reach of both limits,
 and so is the save that was just written,
 so a burst of saves is never cut by size and a save made with an old clock survives its own pass.
 Both settings are keys of the `discardedCopies` section of `cli-git.config.jsonc`:
@@ -2812,7 +2845,12 @@ Each removed save is followed by one audit line, written once the directory is g
 `schemaVersion`, `time`, `level`, `timeMillis`, `release`, `pid`, `form` (`PruneDiscarded`), `outcome` (`pruned`),
 `reason` (`age` or `size`), `limit` (days or bytes), `folderBytes` (the folder before the pass), `path`, `bytes`,
 `copiesTotal` and `copies` (at most one hundred names).
-A directory that cannot be removed stays, without a line.
+A directory removed in part has a line whose `outcome` is `partial` and whose `copies` are the files that went.
+Sizes and ages are computed in 128-bit integers, so no sum or difference wraps.
+Nothing fails silently: a directory that cannot be read has no size to judge by and is kept and named,
+a removal that fails stays and is named (as removed in part when some files went),
+and a pass that cannot append to the audit file removes nothing and says so.
+The sentences are in the notice of the command that saved the copy and in `git cli-git doctor`.
 `git cli-git doctor` writes to standard error, when the folder holds any save,
 its path, total bytes, number of copies and saves, the oldest save and the limits in force.
 

@@ -8,6 +8,7 @@ import { expect } from '@monochromatic-dev/test-harness-core/ts';
 
 import { isRecord } from './fs-guards.ts';
 import type { FakePodman } from './fake-podman-fixture.ts';
+import { casesWithinRun } from './process-limits.ts';
 import { runScript } from './run-fixture-program.ts';
 
 /**
@@ -32,12 +33,17 @@ export const scoredBeforeKill = 2;
 export const fixtureImageUser = '2000:2001';
 
 /**
- Campaign scripts a test file starts at once. Each script is a Node process that starts a Node process for every stand-in
- Podman call, and the whole unit-test run starts every test file in parallel, so the default width of sixteen cases per file
- oversubscribes a host or a capped scope (a quarter of the cases timed out, or died on a failed start, in an eight-CPU
- scope that also ran other work). A few at once finish sooner than many that starve one another.
+ Campaign scripts a test file starts at once when nothing limits it. Each script is a Node process that starts a Node process
+ for every stand-in Podman call, and the whole unit-test run starts several test files in parallel, so a wide file
+ oversubscribes a host or a capped scope: a few at once finish sooner than many that starve one another.
  */
-export const campaignScriptConcurrency = 4;
+const wantedCampaignScriptConcurrency = 4;
+
+/**
+ Campaign scripts a test file starts at once: the wanted width, narrowed so that the files the runner starts at once stay
+ inside the process limit of the control group the run is in (a `TasksMax=` that counts threads as well as processes).
+ */
+export const campaignScriptConcurrency: number = casesWithinRun(wantedCampaignScriptConcurrency);
 
 /**
  Environment that gives the stand-in the mutants to score.

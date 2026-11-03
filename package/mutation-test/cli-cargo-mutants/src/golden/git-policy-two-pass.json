@@ -191,6 +191,10 @@
       "{\"tests\":true,\"clippy\":true,\"image\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}\n"
     ],
     [
+      "verification/native-mutation-<ID>/attempt-001/attempt-protocol.json",
+      "{\n  \"version\": 1\n}\n"
+    ],
+    [
       "verification/native-mutation-<ID>/attempt-001/mutants.out.old/previously_caught.txt",
       "m1\n"
     ],
@@ -213,10 +217,6 @@
     [
       "verification/native-mutation-<ID>/attempt-001/mutants.out/previously_caught.txt",
       "m1\n"
-    ],
-    [
-      "verification/native-mutation-<ID>/campaign-protocol.json",
-      "{\n  \"version\": 1\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/campaign.json",
@@ -265,6 +265,10 @@
     [
       "verification/native-mutation-<ID>/mutants.out/unviable.txt",
       ""
+    ],
+    [
+      "verification/native-mutation-<ID>/pass-1/attempt-001/attempt-protocol.json",
+      "{\n  \"version\": 1\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/pass-1/attempt-001/mutants.out/caught.txt",

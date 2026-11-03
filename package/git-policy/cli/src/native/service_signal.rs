@@ -12,17 +12,22 @@
 //!  about the unit cannot be relied on.
 //! A signal gives the process no chance to log from ordinary code,
 //! so the line is
-//!  built and written with nothing but calls that are safe in a handler (`clock_gettime`,
+//!  built and written with nothing but calls that `signal-safety(7)` lists (`clock_gettime`,
+//! `sendto`,
+//! `send`,
+//! `poll`,
 //! `write`,
 //! `signal`,
-//! `raise`).
+//! `raise`),
+//! and the write never waits for room: a standard error that is a full pipe or stream loses the line, because a service
+//!  that cannot end for want of room to say so is worse than a missing line.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! process.on('SIGTERM', () => { console.error(`cli-git-service: exiting reason=signal-15 uptime_ms=${uptime()}`); process.exit(143); });
 //! ```
 
-use super::journald_native::{IDENTIFIER, Priority, raw_address};
+use super::journald_native::{IDENTIFIER, Priority, raw_address, send_without_waiting};
 use super::service_timing::{LOG_PREFIX, sink};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
@@ -60,7 +65,7 @@ static NATIVE_DESCRIPTOR: AtomicI32 = AtomicI32::new(-1);
 static NATIVE_ADDRESS: OnceLock<(libc::sockaddr_un, libc::socklen_t)> = OnceLock::new();
 
 /// Whether standard error is the journal's stream, decided before any signal: the fallback line then carries the priority
-/// prefix and is sent without waiting for room.
+/// prefix.
 static ON_STREAM: AtomicBool = AtomicBool::new(false);
 
 /// The words before the message in a native entry: the priority and the identifier.
@@ -211,14 +216,10 @@ extern "C" fn on_signal(signal: libc::c_int) {
             }
             _ => false,
         };
-        if !sent && on_stream {
-            // The stream may be full: the line is sent without waiting, and dropped when there is no room.
-            let sent_now: isize = libc::send(libc::STDERR_FILENO, line.as_ptr().cast(), length, libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL);
-            if sent_now < 0 && *libc::__errno_location() == libc::ENOTSOCK {
-                let _written = libc::write(libc::STDERR_FILENO, line.as_ptr().cast(), length);
-            }
-        } else if !sent {
-            let _written = libc::write(libc::STDERR_FILENO, line.as_ptr().cast(), length);
+        if !sent {
+            // Without waiting for room (a full pipe or stream loses the line): `send_without_waiting` calls only `send`,
+            //  `poll` and `write`.
+            let _written = send_without_waiting(libc::STDERR_FILENO, &line[..length]);
         }
         libc::signal(signal, libc::SIG_DFL);
         libc::raise(signal);

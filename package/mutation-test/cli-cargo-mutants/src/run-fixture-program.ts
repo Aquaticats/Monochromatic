@@ -6,11 +6,28 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { CargoMutantsToolingError } from './error.ts';
 import {
   argumentSeparator,
   callTerminator,
 } from './fake-programs.ts';
 import type { FakePodman } from './fake-podman-fixture.ts';
+import {
+  killGroup,
+  unwatchGroup,
+  watchGroup,
+} from './fixture-process-group.ts';
+import {
+  mentionsProcessLimit,
+  processLimitMessage,
+} from './process-limits.ts';
+
+/**
+ Longest a program in a fixture may run before it is killed with everything it started. A program that runs this long is
+ hung, and a test that waits for it can only time out without saying why; the default test timeout is longer, so this one
+ speaks first.
+ */
+export const fixtureProgramCeilingMilliseconds = 45_000;
 
 /**
  What a program under test did.
@@ -120,6 +137,87 @@ function splitCalls(log: string): readonly (readonly string[])[] {
 }
 
 /**
+ Wait for a program to end, and end everything it started with it.
+
+ @param child - the running program, which leads a process group of its own
+
+ @param ceiling - aborts when the program has run too long
+
+ @param program - executable that was run, for the message
+
+ @param programArguments - its arguments, for the message
+
+ @param ceilingMilliseconds - the ceiling's length, for the message
+
+ @returns the arguments of the close event
+
+ @throws CargoMutantsToolingError when the program ran past the ceiling or could not start a process or a thread
+
+ @example
+ ```ts
+ await closedWith({ child, ceiling: AbortSignal.timeout(1000), program: 'node', programArguments: [], ceilingMilliseconds: 1000 });
+ ```
+ */
+async function closedWith({
+  child,
+  ceiling,
+  program,
+  programArguments,
+  ceilingMilliseconds,
+}: {
+  readonly child: ReturnType<typeof spawn>;
+  readonly ceiling: AbortSignal;
+  readonly program: string;
+  readonly programArguments: readonly string[];
+  readonly ceilingMilliseconds: number;
+}): Promise<readonly unknown[]> {
+  /**
+   Group of the program, which is its process ID because it leads the group.
+   */
+  const group = child.pid;
+  if (group !== undefined)
+    watchGroup(group);
+  /**
+   Ends the group: whatever the program left running dies with it, so a test does not outlive its program's helpers.
+   */
+  function endGroup(): void {
+    if (group === undefined)
+      return;
+    killGroup(group);
+    unwatchGroup(group);
+  }
+  // The leader ending ends the group at once: a helper it left running keeps the output pipes open, and the close event
+  // waits for them.
+  child.once(
+    'exit',
+    endGroup,
+  );
+  try {
+    /**
+     Arguments of the close event.
+     */
+    const closed: readonly unknown[] = await once(
+      child,
+      'close',
+    );
+    endGroup();
+    if (ceiling.aborted)
+      throw new CargoMutantsToolingError(`${program} ${programArguments.join(' ')} ran for more than ${String(ceilingMilliseconds)} ms and was killed with everything it started.`);
+    return closed;
+  }
+  catch (error) {
+    endGroup();
+    if (error instanceof CargoMutantsToolingError)
+      throw error;
+    if (ceiling.aborted)
+      throw new CargoMutantsToolingError(`${program} ${programArguments.join(' ')} ran for more than ${String(ceilingMilliseconds)} ms and was killed with everything it started.`);
+    if (mentionsProcessLimit(String(error)))
+      throw new CargoMutantsToolingError(await processLimitMessage(program));
+    throw error;
+  }
+}
+
+/**
  Run a program with the stand-in programs first on `PATH` and read back everything it left.
 
  @param fake - fixture
@@ -131,6 +229,8 @@ function splitCalls(log: string): readonly (readonly string[])[] {
  @param workingDirectory - directory to run in; the fixture's clean directory when absent
  
  @param extraEnvironment - environment added to the fixture's
+ 
+ @param ceilingMilliseconds - how long the program may run before it is killed with everything it started; the default ceiling when absent
  
  @returns exit status, output, the recorded calls, the Containerfiles built, and the evidence files written
  
@@ -145,13 +245,19 @@ export async function runInFixture({
   programArguments,
   workingDirectory,
   extraEnvironment,
+  ceilingMilliseconds = fixtureProgramCeilingMilliseconds,
 }: {
   readonly fake: FakePodman;
   readonly program: string;
   readonly programArguments: readonly string[];
   readonly workingDirectory?: string;
   readonly extraEnvironment: Readonly<Record<string, string>>;
+  readonly ceilingMilliseconds?: number;
 }): Promise<ScriptRun> {
+  /**
+   Aborts when the program has run too long.
+   */
+  const ceiling = AbortSignal.timeout(ceilingMilliseconds);
   /**
    The running program.
    */
@@ -164,6 +270,11 @@ export async function runInFixture({
         ...fake.environment,
         ...extraEnvironment,
       },
+      // A group of its own, so that it can be killed as a whole and is listed with the watcher that kills it if this process dies.
+      detached: true,
+      // Ends the program itself at the ceiling; the rest of its group is killed with it below.
+      signal: ceiling,
+      killSignal: 'SIGKILL',
       stdio: [
         'ignore',
         'pipe',
@@ -171,6 +282,12 @@ export async function runInFixture({
       ],
     },
   );
+  /**
+   Group of the program, which is its process ID because it leads the group.
+   */
+  const group = child.pid;
+  if (group !== undefined)
+    watchGroup(group);
   /**
    Standard output chunks as they arrive.
    */
@@ -196,10 +313,13 @@ export async function runInFixture({
   /**
    Arguments of the close event.
    */
-  const closed: readonly unknown[] = await once(
+  const closed = await closedWith({
     child,
-    'close',
-  );
+    ceiling,
+    program,
+    programArguments,
+    ceilingMilliseconds,
+  });
   /**
    Names in the fixture directory, which show whether the stand-ins were ever called.
    */
@@ -221,12 +341,18 @@ export async function runInFixture({
    Exit code, which is not a number when a signal ended the program.
    */
   const [code] = closed;
+  /**
+   What the program wrote to standard error.
+   */
+  const stderr = Buffer.concat(errorChunks)
+    .toString('utf8');
+  if ((code !== 0) && mentionsProcessLimit(stderr))
+    throw new CargoMutantsToolingError(`${await processLimitMessage(program)} The program wrote: ${stderr.trim()}`);
   return {
     status: (typeof code) === 'number' ? code : 1,
     stdout: Buffer.concat(outChunks)
       .toString('utf8'),
-    stderr: Buffer.concat(errorChunks)
-      .toString('utf8'),
+    stderr,
     calls: names.includes('calls.log')
       ? splitCalls(await readFile(
         join(
@@ -344,7 +470,9 @@ export function runInlineSource({
  @param workingDirectory - directory the task runs in
  
  @param extraEnvironment - environment added to the fixture's
- 
+
+ @param ceilingMilliseconds - how long the command may run before it is killed with everything it started; the default ceiling when absent
+  
  @returns what the command did
  
  @example
@@ -357,11 +485,13 @@ export function runShellCommand({
   command,
   workingDirectory,
   extraEnvironment,
+  ceilingMilliseconds,
 }: {
   readonly fake: FakePodman;
   readonly command: string;
   readonly workingDirectory: string;
   readonly extraEnvironment: Readonly<Record<string, string>>;
+  readonly ceilingMilliseconds?: number;
 }): Promise<ScriptRun> {
   return runInFixture({
     fake,
@@ -372,5 +502,6 @@ export function runShellCommand({
     ],
     workingDirectory,
     extraEnvironment,
+    ...(ceilingMilliseconds === undefined ? {} : { ceilingMilliseconds }),
   });
 }

@@ -9682,3 +9682,46 @@ by the coordinator at merge.
   runner; retry the push (its first auto-push timed out in git-lfs; no trigger-log line for that branch). Commit
   `1a49aa2254` is scoped `mutation-test-cli-cargo-mutants` but changes root `mise.toml`: corrective commit comment
   once it is on origin.
+- Journal and prune review fixed (`fix/git-policy-cli-journal-and-prune-review`, `363a1b67da` to `262de95829`):
+  the store is opened `O_NOFOLLOW` (a link keeps every copy and is reported); entries are matched by device, inode and
+  change time and removed through their own descriptors (a replacement is kept); one pass at a time by `flock`; real
+  calendar stamps; the floor counts from the end of the named second; `u128`/`i128` arithmetic; every failure kept and
+  reported (partial removals audited as `partial`). Journal: newline values in the length-prefixed form, the 64-byte
+  field-name cap, non-blocking delivery with dropped lines counted and reported. Declined with reasons: a leading digit
+  in field names (systemd's `journal_field_valid` refuses it, read at tag `v262`) and a durable log backlog (a lost
+  line beats a stuck command). Gate 65 running.
+- Same agent now makes `service_signal.rs::on_signal` stop falling back to a blocking `write`
+  (`fix/git-policy-cli-signal-log-never-blocks`, from the journal branch).
+- New load flakes seen in that agent's binary run: `fault_trace::a_disk_that_fills_during_a_commit_...` and
+  `fault_trace::storage_that_fails_during_a_commit_...` ("a further commit must land ... Starting the commit
+  service..."; both passed alone). Assigned (`fix/git-policy-cli-fault-trace-follow-up-commit`), with the routinely
+  SLOW `a_service_killed_at_any_call_...`.
+- Mutation-test process-limit branch merged into main (after `7c0b1b4448` scoped `mise` and `1ef98b8317`): the shared
+  `run_test_files` runner caps concurrent files only when a package supplies `MONOCHROMATIC_TEST_FILE_TASKS`, and
+  otherwise behaves as before; it kills its test files on exit and signals. Under `TasksMax=300`: mutation-test
+  `pids.peak 205`, git-policy/cli 89, logger/core 126, all exit 0 with `pids.events max 0`. Not rerun at an unlimited
+  scope after the refactor (the no-estimate path reads no cgroup file). Fresh worktrees made by 0.5.17 lack
+  `dist/final` for packages such as `logger/core`, `async-time/core` and `or-throw/core` (built output is not copied by
+  the clone rung); the 0.5.18 snapshot route brings builds along once the nested worktrees are converted.
+  Corrective comment on `1a49aa2254`:
+  https://github.com/Aquaticats/Monochromatic/commit/1a49aa2254cfb6cd7b4b1cff6339db80423bf4d4#commitcomment-207866173
+- 0.5.18 PUBLISHED (crates.io 2026-11-03T03:46:55Z, built from `f984fb4111`) and installed (lock commit `b878c2e92a`;
+  sample commit 1145 ms): the main snapshot route, `convert-worktree-to-subvolume`, the push refusal and hint fixes.
+- Conversion dry run on the real repository (`git cli-git convert-worktree-to-subvolume --dry-run --all`, log
+  `~/temp/agent/convert-dry-run.log`): 159 worktrees; 93 already subvolumes; 31 would convert; 7 busy (a process
+  inside; right to skip); 33 refused wrongly: 16 for a detached HEAD, 15 racily clean ("as new as the index"), 2 stat
+  mismatches. Sent to the tool's author (`fix/git-policy-cli-convert-accepts-clean-worktrees`): accept a detached HEAD
+  naming a commit, settle racy and stat-mismatched entries by hashing the content in process, refuse filtered paths.
+  The real conversion waits for the conversion and trash review (`~/temp/agent/review-main-snapshot/`), since it
+  removes each old tree.
+- Gate 65 PASSED 3460 of 3460 on the journal and prune fixes; merged into main. Gate 66 running on
+  `fix/git-policy-cli-signal-log-never-blocks` `0335a8f4f8` (the signal handler's stderr fallback never waits for room;
+  two full-pipe controls red before).
+- Gate 66 PASSED 3463 of 3463 on the signal fix; merged into main (`0909922e90`); clippy clean on main. Branches
+  `fix/git-policy-cli-signal-log-never-blocks` and `fix/git-policy-cli-journal-and-prune-review` deleted locally and on
+  origin. 0.5.19 dispatched (run 41576044191) with the prune, journal and signal fixes.
+- A mutation-test unit run of mine in `.claude/worktrees/planted-control-cache` (at `cf2c233b95`, before
+  `1a49aa2254`) hung for 8 hours: fixture programs re-parented away from their test kept the output pipe open, so
+  `mise` waited for its end. Stopped by PID. That worktree lacks `fixture-reaper.ts`, which `1a49aa2254` added on main
+  to end fixture process groups with their test; main's version was not rerun against this hang. Its processes were
+  two of the 7 "busy" worktrees in the conversion dry run.

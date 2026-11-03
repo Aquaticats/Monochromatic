@@ -244,7 +244,7 @@ const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { availableParallelism, homedir } = await import('node:os')
 const { dirname, join: joinTestPath, resolve: resolveTestPath } = await import('node:path')
-const { chmodSync, existsSync: testPathExists, mkdirSync } = await import('node:fs')
+const { chmodSync, existsSync: testPathExists, mkdirSync, readFileSync } = await import('node:fs')
 const testFileCwd = (file) => {
   let current = dirname(resolveTestPath(file))
   while (true) {
@@ -266,18 +266,61 @@ const testRunEnv = () => {
   env.MONOCHROMATIC_LOG_DIRECTORY = runLogDirectory
   return env
 }
+// Optional cap on concurrent test files, for a package whose test files start many processes. A control group counts threads
+// as well as processes in `pids.max` (systemd `TasksMax=`), and a Node process holds a dozen, so the processor count alone can
+// start more files than a limit allows. The package's own task sets MONOCHROMATIC_TEST_FILE_TASKS, the tasks one test file
+// needs at the least; with it and a finite limit, at most 80 percent of the nearest limit is planned, divided by that number.
+// Without it the runner is bounded by availableParallelism() alone. `String.fromCharCode(10)` below: a newline escape would
+// be consumed by TOML before JavaScript sees it.
+const plannedShare = 0.8
+const nearestPidsLimit = (directory) => {
+  if (!directory.startsWith('/sys/fs/cgroup')) { return undefined }
+  let limit = Number.NaN
+  try { limit = Number(readFileSync(`${directory}/pids.max`, 'utf8').trim()) } catch (error) { if (error.code !== 'ENOENT') { console.error(`Cannot read ${directory}/pids.max: ${String(error)}`) } }
+  if (Number.isInteger(limit) && limit > 0) { return limit }
+  return directory === '/sys/fs/cgroup' ? undefined : nearestPidsLimit(dirname(directory))
+}
+const ownPidsLimit = () => {
+  try {
+    const line = readFileSync('/proc/self/cgroup', 'utf8').split(String.fromCharCode(10)).find((entry) => entry.startsWith('0::'))
+    return line === undefined ? undefined : nearestPidsLimit(`/sys/fs/cgroup${line.slice(3)}`)
+  } catch (error) { if (error.code !== 'ENOENT') { console.error(`Cannot read /proc/self/cgroup: ${String(error)}`) } return undefined }
+}
+const fileWorkerPlan = (fileCount) => {
+  const processors = Math.max(1, Math.min(availableParallelism(), fileCount))
+  const fileTasks = Number(process.env.MONOCHROMATIC_TEST_FILE_TASKS)
+  const limit = ownPidsLimit()
+  if (!(fileTasks > 0) || limit === undefined) { return { workers: processors } }
+  const budget = Math.floor(limit * plannedShare)
+  return { workers: Math.max(1, Math.min(processors, Math.floor(budget / fileTasks))), budget }
+}
 const runTestFiles = async (files, nodeArgs) => {
   if (files.length === 0) { return }
   const env = testRunEnv()
-  const limit = Math.max(1, Math.min(availableParallelism(), files.length))
+  const plan = fileWorkerPlan(files.length)
+  const limit = plan.workers
+  if (plan.budget !== undefined) {
+    // Tells the test files how wide the run is and how many tasks it may hold, so that each can size what it starts.
+    env.MONOCHROMATIC_TEST_FILE_WORKERS = String(limit)
+    env.MONOCHROMATIC_TEST_TASK_BUDGET = String(plan.budget)
+  }
   const failures = []
+  const running = new Set()
+  // A killed run leaves no test file behind: the runner passes its end on to every file it started.
+  const endAll = () => { for (const proc of running) { proc.kill('SIGKILL') } }
+  process.on('exit', endAll)
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.once(signal, () => { endAll(); process.kill(process.pid, signal) })
+  }
   let next = 0
   const worker = async () => {
     while (next < files.length) {
       const file = resolveTestPath(files[next])
       next += 1
       const proc = spawn('node', [...nodeArgs, file], { cwd: testFileCwd(file), stdio: 'inherit', env })
+      running.add(proc)
       const [code] = await once(proc, 'exit')
+      running.delete(proc)
       if (code !== 0) { failures.push(file) }
     }
   }

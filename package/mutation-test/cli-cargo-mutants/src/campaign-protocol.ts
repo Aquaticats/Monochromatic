@@ -1,37 +1,31 @@
-import {
-  readdir,
-  writeFile,
-} from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { evidenceJson } from './campaign-files.ts';
 import {
-  campaignProtocolFile,
+  attemptProtocolFile,
   startedMarkerProtocolVersion,
 } from './constants.ts';
 
 /**
- Record, in a campaign directory this runner creates, that the started marker is written before every container start, so
- that a later reader may take the marker's absence beside an opened attempt as proof that no container started.
+ Record, in an attempt directory this runner has just made, that the started marker is written before every container
+ start, so that a later reader may take the marker's absence beside this attempt as proof that no container started.
 
- A directory that already holds anything was begun by an earlier runner (or by an earlier invocation of this one before it
- recorded this), whose runs may have started a container without leaving the marker, so it is never given the record: the
- record is a statement about the whole history of the directory, not about the runner that happens to resume it.
+ The record belongs to the attempt, not to the campaign: a directory that a marker-aware runner began can be resumed by an
+ older runner, whose attempts the record must not vouch for.
 
- @param evidence - the campaign's evidence directory, whose right to run is already held
+ @param attemptDirectory - the new attempt's directory
 
  @example
  ```ts
- await recordStartedMarkerProtocol('/e/native-mutation-0123456789ab');
+ await recordStartedMarkerProtocol('/e/native-mutation-0123456789ab/attempt-001');
  ```
  */
-export async function recordStartedMarkerProtocol(evidence: string): Promise<void> {
-  if ((await readdir(evidence)).length > 0)
-    return;
+export async function recordStartedMarkerProtocol(attemptDirectory: string): Promise<void> {
   await writeFile(
     join(
-      evidence,
-      campaignProtocolFile,
+      attemptDirectory,
+      attemptProtocolFile,
     ),
     evidenceJson({ version: startedMarkerProtocolVersion }),
   );

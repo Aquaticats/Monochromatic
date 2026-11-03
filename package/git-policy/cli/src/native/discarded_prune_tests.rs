@@ -12,7 +12,7 @@
 //! ```
 
 use super::{
-    DEFAULT_MAX_AGE_DAYS, DEFAULT_MAX_BYTES, Limits, Reason, Stamped, YOUNG_FLOOR_MILLISECONDS, directory_name_of, doctor_section,
+    DEFAULT_MAX_AGE_DAYS, DEFAULT_MAX_BYTES, Identity, Limits, Reason, STAMP_RESOLUTION_MILLISECONDS, Stamped, YOUNG_FLOOR_MILLISECONDS, directory_name_of, doctor_section,
     list_stamped, parse_size, parse_stamp, plan, prune, prune_line, report,
 };
 use crate::command_test_support::{fixture, remove};
@@ -33,8 +33,8 @@ fn name_at(age: i64) -> String {
 }
 
 /// A listed directory made `age` before `NOW` holding `bytes`.
-fn listed(age: i64, bytes: u64) -> Stamped {
-    return Stamped { name: name_at(age), millis: NOW - age, bytes };
+fn listed(age: i64, bytes: u128) -> Stamped {
+    return Stamped { name: name_at(age), millis: NOW - age, bytes, identity: Identity::default() };
 }
 
 /// The limits of the controls: thirty days, and a size each control chooses.
@@ -98,9 +98,10 @@ fn the_age_cut_comes_first_and_the_size_cut_counts_what_is_left() {
 fn a_burst_of_young_copies_is_never_cut_by_size() {
     let burst: Vec<Stamped> = (0..20).map(|number| { return listed(number * 60_000, 1 << 30); }).collect();
     assert!(plan(burst.as_slice(), NOW, limits(1), None).is_empty());
-    let almost: Stamped = Stamped { name: name_at(YOUNG_FLOOR_MILLISECONDS - 1), millis: NOW - (YOUNG_FLOOR_MILLISECONDS - 1), bytes: 1 << 30 };
-    let exactly: Stamped = Stamped { name: name_at(YOUNG_FLOOR_MILLISECONDS), millis: NOW - YOUNG_FLOOR_MILLISECONDS, bytes: 1 << 30 };
-    assert!(plan(&[almost], NOW, limits(1), None).is_empty(), "a second short of a day stays");
+    let almost: Stamped = listed(YOUNG_FLOOR_MILLISECONDS - 1, 1 << 30);
+    // A name says only the second of the save, so a day is counted from the end of that second.
+    let exactly: Stamped = listed(YOUNG_FLOOR_MILLISECONDS + STAMP_RESOLUTION_MILLISECONDS, 1 << 30);
+    assert!(plan(&[almost], NOW, limits(1), None).is_empty(), "a millisecond short of a day stays");
     assert_eq!(plan(&[exactly], NOW, limits(1), None), vec![(0, Reason::Size)], "a day old is within reach of the size cut");
 }
 
@@ -155,7 +156,7 @@ fn a_pass_removes_the_chosen_directories_and_audits_each() {
     let foreign: PathBuf = common.join(SAVED_DIRECTORY).join("somebody-elses-notes");
     std::fs::create_dir_all(&foreign).expect("foreign directory");
     std::fs::write(foreign.join("keep.txt"), vec![b'k'; 5000]).expect("foreign file");
-    let removed = prune(common.as_path(), NOW, limits(1000), None);
+    let removed = prune(common.as_path(), NOW, limits(1000), None).removed;
     assert_eq!(removed.iter().map(|each| { return (each.path.clone(), each.bytes, each.reason); }).collect::<Vec<_>>(), vec![(old.clone(), 700, Reason::Age), (middle.clone(), 600, Reason::Size)]);
     assert!(!old.exists() && !middle.exists() && young.exists() && foreign.join("keep.txt").exists());
     let lines = audit(common.as_path());
@@ -197,9 +198,9 @@ fn the_copy_just_saved_survives_a_pass_that_would_otherwise_remove_it() {
     let saved_root: PathBuf = common.join(SAVED_DIRECTORY);
     let place: &Path = copies[0].saved_to.as_deref().expect("copied");
     let name: String = directory_name_of(saved_root.as_path(), place).expect("under the folder");
-    assert!(prune(common.as_path(), NOW, limits(u64::MAX), Some(name.as_str())).is_empty());
+    assert!(prune(common.as_path(), NOW, limits(u64::MAX), Some(name.as_str())).removed.is_empty());
     assert_eq!(std::fs::read(place).expect("still there"), b"hand edited\n");
-    assert_eq!(prune(common.as_path(), NOW, limits(u64::MAX), None).len(), 1, "without the name it is past the age limit");
+    assert_eq!(prune(common.as_path(), NOW, limits(u64::MAX), None).removed.len(), 1, "without the name it is past the age limit");
     assert!(!place.exists());
     remove(root.as_path());
 }
@@ -256,6 +257,6 @@ fn the_doctor_reports_size_count_and_oldest() {
     for part in ["400 bytes", "3 copies", "2 saves", name_at(9 * DAY).as_str(), "older than 7 days", "past 2048 bytes", "discardedCopies.maxAgeDays", "discardedCopies.maxSize"] {
         assert!(text.contains(part), "{part} in {text}");
     }
-    assert_eq!(list_stamped(common.join(SAVED_DIRECTORY).as_path()).len(), 2);
+    assert_eq!(list_stamped(common.as_path()).entries.len(), 2);
     remove(common.as_path());
 }

@@ -286,8 +286,15 @@ The coordinator's defaults; the settings are keys of `cli-git.config.jsonc`:
   in `config_discarded.rs` only. There is no "off": a large number does the same.
 - The age of a save is the time in its directory name, so a touched or edited copy does not look young; a directory
   whose name is not a save time is never touched.
-- Moment: after the new copy is durable, so a kill while copying costs no older copy; no lock; a `checkout --theirs`
+- Moment: after the new copy is durable, so a kill while copying costs no older copy; a `checkout --theirs`
   family command is not a commit, and the pass reads the small folder once.
+  (Review fixes: the folder is opened once without following a link
+  and removal goes through descriptors, `discarded_store.rs`;
+  a non-blocking exclusive lock admits one pass;
+  names are real dates;
+  the 24-hour floor and the age limit count from the end of the named second;
+  sums are 128-bit;
+  what a pass cannot do is kept and said in the notice and the doctor.)
 - Audit: one line per removed save directory, after the directory is gone (`form` `PruneDiscarded`, `outcome` `pruned`,
   `reason`, `limit`, `folderBytes`, `path`, `bytes`, `copiesTotal`, `copies` up to a hundred names), through the shared
   appender.
