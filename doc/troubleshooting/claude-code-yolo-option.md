@@ -95,7 +95,7 @@ The intermediate executable-wrapper recommendation was also superseded:
 the user clarified that Bash functions remain acceptable and chose a reserved-token convention.
 The [current proposal](../planning/claude-yolo-shorthand.md) contains the corrected,
 tested Bash function.
-No user shell configuration was changed.
+No user shell configuration was changed during the proposal and prototype checks.
 
 The troubleshooting record and proposal passed the scoped `format:monochromatic-lint` task
 and a CommonMark-to-HTML-tree rendering check using the repository's installed renderer.
@@ -154,7 +154,16 @@ and accepted the attached literal `--system-prompt=--yolo`.
 A deliberate invalid sentinel option then stopped each invocation during parsing.
 These are parser checks,
 not authenticated model sessions.
-No user configuration was changed.
+No user configuration was changed during these prototype checks.
+
+### Installation
+
+The user subsequently authorized installing the function.
+On 2026-11-03,
+the exact tested definition was written to `${HOME}/.bashrc.d/claude.sh` with mode `0644`.
+The write required the destination to be absent,
+and the existing `.bashrc` drop-in loading remains unchanged.
+Post-installation checks are pending.
 
 This function has no list of Claude options to keep synchronized.
 The earlier maintenance warning concerned a different,
