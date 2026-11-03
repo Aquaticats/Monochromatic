@@ -9316,3 +9316,8 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   "Set the shared store (Recommended)" (pnpm `storeDir` as above). Research agent builds, in order: pnpm consequences and
   exact edit (I apply to main), a nested-worktree conversion tool with dry run (I run it on real worktrees only after it is
   gated and released, skipping worktrees in use), then the snapshot route on a branch from the ladder.
+- 0.5.15 published (crates.io 2026-11-03T02:32:42Z) and installed (lock commit `d90a230dfb`): sample commit wall 1098 ms,
+  client `totalMs` 1091, service `landing_ms=101` with `lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=cold
+  lock_place_ms=0` (first commit after the 0.5.14 service retired, so cold as designed). Log `~/temp/agent/upgrade-0.5.15.log`.
+- Gate 56 running on `feat/git-policy-cli-journal-logging` (`dd6bb845a4`, main merged; unit `gpc-gate56-journal-logging`,
+  log `~/temp/agent/gate/gate56-journal-logging.log`; gate unit and image tag names now say what they gate).
