@@ -168,17 +168,33 @@ fn an_existing_lockfile_is_never_touched() {
     assert_eq!(fs::read_to_string(&lock).expect("read"), REAL_LOCK);
 }
 
-/// Review finding (2c 5): the cleanup reads the stand-in and then removes the path. A real lockfile published between the two must
+/// Review finding (2c 5):
+/// the cleanup reads the stand-in and then removes the path.
+/// A real lockfile published between the two must
 /// survive.
 #[test]
 fn a_lockfile_published_between_the_cleanup_decision_and_the_removal_survives() {
     use crate::shadow_update::run_with_placeholder_lock_hooked;
     let root = scratch();
     let lock = root.path().join("Cargo.lock");
+    // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
+    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (a, b) => body
+    // ```
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let publish = |path: &std::path::Path| { fs::write(path, REAL_LOCK).expect("another writer publishes a real lockfile"); };
 
+    // Borrow `&lock`: lends the value without copying or giving it away.
+    // Typed binding: `code: i32`.
     let code: i32 = run_with_placeholder_lock_hooked(&lock, false, &mut || { return 1; }, &publish);
 
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(code, 1);
+    // Borrow `&lock`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(&lock).expect("the real lockfile must survive"), REAL_LOCK);
 }

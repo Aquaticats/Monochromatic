@@ -387,7 +387,8 @@ fn group_name(group: &(String, Vec<String>)) -> String {
 
 /// What:
 /// `pub fn trust_refusals_partial(...) -> (Vec<TrustRefusal>, Option<RegistryError>)` lists the trust refusals found before a registry
-/// request failed, and the failure if one did.
+/// request failed,
+/// and the failure if one did.
 /// Why:
 /// `trust_refusals` (which returns an error and drops what it found) and `check_trust` (which keeps it) both start from this.
 ///
@@ -401,21 +402,56 @@ pub fn trust_refusals_partial(
     registry: &dyn Registry,
     now: i64,
 ) -> (Vec<TrustRefusal>, Option<RegistryError>) {
+    // `let mut`: a binding that may change.
+    // Typed binding: `refusals: Vec<TrustRefusal>`.
+    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
     let mut refusals: Vec<TrustRefusal> = Vec::new();
     if settings.trust_policy == TrustPolicy::Off {
+        // `None`: the present or the absent value of an `Option`.
         return (refusals, None);
     }
     let groups: Vec<(String, Vec<String>)> = group_by_name(versions);
     if groups.is_empty() {
+        // `None`: the present or the absent value of an `Option`.
         return (refusals, None);
     }
     eprintln!("cargo-shadow: checking the trust policy for {} versions of {} crates", versions.len(), groups.len());
+    // `Err(...)`: builds the success or the failure variant of a `Result`.
+    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value !== undefined) { const inner = value; ... }
+    // ```
+    // Borrow `&groups.iter`: lends the value without copying or giving it away.
+    // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
+    // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // Array.from(iterable)  // or [...iterable]
+    // ```
+    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
+    // Why:      The collection stays usable after the walk and no item is copied until it must be.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const item of list) { ... }  // or list.map(...)
+    // ```
+    // Adapter `.map(`: transforms or selects items with a closure.
     if let Err(error) = registry.prefetch(&groups.iter().map(group_name).collect::<BTreeSet<String>>()) {
+        // `Some`: the present or the absent value of an `Option`.
         return (refusals, Some(error));
     }
     for (name, name_versions) in groups {
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&name`: lends the value without copying or giving it away.
         let history = match registry.history(&name, &name_versions) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(found) => found,
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // `Some`: the present or the absent value of an `Option`.
             Err(error) => return (refusals, Some(error)),
         };
         let without_owners = crate_trust_refusals(&name, &name_versions, &history, settings, now, &BTreeSet::new());
@@ -424,20 +460,28 @@ pub fn trust_refusals_partial(
         if without_owners.is_empty() && !owners_can_change_verdict(&name, &name_versions, &history, settings, now) {
             continue;
         }
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&name`: lends the value without copying or giving it away.
         match registry.owners(&name) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // Borrow `&name`: lends the value without copying or giving it away.
             Ok(owner_ids) => refusals.extend(crate_trust_refusals(&name, &name_versions, &history, settings, now, &owner_ids)),
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => {
                 // The ownerless findings are what is known; they are kept with the failure.
                 refusals.extend(without_owners);
+                // `Some`: the present or the absent value of an `Option`.
                 return (refusals, Some(error));
             }
         }
     }
+    // `None`: the present or the absent value of an `Option`.
     return (refusals, None);
 }
 
 /// What:
-/// `pub fn trust_refusals(...) -> Result<Vec<TrustRefusal>, RegistryError>` lists the trust refusals, or the registry failure.
+/// `pub fn trust_refusals(...) -> Result<Vec<TrustRefusal>, RegistryError>` lists the trust refusals,
+/// or the registry failure.
 /// Why:
 /// The set-aside needs structured refusals and treats a lookup failure as an error of the whole round.
 ///
@@ -448,12 +492,18 @@ pub fn trust_refusals_partial(
 pub fn trust_refusals(
     versions: &[LockedVersion],
     settings: &Settings,
+    // `dyn` trait object `dyn Registry`: any type that implements the trait.
     registry: &dyn Registry,
     now: i64,
 ) -> Result<Vec<TrustRefusal>, RegistryError> {
     let (refusals, failure): (Vec<TrustRefusal>, Option<RegistryError>) = trust_refusals_partial(versions, settings, registry, now);
+    // `match`: picks the arm whose pattern fits the value.
     return match failure {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
         Some(error) => Err(error),
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
         None => Ok(refusals),
     };
 }
@@ -462,8 +512,11 @@ pub fn trust_refusals(
 /// `pub fn check_trust(versions, settings, registry, now) -> Result<Vec<String>, RegistryError>` returns the trust findings for
 /// versions.
 /// Why:
-/// When a registry request fails after some findings are known, the findings are returned with a line saying the rest is unknown,
-/// so a known refusal is never erased by a later lookup error; with no finding yet, the error is returned.
+/// When a registry request fails after some findings are known,
+/// the findings are returned with a line saying the rest is unknown,
+/// so a known refusal is never erased by a later lookup error;
+/// with no finding yet,
+/// the error is returned.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -480,10 +533,14 @@ pub fn check_trust(
     for refusal in refusals {
         messages.extend(refusal.problems);
     }
+    // `Some`: the present or the absent value of an `Option`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     if let Some(error) = failure {
         if messages.is_empty() {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             return Err(error);
         }
+        // Macro `format!`: builds or prints text (or a list) from a template.
         messages.push(format!("a later registry lookup failed ({}), so only the findings above are known", error.message));
     }
     return Ok(messages);
@@ -491,10 +548,14 @@ pub fn check_trust(
 
 /// What:
 /// `pub fn check_policy(versions, settings, registry, now) -> Result<CheckOutcome, RegistryError>` returns the release-age and trust
-/// findings for versions together, with the release-age warnings.
+/// findings for versions together,
+/// with the release-age warnings.
 /// Why:
-/// Review finding (2c 2): a lookup error in one check must not erase a refusal the other already found.
-/// With a known finding the error becomes one more finding; with none, it is returned as the operational error it is.
+/// Review finding (2c 2):
+/// a lookup error in one check must not erase a refusal the other already found.
+/// With a known finding the error becomes one more finding;
+/// with none,
+/// it is returned as the operational error it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -503,31 +564,49 @@ pub fn check_trust(
 pub fn check_policy(
     versions: &[LockedVersion],
     settings: &Settings,
+    // `dyn` trait object `dyn Registry`: any type that implements the trait.
     registry: &dyn Registry,
     now: i64,
 ) -> Result<CheckOutcome, RegistryError> {
+    // Typed binding: `age: Result<CheckOutcome, RegistryError>`.
     let age: Result<CheckOutcome, RegistryError> = check_release_age(versions, settings, registry, now);
+    // Typed binding: `trust: Result<Vec<String>, RegistryError>`.
     let trust: Result<Vec<String>, RegistryError> = check_trust(versions, settings, registry, now);
+    // `match`: picks the arm whose pattern fits the value.
     return match (age, trust) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         (Ok(mut found), Ok(more)) => {
             found.problems.extend(more);
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(found)
         }
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         (Ok(mut found), Err(error)) => {
             if found.problems.is_empty() {
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 return Err(error);
             }
+            // Macro `format!`: builds or prints text (or a list) from a template.
             found.problems.push(format!("the trust lookup failed after the release-age finding ({})", error.message));
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(found)
         }
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         (Err(error), Ok(more)) => {
             if more.is_empty() {
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 return Err(error);
             }
+            // `let mut`: a binding that may change.
+            // Typed binding: `problems: Vec<String>`.
             let mut problems: Vec<String> = more;
+            // Macro `format!`: builds or prints text (or a list) from a template.
             problems.push(format!("the release-age lookup failed after the trust finding ({})", error.message));
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // Constructor `Vec::new()`: an empty owned collection or a boxed value.
             Ok(CheckOutcome { problems, warnings: Vec::new() })
         }
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         (Err(error), Err(_)) => Err(error),
     };
 }

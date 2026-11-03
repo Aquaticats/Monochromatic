@@ -21,7 +21,8 @@
 //! ```
 
 /// What:
-/// `use std::cell::RefCell;` imports `RefCell`, a list that can be changed through a shared reference.
+/// `use std::cell::RefCell;` imports `RefCell`,
+/// a list that can be changed through a shared reference.
 /// Why:
 /// The list of manifests grows while the transaction holds a shared reference to it.
 ///
@@ -33,7 +34,8 @@ use std::cell::RefCell;
 /// What:
 /// `use std::io;` imports the file-system error module.
 /// Why:
-/// A manifest that cannot be read is an error, not an empty file.
+/// A manifest that cannot be read is an error,
+/// not an empty file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,7 +45,10 @@ use std::io;
 /// What:
 /// `use std::path::PathBuf;` imports the owned path type.
 /// Why:
-/// A manifest's path is stored, so it is the owned type (sibling: `&Path`, the borrowed one).
+/// A manifest's path is stored,
+/// so it is the owned type (sibling:
+/// `&Path`,
+/// the borrowed one).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -82,14 +87,16 @@ pub struct ManifestEdit {
     /// Its text before the run.
     pub before: String,
     /// Its text as this run's cargo call left it;
-    /// `None` until the evidence says the call wrote it, and a manifest without it is never restored.
+    /// `None` until the evidence says the call wrote it,
+    /// and a manifest without it is never restored.
     pub produced: Option<String>,
 }
 
 /// What:
 /// `pub fn snapshot_manifests(crate_dir, paths, edits) -> io::Result<()>` reads each manifest and adds it to `edits`.
 /// Why:
-/// The text must be taken before cargo runs; a manifest that cannot be read (or is not UTF-8) stops the run before anything is mutated.
+/// The text must be taken before cargo runs;
+/// a manifest that cannot be read (or is not UTF-8) stops the run before anything is mutated.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,10 +104,81 @@ pub struct ManifestEdit {
 /// ```
 pub fn snapshot_manifests(crate_dir: &str, paths: &[PathBuf], edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<()> {
     for path in paths {
+        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const value = await expr;   // throws to the caller on failure
+        // ```
+        // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
+        // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
+        // ```
+        // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+        // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const name: Type = value;
+        // ```
+        // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+        // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: string
+        // ```
         let before: String = match observe(path)? {
+            // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+            // Why:      Absence is a value the caller must check; there is no `null`.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // // Some(value) is  value
+            // // None        is  undefined
+            // ```
             Some(found) => found.text,
+            // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+            // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // // Ok(value)  is  return value;
+            // // Err(error) is  throw error;   (the caller sees it as a returned value)
+            // ```
+            // `None`: the present or the absent value of an `Option`.
+            // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+            // Why:      Text building and printing are written as one call instead of string concatenation.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // `..${x}..`   // template literal
+            // console.error(text);   // eprintln!
+            // [a, b]            // vec![a, b]
+            // ```
             None => return Err(io::Error::new(io::ErrorKind::NotFound, format!("{} does not exist", path.display()))),
         };
+        // `None`: the present or the absent value of an `Option`.
+        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // structuredClone(value)  // or [...list] / {...object}
+        // ```
+        // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+        // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // String(value)  // JS strings are always owned values
+        // ```
         edits.borrow_mut().push(ManifestEdit { crate_dir: crate_dir.to_string(), path: path.clone(), before, produced: None });
     }
     return Ok(());
@@ -110,7 +188,8 @@ pub fn snapshot_manifests(crate_dir: &str, paths: &[PathBuf], edits: &RefCell<Ve
 /// `pub fn run_recording_manifests<T>(crate_dir, edits, run) -> io::Result<T>` runs a child that may rewrite the manifests of one
 /// crate root and records as its output each of those manifests that the evidence says it wrote.
 /// Why:
-/// Only the manifests of the root the child ran in are claimed, so an edit to another root's member is never taken for this run's output.
+/// Only the manifests of the root the child ran in are claimed,
+/// so an edit to another root's member is never taken for this run's output.
 /// The claim is made whether the child succeeded or failed.
 ///
 /// In TS you'd write (pseudocode):
@@ -118,15 +197,70 @@ pub fn snapshot_manifests(crate_dir: &str, paths: &[PathBuf], edits: &RefCell<Ve
 /// export function runRecordingManifests<T>(crateDir: string, edits: ManifestEdit[], run: () => T): T
 /// ```
 pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestEdit>>, run: impl FnOnce() -> T) -> io::Result<T> {
+    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+    // Why:      The value is built up or replaced step by step below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let x = ...;   // plain Rust `let` is TS `const`
+    // ```
+    // Typed binding: `priors: Vec<(usize, String)>`.
+    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const list: string[] = [];   // or new Set() / new Map()
+    // ```
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
     let mut priors: Vec<(usize, String)> = Vec::new();
+    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
+    // Why:      The collection stays usable after the walk and no item is copied until it must be.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const item of list) { ... }  // or list.map(...)
+    // ```
     for (position, edit) in edits.borrow().iter().enumerate() {
         if edit.crate_dir != crate_dir {
             continue;
         }
+        // `match`: picks the arm whose pattern fits the value.
+        // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+        // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+        // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+        // ```
+        // Typed binding: `prior: String`.
         let prior: String = match &edit.produced {
+            // `Some`: the present or the absent value of an `Option`.
+            // `.clone()`: an independent owned copy.
             Some(known) => known.clone(),
+            // `None`: the present or the absent value of an `Option`.
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // `match`: picks the arm whose pattern fits the value.
+            // Borrow `&edit.path`: lends the value without copying or giving it away.
             None => match observe(&edit.path)? {
+                // `Some`: the present or the absent value of an `Option`.
                 Some(found) => found.text,
+                // `None`: the present or the absent value of an `Option`.
+                // `.clone()`: an independent owned copy.
                 None => edit.before.clone(),
             },
         };
@@ -134,11 +268,32 @@ pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestE
     }
     let (result, window): (T, Window) = timed(run);
     for (position, prior) in priors {
+        // `.clone()`: an independent owned copy.
+        // Typed binding: `path: PathBuf`.
+        // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+        // Why:      Joined or stored paths are owned; paths passed in are borrowed.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: string
+        // ```
         let path: PathBuf = edits.borrow()[position].path.clone();
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+        // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (value !== undefined) { const inner = value; ... }
+        // ```
+        // Borrow `&path`: lends the value without copying or giving it away.
+        // Typed binding: `Claim: :Ours(text)`.
         if let Claim::Ours(text) = claim_output(&path, &prior, window)? {
+            // `Some`: the present or the absent value of an `Option`.
             edits.borrow_mut()[position].produced = Some(text);
         }
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(result);
 }
 
@@ -146,8 +301,11 @@ pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestE
 /// `pub fn restore_manifests(edits, keep) -> io::Result<Vec<String>>` puts each manifest back that still holds this run's output
 /// and returns a warning for each one it left alone.
 /// Why:
-/// Unknown ownership never authorizes a restore: a manifest with no recorded output, or one that differs from it,
-/// belongs to another process; a manifest that cannot be read is an error.
+/// Unknown ownership never authorizes a restore:
+/// a manifest with no recorded output,
+/// or one that differs from it,
+/// belongs to another process;
+/// a manifest that cannot be read is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -156,9 +314,16 @@ pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestE
 pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> io::Result<Vec<String>> {
     let mut warnings: Vec<String> = Vec::new();
     for edit in edits.borrow().iter() {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&edit.path`: lends the value without copying or giving it away.
+        // Typed binding: `live: String`.
         let live: String = match observe(&edit.path)? {
+            // `Some`: the present or the absent value of an `Option`.
             Some(found) => found.text,
+            // `None`: the present or the absent value of an `Option`.
             None => {
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 warnings.push(format!("{} is missing; it was not restored", edit.path.display()));
                 continue;
             }
@@ -167,6 +332,10 @@ pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> i
             continue;
         }
         match &edit.produced {
+            // `Some`: the present or the absent value of an `Option`.
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // `match`: picks the arm whose pattern fits the value.
+            // Borrow `&edit.path`: lends the value without copying or giving it away.
             Some(produced) if *produced == live => match replace_keeping(&edit.path, produced, &edit.before, keep)? {
                 ReplaceOutcome::Replaced(_) => {}
                 ReplaceOutcome::LeftAlone => warnings.push(format!(

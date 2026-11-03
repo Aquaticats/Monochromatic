@@ -199,8 +199,34 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
         // Review finding (2c 9): an option that needs a value and has none is cargo's argument error; it is refused here and never
         // dropped, which would turn the command into a full update.
         if takes_value && index + 1 >= words.len() {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(format!("`{word}` needs a value and none was given, so the command was not run"));
         }
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // structuredClone(value)  // or [...list] / {...object}
+        // ```
+        // Typed binding: `value: String`.
+        // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+        // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const list: string[] = [];   // or new Set() / new Map()
+        // ```
+        // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+        // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: string
+        // ```
         let value: String = if takes_value { words[index + 1].clone() } else { String::new() };
         if word == "-n" || word == "--dry-run" {
             dry_run = true;

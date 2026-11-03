@@ -82,7 +82,9 @@ use crate::crates::{LockSnapshot, read_locks};
 /// ```ts
 /// import { InstallError, InstallRequest, ioMessage, sourcesOf } from 'crate/install';
 /// ```
-use crate::install::{InstallError, InstallRequest, io_message, sources_of};
+use crate::install::{InstallError, InstallRequest, sources_of};
+/// Imports the helper that wraps a message text as an install error.
+use crate::install_error::io_message;
 /// What:
 /// `use crate::lockfile::{LockedVersion, added_versions};` imports the version type and the difference between two lockfile sets.
 /// Why:

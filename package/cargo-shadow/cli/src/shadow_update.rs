@@ -543,8 +543,10 @@ fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, fo
 /// The stand-in is created exclusively (`create_new`),
 /// so a lockfile another writer published first is never truncated.
 /// At the end it is taken by an atomic rename to a unique name and only then read:
-/// a stand-in is deleted, anything else is linked back to the path (or kept under the taken name when the path was
-/// taken again), so a lockfile another writer published during the update is never deleted.
+/// a stand-in is deleted,
+/// anything else is linked back to the path (or kept under the taken name when the path was
+/// taken again),
+/// so a lockfile another writer published during the update is never deleted.
 /// The path is briefly empty between the take and the link back.
 ///
 /// In TS you'd write (pseudocode):
@@ -552,58 +554,118 @@ fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, fo
 /// export function runWithPlaceholderLock(lockPath: string, dryRun: boolean, body: () => number): number
 /// ```
 pub fn run_with_placeholder_lock(lock_path: &Path, dry_run: bool, body: &mut dyn FnMut() -> i32) -> i32 {
-    return run_with_placeholder_lock_hooked(lock_path, dry_run, body, &|_path| {});
+    // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
+    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (a, b) => body
+    // ```
+    return run_with_placeholder_lock_hooked(lock_path, dry_run, body, &crate::journal_replace::no_hook);
 }
 
 /// What:
 /// `fn remove_placeholder(lock_path: &Path)` removes the stand-in lockfile only if the file taken from the path is still the stand-in.
 /// Why:
-/// Review finding (2c 5): reading the path and then removing it lets a real lockfile published between the two be deleted.
-/// The file is first taken by an atomic rename to a unique name, so what is read is exactly what is removed;
+/// Review finding (2c 5):
+/// reading the path and then removing it lets a real lockfile published between the two be deleted.
+/// The file is first taken by an atomic rename to a unique name,
+/// so what is read is exactly what is removed;
 /// a file that is not the stand-in is linked back to the path (a link never replaces something published meanwhile)
-/// and, when the path is taken again or the link fails, stays under its taken name, reported on stderr.
+/// and,
+/// when the path is taken again or the link fails,
+/// stays under its taken name,
+/// reported on stderr.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function removePlaceholder(lockPath: string): void  // rename, read, then unlink or link back
 /// ```
 fn remove_placeholder(lock_path: &Path) {
+    // `match`: picks the arm whose pattern fits the value.
+    // Typed binding: `nanos: u128`.
     let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(elapsed) => elapsed.as_nanos(),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(_) => 0,
     };
+    // `let mut`: a binding that may change.
+    // Typed binding: `taken_name: std::ffi::OsString`.
+    // What:     `OsString` is operating-system text that need not be valid UTF-8 (sibling: `String`, always valid UTF-8).
+    // Why:      Command-line arguments pass through byte for byte, so they are kept as the OS gave them.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let mut taken_name: std::ffi::OsString = lock_path.as_os_str().to_os_string();
+    // Macro `format!`: builds or prints text (or a list) from a template.
     taken_name.push(format!(".taken.{}.{nanos}", std::process::id()));
+    // Typed binding: `taken: std::path::PathBuf`.
     let taken: std::path::PathBuf = std::path::PathBuf::from(taken_name);
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&taken`: lends the value without copying or giving it away.
     match std::fs::rename(lock_path, &taken) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(()) => {}
         // Nothing is at the path any more: nothing to remove.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => {
+            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("cargo-shadow: warning: the stand-in {} could not be taken for removal: {error}", lock_path.display());
             return;
         }
     }
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&taken`: lends the value without copying or giving it away.
+    // Typed binding: `is_placeholder: bool`.
     let is_placeholder: bool = match crate::file_owner::observe(&taken) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
         Ok(Some(seen)) => seen.text == EMPTY_LOCK,
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
         Ok(None) => return,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => {
+            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("cargo-shadow: warning: {} could not be read, so it is kept: {error}", taken.display());
             false
         }
     };
     if is_placeholder {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+        // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (value !== undefined) { const inner = value; ... }
+        // ```
+        // Borrow `&taken`: lends the value without copying or giving it away.
         if let Err(error) = std::fs::remove_file(&taken) {
+            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("cargo-shadow: warning: the stand-in {} could not be removed: {error}", taken.display());
         }
         return;
     }
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&taken`: lends the value without copying or giving it away.
     match std::fs::hard_link(&taken, lock_path) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(()) => {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+            // Borrow `&taken`: lends the value without copying or giving it away.
             if let Err(error) = std::fs::remove_file(&taken) {
+                // Macro `eprintln!`: builds or prints text (or a list) from a template.
                 eprintln!("cargo-shadow: warning: {} could not be removed after it was put back: {error}", taken.display());
             }
         }
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `eprintln!`: builds or prints text (or a list) from a template.
         Err(error) => eprintln!("cargo-shadow: warning: a lockfile written during the run is kept as {} ({error})", taken.display()),
     }
 }
@@ -612,7 +674,8 @@ fn remove_placeholder(lock_path: &Path) {
 /// `pub fn run_with_placeholder_lock_hooked(lock_path, dry_run, body, before_cleanup) -> i32` is `run_with_placeholder_lock` with a
 /// hook that runs just before the cleanup takes the file.
 /// Why:
-/// That gap is where another writer can publish a real lockfile; the hook lets a test publish one exactly there.
+/// That gap is where another writer can publish a real lockfile;
+/// the hook lets a test publish one exactly there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

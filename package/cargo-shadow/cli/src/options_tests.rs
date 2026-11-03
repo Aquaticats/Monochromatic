@@ -89,8 +89,12 @@ fn the_short_manifest_path_of_update_selects_the_workspace() {
     assert_eq!(manifest_path(&arguments(&["update", "-m", "../b/Cargo.toml"])), Some(PathBuf::from("../b/Cargo.toml")));
 }
 
-/// Review finding (2c 9): the attached short form `-m<path>` selects the workspace of `cargo update`.
+/// Review finding (2c 9):
+/// the attached short form `-m<path>` selects the workspace of `cargo update`.
 #[test]
 fn the_attached_short_manifest_path_of_update_selects_the_workspace() {
+    // `Some`: the present or the absent value of an `Option`.
+    // Borrow `&arguments`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(manifest_path(&arguments(&["update", "-m../b/Cargo.toml"])), Some(PathBuf::from("../b/Cargo.toml")));
 }

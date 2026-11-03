@@ -167,14 +167,16 @@ use crate::install::policy_findings;
 /// import { addManifests, begin, finish, processExists, recover, restoreIfUnchanged, runRecording } from 'crate/journal';
 /// ```
 use crate::journal::{add_manifests, begin, finish, process_exists, recover, restore_if_unchanged, run_recording};
-/// Imports `Claim`, what the ownership evidence says about a file a child wrote.
+/// Imports `Claim`,
+/// what the ownership evidence says about a file a child wrote.
 use crate::file_owner::Claim;
 /// Imports the manifest transaction that `--breaking` needs:
 /// cargo rewrites `Cargo.toml` as well as the lockfile.
 use crate::manifest_edit::{ManifestEdit, restore_manifests, run_recording_manifests, snapshot_manifests};
 /// Imports the manifest list of a `cargo metadata` answer.
 use crate::stamp::manifests_from_metadata;
-/// Imports the keep rule of a rollback and the quarantine directory, where the files a rollback displaces are kept.
+/// Imports the keep rule of a rollback and the quarantine directory,
+/// where the files a rollback displaces are kept.
 use crate::journal::{KeepAs, QUARANTINE_DIR, ReplaceOutcome, replace_keeping};
 /// What:
 /// `use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};` imports `LockedVersion`,
@@ -193,6 +195,14 @@ use crate::journal::{KeepAs, QUARANTINE_DIR, ReplaceOutcome, replace_keeping};
 /// import { LockedVersion, added_versions, parse_registry_versions, registry_versions } from 'crate/lockfile';
 /// ```
 use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};
+// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
+// Why:      The code below names these items directly instead of spelling their full paths each time.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { Name } from './module.ts';
+// ```
+/// Imports the check of the release a `--precise` names.
 use crate::precise_target::precise_targets;
 /// What:
 /// `use crate::prune::prune_excludes;` imports `prune_excludes` from another module of this crate so this file can name it unqualified.
@@ -702,20 +712,38 @@ fn is_breaking_option(argument: &str) -> bool {
 
 /// What:
 /// `fn sync_recording(request, edits) -> io::Result<Result<String, String>>` runs the manifest sync with every crate root's manifests
-/// recorded, so what a sync that fails halfway wrote goes back with the transaction.
+/// recorded,
+/// so what a sync that fails halfway wrote goes back with the transaction.
 /// Why:
-/// Review finding (2c 11): the sync rewrites manifests, and a partial rewrite was not part of the restore.
-/// The outer `io::Result` is a failure to record; the inner `Result` is the sync's own answer.
+/// Review finding (2c 11):
+/// the sync rewrites manifests,
+/// and a partial rewrite was not part of the restore.
+/// The outer `io::Result` is a failure to record;
+/// the inner `Result` is the sync's own answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function syncRecording(request: UpdateRequest, edits: ManifestEdit[]): Result<string, string>  // throws if recording fails
 /// ```
 fn sync_recording(request: &UpdateRequest, edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<Result<String, String>> {
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // `let mut`: a binding that may change.
+    // Typed binding: `run: Box<dyn FnOnce() -> io::Result<Result<...`.
+    // What:     `&dyn Trait` is a borrowed value of any type that implements the trait (a TS interface type); the call goes through a lookup table at run time.
+    // Why:      The caller may pass the real implementation or a test fake.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // function f(registry: Registry) { ... }  // an interface type
+    // ```
+    // Constructor `Box::new(`: an empty owned collection or a boxed value.
     let mut run: Box<dyn FnOnce() -> io::Result<Result<String, String>> + '_> = Box::new(|| { return Ok(request.syncer.sync(request.root)); });
     for crate_dir in request.crate_dirs {
         let inner = run;
-        run = Box::new(move || { return run_recording_manifests(crate_dir, edits, inner).and_then(|answer| { return answer; }); });
+        // Closure `|answer|`: an anonymous function, like a TS arrow function.
+        // Adapter `.and_then(`: transforms or selects items with a closure.
+        // Constructor `Box::new(`: an empty owned collection or a boxed value.
+        run = Box::new(move || { return run_recording_manifests(crate_dir, edits, inner).and_then(std::convert::identity); });
     }
     return run();
 }
@@ -856,9 +884,13 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                 // Both the lockfile and the manifests of this root are attributed by the evidence in `file_owner.rs`, whether the
                 // call succeeds or fails; the manifests of other roots are never claimed by this call.
                 let (ran, _claim): (io::Result<Result<CargoOutcome, UpdateError>>, Claim) = run_recording(request.root, crate_dir, produced, || {
+                    // Borrow `&args`: lends the value without copying or giving it away.
                     return run_recording_manifests(crate_dir, edits, || { return run_or_fail(request, crate_dir, &args); });
                 })
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                // `.map_err(...)`: converts the callee's error into this function's error type.
                 .map_err(other_text)?;
+                // `.map_err(...)`: converts the callee's error into this function's error type.
                 ran.map_err(other_text)??;
             }
         }
@@ -903,8 +935,14 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     let mut added: Vec<LockedVersion> = added_versions(&before_sources, &after).map_err(other)?;
     // Review finding (2c 3): the release a `--precise` names is judged even when it was already locked.
     if let UpdateKind::Targeted { cargo_args } = kind {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&after`: lends the value without copying or giving it away.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
+        // Typed binding: `locked: Vec<LockedVersion>`.
         let locked: Vec<LockedVersion> = registry_versions(&after).map_err(other)?;
+        // Borrow `&locked`: lends the value without copying or giving it away.
         for named in precise_targets(cargo_args, &locked) {
+            // Borrow `&named`: lends the value without copying or giving it away.
             if !added.contains(&named) {
                 added.push(named);
             }
@@ -916,6 +954,8 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `age: CheckOutcome`.
     let outcome: CheckOutcome = check_policy(&added, settings, request.registry, request.now).map_err(other_message)?;
+    // `let mut`: a binding that may change.
+    // Typed binding: `problems: Vec<String>`.
     let mut problems: Vec<String> = outcome.problems;
     warnings.extend(outcome.warnings);
     // Typed binding: `keep: bool`.
@@ -983,7 +1023,9 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             // Review finding (2c 6): the catalog is replaced only while it still holds the text that was read, never over another
             // writer's edit.
             let raised: ReplaceOutcome = replace_keeping(request.catalog_path, &source, &raised_source, &catalog_keep).map_err(other_text)?;
+            // Macro `matches!`: builds or prints text (or a list) from a template.
             if !matches!(raised, ReplaceOutcome::Replaced(_)) {
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 problems.push(format!("the catalog changed while the update ran, so its floors were not raised and the update was not kept ({raised:?})"));
                 keep = false;
             }
@@ -994,6 +1036,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             warnings.extend(changes.iter().map(String::as_str).map(raised_floor_warning));
             // `match`: picks the arm whose pattern fits the value.
             let synced: Result<String, String> = if keep { sync_recording(request, edits).map_err(other_text)? } else { Err("the catalog was not raised".to_string()) };
+            // `match`: picks the arm whose pattern fits the value.
             match synced {
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 Ok(done) => warnings.push(done),
@@ -1007,10 +1050,17 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                     // `.map_err(...)`: converts the callee's error into this function's error type.
                     // The catalog goes back only while it still holds the raised text this run wrote; an edit made meanwhile is kept.
                     if keep {
+                        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                        // Borrow `&raised_source`: lends the value without copying or giving it away.
+                        // `.map_err(...)`: converts the callee's error into this function's error type.
+                        // Typed binding: `back: ReplaceOutcome`.
                         let back: ReplaceOutcome = replace_keeping(request.catalog_path, &raised_source, &source, &catalog_keep).map_err(other_text)?;
+                        // Macro `matches!`: builds or prints text (or a list) from a template.
                         if !matches!(back, ReplaceOutcome::Replaced(_)) {
+                            // Macro `format!`: builds or prints text (or a list) from a template.
                             warnings.push(format!("the catalog was edited while the sync ran and keeps that edit ({back:?})"));
                         }
+                        // Macro `format!`: builds or prints text (or a list) from a template.
                         problems.push(format!("the catalog floors were not rendered into the manifests, so the update was not kept: {message}"));
                     }
                     keep = false;

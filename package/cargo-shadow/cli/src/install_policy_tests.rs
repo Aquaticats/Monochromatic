@@ -672,7 +672,8 @@ fn a_second_install_does_not_take_the_first_ones_unapproved_lockfile_for_approve
     assert_eq!(lock_text(root.path()), lock_with("1.0.0"));
 }
 
-/// A registry that serves the canned histories but fails the owner lookup, the way a rate-limited or offline registry does.
+/// A registry that serves the canned histories but fails the owner lookup,
+/// the way a rate-limited or offline registry does.
 struct RegistryWithoutOwners {
     inner: FakeRegistry,
 }
@@ -688,20 +689,33 @@ impl Registry for RegistryWithoutOwners {
         return self.inner.history(name, versions);
     }
     fn owners(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err(RegistryError { message: "the owners request failed".to_string(), status: None, retry_after_seconds: 0 });
     }
 }
 
-/// Review finding (2c 2): the release-age refusal is already known when the owners request fails. The failure must not erase it
+/// Review finding (2c 2):
+/// the release-age refusal is already known when the owners request fails.
+/// The failure must not erase it
 /// and turn a refusal into an operational problem that the shim answers with a build.
 #[test]
 fn a_lookup_failure_after_a_release_age_refusal_keeps_the_refusal() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let (root, dirs) = repository(&lock_with("1.0.1"));
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
+    // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
+    // Typed binding: `young_downgrade: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let young_downgrade: Vec<VersionRecord> = vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "9", "")];
+    // Typed binding: `registry: RegistryWithoutOwners`.
     let registry: RegistryWithoutOwners = RegistryWithoutOwners { inner: registry_of(young_downgrade) };
+    // Typed binding: `catalog_settings: Settings`.
     let catalog_settings: Settings = settings();
 
+    // Borrow `&InstallRequest`: lends the value without copying or giving it away.
     let report = install_rust_lockfiles(&InstallRequest {
         root: root.path(),
         crate_dirs: &dirs,
@@ -712,25 +726,41 @@ fn a_lookup_failure_after_a_release_age_refusal_keeps_the_refusal() {
         settings: &catalog_settings,
         runner: &runner,
         registry: &registry,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
         trust_base: "HEAD",
         known_consistent: false,
     })
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     .expect("a known refusal is a report, not an operational error");
 
+    // Closure `|problem|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.problems.iter().any(|problem| { return problem.contains("minimumReleaseAge"); }), "{:?}", report.problems);
 }
 
-/// Review finding (2c 8): a young release that is allowed because the release age is not strict still gets its warning, on the
-/// frozen path as on the local one, and a pass with a warning is not remembered.
+/// Review finding (2c 8):
+/// a young release that is allowed because the release age is not strict still gets its warning,
+/// on the
+/// frozen path as on the local one,
+/// and a pass with a warning is not remembered.
 #[test]
 fn the_non_strict_release_age_warning_is_reported_on_the_frozen_path() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let (root, dirs) = repository(&lock_with("1.0.1"));
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
+    // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
+    // Typed binding: `registry: FakeRegistry`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]);
+    // `let mut`: a binding that may change.
+    // Typed binding: `relaxed: Settings`.
     let mut relaxed: Settings = settings();
     relaxed.minimum_release_age_strict = false;
 
+    // Borrow `&InstallRequest`: lends the value without copying or giving it away.
     let report = install_rust_lockfiles(&InstallRequest {
         root: root.path(),
         crate_dirs: &dirs,
@@ -741,12 +771,18 @@ fn the_non_strict_release_age_warning_is_reported_on_the_frozen_path() {
         settings: &relaxed,
         runner: &runner,
         registry: &registry,
+        // `None`: the present or the absent value of an `Option`.
         lock_base: None,
         trust_base: "HEAD",
         known_consistent: false,
     })
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     .expect("passes");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.problems.is_empty(), "{:?}", report.problems);
+    // Closure `|warning|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(report.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the warning was dropped: {:?}", report.warnings);
 }

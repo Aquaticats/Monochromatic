@@ -161,7 +161,8 @@ including a linked worktree's own directory and its `commondir`,
 user and repository configuration,
 the fetch refspecs of the remote,
 the remote-tracking reference from loose files or `packed-refs`,
-and the type of the object it names, from a loose object header or a pack index and pack entry.
+and the type of the object it names,
+from a loose object header or a pack index and pack entry.
 The configuration is read with the lexer of Git's `config.c`
 (a comment never continues onto the next line,
 a quoted subsection runs to its closing quote,
@@ -170,7 +171,10 @@ Git is started once for everything the files cannot answer exactly,
 and that one start (`git cat-file --batch-check`) answers every candidate base:
 an explicit `CARGO_SHADOW_TRUST_BASE` (git verifies that it names a commit),
 a configuration `include` or `includeIf` in any of the configuration files,
-any `extensions.*` variable (reftable, worktree configuration, other object formats, extensions this reader has never seen),
+any `extensions.*` variable (reftable,
+worktree configuration,
+other object formats,
+extensions this reader has never seen),
 a repository format other than 0 or 1,
 a `GIT_DIR`,
 `GIT_COMMON_DIR`,
@@ -183,21 +187,29 @@ a `GIT_DIR`,
 `GIT_ALTERNATE_OBJECT_DIRECTORIES`,
 `GIT_REPLACE_REF_BASE`,
 `GIT_NO_REPLACE_OBJECTS` or `GIT_REF_PARANOIA` variable,
-a reference outside `refs/heads`, `refs/remotes` and `refs/tags` (worktree-private references),
-an invalid, negative or unusual fetch refspec of the remote,
+a reference outside `refs/heads`,
+`refs/remotes` and `refs/tags` (worktree-private references),
+an invalid,
+negative or unusual fetch refspec of the remote,
 a branch key written without a value,
 a symbolic reference where a commit is expected,
-an object that is not seen to be a commit stored whole (a tag, a missing object, a deltified commit),
-`objects/info/alternates`, `info/grafts` or a `refs/replace/` reference,
+an object that is not seen to be a commit stored whole (a tag,
+a missing object,
+a deltified commit),
+`objects/info/alternates`,
+`info/grafts` or a `refs/replace/` reference,
 a legacy `remotes/` or `branches/` remote file,
 and a short name that a tag or branch shadows (`origin/main`),
 or that also resolves through `refs/remotes/<name>/HEAD`.
 The system configuration is assumed to be `/etc/gitconfig`,
 as distribution builds of Git read it.
-A Git built for another prefix reads its system configuration elsewhere, and this reader does not see that file;
-finding the path needs a git start, so it is a known limit and not fixed.
+A Git built for another prefix reads its system configuration elsewhere,
+and this reader does not see that file;
+finding the path needs a git start,
+so it is a known limit and not fixed.
 The reader is tested against git itself
-(`src/git_differential_tests.rs`: each case builds a disposable repository with an isolated home,
+(`src/git_differential_tests.rs`:
+each case builds a disposable repository with an isolated home,
 asks `/usr/bin/git` which base it chooses,
 and requires the reader to decline or to agree).
 Measured on 2026-11-03 (a throwaway repository with an upstream,
@@ -578,37 +590,54 @@ and an HTTP 429 is retried after its `Retry-After`.
   a file that differs from its snapshot and whose `ctime` lies inside the window of the cargo call
   (from 10 ms before it started to just after it returned) is this run's output;
   one changed later is another writer's and is never restored over (`src/file_owner.rs`).
-  A writer that publishes within about one scheduler tick of the cargo call, or during it,
+  A writer that publishes within about one scheduler tick of the cargo call,
+  or during it,
   cannot be told apart from cargo itself;
-  the restore keeps every file it displaces, so that blind spot loses no data.
+  the restore keeps every file it displaces,
+  so that blind spot loses no data.
   A restore replaces a lockfile only if it still holds what this run's cargo wrote,
-  with `renameat2` and `RENAME_EXCHANGE` (through `rustix`) of an exclusively created, synced temporary file:
+  with `renameat2` and `RENAME_EXCHANGE` (through `rustix`) of an exclusively created,
+  synced temporary file:
   the file that came out is read through its descriptor,
   and when it is the expected one it is hard-linked to a surviving name
   (`.cache/cargo-shadow/displaced/` or beside the target as `.displaced`) before the temporary file is removed;
-  when it is not, the exchange is undone, and a file edited in place after the exchange is kept, not deleted.
+  when it is not,
+  the exchange is undone,
+  and a file edited in place after the exchange is kept,
+  not deleted.
   A filesystem that cannot exchange fails the restore visibly and overwrites nothing.
-  The protocol preserves data; it is not an atomic conditional replacement,
+  The protocol preserves data;
+  it is not an atomic conditional replacement,
   and a file written through a descriptor opened before the exchange lands in the kept file.
-  A lockfile or manifest that cannot be read as text is an error and is left alone, never an empty file.
+  A lockfile or manifest that cannot be read as text is an error and is left alone,
+  never an empty file.
   Each lockfile is recorded as this run's output the moment its cargo call returned (even a failing one),
   so a failure halfway never guesses;
-  a failed step whose rollback cannot complete stops the command, so the `--locked` fallback never builds it.
+  a failed step whose rollback cannot complete stops the command,
+  so the `--locked` fallback never builds it.
   The snapshots are journaled under `.cache/cargo-shadow/journal/` and synced to disk;
-  the index is written last as the commit record, with the owner's pid and process start time,
+  the index is written last as the commit record,
+  with the owner's pid and process start time,
   and a journal that cannot be started stops the run before cargo runs.
-  If a run is killed, the next run claims the journal by an atomic rename
-  (a claim of a dead claimer can be claimed again; the claim is released on any failure, so the journal is kept)
-  and decides per root: it keeps the leftover lockfile when its new versions pass the policy,
+  If a run is killed,
+  the next run claims the journal by an atomic rename
+  (a claim of a dead claimer can be claimed again;
+  the claim is released on any failure,
+  so the journal is kept)
+  and decides per root:
+  it keeps the leftover lockfile when its new versions pass the policy,
   and otherwise saves it as `Cargo.lock.refused` (or the first free `Cargo.lock.refused.N`,
   so an earlier copy is never replaced) before putting the snapshot back.
-  The manifests of a killed `--breaking` run are recorded in the journal (lossless path bytes, a versioned record)
+  The manifests of a killed `--breaking` run are recorded in the journal (lossless path bytes,
+  a versioned record)
   and follow their own root's decision.
   The journal is deleted only when every root it lists was settled;
-  an unreadable journal, lockfile or manifest index and a failed step keep it.
+  an unreadable journal,
+  lockfile or manifest index and a failed step keep it.
   Power-loss behavior depends on the filesystem honoring `fsync` and is not tested by fault injection.
   The owner of a journal is recognized by its pid and `/proc/<pid>/stat` start time;
-  where `/proc` is unusable the owner is assumed alive, which only delays a recovery.
+  where `/proc` is unusable the owner is assumed alive,
+  which only delays a recovery.
 - Until the checks pass,
   cargo's output is in the live lockfile,
   so a plain cargo that is not the shadow can build on it.

@@ -173,8 +173,12 @@ fn created_millis(record: &VersionRecord) -> Option<i64> {
 /// What:
 /// `fn ordering_millis(record) -> i64` reads a release's publish time for sorting records that are known to have a readable time.
 /// Why:
-/// Review finding (2c 7): an unreadable time cannot be ordered, so such a record is never part of the earlier history
-/// (`earlier_releases` leaves it out). It must not give a publisher a reputation it did not earn; the zero here is never reached
+/// Review finding (2c 7):
+/// an unreadable time cannot be ordered,
+/// so such a record is never part of the earlier history
+/// (`earlier_releases` leaves it out).
+/// It must not give a publisher a reputation it did not earn;
+/// the zero here is never reached
 /// for a record in that list.
 ///
 /// In TS you'd write (pseudocode):
@@ -187,10 +191,12 @@ fn ordering_millis(record: &VersionRecord) -> i64 {
 
 /// What:
 /// `fn earlier_releases(history, record_millis) -> Vec<VersionRecord>` lists the releases published before a given time,
-/// oldest first, leaving out any release whose publish time is unreadable.
+/// oldest first,
+/// leaving out any release whose publish time is unreadable.
 /// Why:
 /// Both the trust decision and the question "can the owner list change this decision" need the same set.
-/// A release that cannot be placed in time cannot be called earlier, so it establishes no publisher history.
+/// A release that cannot be placed in time cannot be called earlier,
+/// so it establishes no publisher history.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -200,6 +206,8 @@ fn ordering_millis(record: &VersionRecord) -> i64 {
 fn earlier_releases(history: &[VersionRecord], record_millis: i64) -> Vec<VersionRecord> {
     let mut earlier: Vec<VersionRecord> = Vec::new();
     for entry in history {
+        // `Some`: the present or the absent value of an `Option`.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         if let Some(published) = created_millis(entry)
             && published < record_millis
         {

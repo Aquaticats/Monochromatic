@@ -71,7 +71,8 @@ use crate::git_refs::{GitLayout, Head, NativeBase, NativeEnvironment, find_layou
 /// `fn confirmed(layout, object) -> Result<Result<String, String>, String>` accepts an object name from a reference or `HEAD` as a
 /// commit only after the object files show it is one.
 /// Why:
-/// A reference file proves neither that the object exists nor that it is a commit (a tag peels, a blob is refused);
+/// A reference file proves neither that the object exists nor that it is a commit (a tag peels,
+/// a blob is refused);
 /// anything the object files cannot show leaves the answer to Git.
 ///
 /// In TS you'd write (pseudocode):
@@ -79,7 +80,10 @@ use crate::git_refs::{GitLayout, Head, NativeBase, NativeEnvironment, find_layou
 /// function confirmed(layout: GitLayout, object: string): Result<string, string>  // throws: ask Git
 /// ```
 fn confirmed(layout: &GitLayout, object: String) -> Result<Result<String, String>, String> {
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Borrow `&layout.common_dir`: lends the value without copying or giving it away.
     confirm_commit(&layout.common_dir, &object)?;
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(Ok(object));
 }
 

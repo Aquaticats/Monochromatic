@@ -127,7 +127,8 @@ pub const MAX_FIELD_BYTES: usize = 16 * 1024 * 1024;
 /// Each field may be as large as `MAX_FIELD_BYTES` and a row may hold `MAX_ROW_FIELDS` fields,
 /// whose product is far beyond any machine,
 /// so the row has its own cumulative budget:
-/// a chosen ceiling of two maximal fields (a guess, not measured on a real dump).
+/// a chosen ceiling of two maximal fields (a guess,
+/// not measured on a real dump).
 pub const MAX_ROW_BYTES: usize = 2 * MAX_FIELD_BYTES;
 
 /// The most fields one row may hold.
@@ -198,7 +199,8 @@ struct State {
     /// ```
     row_started: bool,
     /// Field `row_bytes: usize` is the total size of the finished fields of the row being read.
-    /// It is counted on the decoded text, which lossy decoding can make larger than the bytes read.
+    /// It is counted on the decoded text,
+    /// which lossy decoding can make larger than the bytes read.
     row_bytes: usize,
 }
 
@@ -245,9 +247,34 @@ impl State {
             // ```
             return Err(malformed(format!("a row has more than {MAX_ROW_FIELDS} fields")));
         }
+        // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+        // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+        // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+        // ```
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+        // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const name: Type = value;
+        // ```
+        // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+        // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: string
+        // ```
         let text: String = String::from_utf8_lossy(&self.field).to_string();
         self.row_bytes += text.len();
         if self.row_bytes > MAX_ROW_BYTES {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(malformed(format!("a row is larger than {MAX_ROW_BYTES} bytes")));
         }
         self.row.push(text);
@@ -297,6 +324,8 @@ impl State {
         }
         // The field being built counts against the row budget too, so the row is refused before it is held in memory.
         if self.row_bytes + self.field.len() >= MAX_ROW_BYTES {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(malformed(format!("a row is larger than {MAX_ROW_BYTES} bytes")));
         }
         self.field.push(byte);
@@ -341,6 +370,21 @@ fn malformed(message: String) -> io::Error {
 /// export function readCsv(stream, onRow: (row: string[]) => boolean): void
 /// ```
 pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool) -> io::Result<()> {
+    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+    // Why:      The value is built up or replaced step by step below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let x = ...;   // plain Rust `let` is TS `const`
+    // ```
+    // Typed binding: `state: State`.
+    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const list: string[] = [];   // or new Set() / new Map()
+    // ```
     let mut state: State = State { field: Vec::new(), row: Vec::new(), in_quotes: false, quote_seen: false, row_started: false, row_bytes: 0 };
     let mut chunk: Vec<u8> = vec![0; CHUNK_BYTES];
     loop {

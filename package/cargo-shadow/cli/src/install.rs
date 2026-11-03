@@ -66,17 +66,6 @@ use std::cell::RefCell;
 /// which collects the versions to check once each.
 use std::collections::BTreeSet;
 /// What:
-/// `use std::fmt;` imports `fmt` from the standard library so this file can name it unqualified.
-/// Why:
-/// `fmt` is used by the `impl` of `InstallError`,
-/// `fmt`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { fmt } from 'std';
-/// ```
-use std::fmt;
-/// What:
 /// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
 /// Why:
 /// `Path` is used by `InstallRequest`.
@@ -170,7 +159,10 @@ use crate::journal::{begin, finish, process_exists, recover, restore_if_unchange
 /// ```ts
 /// import { RegistryError } from 'crate/http';
 /// ```
-use crate::http::RegistryError;
+/// Re-exports the error type (it lives in `install_error.rs`).
+pub use crate::install_error::InstallError;
+/// Imports the helpers that classify a failure into an install error.
+use crate::install_error::{invalid_lock_toml, io_error, io_message, registry_error, unapproved_roots};
 /// What:
 /// `use crate::lockfile::{LockedVersion, added_versions};` imports `LockedVersion`,
 /// `added_versions` from another module of this crate so this file can name them unqualified.
@@ -185,7 +177,7 @@ use crate::http::RegistryError;
 /// ```ts
 /// import { LockedVersion, added_versions } from 'crate/lockfile';
 /// ```
-use crate::lockfile::{LockedVersion, UNSUPPORTED_REGISTRY_MARK, added_versions};
+use crate::lockfile::{LockedVersion, added_versions};
 /// What:
 /// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -238,7 +230,8 @@ pub use crate::install_verify::{LockBaseFactory, LockBaseReader, policy_findings
 /// import { baseReader, setAsidePass } from 'crate/install_verify';
 /// ```
 use crate::install_verify::{base_reader, set_aside_pass};
-/// Imports `Claim`, what the ownership evidence says about a file a child wrote.
+/// Imports `Claim`,
+/// what the ownership evidence says about a file a child wrote.
 use crate::file_owner::Claim;
 
 /// Asks whether the lockfile satisfies the manifests:
@@ -341,179 +334,6 @@ pub struct InstallReport {
     pub written: bool,
 }
 
-/// Why an install did not complete.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum InstallError {
-    /// A frozen install found stale lockfiles.
-    Stale {
-        /// The repo-relative crate roots whose lockfile is stale.
-        stale_dirs: Vec<String>,
-    },
-    /// Cargo could not bring a crate's lockfile in line.
-    Cargo {
-        /// The repo-relative crate directory.
-        crate_dir: String,
-        /// The command that failed.
-        command: String,
-        /// Cargo's output.
-        output: String,
-    },
-    /// A registry lookup failed.
-    Registry {
-        /// What failed.
-        message: String,
-    },
-    /// A file could not be read or written,
-    /// or cargo could not be started.
-    Io {
-        /// What failed.
-        message: String,
-    },
-    /// A lockfile holds something the policy cannot judge (a registry other than crates.io):
-    /// a refusal that stops the command, not an operational problem.
-    Refused {
-        /// What the lockfile holds and why it is refused.
-        message: String,
-    },
-    /// The step failed and a lockfile that this run's cargo wrote could not be put back:
-    /// building it would run unapproved dependencies, so the command must stop.
-    Unsettled {
-        /// Which lockfiles still hold this run's unapproved output.
-        message: String,
-    },
-}
-
-/// What:
-/// `impl fmt::Display for InstallError` lets an install failure be printed with `{}`.
-/// Why:
-/// The shadow and the CLI print the error to the user,
-/// and each variant carries its own remedy text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class InstallError extends Error { toString() { ... } }
-/// ```
-impl fmt::Display for InstallError {
-    /// What:
-    /// `fn fmt(&self, formatter)` writes the message of whichever variant the error is (a `match` over the cases).
-    /// Why:
-    /// A stale-lock failure names every stale root,
-    /// a cargo failure shows cargo's output and the offline hint,
-    /// so the user can act without reading the code.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// toString(): string { switch (this.kind) { case "stale": ...; case "cargo": ...; } }
-    /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
-        // Why:      The message of an `InstallError` depends on which case failed (stale roots, cargo, registry, I/O), and the compiler checks that no case lacks a message.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
-        // ```
-        match self {
-            InstallError::Stale { stale_dirs } => {
-                // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-                // Why:      `writeln!` writes each line of the stale-lock message into the formatter, so the stale roots print one per line.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // `..${x}..`   // template literal
-                // console.error(text);   // eprintln!
-                // [a, b]            // vec![a, b]
-                // ```
-                writeln!(
-                    formatter,
-                    "Frozen install failed: {} Cargo.lock file(s) are present but need an update to satisfy their manifests.",
-                    stale_dirs.len()
-                // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
-                // Why:      A failed write into the formatter ends the message at once and is reported to the caller of `fmt`.
-                // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const value = await expr;   // throws to the caller on failure
-                // ```
-                )?;
-                for dir in stale_dirs {
-                    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                    // Macro `writeln!`: builds or prints text (or a list) from a template.
-                    writeln!(formatter, "- {dir}")?;
-                }
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // Macro `writeln!`: builds or prints text (or a list) from a template.
-                writeln!(formatter, "Nothing was written. Frozen is the default in CI, as in pnpm; `--locked` or `--frozen` on the cargo command asks for it too.")?;
-                // Macro `write!`: builds or prints text (or a list) from a template.
-                return write!(
-                    formatter,
-                    "To update them, run `cargo check` (or `cargo-shadow install --no-frozen-lockfile`) outside CI and commit the Cargo.lock changes."
-                );
-            }
-            InstallError::Cargo { crate_dir, command, output } => {
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // Macro `writeln!`: builds or prints text (or a list) from a template.
-                writeln!(formatter, "`{command}` failed in {crate_dir}; every lockfile was restored.")?;
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // Macro `writeln!`: builds or prints text (or a list) from a template.
-                writeln!(formatter, "Cargo output:\n{}", output.trim())?;
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // Macro `writeln!`: builds or prints text (or a list) from a template.
-                writeln!(formatter, "The install runs cargo offline, so it can pick only releases the local registry index and cache already hold.")?;
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // Macro `writeln!`: builds or prints text (or a list) from a template.
-                writeln!(formatter, "When cargo says an index entry or package is missing, fetch it once with network access (`cargo fetch` in the crate)")?;
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                // Macro `writeln!`: builds or prints text (or a list) from a template.
-                writeln!(formatter, "and run the install again, or run `cargo update`, which resolves online under the release-age and trust policy.")?;
-                // Macro `write!`: builds or prints text (or a list) from a template.
-                return write!(formatter, "When cargo reports conflicting requirements, fix the manifest or the rust-catalog.toml floor that it names.");
-            }
-            InstallError::Registry { message } => {
-                // Macro `write!`: builds or prints text (or a list) from a template.
-                return write!(formatter, "A registry lookup failed; every lockfile was restored: {message}");
-            }
-            InstallError::Refused { message } => {
-                return write!(formatter, "{message}");
-            }
-            InstallError::Unsettled { message } => {
-                return write!(formatter, "{message}");
-            }
-            InstallError::Io { message } => {
-                // Macro `write!`: builds or prints text (or a list) from a template.
-                return write!(formatter, "{message}");
-            }
-        }
-    }
-}
-
-/// What:
-/// `impl From<RegistryError> for InstallError` lets a `RegistryError` convert into an `InstallError` automatically where `?` is used.
-/// Why:
-/// The policy checks fail with a registry error,
-/// and the install step reports everything as an install error without wrapping each call by hand.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // TS: catch (e) { throw new InstallError(e) }
-/// ```
-impl From<RegistryError> for InstallError {
-    /// What:
-    /// `fn from(error)` wraps the registry error's message in the `Registry` variant.
-    /// Why:
-    /// The variant tells the user the lockfiles were restored because a lookup failed,
-    /// not because cargo did.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// static from(error: RegistryError): InstallError { return new InstallError("registry", error.message); }
-    /// ```
-    fn from(error: RegistryError) -> InstallError {
-        return InstallError::Registry { message: error.message };
-    }
-}
-
 /// What an install run needs.
 pub struct InstallRequest<'a> {
     /// The repository root.
@@ -546,7 +366,8 @@ pub struct InstallRequest<'a> {
     /// because resolving the base starts git,
     /// which a call whose checks are all remembered must not pay for.
     pub lock_base: Option<LockBaseFactory<'a>>,
-    /// The key of the base revision: the commit it resolved to
+    /// The key of the base revision:
+    /// the commit it resolved to
     /// (so a base that moves is a different base),
     /// or `unresolved:<spelling>` when it names no commit
     /// (`shadow_step::trust_base_setup` supplies it);
@@ -560,53 +381,6 @@ pub struct InstallRequest<'a> {
 }
 
 
-
-/// What:
-/// `fn io_error(error) -> InstallError` wraps any displayable error as the `Io` variant of the install error.
-/// Why:
-/// `.map_err(io_error)` converts file and parse errors of the install steps without a closure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ioError = (error: unknown) => new InstallError("io", String(error))
-/// ```
-fn io_error(error: impl fmt::Display) -> InstallError {
-    return io_message(error.to_string());
-}
-
-/// What:
-/// `pub(crate) fn io_message(message) -> InstallError` wraps a message text as the `Io` variant.
-/// Why:
-/// Helpers that already return text (`Result<_, String>`) convert with `.map_err(io_message)`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ioMessage = (message: string) => new InstallError("io", message)
-/// ```
-pub(crate) fn io_message(message: String) -> InstallError {
-    // A registry other than crates.io is a refusal of the policy, not an operational failure.
-    if message.contains(UNSUPPORTED_REGISTRY_MARK) {
-        return InstallError::Refused { message };
-    }
-    return InstallError::Io { message };
-}
-
-/// What:
-/// `fn registry_error(message) -> InstallError` wraps a message text as the `Registry` variant.
-/// Why:
-/// A failed policy lookup is reported as a registry failure,
-/// so the user knows the lockfiles were restored because crates.io could not be asked.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const registryError = (message: string) => new InstallError("registry", message)
-/// ```
-fn registry_error(message: String) -> InstallError {
-    if message.contains(UNSUPPORTED_REGISTRY_MARK) {
-        return InstallError::Refused { message };
-    }
-    return InstallError::Registry { message };
-}
 
 /// Runs cargo in a crate root;
 /// a start failure is an `Io` error.
@@ -729,28 +503,6 @@ pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError
 }
 
 /// What:
-/// `fn invalid_lock_toml(message: String) -> InstallError` turns a TOML parse message of a `Cargo.lock` into an install error.
-/// Why:
-/// A lockfile that cannot be parsed stops the install with a message that names the file kind.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const invalidLockToml = (message: string) => new InstallError(`a Cargo.lock is not valid TOML: ${message}`);
-/// ```
-fn invalid_lock_toml(message: String) -> InstallError {
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    // A registry other than crates.io is a refusal of the policy, not a parse problem.
-    if message.contains(UNSUPPORTED_REGISTRY_MARK) {
-        return InstallError::Refused { message };
-    }
-    return InstallError::Io { message: format!("a Cargo.lock could not be read for its registry versions: {message}") };
-}
-
-
-
-
-
-/// What:
 /// `fn update_stale_roots(request, before, produced) -> Result<InstallReport, InstallError>` is the transaction body:
 /// update the stale roots,
 /// set refused releases aside,
@@ -783,6 +535,7 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
         // The call is recorded whether it succeeds or fails: a cargo that wrote a lockfile and then exited with an error left that
         // lockfile behind, and the rollback must know it is this run's.
         let (updated, _claim): (Result<(), InstallError>, Claim) = run_recording(request.root, crate_dir, produced, || { return run_or_fail(request, crate_dir, &UPDATE_ARGS); }).map_err(io_error)?;
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         updated?;
         run_or_fail(request, crate_dir, &VERIFY_ARGS)?;
         stale.push(crate_dir.clone());
@@ -860,6 +613,7 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     let versions: Vec<LockedVersion> = checked.into_iter().collect();
     // Typed binding: `age: CheckOutcome`.
     let outcome: CheckOutcome = if versions.is_empty() { CheckOutcome::default() } else { check_policy(&versions, request.settings, request.registry, request.now)? };
+    // Typed binding: `problems: Vec<String>`.
     let problems: Vec<String> = outcome.problems;
     // Only a pass is remembered, and only for the text that is live now.
     if problems.is_empty() && !covered {
@@ -922,6 +676,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `locks: Vec<LockSnapshot>`.
         let locks: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(io_error)?;
+        // Typed binding: `outcome: CheckOutcome`.
         let outcome: CheckOutcome = if request.settings.trust_lockfile {
             // Typed binding: `scope: String`.
             let scope: String = verification_scope(request.settings, true, request.trust_base);
@@ -965,6 +720,14 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             // `.map_err(...)`: converts the callee's error into this function's error type.
             verify_locked_entries_outcome(request.root, &locks, request.settings, request.registry, request.now).map_err(registry_error)?
         };
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
+        // Why:      The result can be stored or modified independently of the slice it came from.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // [...slice]
+        // ```
         return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), problems: outcome.problems, warnings: outcome.warnings, ..InstallReport::default() });
     }
     // Closure `|old, live|`: an anonymous function, like a TS arrow function.
@@ -1022,17 +785,26 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // `--locked` fallback would build it, so the step stops instead of reporting an operational failure.
         let still_live: Vec<String> = unapproved_roots(request.root, &produced.borrow());
         if !still_live.is_empty() && outcome.is_err() {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             return Err(InstallError::Unsettled {
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 message: format!(
                     "cargo-shadow: this run's cargo changed {} and the change could not be put back ({}), so the command was not run",
                     still_live.join(", "),
+                    // `match`: picks the arm whose pattern fits the value.
+                    // Borrow `&restored`: lends the value without copying or giving it away.
                     match &restored {
+                        // `Ok(...)`: builds the success or the failure variant of a `Result`.
                         Ok(warnings) => warnings.join("; "),
+                        // `Err(...)`: builds the success or the failure variant of a `Result`.
+                        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                         Err(error) => error.to_string(),
                     }
                 ),
             });
         }
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         restore_warnings = restored.map_err(io_error)?;
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
         for warning in &restore_warnings {
@@ -1051,26 +823,4 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         }
         Err(error) => Err(error),
     };
-}
-
-/// What:
-/// `fn unapproved_roots(root: &Path, produced: &[LockSnapshot]) -> Vec<String>` lists the crate roots whose live lockfile still holds
-/// what this run's cargo wrote.
-/// Why:
-/// After a rollback the output of this run must be gone; a root where it is still live (or cannot be read) is unsettled.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function unapprovedRoots(root: string, produced: LockSnapshot[]): string[]
-/// ```
-fn unapproved_roots(root: &Path, produced: &[LockSnapshot]) -> Vec<String> {
-    let mut roots: Vec<String> = Vec::new();
-    for output in produced {
-        match crate::file_owner::observe(&root.join(&output.crate_dir).join(crate::constants::LOCKFILE_NAME)) {
-            Ok(Some(live)) if live.text == output.source => roots.push(output.crate_dir.clone()),
-            Ok(_) => {}
-            Err(_) => roots.push(output.crate_dir.clone()),
-        }
-    }
-    return roots;
 }

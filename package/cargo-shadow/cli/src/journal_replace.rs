@@ -8,11 +8,13 @@
 //! Why:
 //! The second review (2026-11-03) showed that a comparison before or after an exchange cannot make a replacement conditional against
 //! writers that hold the file open or publish at any moment.
-//! The contract here is therefore preservation, not atomic conditional replacement:
+//! The contract here is therefore preservation,
+//! not atomic conditional replacement:
 //! no byte that was in the file when the exchange happened is ever left without a name,
 //! the file a concurrent writer published is put back (or kept under a reported name),
 //! and a filesystem that cannot exchange makes the restore fail visibly instead of falling back to a rename that overwrites.
-//! Two concurrent publishers can still end up in the other order than they ran; the loser is kept and reported.
+//! Two concurrent publishers can still end up in the other order than they ran;
+//! the loser is kept and reported.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,7 +26,9 @@
 /// `use std::fs::{self, File, OpenOptions};` imports the file-system module,
 /// the open-file type and the builder that opens a file with chosen flags.
 /// Why:
-/// The replacement is created exclusively (`create_new`), written, synchronized and renamed.
+/// The replacement is created exclusively (`create_new`),
+/// written,
+/// synchronized and renamed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,7 +68,9 @@ use std::path::{Path, PathBuf};
 /// What:
 /// `use std::sync::atomic::{AtomicU64, Ordering};` imports a counter that threads can add to safely.
 /// Why:
-/// Temporary names combine the process id, the clock and this counter, so two replacements in one process never collide.
+/// Temporary names combine the process id,
+/// the clock and this counter,
+/// so two replacements in one process never collide.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,9 +79,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 /// What:
 /// `use rustix::fs::{CWD, RenameFlags, renameat_with};` imports the safe wrapper of `renameat2`:
-/// the flags, and the current directory as the base of relative names.
+/// the flags,
+/// and the current directory as the base of relative names.
 /// Why:
-/// The exchange needs `RENAME_EXCHANGE` and the put-back needs `RENAME_NOREPLACE`, which the standard library does not expose.
+/// The exchange needs `RENAME_EXCHANGE` and the put-back needs `RENAME_NOREPLACE`,
+/// which the standard library does not expose.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,7 +124,8 @@ pub enum ReplaceOutcome {
         /// Where the displaced file was kept (always `Some` unless the target had vanished and nothing was displaced).
         Option<PathBuf>,
     ),
-    /// The file held something else, or held it only for a moment and was put back:
+    /// The file held something else,
+    /// or held it only for a moment and was put back:
     /// another writer's file is where it was.
     LeftAlone,
     /// Another writer published twice in the gap,
@@ -124,7 +133,9 @@ pub enum ReplaceOutcome {
     /// it was kept under this name.
     Preserved(
         /// Where the displaced file was kept,
-        /// as an owned path (`PathBuf`, not the borrowed `&Path`, because the value is returned to the caller).
+        /// as an owned path (`PathBuf`,
+        /// not the borrowed `&Path`,
+        /// because the value is returned to the caller).
         PathBuf,
     ),
 }
@@ -135,21 +146,39 @@ pub struct KeepAs {
     /// The directory the kept names are made in;
     /// `None` means next to the target.
     pub directory: Option<PathBuf>,
-    /// The suffix after the target's file name (`.displaced`, `.refused`).
+    /// The suffix after the target's file name (`.displaced`,
+    /// `.refused`).
     pub suffix: String,
 }
 
+/// The constructors of the places a displaced file is kept.
 impl KeepAs {
     /// What:
     /// `pub fn next_to_target(suffix: &str) -> KeepAs` keeps displaced files in the target's own directory.
     /// Why:
-    /// A refused lockfile saved by a recovery sits beside the lockfile, where the person looks for it.
+    /// A refused lockfile saved by a recovery sits beside the lockfile,
+    /// where the person looks for it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// static nextToTarget(suffix: string): KeepAs
     /// ```
     pub fn next_to_target(suffix: &str) -> KeepAs {
+        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+        // Why:      Absence is a value the caller must check; there is no `null`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Some(value) is  value
+        // // None        is  undefined
+        // ```
+        // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+        // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // String(value)  // JS strings are always owned values
+        // ```
         return KeepAs { directory: None, suffix: suffix.to_string() };
     }
 
@@ -164,6 +193,8 @@ impl KeepAs {
     /// static inDirectory(directory: string, suffix: string): KeepAs
     /// ```
     pub fn in_directory(directory: &Path, suffix: &str) -> KeepAs {
+        // `Some`: the present or the absent value of an `Option`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return KeepAs { directory: Some(directory.to_path_buf()), suffix: suffix.to_string() };
     }
 }
@@ -171,18 +202,33 @@ impl KeepAs {
 /// What:
 /// `fn exchange(first: &Path, second: &Path) -> io::Result<()>` swaps two paths in one step (`renameat2` with `RENAME_EXCHANGE`).
 /// Why:
-/// After the call `first` names what `second` named and the other way round, with no moment at which either path is missing.
+/// After the call `first` names what `second` named and the other way round,
+/// with no moment at which either path is missing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function exchange(first: string, second: string): void  // no Node API; the kernel call is renameat2(RENAME_EXCHANGE)
 /// ```
 fn exchange(first: &Path, second: &Path) -> io::Result<()> {
+    // `match`: picks the arm whose pattern fits the value.
     return match renameat_with(CWD, first, CWD, second, RenameFlags::EXCHANGE) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(()) => Ok(()),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(code) if code == Errno::INVAL || code == Errno::NOSYS || code == Errno::OPNOTSUPP => {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+            // Why:      Text building and printing are written as one call instead of string concatenation.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // `..${x}..`   // template literal
+            // console.error(text);   // eprintln!
+            // [a, b]            // vec![a, b]
+            // ```
             Err(io::Error::new(io::ErrorKind::Unsupported, format!("this filesystem cannot exchange {} and {} atomically ({code})", first.display(), second.display())))
         }
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(code) => Err(io::Error::from(code)),
     };
 }
@@ -190,13 +236,15 @@ fn exchange(first: &Path, second: &Path) -> io::Result<()> {
 /// What:
 /// `fn sync_directory(directory: &Path) -> io::Result<()>` forces the directory entries of a directory to disk.
 /// Why:
-/// A rename, a link or an unlink is durable only after the directory that holds the name is synchronized.
+/// A rename,
+/// a link or an unlink is durable only after the directory that holds the name is synchronized.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const fd = openSync(directory, 'r'); fsyncSync(fd); closeSync(fd);
 /// ```
 pub fn sync_directory(directory: &Path) -> io::Result<()> {
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     return File::open(directory)?.sync_all();
 }
 
@@ -210,39 +258,101 @@ pub fn sync_directory(directory: &Path) -> io::Result<()> {
 /// const parentOf = (path: string): string => dirname(path);
 /// ```
 fn parent_of(path: &Path) -> PathBuf {
+    // `match`: picks the arm whose pattern fits the value.
     return match path.parent() {
+        // `Some`: the present or the absent value of an `Option`.
         Some(found) if !found.as_os_str().is_empty() => found.to_path_buf(),
+        // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+        // Why:      Joined or stored paths are owned; paths passed in are borrowed.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: string
+        // ```
         _ => PathBuf::from("."),
     };
 }
 
 /// What:
-/// `fn create_temporary(target: &Path, text: &str, mode: u32) -> io::Result<(PathBuf, u64, u64)>` creates a new, uniquely named
-/// sibling file holding `text`, synchronizes it, and returns its path with its device and inode numbers.
+/// `fn create_temporary(target: &Path, text: &str, mode: u32) -> io::Result<(PathBuf, u64, u64)>` creates a new,
+/// uniquely named
+/// sibling file holding `text`,
+/// synchronizes it,
+/// and returns its path with its device and inode numbers.
 /// Why:
-/// The name is never reused (`create_new` fails if it exists), so a stranded file from a crashed run, or a hard link to a preserved
-/// file, can never be truncated by a later run.
+/// The name is never reused (`create_new` fails if it exists),
+/// so a stranded file from a crashed run,
+/// or a hard link to a preserved
+/// file,
+/// can never be truncated by a later run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function createTemporary(target: string, text: string, mode: number): [string, bigint, bigint]  // openSync(name, 'wx', mode)
 /// ```
 fn create_temporary(target: &Path, text: &str, mode: u32) -> io::Result<(PathBuf, u64, u64)> {
+    /// Imports `OpenOptionsExt`,
+    /// which adds `mode` to the options of a new file.
     use std::os::unix::fs::OpenOptionsExt;
     let base: String = file_name_text(target);
+    // Typed binding: `directory: PathBuf`.
     let directory: PathBuf = parent_of(target);
     loop {
-        let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|elapsed| { return elapsed.as_nanos(); }).unwrap_or(0);
+        // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
+        // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // (a, b) => body
+        // ```
+        // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+        // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+        // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // value ?? fallback
+        // ```
+        // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
+        // Why:      They express one step of a pipeline without an index loop.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // list.map(f).filter(g)
+        // ```
+        // Typed binding: `nanos: u128`.
+        let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => elapsed.as_nanos(),
+        Err(_) => 0,
+    };
+        // Typed binding: `number: u64`.
+        // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+        // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS has one type for this: number
+        // ```
         let number: u64 = TEMPORARY_COUNTER.fetch_add(1, Ordering::Relaxed);
+        // Typed binding: `candidate: PathBuf`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         let candidate: PathBuf = directory.join(format!(".{base}.shadow-{}-{nanos}-{number}.tmp", std::process::id()));
+        // Borrow `&candidate`: lends the value without copying or giving it away.
         let opened = OpenOptions::new().write(true).create_new(true).mode(mode & 0o777).open(&candidate);
+        // `match`: picks the arm whose pattern fits the value.
         match opened {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(mut file) => {
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 file.write_all(text.as_bytes())?;
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 file.sync_all()?;
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 let metadata = file.metadata()?;
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 return Ok((candidate, metadata.dev(), metadata.ino()));
             }
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error),
         }
@@ -251,35 +361,105 @@ fn create_temporary(target: &Path, text: &str, mode: u32) -> io::Result<(PathBuf
 
 /// What:
 /// `fn preserve(displaced: &Path, target: &Path, keep: &KeepAs) -> io::Result<PathBuf>` gives a file a surviving name:
-/// a hard link to the first free `<name><suffix>`, `<name><suffix>.1`, ... in the keep directory (else beside the target).
+/// a hard link to the first free `<name><suffix>`,
+/// `<name><suffix>.1`,
+/// ... in the keep directory (else beside the target).
 /// Why:
-/// The temporary name is removed only after this succeeds, so the inode, with any write an open descriptor still makes to it, keeps a name.
-/// A hard link fails when the name exists, so two runs never share one.
+/// The temporary name is removed only after this succeeds,
+/// so the inode,
+/// with any write an open descriptor still makes to it,
+/// keeps a name.
+/// A hard link fails when the name exists,
+/// so two runs never share one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function preserve(displaced: string, target: string, keep: KeepAs): string  // linkSync(displaced, name) per candidate name
 /// ```
 fn preserve(displaced: &Path, target: &Path, keep: &KeepAs) -> io::Result<PathBuf> {
+    // Typed binding: `base: String`.
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let base: String = file_name_text(target);
+    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+    // Why:      The value is built up or replaced step by step below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let x = ...;   // plain Rust `let` is TS `const`
+    // ```
+    // Typed binding: `directories: Vec<PathBuf>`.
+    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const list: string[] = [];   // or new Set() / new Map()
+    // ```
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let mut directories: Vec<PathBuf> = Vec::new();
+    // `Some`: the present or the absent value of an `Option`.
+    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value !== undefined) { const inner = value; ... }
+    // ```
+    // Borrow `&keep.directory`: lends the value without copying or giving it away.
     if let Some(chosen) = &keep.directory {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         fs::create_dir_all(chosen)?;
+        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // structuredClone(value)  // or [...list] / {...object}
+        // ```
         directories.push(chosen.clone());
     }
     directories.push(parent_of(target));
+    // `let mut`: a binding that may change.
+    // Typed binding: `last_error: io::Error`.
     let mut last_error: io::Error = io::Error::other("no directory to keep the displaced file in");
     for directory in directories {
+        // `let mut`: a binding that may change.
+        // Typed binding: `number: u32`.
         let mut number: u32 = 0;
         loop {
+            // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+            // Typed binding: `name: String`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             let name: String = if number == 0 { format!("{base}{}", keep.suffix) } else { format!("{base}{}.{number}", keep.suffix) };
+            // Typed binding: `candidate: PathBuf`.
             let candidate: PathBuf = directory.join(name);
+            // `match`: picks the arm whose pattern fits the value.
+            // Borrow `&candidate`: lends the value without copying or giving it away.
             match fs::hard_link(displaced, &candidate) {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 Ok(()) => {
+                    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                    // Borrow `&directory`: lends the value without copying or giving it away.
                     sync_directory(&directory)?;
+                    // `Ok(...)`: builds the success or the failure variant of a `Result`.
                     return Ok(candidate);
                 }
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => number += 1,
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 Err(error) => {
                     last_error = error;
                     break;
@@ -287,13 +467,15 @@ fn preserve(displaced: &Path, target: &Path, keep: &KeepAs) -> io::Result<PathBu
             }
         }
     }
+    // `Err(...)`: builds the success or the failure variant of a `Result`.
     return Err(last_error);
 }
 
 /// What:
 /// `pub fn no_hook(_path: &Path)` is the hook that does nothing.
 /// Why:
-/// The real callers have no gap to exercise; a named function passes as `&dyn Fn(&Path)` where a closure would be flagged as avoidable.
+/// The real callers have no gap to exercise;
+/// a named function passes as `&dyn Fn(&Path)` where a closure would be flagged as avoidable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -304,7 +486,8 @@ pub fn no_hook(_path: &Path) {}
 /// What:
 /// `pub fn file_name_text(path: &Path) -> String` is the last component of a path as text (empty when there is none).
 /// Why:
-/// The kept copies are named after the file they stand for, and the messages name them.
+/// The kept copies are named after the file they stand for,
+/// and the messages name them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -319,7 +502,8 @@ pub fn file_name_text(path: &Path) -> String {
 
 /// What:
 /// `pub fn replace_if_holds(path, expected, new_text, between) -> io::Result<ReplaceOutcome>` puts `new_text` in `path` when `path`
-/// holds `expected`, keeping the displaced file next to the target as `<name>.displaced`.
+/// holds `expected`,
+/// keeping the displaced file next to the target as `<name>.displaced`.
 /// Why:
 /// The plain form for the callers and tests that have no keep directory.
 ///
@@ -328,20 +512,24 @@ pub fn file_name_text(path: &Path) -> String {
 /// export function replaceIfHolds(path: string, expected: string, newText: string, between: (path: string) => void): ReplaceOutcome
 /// ```
 pub fn replace_if_holds(path: &Path, expected: &str, new_text: &str, between: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
+    // Borrow `&KeepAs`: lends the value without copying or giving it away.
     return replace_core(path, expected, new_text, &KeepAs::next_to_target(".displaced"), between, &no_hook, &exchange);
 }
 
 /// What:
 /// `pub fn replace_if_holds_with_hooks(path, expected, new_text, between, after_exchange)` is `replace_if_holds` with a second hook
-/// that runs right after the exchange, before the displaced file is read.
+/// that runs right after the exchange,
+/// before the displaced file is read.
 /// Why:
-/// The second gap is where a writer publishes between the swap and the swap back; the hook lets a test publish one there.
+/// The second gap is where a writer publishes between the swap and the swap back;
+/// the hook lets a test publish one there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function replaceIfHoldsWithHooks(path, expected, newText, between, afterExchange): ReplaceOutcome
 /// ```
 pub fn replace_if_holds_with_hooks(path: &Path, expected: &str, new_text: &str, between: &dyn Fn(&Path), after_exchange: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
+    // Borrow `&KeepAs`: lends the value without copying or giving it away.
     return replace_core(path, expected, new_text, &KeepAs::next_to_target(".displaced"), between, after_exchange, &exchange);
 }
 
@@ -349,13 +537,15 @@ pub fn replace_if_holds_with_hooks(path: &Path, expected: &str, new_text: &str, 
 /// `pub fn replace_keeping(path, expected, new_text, keep) -> io::Result<ReplaceOutcome>` is the production form:
 /// the displaced file is kept as `keep` says.
 /// Why:
-/// Rollbacks keep their displaced output in the quarantine; recoveries keep it beside the lockfile as `.refused`.
+/// Rollbacks keep their displaced output in the quarantine;
+/// recoveries keep it beside the lockfile as `.refused`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function replaceKeeping(path: string, expected: string, newText: string, keep: KeepAs): ReplaceOutcome
 /// ```
 pub fn replace_keeping(path: &Path, expected: &str, new_text: &str, keep: &KeepAs) -> io::Result<ReplaceOutcome> {
+    // Borrow `&no_hook`: lends the value without copying or giving it away.
     return replace_core(path, expected, new_text, keep, &no_hook, &no_hook, &exchange);
 }
 
@@ -369,13 +559,15 @@ pub fn replace_keeping(path: &Path, expected: &str, new_text: &str, keep: &KeepA
 /// export function replaceKeepingWithHook(path, expected, newText, keep, between): ReplaceOutcome
 /// ```
 pub fn replace_keeping_with_hook(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, between: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
+    // Borrow `&no_hook`: lends the value without copying or giving it away.
     return replace_core(path, expected, new_text, keep, between, &no_hook, &exchange);
 }
 
 /// What:
 /// `pub fn replace_with_swap(path, expected, new_text, keep, swap)` is the protocol with the swap primitive chosen by the caller.
 /// Why:
-/// A test passes a swap that fails with the error a filesystem without exchange gives, to show that the restore fails visibly
+/// A test passes a swap that fails with the error a filesystem without exchange gives,
+/// to show that the restore fails visibly
 /// and overwrites nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -383,14 +575,20 @@ pub fn replace_keeping_with_hook(path: &Path, expected: &str, new_text: &str, ke
 /// export function replaceWithSwap(path, expected, newText, keep, swap): ReplaceOutcome
 /// ```
 pub fn replace_with_swap(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, swap: &dyn Fn(&Path, &Path) -> io::Result<()>) -> io::Result<ReplaceOutcome> {
+    // Borrow `&no_hook`: lends the value without copying or giving it away.
     return replace_core(path, expected, new_text, keep, &no_hook, &no_hook, swap);
 }
 
 /// What:
 /// `fn replace_core(...) -> io::Result<ReplaceOutcome>` is the protocol:
-/// observe, create the replacement, exchange, check the displaced file, then keep it or undo.
+/// observe,
+/// create the replacement,
+/// exchange,
+/// check the displaced file,
+/// then keep it or undo.
 /// Why:
-/// See the module header for the contract; every step that could drop data keeps a name first.
+/// See the module header for the contract;
+/// every step that could drop data keeps a name first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -399,44 +597,75 @@ pub fn replace_with_swap(path: &Path, expected: &str, new_text: &str, keep: &Kee
 fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, between: &dyn Fn(&Path), after_exchange: &dyn Fn(&Path), swap: &dyn Fn(&Path, &Path) -> io::Result<()>) -> io::Result<ReplaceOutcome> {
     // An unreadable file is an error, never an empty one.
     let first = match observe(path)? {
+        // `Some`: the present or the absent value of an `Option`.
         Some(found) => found,
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
         None => return Ok(ReplaceOutcome::LeftAlone),
     };
     if first.text != expected {
         return Ok(ReplaceOutcome::LeftAlone);
     }
     between(path);
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     let (temporary, replacement_device, replacement_inode) = create_temporary(path, new_text, first.mode)?;
+    // Typed binding: `parent: PathBuf`.
     let parent: PathBuf = parent_of(path);
+    // `Err(...)`: builds the success or the failure variant of a `Result`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // Borrow `&temporary`: lends the value without copying or giving it away.
     if let Err(error) = swap(&temporary, path) {
         // The target vanished: put the replacement there only if nothing has appeared, never over a file.
         if error.kind() == io::ErrorKind::NotFound {
+            // `match`: picks the arm whose pattern fits the value.
+            // Borrow `&temporary`: lends the value without copying or giving it away.
             return match renameat_with(CWD, &temporary, CWD, path, RenameFlags::NOREPLACE) {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 Ok(()) => {
+                    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                    // Borrow `&parent`: lends the value without copying or giving it away.
                     sync_directory(&parent)?;
+                    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                    // `None`: the present or the absent value of an `Option`.
                     Ok(ReplaceOutcome::Replaced(None))
                 }
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 Err(_) => {
+                    // Borrow `&temporary`: lends the value without copying or giving it away.
+                    // `let _ =`: discards the result on purpose.
                     let _ = fs::remove_file(&temporary);
+                    // `Ok(...)`: builds the success or the failure variant of a `Result`.
                     Ok(ReplaceOutcome::LeftAlone)
                 }
             };
         }
         // No exchange here: fail visibly. The replacement is this run's own file and is removed; the target is untouched.
         let _ = fs::remove_file(&temporary);
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         return Err(error);
     }
     after_exchange(path);
     // The temporary name now holds the file that was at `path`; it is read through an open descriptor.
     let displaced_expected: bool = match observe(&temporary) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
         Ok(Some(seen)) => seen.text == expected,
         _ => false,
     };
     if displaced_expected {
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&temporary`: lends the value without copying or giving it away.
         return match preserve(&temporary, path, keep) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(kept) => {
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                // Borrow `&temporary`: lends the value without copying or giving it away.
                 fs::remove_file(&temporary)?;
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                // Borrow `&parent`: lends the value without copying or giving it away.
                 sync_directory(&parent)?;
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // `Some`: the present or the absent value of an `Option`.
                 Ok(ReplaceOutcome::Replaced(Some(kept)))
             }
             // No name could be made: the displaced file stays at the temporary name, reported as kept there.
@@ -445,31 +674,53 @@ fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, betw
     }
     // Another writer's file came out: swap back.
     if swap(&temporary, path).is_err() {
+        // `match`: picks the arm whose pattern fits the value.
+        // Borrow `&temporary`: lends the value without copying or giving it away.
         return match preserve(&temporary, path, keep) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(kept) => {
+                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                // Borrow `&temporary`: lends the value without copying or giving it away.
                 fs::remove_file(&temporary)?;
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 Ok(ReplaceOutcome::Preserved(kept))
             }
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(_) => Ok(ReplaceOutcome::Preserved(temporary)),
         };
     }
     // The temporary name holds what was at `path` after the first exchange: this run's replacement, unless yet another writer published.
     // The inode alone is not enough: a writer that opened the replacement in place keeps its inode but changes its text.
     let own: bool = match observe(&temporary) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
         Ok(Some(seen)) => seen.device == replacement_device && seen.inode == replacement_inode && seen.text == new_text,
         _ => false,
     };
     if own {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&temporary`: lends the value without copying or giving it away.
         fs::remove_file(&temporary)?;
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Borrow `&parent`: lends the value without copying or giving it away.
         sync_directory(&parent)?;
         return Ok(ReplaceOutcome::LeftAlone);
     }
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&temporary`: lends the value without copying or giving it away.
     return match preserve(&temporary, path, keep) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(kept) => {
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Borrow `&temporary`: lends the value without copying or giving it away.
             fs::remove_file(&temporary)?;
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Borrow `&parent`: lends the value without copying or giving it away.
             sync_directory(&parent)?;
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             Ok(ReplaceOutcome::Preserved(kept))
         }
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(_) => Ok(ReplaceOutcome::Preserved(temporary)),
     };
 }

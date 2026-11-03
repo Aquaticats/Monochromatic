@@ -63,6 +63,7 @@ fn repository(head: &str, config: &str) -> (tempfile::TempDir, PathBuf) {
     // value ?? fallback
     // ```
     fs::create_dir_all(dot_git.join("refs/heads")).expect("refs");
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(dot_git.join("objects")).expect("objects");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(dot_git.join("HEAD"), head).expect("head");
@@ -73,7 +74,8 @@ fn repository(head: &str, config: &str) -> (tempfile::TempDir, PathBuf) {
     return (root, path);
 }
 
-/// A layout over a directory that has no files; the lookups of these tests read only the configuration.
+/// A layout over a directory that has no files;
+/// the lookups of these tests read only the configuration.
 fn layout_of(_config: &crate::git_config::ParsedConfig) -> GitLayout {
     return GitLayout { git_dir: PathBuf::from("/nonexistent/git"), common_dir: PathBuf::from("/nonexistent/git") };
 }
@@ -300,6 +302,7 @@ fn a_linked_worktree_finds_its_head_in_its_own_directory_and_the_rest_in_the_com
     let linked: PathBuf = root.path().join("linked");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(common.join("refs/heads")).expect("common");
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(common.join("objects")).expect("objects");
     // Borrow `&own`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -311,6 +314,7 @@ fn a_linked_worktree_finds_its_head_in_its_own_directory_and_the_rest_in_the_com
     fs::write(common.join("config"), "").expect("config");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(own.join("HEAD"), "ref: refs/heads/topic\n").expect("head");
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(common.join("HEAD"), "ref: refs/heads/main\n").expect("common head");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(own.join("commondir"), "../..\n").expect("commondir");

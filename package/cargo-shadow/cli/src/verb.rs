@@ -217,14 +217,47 @@ pub fn words_before_double_dash(arguments: &[OsString]) -> Vec<String> {
 /// ```
 pub fn find_verb(arguments: &[OsString]) -> Option<String> {
     let words: Vec<String> = words_before_double_dash(arguments);
+    // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
+    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (a, b) => body
+    // ```
+    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+    // ```
+    // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+    // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+    // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // structuredClone(value)  // or [...list] / {...object}
+    // ```
+    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
+    // Why:      They express one step of a pipeline without an index loop.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // list.map(f).filter(g)
+    // ```
     return find_verb_position(&words).map(|position| { return words[position].clone(); });
 }
 
 /// What:
 /// `pub fn find_verb_position(words: &[String]) -> Option<usize>` returns the index of the command word in the words before `--`.
 /// Why:
-/// Review finding (2c 10): matching the verb by its text finds an option value that spells the same word
-/// (`cargo --config update update`); the position skips each value option's value, so the real command word is the one found.
+/// Review finding (2c 10):
+/// matching the verb by its text finds an option value that spells the same word
+/// (`cargo --config update update`);
+/// the position skips each value option's value,
+/// so the real command word is the one found.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -245,6 +278,14 @@ pub fn find_verb_position(words: &[String]) -> Option<usize> {
             }
             continue;
         }
+        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+        // Why:      Absence is a value the caller must check; there is no `null`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Some(value) is  value
+        // // None        is  undefined
+        // ```
         return Some(index);
     }
     return None;

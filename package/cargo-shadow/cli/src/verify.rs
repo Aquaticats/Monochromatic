@@ -38,7 +38,9 @@
 //! not here.
 //! A remembered pass is keyed by a scope string as well
 //! (the install mode,
-//! and for `trustLockfile = true` the resolved base identity the caller supplies: a commit, or `unresolved:<spelling>`),
+//! and for `trustLockfile = true` the resolved base identity the caller supplies:
+//! a commit,
+//! or `unresolved:<spelling>`),
 //! so a pass under one mode,
 //! policy or base is never taken for a pass under another.
 //!
@@ -307,14 +309,32 @@ pub fn mark_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, 
 /// export async function verifyLockedEntries(args): Promise<string[]>
 /// ```
 pub fn verify_locked_entries(root: &Path, snapshots: &[LockSnapshot], settings: &Settings, registry: &dyn Registry, now: i64) -> Result<Vec<String>, String> {
+    // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+    // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // Ok(value)  is  return value;
+    // // Err(error) is  throw error;   (the caller sees it as a returned value)
+    // ```
+    // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+    // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+    // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const value = await expr;   // throws to the caller on failure
+    // ```
     return Ok(verify_locked_entries_outcome(root, snapshots, settings, registry, now)?.problems);
 }
 
 /// What:
 /// `pub fn verify_locked_entries_outcome(...) -> Result<CheckOutcome, String>` is `verify_locked_entries` with the release-age warnings.
 /// Why:
-/// Review finding (2c 8): a young release that the non-strict release age allows must still be reported on the frozen path,
-/// and a pass that carries a warning is not remembered, so the warning is shown again.
+/// Review finding (2c 8):
+/// a young release that the non-strict release age allows must still be reported on the frozen path,
+/// and a pass that carries a warning is not remembered,
+/// so the warning is shown again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -326,6 +346,13 @@ pub fn verify_locked_entries_outcome(
     settings: &Settings,
     registry: &dyn Registry,
     now: i64,
+// What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+// Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // TS has one type for this: string
+// ```
 ) -> Result<CheckOutcome, String> {
     let mut pending: Vec<&LockSnapshot> = Vec::new();
     for snapshot in snapshots {
@@ -334,17 +361,36 @@ pub fn verify_locked_entries_outcome(
         }
     }
     if pending.is_empty() {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(CheckOutcome::default());
     }
     let sources: Vec<String> = pending.iter().copied().map(LockSnapshot::source_text).collect();
     let versions: Vec<LockedVersion> = registry_versions(&sources)?;
     eprintln!("cargo-shadow: verifying {} locked versions from {} lockfiles", versions.len(), pending.len());
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+    // ```
+    // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
+    // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { ... } catch (error) { throw new MyError(String(error)); }
+    // ```
+    // Typed binding: `outcome: CheckOutcome`.
     let outcome: CheckOutcome = check_policy(&versions, settings, registry, now).map_err(message_of)?;
     if outcome.problems.is_empty() && outcome.warnings.is_empty() {
         for snapshot in pending {
             mark_verified(root, snapshot, settings, ALL_ENTRIES_SCOPE);
         }
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(outcome);
 }
 
@@ -377,23 +423,49 @@ pub fn verify_added_since_base(
     registry: &dyn Registry,
     now: i64,
 ) -> Result<Vec<String>, String> {
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     return Ok(verify_added_since_base_outcome(snapshots, read_base_lock, settings, registry, now)?.problems);
 }
 
 /// What:
 /// `pub fn verify_added_since_base_outcome(...) -> Result<CheckOutcome, String>` is `verify_added_since_base` with the release-age warnings.
 /// Why:
-/// The same as `verify_locked_entries_outcome`, for the versions new since the base.
+/// The same as `verify_locked_entries_outcome`,
+/// for the versions new since the base.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export async function verifyAddedSinceBaseOutcome(args): Promise<CheckOutcome>
 /// ```
 pub fn verify_added_since_base_outcome(
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     snapshots: &[LockSnapshot],
+    // Borrow `&str`: lends the value without copying or giving it away.
+    // What:     `&dyn Trait` is a borrowed value of any type that implements the trait (a TS interface type); the call goes through a lookup table at run time.
+    // Why:      The caller may pass the real implementation or a test fake.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // function f(registry: Registry) { ... }  // an interface type
+    // ```
     read_base_lock: &dyn Fn(&str) -> String,
     settings: &Settings,
+    // `dyn` trait object `dyn Registry`: any type that implements the trait.
     registry: &dyn Registry,
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
     now: i64,
 ) -> Result<CheckOutcome, String> {
     let mut base_sources: Vec<String> = Vec::new();
@@ -404,7 +476,10 @@ pub fn verify_added_since_base_outcome(
     let versions: Vec<LockedVersion> = added_versions(&base_sources, &current)?;
     eprintln!("cargo-shadow: verifying {} versions newly locked since the base from {} lockfiles", versions.len(), snapshots.len());
     if versions.is_empty() {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(CheckOutcome::default());
     }
+    // Borrow `&versions`: lends the value without copying or giving it away.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
     return check_policy(&versions, settings, registry, now).map_err(message_of);
 }

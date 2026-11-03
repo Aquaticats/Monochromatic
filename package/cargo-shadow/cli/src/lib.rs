@@ -60,6 +60,10 @@ pub mod journal;
 /// The atomic compare-and-replace of one file (an exchange that is undone when another writer's file came out).
 pub mod journal_replace;
 
+/// The recovery of a run that was killed,
+/// split out of `journal.rs`.
+pub mod journal_recover;
+
 /// The transaction around the manifests that cargo's `update --breaking` rewrites.
 pub mod manifest_edit;
 
@@ -80,7 +84,9 @@ pub mod git_config;
 /// branch configuration and references that chooses the trust base without Git.
 pub mod git_refs;
 
-/// The check, from the object files, that an object name in a reference names a commit.
+/// The check,
+/// from the object files,
+/// that an object name in a reference names a commit.
 pub mod git_objects;
 
 /// The fetch refspecs of a remote and the mapping of a branch's merge reference through them.
@@ -106,6 +112,9 @@ pub mod install;
 /// The helpers of the install that decide which policy checks a lockfile still needs,
 /// split out of `install.rs`.
 pub mod install_verify;
+
+/// The error of an install and the classification of failures into it.
+pub mod install_error;
 
 /// Replaces refused new versions with the newest older release that passes.
 pub mod set_aside;
@@ -289,7 +298,8 @@ mod git_base_tests;
 #[cfg(test)]
 mod git_config_tests;
 
-/// The differential tests of the plain-file base reader, with Git as the oracle.
+/// The differential tests of the plain-file base reader,
+/// with Git as the oracle.
 #[cfg(test)]
 mod git_differential_tests;
 

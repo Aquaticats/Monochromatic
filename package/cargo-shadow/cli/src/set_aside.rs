@@ -100,7 +100,8 @@ use crate::crates::{LockSnapshot, read_locks};
 /// Imports `run_recording`,
 /// which runs a child and records the lockfile this run's cargo wrote.
 use crate::journal::run_recording;
-/// Imports `Claim`, what the ownership evidence says about a file a child wrote.
+/// Imports `Claim`,
+/// what the ownership evidence says about a file a child wrote.
 use crate::file_owner::Claim;
 /// What:
 /// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
@@ -603,7 +604,11 @@ fn move_crate(request: &SetAsideRequest, crate_dir: &str, refused: &TrustRefusal
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&request.root.join`: lends the value without copying or giving it away.
         let (ran, _claim): (Result<crate::cargo_run::CargoOutcome, String>, Claim) =
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Borrow `&request.root.join`: lends the value without copying or giving it away.
+            // `.map_err(...)`: converts the callee's error into this function's error type.
             run_recording(request.root, crate_dir, request.produced, || { return request.runner.run(&request.root.join(crate_dir), &args); }).map_err(text_of)?;
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         let outcome = ran?;
         if outcome.ok {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.

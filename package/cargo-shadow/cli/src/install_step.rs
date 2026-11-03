@@ -209,7 +209,8 @@ pub enum StepOutcome {
         /// The registry versions newly locked.
         added: Vec<LockedVersion>,
     },
-    /// The policy refuses a release (a local run found no older release in range that passes, a frozen check does not look for one),
+    /// The policy refuses a release (a local run found no older release in range that passes,
+    /// a frozen check does not look for one),
     /// a registry the policy cannot judge is locked,
     /// or a lockfile this run's cargo wrote could not be put back:
     /// the caller must not run the user's command.

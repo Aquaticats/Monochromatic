@@ -554,12 +554,25 @@ fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_wr
     // (A writer that publishes inside the very window of a child's own run cannot be told from the child by any observation after
     // the fact; `file_owner_tests.rs` covers the attribution rule itself.)
     let world = world(&lock_with("0.9.0"), "");
+    // Typed binding: `second_dir: PathBuf`.
     let second_dir: PathBuf = world.root.path().join("package/u/two");
+    // Borrow `&second_dir`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(&second_dir).expect("second crate dir");
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(second_dir.join("Cargo.lock"), lock_with("0.9.0")).expect("second lock");
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `dirs: Vec<String>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let dirs: Vec<String> = vec![CRATE_DIR.to_string(), "package/u/two".to_string()];
+    // Typed binding: `foreign: PathBuf`.
     let foreign: PathBuf = second_dir.join("Cargo.lock");
     let cargo = move |_cwd: &Path, _args: &[String]| -> Result<CargoOutcome, String> {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // Borrow `&foreign`: lends the value without copying or giving it away.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         fs::write(&foreign, "published by another writer meanwhile").map_err(|error| { return error.to_string(); })?;
         return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
     };
@@ -581,7 +594,11 @@ fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_wr
     let result = update_rust_lockfiles(&request, &UpdateKind::Full);
 
     assert!(result.is_err());
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(second_dir.join("Cargo.lock")).expect("read"), "published by another writer meanwhile");
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }
 
@@ -1241,18 +1258,34 @@ fn a_sync_failure_after_the_catalog_write_restores_the_catalog_the_manifests_and
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }
 
-/// Review finding (2c 3): `cargo update -p foo --precise 1.0.1` leaves the lockfile unchanged when `foo@1.0.1` is already locked.
-/// The requested release is still held to the policy; the old check looked only at what the command added.
+/// Review finding (2c 3):
+/// `cargo update -p foo --precise 1.0.1` leaves the lockfile unchanged when `foo@1.0.1` is already locked.
+/// The requested release is still held to the policy;
+/// the old check looked only at what the command added.
 #[test]
 fn an_unchanged_precise_target_that_the_policy_refuses_is_still_refused() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("1.0.1"), "");
+    // Typed binding: `cargo: FakeCargo`.
     let cargo: FakeCargo = cargo_resolving("");
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "--package", "dep@1.0.1", "--precise", "1.0.1"].iter().map(|argument| { return argument.to_string(); }).collect();
 
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = run(&world, &settings(), &cargo, &registry, false, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.written, "an unchanged but refused release was accepted");
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(report.problems.len(), 1, "{:?}", report.problems);
 }
 
@@ -1263,22 +1296,46 @@ struct ConcurrentCatalogSyncer {
 
 impl Syncer for ConcurrentCatalogSyncer {
     fn sync(&self, _root: &Path) -> Result<String, String> {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // Borrow `&self.catalog`: lends the value without copying or giving it away.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         fs::write(&self.catalog, "# edited by a person while the sync ran\n").map_err(|error| { return error.to_string(); })?;
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err("could not start file-enforcer".to_string());
     }
 }
 
-/// Review finding (2c 6): the rollback of a failed sync must not write the old catalog over an edit made meanwhile.
+/// Review finding (2c 6):
+/// the rollback of a failed sync must not write the old catalog over an edit made meanwhile.
 #[test]
 fn a_catalog_edited_during_a_failing_sync_keeps_the_edit() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), "[catalog]\ndep = \">=0.9.0\"\n");
+    // Typed binding: `directory: PathBuf`.
     let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
     let cargo = cargo_that_edits_the_manifest(directory);
+    // Typed binding: `trusted: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let trusted: Vec<VersionRecord> = vec![trusted_publish("0.9.0", "2026-01-01T00:00:00Z"), trusted_publish("1.0.1", "2026-02-01T00:00:00Z")];
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), trusted)]) };
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    // `.clone()`: an independent owned copy.
+    // Typed binding: `syncer: ConcurrentCatalogSyncer`.
     let syncer: ConcurrentCatalogSyncer = ConcurrentCatalogSyncer { catalog: world.catalog.clone() };
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -1293,35 +1350,66 @@ fn a_catalog_edited_during_a_failing_sync_keeps_the_edit() {
         prune_catalog: false,
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.written);
+    // Borrow `&world.catalog`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(&world.catalog).expect("catalog"), "# edited by a person while the sync ran\n");
 }
 
-/// A syncer that rewrites a manifest and then fails, the way a partial `file-enforcer write` can.
+/// A syncer that rewrites a manifest and then fails,
+/// the way a partial `file-enforcer write` can.
 struct PartialSyncer {
     manifest: PathBuf,
 }
 
 impl Syncer for PartialSyncer {
     fn sync(&self, _root: &Path) -> Result<String, String> {
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // Borrow `&self.manifest`: lends the value without copying or giving it away.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
         fs::write(&self.manifest, "# rendered by a sync that then failed\n").map_err(|error| { return error.to_string(); })?;
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err("file-enforcer write failed halfway".to_string());
     }
 }
 
-/// Review finding (2c 11): what a failing sync wrote to the manifests is part of the transaction and goes back with it.
+/// Review finding (2c 11):
+/// what a failing sync wrote to the manifests is part of the transaction and goes back with it.
 #[test]
 fn a_manifest_a_failing_sync_rewrote_goes_back_with_the_transaction() {
+    // Borrow `&lock_with`: lends the value without copying or giving it away.
     let world = world(&lock_with("0.9.0"), "[catalog]\ndep = \">=0.9.0\"\n");
+    // Typed binding: `directory: PathBuf`.
     let directory: PathBuf = world.root.path().join(CRATE_DIR);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(directory.join("Cargo.toml"), OLD_REQUIREMENT_MANIFEST).expect("manifest");
+    // `.clone()`: an independent owned copy.
     let cargo = cargo_that_edits_the_manifest(directory.clone());
+    // Typed binding: `trusted: Vec<VersionRecord>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let trusted: Vec<VersionRecord> = vec![trusted_publish("0.9.0", "2026-01-01T00:00:00Z"), trusted_publish("1.0.1", "2026-02-01T00:00:00Z")];
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `registry: FakeRegistry`.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), trusted)]) };
+    // Closure `|argument|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `args: Vec<String>`.
     let args: Vec<String> = ["update", "--breaking"].iter().map(|argument| { return argument.to_string(); }).collect();
+    // Typed binding: `syncer: PartialSyncer`.
     let syncer: PartialSyncer = PartialSyncer { manifest: directory.join("Cargo.toml") };
+    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
         crate_dirs: &world.dirs,
@@ -1336,8 +1424,13 @@ fn a_manifest_a_failing_sync_rewrote_goes_back_with_the_transaction() {
         prune_catalog: false,
     };
 
+    // Borrow `&request`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(!report.written);
+    // Borrow `&world`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(manifest_of(&world), OLD_REQUIREMENT_MANIFEST, "the manifest kept what the failed sync wrote");
 }

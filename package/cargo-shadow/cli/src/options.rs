@@ -229,6 +229,16 @@ fn short_option_value(words: &[String], name: &str) -> Option<String> {
         if let Some(attached) = words[index].strip_prefix(name)
             && !attached.is_empty()
         {
+            // `Some`: the present or the absent value of an `Option`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+            // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+            // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // value ?? fallback
+            // ```
             found = Some(attached.strip_prefix('=').unwrap_or(attached).to_string());
         }
         index += 1;

@@ -332,13 +332,20 @@ fn a_row_over_the_field_bound_is_refused() {
     assert!(read_all(&text).is_err());
 }
 
-/// Review finding (2b 11): many fields that each stay under the field bound still must not add up to a row the process cannot hold.
+/// Review finding (2b 11):
+/// many fields that each stay under the field bound still must not add up to a row the process cannot hold.
 #[test]
 fn a_row_whose_fields_add_up_over_the_row_budget_is_refused() {
+    // Typed binding: `field: String`.
     let field: String = "x".repeat(crate::csv::MAX_FIELD_BYTES);
+    // Typed binding: `text: String`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let text: String = format!("a,b,c\n\"{field}\",\"{field}\",y\n");
 
-    assert!(crate::csv::MAX_ROW_BYTES < 2 * crate::csv::MAX_FIELD_BYTES + 1);
+    // Macro `assert!`: builds or prints text (or a list) from a template.
+    const { assert!(crate::csv::MAX_ROW_BYTES < 2 * crate::csv::MAX_FIELD_BYTES + 1) };
+    // Borrow `&text`: lends the value without copying or giving it away.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(read_all(&text).is_err());
 }
 

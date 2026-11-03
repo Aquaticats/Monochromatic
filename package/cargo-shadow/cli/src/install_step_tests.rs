@@ -532,71 +532,166 @@ fn a_frozen_policy_refusal_stops_the_command_and_a_frozen_stale_lock_does_not() 
     assert!(matches!(step(&start, true, &runner, &downgrading_registry()), StepOutcome::Failed(_)));
 }
 
-/// Review finding (2c 1): a cargo that wrote a lockfile and then failed leaves the lockfile behind. The rollback must put the
-/// original back; when it cannot, the step must stop the command, because `--locked` would build the unapproved output.
+/// Review finding (2c 1):
+/// a cargo that wrote a lockfile and then failed leaves the lockfile behind.
+/// The rollback must put the
+/// original back;
+/// when it cannot,
+/// the step must stop the command,
+/// because `--locked` would build the unapproved output.
 #[test]
 fn a_restore_that_cannot_complete_stops_the_command_instead_of_building_the_unrestored_lockfile() {
     use std::os::unix::fs::PermissionsExt;
+    // Typed binding: `young: String`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let young: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
+    // `.clone()`: an independent owned copy.
     let directory = start.clone();
+    // `.clone()`: an independent owned copy.
     let written = young.clone();
     // A cargo that writes the new lockfile, makes the directory unwritable (so no restore can be made) and exits with an error.
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
+        // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // (a, b) => body
+        // ```
+        // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
+        // Why:      The collection stays usable after the walk and no item is copied until it must be.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // for (const item of list) { ... }  // or list.map(...)
+        // ```
         if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
         }
         if arguments[0] == "update" {
+            // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+            // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+            // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const value = await expr;   // throws to the caller on failure
+            // ```
+            // Closure `|error|`: an anonymous function, like a TS arrow function.
+            // Borrow `&written`: lends the value without copying or giving it away.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
+            // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // try { ... } catch (error) { throw new MyError(String(error)); }
+            // ```
             fs::write(cwd.join("Cargo.lock"), &written).map_err(|error| { return error.to_string(); })?;
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Closure `|error|`: an anonymous function, like a TS arrow function.
+            // Borrow `&directory`: lends the value without copying or giving it away.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // `.map_err(...)`: converts the callee's error into this function's error type.
             fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).map_err(|error| { return error.to_string(); })?;
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             return Ok(CargoOutcome { ok: false, output: "failed after writing".to_string(), stdout: String::new() });
         }
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // Constructor `String::new()`: an empty owned collection or a boxed value.
         return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
     };
 
+    // `None`: the present or the absent value of an `Option`.
+    // Borrow `&StepRequest`: lends the value without copying or giving it away.
     let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+    // Borrow `&start`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::set_permissions(&start, fs::Permissions::from_mode(0o755)).expect("make the directory writable again");
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the unrestored lockfile: {outcome:?}");
 }
 
-/// Review finding (2c 1, the restorable case): the original is back and the failure is operational.
+/// Review finding (2c 1,
+/// the restorable case):
+/// the original is back and the failure is operational.
 #[test]
 fn a_cargo_that_wrote_a_lockfile_and_failed_has_its_output_rolled_back() {
+    // Typed binding: `young: String`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let young: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        // Closure `|argument|`: an anonymous function, like a TS arrow function.
+        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
         }
         if arguments[0] == "update" {
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Closure `|error|`: an anonymous function, like a TS arrow function.
+            // Borrow `&young`: lends the value without copying or giving it away.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // `.map_err(...)`: converts the callee's error into this function's error type.
             fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             return Ok(CargoOutcome { ok: false, output: "failed after writing".to_string(), stdout: String::new() });
         }
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // Constructor `String::new()`: an empty owned collection or a boxed value.
         return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
     };
 
+    // `None`: the present or the absent value of an `Option`.
+    // Borrow `&StepRequest`: lends the value without copying or giving it away.
     let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(outcome, StepOutcome::Failed(_)), "{outcome:?}");
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), STALE);
 }
 
-/// Review finding (2c 2, end to end): a lockfile from a registry other than crates.io is a refusal that stops the command,
+/// Review finding (2c 2,
+/// end to end):
+/// a lockfile from a registry other than crates.io is a refusal that stops the command,
 /// not a parse problem that the shim answers with a build.
 #[test]
 fn a_package_from_an_unsupported_registry_stops_the_command() {
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `other: String`.
     let other: String = "# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.0\"\nsource = \"registry+https://registry.example.invalid/index\"\n".to_string();
+    // Borrow `&other`: lends the value without copying or giving it away.
     let root = repository(&other);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    // Borrow `&other`: lends the value without copying or giving it away.
+    // Typed binding: `runner: FakeCargo`.
     let runner: FakeCargo = cargo(&other);
     let start = root.path().join(CRATE_DIR);
 
+    // Borrow `&start`: lends the value without copying or giving it away.
     let local = step(&start, false, &runner, &registry());
+    // Borrow `&start`: lends the value without copying or giving it away.
     let frozen = step(&start, true, &runner, &registry());
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(local, StepOutcome::Refused(_)), "local: {local:?}");
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(frozen, StepOutcome::Refused(_)), "frozen: {frozen:?}");
 }
