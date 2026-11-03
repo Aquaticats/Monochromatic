@@ -477,9 +477,9 @@ Build and publication (lane)
   ends `conflicted`, the conflict tree is saved on `refs/cli-git/<instance>/conflict/<id>` best effort and the spool is kept, its consumption entries are
   released (nothing was installed, so the staging stays the person's), the client result is nonzero with the conflicting paths named, and the request is
   saved until the person disposes of it with the command the message names; (ii) `refused`: a required clean filter or a hook failed, the owner's "Allowed
-  refusals": the request ends `refused` with the program's own message, entries released, nonzero, nothing changed; (iii) `sign-pending`: the configured
-  signer failed (an outside cause): the request is `pending` with `resume = B1`, class `signer`, the entries kept, the work stays on disk, the result is
-  nonzero with a clear message, and the next command of the lane (Q1) tries the signer again; (iv) `held`: a hook is configured for the build and the
+  refusals": the request ends `refused` with the program's own message, entries released, nonzero, nothing changed; (iii) `sign-failed`: the configured
+  signer failed (an outside cause): with a client attached the request waits for the signer to recover within FOREGROUND (a trigger is the next try), then is
+  withdrawn by W1 naming the signer, with the work on disk; with no client it is `pending` with `resume = B1`; (iv) `held`: a hook is configured for the build and the
   request has no `hook-ok` for its identity: spawn it under L6 through a runner (below); the request has no commit, is not in the logical tail,
   and keeps its consumption entries; (v) `ready`: record `ready <id> <attempt> <commit> <base>` where `commit` is the built object and `base` the tip
   it was replayed on (the object is in the spool closure and the record names it). Crash: before the S1 replacement the build is repeated (an object
@@ -520,11 +520,12 @@ Build and publication (lane)
 - Q1 resume a pending, landing or deferred request, by its `resume` point (revision 10; R9-10). Every request that waits records, in the S1 replacement
   that makes it wait, a `resume` value: `B1` (a commit or conclusion waiting for the branch or for a signer), `MG1` (a merge waiting on staged paths
   or a moved tip before anything was written), `MG2` (a merge waiting on a foreign `index.lock` before the checkout), `MG4` (a merge checked out and
-  waiting on the swap), `M1` (a published request whose index follow-up is deferred). Pre: a trigger holds: the lane observed the branch tip differ from
+  waiting on the swap), `MG4n` (publish a merge without a checkout), `MG5` (retarget waiting on staged paths), `MG6` (a restoration waiting for `index.lock`), `M1` (a published request
+  whose index follow-up is deferred). A request whose decision is `withdraw` is never dispatched (W2). Pre: a trigger holds: the lane observed the branch tip differ from
   the request's `base`, or a branch lock or `index.lock` was observed free (a stat and a read of the tip, no more), or the index entry of a waiting path
   changed, or a client captured or the next command of the lane arrived and found such a request. Do: dispatch on `resume` only. `B1`: in one S1
   replacement set `base` to the then-tip, increment `attempt`, discard the old `ready` record, and re-enter B1 (with `hook-ok` kept, so no hook is
-  re-run); P1 follows from `ready`. `MG1`, `MG2`: re-enter that transition. `MG4`: if the tip is unchanged re-enter MG4, else MG5. `M1`: re-enter M1.
+  re-run); P1 follows from `ready`. `MG1`, `MG2`: re-enter that transition. `MG4`: if the tip is unchanged re-enter MG4, else MG5. `MG4n`, `MG5`, `MG6`: re-enter that transition. `M1`: re-enter M1.
   The durable update is the replacement. Crash: the old record stays valid until the replacement is renamed, so a crash leaves the old state or the
   new one.
 - E1 classify a P2 exit (revision 11; R10-10 replaces the stderr text with Git's own channels). Pre: P2's child ended, or `prepare` returned, while this incarnation
@@ -880,8 +881,8 @@ accepted.
 - The lane is the only writer, so there is no allocator to go obsolete.
 
 Capture consistency: C1 and rule S of the state machine (revision 9 replaces the seqlock). All capture-visible lane state is one document
-replaced atomically; the generation is odd only while a marker is set around an effect outside the document (the index replacement of M1, the
-recovery of L4); an interrupted writer is completed or rolled back by L4, and C0 routes a client out of a dead odd generation. Foreign writers of refs and the
+replaced atomically; the marker, not the parity of a generation, is set only around an effect outside the document (the index replacement of M1, the
+recovery of L4); an interrupted writer is completed or rolled back by L4, and C0 routes a client out of a dead marker. Foreign writers of refs and the
 index do not take part, so C1 re-reads the tip and the index entries it used; a foreign change that leaves them as read is undetectable and
 is not claimed.
 
@@ -1071,7 +1072,7 @@ the lane tries `index.lock` once after the publication, never before it and neve
 across a hook that waits for ever), applies the attachment guard, applies the entry rule, and renames the new index over the old. The earlier
 two-path design (an immediate critical section around the swap, and a deferred follow-up) is withdrawn: the immediate path skipped the
 attachment guard, and its only benefit, no index writer between the publication and its materialization, is exactly the by-value concession
-the owner accepted in decision 2. Publication never waits for `index.lock` and never fails for it. The generation is odd only while the
+the owner accepted in decision 2. Publication never waits for `index.lock` and never fails for it. The marker is set only while the
 index file is being replaced, which is local and short.
 
 Per-path supersession.
@@ -1171,7 +1172,7 @@ No wait below is called designed out.
 
 Guaranteed to complete, with no wait on another program and no cap or count:
 - acceptance: local reads and fsynced writes in the worktree's own directory and the common directory, no ref write, no wait on a
-  program or on a foreign lock; it may wait for the lane's short state updates (an odd generation never spans a person's program or a
+  program or on a foreign lock; it may wait for the lane's short state updates (a set marker never spans a person's program or a
   foreign lock); failures are the owner's outside causes (a full disk, I/O errors);
 - the answer after a crash or a long stop (a resend returns the record's state or the permanent ledger's outcome);
 - retention of everything the request needs until its ledger line is durable, and permanently for anything promised as saved.
@@ -2246,9 +2247,9 @@ The models must not assume: an observable `reflog_intact` boolean with no implem
 identity-check-and-pathname-removal (none exists on Linux); that a quiet owner must be unhealthy; that all protected-program capabilities are already
 classified correctly (the eligibility table is verified per exact invocation, including merge drivers, conversions, signing and helpers).
 
-Properties to check at minimum (revision 10 corrects the second: a perfect health classifier is not assumed, because the approved quiet-interval
+Properties to check at minimum (revision 11 restates the second and the third; revision 10 corrected the second: a perfect health classifier is not assumed, because the approved quiet-interval
 heuristic can target healthy but unusually quiet work, so the checkable properties concern incarnation identity, gate admission and protected
-executions): no foreign lock is removed; no process of a live incarnation other than the one an acquirer has proved dead is ended, and no incarnation is ended while a protected execution holds the gate; a protected running program is not cancelled;
+executions): no foreign lock is removed; L2 ends only the scope of the recorded previous incarnation whose ownership has ended (the lock was acquired), L7 ends only the validated current incarnation after it holds the gate exclusively and has re-read the incarnation record, neither ever targets a replacement incarnation or an incarnation whose scope contains a protected execution it did not prove ended, and the protected-execution guarantee and its owner-death exceptions (the L2 reap, the hook rerun of B1) are stated and checked as a separate property; a protected running program is not cancelled;
 every accepted identity stays recoverable to its immutable request or terminal outcome; no recovery copy is released while relevant destructive
 execution can still occur; stale index entries are not silently reintroduced into unrelated commits; a superseded version cannot publish. Liveness is
 stated with its fairness assumptions and is not made to pass by assuming that every gate holder, hook, child or owner eventually completes.
