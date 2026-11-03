@@ -1147,10 +1147,10 @@ then can rebuild the font list and force a global reflow.
 asserts that font-list reinitialization runs on the main thread.
 
 Current first-party fontconfig source:
-<https://gitlab.freedesktop.org/fontconfig/fontconfig/-/blob/b6cf4b270c42b13347a4012cdceb9bbc3d2e8f32/src/fcinit.c#L303>
+<https://github.com/fontconfig/fontconfig/blob/b6cf4b270c42b13347a4012cdceb9bbc3d2e8f32/src/fcinit.c#L303>
 checks the rescan interval and calls `FcConfigUptoDate`,
 then `FcInitReinitialize` when stale.
-<https://gitlab.freedesktop.org/fontconfig/fontconfig/-/blob/b6cf4b270c42b13347a4012cdceb9bbc3d2e8f32/src/fccfg.c#L253>
+<https://github.com/fontconfig/fontconfig/blob/b6cf4b270c42b13347a4012cdceb9bbc3d2e8f32/src/fccfg.c#L253>
 shows `FcConfigNewestFile` issuing `FcStat` across config files,
 config directories,
 font directories,
@@ -1179,11 +1179,11 @@ Lines 1413 to 1415 and 1454 to 1477
 synchronously set `gtk-theme-name` and/or `gtk-application-prefer-dark-theme`.
 
 Current GTK `gtk-3-24` source confirms the external boundary:
-<https://gitlab.gnome.org/GNOME/gtk/-/blob/bac4a949b151eedada8bc60a97429d2176b0b28b/gtk/gtksettings.c#L2154>
+<https://github.com/GNOME/gtk/blob/bac4a949b151eedada8bc60a97429d2176b0b28b/gtk/gtksettings.c#L2154>
 routes these property notifications to `settings_update_theme`;
 line 3321 calls `_gtk_css_provider_load_named`,
 then probes and may load per-theme `settings.ini`.
-<https://gitlab.gnome.org/GNOME/gtk/-/blob/bac4a949b151eedada8bc60a97429d2176b0b28b/gtk/gtkcssprovider.c#L2123>
+<https://github.com/GNOME/gtk/blob/bac4a949b151eedada8bc60a97429d2176b0b28b/gtk/gtkcssprovider.c#L2123>
 first checks built-in resources;
 the external-theme branch probes theme directories,
 loads `gtk.gresource`,
