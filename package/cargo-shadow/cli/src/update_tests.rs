@@ -149,7 +149,7 @@ fn lock_of(world: &World) -> String {
     return fs::read_to_string(world.root.path().join(CRATE_DIR).join("Cargo.lock")).expect("read the lock");
 }
 
-fn run(world: &World, catalog_settings: &Settings, cargo: &FakeCargo, registry: &FakeRegistry, dry_run: bool, kind: &UpdateKind) -> Result<UpdateReport, UpdateError> {
+fn run(world: &World, catalog_settings: &Settings, cargo: &FakeCargo, registry: &dyn Registry, dry_run: bool, kind: &UpdateKind) -> Result<UpdateReport, UpdateError> {
     return update_rust_lockfiles(
         &UpdateRequest {
             root: world.root.path(),
@@ -437,4 +437,133 @@ fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_wr
 
     assert!(result.is_err());
     assert_eq!(lock_of(&world), "published by another writer meanwhile");
+}
+
+fn token_publish(num: &str, created_at: &str) -> VersionRecord {
+    return record(num, created_at, "9", "");
+}
+
+fn trusted_publish(num: &str, created_at: &str) -> VersionRecord {
+    return record(num, created_at, "", "o/r");
+}
+
+fn set_aside_outcome(history: Vec<VersionRecord>, resolved_version: &str, catalog_settings: &Settings) -> (UpdateReport, String) {
+    let world = world(&lock_with("0.9.0"), "");
+    let cargo: FakeCargo = cargo_resolving(&lock_with(resolved_version));
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
+
+    let report = run(&world, catalog_settings, &cargo, &registry, false, &UpdateKind::Full).expect("reports");
+
+    return (report, lock_of(&world));
+}
+
+/// Review finding (caret class as boundary): the manifest requires `>=1.0.0`, the selected `2.0.0` is refused, and `1.9.9`
+/// passes. The replacement boundary is what the manifest allows, which cargo checks on `--precise`, not the caret class of
+/// the refused version.
+#[test]
+fn a_refused_release_may_be_replaced_by_an_older_release_of_an_earlier_major_version() {
+    let history: Vec<VersionRecord> = vec![
+        trusted_publish("1.0.0", "2026-01-01T00:00:00Z"),
+        trusted_publish("1.9.9", "2026-02-01T00:00:00Z"),
+        token_publish("2.0.0", "2026-03-01T00:00:00Z"),
+    ];
+
+    let (report, lock) = set_aside_outcome(history, "2.0.0", &settings());
+
+    assert!(report.written, "{:?}", report.problems);
+    assert_eq!(lock, lock_with("1.9.9"));
+}
+
+/// Review finding (cutoff applied unconditionally): a crate exempt from the release age may be replaced by a young release.
+#[test]
+fn a_candidate_younger_than_the_cutoff_is_allowed_for_a_crate_exempt_from_the_release_age() {
+    let history: Vec<VersionRecord> = vec![
+        trusted_publish("1.0.0", "2026-01-01T00:00:00Z"),
+        trusted_publish("1.0.1", "2026-10-29T01:00:00Z"),
+        token_publish("1.0.2", "2026-02-01T00:00:00Z"),
+    ];
+    let mut exempt: Settings = settings();
+    exempt.minimum_release_age_exclude = vec!["dep".to_string()];
+
+    let (report, lock) = set_aside_outcome(history, "1.0.2", &exempt);
+
+    assert!(report.written, "{:?}", report.problems);
+    assert_eq!(lock, lock_with("1.0.1"));
+}
+
+/// Review finding: with `minimumReleaseAgeStrict = false` the age is not a condition of the choice either.
+#[test]
+fn a_candidate_younger_than_the_cutoff_is_allowed_when_the_release_age_is_not_strict() {
+    let history: Vec<VersionRecord> = vec![
+        trusted_publish("1.0.0", "2026-01-01T00:00:00Z"),
+        trusted_publish("1.0.1", "2026-10-29T01:00:00Z"),
+        token_publish("1.0.2", "2026-02-01T00:00:00Z"),
+    ];
+    let mut relaxed: Settings = settings();
+    relaxed.minimum_release_age_strict = false;
+
+    let (report, lock) = set_aside_outcome(history, "1.0.2", &relaxed);
+
+    assert!(report.written, "{:?}", report.problems);
+    assert_eq!(lock, lock_with("1.0.1"));
+}
+
+/// Review finding (unknown timestamps): a candidate whose publish time cannot be read does not pass the age condition.
+#[test]
+fn a_candidate_with_an_unreadable_publish_time_is_skipped_under_a_strict_release_age() {
+    let history: Vec<VersionRecord> = vec![
+        trusted_publish("1.0.0", "2026-01-01T00:00:00Z"),
+        trusted_publish("1.0.1", "garbled"),
+        token_publish("1.0.2", "2026-02-01T00:00:00Z"),
+    ];
+
+    let (report, lock) = set_aside_outcome(history, "1.0.2", &settings());
+
+    assert!(report.written, "{:?}", report.problems);
+    assert_eq!(lock, lock_with("1.0.0"));
+}
+
+/// A registry with owners, so the candidate trust evaluation can be compared with the final one.
+struct RegistryWithOwners {
+    inner: FakeRegistry,
+    owners: BTreeSet<String>,
+}
+
+impl Registry for RegistryWithOwners {
+    fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+        return self.inner.pubtimes(name);
+    }
+    fn yanked(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        return self.inner.yanked(name);
+    }
+    fn history(&self, name: &str, versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+        return self.inner.history(name, versions);
+    }
+    fn owners(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        return Ok(self.owners.clone());
+    }
+}
+
+/// Review finding (owners omitted from candidate trust): `1.0.1` by a stranger ranks below `1.0.0` by a listed owner once the
+/// owners are known, so it must not be chosen as the replacement; the final check would refuse it.
+#[test]
+fn a_candidate_that_the_final_check_would_refuse_for_its_owners_is_not_chosen() {
+    let world = world(&lock_with("0.9.0"), "");
+    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.2"));
+    let history: Vec<VersionRecord> = vec![
+        record("1.0.0", "2026-01-01T00:00:00Z", "1", ""),
+        record("1.0.1", "2026-02-01T00:00:00Z", "2", ""),
+        record("1.0.2", "2026-03-01T00:00:00Z", "9", ""),
+    ];
+    let registry: RegistryWithOwners = RegistryWithOwners {
+        inner: FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) },
+        owners: ["1".to_string()].into_iter().collect(),
+    };
+
+    let report = run(&world, &settings(), &cargo, &registry, false, &UpdateKind::Full).expect("reports");
+
+    assert!(report.written, "{:?}", report.problems);
+    assert_eq!(lock_of(&world), lock_with("1.0.0"));
+    let tried: Vec<String> = cargo.commands.borrow().clone();
+    assert!(!tried.iter().any(|command| { return command.ends_with("--precise 1.0.1"); }), "a candidate the final check refuses was tried: {tried:?}");
 }
