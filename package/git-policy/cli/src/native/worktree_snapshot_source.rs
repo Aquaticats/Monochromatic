@@ -63,14 +63,15 @@ pub struct SnapshotSource {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ChangedPaths = { count: number; first: string; attributesChanged: boolean };
+/// type ChangedPaths = { count: number; first?: string; attributesChanged: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ChangedPaths {
-    /// How many paths `git status` lists.
+    /// How many paths `git status` lists; none when Git finds every file equal to its commit by content although the stat data
+    ///  of the index cannot vouch for it (files as new as the index, or touched without a change).
     pub count: usize,
-    /// The first of them, with control characters shown as `?`.
-    pub first: String,
+    /// The first of them, with control characters shown as `?`; nothing when `count` is zero.
+    pub first: Option<String>,
     /// Whether a `.gitattributes` file is changed or untracked.
     pub attributes_changed: bool,
 }
@@ -88,29 +89,42 @@ pub fn plain(text: &str) -> String {
     return text.chars().map(|character: char| { return if character.is_control() { '?' } else { character }; }).collect();
 }
 
+impl ChangedPaths {
+    /// Whether Git lists any change; false for a worktree whose files equal its commit by content.
+    pub fn has_changes(&self) -> bool {
+        return self.count > 0;
+    }
+}
+
 /// What:
 ///  The paths `git status` lists as changed or untracked in the worktree at `root`, counted, with the first, and whether a
-///  `.gitattributes` file is among them (also one inside an untracked directory).
+///  `.gitattributes` file is among them (also one inside an untracked directory); or the words that say which Git run failed
+///  and how.
 /// Why:
 ///   Only Git's own status tells a real change from a stale record of file times. The read takes no optional lock, so it never
-///  disturbs the checkout a person works in.
+///  disturbs the checkout a person works in. A listing with nothing in it is an answer (every file equals its commit by content),
+///  never a failure: the stat data of an index that was just written, or of a file that was touched, proves nothing, and Git
+///  settles those by content.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const changed = await changedPaths(context, root); // undefined when Git cannot say
+/// const changed = await changedPaths(context, root); // throws the reason Git could not say
 /// ```
-pub fn changed_paths(context: &GitContext, root: &Path) -> Option<ChangedPaths> {
-    let ask = |arguments: &[&str]| -> Option<Vec<u8>> {
+pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, String> {
+    let ask = |arguments: &[&str]| -> Result<Vec<u8>, String> {
+        let words: String = arguments.iter().skip(1).copied().take(1).collect::<Vec<&str>>().join(" ");
         let request: GitRequest = GitRequest { cwd: root.to_path_buf(), arguments: arguments.iter().map(|word: &&str| { return (*word).into(); }).collect(), without_prefix: true, ..GitRequest::default() };
         return match run_git(context, &request) {
-            Ok(found) if found.code == Some(0) => Some(found.stdout),
+            Ok(found) if found.code == Some(0) => Ok(found.stdout),
             Ok(found) => {
-                super::diagnostic_log::debug("changedPaths", format!("Git could not list the changes ({:?}: {})", found.code, String::from_utf8_lossy(found.stderr.as_slice()).trim()).as_str());
-                None
+                let said: String = String::from_utf8_lossy(found.stderr.as_slice()).trim().to_string();
+                let code: String = found.code.map_or_else(|| { return String::from("was stopped by a signal"); }, |number: i32| { return format!("ended with exit code {number}"); });
+                super::diagnostic_log::debug("changedPaths", format!("Git could not list the changes (`git {words}` {code}: {said})").as_str());
+                Err(if said.is_empty() { format!("`git {words}` {code} and said nothing") } else { format!("`git {words}` {code}: {}", plain(said.as_str())) })
             }
             Err(error) => {
                 super::diagnostic_log::debug("changedPaths", format!("Git could not list the changes ({error})").as_str());
-                None
+                Err(format!("`git {words}` could not be started ({error})"))
             }
         };
     };
@@ -118,9 +132,8 @@ pub fn changed_paths(context: &GitContext, root: &Path) -> Option<ChangedPaths> 
     let untracked_attributes: Vec<u8> = ask(&["--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z", "--", ":(glob)**/.gitattributes"])?;
     // Each status entry is two status letters, a space, then the path.
     let paths: Vec<&[u8]> = listing.split(|byte: &u8| { return *byte == 0; }).filter(|entry: &&[u8]| { return !entry.is_empty(); }).filter_map(|entry: &[u8]| { return entry.get(3..); }).collect();
-    let first: &[u8] = paths.first()?;
     let attributes_changed: bool = !untracked_attributes.is_empty() || paths.iter().any(|path: &&[u8]| { return *path == b".gitattributes" || path.ends_with(b"/.gitattributes"); });
-    return Some(ChangedPaths { count: paths.len(), first: plain(String::from_utf8_lossy(first).as_ref()), attributes_changed });
+    return Ok(ChangedPaths { count: paths.len(), first: paths.first().map(|path: &&[u8]| { return plain(String::from_utf8_lossy(path).as_ref()); }), attributes_changed });
 }
 
 /// What:
@@ -315,6 +328,8 @@ pub enum RefusalKind {
     Unclean(CleanRefusalKind),
     /// A feature a copy of the files does not reproduce, or a state the checks cannot read.
     Unsupported,
+    /// The stat data could not vouch for the files, and the Git run that settles it by content failed.
+    StatusFailed,
 }
 
 /// What:
@@ -325,7 +340,7 @@ pub enum RefusalKind {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Refusal = { reason: string; kind: 'unclean' | 'unsupported' };
+/// type Refusal = { reason: string; kind: 'unclean' | 'unsupported' | 'status-failed' };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Refusal {
@@ -397,11 +412,13 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
         Ok(found) => (found, None),
         Err(why) if allow_dirty && restorable_here(identity) && why.kind.restorable() => {
             let found = dirty_source(git_dir.as_path(), common_dir.as_path(), why).map_err(unclean)?;
-            let changed: ChangedPaths = changed_paths(context, root.as_path()).ok_or_else(|| { return Refusal::unsupported("Git could not list the uncommitted changes"); })?;
+            // A source whose files Git finds equal to the commit is snapshotted too: the stat data was all that kept it from being clean.
+            let changed: ChangedPaths = changed_paths(context, root.as_path())
+                .map_err(|reason: String| { return Refusal { reason, kind: RefusalKind::StatusFailed }; })?;
             if changed.attributes_changed {
                 return Err(Refusal::unsupported("a .gitattributes file is among the uncommitted changes, and its rules could change how the restore writes other files"));
             }
-            super::diagnostic_log::debug("sourceOrDirty", format!("{} is snapshotted with {} uncommitted paths, the first {}; the restore follows ({})", root.display(), changed.count, changed.first, found.why).as_str());
+            super::diagnostic_log::debug("sourceOrDirty", format!("{} is snapshotted with {} uncommitted paths, the first {:?}; the restore follows ({})", root.display(), changed.count, changed.first, found.why).as_str());
             (found.source, Some(changed))
         }
         Err(why) => return Err(unclean(why)),

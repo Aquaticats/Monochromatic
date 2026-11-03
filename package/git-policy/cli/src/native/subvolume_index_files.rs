@@ -21,6 +21,8 @@
 //! for (const { adminDirectory, worktree } of linkedWorktrees(root)) refreshIndexFile(join(adminDirectory, 'index'), worktree);
 //! ```
 
+use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use super::parallel_runner::{Event, OrderedRun, run_ordered};
 use super::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StoredStat, rewrite_index_stat_with};
 use super::subvolume_lock::is_ours;
 use std::ffi::OsStr;
@@ -458,6 +460,46 @@ pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
     return Some(20);
 }
 
+/// The number of copies of an index file one rewrite holds at once: the bytes read, the parsed entries, and the bytes written.
+///  The budget multiplies the largest index file by it to estimate what one rewrite holds.
+const INDEX_REWRITE_COPIES: u64 = 4;
+
+/// What one rewrite of an index file is: the file, the tree it describes, and the trees its entries were copied from.
+struct IndexTarget {
+    /// The index file.
+    index: PathBuf,
+    /// The tree whose files the index describes.
+    tree: PathBuf,
+    /// The trees the entries were copied from (each is the reference tree joined with the worktree's place in the checkout).
+    references: Vec<PathBuf>,
+}
+
+/// The rewrite of one index file, replaceable so a control can watch or delay it.
+pub type RewriteOne<'a> = dyn Fn(&Path, &Path, &RefreshOptions<'_>) -> String + Sync + 'a;
+
+/// What:
+///  What a rewrite of every index of a checkout is told.
+/// Why:
+///   One value names the inputs: the checkout, how its indexes are locked, the trees they were copied from, the host the
+///  budget is derived from, and the rewrite of one file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AllIndexes = { root: string; lock: IndexLock; references: string[]; host: HostResources; rewrite: RewriteOne };
+/// ```
+pub struct AllIndexes<'a> {
+    /// The main checkout.
+    pub root: &'a Path,
+    /// How each index is protected while it is rewritten.
+    pub lock: IndexLock<'a>,
+    /// The trees the checkout was copied from; each linked worktree is looked up under the same relative path in them.
+    pub references: &'a [PathBuf],
+    /// The CPUs and memory the budget is derived from.
+    pub host: &'a HostResources,
+    /// The rewrite of one index file.
+    pub rewrite: &'a RewriteOne<'a>,
+}
+
 /// What:
 ///  Rewrite the index of the checkout and of every linked worktree inside it, reporting each through `say`.
 ///  `&mut dyn FnMut(&str)` is a borrowed callback that receives one report line at a time.
@@ -471,23 +513,56 @@ pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
 /// function refreshAllIndexes(root: string, lock: IndexLock, references: string[], say: (line: string) => void): void;
 /// ```
 pub fn refresh_all_indexes(root: &Path, lock: IndexLock<'_>, references: &[PathBuf], say: &mut dyn FnMut(&str)) -> usize {
+    return refresh_all_indexes_with(&AllIndexes { root, lock, references, host: &HostResources::read(), rewrite: &refresh_index_file_with }, say);
+}
+
+/// What:
+///  `refresh_all_indexes` with the host and the rewrite of one file chosen by the caller; returns how many indexes it covered.
+/// Why:
+///   Each index is its own file under its own lock describing its own tree, so the rewrites run side by side within a budget
+///  and are reported in the order the checkout's index first, then each linked worktree's by path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const count = await refreshAllIndexesWith({ root, lock, references, host, rewrite }, say);
+/// ```
+pub fn refresh_all_indexes_with(request: &AllIndexes<'_>, say: &mut dyn FnMut(&str)) -> usize {
+    let AllIndexes { root, lock, references, host, rewrite } = *request;
     let hash_length: Option<usize> = repository_hash_length(root.join(".git").as_path());
-    let main_index: PathBuf = root.join(".git").join("index");
-    let main_options: RefreshOptions<'_> = RefreshOptions { lock, references, hash_length };
-    say(format!("index {}: {}", main_index.display(), refresh_index_file_with(main_index.as_path(), root, &main_options)).as_str());
-    let mut count: usize = 1;
+    let mut targets: Vec<IndexTarget> = vec![IndexTarget { index: root.join(".git").join("index"), tree: root.to_path_buf(), references: references.to_vec() }];
     for linked in linked_worktrees_inside(root) {
-        let index: PathBuf = linked.admin_directory.join("index");
         let relative: &Path = linked.worktree.strip_prefix(root).unwrap_or(Path::new(""));
-        let inside: Vec<PathBuf> = references.iter().map(|reference: &PathBuf| { return reference.join(relative); }).collect();
-        let options: RefreshOptions<'_> = RefreshOptions { lock, references: inside.as_slice(), hash_length };
-        say(format!("index {}: {}", index.display(), refresh_index_file_with(index.as_path(), linked.worktree.as_path(), &options)).as_str());
-        count += 1;
+        targets.push(IndexTarget {
+            index: linked.admin_directory.join("index"),
+            tree: linked.worktree.clone(),
+            references: references.iter().map(|reference: &PathBuf| { return reference.join(relative); }).collect(),
+        });
     }
-    return count;
+    let largest: u64 = targets.iter().map(|target: &IndexTarget| { return std::fs::metadata(&target.index).map_or(0, |found: std::fs::Metadata| { return found.len(); }); }).max().unwrap_or(0);
+    let workers: usize = worker_budget(&BudgetRequest { items: targets.len(), per_item_memory: largest.saturating_mul(INDEX_REWRITE_COPIES), ceiling: None, cap: None, host });
+    let lanes: Vec<Vec<usize>> = (0..targets.len()).map(|index: usize| { return vec![index]; }).collect();
+    run_ordered(OrderedRun {
+        items: targets.as_slice(),
+        lanes: lanes.as_slice(),
+        workers,
+        work: &|_index: usize, target: &IndexTarget, _worker_say: &mut dyn FnMut(&str)| {
+            return rewrite(target.index.as_path(), target.tree.as_path(), &RefreshOptions { lock, references: target.references.as_slice(), hash_length });
+        },
+        on_event: &mut |event: Event<'_, String>| {
+            if let Event::End(index, line) = event {
+                say(format!("index {}: {line}", targets[index].index.display()).as_str());
+            }
+        },
+    });
+    return targets.len();
 }
 
 /// Index file controls stay out of the release executable.
 #[cfg(test)]
 #[path = "subvolume_index_files_tests.rs"]
 mod tests;
+
+/// The controls for indexes rewritten side by side stay out of the release executable.
+#[cfg(test)]
+#[path = "subvolume_index_parallel_tests.rs"]
+mod parallel_tests;

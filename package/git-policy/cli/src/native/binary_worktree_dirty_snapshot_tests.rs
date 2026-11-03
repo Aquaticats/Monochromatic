@@ -221,6 +221,70 @@ fn a_changed_attributes_file_sends_the_add_the_slow_way() {
     remove(&fixture);
 }
 
+/// Move a path's modification time `seconds` into the past, so a stat comparison sees a time that Git's index never recorded.
+fn set_mtime_seconds_ago(path: &Path, seconds: u64) {
+    let file: std::fs::File = std::fs::File::options().write(true).open(path).expect("open to set the time");
+    file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(seconds)).expect("set the modification time");
+}
+
+/// Whether any stderr line says changes were left out of the new worktree; with none to leave out, the line would be false.
+fn says_changes_were_left_out(text: &str) -> bool {
+    return text.lines().any(|line: &str| { return line.starts_with("cli-git: ") && line.contains(LEFT_OUT_MARK); });
+}
+
+/// What the person sees when the main checkout holds no change at all: a snapshot, equal to Git's checkout, with nothing said about
+///  changes, and the main checkout byte for byte what it was.
+fn assert_snapshotted_without_changes(fixture: &Fixture, repo: &Path) {
+    let before = state_of(repo);
+    let (created, _control) = add_pair(fixture, repo, "topic", "control", &["-b", "NAME", "../NAME"]);
+    let text: String = stderr_of(&created);
+    assert!(!text.contains(SLOW_MARK), "no slow-route line: {text}");
+    assert!(!text.contains("could not list"), "{text}");
+    let (topic, control): (PathBuf, PathBuf) = (fixture.root.join("topic"), fixture.root.join("control"));
+    assert_eq!(created.code, Some(0), "{text}");
+    assert_eq!(tracked_content(fixture, topic.as_path()), tracked_content(fixture, control.as_path()), "tracked files equal Git's checkout");
+    assert_eq!(git(fixture, topic.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]).stdout, b"", "clean on the first status");
+    assert_eq!(git(fixture, topic.as_path(), &["write-tree"]).stdout, git(fixture, control.as_path(), &["write-tree"]).stdout, "the same tree in the index");
+    assert!(carries_ignored_state(topic.as_path()), "a snapshot served the command: {text}");
+    assert_eq!(std::fs::read(topic.join("ignored/pkg/index.js")).expect("ignored state carried"), b"module.exports = 1;\n");
+    assert!(text.contains(git_policy_cli::worktree_trash::MAIN_SNAPSHOT_NOTE), "{text}");
+    assert!(!says_changes_were_left_out(text.as_str()), "there were no changes to leave out: {text}");
+    assert_eq!(state_of(repo), before, "the main checkout is untouched");
+}
+
+/// A main checkout whose index is as new as its files (a merge or a pull just wrote both) has no change, and Git says so by content;
+///  the stat data cannot vouch for the files, and that alone must not cost the snapshot.
+#[test]
+fn a_main_checkout_whose_files_are_as_new_as_its_index_is_snapshotted() {
+    let fixture: Fixture = fixture("dirty-racy-index");
+    if !on_btrfs_or_acknowledged(&fixture, "dirty-racy-index") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = subvolume_repository(&fixture);
+    // The index is older than every file it records, which is what an index written in the same second as its files looks like.
+    set_mtime_seconds_ago(repo.join(".git/index").as_path(), 3_600);
+    assert_eq!(git(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain=v1"]).stdout, b"", "Git lists no change");
+    assert_snapshotted_without_changes(&fixture, repo.as_path());
+    remove(&fixture);
+}
+
+/// A main checkout whose tracked file has another modification time than its index entry records, with the same bytes (a file
+///  touched, or written again with the same content), has no change either.
+#[test]
+fn a_main_checkout_with_a_touched_file_of_the_same_bytes_is_snapshotted() {
+    let fixture: Fixture = fixture("dirty-stale-index");
+    if !on_btrfs_or_acknowledged(&fixture, "dirty-stale-index") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = subvolume_repository(&fixture);
+    set_mtime_seconds_ago(repo.join("shared.txt").as_path(), 60);
+    assert_eq!(git(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain=v1"]).stdout, b"", "Git lists no change");
+    assert_snapshotted_without_changes(&fixture, repo.as_path());
+    remove(&fixture);
+}
+
 /// The journal receives one ordinary-level entry that a snapshot left the changes out, with the destination and the number of
 ///  paths, also under `--quiet`.
 #[test]

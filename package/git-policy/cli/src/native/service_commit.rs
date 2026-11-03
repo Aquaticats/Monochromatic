@@ -26,7 +26,7 @@ use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
 use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, ScratchWatch, Submitted, submit_traced, watch_scratch};
-use super::landed_summary::{short_name, subject_of, summary_line};
+use super::landed_summary::{rebuilt_note, short_name, subject_of, summary_line};
 use super::service_commit_args::{ServiceCommitArgs, opens_editor, parse_service_commit, with_fixed_message};
 use super::service_handoff::ServiceHandoff;
 use super::service_land::LANDING_ATTEMPTS;
@@ -198,6 +198,9 @@ pub fn service_commit<F: RepositoryFacts>(
     //  command ends, and when this process is killed, because the connection closes either way. Without a service of this
     //  release to take it, the directory is removed here as before.
     let mut scratch_watch: Option<ScratchWatch> = None;
+    // The commits Git built that the branch moving made useless: Git printed a summary for each, so the wrapper names them
+    //  once the commit that did land is known.
+    let mut unlanded: Vec<String> = Vec::new();
     for attempt in 0..REBUILD_ATTEMPTS {
         let inputs: PrepareInputs<'_> = PrepareInputs {
             scratch_name: scratch_name.as_str(),
@@ -393,6 +396,20 @@ pub fn service_commit<F: RepositoryFacts>(
                     );
                     print_summary(summary_line(ready.reference.as_str(), first_parent.as_str(), name.as_str(), subject_of(made.message.as_str()).as_str()).as_str());
                 }
+                // A commit Git built again printed a summary for each build; one line names the builds that did not land and the one that did.
+                if native && !unlanded.is_empty() {
+                    let abbreviated = |full: &str| -> String {
+                        return short_name(
+                            invocation.context,
+                            invocation.cwd,
+                            native_inputs.capture.layout.object_directory.as_path(),
+                            native_inputs.capture.layout.config_snapshot.as_ref(),
+                            full,
+                        );
+                    };
+                    let lost: Vec<String> = unlanded.iter().map(|full| { return abbreviated(full.as_str()); }).collect();
+                    print_note(rebuilt_note(lost.as_slice(), abbreviated(commit.as_str()).as_str()).as_str());
+                }
                 // The corrections a policy made reach the worktree once the commit has landed, as the earlier landing did.
                 install_added_worktree_files(
                     invocation.context,
@@ -435,6 +452,7 @@ pub fn service_commit<F: RepositoryFacts>(
                     }
                     // Git builds it again from the tree this build captured, not from the worktree.
                     retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
+                    unlanded.extend(sent.commit.clone());
                     continue;
                 }
                 if native && editor_possible && let Some(text) = typed.as_deref() {
@@ -452,6 +470,7 @@ pub fn service_commit<F: RepositoryFacts>(
                             if repeatable && attempt + 1 < REBUILD_ATTEMPTS {
                                 fixed_message = Some(file);
                                 retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
+                                unlanded.extend(sent.commit.clone());
                                 continue;
                             }
                             let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
@@ -503,6 +522,22 @@ fn print_summary(line: &str) {
     }
     let _reported = writeln!(std::io::stderr(), "fatal: write error: {error}");
     std::process::exit(128);
+}
+
+/// What:
+///  Writes one note of the wrapper's to standard error.
+/// Why:
+///   The note is the wrapper's own words beside Git's output on standard output; a write that fails is logged and does not fail
+///  the commit that has already landed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// printNote(line)
+/// ```
+fn print_note(line: &str) {
+    if let Err(error) = writeln!(std::io::stderr(), "{line}") {
+        warn("serviceCommit", format!("writing the note about the rebuilt commit failed: {error}").as_str());
+    }
 }
 
 /// What the embedded route made of a command line: the message, the identities and, for an amend, the replaced commit.

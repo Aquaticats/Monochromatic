@@ -109,6 +109,25 @@ pub fn short_name(context: &GitContext, cwd: &Path, _object_directory: &Path, _c
     return asked_of_git(context, cwd, commit).unwrap_or_else(|| { return commit.get(..LAST_RESORT_LENGTH).unwrap_or(commit).to_string(); });
 }
 
+/// What:
+///  The one line the wrapper adds after a commit that real Git built was built again because the branch moved.
+/// Why:
+///   Git printed a summary for each build, and the earlier ones name commits that never landed; the line says which names
+///  those are and which commit did land, so a person does not copy the wrong one. Git's own output is left as it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rebuiltNote(['1a2b3c4'], '5d6e7f8') // 'cli-git: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.'
+/// ```
+pub fn rebuilt_note(unlanded: &[String], landed: &str) -> String {
+    let names: String = match unlanded.split_last() {
+        None => String::new(),
+        Some((only, [])) => only.clone(),
+        Some((last, front)) => format!("{} and {last}", front.join(", ")),
+    };
+    return format!("cli-git: the branch moved during the commit, so it was built again; {names} did not land, {landed} did.");
+}
+
 /// Summary controls stay out of the release executable.
 #[cfg(test)]
 #[path = "landed_summary_tests.rs"]

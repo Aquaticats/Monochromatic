@@ -24,7 +24,9 @@ use super::service_work::{Verdict, work_directory};
 use super::transaction_git::GitContext;
 use super::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use super::worktree_trash::TRASH_PARENT;
-use super::worktree_trash_manifest::{TrashManifest, entry_name};
+use super::worktree_trash_manifest::TrashManifest;
+use super::parallel_budget::HostResources;
+use super::worktree_trash_entries::{EntryRemoval, remove_entries};
 use super::worktree_trash_remove::remove_tree_beneath;
 use std::fs::File;
 use std::io::Write;
@@ -222,12 +224,7 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
         return Err(format!("{} is not the directory the snapshot made ({} instead of {}), so it is left alone", shown.join(&manifest.name).display(), found.encode(), manifest.trash.encode()));
     }
     let inside: PathBuf = shown.join(&manifest.name);
-    let mut left: Vec<String> = Vec::new();
-    for (index, recorded) in manifest.entries.iter().enumerate() {
-        if let Err(reason) = remove_tree_beneath(inside.as_path(), &trash, std::ffi::OsStr::new(entry_name(index).as_str()), Some(*recorded)) {
-            left.push(reason);
-        }
-    }
+    let left: Vec<String> = remove_entries(&EntryRemoval { inside: inside.as_path(), trash: &trash, manifest, host: &HostResources::read(), remove: &remove_tree_beneath });
     if !left.is_empty() {
         return Err(left.join("; "));
     }

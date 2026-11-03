@@ -533,6 +533,10 @@ Snapshot of a main checkout with uncommitted changes:
 a main checkout whose only trouble is an ordinary change (a staged change, an edited, deleted, renamed or mode-changed
 tracked file, an untracked file that no ignore rule covers, a tracked file the stat data cannot vouch for) is snapshotted
 all the same, and the new worktree is restored to what `git worktree add` makes from a clean checkout.
+Git's status listing nothing is an answer, not a failure: a main checkout whose index was written in the same second as its
+files (a merge, a pull or a landed commit just did that) or whose tracked file was touched without a change is snapshotted
+and restored like any other, and says nothing about left-out changes because there are none.
+Only a status run that ends with a nonzero exit code or cannot start refuses, and the line names the run, its exit code and what Git said.
 Every other refusal stays: an operation in progress or a held `index.lock`; any unmerged, intent-to-add, skip-worktree or
 assume-unchanged entry, or a submodule, found anywhere in the index (not only at the first refusal); a `.gitattributes`
 file among the changes or untracked anywhere; a sparse checkout; a source that is a linked worktree, whose index lies outside
@@ -609,6 +613,10 @@ the item's Git directory; every directory from the worktree down to the trash is
 device; the trash has the recorded identity; and each entry removed is the recorded object (a replacement, a link or
 anything unrecorded is left alone and named in the failure). Nothing is found by scanning the trash parent for names, so a
 directory the main checkout carried there is never touched.
+The recorded entries are separate directories that share only the trash handle, so they are removed side by side within the
+host budget (the threads the process may run less a margin, and the free memory over the estimated peak of one removal); each
+is still removed only when it is the recorded object, a reason for one entry never stops the others, and the failure names the
+reasons in entry order.
 When no route to the service exists, provisioning fails, or the wake fails, the wrapper empties the trash itself by the same
 rules before the command returns, after one plain line on standard error that names the worktree and says why the service
 could not take it over. The work item stays until the trash is gone: it is withdrawn only after a successful removal.
@@ -628,6 +636,23 @@ A snapshot of the main checkout does not print the copy summary, because no copy
 line to standard error saying the worktree was made as a snapshot of the main checkout and that nested worktrees, caches and
 run records were left out.
 
+Parallel checkout of the new worktree:
+when Git's own checkout makes the new worktree (the person's `git worktree add` run as Git's checkout, and the `git reset --hard`
+that completes a worktree after a snapshot or clone attempt failed), the wrapper puts `-c checkout.workers=0` (one worker per
+logical CPU) before the subcommand, after the global options already there, only when nothing the person controls sets
+`checkout.workers`.
+Anything counts as setting it: an entry of any scope in the configuration Git reads (system, global, local, worktree, `include`d
+files), a `GIT_CONFIG_KEY_<n>` or `GIT_CONFIG_PARAMETERS` variable that names the key, and a `-c` or `--config-env` the person
+typed before the subcommand, whatever the value.
+Then nothing is added and Git uses the person's value.
+The files are read through the one configuration read the wrapper makes for the add (answered in process where the readers
+know the command line); a configuration that cannot be read adds nothing.
+The snapshot and clone rungs run no Git checkout of the whole tree and are not changed.
+Owner decision, 2026-11-03 (question tool, chosen against the coordinator's recommendation): "Pass only if unset".
+Basis: Git's parallel checkout made a 20,000-file checkout faster in all three paired runs another agent measured
+(36.9 s to 4.5 s, 3.1 to 2.3, 7.2 to 1.75).
+`core.fsmonitor` and its daemon are left alone, as everywhere in the wrapper.
+
 Telling why an add was not made as a snapshot:
 when a `git worktree add` that the ladder serves succeeds without being made as a snapshot, and the person could change
 the cause, the wrapper writes one line to standard error unless `--quiet` is given, after Git's own words and before the
@@ -640,8 +665,10 @@ lists, and the first of them, with control characters shown as `?`; the remedy i
 a running Git command in the source (its `index.lock` exists; the remedy is to add again when it has finished);
 an unfinished operation (a merge, cherry-pick, revert, bisect or rebase mark exists; the remedy is to finish or abort it);
 an index entry no reset can undo (skip-worktree, assume-unchanged, intent-to-add, unmerged or a submodule);
-an index that cannot yet vouch for its files although Git lists no change (a file as new as the index, or a size, time or
-inode that differs; the remedy is `git status` once);
+an index that cannot yet vouch for its files although Git lists no change, in a source that is not restored by a snapshot
+(a file as new as the index, or a size, time or inode that differs; the remedy is `git status` once);
+a Git status that failed (the run, its exit code and what Git said; the remedies are to run `git -C <source> status`
+and fix what it names, or to wait for a Git command that is running there);
 a btrfs source that is no subvolume (the remedy is `git cli-git migrate-to-subvolume` for the main checkout and
 `git cli-git convert-worktree-to-subvolume` for a linked worktree);
 a destination on another btrfs filesystem than the source;
@@ -652,15 +679,26 @@ A source or destination that is not on btrfs gets no line, because nothing the p
 A failed add gets no line either; Git's refusal is the thing to read.
 The same words go to the journal as one entry of priority `warning` under the `SYSLOG_IDENTIFIER` `cli-git`, with the
 fields `CLI_GIT_WORKTREE` (the destination), `CLI_GIT_SLOW_CAUSE` (`uncommitted-changes`, `git-running`,
-`operation-unfinished`, `not-restorable`, `stale-index`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
+`operation-unfinished`, `not-restorable`, `stale-index`, `status-failed`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
 and `CLI_GIT_SLOW_DETAIL` (the check's reason as the debug log prints it), also under `--quiet`.
 The entry is one datagram on the journal's native socket, sent without waiting; a journal that is absent or full costs the
 command nothing, and `journalctl --identifier=cli-git` lists the entries.
 The debug line with the reasons of every step stays (`MONOCHROMATIC_VERBOSE=true`).
 
 Converting a nested worktree:
-`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)` converts a registered linked worktree
-that is an ordinary directory into a subvolume at the same path, one at a time.
+`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)` converts a registered
+linked worktree that is an ordinary directory into a subvolume at the same path, several worktrees side by side.
+Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
+filesystem and run concurrently within a budget: the threads the process may run less an eighth of them (at least one, none
+when only two), no more than the free memory (the system's available memory and the room left in the process's control
+groups, halved) holds at the peak of one conversion, never more than sixteen (past which the measured speed-up stopped),
+and no more than `--jobs` when given.
+Output is deterministic: each worktree's name, progress lines and verdict come together in input order (`--all` sorts by
+path), the lines of the first unfinished worktree are printed as they happen, and those of the others are held until every
+worktree before them is complete.
+Targets that resolve to one worktree are converted one after another by one worker, so the second finds the first's result.
+A conversion that fails after its journal began keeps the journal and does not stop or alter the others; the closing line
+counts the failures and the status is 2.
 It refuses when the worktree is locked, has an `index.lock`, has an operation in progress, has a modified tracked file, has a
 process with its working directory or an open file inside it, has a worktree registered inside it, or when its converting
 name exists without a journal.
@@ -725,6 +763,9 @@ copy; `Synced` only records that this once held, so every resume before the swap
 It exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root, is the subvolume whose identity
 the journal recorded and holds the same `.git` bytes, and rewrites the index stat fields; a refresh that did not install the new
 index stops the conversion with the old tree kept.
+The rewrite of the indexes of a whole checkout (the migration's, the rollback's) covers the checkout's index and each linked
+worktree's; each is its own file under its own lock describing its own tree, so they are rewritten side by side within the host
+budget and reported in the order of the checkout's index first and then each worktree's by path.
 Before it removes the old tree it reads the process table again for anything holding the old tree and compares the old tree
 with the installed one without changing either: every entry of the old tree must be in the installed tree in the same kind, with
 the same size and modification time for a file and the same target for a link, and none may be on another device (a nested
@@ -1456,7 +1497,10 @@ at most four per-update `git rev-list --stdin` or `git ls-tree` processes run co
 one `git diff-tree --stdin` reads every range commit's delta,
 and one `git cat-file --batch` reads every blob.
 Never spawn one process per commit.
-Not yet met by the native executable: it handles updates one after another,
+Met by the native executable: the `ls-remote` confirmation of each destination (one per push URL of the remote) and the
+ `cat-file` and `rev-list` of each update run side by side, at most four at once and within the host budget, and their answers are
+used in the order Git printed the destinations and negotiated the updates, the first that fails deciding the error.
+Not yet met by the native executable: it peels each update's object with its own `git cat-file` process,
  runs `git rev-list <local> --not <published>`
 with arguments, and reads each range commit's delta with its own `git diff-tree` process; the handover lists this as an
 open divergence.
@@ -2104,7 +2148,9 @@ Removed:
 - The mutex-guarded table of landed captures (`service_captures.rs`):
   the serve loop that lands commits and answers clients owns it, and passes it down.
 - The mutex on the review credentials (`service_work.rs`):
-  the work thread that remembers, reads and forgets them owns the map.
+  the work thread that remembers, reads and forgets them owned the map (commit `52f06fbe12`); since the work consumer drains
+  repositories side by side, a round makes a read-only copy of the handlers that holds the round's credentials as values, the
+  workers only read it, and it is dropped when the round ends, so the map has no owner to wait for and no lock.
 - The mutexes and the condition variable of the claim renewal (`service_claim_renewal.rs`):
   see "Leases of claimed work".
 - The long hold of Git's `index.lock`:
@@ -2122,6 +2168,21 @@ Kept, each with its reason in the code and here:
   rename-based, no lock file; a lease is how a later instance learns that a killed holder abandoned a claim (see "Leases of claimed work").
 
 Init-once cells (`OnceLock`) hold values read at first use (a boot ID, the machine ID, the Git release, the process identity) and wait for nothing after.
+
+### Repositories of a round run side by side
+
+The after-commit work of the service (pushes, upkeep, reviews, trash) is drained one repository at a time in releases before this
+one, by the single work thread that commit `52f06fbe12` made the owner of the review credentials.
+The repository owner's answer of 2026-11-03 to whether the service's independent work should run side by side was
+"Parallelize, no locks (Recommended)", so a round of wakes now drains its repositories on workers within the host budget
+(`src/native/service_round.rs`): the threads the process may run less a margin, and the memory free in its control group.
+Inside the commit service's unit, which allows two CPUs and one gibibyte, that is two repositories at once.
+The retry list is reported in the order the directories were named, whichever drain finishes first.
+The directories of one repository (a common directory and its linked worktrees' Git directories) are one lane and are drained one
+after another, because they share a work directory and its upkeep.
+Nothing is shared mutably: the handlers are read-only, every claim is still made by an atomic rename, each drain keeps its own
+renewal of its own claims, and `service_lock_inventory_tests.rs` still forbids a lock in these sources.
+Within one repository the items still run in the order the drain gave them: pushes grouped by branch, then upkeep, trash, reviews.
 
 ### The service's hold on the index lock
 
@@ -2559,6 +2620,12 @@ A commit the service builds itself, with no `git commit` run, still prints the o
 once the branch has moved.
 A commit that Git builds again because the branch moved prints Git's summary for each build,
 so the line of a build that did not land can precede the line of the commit that did.
+Owner decision (2026-11-03), verbatim: "Add a wrapper note (Recommended)".
+Git's output stays untouched; once the commit has landed, the wrapper adds one line to standard error
+that names every build that did not land and the commit that did, by the names Git's summary lines carry:
+`cli-git: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.`
+Several builds that did not land are joined with commas and `and`.
+A commit that was not built again prints no note.
 
 Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
