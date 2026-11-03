@@ -200,6 +200,21 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
    never-published from published-then-deliberately-removed, the service lands the commit with a message that names it and gives the
    command to drop it.
 
+4. Bound of a wait, "Return with an error" (question tool, 2026-11-03T12:45; option text: "The command stops waiting and exits non-zero, naming what
+   blocked it; the saved work stays saved."), after the owner's rule "nothing should ever wait forever or indefinitely". This touches "Commits
+   should never fail." as the owner chose.
+5. Whether a saved commit still lands by itself after the error, "No, keep it for a retry (Recommended)" (option text: "Nothing lands later by itself.
+   Your staged changes stay staged, and the commit is also kept on a side ref. The error names the blocker and the command to run again.").
+6. Pushes, "Bound it, keep retrying (Recommended)": a connected push without progress for a measured time is ended and kept in the service's retry plan; the
+   command says the push is queued. This replaces "Wait while connected".
+
+Amendments by 4 to 6 (the newest owner answers govern): decision 1's set-aside-as-pending of a commit behind a person's hook, the earlier answer "Save on a
+side ref (Recommended)" for a live foreign ref lock (the service then moves the branch onto the saved commit), the carried-forward `index.lock` single
+try that "exits 0 and finishes later" for a merge, and the exit 0 notices of `pending` and `landing` all applied to a command that had already returned.
+For a command with a client they are replaced: the command waits to its bound, then is withdrawn with an error, and the commit is kept on a side ref for a
+retry. They still apply to a request that has no client (a service-originated reconcile merge, a request whose client was killed from outside), because
+nothing waits on it. Decision 3 (land an unclear publication) is unchanged for the recovery of an earlier attempt.
+
 Adoptions from standing rules (the coordinator adopted them; the owner may veto; they are not owner answers):
 - A deterministic Git hang proceeds toward an embedded implementation ("embed instead of spawning", "Invoke real git as rarely as
   possible", Git bugs are on the designed-out list); pending with a message is not an accepted end state.
@@ -211,7 +226,7 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### Normative state machine (revision 9)
+### Normative state machine (revision 11)
 
 This is the one operative statement of the protocol. The narrative subsections that follow explain it and add rationale and test
 requirements; where one of them reads differently, this section governs. Every transition names its preconditions (Pre), its durable
@@ -227,7 +242,8 @@ than one appender: a binding or a registry entry is a file created once by `link
 
 Request states: `drafted` (client only) -> `bound` -> `accepted` -> `adopted` -> (`held` | `ready`) -> `publishing` -> (`published` |
 `pending` | `landing` | `rewritten-away`) -> (`materialized` | `voided`) -> `retired`; a hook may end a request as `refused`; an obsolete
-version of a held request ends as `superseded` (B3); a merge request has the extra states `merge-ready` and `checked-out` (MG1 to MG6) and may end `conflicted`. A request
+version of a held request ends as `superseded` (B3); a merge request has the extra states `merge-ready` and `checked-out` (MG1 to MG6) and may end `conflicted`; a request whose client stopped waiting ends `withdrawn` (W1, W2) and never
+lands. A request
 that a client abandons before `bound` is removed by the lane after the client's process identity is gone; a `bound` request is never removed
 as abandoned, because C3's recovery obligation is to complete it.
 
@@ -282,6 +298,49 @@ Where recovery would need such a removal, it leaves the file, reports it, and ke
 inode identity is a claim only while a name the lane owns pins the inode (a hard link under `lane/`), and is then used for reports, never as
 deletion authority at a shared name.
 
+Rule B, bounded waits and withdrawal (revision 11; owner rule "nothing should ever wait forever or indefinitely", with the owner's answers of
+2026-11-03T12:45 recorded in "Owner decisions of 2026-11-03": at a wait's bound "Return with an error"; the saved commit does not land by itself,
+"No, keep it for a retry (Recommended)"; pushes "Bound it, keep retrying (Recommended)"). A process blocks on another party's progress only in an
+entry of the register below, each with a named bound and an action at the bound. A durable request with no process blocked on it is not a wait; the
+register lists only blocked processes. The action at the bound of a command's foreground wait is always W1: the command stops waiting and exits
+non-zero naming what blocked it; the request is durably withdrawn and can never land later, not after a crash and not after a restart; the person's
+staging is as it was (the index and the worktree change only after publication, and a withdrawn request never publishes, so no consumption was
+made that could remain); the built commit is kept on `refs/cli-git/<instance>/withdrawn/<id>` and in the spool; the error names the blocker and
+the command to run again. Bound values follow the repository's rule for shipped limits: each is a measurement or a labelled unmeasured value whose
+owner approval is pending; the placeholders below name the shipped constant they start from.
+The register (waiting process; condition; bound and its basis; action at the bound):
+- START: a client waiting for the service to start; `START_WAIT` (shipped, 10 s, unmeasured, owner approval pending); W1 (or the plain error of
+  MARKER when no request exists yet).
+- FOREGROUND: a client waiting for its own request's outcome, which includes a held ref lock or `index.lock` it retries on triggers (no
+  polling loop), a person's hook it does not end, a held request, a merge waiting on staged paths, a quiet owner that holds the gate (owner
+  question B, option B-hand: the error names the unit and the command that restarts it), and a signer failure; `WAIT_FOREGROUND`, starting from the
+  shipped `COMMIT_WAIT` (600 s, unmeasured, owner approval pending; the measurement is the distribution of healthy commit durations in
+  `.git/cli-git-commit-timing.jsonl`, with the margin the owner approves); W1.
+- MARKER: a client waiting for a set marker or for a recovery to finish, tied to that condition (the marker changing or clearing), not to a
+  process's death; `WAIT_MARKER`, starting from `STOP_GRACE` (5 s, unmeasured for this use; the measurement is the duration of an M1 index
+  replacement and an L4 recovery on the owner's hosts); no request exists yet, so the command exits non-zero saying the lane was busy recovering,
+  nothing changed, run the command again.
+- ACQUIRE: an inline-owner client waiting at L1; `WAIT_ACQUIRE`, starting from `START_WAIT`; the client stops being an owner candidate and
+  waits as in FOREGROUND for whoever owns the lane. A recovery helper does not wait at L1 at all (C0).
+- REAP: an acquirer waiting at L2 for the previous incarnation's scope to empty after the kill; `WAIT_REAP`, starting from `STOP_GRACE`; at the
+  bound the acquirer releases the lane (by exiting; the lock is never unlocked while the process lives), requests stay durable, and the next trigger
+  tries again.
+- KILL: an L7 restarter waiting for the owner to die after SIGKILL; `WAIT_REAP`; at the bound it releases the gate and exits non-zero naming an owner
+  that did not die (uninterruptible sleep).
+- COMMITTING: a client that lost the race for the commit decision (W1) waiting for P3; `WAIT_MARKER`; at the bound it exits 0 saying the commit was
+  decided and will complete (see W1: this is the one case in which a request lands after its client returned, because the decision was already
+  `commit`).
+- STALL: the owner supervising a child; the measured stall interval ("Measured stall interval"), then `STOP_GRACE` (shipped, 5 s). The owner never
+  blocks its event loop on a child; the blocked process is the client (FOREGROUND).
+- PUSH: the service's or a command's push; the shipped no-progress deadline `DEFAULT_PUSH_DEADLINE` (30 s) and ceiling `DEFAULT_PUSH_CEILING`
+  (1800 s), unmeasured; at the bound the push is ended and kept in the service's retry plan, and the command exits 0 saying the push is queued
+  (owner answer 3).
+- No wait exists for: `index.lock` and ref locks (a single try each; Git's own 100 ms ref-lock timeout, `refs.c:996-997`, is its bound), the gate
+  (taken without waiting), maintenance (T1 defers; a deferred retirement is retention, not a blocked process), a person's hook (a program of the
+  person's, never ended, no process of ours blocked on it except the client in FOREGROUND), kernel I/O (an uninterruptible disk wait is on the owner's
+  outside list), and requests that have no client (a service-originated reconcile merge, a request whose client was killed from outside: the existing
+  outside-cause rule finishes handed-over work on the next run).
+
 Lane transitions (the owner and its incarnation)
 - L1 acquire. Pre: none. Do: open `lane/owner` (a file created once and never replaced) with close-on-exec, wait for the exclusive lock.
   Crash: nothing to recover. Note: the wait ends when the previous owner and any child still between fork and exec have gone; a child
@@ -315,6 +374,24 @@ Lane transitions (the owner and its incarnation)
   that cannot take it ends nothing, because a process-tree sample cannot show that no program will be dispatched a moment later. The
   earlier pick that restarted anyway (owner question B, option B-restart) is withdrawn for option B-hand; a different admission interlock that could end an internal wedge without
   ending a hook is open design work, not part of this machine.
+
+Withdrawal (revision 11)
+- W1 withdraw (client). Pre: the request is `bound` or later with no decision yet, and the command's foreground wait reached its bound, or the
+  command was interrupted by the person. Do: create `lane/decision/<id>` with content `withdraw` by the link method of C3 (the first of the two
+  writers wins; the name is created once). The link succeeding is the decision: the request will never land. Then print the refusal naming the blocker
+  and the retry command and exit non-zero. If the link finds the name taken, read it: `withdraw` (an earlier withdrawal) is the same outcome; `commit`
+  means the lane had already decided to land: the client waits for P3 (COMMITTING) and reports `published`, exit 0. Crash: the decision file is the only
+  fact and is durable (rule D); a client killed before the link leaves the request live (the outside-cause rule).
+- W2 withdrawn (lane). Pre: `lane/decision/<id>` is `withdraw`; checked at B1's end, P1's pre, the P2 decision point, MG1, MG2, MG4, Q1, every
+  held-hook completion and L4, so no step acts on a withdrawn request. Do: in one S1 replacement make the request `withdrawn`, drop its
+  consumption entries, remove it from the logical tail; keep the built commit on `refs/cli-git/<instance>/withdrawn/<id>` (best effort, the spool is
+  the guarantee); append `outcome <id> withdrawn` to the lane's ledger; a checked-out merge first restores by MG6; a held hook is not ended (its
+  completion is discarded as in B3); P2 in progress is aborted by its decision point. Crash: repeated; L4 reads the decision files first.
+  The race between withdrawal and a landing in progress: landing becomes irreversible at exactly one point, the lane's creation of
+  `lane/decision/<id>` with content `commit` (P2 decision); W1 and that creation are one atomic `link` race on the same name, so a request either
+  has the decision `commit` (it lands, and the client reports success) or the decision `withdraw` (it never lands); there is no third outcome.
+  A landing of an earlier, unclear attempt (recovery class R5) is not undone by a later withdrawal: the error then says that an earlier attempt may
+  have been published and to check `git log`.
 
 Capture and acceptance (client)
 - C0 ensure the lane. Pre: C1 finds the marker set, or an open recovery journal (defined next), or no owner and a state document that does not
@@ -375,11 +452,12 @@ if it is symbolic now the commit is saved on `refs/cli-git/<instance>/pending/<i
 published to a detached `HEAD` that no longer exists, and `--no-deref` is never run against a symbolic `HEAD`). The logical head, the recovery classes and the ledger use the target ref in
 place of the branch name. A repository state that has no such target (a bare worktree without `HEAD`) is not a lane.
 
-Client result (three different facts). `handed over` is the durable acknowledgement of C4 and is printed as soon as it is true; it is not an
-exit. The command's exit is the foreground outcome: `published` (exit 0, the commit named), or `pending` or `landing` (exit 0, with the
-notice that the commit is saved and will land, naming the side ref and the command that drops it), or `refused` by a person's hook, a failing required filter or a policy
-error, or `conflicted`, or `sign-pending` (nonzero, the message; B1 defines each). An interrupt after `handed over` ends the command with exit 0 and the notice that the request continues.
-`retired` is eventual, recorded in the ledger, and never awaited by the command.
+Client result (revision 11; three facts and the owner's bound answers). `handed over` is the durable acknowledgement of C4, printed as soon as it is
+true; it is not an exit. The command's exit is the foreground outcome: `published` (exit 0, the commit named); `withdrawn` by W1 at a bound or by the
+person's interrupt (non-zero, naming the blocker, the side ref that keeps the commit, and the command to run again; nothing lands later by itself);
+`refused` by a person's hook, a failing required filter or a policy error; `conflicted`; a signer failure (non-zero; the work stays on disk and a signer
+failure is on the owner's outside list); the `COMMITTING` corner of W1 (exit 0). `queued` is the exit-0 answer of a push only. `retired` is
+eventual, recorded in the ledger, and never awaited by the command.
 
 Build and publication (lane)
 - B1 build. Pre: adopted (or Q1 resumed with `resume = B1`). Do: build the commit by replaying the captured delta on the logical tail (an object
@@ -411,16 +489,22 @@ Build and publication (lane)
   repository with a `reference-transaction` hook, `hook-dispatch`; the request enters the logical tail in an S1 replacement of this same step (so a capture sees it in the tail from the moment `publishing`
   is journaled), with no marker.
   Crash: the next owner treats the attempt by the recovery classes (R1 to R5 below).
-- P2 swap. Pre: P1 and L6 held for the ref-transaction child. Do: run `update-ref refs/heads/<branch> <new> <old>`. A person's
-  `reference-transaction` hook may run inside it; nothing but L6 and the lifetime owner lock `lane/owner` (held from L1 to the end
-  of the incarnation, never released between transitions, and it is what keeps another owner from reaping a live incarnation) is held across it.
-  The command is run with `LC_ALL=C` so its diagnostics can be classified (E1). Crash: recovery classes below.
+- P2 swap (revision 11: three steps, so a withdrawal can always win before the ref is written). Pre: P1 and L6 held for the ref-transaction child.
+  P2a prepare: start `update-ref --stdin` (never `--no-deref`; for a detached target the update names `HEAD` and follows what `HEAD` means now)
+  with `LC_ALL=C`, standard output on a private pipe, a private trace file for Git's own event stream (E1), and write `start`, `update <ref> <new> <old>`
+  and `prepare`; read `prepare: ok` (`builtin/update-ref.c:618-658`). The lock of the ref is taken and a person's `reference-transaction` hook
+  runs inside `prepare`; the ref is not written. P2b decide: create `lane/decision/<id>` with content `commit` by the link method of C3; if the name
+  is taken by `withdraw`, write `abort` and end as W2. P2c commit: write `commit` and read `commit: ok`. If the input ends while the transaction is
+  prepared, `update-ref` aborts it itself and releases the lock (`builtin/update-ref.c:786-793`), so an owner that dies between P2a and P2c leaves no
+  prepared transaction behind. Nothing but L6 and the lifetime owner lock `lane/owner` (held from L1 to the end of the incarnation, never released
+  between transitions, and it is what keeps another owner from reaping a live incarnation) is held across P2. Crash: before P2b the transaction aborts
+  and recovery classes apply; after P2b and before `commit: ok` the decision `commit` stands and the recovery classes R1 to R5 decide what happened.
 - P3 published. Pre: P2 succeeded. Do: in one S1 replacement record `published` and update the logical state (no marker: nothing outside the document changes). Crash: recovery class R2.
-- P4 swap-failed. Pre: P2 failed and E1 classified it as a held ref lock or an old-value mismatch. Do: in one S1 replacement record
-  `swap-failed <id> <attempt> <class>` and make the request `pending` with `resume = B1` (`MG4` for a merge) (the side ref is written best effort, the command is answered with the
-  pending notice and exit 0, the lane waits for the branch). The foreground makes exactly one attempt: there is no replay inside the
-  foreground command. Further attempts are background attempts by Q1, one at a time, each a full B1, P1 to P3 cycle with a higher
-  attempt number. Crash: recovery classes below.
+- P4 swap-failed. Pre: P2a failed and E1 proved a held ref lock or an old-value mismatch from Git's own event stream. Do: in one S1 replacement record
+  `swap-failed <id> <attempt> <class>`, keep the request live with `resume = B1` (`MG4` for a merge) and write the pending side ref best effort; the
+  foreground command keeps waiting (FOREGROUND) and a later attempt is made by Q1 on a trigger, one at a time, each a full B1, P1 to P3 cycle with a higher
+  attempt number. When the command reaches the FOREGROUND bound it is W1 and the request never lands later. A request without a client (a
+  service-originated merge, a request whose client was killed) stays `pending` and is retried by Q1. Crash: recovery classes below.
 - Q1 resume a pending, landing or deferred request, by its `resume` point (revision 10; R9-10). Every request that waits records, in the S1 replacement
   that makes it wait, a `resume` value: `B1` (a commit or conclusion waiting for the branch or for a signer), `MG1` (a merge waiting on staged paths
   or a moved tip before anything was written), `MG2` (a merge waiting on a foreign `index.lock` before the checkout), `MG4` (a merge checked out and
@@ -611,11 +695,13 @@ Maintenance (object-store-wide)
   disposes of it explicitly, since an escaped descendant cannot be proved finished.
 
 Narrowed guarantees stated by the machine, plainly. Acceptance waits for the lane's state updates (the marker is set only around the index
-replacement of M1 and the recovery of L4, never across a person's program or a foreign lock) and never for a program; for an ineligible
-index, M1 runs Git on a copy under the marker, so there the capture waits on our own lane for a child that X1 can cancel. A quiet owner that holds the gate with no person's program running (wedged in
-our own code between L6 and the end of a ref transaction) is not restarted automatically (owner question B, option B-hand, picked); the command prints how to
-restart the unit and waits, and the request is durable. An owner wedged inside a person's program is never ended. L1 can wait for a child between fork and exec. G4 extends
-retention at the cost of disk. The wait of a publication behind a person's `reference-transaction` hook is the person's.
+replacement of M1, the checkout of MG3 and the recovery of L4, never across a person's program or a foreign lock) and never for a program; for an ineligible
+index, M1 runs Git on a copy under the marker, so there the capture waits on our own lane for a child that X1 can cancel, within MARKER. A quiet owner that holds the gate with
+no person's program running (wedged in our own code between L6 and the end of a ref transaction) is not restarted automatically (owner question B, option
+B-hand, picked); the command waits to FOREGROUND, then withdraws, naming the unit and how to restart it. An owner wedged inside a person's program is never
+ended. L1 can wait for a child between fork and exec, within ACQUIRE and REAP. G4 extends retention at the cost of disk. The wait of a publication
+behind a person's `reference-transaction` hook is the person's, and the command's share of it ends at FOREGROUND with a refusal, never with a landing
+later. The owner's choice that a command may end with an error at a bound touches "Commits should never fail." and is recorded as the owner's.
 
 ### Revision 9 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
 
