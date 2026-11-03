@@ -378,3 +378,47 @@ fn three_different_gitlinks_ask_for_an_ancestry_check() {
     assert_eq!(replayed.conflicts[0].kind, ConflictKind::GitlinkNeedsAncestry);
     assert!(replay_delta(&link("s0"), &link("s2"), &link("s0")).conflicts.is_empty());
 }
+
+/// Commits `parent` plus a gitlink `path` at `oid` and the `.gitmodules` file, without touching the nested repository: the index
+/// is set by hand, because `git add --all` would record whatever the nested repository has checked out.
+fn commit_gitlink(directory: &Path, parent: &str, oid: &str) -> String {
+    git(directory, &["checkout", "--quiet", "--detach", parent]);
+    std::fs::write(directory.join(".gitmodules"), "[submodule \"sub\"]\n\tpath = sub\n\turl = ./sub\n").expect("gitmodules");
+    git(directory, &["add", ".gitmodules"]);
+    git(directory, &["update-index", "--add", "--cacheinfo", &format!("160000,{},sub", oid)]);
+    git(directory, &["commit", "--quiet", "--allow-empty", "--message=gitlink"]);
+    return git_text(directory, &["rev-parse", "HEAD"]);
+}
+
+/// A populated submodule: base, current and result record `s0`, `s1`, `s2` of a linear history. Git (with the submodule's objects
+/// at hand) can fast-forward it; the pure replay cannot know and says so with the explicit fallback kind, and the fallback
+/// (an ancestry check in the submodule) reaches Git's answer.
+#[test]
+fn a_populated_submodule_fast_forward_is_an_explicit_ancestry_fallback() {
+    let directory: PathBuf = repository("replay-submodule");
+    let sub: PathBuf = directory.join("sub");
+    std::fs::create_dir_all(&sub).expect("sub");
+    git(&sub, &["init", "--quiet", "--initial-branch=main"]);
+    let mut oids: Vec<String> = Vec::new();
+    for number in 0..3 {
+        std::fs::write(sub.join("f.txt"), format!("{}\n", number)).expect("write");
+        git(&sub, &["add", "f.txt"]);
+        git(&sub, &["commit", "--quiet", "--message=step"]);
+        oids.push(git_text(&sub, &["rev-parse", "HEAD"]));
+    }
+    let root: String = git_text(&directory, &["rev-parse", "HEAD"]);
+    let b: String = commit_gitlink(&directory, &root, &oids[0]);
+    let c: String = commit_gitlink(&directory, &b, &oids[1]);
+    let t: String = commit_gitlink(&directory, &b, &oids[2]);
+    let pure: Replayed = replay_delta(&flatten(&directory, &b), &flatten(&directory, &t), &flatten(&directory, &c));
+    assert_eq!(pure.conflicts.len(), 1);
+    assert_eq!(pure.conflicts[0].kind, ConflictKind::GitlinkNeedsAncestry);
+    // The fallback: the current commit is an ancestor of the result, so the result is the answer.
+    let ancestor = git_output(&sub, &["merge-base", "--is-ancestor", &oids[1], &oids[2]]);
+    assert!(ancestor.status.success());
+    let git_answer: Oracle = oracle(&directory, &b, &c, &t);
+    assert!(git_answer.clean, "Git fast-forwards a populated submodule");
+    let merged: Vec<FlatEntry> = flatten(&directory, &git_answer.tree);
+    let link: &FlatEntry = merged.iter().find(|entry| { return entry.path == b"sub".to_vec(); }).expect("the gitlink");
+    assert_eq!(link.id, oids[2].as_bytes().to_vec());
+}
