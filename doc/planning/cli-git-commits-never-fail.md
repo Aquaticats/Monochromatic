@@ -173,213 +173,239 @@ A child that took a few seconds longer than its 60 s class bound would have been
 
 ## Transaction model
 
-Three cross-vendor reviews shaped this section.
-The third found that the second version still had a receipt that proved nothing on the files backend, a receipt whose deletion
-removed duplicate protection, a fence that left the worktree, the index and cleanup unfenced, a checksum offered as provenance, and
-acceptance steps that needed ref writes a foreign lock can block.
-Several of those came from features: live takeover, receipt refs, a ref fence, a numbered queue, checksum provenance.
-This version removes those features instead of adding protocol, and says which owner decision each narrowing still meets.
+Four cross-vendor reviews shaped this section.
+The fourth found a data-loss window in the carry-forward crash rule, ambiguity in what publication evidence proves, retirement
+dedup that expired, a lane-ownership rule that could kill a healthy owner, a watchdog that was a time bound and could repeat a
+hook, lock sweeping by contents, a push exclusion that depended on an earlier expansion, and index intents that outlived their
+authority.
+This version removes the mechanisms those came from (the kill before acquire, the watchdog, lock sweeping after a crash, the
+conditional push exclusion, the ledger horizon) instead of adding protocol.
+It also drops every reliance on a resource limit of the service unit: the owner decided the unit sets none ("Remove all three
+(Recommended)", recorded in `SPEC.md`), and a shipped limit would need a measurement or an owner decision beside it.
 It is a design to be checked, not a proof; claims marked "to test" need models or fault-injection controls before code ships.
 
 ### One owner per worktree, enforced by the kernel
 
-The lane of a worktree (the process that publishes its commits and merges, and materializes them) is whoever holds an exclusive
-advisory lock on `lane/owner` in the worktree's private service directory.
-There is no epoch, no fence ref and no takeover of a live owner.
+The lane of a worktree (the process that publishes its requests and materializes them) is whoever holds an exclusive advisory
+lock on `lane/owner` in the worktree's private service directory (an open-file-description lock).
+There is no epoch, no fence ref, no takeover of a live owner, no signal sent to anyone before the lock is held, and no watchdog.
 
-- The lock is held on an open file description that every child the lane starts inherits (not close-on-exec). The kernel keeps it
-  until every process holding that description has exited, so when a new owner holds it, no obsolete worker, and no obsolete
-  Git child, exists. That is the one fence that also covers the worktree, the index and cleanup, which a ref transaction cannot fence.
-- The lock covers the smallest unit (one worktree) and is held by the kernel for exactly the owner's life, so it cannot go
-  stale. The reason it is needed is written here as the repository's rule asks (concurrency is lock-free first): no lock-free
-  claim can tell a new owner that the previous owner and all its children are gone.
-- A wedged owner that is alive is not taken over by another process. Its service unit has a watchdog fed by the landing task's
-  progress counter (written after each phase, never by a timer thread); the manager ends the unit's whole control group when the
-  counter stops, which releases the lock. A client-owned lane ends with the client's process group.
-- A new owner first ends any process group still recorded in `lane/owner` (checked by process start time), then holds the lock.
-- Services and clients both can own the lane: a client that finds no owner takes the lock and runs the lane inline until its queue
-  is empty; a service that starts later waits for that client's lock and then takes over the rest.
+- Every child the lane starts inherits the lock's open file description (not close-on-exec) and is started with the parent-death
+  signal set from a thread that lives as long as the owner. When the owner dies its children die with it, the kernel releases the
+  lock, and the next owner simply acquires it. Descendants of a hook are children of a child and inherit the description too.
+  Inheritance is not itself a lifetime proof; the implementation obligations are controls for: exec boundaries, hooks and their
+  descendants, cancellation of the owner, and an inline owner (below).
+- The lock covers the smallest unit (one worktree) and exists for exactly the owner's life. The reason it is needed (the
+  repository's rule is lock-free first): no lock-free claim can tell a new owner that the previous owner and all its children are gone.
+- Acquisition blocks with a notice that names the current owner; it never terminates the owner. A process-start-time match
+  identifies a process, it does not give authority to end it.
+- Inline ownership. A client that finds no owner takes the lock and acts as the owner only for as long as its own command lives:
+  it drains the requests adopted before its own, publishes its own, retires it, and exits, leaving later arrivals in `inbox/` for the
+  service. It is the person's foreground command, so the person can interrupt it (the request is already durable and the next owner
+  finishes it), and it needs no supervisor of its own.
+- A wedged owner. No process takes over a live owner and the unit has no watchdog: a watchdog is a time bound under another name
+  (a long phase would be killed and started again, and a reference-transaction hook would repeat its external effect). The
+  per-child stall rule of item 1 remains for the idempotent children. A command whose request is adopted by an owner that makes no
+  progress waits on its own lane with a notice that names the phase and says how to restart the unit; it is interrupted by the person
+  at no cost, and the request stays durable. The owner's decision is unchanged: the unit sets no limits.
 
-The owner's decision "Use as few locks as possible" is met by one lock per worktree and no other lock added; the alternative that
-needs no lock is a service-only lane (no client fallback), which makes the manager the single-instance enforcer; that would remove
-the client's ability to land when the service does not start, so it is listed as a question below.
+One lock per worktree, and no other lock added, meets "Use as few locks as possible".
+A service-only lane would remove even that lock by relying on the manager for single-instance and descendant lifetime; the reviewer
+judged this an implementation choice, so it is not put to the owner.
 
 ### Durable acceptance needs no ref write
 
-A command is accepted when its immutable request is durable in the worktree's service directory; no Git ref is written and no
-foreign lock can stand in the way:
-1. read the branch tip `B` (reading refs takes no lock) and read the base content the replay needs from `B` into the spool
-   (below); if an object is missing because a foreign rewrite and a prune raced the read, read the tip again; nothing was
-   handed over yet, so starting again is allowed;
+A command is accepted when its immutable request is durable in the worktree's service directory:
+1. read the branch tip `B` (reading refs takes no lock) and read the base content the replay needs from `B` into the spool; if an
+   object is missing because a foreign rewrite and a prune raced the read, read the tip again (nothing was handed over yet);
 2. read the worktree and the real index and write the captured bytes into the spool;
 3. fsync each spool file, fsync the spool directory;
 4. write the request record to a temporary name, fsync it, rename it into `inbox/<id>`, fsync `inbox/` and its parent;
-5. only then answer that the request is handed over.
-Acceptance is the durable existence of the complete record in `inbox/`. There is no number to allocate and no half-accepted
-state: a record is either complete under its final name or absent.
+5. answer that the request is handed over.
 
-### Order, adoption and the logical head
+### Adoption order, recovery and the logical head
 
-The lane alone orders requests, by adoption: when it takes a request from `inbox/` it appends `adopt <id>` to `lane/order`
-(append, fsync) and moves the record to `queue/<id>`. A crash leaves a request either in `inbox/` (not adopted; adopted again in
-the order of its record's capture time and id) or adopted (named in `lane/order`); there is no slot that can stall the queue.
-Because there is one lane per worktree and one writer of `lane/order`, an obsolete allocator cannot exist.
+`lane/order` is the authority on adoption. The lane appends `adopt <id> <crc>\n` (fsync) and then moves the record from
+`inbox/<id>` to `queue/<id>`.
+- After a durable `adopt <id>` the request is adopted even if its record still lies in `inbox/`; recovery completes the move and
+  never appends a second `adopt`.
+- A record in `inbox/` with no `adopt` line is adopted next, in the order of its capture time and id.
+- Each line is self-framing (length-free fixed text with a checksum); recovery ignores a torn last line.
+- The lane is the only writer, so there is no allocator to go obsolete.
 
 Capture against the logical head.
-A request records the logical head it was captured against: the newest commit of the queue (a pending one) as published in the lane's
-state file, or the branch tip when nothing is pending, together with the delta (the paths, their new bytes, deletions, modes)
-relative to that base.
-At adoption the lane replays the delta onto the actual logical tail by the three-way replay below. It never replaces the base
-under an unchanged result tree: a base substitution would turn another request's change into part of this one (the reviewer's
-`x=0`, `y` example), and the replay does not.
+A request records the logical head it was captured against (the newest pending commit as published in the lane's state, or the
+branch tip when none is pending) and the delta (paths, new bytes, deletions, modes) relative to that base. At adoption the lane
+replays the delta onto the actual logical tail by the three-way replay below. A base is never substituted under an unchanged tree.
 
-Staged changes while commits are pending (the logical-index model).
-A plain commit captures what is staged as the difference between the real index and the tree of the physical head, and applies
-that delta to the logical tail. The real index is not rewritten by a pending commit, so it equals the physical head plus what
-the person staged since; the pending request's own changes are therefore not in the staged difference, and no stale entry is
-read as a reversal. The limit, stated: while commits are pending, staging a path back to the physical head's content cannot
-express a revert of a pending commit.
+The logical index (staged changes while requests are pending).
+Pending requests are not materialized, so the real index keeps whatever it held, including entries the person staged for an earlier
+pending request. The lane therefore keeps a consumption map, per path, of the real-index entry that an adopted request has already
+consumed (for a named-path request, its pre-commit entry). A plain commit's staged change is the set of paths whose real-index
+entry differs from the consumption map where one exists and from the physical head's tree otherwise.
+Reviewer's sequence: the person stages `x=1` and plain request R1 becomes pending (consumed: `x=1`); named-path request R2 captures
+worktree `x=2` (its pre-entry is `x=1`, consumed: `x=1`); the person stages only `y`; plain request R3 sees `x=1` equal to the
+consumed entry, so `x` is not in R3's change, and R3 is `y` alone. If the person later stages `x=3` it differs from the consumed
+entry and joins the change. The map entry of a path is cleared when the request that set it is materialized or voided.
+The limit, stated: while requests are pending, staging a path back to exactly its consumed entry cannot express a revert of a
+pending commit.
 
 Pending requests are immutable versions.
-An amendment of a pending request (owner: "Amend the pending commit") is a new immutable request that names the one it
-supersedes. The lane is one sequential worker: it adopts the amendment between steps. If the superseded request is unpublished
-the lane drops it and keeps the new one in its place; if it was published the amendment is an amend of the tip. No worker prepares
-the old version while the new one is adopted, because there is no second worker.
+An amendment is a new immutable request that names its target request and that request's commit `D1`. The one sequential lane
+adopts it between steps:
+- target unpublished: the amendment replaces it (the old version is dropped, the new one keeps its place);
+- target published and still the tip: an amend of the tip;
+- target published but no longer the tip (successors were published before the amendment was adopted): the amendment is stacked
+  as a new commit on the tip, its change being the amend's tree relative to `D1` (the owner's moved-head rule), and it never
+  amends an unrelated successor.
 
-Signed and hooked commits.
-A commit Git signed is valid only on its own parent. It publishes only if its parent is the tip; if the branch moved it stays
-pending with a message that says it needs signing again, and it is built again when the person next runs a wrapper command (the
-signer and its prompt belong to the person, outside our control). This narrows "the service lands it in order when the branch
-lets it" for signed commits; it is a question for the owner below.
+A branch switch while a request is pending.
+The request records the worktree's attachment at capture (the branch, or detached). Publication is to the branch the commit was
+made on, and is a compare-and-swap whatever the worktree has checked out now. Before any materialization the lane reads the
+worktree's current `HEAD`: if it is no longer attached to that branch (switched, detached, branch deleted, worktree removed), the
+materialization is voided, nothing is written to the current index, and a line says where the commit went and that the index of
+the current branch was not touched. The materialization generation of the worktree (a counter in `lane/state` that changes on a
+checkout of another branch observed by the lane) is recorded with the intent, and an intent from an older generation is voided.
 
-### Publication
+Signed commits.
+A signature cannot survive a changed parent. Under "single replayed commit, changed parent, no delegated signing" the commit
+publishes only on its own parent; otherwise it stays pending and is built and signed again when the person next runs a wrapper
+command. This is an owner decision (below).
 
-The publication is `update-ref refs/heads/<branch> <new> <old>`, a compare-and-swap, nothing else: no receipt ref, no fence ref
-in the transaction (both withdrawn).
-The lane writes `publishing <id> <old> <new>` into the request record (fsync) before the swap and `published` after it.
+### Publication and recovery
 
-Recovery decides from the branch and the reflog, and never loses a commit:
-1. the new commit is the tip or an ancestor of the tip: published;
-2. otherwise the new commit is unreachable. If the branch's reflog has an entry whose new value is the commit, it was on the
-   branch and was rewritten away deliberately: it is not published again. The lane keeps it under a hold ref, records
-   `rewritten-away`, and tells the person where it is saved. A reflog entry written before the ref rename is evidence the swap
-   began, not that it finished, so this rule errs toward not resurrecting;
-3. otherwise (no reflog evidence, or no reflog) the swap did not happen or the evidence is gone: the lane publishes again, replaying
-   the captured delta on the tip. This resurrects the commit only in the case where it was published and then removed by a
-   non-descendant branch rewrite before recovery ran and the reflog is missing. The consequence is one commit reappearing,
-   visible, with a message; no data is lost.
-Reachability alone never closes a request: a request is `published` only on rule 1, never on "not reachable".
+The publication is `update-ref refs/heads/<branch> <new> <old>`, a compare-and-swap, nothing else. The lane writes
+`publishing <id> <old> <new>` into the record (fsync) before the swap and `published` after it (fsync).
+The branch's reflog is made available as evidence: before its first publication the lane creates `logs/refs/heads/<branch>` if it
+does not exist (Git appends to a reflog file that exists), so every update that follows is logged with its old value.
 
-### Retirement keeps the deduplication evidence
+Recovery decides, in this order:
+1. The record says `published` (durable): published. A durable record wins over later reachability: a later deliberate reset is
+   not a reason to publish again.
+2. The new commit is the tip or an ancestor of the tip: published.
+3. Some reflog line of the branch has the new commit as its old value (a later update moved the branch from it): the branch held
+   it, and it was rewritten away. Outcome `rewritten-away`: not published again; kept under a hold and saved, and the person is
+   told where. Only an old-value line proves this; a line that merely has the commit as its new value does not, because the entry
+   can be written before the ref rename and the swap may not have finished.
+4. The reflog exists and has no line with the commit as its old value (and rule 2 failed): the swap did not complete. The lane
+   publishes again by replaying the captured delta on the tip.
+5. There is no reflog evidence (it was deleted or expired, or the repository's tooling bypasses reflogs): the cases cannot be told
+   apart. Outcome `saved-ambiguous`: the lane does not guess; what it does is an owner decision (below), and until then the commit
+   is kept as in rule 3.
 
-When all obligations are done the lane retires the request in this order: (1) append a terminal line to `lane/ledger`
-(`<id> <outcome> <commit> <time>`, fsync); (2) release the retention (hold refs, spool, record); (3) forget nothing else.
-The ledger is append-only and rotated by size, keeping at least the newest entries covering a long horizon (days, measured in
-entries, not minutes); a client resending a request id after retirement receives the ledger's outcome and nothing is published.
-If a crash falls between (1) and (2) the ledger line exists and recovery completes (2); a request never has the retention released
-before its ledger line is durable. A resend of an id found in neither the inbox, the queue nor the ledger is a new request
-(clients live seconds; the horizon is far beyond that).
+Nothing here claims once-only publication across repeated crashes and rewrites; each recovery decision uses only the evidence above.
+Anything promised as saved (`rewritten-away`, `saved-ambiguous`, and any pending commit) is retained permanently: its hold ref, its
+spool and its record are not released by retirement, only by the person's explicit act (the wrapper names the command).
+
+### Retirement and permanent deduplication
+
+When all obligations are done the lane retires the request: (1) append a terminal line to `lane/ledger`
+(`<id> <outcome> <commit> <time>`, fsync); (2) release the retention of a published request (not of a saved one); (3) nothing else.
+The ledger is append-only and has no horizon and no rotation. An entry is about a hundred and thirty bytes (a 32-digit identity,
+an outcome word, a 64-digit object name, a time), so a worktree that commits a hundred times a day adds under five megabytes a
+year; there is no size bound, so there is no limit to justify. A resend of an identity found in the ledger is answered from it and
+never published. An identity found in neither the inbox, the queue nor the ledger is a new request; since the ledger never forgets,
+a resend after any delay is recognized. The sequence "lost answer, long stop, later reset, resend" therefore cannot publish twice.
+If a crash falls between (1) and (2) the ledger line exists and recovery completes (2); retention is never released before its
+line is durable.
 
 ### Obsolete workers cannot exist
 
-The lock above is the proof obligation for the worktree, the index and cleanup, not only the ref: any process that acts for the
-lane holds the lock's description, so a new owner starts only when none is left. Cleanup of a spool, a hold or a saved file is
-done only by the owner, only for requests whose ledger line is durable. No process outside the lane deletes request files.
-To test: kill the owner at every phase, start the next owner immediately, and check that no Git child of the old owner is alive
-and that no request is published twice.
+Every process that acts for the lane holds the lock's description and dies with the owner, so a new owner starts only when none is
+left. Cleanup of a spool, a hold or a saved file is done only by the owner, and only for requests whose ledger line is durable.
+To test: kill the owner at every phase, start the next owner at once, check that no child of the old owner is alive and that no
+request is published twice; include a healthy inline owner met by a starting service (the service waits, nobody is signalled).
 
 ### Interrupted wrapper-owned transactions
 
-Before each ref transaction the lane records in `lane/ledger-open` the lock files it expects to create (ref lock paths) and the
-content it writes. A new owner sweeps a `.lock` file only when it is listed there, its content equals what was recorded, and the
-previous owner's group is gone (it is the owner now). No other lock file is touched.
+The wrapper never removes a ref lock file after an owner crash, whatever its contents: a file with the expected bytes may be a
+native writer's live lock created later, and a path check followed by a delete is a race. A lock left by a crashed wrapper child
+is treated as a foreign lock: the request becomes pending, the notice names the file and says that if no Git process is running
+it can be removed by hand. To make that rare, `update-ref` is never stopped by the wrapper's stall rule (a stopped writer is the
+only way the wrapper itself leaves a lock), so a lock is left only by an owner killed in the milliseconds between creating and
+renaming one.
+For a child the live owner stops itself (the idempotent object writers, which take no ref lock), nothing is left to sweep.
 
 ### Retention lifecycle and the spool closure
 
-The spool is the source of truth for the request until the ledger line exists. It is a self-contained closure for replay: the
-captured bytes, the paths and modes, the expected pre-commit index entry of each path, the content at the captured base of each
-path (the "before" side) and the trees along each path, and for a conclusion, an amend or a revert the other parent's commit and
-what the replay needs from it, the captured resolved tree, the message and the identities. It is written as files and a pack
-(`index-pack` style) that can be imported again.
+The spool is the source of truth for the request until its ledger line exists (and permanently for a saved request). It is a
+self-contained closure for replay: the captured bytes, the paths and modes, the expected pre-commit index entry of each path, the
+content at the captured base of each path and the trees along each path, and for a conclusion, an amend or a revert the other
+parent's commit and what the replay needs from it, the captured resolved tree, the message and the identities.
 The lane imports the spool with one `fast-import` stream and, when the ref store allows, a hold ref
 `refs/cli-git/<instance>/hold/<id>`; the hold is an extra protection and the spool is the guarantee.
-Anything a prune removes before retirement is imported again from the spool.
 
-Overlapping prune, checked in Git's source (`builtin/prune.c:36` and `:98`): `git prune` removes an unreachable object whose
-modification time is not later than the expiry, and the default expiry when none is given is the largest time
-(`builtin/prune.c:172`), so a plain `git prune` deletes unreachable objects written after it started, and `git gc --prune=now`
-spares only objects written strictly after the second it began. A prune that took its reachability view before the request's
-objects were referenced can therefore delete them, whatever the lane does after that.
-The lane's answer is narrowed accordingly:
-- after publication and before retirement it checks connectivity (`rev-list --objects --quiet <new> --not <old>`) and imports
-  again from the spool if anything is missing;
-- the spool is released only after that check passes;
-- a prune that is still running across the release and deletes afterwards is Git's documented-unsafe concurrent prune (the manual
-  quoted in `service_pruned.rs`), and the resulting missing object is a corrupt repository caused by another tool, which is on the
-  owner's outside list. This is the one residue of item 6, stated, and a question for the owner.
-To test: prunes that start before, during and after each phase, with and without `--expire=now`.
+The prune boundary, stated accurately. A request's objects can be lost to a destructive maintenance operation that took its
+reachability view before the objects were referenced and deletes afterwards; in Git's source `git prune` removes unreachable
+objects whose modification time is not later than its expiry, the default expiry being the largest time (`builtin/prune.c:36`,
+`:98`, `:172`), so such a prune can delete objects written after it began. The boundary is therefore not "prunes starting after
+handover" but whether a destructive operation can outlive the retained recovery copy. While the spool is retained a loss is
+repaired by importing again. After the spool is released (published requests) a deletion that began earlier is outside the wrapper's
+control unless the maintenance is coordinated. Choices are an owner decision (below).
 
 ### Installing into the current index
 
 Only a delta applied to the index read under the lock; never a whole-file install built earlier.
-
 When the lock is free at publication time the lane takes it first (a single try), swaps the ref, applies the delta and releases it
-in one critical section, so no index writer can interleave between the publication and its materialization.
-When the lock is held by a foreign program the commit is published without the index and the delta is applied later:
-1. take `index.lock` with a single try;
-2. read the current index (in process);
-3. verify the commit is still reachable from the branch tip (else the branch was rewritten: drop the intent, do not restore
-   staging from an abandoned commit);
-4. for each path apply the entry rule, leaving every other entry untouched;
-5. write the lock file and rename it over the index.
+in one critical section, so no index writer interleaves between the publication and its materialization.
+When a foreign program holds it, the commit is published without the index and the delta is applied later, by these steps:
+1. take `index.lock` with a single try; 2. read the current index in process; 3. check the worktree attachment and generation
+(above), and that the intent is current (below); 4. apply the per-path rule; 5. write the lock file and rename it over the index.
 
-The entry rule, with `E_pre` (entry at capture), `E_commit` and `E_now` read under the lock: if `E_now == E_commit`, nothing; if
-`E_now == E_pre` and the worktree file still has the committed content, install `E_commit`; otherwise leave `E_now` and report the
-path. Equality of entry values is the only evidence the index offers. No checksum provenance is claimed: a checksum identifies
-contents, not who wrote them, and an index restored to the same bytes by another program is indistinguishable from none.
-The accepted residue, stated: a program that deliberately restores exactly the pre-commit entry while the file still holds the
-committed content gets that entry replaced; the file, the history and the index then agree, and no content is lost.
+Per-path supersession.
+An outstanding intent is never applied on its own authority. For each path the lane composes the chain of unapplied intents of
+published requests that touch it: the expected pre-state is the oldest intent's pre-entry, the target is the newest intent's
+committed entry, and older intents' entries for that path are dropped. Reviewer's sequence (`R1` publishes `B`, `R2` publishes `C`,
+pre-entry `A`, the person edits the worktree back to `B` without staging): the target for the path is `C`; the worktree holds `B`,
+not `C`; so the entry stays `A`; no reversal is staged. A reachable ancestor is not authority to apply its transition.
 
-Extensions, per policy (not preserved wholesale): the cache-tree is dropped (Git rebuilds it); the resolve-undo data and the
-untracked cache are carried unchanged; the offset tables (`EOIE`, `IEOT`) are not written; any other extension (fsmonitor,
-split index, sparse index, an unknown one) makes the index ineligible, and the delta runs through Git on a copy made under the lock
-(`reset --no-refresh`), the slower hold the service has today. Index versions the writer does not produce make it ineligible.
+The rule for a path: with `E_now` read under the lock, the oldest pre-entry `E_pre`, the target `E_commit` and the worktree file's
+content: if `E_now` equals `E_commit`, nothing; if `E_now` equals `E_pre` in every field of the entry, the cached stat data
+included, and the worktree file still holds the target's content, install `E_commit`; otherwise leave `E_now` and report the path.
+Comparing every field of the entry, stat data included, is the strongest evidence the index offers: an entry staged afterwards by
+`git add`, `git reset`, `update-index --cacheinfo` or a restore of the path carries different stat data (zeroes for the tree-made
+ones, a new change time for an added file) and is left. No checksum provenance is claimed. The one case this cannot see is another
+program restoring a byte-exact earlier copy of the index file, which is the same state as no change; nothing is installed
+against it that was not there before, and nothing is lost.
 
-The wrapper's own index commands do not wait for the lane's intents behind a foreign lock: they run as Git runs them and the
-conditional rule keeps whatever they stage.
+Extensions, per policy (not preserved wholesale): the cache-tree is dropped; the resolve-undo data and the untracked cache are
+carried unchanged only after a differential control shows Git behaves the same afterwards (otherwise they are dropped or the index
+is ineligible); the offset tables are not written; fsmonitor, split index, sparse index and unknown extensions make the index
+ineligible, and the delta runs through Git on a copy made under the lock (`reset --no-refresh`). Index versions the writer does not
+produce make it ineligible.
+
+The wrapper's own index commands do not wait for the lane's intents behind a foreign lock.
 
 ### The side ref for a held branch lock, or a branch a foreign program keeps moving
 
 Owner decisions (question tool, 2026-11-03): "Save on a side ref (Recommended)" for a held branch ref lock, and "Save on the side
 ref (Recommended)" for a branch a foreign program keeps moving.
-
-The publication is tried once. If it fails the lane reads the actual failure and classifies it: the lock on the branch exists
-(`unable_to_lock_message`, `refs/files-backend.c:859-866`, Git waits 100 ms by default, `refs.c:996-997`); the old value did not match;
-no space, I/O error or read-only (the owner's outside causes); or other (kept `handed-over`, reported, retried when the repository
-changes). An unchanged tip never counts as proof of a lock.
-For a held lock, or a lost swap, the request becomes `pending`: the commit is built and in the spool and record, the command
-exits 0 and says the branch will show it when the other program lets go, and the lane publishes pending requests in adoption
-order when the branch allows it. The side ref `refs/cli-git/<instance>/pending/<id>` is written when the ref store lets the lane
-(a loose ref in the files backend takes no branch lock); the record and the spool are the guarantee, so a store-wide lock on
-reftable does not stand in the way of acceptance.
-Pending requests are not materialized. A request remains pending, intact, for as long as the holder holds the lock.
+The publication is tried once and its failure classified from Git's message: the lock on the branch exists
+(`unable_to_lock_message`, `refs/files-backend.c:859-866`; Git waits 100 ms by default, `refs.c:996-997`); the old value did not
+match; no space, I/O error or read-only (the owner's outside causes); or other (kept `handed-over`, reported, retried when the
+repository changes). An unchanged tip never counts as proof of a lock.
+For a held lock or a lost swap the request becomes `pending`: the commit is built and in the spool and record, the command exits 0
+and says the branch will show it when the other program lets go, and the lane publishes pending requests in adoption order when the
+branch allows it. The side ref `refs/cli-git/<instance>/pending/<id>` is written when the ref store lets the lane; the record and
+spool are the guarantee. Pending requests are not materialized.
 
 Pushes.
-Refs under `refs/cli-git/` are never pushed. The enforcement is on the effective updates, not on argument strings: the wrapper
-runs the push it controls (the auto-push, and a forwarded `git push`) after a `--dry-run --porcelain` that Git expands (explicit
-refspecs including `refs/*:refs/*`, configured `remote.<name>.push`, `push.default`, `--mirror`), and adds the negative refspec
-`^refs/cli-git/*` for every update the dry run lists in that namespace, so the real push sends everything else; the wrapper prints
-a line saying the wrapper refs were left out and why (owner, "Leave out wrapper refs (Recommended)"). Whether a negative refspec
-is honored together with `--mirror` is to be shown by a control on the installed Git; if not, a mirror push is run as the
-dry-run's list of updates minus the namespace. Controls: `refs/*:refs/*`, `--mirror`, a configured push refspec, the auto-push.
+Refs under `refs/cli-git/` are never pushed. The exclusion is unconditional, not derived from an earlier expansion: every push the
+wrapper runs (the auto-push and a forwarded `git push`) carries the negative refspec `^refs/cli-git/*`, so a ref created between an
+earlier dry run and the real push is excluded too. A control must show, on the installed Git, that the negative refspec is honored
+for each invocation form: an explicit refspec, `refs/*:refs/*`, a configured `remote.<name>.push`, `push.default`, `--all`,
+`--tags` and `--mirror`. For a form where it is not honored, the wrapper runs that push with the lane's best-effort ref creation
+paused by a marker file that the lane honors (no wrapper ref is created while a forwarded push runs), and expands the ref set
+itself once, inside that marker; the wrapper prints a line saying wrapper refs were left out and why (owner, "Leave out wrapper refs
+(Recommended)").
 
 ### Replay of the captured change (owner's choice: stack on the new head)
 
-Let `B` be the captured base (the logical head at capture), `T` the captured resulting tree (or resolved tree for a conclusion)
-and `C` the tree to publish on. The new tree is the three-way merge with base `B`, ours `C`, theirs `T`
-(`git merge-tree --write-tree --merge-base=B C T`, or an in-process equivalent that matches it). A conflict is an allowed outcome:
-the replay stops with the conflict recorded and the captured inputs kept. The commit's parents are `C` (and `T`'s other parent for
-a conclusion).
+Let `B` be the captured base (the logical head at capture, or for an amendment of a published commit, that commit `D1`), `T` the
+captured resulting tree (or resolved tree for a conclusion) and `C` the tree to publish on. The new tree is the three-way merge
+with base `B`, ours `C`, theirs `T` (`git merge-tree --write-tree --merge-base=B C T`, or an in-process equivalent that matches it).
+A conflict is an allowed outcome: the replay stops with the conflict recorded and the captured inputs kept. The commit's parents
+are `C` (and `T`'s other parent for a conclusion).
 
 ## What is guaranteed to complete, and what may wait
 
@@ -388,31 +414,26 @@ No wait below is called designed out.
 Guaranteed to complete, with no wait on another program and no cap or count:
 - acceptance: local reads and an fsynced write in the worktree's own directory, no ref write; failures are the owner's outside
   causes (a full disk, I/O errors);
-- the command's answer: `published`, or `pending` (exit 0, saved) when a foreign program holds the branch lock or keeps moving the
-  branch, or `handed over` when the lane is busy; the lane's single attempt is prompt;
-- the answer after a crash (a resend returns the record's state or the ledger's outcome);
-- retention of everything the request needs until its ledger line is durable.
+- the answer after a crash or a long stop (a resend returns the record's state or the permanent ledger's outcome);
+- retention of everything the request needs until its ledger line is durable, and permanently for anything promised as saved.
 
-May wait, off the command (it has exited 0), with a notice that names what is waited for:
-- publishing a pending request while a live foreign program holds the branch's ref lock or keeps moving it; if it never lets go
-  the commit stays pending, intact;
-- the index catching up while a live foreign program holds `index.lock` (owner: "Same as the ref lock (Recommended)"); a merge saves
-  its result on a side ref, exits 0 and finishes the checkout when the lock frees;
-- a wedged lane owner, until the manager's watchdog ends its unit.
-
-May wait on the command: nothing on a foreign program. The remaining waits are the person's own: an editor, a signer's prompt, a hook.
+May wait, with a notice that names what is waited for:
+- the command, on its own lane (a slow or wedged owner of our own making; the person can interrupt at no cost; the request is
+  durable);
+- off the command (it has exited 0): publishing a pending request while a live foreign program holds the branch's ref lock or keeps
+  moving the branch; the index catching up while a live foreign program holds `index.lock` (owner: "Same as the ref lock
+  (Recommended)"; a merge saves its result on a side ref, exits 0 and finishes the checkout when the lock frees).
+The remaining waits are the person's own: an editor, a signer's prompt, a hook.
 
 Hung Git children.
-The children on the commit path are few: `fast-import`, `commit-tree`, `merge-tree`, `update-ref`, and the commit Git builds for a
-signed or hooked commit. A child that shows no sign of work for its window is stopped and started again when it is idempotent:
-objects are content-addressed and the publication is a compare-and-swap that is safe to run twice. Not restarted: a commit Git
-builds with a hook the person configured, and an `update-ref` while a `reference-transaction` hook is configured, because the
-hook is the person's program and may have an external effect; those wait (a person's hook). Internal transactions on
-`refs/cli-git/` run without the person's hooks (`core.hooksPath` set for them only).
-A deterministic Git bug that hangs the same input every time cannot be restarted away. The guarantee is narrowed to what holds:
-a child that stalls twice on identical input makes the request pending with a message that names the child and the input, the
-command exits 0, no work is lost, and the commit is not on the branch until the cause changes (a Git upgrade, or the in-process
-writer below, which is not chosen). This is a question for the owner, because "Git's own crashes or bugs" were listed as designed out.
+A child that shows no sign of work for its window (item 1) is stopped and started again only when it is idempotent: the object
+writers and `merge-tree`, which are content-addressed. Never stopped by the wrapper: `update-ref` (it may hold a ref lock, and a
+`reference-transaction` hook is the person's program and may have an external effect), and the commit Git builds with a hook the
+person configured. Internal transactions on `refs/cli-git/` run without the person's hooks.
+A deterministic Git bug that hangs the same input every time cannot be restarted away. Containment, which is an owner decision
+(below): the request stays pending with a message that names the child and the input, the command exits 0, no work is lost. Whether
+to build a second path that avoids the affected child is the owner's choice and removes the failure class only for the operations it
+covers.
 
 ## Item 1: a Git step of the commit crosses its class bound
 
