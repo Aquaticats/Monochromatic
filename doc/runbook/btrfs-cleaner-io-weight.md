@@ -63,6 +63,9 @@ On kernel `7.2.15-ogc1.1.fc45.x86_64` and systemd `262.1-1.fc45`:
   and both weight files reported `default 10`.
 - `systemctl show` reported `IOWeight=10` for the slice,
   and `UnitFileState=enabled` plus `ActiveState=active` for the timer.
+- Scheduled repeat activations also completed successfully,
+  including the activation ending at `2026-11-03T02:13:30-05:00`.
+  Both weight files and cleaner membership remained correct.
 - Disposable procfs-shaped fixtures covered assignment,
   unrelated names,
   userspace lookalikes,
@@ -70,6 +73,8 @@ On kernel `7.2.15-ogc1.1.fc45.x86_64` and systemd `262.1-1.fc45`:
   disappearing processes,
   weight correction,
   and a repeated pass without additional assignment.
+- The scoped Markdown lint task passed,
+  and Pandoc's GFM renderer produced inspectable HTML without warnings.
 
 The fixture harness and installation inputs are under
 `${HOME}/temp/agent/btrfs-cleaner-io-weight.TNx5pe88`.
