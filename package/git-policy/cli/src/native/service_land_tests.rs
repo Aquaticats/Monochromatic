@@ -1126,6 +1126,26 @@ fn a_landing_waits_for_no_sync_that_protects_nothing() {
     remove(world.root.as_path());
 }
 
+/// The landing reads the branch it moves without starting Git: the in-process readers answer `rev-parse --verify --quiet
+/// <ref>^{commit}` from the ref files and the object store, and the same question without `^{commit}` is none they know, so
+/// it started a Git for every landing (measured in a strace of the service: one `rev-parse` of about 10 ms warm for each
+/// commit, and a cold start of the Git executable and its libraries when the host has evicted them).
+#[test]
+fn a_landing_reads_the_branch_it_moves_without_starting_git() {
+    let mut world: World = world("service-land-branch-read");
+    let (mut recorded, log) = crate::recording_git::recording_context(world.root.as_path());
+    // The recorder switches the in-process readers off; the landing under test runs with them on, as the service does.
+    recorded.overlay.retain(|(name, _)| { return name != crate::repo_read_hook::SWITCH_VARIABLE; });
+    world.context.git = recorded;
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    let words: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
+    // Positive control: the landing does start Git for the import and the move, so a recorder that saw nothing would fail here.
+    assert!(words.iter().any(|start| { return start.starts_with("update-ref"); }), "the recorder sees the starts: {words:?}");
+    assert!(!words.iter().any(|start| { return start.starts_with("rev-parse"); }), "the landing started a rev-parse: {words:?}");
+    remove(world.root.as_path());
+}
+
 /// A completion record that cannot be read is not the same as none: a restart that cannot tell whether the index was installed
 /// leaves the batch open and the index alone, instead of replaying over whatever was staged since.
 #[test]
