@@ -406,6 +406,11 @@ fn a_filter_that_creates_a_worktree_runs_under_the_inherited_lease() {
     super::support::git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "x.probe"]);
     super::support::git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=probe"]);
     super::support::git(&fixture, repo.as_path(), &["config", "filter.probe.smudge", filter.to_str().expect("UTF-8")]);
+    // A source whose tracked files are all older than its index is cloned or snapshotted by the worktree ladder, and then
+    //  Git checks nothing out and runs no filter. Whether the files are older depends on whether a second boundary fell
+    //  between writing them and committing, so an untracked file that no ignore rule covers makes the source dirty on
+    //  every host and leaves the checkout, which is what this control is about, to Git.
+    std::fs::write(repo.join("untracked-so-git-checks-out.txt"), b"u\n").expect("untracked file");
     // Git puts its own directory first on a child's PATH, so the filter names the wrapper explicitly.
     let created: Observed = observe(
         wrapped(&fixture)

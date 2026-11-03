@@ -204,6 +204,28 @@ fn is_replaced(error: &std::io::Error) -> bool {
     return matches!(error.raw_os_error(), Some(libc::ELOOP | libc::ENOTDIR | libc::ENOENT));
 }
 
+/// What:
+///  Settle a read of the source that may find the entry gone: a vanished entry is counted and skipped, any other failure
+///  is returned.
+/// Why:
+///   A source that is in use changes while it is copied. An entry removed between the listing and the read is not an
+///  error of the copy, but every other failure (a permission, a read error) is, and the report counts the first kind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { return await read(); } catch (error) { if (error.code === 'ENOENT') { vanished += 1; return undefined; } throw error; }
+/// ```
+fn vanished_is_counted<T>(outcome: std::io::Result<T>, vanished: &mut u64) -> std::io::Result<Option<T>> {
+    return match outcome {
+        Ok(found) => Ok(Some(found)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            *vanished += 1;
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    };
+}
+
 impl Pass<'_> {
     /// The destination path of a relative path, for messages.
     fn shown(&self, relative: &Path) -> PathBuf {
@@ -239,12 +261,9 @@ impl Pass<'_> {
     /// Handle one directory: delete extras, then handle each source child.
     fn visit(&mut self, relative: &Path, stack: &mut Vec<Work>) -> Result<(), MigrateError> {
         let source_directory: PathBuf = self.source.join(relative);
-        let listing: std::fs::ReadDir = match std::fs::read_dir(&source_directory) {
-            Ok(found) => found,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                self.stats.vanished += 1;
-                return Ok(());
-            }
+        let listing: std::fs::ReadDir = match vanished_is_counted(std::fs::read_dir(&source_directory), &mut self.stats.vanished) {
+            Ok(Some(found)) => found,
+            Ok(None) => return Ok(()),
             Err(error) => return Err(MigrateError::UnreadableDirectory { path: source_directory, reason: error.to_string() }),
         };
         let Some(anchor) = self.open_destination(relative)? else { return Ok(()) };
@@ -259,9 +278,9 @@ impl Pass<'_> {
             if self.options.excluded.iter().any(|path: &PathBuf| { return *path == relative.join(entry.file_name()); }) {
                 continue;
             }
-            match entry.metadata() {
-                Ok(metadata) => children.push((entry.file_name(), metadata)),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => self.stats.vanished += 1,
+            match vanished_is_counted(entry.metadata(), &mut self.stats.vanished) {
+                Ok(Some(metadata)) => children.push((entry.file_name(), metadata)),
+                Ok(None) => {}
                 Err(error) => return Err(MigrateError::UnreadableDirectory { path: source_directory, reason: error.to_string() }),
             }
         }

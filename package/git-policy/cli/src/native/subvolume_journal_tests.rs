@@ -139,3 +139,20 @@ fn a_step_keeps_its_own_time_and_an_old_record_has_none() {
     assert_eq!(Journal::load(path.as_path()).expect("load").seconds_of("copy"), None);
     crate::test_support::remove(directory.as_path());
 }
+
+/// The start time is the one the journal file recorded, a resumed run keeps it, and a fresh journal has a time of its own
+///  (ISO text), not an empty or a placeholder one.
+#[test]
+fn the_start_time_is_the_recorded_one_and_a_fresh_journal_has_its_own() {
+    let (parent, path) = journal_path("journal-started");
+    let fresh: Journal = Journal::load(path.as_path()).expect("load");
+    let began: &str = fresh.started();
+    assert!(began.len() >= "2026-01-01T00:00:00Z".len() && began.contains('T') && began.ends_with('Z'), "{began}");
+    let recorded: &str = "2026-10-31T12:34:56.789Z";
+    std::fs::write(path.as_path(), format!("{{\"schema\":1,\"started\":\"{recorded}\",\"steps\":{{}}}}")).expect("a journal");
+    let mut loaded: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(loaded.started(), recorded);
+    loaded.mark("copy", "started").expect("mark");
+    assert_eq!(Journal::load(path.as_path()).expect("reload").started(), recorded, "a resumed run keeps the start time");
+    remove(parent.as_path());
+}

@@ -15,6 +15,12 @@
 //!  Callers that start together may each write a partial copy once per build; every later caller finds the final file.
 //!  The final name is the content of the build, not its size or time, and a copy is checked against that name before
 //!  it is published.
+//!  A caller that finds a partial copy still being written waits for the stored copy instead of writing a copy of its
+//!  own (`wait_for_publisher`): a wave of tests that start together on a fresh store otherwise writes one 190 MB copy
+//!  each, and the write-back of that wave stalled the bounded commands of the tests around it (measured in
+//!  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`, "The first wave on a fresh
+//!  store"). The wait is a poll for a file, not a lock: it ends when the stored name exists, when no partial copy has
+//!  been written to for `PROGRESS_WINDOW`, or at `WAIT_CAP`, and then the caller copies as before.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,6 +47,17 @@ pub const PARTIAL_PREFIX: &str = ".partial-";
 ///  within seconds of finding it, far inside this. A copy that a fixture still links is never removed, and a link that
 ///  arrives during the removal keeps the copy (`remove_idle_builds_at`).
 pub const IDLE_BUILD_AGE: Duration = Duration::from_secs(24 * 3600);
+
+/// How long a partial copy may go without being written before a caller stops waiting for it and copies for itself:
+///  the time a live publisher needs to read its copy back and link it, plus a stall of the volume. A partial copy that a
+///  killed run left behind is older than this the next time anyone looks, so it is never waited for.
+pub const PROGRESS_WINDOW: Duration = Duration::from_secs(10);
+
+/// The longest a caller waits for another caller's copy in all, however recently that copy was written.
+pub const WAIT_CAP: Duration = Duration::from_secs(120);
+
+/// How often a waiting caller looks for the stored copy.
+pub const WAIT_POLL: Duration = Duration::from_millis(25);
 
 /// How many times a caller asks for the stored copy when the link finds it gone.
 const LINK_ATTEMPTS: usize = 3;
@@ -128,7 +145,120 @@ fn build_name(built: &Path) -> std::io::Result<String> {
 ///  When the store cannot be created or written, the copy fails, or the copy does not have the build's name.
 pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
     let name: String = build_name(built)?;
-    return shared_copy_named(built, name.as_str(), root, &|| {});
+    return shared_copy_waiting(built, name.as_str(), root, &|| {}, &|store, stored| { return wait_for_publisher(store, stored); });
+}
+
+/// What:
+///  `shared_copy_named` after the caller's `wait` for a copy another caller is writing, which says how it ended.
+/// Why:
+///  A control passes a wait that decides without a clock, and sees from `before_publish` (which only a caller that
+///  copied runs) whether the caller wrote a copy of its own.
+///
+/// # Errors
+///  The errors of `shared_copy`.
+pub fn shared_copy_waiting(built: &Path, name: &str, root: &Path, before_publish: &dyn Fn(), wait: &dyn Fn(&Path, &Path) -> WaitEnd) -> std::io::Result<PathBuf> {
+    let store: PathBuf = root.join(STORE_DIRECTORY);
+    std::fs::create_dir_all(&store)?;
+    wait(store.as_path(), store.join(name).as_path());
+    return shared_copy_named(built, name, root, before_publish);
+}
+
+/// How a wait for another caller's copy ended.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WaitEnd {
+    /// The stored copy exists.
+    Published,
+    /// No partial copy was written to within the progress window: nobody is copying, so the caller copies.
+    NobodyCopying,
+    /// A copy kept being written to until the cap: the caller stops waiting and copies.
+    CapReached,
+}
+
+/// What the wait asks of time: what it is, and a pause of one poll. The production clock is the system's; a control
+/// passes one that moves only when the wait pauses, so the wait's decisions are tested without a wall clock.
+pub trait WaitClock {
+    /// The time now.
+    fn now(&self) -> std::time::SystemTime;
+    /// Wait for `poll`.
+    fn pause(&self, poll: Duration);
+}
+
+/// The system's clock and sleep.
+struct SystemClock;
+
+/// The wait on the system's time.
+impl WaitClock for SystemClock {
+    /// The system time.
+    fn now(&self) -> std::time::SystemTime {
+        return std::time::SystemTime::now();
+    }
+
+    /// A thread sleep.
+    fn pause(&self, poll: Duration) {
+        std::thread::sleep(poll);
+    }
+}
+
+/// What:
+///  Whether any partial copy in `store` was written to within the `window` before `now`: a publisher is at work.
+/// Why:
+///  A partial file's modification time moves with every write, so a live copy always has a recent one, and a copy that a
+///  killed run left behind does not. A live copy has no second name until it is published, which keeps a leftover that
+///  aliases a published file (`reserve_partial`) from counting. A time in the future (a clock that moved back) counts as
+///  recent, and the wait it causes ends at the cap.
+fn copy_in_progress(store: &Path, window: Duration, now: std::time::SystemTime) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let Ok(entries) = std::fs::read_dir(store) else {
+        return false;
+    };
+    return entries.flatten().any(|entry| {
+        let Ok(metadata) = entry.metadata() else {
+            return false;
+        };
+        if !entry.file_name().to_string_lossy().starts_with(PARTIAL_PREFIX) || metadata.nlink() != 1 {
+            return false;
+        }
+        return match metadata.modified().map(|modified| { return now.duration_since(modified); }) {
+            Ok(Ok(age)) => age < window,
+            Ok(Err(_)) => true,
+            Err(_) => false,
+        };
+    });
+}
+
+/// What:
+///  Wait for another caller's copy to be published, on the system's clock with the production limits.
+/// Why:
+///  See `wait_for_publisher_on`.
+pub fn wait_for_publisher(store: &Path, stored: &Path) -> WaitEnd {
+    return wait_for_publisher_on(store, stored, [PROGRESS_WINDOW, WAIT_POLL, WAIT_CAP], &SystemClock);
+}
+
+/// What:
+///  Wait for another caller's copy to be published: `Published` once `stored` exists, `NobodyCopying` when no partial copy
+///  was written to within the window, `CapReached` after the cap. `limits` is the window, the poll and the cap, in that order.
+/// Why:
+///  Copying the build is the only expensive step of a fixture's creation, and callers that start together on a fresh
+///  store all did it, each writing the whole executable to the volume the bounded commands of the same wave sync to.
+///  The wait asks only for the stored name and for recent writes, so it holds nothing another caller needs; a caller
+///  that gives up simply copies, as it always did, and the link of the final name still decides the winner. Time comes
+///  from `clock`, so the end of the wait is a decision a control reads from the result.
+pub fn wait_for_publisher_on(store: &Path, stored: &Path, limits: [Duration; 3], clock: &dyn WaitClock) -> WaitEnd {
+    let [window, poll, cap] = limits;
+    let began: std::time::SystemTime = clock.now();
+    loop {
+        if stored.exists() {
+            return WaitEnd::Published;
+        }
+        let now: std::time::SystemTime = clock.now();
+        if !copy_in_progress(store, window, now) {
+            return WaitEnd::NobodyCopying;
+        }
+        if now.duration_since(began).is_ok_and(|waited| { return waited >= cap; }) {
+            return WaitEnd::CapReached;
+        }
+        clock.pause(poll);
+    }
 }
 
 /// What:
@@ -159,6 +289,9 @@ pub fn shared_copy_named(built: &Path, name: &str, root: &Path, before_publish: 
             built.display()
         )));
     }
+    // The copy is on disk before any fixture can run it: the fixtures that wait for it, and the ones that link it later,
+    // start bounded commands next, and a command that syncs would otherwise wait for this copy's write-back.
+    std::fs::File::open(&partial)?.sync_all()?;
     before_publish();
     publish(partial.as_path(), stored.as_path())?;
     remove_idle_builds(store.as_path(), stored.as_path(), IDLE_BUILD_AGE);

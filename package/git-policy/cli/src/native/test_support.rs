@@ -198,6 +198,24 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
     return fixture_with_prefix("native-unit", name);
 }
 
+/// What:
+///  Move a path's modification time two minutes into the past without following a symbolic link.
+/// Why:
+///   An index entry whose file is as new as the index file proves nothing by its stat fields (Git hashes it again), so a
+///  control that needs a provably clean worktree ages its files before the index records them.
+pub(crate) fn age(path: &Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    let past: libc::time_t = (std::time::SystemTime::now() - std::time::Duration::from_secs(120))
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .expect("after the epoch")
+        .as_secs() as libc::time_t;
+    let times: [libc::timespec; 2] = [libc::timespec { tv_sec: past, tv_nsec: 0 }, libc::timespec { tv_sec: past, tv_nsec: 0 }];
+    // SAFETY: `name` is a NUL-terminated string that outlives the call and `times` holds the two timestamps the call reads.
+    let result: libc::c_int = unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), libc::AT_SYMLINK_NOFOLLOW) };
+    assert_eq!(result, 0, "age {}", path.display());
+}
+
 /// Remove only the fixture directory a test created.
 pub(crate) fn remove(root: &Path) {
     std::fs::remove_dir_all(root).expect("remove only the fixture");

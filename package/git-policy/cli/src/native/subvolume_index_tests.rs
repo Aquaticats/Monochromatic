@@ -288,6 +288,21 @@ fn malformed_files_are_declined_with_a_reason() {
     assert!(skipped(rewrite_index_stat(long_extension.as_slice(), &mut { lookup })).contains("runs past the end"));
 }
 
+/// A file that is exactly a header is long enough to be judged by its signature and version, so the decline names what
+///  is wrong with it (no checksum fits) and not the missing signature; one byte less cannot hold the signature.
+#[test]
+fn a_file_of_exactly_a_header_is_judged_by_its_content_and_one_byte_less_is_not_an_index() {
+    let lookup = |_path: &[u8]| -> Option<StatFields> { return Some(fresh()); };
+    let mut header: Vec<u8> = b"DIRC".to_vec();
+    header.extend_from_slice(&2u32.to_be_bytes());
+    header.extend_from_slice(&0u32.to_be_bytes());
+    assert_eq!(header.len(), HEADER);
+    let exact: String = skipped(rewrite_index_stat(header.as_slice(), &mut { lookup }));
+    assert!(exact.contains("checksum matches neither") && !exact.contains("no DIRC signature"), "{exact}");
+    let short: String = skipped(rewrite_index_stat(&header[..HEADER - 1], &mut { lookup }));
+    assert!(short.contains("no DIRC signature"), "{short}");
+}
+
 /// The 124-byte SHA-256 index with an all-zero checksum whose entry walk also succeeds as a SHA-1 index: read as SHA-1 its
 ///  object name hides a second entry layout and an `UNTR` extension that ends exactly at the checksum.
 fn ambiguous_sha256_index() -> Vec<u8> {

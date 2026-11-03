@@ -179,6 +179,30 @@ Read-only commands,
   When a Git command creates a linked worktree,
    the wrapper copies the ignored state of the source worktree into it
   under one settlement lock per repository (this lock remains until the copy moves into the commit service).
+  `git worktree add` in the plain forms (`-b <branch>`, `--detach`, `--quiet`, `--lock`, `--reason`, one path and at most
+   one commit-ish) is served by the first rung of a ladder that applies and otherwise falls to the next without a word to
+   the person (each fall leaves a line in the diagnostic log, `MONOCHROMATIC_VERBOSE=true`):
+  1. A btrfs snapshot of the worktree the command is run from (the main checkout included) when it is a clean subvolume
+     on the destination's filesystem.
+     Real Git runs with `--no-checkout`, the snapshot is made beside the destination, gets the new worktree's `.git`
+     pointer and the source's index with refreshed stat fields, has the difference between the source's tree and the
+     new `HEAD` applied by `git read-tree -m -u`, and is swapped into place with `RENAME_EXCHANGE`.
+     The snapshot shares every data block with its source and carries the source's whole ignored state
+     (`node_modules` included), so the ignored-state copy is skipped for it.
+  2. Clones (`FICLONE`) of every tracked file of a clean worktree, with its index, on btrfs, XFS with reflink and
+     overlayfs. It shares disk but takes about as long as Git's checkout.
+  3. Git's own checkout, then the ignored-state copy.
+  A source is clean when no operation is in progress, its index equals the tree of its `HEAD`, every tracked file has
+   the size, times and inode its index entry recorded, and Git lists no untracked file that it does not ignore.
+  Rungs 1 and 2 are declined for a sparse checkout, a worktree-specific configuration, a submodule, `.gitattributes`
+   files that differ between the source and the new `HEAD`, and `--force`, `--no-checkout`, `-B`, `--orphan`, `--track`,
+   any `-c` option, and `--no-worktree-copy`; rung 1 is also declined while a nested linked worktree is an ordinary
+   directory (`git cli-git migrate-to-subvolume` makes them subvolumes).
+  Every worktree the wrapper creates on btrfs is a subvolume, so rung 1 needs no migration after the first one.
+  Git's `post-checkout` hook runs on no rung, because every real Git start of the wrapper switches hooks off.
+  `git worktree remove <directory>` (no option) destroys a clean, unlocked subvolume worktree with one ioctl and deletes
+   its administrative directory when the mount has `user_subvol_rm_allowed` (the doctor prints the commands that set it);
+   in every other case Git removes it.
 - Signals.
   The wrapper catches `SIGINT`,
    `SIGTERM`,
@@ -316,9 +340,11 @@ Four cases are told apart:
  apply, and no command;
  a checkout on btrfs that is an ordinary directory is told that making it a subvolume can help with performance
  (worktrees can then be made from btrfs snapshots, which took a median of 0.35 s to 1.09 s in the design measurements
- against 2.1 s to 2.7 s for Git's checkout, see `doc/planning/cli-git-btrfs-worktree.md`; this version of the wrapper
- does not snapshot yet) and is given `git cli-git migrate-to-subvolume --dry-run` and `git cli-git migrate-to-subvolume`;
- a checkout that already is a subvolume gets one line.
+ against 2.1 s to 2.7 s for Git's checkout, see `doc/planning/cli-git-btrfs-worktree.md`, and until then are made by
+ clones of the tracked files) and is given `git cli-git migrate-to-subvolume --dry-run` and
+ `git cli-git migrate-to-subvolume`;
+ a checkout that already is a subvolume gets what a worktree add and a worktree remove do there, and the commands that
+ set `user_subvol_rm_allowed` when the mount lacks it.
 On btrfs it also checks the mount option `user_subvol_rm_allowed`, which lets a regular user delete a subvolume in one
  call.
 When it is absent, the doctor prints the command to set it, for the host it finds:
@@ -471,7 +497,8 @@ A wrapper-only option is removed before Git sees the arguments and applies to th
    for example `git restore --no-enforce-worktree -- <path>`.
 - `--no-enforce-worktree-branch` skips `branch-worktree-only`.
 - `--no-enforce-bulk-add` skips `add-explicit`.
-- `--no-worktree-copy` skips the ignored-state copy into a new linked worktree.
+- `--no-worktree-copy` skips the ignored-state copy into a new linked worktree and the whole worktree ladder: Git alone
+  makes an ordinary directory.
 - `--cli-git-keep-going` reports every finding of the command in one run instead of stopping at the first blocking one.
 
 ### Hints

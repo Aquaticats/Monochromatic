@@ -1,8 +1,10 @@
 # Cheap `git worktree add` on btrfs and overlayfs
 
-Status: proposal with measurements, 2026-11-01.
+Status: implemented in `package/git-policy/cli` (2026-11-02); the sections "Snapshot flow (rung 1)" and
+"Source selection" describe the original proposal, and "Implemented flow and what superseded the proposal" says what the
+code does now. The measurements and the owner's decisions below stand.
 Scope: `package/git-policy/cli` (crate `monochromatic-git-policy-cli`), Linux only.
-No product code was changed.
+The proposal changed no product code; the implementation is on the branch `btrfs-worktree-ladder` and its successors.
 The measurements ran on throwaway copies under `/var/home/user/.cache/agent-btrfs-wt` (same btrfs filesystem and mount
 as the repository; `${HOME}/temp` is a different filesystem, so a reflink or snapshot from the repository into it fails
 with `Invalid cross-device link`).
@@ -269,6 +271,9 @@ go straight to rung 3.
 
 ### Snapshot flow (rung 1)
 
+This is the proposal as written on 2026-11-01. It is kept as the reasoning the measurements rest on; where the
+implementation differs, "Implemented flow and what superseded the proposal" is the description to trust.
+
 - Real Git runs once with `--no-checkout`, `--lock` and the person's arguments, inside the settlement lock.
   This keeps branch
   name validation, `post-checkout`-less admin creation, worktree config copying and every Git message; it spawns
@@ -495,3 +500,141 @@ Within A, the `checkout.workers` flag is optional polish and ranks last among th
 - A cold-cache comparison; a first checkout of the clone took 36 s to 40 s while the warm medians are 2.1 s to 2.4 s.
 - Overlay timings with spread, overlayfs on a host mount rather than in a container, and a system overlay mount.
 - Kopia or any backup policy's treatment of subvolume boundaries.
+
+## Implemented flow and what superseded the proposal
+
+Historical in "Snapshot flow (rung 1)": the removal of Git's destination before the snapshot, the temporary worktree
+lock, the claim that a reflink copy of the index is enough, and the recovery by pruning.
+What the code does:
+
+- Real Git runs once with `--no-checkout`. Before it runs, the wrapper records the add durably (a stage claim and a
+  record of the planned destination under the repository's journal root). That record authorizes nothing.
+- After Git returns, the add is bound: the destination's `.git` pointer must name, by a path that resolves without any
+  symbolic link, an administrative directory directly below this repository's `worktrees`, that directory's `gitdir` must name the pointer back, and the identities (device,
+  inode, birth time) of both directories and the pointer bytes are written to the record with both directories held open.
+  A pair that cannot be proven ends the ladder for this add and leaves what Git made as it is.
+- The wrapper never deletes or unregisters a worktree or a registration, and recovery never deletes a stage. The binding
+  is not authority to remove: it is what the fast rungs and the fallback checkout verify (identities at their paths, the
+  pointer bytes, the registration's back-link) before every write, and what the report of an interrupted add names. The only
+  deletions are of objects the running process made: the stage it took and never exchanged (removed only while the name
+  still holds the object it made) and its own `index.lock` (while the name still holds the file it made, as Git does).
+  The entries its clones created are not removed: no way to check a name and unlink it in one step exists, a private
+  quarantine directory is no protection against a process of the same user, so a failed clone run leaves them, the checkout
+  that completes the worktree overwrites the tracked ones, and the report counts the rest. Anything else, including every
+  doubt, is kept and reported.
+- The snapshot rung takes the snapshot at a stage name beside the destination, removes the stubs below a held handle of
+  the stage without following a link, writes Git's own `.git` pointer, installs the index bytes that were proven clean
+  (never a second read of the file) through the administrative directory's handle under `index.lock`, publishing the open
+  file itself under the name of the index with a link that cannot replace anything and releasing the lock name only while it
+  still holds that file, applies the tree difference with one `git read-tree -m -u`, and swaps stage and destination with
+  `RENAME_EXCHANGE` after checking that the destination is still the directory Git made. A swap that finds another
+  directory is undone; when it cannot be undone the stage name is never destroyed. The displaced directory is settled
+  without a recursive removal: Git's pointer and an empty directory go, and anything added meanwhile stays and is named.
+- The clone rung opens every source file below a held handle of the source root, compares the open descriptor's metadata
+  with the frozen index entry before and after the clone, creates its entries below held handles of the destination, records
+  the identity of everything it creates and the stat fields of the objects it made (the index takes those, not a fresh
+  look at the paths; a created link keeps the source's stat fields, because nothing can pin a link while its metadata is
+  read), and on a failure removes nothing and reports what stays.
+- Every file operation below a root uses `openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS`, `RESOLVE_NO_XDEV` and
+  `RESOLVE_NO_MAGICLINKS` on one plain name at a time, and a root is accepted only when the path read back from its
+  descriptor equals the path asked for.
+- Both rungs require the new worktree's effective conversion settings (`filter.*`, `extensions.*`, `core.autocrlf` and its
+  relatives), read in the new worktree's own context, to be the same sequence as the source's, in the same order. A
+  filter selected by an attribute (tracked, `info/attributes` or a global file) declines the fast rungs, except the
+  standard Git LFS definition; a `core.attributesFile` that is not an absolute path, LFS extensions, and a destination
+  that is a symbolic link decline too.
+- A step that cannot finish falls to Git's own checkout (`git reset --hard`), run in the bound worktree after the binding is
+  verified and verified again after. When the checkout fails, or the binding no longer holds, the worktree and its
+  registration stay as they are, the command fails, and one report names the path and the two commands: `git -C <path>
+  reset --hard` to retry and `git worktree remove --force <path>` to remove it. This is the cost of the rule: Git's own
+  `worktree add` removes what it registered when its checkout fails; the wrapper leaves it, because no check made before
+  a removal is safe against another process changing the path, the registration or the contents afterwards.
+- Success needs nothing durable except the completion marker, which only keeps a later report from calling a whole worktree
+  interrupted; a marker that cannot be written is a warning.
+- Recovery changes nothing. For an add that was bound and has no marker it prints the report above once; for one that was
+  never bound it says that nothing proves a leftover at the recorded path is the add's; a stage named by an add is
+  printed with the commands that remove it and is not removed. A record that cannot be read, or a marker that cannot be
+  looked up, keeps the record and says the state is unknown.
+
+### Cross-vendor reviews of the add path (2026-11-02)
+
+The first review found four data-loss or false-clean problems and four concurrency or recovery problems. Each was fixed with
+a control that was shown to fail without the fix: stub removal followed a link where a registered directory had moved; clone
+verification checked the source path after cloning; the conversion settings were never compared; a failed clone run deleted
+files it never created; the installed index was a second read of the file; a destination that is a link was exchanged as a
+link; an interrupted add left a registered worktree with no record of how to finish it; the index was written in place
+before its lock was taken.
+
+The second review found that the fixes still deleted objects identified by a pathname after an earlier check, and that a
+pathname in a record authorized deletion. The common thread is now the rule above: nothing is deleted that the add cannot
+show it created. Its findings were: recovery deleted a worktree someone else made at the recorded path; rollback validated
+one resolution and deleted another; clone cleanup unlinked replacements of created names; the displaced destination was
+removed recursively; a failed swap back handed foreign data to the stage cleanup; the index refresh certified a destination
+modified after cloning; a pointer edited to name another worktree's registration redirected the index install; the
+conversion comparison used a set; equal configuration strings were taken for equal conversions; a failed marker write still
+reported success; the install removed the lock after publication and overwrote an index written meanwhile; a failed
+rollback dropped its record; and the primitives followed ancestors, accepted `.` and `..`, and missed bind mounts.
+
+Third review: automatic recovery and rollback could still delete or unregister what they could not prove the add made (an
+adopted worktree, a moved worktree's registration, a replacement reset by the fallback, stages identified by name,
+quarantine names replaced after the check, files inside an owned root, a failed marker lookup read as incomplete). The rule
+above replaced all of that code: recovery and rollback no longer delete anything.
+
+Fourth review (part B of round three): the quarantine directory was no protection against a process of the same user, the
+stat fields of a created link came from a name that can be replaced, the index lock name could be replaced between the check
+and the rename that published it, a refresh deleted the next command's lock after its own rename, the held-lock refresh
+followed and truncated an existing staging name, and a pointer through a link could be retargeted after the binding. Each is
+fixed as described in the bullets above.
+
+Not covered by a control: the arm of `finish_snapshot` that skips the stage cleanup when the stage name is not the
+wrapper's is exercised through the primitives (`btrfs_a_failed_swap_back_does_not_claim_the_stage`) and the mapping of the
+error, not through a whole add; a bind mount cannot be made without privilege, so `RESOLVE_NO_XDEV` is relied on from the
+kernel documentation; a process that replaces the destination between Git's exit and the binding is not detected, since the
+binding is what first captures the identities.
+
+## Implementation measurement (2026-11-02)
+
+The ladder is implemented in `package/git-policy/cli` (commits on branch `btrfs-worktree-ladder`).
+Measured with `git worktree add --quiet -b <name> ../<name>` and `git worktree remove ../<name>` through two wrapper
+builds (0.5.11 installed as "before", this branch's release build as "after") on a throwaway clone on `/var/home` that is a
+subvolume, with the real root `node_modules` (about 122 thousand entries) reflinked in as ignored state.
+Four rounds per arm after one discarded warm-up, arms shuffled each round, inside a systemd unit with `CPUQuota=500%`,
+`MemoryMax=10G`, `TasksMax=1024`, `IOWeight=50`; the host load was high throughout.
+`Ma2` and `La2` are the same binary as `Ma` and `La`, so the spread between them is the noise.
+
+- `M` is run in the clone's main checkout; `L` in a linked worktree that carries the ignored state.
+- Add, median (minimum to maximum) seconds: `Mb` 15.15 (2.65 to 35.60); `Ma` 2.43 (1.23 to 17.38), `Ma2` 2.65 (1.10 to 5.22);
+  `Lb` 80.70 (77.03 to 97.81); `La` 1.43 (0.82 to 2.00), `La2` 2.40 (0.82 to 13.83).
+- CPU of the add (user plus system, median): `Mb` 3.4 s, `Ma` 1.2 s; `Lb` 30.9 s, `La` 1.2 s.
+  Peak memory 489 MB before, 22 MB after. Processes started: 20 or 21 before, 5 after.
+- The first `git status` of the new worktree: 0.18 to 0.34 s before from the main checkout and 0.12 to 1.66 s from the
+  linked worktree; 0.06 to 0.08 s after.
+- Remove, median seconds: `Mb` 2.69, `Ma` 0.51, `Ma2` 0.49; `Lb` 6.92, `La` 0.49, `La2` 0.46.
+- A worktree made after is a subvolume in every run; before it is an ordinary directory.
+- From the main checkout the before arm copies only the named rules file (22 thousand entries); the snapshot carries the
+  main checkout's whole ignored state (144 thousand entries), as the owner's decision of 2026-11-01 states.
+- The wall-time spread of the same binary is large here (`Ma2` 1.10 to 5.22 s, `La2` 0.82 to 13.83 s), so the
+  medians of `Ma`, `Ma2`, `La` and `La2` do not differ from each other, and only the difference to `Lb` (about 30 times)
+  and the CPU, memory and process counts are clear of the noise. The remove medians of 0.5 s include the clean check of
+  20 thousand tracked files and one Git run for untracked files, against 0.04 s for the bare ioctl.
+
+### Measurement after the second review (2026-11-02)
+
+Same method as above on a new throwaway clone (the real root `node_modules` reflinked in, except the unreadable log files of
+`node_modules/.monochromatic`; 197857 entries in a worktree made by the ladder): four rounds per arm after a discarded
+warm-up, arms shuffled, in a unit with `CPUQuota=500%`, `MemoryMax=10G`, `TasksMax=1024`, `IOWeight=50`. The host load average was
+39 to 41 throughout, higher than in the first measurement. `Mb` is the released 0.5.14 wrapper, `Mr1` and `Lr1` the build
+before the reviews, `Ma`, `Ma2`, `La` and `La2` this branch (`Ma2` and `La2` are the same binary as `Ma` and `La`).
+- Add, median (minimum to maximum) seconds: `Mb` 24.95 (10.46 to 36.75), `Mr1` 8.56 (6.44 to 19.63), `Ma` 9.42 (7.83 to 26.98),
+  `Ma2` 5.43 (4.20 to 9.28), `Lr1` 10.72 (2.47 to 36.08), `La` 37.03 (2.24 to 50.03), `La2` 6.37 (2.99 to 40.18).
+  The spread of the same binary (`La` against `La2`) is larger than any difference between the builds, so wall time says
+  nothing about the cost of the second review's changes; only the difference to `Mb` in process count and memory is clear.
+- User CPU, median seconds: `Mb` 1.15, `Mr1` 0.12, `Lr1` 0.10, `Ma` 0.20, `Ma2` 0.20, `La` 0.18, `La2` 0.17. The extra 0.06 to
+  0.1 s is the per-file descriptor work (the index refresh and the check of the snapshot are done through handles) and
+  the configuration read of the new worktree. System CPU is dominated by the snapshot ioctl and varied from 0.6 s to 5.3 s with the
+  load; its medians (`Mr1` 2.14, `Ma` 3.00, `Ma2` 3.55, `Lr1` 1.33, `La` 2.31, `La2` 2.57) do not separate the builds.
+- Peak memory: `Mb` 495 MB, the ladder builds 19 to 22 MB. Processes started: 21 for `Mb`, 5 for every ladder build.
+- The first `git status` of the new worktree: 0.06 to 0.08 s for the ladder builds, 0.25 to 0.48 s for `Mb`.
+- Remove, median seconds: `Mb` 1.35, ladder builds 0.49 to 0.57. A worktree made by the ladder is a subvolume in every run.
+- The measured repository applies the standard Git LFS filter by attribute; the ladder serves it because the definition is the
+  standard one in both contexts.

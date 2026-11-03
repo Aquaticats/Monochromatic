@@ -8727,6 +8727,171 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   Six guard plants,
   all red
   (`~/temp/agent/ilr3/guards-mt.ts`).
+
+## 2026-11-02: subvolume campaign survivors, dispositions
+
+Branch `btrfs-worktree-ladder`, commits `faf3ef987f` (subvolume-1) and `b6078d4bf4` (subvolume-2). Evidence: subvolume-1
+`.claude/worktrees/integrate-060/package/git-policy/cli/target/verification/native-mutation-c1437ec8fec5/` (nine
+survivors); subvolume-2 `native-mutation-4fa889528dfd/` (25 survivors in `attempt-001` and `attempt-002` together, among
+them the ten the coordinator named). Each mutant below was applied by hand to the code of the branch and only the named
+tests were run, red with the mutant and green after the file was restored (and touched: a restored file that keeps its old
+modification time makes Cargo keep the mutant's build, which cost one false failure of `subvolume_btrfs_tests` here).
+The btrfs-only tests ran on `/var/home` through `CLI_GIT_TEST_ROOT`; elsewhere they print the loud not-run line.
+
+Killed (test, then the mutant it was red against):
+- `subvolume_index.rs` `bytes.len() < HEADER` to `<=`: `a_file_of_exactly_a_header_is_judged_by_its_content_and_one_byte_less_is_not_an_index`
+  (a header-only index was reported as "no DIRC signature").
+- `subvolume_index_files.rs` `matches_stored`, the modification-time nanosecond term (`==` to `!=` twice, `||` to `&&`):
+  `an_entry_matches_a_file_when_every_recorded_field_agrees_and_not_when_one_differs` and
+  `a_recorded_zero_nanosecond_count_matches_any_and_a_non_zero_one_must_agree` (the change-time term is covered too).
+- `subvolume_anchor.rs` widening `mode | 0o700` to `^`: `a_directory_that_keeps_some_owner_bits_gets_all_of_them`
+  (modes 0o100, 0o200 and 0o300 ended without the owner's other bits; the old test used 0o000, where `^` equals `|`).
+- `subvolume_anchor.rs` retry flags `O_RDONLY | nofollow` to `&`: the flags are now one value (`reading`) used by the first
+  open and the retry, so dropping `O_NOFOLLOW` also fails `a_linked_or_missing_component_is_refused`. A race between the
+  widening and the retry cannot be forced by a test, which is why the single value is the guard.
+- `subvolume_journal.rs` `Journal::started` to `""` and `"xyzzy"`: `the_start_time_is_the_recorded_one_and_a_fresh_journal_has_its_own`.
+- `subvolume_sync_attrs.rs` `set_owner` (owner comparison, body, `!= 0`, `+= 1`) and `carried_attributes_equal` to `false`:
+  `the_owner_is_left_alone_only_when_user_and_group_both_agree` (the comparison is now the pure `same_owner`),
+  `an_owner_that_cannot_be_given_is_counted_and_an_equal_one_is_not_touched`,
+  `a_group_the_user_belongs_to_is_given_and_not_counted` (prints a not-run line when the user has no second group),
+  `carried_attributes_are_equal_only_when_names_and_values_agree`.
+- `subvolume_sync.rs` `Pass::visit` vanished guards and counters (244, 245, 264): both reads now go through
+  `vanished_is_counted`; `a_vanished_entry_is_counted_and_any_other_failure_is_returned` (uses a real `DirEntry` removed
+  after the listing) and `a_directory_that_vanished_is_counted_and_one_that_cannot_be_listed_is_an_error`.
+- `subvolume_sync.rs` `Pass::copy_file` open arms (472 `PermissionDenied` guard to `true`, 476 `NotFound` guard to `false`):
+  `an_unopenable_source_file_is_vanished_unreadable_or_an_error_by_its_reason`.
+- `subvolume_sync.rs` `copy_file` `listing.nlink() > 1` to `>= 1` at 461 and 467: not equivalent. A file with one name that
+  records a link, or is looked up in the records, is linked to an earlier copy when the source reuses an inode number during
+  a long pass: `only_a_file_with_several_names_is_recorded_and_linked` plants a stale record.
+- `fs_mount_options.rs` `parse_line` (104, three operators): `a_line_is_read_only_with_the_separator_late_enough_and_three_fields_after_it`;
+  `longest_mount_holding` (145, 151): `a_path_no_chain_of_ids_reaches_falls_back_to_the_longest_mount_point`.
+- `subvolume_platform.rs` `LinuxPlatform::is_subvolume_root` to `Ok(false)` and `create_subvolume` to `Ok(())`:
+  `btrfs_the_platform_creates_a_subvolume_and_tells_it_from_a_directory` (the module had no controls of its own; the real
+  migration tests only cover it on a btrfs host, never on the container gate).
+
+Equivalent, by reading:
+- `subvolume_sha.rs:76:31` (`sha1`, `(b & c) | (!b & d)`, `|` to `^`) and `:128:41` (`sha256`, `(e & f) ^ (!e & g)`, `^` to `|`):
+  the two operands select by `b` (or `e`) and by its complement, so no bit is set in both, and `x | y == x ^ y` when
+  `x & y == 0`. The majority term `(b & c) | (b & d) | (c & d)` does not have this property and its mutants are caught.
+- `subvolume_anchor.rs` `O_RDONLY | nofollow` to `^` (the 80:64 mutant, now on the `reading` line): `libc::O_RDONLY` is 0 on
+  Linux, so `0 ^ x == 0 | x`; the line carries a comment saying so.
+
+## 2026-11-02: five binary tests at the 5-second bound on btrfs, cause and fix
+
+Commit `279f60c929` on `btrfs-worktree-ladder`; evidence and numbers in
+`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`, section "The first wave on a fresh
+store". Cause: a harness wave, not a product wait. A fresh `CLI_GIT_TEST_ROOT` on a volume other than the build makes
+every concurrent test copy the 190 MB wrapper into the store; the write-back stalls the `fsync` of the bounded commands
+(one traced `fsync` of 4.74 s). The store now lets one caller write the copy while the others wait for it, and fsyncs it
+before publishing. One of the five (`a_filter_that_creates_a_worktree_runs_under_the_inherited_lease`) also depended on
+whether a second boundary fell before the commit: a clean source is cloned by the ladder and Git then runs no smudge
+filter; the control keeps an untracked file in the source. The 5-second bound is unchanged; a bound that does not count
+disk wait is described there and not built. Not proven: the wave as the only amplifier (a probe with one dirty 190 MB copy
+showed nothing); other sessions' writers can still stall an `fsync` past 5 s.
+
+## 2026-11-02: cross-vendor review of the ladder's add path, fixes and controls
+
+Findings 1 to 9 of `/var/home/user/temp/agent/review-btrfs-ladder-add/sol-review.txt`; the design text is
+`doc/planning/cli-git-btrfs-worktree.md`, section "Implemented flow and what superseded the proposal". Each finding was
+checked against the code first and none was rejected. Fixes are on `btrfs-worktree-ladder`, commit
+`dc81164cd8` and the commit after it.
+
+Each control below was shown to fail with the fix removed (a textual mutant run with the owner's tooling, or a
+path-based replacement of the fix), and passes with it.
+- `remove_stubs`: `fs_beneath.rs` opens each stage directory below a held handle, without a link and on the stage's
+  device; a nested stub is removed only as an empty directory. Controls:
+  `a_stub_reached_through_a_link_removes_nothing_the_link_points_at`, `a_nested_stub_is_removed_only_as_an_empty_directory`;
+  the blocker `nested_through_link` refuses the snapshot rung before Git runs.
+- Clone verification: the open descriptor's metadata is compared with the frozen index entry before and after the clone.
+  Controls: `btrfs_a_file_swapped_between_the_look_and_the_open_is_not_cloned`,
+  `btrfs_a_file_written_during_the_clone_is_refused_and_listed_for_removal`.
+- Conversion settings: `conversion_agrees` in `worktree_ladder_target.rs` compares the new worktree's effective `filter.*`,
+  `extensions.*` and conversion keys, read in its own context, with the source's. Control:
+  `a_filter_only_the_new_branch_sets_ends_the_reading_and_a_shared_one_does_not` (a real `includeIf onbranch`).
+- Clearing: the clone run removes only the entries it created, below the held destination handle; the fallback no longer
+  clears the destination. Controls: `btrfs_a_failed_run_removes_what_it_created_and_nothing_else`,
+  `btrfs_removal_after_a_destination_swap_touches_only_the_directory_that_was_filled`,
+  `btrfs_a_refused_clone_rung_leaves_a_file_it_did_not_create`.
+- Frozen index: `CleanSource::index_bytes` is read from the same open file as its time and is the only index used.
+  Controls: `btrfs_the_frozen_index_is_used_not_a_second_read_of_the_file`, `btrfs_the_snapshot_is_checked_against_the_frozen_index`.
+- Destination link and exchange: `parse_add_plan` declines a destination that is a link; `put_in_place` checks the
+  directory Git made by device and inode before the exchange. Controls: `a_destination_that_is_a_link_is_declined`,
+  `btrfs_a_destination_swapped_before_the_exchange_is_refused`, `btrfs_a_destination_replaced_by_a_link_is_refused`.
+- Pending add: the clone rung now claims the add as the snapshot rung did; `mark_complete` writes a marker before the line is
+  printed; recovery removes an add with no marker, with its registration, only when the repository confirms the pair
+  (`worktree_add_rollback.rs`); a failed `reset --hard` removes the worktree as Git's own add does. Controls in
+  `worktree_copy_stage_claim_tests.rs`, `worktree_add_rollback_tests.rs` and the `btrfs_each_rung_marks_the_add_complete...` test.
+- Index lock: `install_index_file` takes `index.lock` first and renames the finished index. Control:
+  `btrfs_a_held_index_lock_leaves_the_index_alone`.
+
+Not covered by a control: the swap back in `put_in_place` after the exchange when the stage name holds another directory,
+which needs a race between two system calls. A kill between the marker write and the release leaves a complete add with its
+marker, which recovery keeps; a kill before the marker removes a complete worktree the person was never told about.
+
+## 2026-11-02: the binary tests' hang guard judges progress (branch `bound-supervisor`)
+
+Commits `a4a46158f1` and `a0ba0575d9` on `bound-supervisor` (separate from the ladder, mergeable on its own). The
+5-second wall bound of the shared harness is replaced by a monitor that judges the process tree from `/proc` and ends it
+only for no progress, a spent processor budget, or a ten-minute backstop. Design, controls, the suite time before and after
+and the limits are in the section "The hang guard now judges progress, not wall time" of
+`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`.
+
+## 2026-11-02: round two of the cross-vendor review of the add path
+
+Review text: `/var/home/user/temp/agent/review-btrfs-ladder-add-2/sol-review.txt`; design: `doc/planning/cli-git-btrfs-worktree.md`,
+"Implemented flow and what superseded the proposal" (the planning-document update of round one is on the branch, commit
+`d99875d70a`, and was not in the material the reviewer was given). Code and controls: the commit after `0e432cd0b3` on
+`btrfs-worktree-ladder`. All fourteen findings were verified against the code; none was rejected.
+
+The rule that came out of it: nothing is deleted that the add cannot show it created.
+- Recovery and rollback act on identities (device, inode, birth time) recorded when the add was bound to the directories Git
+  made, not on a pathname; a planned record deletes nothing; a quarantine rename compares the identity before any removal; the
+  registration goes only after the destination; a removal that cannot finish keeps its record.
+- The clone run records the identity of every entry it creates and the stat fields of the objects it made; the index takes
+  those fields, so a file replaced after the clone no longer matches.
+- The displaced destination is settled without a recursive removal (on btrfs a file added meanwhile stays in the displaced
+  directory, because a rename into the snapshot's subvolume is refused); a failed swap back never hands the stage to the
+  cleanup; success needs the marker or the withdrawal of the record.
+- The index is installed through the administrative directory's handle, under `index.lock`, without replacing an index and
+  without touching the lock after the rename.
+- Conversion: an ordered sequence is compared, a filter selected by an attribute declines the fast rungs except the standard
+  Git LFS definition, a relative `core.attributesFile` declines. The LFS exception is a judgment, not a measurement: the
+  standard `git-lfs clean` and `smudge` convert by content alone and the definition is compared in both contexts; the owner can
+  veto it by deleting the exception in `external_conversion_refusal`, at the price that LFS repositories take Git's checkout.
+- `fs_beneath.rs` uses `openat2` (`RESOLVE_BENEATH`, `NO_SYMLINKS`, `NO_XDEV`, `NO_MAGICLINKS`) on single plain names and
+  accepts a root only when the path read back from its descriptor equals the path asked for.
+
+Controls were shown red with the fix removed (28 textual mutants plus one corrected placement for the lock removed after
+publication). Not covered: the arm of `finish_snapshot` that skips the stage cleanup is exercised through the primitives and
+the error mapping; `RESOLVE_NO_XDEV` against a bind mount cannot be exercised without privilege; a process that replaces the
+destination between Git's exit and the binding is not detected.
+
+## 2026-11-02: round three of the review of the add path, and the rule that ended the class
+
+Review text: `/var/home/user/temp/agent/review-btrfs-ladder-add-3/sol-review.txt`. Its ten findings had one shape: automatic
+recovery or rollback deleted or unregistered something it could not prove the add made. Design decision of the coordinator,
+under the owner's rule of a loud, clear failure: the ladder's recovery and rollback never delete or unregister anything.
+- An interrupted or failed add completes in place through the bound worktree or leaves the worktree and its registration as
+  they are and reports once the path, `git -C <path> reset --hard` and `git worktree remove --force <path>`.
+- The fallback `reset --hard` runs only after `verify_association` (identities at their paths, pointer bytes, registration
+  back-link) and is verified again after; a moved or replaced worktree is never reset.
+- Recovery changes nothing; a stage named by an add is printed and kept; a record or marker that cannot be looked up keeps
+  the record and says the state is unknown. Stages of the older ignored-state copy (claims without an add record) are
+  still removed as before; extending the rule to them is a separate decision.
+- The deletions that remain are of objects the running process made: the stage it took and never exchanged (while the name
+  still holds that object), and the entries its clones created (moved into a private directory made for the call, compared,
+  removed; a directory only when empty).
+- Deleted: `remove_bound`, the contents removal, the withdrawal of authority, the double-fault removal, the module
+  `worktree_add_rollback` (now `worktree_add_binding`).
+Cost, in SPEC and the planning document: an interrupted or failed add can leave an incomplete registered worktree.
+Controls were shown red with each guard removed (16 textual mutants); the early `verify_association` of the clone rung
+needed a control of its own (`btrfs_the_clone_rung_writes_nothing_when_the_registration_was_replaced`). Equivalent: replacing
+the `None` stage identity of `discard_stage` by a fake identity (both leave the stage). Not guarded: the second comparison
+of the opened directory handle in `remove_owned_at` (it equals the name's identity unless a race inside one system call
+pair).
+Branch naming rule `GBN` (`<type>/<scope>-<subject>`): no branch was created in this round; `btrfs-worktree-ladder` is renamed
+by the coordinator at merge.
+
 - Gate 43 on `integrate-069` (conflict sides, merge-trigger fix, survivors) PASSED: `3264 tests run: 3264 passed (1
   slow), 5 skipped`; image `9b67fdaf4d4f`. Merged into main (`7d43d976d0`; crate source equals the gated tree; on
   origin). Release 0.5.13 dispatched (https://github.com/Aquaticats/Monochromatic/actions/runs/41510722259). After

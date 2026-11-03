@@ -107,3 +107,8 @@ impl Platform for LinuxPlatform {
         return exchange_paths(first, second);
     }
 }
+
+/// Platform controls stay out of the release executable.
+#[cfg(test)]
+#[path = "subvolume_platform_tests.rs"]
+mod tests;

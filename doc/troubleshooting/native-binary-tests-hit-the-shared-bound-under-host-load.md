@@ -527,6 +527,67 @@ The linter's own test containers hard-code 128 in their own scripts and are unch
 Not measured: how many processes those tests need.
 512 was chosen by the owner's instruction, not by a measurement.
 
+## The first wave on a fresh store: five binary tests hit the bound on btrfs, 2026-11-02
+
+Five binary tests hit `the command hit the 5-second bound` at 5.6 s in a run on `/var/home` with a fresh
+`CLI_GIT_TEST_ROOT` (`subvolume::the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree`,
+`subvolume::the_rollback_restores_the_ordinary_directory`, and three `worktree_copy::` controls that run
+`git worktree add`), while two gates and three mutation campaigns used the host. The library tests passed.
+
+### What was measured
+
+- Not a product wait. `strace -f -ttt -T` of every wrapped command in three cold runs (the bound raised to 119 s in a
+  scratch copy, the harness otherwise unchanged) showed one long call in the slowest command: a single `fsync(3)` of
+  4.74 s, 0.19 s after the command started, with no `futex`, `flock` or `poll` wait beyond the normal child waits and
+  no lock or claim of the wrapper involved (`merge --no-edit` in a linked worktree, load average 14). All other
+  syscalls of that command took at most 0.15 s.
+- Cold and warm store, same 48 tests (`worktree_` and `subvolume` filters), same host, raised bound, load 30 to 33:
+  with a fresh `wrapper-store` the slowest wrapped command took 20.6 s and 13 of 116 commands took 4 s or more
+  (`worktree add` and `migrate-to-subvolume` ones), the run 58.6 s; with the store already populated by the run before,
+  the slowest took 0.70 s and the run 7.2 s. The tests, the binary and the load were the same, so the product's own
+  waits are not what moved.
+- The fresh store is where the harness writes. The fixtures live on `/var/home`, the build on another volume, so the
+  hard link fails with `EXDEV` and `link_stored` copies the 190 MB debug executable. Callers that start together each
+  wrote their own copy: sampling `/proc/meminfo` and the store every 250 ms, six partial copies of 190 MB were being
+  written at once, host `Writeback` reached 720 MB, and the fixtures took up to 2 s each to build. The fixtures link
+  the result and start their bounded commands next, so the commands that sync (the ignored-state copy, the journal,
+  the migration) run while that write-back is in flight.
+- The probe that copies 190 MB and times a wrapped `worktree add` straight after, with and without `fsync`, did not
+  show it (14 to 46 ms in all four arms, load 13): one copy at a time on a calm volume is harmless. The stall needs the
+  wave, not any dirty data. This is the weakest link of the explanation; the strace and the cold-against-warm
+  comparison are the evidence for it.
+
+### What changed
+
+- `binary_wrapper_store.rs`: a caller that finds a partial copy being written (modified within `PROGRESS_WINDOW`,
+  10 s, with no second name) waits for the stored copy instead of writing its own (`wait_for_publisher`; it polls for
+  the file, holds nothing, ends at the window without a write or at `WAIT_CAP`, 120 s, and then copies as before), and
+  the publisher fsyncs its copy before it links it, so the write-back is over before any waiting fixture starts a
+  command. Guards in `binary_wrapper_store_tests.rs` run the wait on a clock that moves only when the wait pauses
+  (`WaitClock`) and read how it ended (`WaitEnd`: published, nobody copying, cap reached) and how many pauses it took, so
+  no control measures elapsed wall time (a first version did, and failed once in a gate under load: 3.2 s against a
+  bound written for 0.8 s). Each is shown failing against a mutant of the wait: a live copy is
+  waited for and the published one used, an old copy, an aliasing leftover and a copy that stopped growing are not,
+  the cap ends the wait, and a caller with nothing in progress copies at once. The fsync has no control (nothing in the
+  process observes it); it is covered by the measurement below only.
+- With both, three cold runs under strace had the slowest wrapped command at 1.30, 1.08 and 1.79 s and no call of
+  0.5 s or more other than child waits (before the fsync, with only the wait: 0.93, 2.94 and 5.24 s), and an
+  unmodified cold run passed all 48 tests (6.5 s, load 14).
+- `a_filter_that_creates_a_worktree_runs_under_the_inherited_lease` also failed in one of those runs, not at the bound
+  but with `the filter saw the lease: NotFound`. A clean source whose tracked files are older than its index is cloned
+  or snapshotted by the worktree ladder, and then Git runs no checkout and no smudge filter; whether the files were
+  older depended on whether a second boundary fell between writing them and committing. The control now leaves an
+  untracked file in the source, so the checkout is Git's on every host. Red: the same control with the files aged and
+  the index refreshed, without the untracked file, fails with that message; green: with the untracked file and the
+  aging both.
+
+### What is not claimed
+
+A fixed 5-second wall bound can still be exceeded by a slow `fsync` that other sessions cause: the wave was the
+harness's own contribution and is gone, the volume's other writers are not. A bound that does not count time spent in
+disk wait (state `D`) and still kills a command that loops or deadlocks would separate the two; it needs a supervisor
+in `observe_raw` in place of `timeout` and is not built. The 5-second bound stays, as task 66 decided.
+
 ## The hang guard now judges progress, not wall time
 
 The sections above keep a 5-second wall bound as the hang guard and show that other sessions' write-back and load can

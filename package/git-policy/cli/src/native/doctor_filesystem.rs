@@ -189,7 +189,7 @@ pub fn gather_facts(root: &Path) -> Option<FilesystemFacts> {
 /// The wording for a filesystem that is neither btrfs nor overlayfs.
 fn other_lines(facts: &FilesystemFacts) -> Vec<String> {
     return vec![format!(
-        "{} {} is on a filesystem other than btrfs or overlayfs. `git worktree add` uses Git's own checkout there, and no faster method applies.",
+        "{} {} is on a filesystem other than btrfs or overlayfs. `git worktree add` uses Git's own checkout there, and no faster method applies (XFS made with reflink support clones the tracked files of a clean worktree instead).",
         SECTION_MARKER,
         facts.root.display()
     )];
@@ -199,8 +199,8 @@ fn other_lines(facts: &FilesystemFacts) -> Vec<String> {
 fn overlay_lines(facts: &FilesystemFacts) -> Vec<String> {
     return vec![
         format!("{} {} is on overlayfs.", SECTION_MARKER, facts.root.display()),
-        String::from("  Cloning a file's data into another file inside the same overlay works, so the wrapper's copy of ignored files uses clones there; a snapshot does not apply, because snapshots need a btrfs subvolume and the btrfs under an overlay cannot be addressed from inside it."),
-        String::from("  `git worktree add` uses Git's own checkout, which was several times slower on an overlay than on btrfs in one measurement (doc/planning/cli-git-btrfs-worktree.md, section Overlayfs)."),
+        String::from("  Cloning a file's data into another file inside the same overlay works, so the wrapper's copy of ignored files uses clones there, and `git worktree add` clones the tracked files of a clean worktree instead of letting Git check them out; a snapshot does not apply, because snapshots need a btrfs subvolume and the btrfs under an overlay cannot be addressed from inside it."),
+        String::from("  Git's own checkout, which the wrapper falls back to when the worktree it is run from is not clean, was several times slower on an overlay than on btrfs in one measurement (doc/planning/cli-git-btrfs-worktree.md, section Overlayfs)."),
     ];
 }
 
@@ -236,7 +236,7 @@ fn kernel_argument_lines(facts: &FilesystemFacts) -> Vec<String> {
 fn removal_option_lines(facts: &FilesystemFacts, mount: &MountSummary) -> Vec<String> {
     let mount_point: &Path = mount.mount_point.as_path();
     let mut lines: Vec<String> = vec![
-        format!("  The mount {} lacks `{REMOVAL_OPTION}`. Without it, deleting a worktree that is a subvolume works but unlinks its files one by one; with it, one call deletes the subvolume.", mount_point.display()),
+        format!("  The mount {} lacks `{REMOVAL_OPTION}`. Without it, `git worktree remove` of a worktree that is a subvolume works but unlinks its files one by one; with it, the wrapper deletes a clean worktree's subvolume with one call.", mount_point.display()),
         format!("  Active until the next boot or unmount: sudo mount --options remount,{REMOVAL_OPTION} {}", shell_quote(mount_point.as_os_str().as_bytes())),
     ];
     let on_root_filesystem: bool = facts.root_source.as_deref() == Some(mount.source.as_str());
@@ -255,17 +255,18 @@ fn btrfs_lines(facts: &FilesystemFacts) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     if facts.root_is_subvolume {
         lines.push(format!("{} {} is a btrfs subvolume.", SECTION_MARKER, facts.root.display()));
+        lines.push(String::from("  `git worktree add` makes the new worktree from a snapshot of the worktree it is run from when that worktree is clean, and makes every new worktree a subvolume, so the next one can be a snapshot too. A worktree that is not clean, has a sparse checkout or worktree-specific configuration, or has a nested worktree that is an ordinary directory is cloned file by file instead, or checked out by Git."));
     } else {
         lines.push(format!("{} {} is on btrfs but is an ordinary directory, not a subvolume.", SECTION_MARKER, facts.root.display()));
-        lines.push(String::from("  Making it a subvolume can help with performance: worktrees can then be made from btrfs snapshots, which took a median of 0.35 s to 1.09 s in the design measurements, against 2.1 s to 2.7 s for Git's checkout and 28.35 s with an ignored tree of 72 thousand entries, and share every data block with their source (doc/planning/cli-git-btrfs-worktree.md, section Measurements)."));
-        lines.push(String::from("  This version of the wrapper does not create worktrees from snapshots yet; `git worktree add` still uses Git's checkout. The conversion keeps the original tree until you delete it."));
+        lines.push(String::from("  Making it a subvolume can help with performance: `git worktree add` then makes the new worktree from a btrfs snapshot of the worktree it is run from, which took a median of 0.35 s to 1.09 s in the design measurements, against 2.1 s to 2.7 s for Git's checkout and 28.35 s with an ignored tree of 72 thousand entries, and shares every data block with its source (doc/planning/cli-git-btrfs-worktree.md, section Measurements)."));
+        lines.push(String::from("  Until then `git worktree add` clones the tracked files of a clean worktree, which shares disk but takes about as long as Git's checkout, and makes every new worktree a subvolume that later ones can be snapshotted from; worktrees that exist already as ordinary directories stay ordinary. The conversion keeps the original tree until you delete it."));
         lines.push(String::from("  Stop agent sessions and editors that have their working directory inside the checkout first, then:"));
         lines.push(String::from("    git cli-git migrate-to-subvolume --dry-run"));
         lines.push(String::from("    git cli-git migrate-to-subvolume"));
     }
     match &facts.mount {
         Some(mount) if mount.has_removal_option => {
-            lines.push(format!("  The mount {} has `{REMOVAL_OPTION}`: a subvolume worktree is deleted in one call.", mount.mount_point.display()));
+            lines.push(format!("  The mount {} has `{REMOVAL_OPTION}`: `git worktree remove` deletes a clean subvolume worktree in one call.", mount.mount_point.display()));
         }
         Some(mount) => lines.extend(removal_option_lines(facts, mount)),
         None => lines.push(String::from("  The mount table could not be read, so `user_subvol_rm_allowed` was not checked.")),

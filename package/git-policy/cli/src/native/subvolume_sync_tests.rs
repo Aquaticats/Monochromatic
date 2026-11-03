@@ -625,3 +625,118 @@ fn the_group_of_a_copy_follows_the_original_not_the_directory_it_was_made_in() {
     }
     remove(parent.as_path());
 }
+
+/// A pass over `source` and `destination` that the controls below drive one step at a time.
+fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a Path, interrupt: &'a Interrupt) -> Pass<'a> {
+    return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new() };
+}
+
+/// The destination directory of a relative path, held open with the temporary name a pass uses.
+fn directory_of(destination: &Path) -> Directory {
+    let anchor: Anchor = Anchor::open_below(destination, Path::new("")).expect("open the destination");
+    return Directory { anchor, temporary: OsString::from(PARTIAL_NAME) };
+}
+
+/// A read that found its entry gone is counted and skipped, a read that failed otherwise is returned, and one that worked
+///  counts nothing; the metadata of a listed entry that was removed after the listing is the vanished kind.
+#[test]
+fn a_vanished_entry_is_counted_and_any_other_failure_is_returned() {
+    let mut vanished: u64 = 0;
+    assert_eq!(vanished_is_counted(Ok(5u32), &mut vanished).expect("worked"), Some(5));
+    assert_eq!(vanished, 0);
+    assert_eq!(vanished_is_counted::<u32>(Err(std::io::Error::from(std::io::ErrorKind::NotFound)), &mut vanished).expect("tolerated"), None);
+    assert_eq!(vanished, 1);
+    for kind in [std::io::ErrorKind::PermissionDenied, std::io::ErrorKind::InvalidData] {
+        let error: std::io::Error = vanished_is_counted::<u32>(Err(std::io::Error::from(kind)), &mut vanished).expect_err("returned");
+        assert_eq!(error.kind(), kind);
+    }
+    assert_eq!(vanished, 1, "a failure that is not a vanished entry is not counted");
+    let (parent, source, _destination) = trees("sync-vanished-entry");
+    let entry: std::fs::DirEntry = std::fs::read_dir(source.as_path()).expect("listing").flatten().find(|item: &std::fs::DirEntry| { return item.file_name() == "file.txt"; }).expect("the file is listed");
+    std::fs::remove_file(source.join("file.txt")).expect("remove after the listing");
+    assert!(vanished_is_counted(entry.metadata(), &mut vanished).expect("tolerated").is_none());
+    assert_eq!(vanished, 2);
+    remove(parent.as_path());
+}
+
+/// A directory that is gone when its turn comes is counted and adds no work; one that cannot be listed for another reason
+///  stops the pass and names the directory.
+#[test]
+fn a_directory_that_vanished_is_counted_and_one_that_cannot_be_listed_is_an_error() {
+    let (parent, source, destination) = trees("sync-vanished-directory");
+    let (platform, interrupt): (PlainPlatform, Interrupt) = (PlainPlatform::new(), Interrupt::never());
+    let mut pass: Pass<'_> = pass_over(&platform, source.as_path(), destination.as_path(), &interrupt);
+    let mut stack: Vec<Work> = Vec::new();
+    pass.visit(Path::new("gone"), &mut stack).expect("a vanished directory is tolerated");
+    assert_eq!((pass.stats.vanished, stack.len()), (1, 0));
+    let error: MigrateError = pass.visit(Path::new("file.txt"), &mut stack).expect_err("a file cannot be listed");
+    assert!(matches!(&error, MigrateError::UnreadableDirectory { path, .. } if path.ends_with("file.txt")), "{error}");
+    assert_eq!(pass.stats.vanished, 1);
+    std::fs::create_dir(destination.join("dir")).expect("the destination directory the parent's visit makes");
+    pass.visit(Path::new("dir"), &mut stack).expect("positive control: a directory that is there");
+    assert!(!stack.is_empty(), "its subdirectory is queued");
+    assert_eq!(pass.stats.vanished, 1);
+    remove(parent.as_path());
+}
+
+/// A file that cannot be opened is told apart by the reason: gone is counted as vanished, unreadable is listed, and any
+///  other failure stops the pass naming the file.
+#[test]
+fn an_unopenable_source_file_is_vanished_unreadable_or_an_error_by_its_reason() {
+    let (parent, source, destination) = trees("sync-open-reasons");
+    let (platform, interrupt): (PlainPlatform, Interrupt) = (PlainPlatform::new(), Interrupt::never());
+    let directory: Directory = directory_of(destination.as_path());
+    let listing: Metadata = std::fs::symlink_metadata(source.join("file.txt")).expect("listing");
+    let mut pass: Pass<'_> = pass_over(&platform, source.as_path(), destination.as_path(), &interrupt);
+    pass.copy_file(&directory, Path::new("absent"), &listing, None).expect("a vanished file is tolerated");
+    assert_eq!((pass.stats.vanished, pass.stats.unreadable.len(), pass.stats.files_copied), (1, 0, 0));
+    let error: MigrateError = pass.copy_file(&directory, Path::new("file.txt/inside"), &listing, None).expect_err("a path through a file");
+    assert!(error.to_string().contains("open"), "{error}");
+    assert_eq!((pass.stats.vanished, pass.stats.unreadable.len()), (1, 0), "neither list takes another reason");
+    if !running_as_root() {
+        std::fs::write(source.join("secret"), b"s").expect("secret");
+        std::fs::set_permissions(source.join("secret"), PermissionsExt::from_mode(0o000)).expect("closed");
+        pass.copy_file(&directory, Path::new("secret"), &listing, None).expect("an unreadable file is tolerated");
+        assert_eq!((pass.stats.vanished, pass.stats.unreadable.clone()), (1, vec![PathBuf::from("secret")]));
+        std::fs::set_permissions(source.join("secret"), PermissionsExt::from_mode(0o600)).expect("open again");
+    }
+    pass.copy_file(&directory, Path::new("file.txt"), &listing, None).expect("positive control: a readable file is copied");
+    assert_eq!(pass.stats.files_copied, 1);
+    remove(parent.as_path());
+}
+
+/// A file with one name leaves no record of a link behind, and a file with several names leaves exactly one; a stale
+///  record (an inode number the source reused) never makes a single-name file a link of an earlier copy.
+#[test]
+fn only_a_file_with_several_names_is_recorded_and_linked() {
+    let (parent, source, destination) = trees("sync-link-records");
+    std::fs::write(source.join("first-name"), b"shared bytes").expect("file");
+    std::fs::hard_link(source.join("first-name"), source.join("second-name")).expect("second name");
+    run(source.as_path(), destination.as_path(), COPY);
+    let (platform, interrupt): (PlainPlatform, Interrupt) = (PlainPlatform::new(), Interrupt::never());
+    let directory: Directory = directory_of(destination.as_path());
+    let metadata = |relative: &str| -> Metadata { return std::fs::symlink_metadata(source.join(relative)).expect("source metadata"); };
+    let existing = |relative: &str| -> Option<Metadata> { return Some(std::fs::symlink_metadata(destination.join(relative)).expect("destination metadata")); };
+    // Unchanged files: the single name records nothing, the two names record one copy.
+    let mut pass: Pass<'_> = pass_over(&platform, source.as_path(), destination.as_path(), &interrupt);
+    pass.copy_file(&directory, Path::new("file.txt"), &metadata("file.txt"), existing("file.txt")).expect("unchanged");
+    assert_eq!((pass.stats.unchanged, pass.links.len()), (1, 0), "a single-name file records no link");
+    pass.copy_file(&directory, Path::new("first-name"), &metadata("first-name"), existing("first-name")).expect("unchanged");
+    assert_eq!((pass.stats.unchanged, pass.links.len()), (2, 1), "a two-name file records its copy");
+    // A stale record: the source reused an inode number for a single-name file that is not yet in the destination.
+    std::fs::write(destination.join("earlier"), b"another file entirely").expect("earlier copy");
+    std::fs::write(source.join("new-single"), b"new bytes").expect("new single");
+    std::fs::write(source.join("new-pair"), b"pair bytes").expect("new pair");
+    std::fs::hard_link(source.join("new-pair"), source.join("new-pair-two")).expect("second name");
+    let mut stale: Pass<'_> = pass_over(&platform, source.as_path(), destination.as_path(), &interrupt);
+    for name in ["new-single", "new-pair"] {
+        let listing: Metadata = metadata(name);
+        stale.links.insert((listing.dev(), listing.ino()), vec![PathBuf::from("earlier")]);
+        stale.copy_file(&directory, Path::new(name), &listing, None).expect("copy");
+    }
+    assert_eq!(std::fs::read(destination.join("new-single")).expect("single"), b"new bytes", "not a link of the earlier copy");
+    assert_ne!(std::fs::metadata(destination.join("new-single")).expect("single").ino(), std::fs::metadata(destination.join("earlier")).expect("earlier").ino());
+    assert_eq!(std::fs::metadata(destination.join("new-pair")).expect("pair").ino(), std::fs::metadata(destination.join("earlier")).expect("earlier").ino(), "positive control: a two-name file is linked to the recorded copy");
+    assert_eq!((stale.stats.hard_linked, stale.stats.files_copied), (1, 1));
+    remove(parent.as_path());
+}

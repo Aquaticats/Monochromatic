@@ -97,6 +97,8 @@ fn a_non_writer_with_a_copy_runs_settled() {
         main_checkout_paths: vec![String::from(".cache/forbidden-strings.rules.txt")],
         global_prefix: vec![OsString::from("-C"), repo.as_os_str().to_owned()],
         environment: Vec::new(),
+        add_plan: None,
+        remove_plan: None,
     });
     assert_eq!(run_coordinated_forward(&forward), CoordinatedRun::Ran(0));
     remove(root.as_path());

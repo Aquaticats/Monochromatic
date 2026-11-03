@@ -796,6 +796,11 @@ pub fn prepare_stage_removal(stage_container: &Path) -> Result<(), WorktreeCopyE
 /// await prepareStageRemoval(stageContainer); await rm(stageContainer, { recursive: true, force: true });
 /// ```
 pub fn remove_stage(stage_container: &Path) -> Result<(), WorktreeCopyError> {
+    // A stage made by a snapshot is a subvolume; where the mount allows it one call removes the whole tree.
+    #[cfg(target_os = "linux")]
+    if crate::fs_kind::is_subvolume_root(stage_container).unwrap_or(false) && crate::fs_btrfs_ioctl::subvolume_destroy_at(stage_container).is_ok() {
+        return Ok(());
+    }
     prepare_stage_removal(stage_container)?;
     return remove_tree_if_present(stage_container);
 }

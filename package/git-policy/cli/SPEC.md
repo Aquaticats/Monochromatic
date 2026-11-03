@@ -454,6 +454,80 @@ and leaves value-position tokens with the same bytes untouched.
 An opted-out invocation performs no journal recovery;
 pending journals wait for the next repository invocation without the flag.
 
+### Cheap worktree creation and removal on btrfs, XFS and overlayfs
+
+Design, measurements and the reasons for each choice: `doc/planning/cli-git-btrfs-worktree.md`.
+The ladder applies to a `git worktree add` that names one path and at most one commit-ish and uses only `-b <branch>`,
+`--detach`, `-d`, `--quiet`, `-q`, `--lock`, `--reason` and `--checkout`, run through the wrapper from a linked worktree,
+a bare repository or a main checkout, without `--no-worktree-copy`, without a global option other than `-C`, `--no-pager`,
+`-P`, `-p`, `--paginate`, `--no-advice` and `--no-lazy-fetch`, and with an existing parent directory of the destination.
+Any other form is Git's own, unchanged.
+The ladder runs inside the settlement lock, and every rung that cannot run falls to the next without a message to the
+person and with one diagnostic line (`MONOCHROMATIC_VERBOSE=true`) that names the rung and the reason.
+
+A source is the worktree the command runs in, the main checkout included.
+It is clean when no merge, cherry-pick, revert, bisect, rebase, sequencer or `index.lock` state exists in its Git
+directory, its index equals the tree of its `HEAD` (no staged change, intent-to-add, skip-worktree, unmerged or
+submodule entry), every tracked file has the size, modification time, change time, inode, owner, type and executable
+bit its index entry recorded and is older than the index file, and `git ls-files --others --exclude-standard` lists
+nothing.
+A source is also refused for a sparse checkout, for any worktree-scope configuration entry, and for `core.sparseCheckout`.
+
+Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and no nested linked worktree
+that is an ordinary directory.
+Real Git runs with `--no-checkout` added after `add`.
+The wrapper then reads the new `HEAD`, refuses a subject Git would have to print or `.gitattributes` files that differ
+between the source's tree and the new tree, claims a stage name beside the destination in the settlement journal root,
+snapshots the source there (`BTRFS_IOC_SNAP_CREATE_V2`), makes the stage private, removes the stub of every nested
+linked worktree and of the destination, replaces `.git` with the bytes Git wrote, compares every tracked file of the
+snapshot with the copied index, installs the index with `rewrite_index_stat_with` (extensions `UNTR` and `FSMN`
+dropped), applies the tree difference with `git read-tree -m -u <source commit> <new commit>` under Git's
+`GIT_DIR` and `GIT_WORK_TREE`, gives the stage the source's mode and swaps it with the destination
+(`RENAME_EXCHANGE`).
+The directory real Git made, now at the stage name, is settled without a recursive removal: Git's pointer and the empty
+directory go, and anything another process added to it meanwhile stays there and is named in a warning.
+Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet` was given.
+The snapshot carries the whole ignored state of the source, so the ignored-state copy skips that destination.
+A refusal before the swap destroys the stage, only while the stage name still holds the directory the wrapper made, and
+completes the worktree with `git reset --hard --no-recurse-submodules` (`--quiet` when given), whose status is then the
+command's.
+
+Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the destination in one clone domain.
+The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links
+recreated), a second comparison of the source with its own index, the installation of the index, and the same tree
+difference.
+A refusal removes nothing, because a name cannot be checked and unlinked in one step: the entries the clones created stay,
+`git reset --hard` overwrites the tracked ones, a message counts them and names `git -C <path> status` for any other, and a
+file another process put into the destination is never touched. The index records the stat fields of the regular files the
+wrapper made, taken from their descriptors; a cloned link keeps the source's stat fields, which Git compares by target.
+The ignored-state copy then runs as for Git's checkout.
+
+Rung 3 is Git's checkout and the ignored-state copy.
+Where the destination's parent is on btrfs and the rung is 2 or 3, the wrapper first creates the destination as an
+empty subvolume (`BTRFS_IOC_SUBVOL_CREATE`), which Git accepts as an empty directory, and removes it again if Git leaves
+it empty.
+No rung runs a hook: every real-Git start of the wrapper switches hooks off.
+The wrapper never deletes or unregisters a worktree, a registration or a stage it did not make in the running process, and
+the only entry it removes by name is its own lock file, while the name still holds the file it made.
+After Git's `--no-checkout` run it binds the add to the two directories Git made (the destination and its administrative
+directory, proven to name each other below this repository's `worktrees`, the pointer resolving to the registration without
+any symbolic link; a pointer through a link ends the ladder for the add with a message that names the pointer and says to make
+the worktree with a canonical path), records their identities, and checks the
+binding again before every write into the worktree and before the fallback checkout; a worktree that was moved, replaced
+or edited meanwhile is not written to, the add fails with one report, and nothing is changed.
+When the fallback checkout fails, the worktree and its registration stay as they are, the command fails with Git's
+status, and one report names the path, `git -C <path> reset --hard` (retry) and `git worktree remove --force <path>`.
+A process killed between Git's run and the end of the add leaves the claim and a record; the next recovery changes
+nothing, prints that report once for a bound add (or says that nothing proves a leftover is the add's when the add was
+never bound), prints the stage it did not remove, and drops the record. A record or a completion marker that cannot be
+looked up keeps the record and says that the state is unknown. The cost: an interrupted or failed add can leave an
+incomplete registered worktree for the person to complete or remove.
+
+`git worktree remove <directory>` with no option, for a registered, unlocked, clean linked worktree that is a subvolume
+root, on a mount that lists `user_subvol_rm_allowed`, destroys the subvolume (`BTRFS_IOC_SNAP_DESTROY`) and deletes the
+administrative directory.
+Every other case, and a refusal by the kernel, is Git's own removal.
+
 Before staging,
 exclude every registered worktree root strictly nested under the source.
 Private stage names are reserved and excluded at every path component.
