@@ -135,6 +135,53 @@ fn a_server_that_never_answers_the_first_request_is_still_a_stall() {
     drop(silent);
 }
 
+/// A server that took the connection and says nothing for longer than the stall window is a connected remote, not a stalled
+///  push: the wrapper does not stop the push for time, and the push ends when the server closes the connection.
+#[test]
+fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
+    let listener: TcpListener = TcpListener::bind("127.0.0.1:0").expect("a local listener");
+    let port: u16 = listener.local_addr().expect("its address").port();
+    let silence: Duration = STALL * SILENCE_WINDOWS;
+    let silent = std::thread::spawn(move || {
+        // Take the connection, read what the client sends, answer nothing, and close after the silence.
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut sink: [u8; 4096] = [0; 4096];
+            let _ = stream.set_read_timeout(Some(silence));
+            let began: Instant = Instant::now();
+            while began.elapsed() < silence && stream.read(&mut sink).is_ok_and(|count| { return count > 0; }) {}
+            std::thread::sleep(silence.saturating_sub(began.elapsed()));
+        }
+    });
+    let root: PathBuf = fixture("slow-server-holds-connection");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{port}/silent.git").as_str()]);
+    let (attempt, elapsed): (PushAttempt, Duration) = run(repo.as_path(), Patience::Push { stall: STALL, ceiling: CEILING });
+    assert_ne!(attempt.exit_code, STOPPED_EXIT_CODE, "the wrapper did not stop a connected push: {}", attempt.output);
+    assert!(!attempt.output.contains("limit=stall"), "{}", attempt.output);
+    assert!(elapsed >= silence - STALL, "the push stayed while the connection was open: {elapsed:?}");
+    remove(root.as_path());
+    drop(silent);
+}
+
+/// A server check that outlasts what was the ceiling does not stop the push: it lands.
+#[test]
+fn a_push_over_http_is_not_stopped_at_a_ceiling_while_the_server_checks() {
+    let root: PathBuf = fixture("slow-server-no-ceiling");
+    let projects: PathBuf = root.join("projects");
+    std::fs::create_dir(&projects).expect("projects");
+    let remote: PathBuf = silent_remote(projects.as_path(), STALL * SILENCE_WINDOWS);
+    let server: SmartHttp = SmartHttp::start(projects.as_path());
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{}/remote.git", server.port()).as_str()]);
+    let former_ceiling: Duration = STALL * 2;
+    let (attempt, _elapsed): (PushAttempt, Duration) = run(repo.as_path(), Patience::Push { stall: STALL, ceiling: former_ceiling });
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    assert!(!attempt.output.contains("limit=ceiling"), "{}", attempt.output);
+    assert_eq!(git_text(remote.as_path(), &["rev-parse", "main"]), git_text(repo.as_path(), &["rev-parse", "main"]), "the commit arrived");
+    drop(server);
+    remove(root.as_path());
+}
+
 /// How much longer than the wrapper's former low-speed cutoff the server's check stays silent.
 const PAST_THE_CUTOFF: Duration = Duration::from_secs(5);
 

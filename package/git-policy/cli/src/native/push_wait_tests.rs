@@ -250,6 +250,42 @@ fn a_pack_still_being_made_is_a_stall() {
     assert_stalled_at_the_window(cause, began);
 }
 
+/// A connection that has not yet seen a pack sent (no `send-pack`, no `pack-objects`: a server that has not answered the first
+///  request) is an open connection all the same: the push waits for the remote and is not stopped for time.
+#[test]
+fn a_connected_push_is_waited_for_before_any_pack_was_sent() {
+    let (listener, port): (TcpListener, u16) = listening();
+    let probe: Owned = start_probe(port, "connected", None);
+    let _held: TcpStream = accepted(&listener);
+    let mut clock: Clock = push_clock(probe.pid());
+    let stopped: Option<StopCause> = drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED);
+    assert!(stopped.is_none(), "the connection is open: the push waits for the remote");
+}
+
+/// A pack still being made (a `pack-objects` below the push) with the connection open is waited for as well: what the code can
+///  observe is the open connection, not the phase of the push.
+#[test]
+fn a_connected_push_is_waited_for_while_its_pack_is_made() {
+    let (listener, port): (TcpListener, u16) = listening();
+    let probe: Owned = start_probe(port, "connected", Some("pack-objects"));
+    let _held: TcpStream = accepted(&listener);
+    let mut clock: Clock = push_clock(probe.pid());
+    let stopped: Option<StopCause> = drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED);
+    assert!(stopped.is_none(), "the connection is open: the push waits");
+}
+
+/// A connected push that has waited past what used to be the ceiling is not stopped for time.
+#[test]
+fn a_connected_push_is_not_stopped_at_a_ceiling() {
+    let (listener, port): (TcpListener, u16) = listening();
+    let probe: Owned = start_probe(port, "connected", Some("send-pack"));
+    let _held: TcpStream = accepted(&listener);
+    let former_ceiling: Duration = STALL_WINDOW * 2;
+    let mut clock: Clock = Clock::start(probe.pid(), Patience::Push { stall: STALL_WINDOW, ceiling: former_ceiling });
+    let stopped: Option<StopCause> = drive(&mut clock, former_ceiling * 2);
+    assert!(stopped.is_none(), "an open connection is waited for however long it takes");
+}
+
 /// A tree with no connection at all (a push to a local path, whose hook is a child) is a stall, as before.
 #[test]
 fn a_tree_with_no_connection_is_a_stall() {

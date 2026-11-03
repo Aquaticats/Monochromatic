@@ -192,6 +192,25 @@ fn a_tree_that_keeps_moving_stops_only_at_the_ceiling() {
     remove(root.as_path());
 }
 
+/// A tree that keeps moving is not stopped for time at all: no total bound ends a push that shows progress.
+#[test]
+fn a_tree_that_keeps_moving_is_not_stopped_past_what_was_the_ceiling() {
+    let root: std::path::PathBuf = fixture("progress-no-ceiling");
+    let child: Child = shell("while :; do echo x >> log; sleep 0.1; done", root.as_path());
+    let stall: Duration = Duration::from_millis(1500);
+    let former_ceiling: Duration = Duration::from_millis(2500);
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling: former_ceiling });
+    let began: Instant = Instant::now();
+    let mut stopped: Option<StopCause> = None;
+    while stopped.is_none() && began.elapsed() < former_ceiling * 2 {
+        stopped = clock.check();
+        std::thread::sleep(LOOK);
+    }
+    assert!(stopped.is_none(), "data kept moving, so nothing stops the tree");
+    end(child);
+    remove(root.as_path());
+}
+
 /// Whether the process `pid` still runs: a process that is gone, or ended and waiting to be reaped, does not.
 fn process_runs(pid: u32) -> bool {
     let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { return false };
