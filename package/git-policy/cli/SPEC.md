@@ -1560,8 +1560,11 @@ in-process reader can) gives every value of the multi-valued keys.
   (no process of the tree holds an established socket) the stall window runs again from that moment,
   and the run is stopped as before.
   The rule covers every network run of the auto-push: the push, the reconcile fetch and the Git LFS upload.
-  That scope is part of the coordinator's pick, because the audit's low-speed entry names the fetch
-  and the upload runs through the same clock; the owner's own answer named the push.
+  That scope is the choice of the agent that built the pick, not the coordinator's and not the owner's:
+  the owner's answer named the push, the audit's low-speed entry names the fetch,
+  and the upload runs through the same clock.
+  It is flagged for the coordinator; a second patience without the connected branch, handed to the fetch and the upload,
+  undoes it in a few lines.
   Measured on 2026-11-03 over HTTP to Git's own `http-backend` with `receive.keepAlive` at 0 ("set to 0 to disable keepalives
   entirely") and a `pre-receive` hook that sleeps four stall windows: the push is stopped at the first window before this change
   and lands on its first try after it.

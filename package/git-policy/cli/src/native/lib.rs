@@ -946,7 +946,7 @@ pub mod stale_ref_lock_message;
 #[cfg(test)]
 mod stale_ref_lock_killed_git;
 
-/// The bytes a push and its processes move, sampled, and the clock that stops it on a stall or at its ceiling.
+/// The bytes a push and its processes move, sampled, and the clock that stops it on a stall.
 pub mod push_progress;
 
 /// The processes of this host that use a directory or a file.

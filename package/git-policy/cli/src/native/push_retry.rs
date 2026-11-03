@@ -3,7 +3,7 @@
 //!  for one, and the test for the one failure no retry can mend.
 //! Why:
 //!  The owner's rule is that auto-push must land (`SPEC.md`, "Merges and commits never fail"). A push stopped by the stall
-//!  window, by the ceiling, by the network or by a reference lock passes by itself, so the service tries again on its own,
+//!  window, by the network, by an LFS server error or by a reference lock passes by itself, so the service tries again on its own,
 //!  with pauses that grow, until the push lands or a conflict needs the person. Nothing waits for the next commit: the work
 //!  loop is woken when the pause is over. The list is owned by the service's work loop and kept on disk beside the instance's
 //!  journal (`push_retry_store.rs`), so a restarted service rebuilds it; the person's failure record is not the plan, since the
@@ -102,7 +102,7 @@ fn rejection_lines(output: &str) -> impl Iterator<Item = &str> {
     return output.lines().map(str::trim).filter(|line| { return line.contains(REMOTE_REJECTED); });
 }
 
-/// The failure of a push that no retry can mend, from Git's own words; nothing for a failure that can pass (a stall, the ceiling, the
+/// The failure of a push that no retry can mend, from Git's own words; nothing for a failure that can pass (a stall, the
 /// network, a held lock) and for a rejection whose reason this release does not know.
 pub fn final_failure(output: &str) -> Option<FinalFailure> {
     if output.contains(CONFLICT_PHRASE) {

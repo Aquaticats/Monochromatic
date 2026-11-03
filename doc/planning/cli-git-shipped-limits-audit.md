@@ -753,6 +753,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   read from the kernel's socket diagnostics) is waited for in every phase.
   The window now applies only to a tree with no open connection and no sign of work.
   It covers the push, the reconcile fetch and the LFS upload, and the wait line names the program that waits.
+  That scope is the building agent's choice, flagged for the coordinator: the owner's answer named the push.
   The 30 seconds stays uncited, and `bounded_push.rs` and `SPEC.md` say so beside it.
   The journal of the commit service (read-only, 2026-10-20 to 2026-11-03, 794 pushes that landed) gives whole-push times
   of p50 3.5 s, p99 26.4 s and maximum 72.4 s, which include connected time.
@@ -1315,6 +1316,8 @@ the owner's practice is to cite the Git 2.56.0 file and line (handover, "Recorde
 ## Counts
 
 The limit sections hold 73 limits (a grouped entry, such as the three include-depth copies, counts once).
+These totals are for the audited commit; picks 5 and 12 removed the push ceiling, the low-speed abort and the LFS retry,
+which the totals below still count.
 
 - cited: 4.
   The conversion storage ceiling (`src/native/worktree_convert_command.rs:76`), the conversion memory estimate
