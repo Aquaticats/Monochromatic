@@ -27,11 +27,6 @@ fn mode_of(path: &Path) -> u32 {
     return std::fs::metadata(path).expect("metadata").permissions().mode() & 0o7777;
 }
 
-/// A mask of 022, as the controls that fix the umask use it.
-fn umask_022() -> std::io::Result<u32> {
-    return Ok(0o022);
-}
-
 /// The private copy has one name, built from the live index and the batch, in the live index's directory.
 #[test]
 fn the_private_name_is_built_from_the_live_index_and_the_batch() {
@@ -56,10 +51,13 @@ fn shared_modes_follow_calc_shared_perm() {
 }
 
 /// The mode is set before the first byte is written, also when `core.sharedRepository` is narrower than the mask gives: under a
-/// mask of 022 a value of 0640 never has the file readable by the world (a value that adds bits adds them to the 0644 Git's file
-/// has), and the file is empty when its mode is set.
+/// mask of 022 (the test runs in a child that starts with it) a value of 0640 never has the file readable by the world (a value
+/// that adds bits adds them to the 0644 Git's file has), and the file is empty when its mode is set.
 #[test]
 fn the_mode_is_set_before_any_byte_is_written() {
+    if crate::umask_child_test_support::ran_in_child(module_path!(), "the_mode_is_set_before_any_byte_is_written", 0o022) {
+        return;
+    }
     for (shared, expected) in [(-0o640, 0o640), (0o660, 0o664), (0o664, 0o664), (-0o600, 0o600)] {
         let (root, _live, built) = directory("publish-order");
         let seen: RefCell<Vec<(&str, u32, u64)>> = RefCell::new(Vec::new());
@@ -71,11 +69,11 @@ fn the_mode_is_set_before_any_byte_is_written() {
             seen.borrow_mut().push(("write", file.metadata()?.permissions().mode() & 0o7777, file.metadata()?.len()));
             return (SYSTEM.write)(file, bytes);
         };
-        let steps: Steps<'_> = Steps { write: &write, chmod: &chmod, umask: &umask_022, ..SYSTEM };
+        let steps: Steps<'_> = Steps { write: &write, chmod: &chmod, ..SYSTEM };
         publish_with(&steps, built.as_path(), b"index bytes", shared).expect("published");
         let order = seen.into_inner();
-        // At the change of mode the file is empty and owner-only; at the first write it already has the final mode.
-        assert_eq!(order[0], ("chmod", 0o600, 0), "shared {shared:o}");
+        // At the change of mode the file is empty and has the mode Git's file has; at the first write it has the final mode.
+        assert_eq!(order[0], ("chmod", 0o644, 0), "shared {shared:o}");
         assert_eq!(order[1], ("write", expected, 0), "shared {shared:o}");
         assert_eq!(mode_of(built.as_path()), expected, "shared {shared:o}");
         remove(root.as_path());
@@ -110,14 +108,14 @@ fn every_failed_step_leaves_the_target_and_no_temporary_file() {
     let no_chmod = |_: &std::fs::File, _: u32| -> std::io::Result<()> { return Err(broken()); };
     let no_sync = |_: &std::fs::File| -> std::io::Result<()> { return Err(broken()); };
     let no_rename = |_: &Path, _: &Path| -> std::io::Result<()> { return Err(broken()); };
-    let no_umask = || -> std::io::Result<u32> { return Err(broken()); };
+    let no_mode = |_: &std::fs::File| -> std::io::Result<u32> { return Err(broken()); };
     let cases: Vec<(&str, Steps<'_>, i32)> = vec![
         ("a write that fails midway", Steps { write: &fails_after_a_while, ..SYSTEM }, 0),
         ("a write that takes nothing", Steps { write: &takes_nothing, ..SYSTEM }, 0),
         ("a mode that cannot be set", Steps { chmod: &no_chmod, ..SYSTEM }, 0o660),
         ("a flush that fails", Steps { sync: &no_sync, ..SYSTEM }, 0),
         ("a rename that fails", Steps { rename: &no_rename, ..SYSTEM }, 0),
-        ("a mask that cannot be read", Steps { umask: &no_umask, ..SYSTEM }, 0o660),
+        ("a mode that cannot be read", Steps { mode: &no_mode, ..SYSTEM }, 0o660),
     ];
     for (label, steps, shared) in cases {
         let (root, _live, built) = directory("publish-failure-steps");
@@ -210,7 +208,6 @@ fn the_published_mode_under_a_real_umask_is_gits() {
     if crate::umask_child_test_support::ran_in_child(module_path!(), "the_published_mode_under_a_real_umask_is_gits", 0o077) {
         return;
     }
-    assert_eq!(process_umask().expect("the mask"), 0o077);
     let (root, _live, built) = directory("publish-mode");
     for (shared, expected) in [(0, 0o600), (0o660, 0o660), (0o664, 0o664), (-0o640, 0o640)] {
         publish(built.as_path(), b"x", shared).expect("published");

@@ -54,16 +54,13 @@ pub struct Steps<'a> {
     pub sync: &'a dyn Fn(&std::fs::File) -> std::io::Result<()>,
     /// The rename of the finished file over the target.
     pub rename: &'a dyn Fn(&Path, &Path) -> std::io::Result<()>,
-    /// The process's file creation mask, which Git's lock file is created under.
-    pub umask: &'a dyn Fn() -> std::io::Result<u32>,
+    /// The mode bits the new file has, as the file system gave them.
+    pub mode: &'a dyn Fn(&std::fs::File) -> std::io::Result<u32>,
 }
 
-/// The process's umask, read from `/proc/self/status` (Linux): reading it never changes it, which `umask(2)` cannot promise
-/// while other threads create files.
-fn process_umask() -> std::io::Result<u32> {
-    let status: String = std::fs::read_to_string("/proc/self/status")?;
-    let line: &str = status.lines().find_map(|line| { return line.strip_prefix("Umask:"); }).ok_or_else(|| { return std::io::Error::other("no Umask line in /proc/self/status"); })?;
-    return u32::from_str_radix(line.trim(), 8).map_err(std::io::Error::other);
+/// The permission bits the file system gave the new file, which already include the mask and any inherited default ACL.
+fn mode_of_file(file: &std::fs::File) -> std::io::Result<u32> {
+    return Ok(file.metadata()?.permissions().mode());
 }
 
 /// One write to the file.
@@ -87,27 +84,27 @@ fn rename_file(from: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 /// The operating system's own calls.
-pub const SYSTEM: Steps<'static> = Steps { write: &write_some, chmod: &set_mode, sync: &sync_all, rename: &rename_file, umask: &process_umask };
+pub const SYSTEM: Steps<'static> = Steps { write: &write_some, chmod: &set_mode, sync: &sync_all, rename: &rename_file, mode: &mode_of_file };
 
-/// Create the temporary file with the permissions Git's index lock file has before a byte is written to it: Git creates it
-/// under the umask and `adjust_shared_perm` (`tempfile.c:152`) changes it at once, so a `core.sharedRepository` value that is
-/// narrower than the umask never lets the bytes be read more widely. With a shared repository the file is created with the owner's
-/// bits only and then set to the mode `calc_shared_perm` makes of what Git's file would have had.
+/// Create the temporary file as Git creates its index lock file and give it Git's mode before a byte is written to it: Git
+/// creates the file with the mode 0666 and lets the file system narrow it by the mask and any default ACL of the directory, and
+/// `adjust_shared_perm` (`tempfile.c:152`) then widens or replaces the bits it finds, so the calculation starts from the mode the
+/// new file really has. Nothing is written before that, so a `core.sharedRepository` value narrower than the mask or the ACL gives
+/// never lets the bytes be read more widely.
 fn create_beside(steps: &Steps<'_>, target: &Path, shared: i32) -> std::io::Result<(std::fs::File, PathBuf)> {
     use std::os::unix::fs::OpenOptionsExt as _;
-    let open_mode: u32 = if shared != 0 { 0o600 } else { 0o666 };
     for _ in 0..NAME_TRIES {
         let Some(temporary) = temporary_beside(target) else {
             break;
         };
-        let file: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).mode(open_mode).open(&temporary) {
+        let file: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).mode(0o666).open(&temporary) {
             Ok(created) => created,
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error),
         };
         if shared != 0 {
-            let gits_file: u32 = 0o666 & !(steps.umask)().inspect_err(|_| { let _removed = std::fs::remove_file(&temporary); })?;
-            if let Err(error) = (steps.chmod)(&file, shared_mode(shared, gits_file) & 0o7777) {
+            let changed: std::io::Result<()> = (steps.mode)(&file).and_then(|gits_file| { return (steps.chmod)(&file, shared_mode(shared, gits_file) & 0o7777); });
+            if let Err(error) = changed {
                 let _removed = std::fs::remove_file(&temporary);
                 return Err(error);
             }
