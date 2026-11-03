@@ -16,6 +16,7 @@
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::support::{Fixture, FixtureService, fixture, git, repository, start_fixture_service};
+use git_policy_cli::service_fault::QUEUED_DIRECTORY_VARIABLE;
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::{OsStr, OsString};
 use std::io::{BufRead, BufReader};
@@ -45,6 +46,8 @@ struct Scene {
     repo: PathBuf,
     service: FixtureService,
     markers: PathBuf,
+    /// Where the service leaves a file for each commit request it has queued.
+    queued: PathBuf,
 }
 
 /// A wrapped commit that was started and is not over.
@@ -90,10 +93,13 @@ fn scene(name: &str, native: bool) -> Scene {
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     let markers: PathBuf = fixture.root.join("markers");
     std::fs::create_dir(&markers).expect("markers");
+    let queued: PathBuf = fixture.root.join("queued");
+    std::fs::create_dir(&queued).expect("queued");
+    super::support::give_service_environment(&fixture, QUEUED_DIRECTORY_VARIABLE, queued.to_str().expect("UTF-8"));
     let service: FixtureService = start_fixture_service(&fixture);
     // One service per worktree, as in production: the manager would start it on the first connection.
     service.serve(&fixture, repo.join(".git").as_path());
-    return Scene { fixture, repo, service, markers };
+    return Scene { fixture, repo, service, markers, queued };
 }
 
 fn start(scene: &Scene, message: &str, paused: bool) -> Started {
@@ -326,6 +332,11 @@ fn holds_socket(marker: &Path) -> bool {
     });
 }
 
+/// How many commit requests the service has put in its queue.
+fn queued_requests(scene: &Scene) -> usize {
+    return std::fs::read_dir(&scene.queued).map_or(0, Iterator::count);
+}
+
 /// Three commits with the service held busy by the first: the other two reach it while it waits, so they land as one batch on
 ///  one base. The earlier one is captured first and the later one after it, from one worktree, so the later one's bytes hold
 ///  the earlier one's edit; `later_arrives_first` says which of the two reaches the service first.
@@ -351,11 +362,15 @@ fn run_one_batch(scene: &Scene, later_arrives_first: bool) -> (Ended, Ended, End
     let later: Started = start_on(scene, "later", FILE, Some(later_markers.as_path()));
     wait_for("the later commit captured", || { return later_markers.join("service-prepared-1.reached").exists(); });
     let order: [&Path; 2] = if later_arrives_first { [later_markers.as_path(), earlier_markers.as_path()] } else { [earlier_markers.as_path(), later_markers.as_path()] };
+    // The service has the holder's request already; each release is followed by the service queueing one more.
+    let mut queued_before: usize = 1;
+    wait_for("the holder's request queued", || { return queued_requests(scene) >= queued_before; });
     for directory in order {
         std::fs::write(directory.join("service-prepared-1.release"), "").expect("release");
         wait_for("the commit connected to the service", || { return holds_socket(directory); });
-        // The request follows the connection at once; this is the time for the service to have it.
-        std::thread::sleep(Duration::from_millis(300));
+        // The service leaves a file when it has put the request in its queue: that, not a pause, orders the arrivals.
+        queued_before += 1;
+        wait_for("the service queued the request", || { return queued_requests(scene) >= queued_before; });
     }
     std::fs::remove_file(&lock).expect("the lock is let go");
     return (finish(holder), finish(earlier), finish(later));
