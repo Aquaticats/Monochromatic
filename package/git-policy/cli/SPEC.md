@@ -2157,11 +2157,13 @@ holds the incident of release 0.5.26, 2026-11-03, the cause, the options weighed
 
 ### The wrapper falls back to the Git its commit service was set up with
 
-Decided on 2026-11-03T11:26:52-05:00 by the coordinator, under the owner's delegation ("Pick options as if I had picked
-them and invite veto when I say I'm back."), open to the owner's veto: when no real Git follows the wrapper on `PATH`,
-the wrapper uses the real Git it recorded for its commit service, with a notice, instead of stopping. The reason: native
-Git in that `PATH` would not be found at all, but once the wrapper is found the person expects `git` to work; the owner's
-rules "Commits should never fail." and "never leak internal things that could be resolved to the user"
+Recorded on 2026-11-03T11:26:52-05:00; the pick is the coordinator's, made before the build under the owner's
+delegation ("Pick options as if I had picked them and invite veto when I say I'm back."), open to the owner's veto:
+when no real Git follows the wrapper on `PATH`,
+the wrapper uses the real Git it recorded for its commit service, with a notice, instead of stopping.
+The reason: native Git in that `PATH` would not be found at all,
+but once the wrapper is found the person expects `git` to work; the owner's rules "Commits should never fail." and
+"never leak internal things that could be resolved to the user"
 (`package/git-policy/cli/DESIGN.md`, 2026-11-01). The deliberation is in `doc/planning/cli-git-no-self-invocation.md`,
 section "Falling back to the Git the commit service was set up with".
 

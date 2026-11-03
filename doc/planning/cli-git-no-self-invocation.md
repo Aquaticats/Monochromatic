@@ -343,7 +343,8 @@ checked 2026-11-03):
 ## Falling back to the Git the commit service was set up with (2026-11-03T11:26:52-05:00)
 
 Status: built and verified in the branch `feat/git-policy-cli-falls-back-to-installed-git`. This is the coordinator's
-pick under the owner's delegation, open to the owner's veto when the owner is back. The delegation, quoted: "Pick
+pick under the owner's delegation, made before the build and recorded here at the time above, open to the owner's veto
+when the owner is back. The delegation, quoted: "Pick
 options as if I had picked them and invite veto when I say I'm back."
 
 ### The pick
@@ -400,8 +401,9 @@ recorded.
   and the word after `--git` on the first `ExecStart=` line that has one. A relative path is no record.
   `process_resolution_inputs` names the unit file only below an absolute `XDG_RUNTIME_DIR`
   (`ResolutionInputs.service_unit`).
-- `real_git_resolution.rs` `resolve_real_git` (re-exported by `real_git.rs`) is the one resolution every start uses. It runs `search_path_for_real_git` (the old
-  search of `PATH`, unchanged), and only on failure reads the record and judges it with `classify_candidate`, the check
+- `real_git_resolution.rs` `resolve_real_git` (re-exported by `real_git.rs`) is the one resolution every start uses.
+  It runs `search_path_for_real_git` (the old search of `PATH`, unchanged),
+  and only on failure reads the record and judges it with `classify_candidate`, the check
   every `PATH` candidate passes: the file must exist and be an executable file, and is refused when it is this
   executable (inode, canonical path or bytes), a launcher of it (record `.launch` beside it or beside the file its links
   reach), or a script that starts the TypeScript wrapper. Another release of the wrapper behind a native header passes
@@ -475,8 +477,11 @@ the record).
   logged-out case common.
 - A fixed `/usr/bin/git` for the case that no unit exists yet. Ranking: no > yes, because the instruction was a
   recorded path and not a guess, and a wrong Git is worse than a stop with a message.
-- The default `--git /usr/bin/git` of `cli-git-service` when the option is missing. Ranking: leave > remove, because the
-  wrapper always writes `--git` and the default serves development runs only; removing it is a separate change.
+- The default `--git /usr/bin/git` of `cli-git-service` when the option is missing, and its refusal of a `--git`
+  that is only a launcher (it still accepts the wrapper itself, a copy, or a missing file). Ranking: leave > tighten
+  to the checks of a `PATH` candidate > remove the default, because the wrapper always writes `--git` from the path
+  it resolved, so the service's own checks guard only a hand-written or older unit; tightening is a small separate
+  change, and removing the default would break development runs.
 - One notice per invocation versus once per login. Ranking: per invocation > once, because a once-only notice needs a
   file that outlives the process and a decision about when it expires.
 
