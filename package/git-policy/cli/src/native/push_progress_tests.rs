@@ -12,7 +12,7 @@
 #![cfg(unix)]
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, remove, spawn_owned};
 use std::process::{Child, Command, Stdio};
 /// The name the control gives the probe test in order to run it as a process of its own.
 const PROBE_NAME: &str = "push_progress::tests::disk_wait_probe";
@@ -31,15 +31,16 @@ const PATIENCE: Duration = Duration::from_secs(20);
 
 /// A shell command running `script` in `directory`, with its output discarded.
 fn shell(script: &str, directory: &std::path::Path) -> Child {
-    return Command::new("sh")
-        .arg("-c")
-        .arg(script)
-        .current_dir(directory)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("start the shell");
+    return spawn_owned(
+        Command::new("sh")
+            .arg("-c")
+            .arg(script)
+            .current_dir(directory)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null()),
+    )
+    .expect("start the shell");
 }
 
 /// End a child the control started.
@@ -129,7 +130,7 @@ fn a_missing_process_moves_nothing_and_this_system_counts_bytes() {
 /// A fixed patience stops at its limit, and not before.
 #[test]
 fn a_fixed_patience_stops_at_its_limit() {
-    let child: Child = Command::new("sleep").arg("60").spawn().expect("sleep");
+    let child: Child = spawn_owned(Command::new("sleep").arg("60")).expect("sleep");
     let limit: Duration = Duration::from_millis(400);
     let mut clock: Clock = Clock::start(child.id(), Patience::Fixed(limit));
     let began: Instant = Instant::now();
@@ -149,7 +150,7 @@ fn a_fixed_patience_stops_at_its_limit() {
 /// A tree that moves nothing stalls at its window, with the window, the bytes moved and the time in the report.
 #[test]
 fn a_tree_that_moves_nothing_stalls_at_its_window() {
-    let child: Child = Command::new("sleep").arg("60").spawn().expect("sleep");
+    let child: Child = spawn_owned(Command::new("sleep").arg("60")).expect("sleep");
     let stall: Duration = Duration::from_millis(1200);
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling: Duration::from_secs(600) });
     let began: Instant = Instant::now();
@@ -308,7 +309,7 @@ pub(crate) fn disk_wait_command(hold: Duration, then: &str) -> Command {
 fn a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends() {
     let mut probe: Command = disk_wait_command(Duration::from_millis(3000), "idle");
     probe.stdout(Stdio::null()).stderr(Stdio::null());
-    let child: Child = probe.spawn().expect("start the probe");
+    let child: Child = spawn_owned(&mut probe).expect("start the probe");
     let pid: i32 = i32::try_from(child.id()).expect("pid");
     let mut meter: Meter = Meter::new();
     // The probe starts up and works for a moment first; the looks below fall in its hold or in that start-up, both alive.
@@ -332,7 +333,7 @@ fn a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends() {
 fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
     let mut probe: Command = disk_wait_command(Duration::from_millis(4000), "idle");
     probe.stdout(Stdio::null()).stderr(Stdio::null());
-    let child: Child = probe.spawn().expect("start the probe");
+    let child: Child = spawn_owned(&mut probe).expect("start the probe");
     let stall: Duration = Duration::from_millis(1500);
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling: Duration::from_secs(600) });
     // The probe's own start-up counts as work; the hold begins after it and lasts well past the window.

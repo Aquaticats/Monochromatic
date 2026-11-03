@@ -153,11 +153,18 @@ pub(crate) fn settle_fixture(root: &Path, keep: bool) {
 struct ThreadFixtures {
     /// Roots to remove.
     roots: std::cell::RefCell<Vec<PathBuf>>,
+    /// Process groups of the helper processes the thread started with `spawn_owned`, killed when the thread ends.
+    groups: std::cell::RefCell<Vec<libc::pid_t>>,
 }
 
 /// A panic unwinds the test thread, which runs this.
 impl Drop for ThreadFixtures {
     fn drop(&mut self) {
+        // The helpers die first, so no process is left in a directory that is about to be removed.
+        for group in self.groups.borrow().iter() {
+            // SAFETY: `killpg` takes a group number and a signal and touches no memory; a group with no member is `ESRCH`.
+            unsafe { libc::killpg(*group, libc::SIGKILL) };
+        }
         let keep: bool = std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some();
         for root in self.roots.borrow().iter() {
             settle_fixture(root.as_path(), keep);
@@ -167,7 +174,22 @@ impl Drop for ThreadFixtures {
 
 thread_local! {
     /// The fixtures of the running test thread.
-    static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()) } };
+    static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()), groups: std::cell::RefCell::new(Vec::new()) } };
+}
+
+/// What:
+///  Start a helper process that dies with the test thread that started it, whether the test passes, fails or panics.
+/// Why:
+///   A shell loop that a failing push-progress test never reached the end of ran for 87 minutes in a deleted fixture. The
+///  helper leads a process group of its own, so what it starts (a `sleep` of the loop) is killed with it, and the group is
+///  killed when the thread's fixtures are dropped, the same moment the fixture directories go.
+pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<std::process::Child> {
+    use std::os::unix::process::CommandExt as _;
+    command.process_group(0);
+    let child: std::process::Child = command.spawn()?;
+    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
+    THREAD_FIXTURES.with(|fixtures| { fixtures.groups.borrow_mut().push(group); });
+    return Ok(child);
 }
 
 /// This test process's own executable, for the helper processes a control starts from the test binary.
