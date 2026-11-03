@@ -883,6 +883,28 @@ pub mod bounded_push;
 /// The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
 pub mod stopped_git_locks;
 
+/// The Git directories a command works in, found without starting Git.
+pub mod git_directory_roots;
+
+/// The reference locks a killed Git left behind: judged one by one, removed on a proof, otherwise described.
+pub mod stale_ref_locks;
+
+/// The record of one judged reference lock and the outcome of a clearing pass.
+pub mod stale_ref_lock_found;
+
+/// Which files below a Git directory are reference locks.
+pub mod stale_ref_lock_walk;
+
+/// How one reference lock is judged.
+pub mod stale_ref_lock_judge;
+
+/// Removal of a proven stale lock with its companions.
+pub mod stale_ref_lock_retire;
+
+/// Real Git processes killed with `SIGKILL` while they hold reference locks, for the controls.
+#[cfg(test)]
+mod stale_ref_lock_killed_git;
+
 /// The bytes a push and its processes move, sampled, and the clock that stops it on a stall or at its ceiling.
 pub mod push_progress;
 
