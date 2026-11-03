@@ -308,3 +308,63 @@ fn outside_a_catalog_repository_cargo_update_goes_to_cargo_untouched() {
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(log_lines(&world), vec!["update -p serde".to_string()]);
 }
+
+/// A launcher: a `cargo` that runs the shadow again, as the toolchain plan's launcher-backed links do. It counts its own
+/// runs in a file and gives up after ten, so a loop ends instead of filling the machine.
+fn write_launcher(world: &World) -> (PathBuf, PathBuf) {
+    let directory: PathBuf = world.shadow_directory.parent().expect("a parent").join("launcher");
+    std::fs::create_dir_all(&directory).expect("make the launcher directory");
+    let count: PathBuf = directory.join("count");
+    let script: String = format!(
+        "#!/bin/sh\nn=$(cat '{count}' 2>/dev/null || echo 0)\nn=$((n + 1))\necho $n > '{count}'\nif [ \"$n\" -gt 10 ]; then echo 'launcher re-entered too often' >&2; exit 99; fi\nexec '{shadow}' \"$@\"\n",
+        count = count.display(),
+        shadow = world.shadow_directory.join("cargo").display()
+    );
+    let launcher: PathBuf = directory.join("cargo");
+    std::fs::write(&launcher, script).expect("write the launcher");
+    std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755)).expect("make it executable");
+    return (directory, count);
+}
+
+/// Runs a command with a deadline, in its own process group so a runaway tree can be killed whole; `None` on a timeout.
+fn output_within(command: &mut Command, seconds: u64) -> Option<Output> {
+    use std::os::unix::process::CommandExt;
+    use std::process::Stdio;
+    use std::time::{Duration, Instant};
+    let mut child = command.process_group(0).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("start the command");
+    let started: Instant = Instant::now();
+    loop {
+        if child.try_wait().expect("poll").is_some() {
+            return Some(child.wait_with_output().expect("collect the output"));
+        }
+        if started.elapsed() > Duration::from_secs(seconds) {
+            let _ = Command::new("kill").arg("-KILL").arg(format!("-{}", child.id())).status();
+            let _ = child.wait();
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[test]
+fn a_launcher_that_leads_back_to_the_shadow_is_skipped_by_the_install_step_and_the_command() {
+    let world = make_world();
+    write_lock(&world, STALE);
+    let (launcher_directory, count) = write_launcher(&world);
+    let path: String = path_of(&[&world.shadow_directory, &launcher_directory, &world.fake_directory]);
+    let mut command = Command::new(world.shadow_directory.join("cargo"));
+    command
+        .args(["check", "-q"])
+        .current_dir(world.repository.join(CRATE_DIR))
+        .env("PATH", path)
+        .env("CI", "")
+        .env("FAKE_CARGO_LOG", &world.log);
+
+    let output = output_within(&mut command, 30).expect("the command timed out: the shadow keeps leading back into the launcher");
+
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(read_lock(&world), SATISFIED);
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
+    let runs: u32 = std::fs::read_to_string(&count).unwrap_or_default().trim().parse().unwrap_or(0);
+    assert!(runs <= 6, "the launcher ran {runs} times: the install step must not lead back into the shadow");
+}

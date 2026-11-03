@@ -144,6 +144,15 @@ jobs:
       # The frozen lockfile gate: pnpm's `install --frozen-lockfile` in CI, the counterpart for Cargo.lock files. It
       # fails naming every first-party Cargo.lock that no longer satisfies its manifests and writes nothing
       # (package/cargo-shadow/cli/README.md). It replaces the former `rust:install` mise task.
+      # The frozen check runs cargo under the toolchain toolchain.lock.json pins, which a hosted runner may not have yet.
+      - name: Install the pinned Rust toolchain
+        id: rust_toolchain
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          toolchain="$(jq --raw-output '.tools.rust.version' toolchain.lock.json)"
+          rustup toolchain install "$toolchain" --profile minimal --no-self-update
       - name: Rust lockfile frozen install
         id: rust_install
         continue-on-error: true
