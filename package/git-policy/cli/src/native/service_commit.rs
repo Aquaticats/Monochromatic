@@ -66,9 +66,11 @@ fn branch_moved(ready: &Ready) -> TransactionStop {
 }
 
 /// What:
-///  The words of the command line after the subcommand: the options and the paths of the command itself.
+///  The words of the command line after the subcommand:
+/// the options and the paths of the command itself.
 /// Why:
-///   The subcommand's own name is not one of them, and a command line that ends at the subcommand has none.
+///   The subcommand's own name is not one of them,
+/// and a command line that ends at the subcommand has none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -79,10 +81,13 @@ fn arguments_after_subcommand(arguments: &[OsString], subcommand_index: usize) -
 }
 
 /// What:
-///  How a branch is named to the person when the worktree switched under a commit: a detached head by those words, any other
+///  How a branch is named to the person when the worktree switched under a commit:
+/// a detached head by those words,
+/// any other
 ///  reference by its branch name.
 /// Why:
-///   `HEAD` is not a branch name, and the full reference of a branch is not what the person typed.
+///   `HEAD` is not a branch name,
+/// and the full reference of a branch is not what the person typed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
