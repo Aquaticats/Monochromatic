@@ -9830,3 +9830,22 @@ by the coordinator at merge.
   paths so a copied link resolves to the same thing it did in the source (links that stay inside the tree stay
   relative; links that leave it keep their absolute target), plus whatever the matrix shows for store and metadata
   paths, with a real-pnpm compatibility matrix as its test.
+- pnpm matrix under a verbatim copy into a new subvolume (`~/temp/agent/pnpm-matrix-probe-2.ts`, log
+  `~/temp/agent/pnpm-matrix-2.log`; real pnpm 12.16.1, a workspace root plus one package, copies nested under
+  `.claude/worktrees/topic` and outside the tree at another depth). The first probe run was misleading: Node fell
+  back to the source's `node_modules` above a nested copy, so "resolves" hid dead links; the second checks each
+  tree's own entry and where resolution lands.
+  - Fine in every case (own entries resolve inside the copy; `pnpm run` and `pnpm install --offline
+    --frozen-lockfile` succeed in under 0.2 s): store set or unset, isolated virtual store, linker isolated, hoisted
+    or pnp; and global virtual store with no `storeDir` (pnpm then keeps it in `node_modules/.pnpm-store/v11/links`,
+    inside the tree). With no `storeDir` the copy's `.modules.yaml` still names the source's in-tree store; nothing
+    failed because of it, but later installs in the copy may write into the source's store (unmeasured).
+  - Broken: global virtual store with the store outside the tree (`storeDir` set, the current main config). Nested
+    copy: its own links are dead and resolution silently uses the main checkout's `node_modules` above it (wrong
+    versions whenever the branch's lockfile differs). Outside copy: dead, and `pnpm run` fails with
+    `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE` (`.modules.yaml` records `virtualStoreDir` as a relative path) until
+    `pnpm install --offline --frozen-lockfile`, which repairs it in about 50 ms.
+  - Suggested invariant for the fix: a copied link resolves to the corresponding place in the new worktree when its
+    target lies inside the source tree, and to the same place when it lies outside; then measure whether pnpm's
+    relative `virtualStoreDir` in `.modules.yaml` still needs handling. Applies to the copy, clone and snapshot
+    rungs; conversion keeps depth, so it is unaffected.
