@@ -64,6 +64,21 @@ pub struct ReaderView<'a> {
     pub procfs_agrees: bool,
 }
 
+/// The number inside the `pid:[...]` a `/proc/self/ns/pid` link reads,
+/// when the text is exactly that with digits only.
+/// Why:
+///   The scope is written into every marker and compared by readers,
+/// so a text that is not a namespace number is no scope.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// /^pid:\[(\d+)\]$/.exec(text)?.[1]
+/// ```
+pub fn scope_of_link(text: &str) -> Option<String> {
+    let number: &str = text.strip_prefix("pid:[")?.strip_suffix(']')?;
+    return (!number.is_empty() && number.as_bytes().iter().all(u8::is_ascii_digit)).then_some(number.to_string());
+}
+
 /// The PID namespace of this process as `/proc/self/ns/pid` names it (the number inside `pid:[...]`),
 /// once.
 pub fn current_pid_scope() -> Option<&'static str> {
@@ -71,21 +86,31 @@ pub fn current_pid_scope() -> Option<&'static str> {
     return SCOPE
         .get_or_init(|| {
             let target = std::fs::read_link("/proc/self/ns/pid").ok()?;
-            let text: String = target.to_string_lossy().into_owned();
-            let number: &str = text.strip_prefix("pid:[")?.strip_suffix(']')?;
-            return (!number.is_empty() && number.bytes().all(|byte| { return byte.is_ascii_digit(); })).then(|| { return number.to_string(); });
+            return scope_of_link(target.to_string_lossy().as_ref());
         })
         .as_deref();
+}
+
+/// Whether the record `read` returned from `/proc/self/stat` numbers the process `own` as the operating system does:
+/// a record that could not be read,
+/// one that names no PID and one that names another PID do not.
+pub fn procfs_agrees_with(read: std::io::Result<Vec<u8>>, own: u32) -> bool {
+    let Ok(stat) = read else { return false };
+    return check_procfs_view(stat.as_slice(), own).is_ok();
 }
 
 /// Whether this process's `/proc` numbers it as the operating system does,
 /// once.
 fn current_procfs_agrees() -> bool {
     static AGREES: OnceLock<bool> = OnceLock::new();
-    return *AGREES.get_or_init(|| {
-        let Ok(stat) = std::fs::read("/proc/self/stat") else { return false };
-        return check_procfs_view(stat.as_slice(), std::process::id()).is_ok();
-    });
+    return *AGREES.get_or_init(read_procfs_agreement);
+}
+
+/// What the first call of `current_procfs_agrees` remembers:
+/// this process's own record,
+/// read now.
+fn read_procfs_agreement() -> bool {
+    return procfs_agrees_with(std::fs::read("/proc/self/stat"), std::process::id());
 }
 
 impl ReaderView<'static> {
