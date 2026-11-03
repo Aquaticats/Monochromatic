@@ -845,6 +845,118 @@ Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,
 merges and pushes that never fail").
 
+## Picks made under the owner's delegation
+
+Owner, 2026-11-03 (about 09:45-05:00):
+"I have to be away for around 8 hours. Pick options as if I had picked them and invite veto when I say I'm back."
+Clarified by the owner:
+"\"As if I had chosen\" means what I would have picked most likely if I'm always here."
+So each pick is the option the owner would most likely have chosen:
+the ranked-first option where its ranking follows the owner's standing rules,
+which matches every answer the owner gave on 2026-11-03.
+Every pick below is the coordinator's,
+made under that delegation;
+each stays open to the owner's veto and is listed for the owner on return.
+
+### Shipped-limits audit (`doc/planning/cli-git-shipped-limits-audit.md`, fifteen questions)
+
+1. Which limits need a citation:
+   B,
+   limits that can change a command's result or duration;
+   polls,
+   display caps,
+   chunk sizes and reader fallbacks are classed once as exempt with the reason (they still follow MGN).
+2. Index lock holder:
+   A now (a proven-alive holder is waited for with no bound and a line naming it;
+   an unproven owner gets 1000 ms of backoff and then a diagnostic;
+   the dead constant goes),
+   then B with the commits-never-fail design (the owner's "Same as the ref lock").
+3. Retry counts:
+   C with the commits-never-fail design (stack on the new head for every moved branch);
+   the interim loops stay until then ("Ship interim now").
+4. Git child steps:
+   B,
+   end only on no progress with the push's signs and no wall clock,
+   matching the owner's "End Git, hold hooks".
+5. Pushes:
+   A,
+   "Wait while connected" whole:
+   no stall window for a connected push,
+   no ceiling,
+   no low-speed abort.
+6. Waits on the service:
+   A,
+   heartbeats and no client wall-clock bound;
+   the `COMMIT_WAIT` message naming a nonexistent setting goes.
+7. Foreign-owner patience:
+   C,
+   measured from the logs.
+8. Parallelism caps and memory estimates:
+   A,
+   measured.
+9. Deadlines of tools that are not Git:
+   A,
+   end only on no progress.
+10. Saved conflict copies:
+    C,
+    defaults set from the measured growth.
+11. Audit and timing logs:
+    C,
+    audit generations kept up to a measured size and never dropped while they name a saved copy that exists;
+    timing logs keep one generation.
+12. LFS server errors:
+    HTTP 5xx classed as outside our control (a server fault,
+    like "Network down"),
+    retried by the service's push retry plan alone (option B's single mechanism).
+13. Service housekeeping:
+    A,
+    measured from its journal and timing logs.
+14. Lock-removal margins:
+    A,
+    measured on this host.
+15. Free-space preflight:
+    A,
+    computed from the entry count with a measured cost per entry.
+Implementation queue (agents start as the five slots free;
+measurements under the load there is,
+never synthetic):
+pushes and LFS (5,
+12);
+Git child and tool no-progress ends (4,
+9);
+index lock interim and service waits (2,
+6);
+audit generations and saved copies (10,
+11);
+the measured citations (1,
+7,
+8,
+13,
+14,
+15).
+
+### cargo-shadow (agent's nine questions)
+
+1. Committed lockfile under `trustLockfile = true`:
+   local runs compare with the upstream branch (`@{upstream}`,
+   else `origin/<default>`) instead of `HEAD`,
+   so cases 1 and 2 fire for versions not yet on the upstream;
+   CI keeps its base.
+2. Release age and trust both apply to versions new since the base,
+   on both the local and the frozen path.
+3. CI stops on a policy refusal (pnpm's frozen install fails on a lockfile entry the policy rejects).
+4. The window in which a cargo that is not the shadow builds on an unapproved lockfile is accepted and documented
+   ("Use as few locks as possible").
+5. Restore uses `renameat2` with `RENAME_EXCHANGE` and an undo,
+   through a safe wrapper (no lock,
+   no lost writer).
+6. Strict cutoff with exemptions:
+   keep resolving without the cutoff and enforcing it on non-exempt crates.
+7. A `--breaking` sync failure after the catalog write restores the catalog (transactional).
+8. A killed `--breaking` run's manifests go in the journal.
+9. The trust-downgrade line names the earlier and the new publisher account when known,
+   as the owner's chosen option said ("naming the publisher change").
+
 ## Owner decisions in force
 
 Timestamps are the commit times at which the decision was first written into the former handover
