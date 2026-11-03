@@ -110,6 +110,10 @@
   ],
   "evidenceFiles": [
     [
+      "verification/mutation-<ID>/campaign-protocol.json",
+      "{\n  \"version\": 1\n}\n"
+    ],
+    [
       "verification/mutation-<ID>/campaign.json",
       "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"1200\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/work/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/rust_file_engine.rs\",\n    \"--file\",\n    \"src/rust_toolchain.rs\",\n    \"--file\",\n    \"src/rust_workspace.rs\",\n    \"--file\",\n    \"src/rust_explicit_*.rs\",\n    \"--file\",\n    \"src/rust_generic_arguments.rs\",\n    \"--file\",\n    \"src/rust_semantic_*.rs\",\n    \"--file\",\n    \"src/rust_type_diagnostic.rs\"\n  ]\n}\n"
     ],

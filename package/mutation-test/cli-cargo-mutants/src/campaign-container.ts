@@ -282,8 +282,10 @@ export async function executePass({
       ...(pass === undefined ? {} : { pass }),
     })),
   );
-  // The container is about to run: this file, unlike the manifest or a report directory (which seeding creates too), is
-  // the evidence that an attempt of this pass started one, for whoever finds the manifest gone.
+  // A start is about to be attempted: this file, unlike the manifest or a report directory (which seeding creates too), is the
+  // evidence that an attempt of this pass reached the start, for whoever finds the manifest gone. It is written before the
+  // start on purpose: after it, a kill in between would leave a run with no marker. So it means a start was attempted, not
+  // that a container ran.
   await writeFile(
     join(
       attempt.evidence,

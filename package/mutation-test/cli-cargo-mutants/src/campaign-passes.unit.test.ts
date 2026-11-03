@@ -464,6 +464,7 @@ await describe({
             const evidence = await onlyEvidence(fake);
             expect((await readdir(evidence)).toSorted()).toEqual([
               'attempt-001',
+              'campaign-protocol.json',
               'campaign.json',
               'container-started.json',
               'exit.json',
