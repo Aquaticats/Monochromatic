@@ -10131,3 +10131,17 @@ by the coordinator at merge.
   add a median of 40.2 ms (paired delta p95 47.8 ms, max 260.4 ms); signed commits a median of 50.5 ms (max 58.6 ms).
   Every delta is far under the 5000 ms limit, so the 4351 ms install sample was the one-off service upgrade under
   load, not a regression.
+- 2026-11-03T02:22:50-05:00, real conversion started. Owner, verbatim, asked whether the real repository-wide
+  conversion was approved: "Yes I did." Dry run with the installed 0.5.20 (`~/temp/agent/convert-dry-run-0.5.20.log`):
+  172 worktrees looked at, 106 already subvolumes, 48 would convert, 18 skipped, all 18 with "the Git configuration
+  cannot be read without running Git, so a global attributes file cannot be ruled out"
+  (`worktree_clean_content.rs:293`, raised when `repo_read_config_list.rs` `list_config` returns `None`). The earlier
+  debug-build dry run showed 64 convertible and 2 skipped. Checked so far: no `include` directive in any config
+  (the only hits are branch names), no `GIT_CONFIG_PARAMETERS` in the environment, `is_include_key` is exact. Not yet
+  known which `None` path fires (an unresolvable scope, a config file the native parser rejects, or an environment
+  entry); only worktrees whose stat data no longer vouches reach this content check, which is why only 18 are hit.
+  The refusal is the safe side, so the 48 are converting now as unit
+  `cli-git-convert-all-20261103T022250-0500` (log `~/temp/agent/convert-all-20261103T022250-0500.log`, CPUQuota 400%,
+  MemoryMax 8G, IOWeight 10, the shell's PATH). QUEUED: diagnose and fix the `list_config` `None` for this
+  repository, then convert the 18. The subvolume-tools lock agent was told the run uses 0.5.20 and leaves
+  `cli-git-convert.lock` files and 0.5.20 journals behind.
