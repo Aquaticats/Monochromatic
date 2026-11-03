@@ -748,6 +748,33 @@ main checkout again (two tests), and the handler following a link at the trash n
 - Both controls were shown red by removing the release comparison from `reach_current_untimed` (a service of the current
   protocol but another release was then accepted); restoring it turned them green.
 
+### Round 3: the conversion tool refused clean worktrees (0.5.18)
+
+- The dry run on the real repository listed 28 worktrees as not quiet that were clean. The log of that run is
+  `convert-dry-run.log` in the scratch directory.
+- Sixteen were refused with "HEAD is not a plain ref to a commit". They were not detached: their `HEAD` names a branch that
+  only `packed-refs` holds, and `packed-refs` of the repository has tags with an `@` in the name
+  (`@monochromatic-dev/module-logger@0.4.1`), which is outside the plain alphabet of `repo_read_refs.rs`; `packed()` returned
+  nothing for the whole file, so no ref resolved. A detached `HEAD` already converted (the existing conversion tests use one).
+  A lookup now leaves out a well-formed line with an unusual name; the list and a damaged line still end the read.
+- Fifteen were refused as racily clean and two for a stale stat. `worktree_clean_content.rs` settles those by content in
+  process: blob hash of the file, a link by its target, compared with the index entry's object name. The reasons that stay
+  refusals: a `filter`, `ident` or `working-tree-encoding` attribute that may apply (attribute sources: tracked
+  `.gitattributes` down the path, `info/attributes`, `core.attributesFile` or the default global file, the system file, macros
+  that set one of them), a carriage return in the file (a line-ending conversion strips it on the way into the index; a file
+  without one is unchanged by `text`, `eol`, `core.autocrlf` and `core.eol`, so those need no attribute lookup), a file over
+  32 MiB, and a type, mode or assume-unchanged difference.
+- The real repository's `* text=auto eol=lf` therefore refuses nothing by itself, and `*.png filter=lfs` refuses only a stale
+  png.
+- Only the conversion uses it (`check_clean_tracked_by_content`); the snapshot and clone rungs keep the stat-only check
+  because they install the index they proved. After a conversion an entry that was not proven keeps its old stat data
+  (`refresh_index_file_with` rewrites only entries whose old file matched), so Git hashes it at its first status.
+- `Platform::config_scope` gives the conversion the configuration files Git reads; a stand-in names none, so controls read
+  only the repository's own configuration. When the system configuration path is unknown (no forward target in the
+  environment) the global attributes file cannot be ruled out and the content decision refuses with that reason.
+- Dry run of the fixed build on the real repository: 160 worktrees, 94 already subvolumes, 65 would convert, 1 skipped
+  (`package/forbidden-strings/core/Cargo.lock` really differs from the committed content).
+
 ## Assumptions and limits
 
 - The fixture is `git clone --shared` of the main checkout in `/var/home/user/.cache/main-ignored-copy`, with the main

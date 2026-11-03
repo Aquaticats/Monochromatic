@@ -521,6 +521,18 @@ that is an ordinary directory into a subvolume at the same path, one at a time.
 It refuses when the worktree is locked, has an `index.lock`, has an operation in progress, has a modified tracked file, has a
 process with its working directory or an open file inside it, has a worktree registered inside it, or when its converting
 name exists without a journal.
+A tracked file counts as unmodified when its index entry's size, times and inode match it.
+An entry those fields cannot vouch for (as new as the index file, or a stale stat in a copied or cloned worktree) is settled
+by content in process, without a Git process: the file is hashed as a blob (a symbolic link by its target) and compared with the
+entry's object name.
+Content cannot settle a path that a `filter`, `ident` or `working-tree-encoding` attribute may apply to (read from the tracked
+`.gitattributes` files from the root down to the file, `info/attributes`, the file `core.attributesFile` names or the default
+global file, and the system file; a spelling the matcher does not model counts as applying), a file with a carriage return, a file
+over 32 MiB, or a difference of type, executable bit or assume-unchanged mark; each is refused with its reason, naming the path.
+A `HEAD` that holds a commit name is accepted like a branch; a branch that only `packed-refs` holds resolves even when another
+packed ref has a name outside the plain alphabet (a scoped tag such as `@scope/package@1.0.0`); a `HEAD` that names no readable
+commit is refused.
+The rungs of the add keep the stat-only check.
 It writes a journal `cli-git-convert` in the administrative directory, takes `index.lock` with a token, creates
 `<path>.cli-git-converting` as a subvolume, copies the worktree into it with cloned data, runs a second pass that must find
 nothing to copy, exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root with the same
