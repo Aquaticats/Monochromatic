@@ -75,3 +75,11 @@ mod model_f8_maintenance;
 /// The controls of finding F8.
 #[path = "model_f8_tests.rs"]
 mod model_f8_tests;
+
+/// Finding F9: the hook-bypass ordering model.
+#[path = "model_f9_hook_bypass.rs"]
+mod model_f9_hook_bypass;
+
+/// The controls of finding F9.
+#[path = "model_f9_tests.rs"]
+mod model_f9_tests;
