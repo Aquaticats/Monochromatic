@@ -1288,6 +1288,52 @@ never written. The binary was the debug build of this branch. The host load aver
 - The racy-entry content settling is not part of this work.
 - A linked worktree with uncommitted changes still takes the slow route.
 
+## 2026-11-03T02:30:23-05:00 Conversion and migration without a lock of their own
+
+Owner, 2026-11-03: "Do another pkg-wide pass to eliminate locks wherever possible now." and "Didn't I say locks shouldn't be
+used whever possible? Why are we still using that?" Branch `fix/git-policy-cli-subvolume-tools-without-locks`.
+
+### What changed in the conversion
+
+- The kernel lock on `cli-git-convert.lock` is gone. One command at a time owns a conversion through a numbered claim file in
+  the worktree's administrative directory (`cli-git-convert.owner.<generation>`, `single_owner_claim.rs`): published with one
+  exclusive `link`, the newest generation is the claim, it names the owner by process id and birth identity, and a released or
+  dead owner's claim is replaced by the next generation. No command waits.
+- Git's `index.lock` is taken only for the proving pass, the exchange and the index rewrite. Before, it was created before the
+  first copy and kept until the old tree was removed. The first copy and the removal of the old tree now run without it.
+- Release 0.5.20 left `cli-git-convert.lock` in each converted worktree's administrative directory. This release probes the
+  file once without waiting, skips the worktree when an older command holds it, and removes it otherwise. A conversion that
+  release left unfinished (same journal format, `index.lock` with the journal's token from the start) is finished by running
+  the command again.
+
+### What changed in the migration
+
+- The migration had no single-owner guard: `Journal::mark` writes a fixed `.tmp` sibling, and a second run resumed the first's
+  journal with the first's token and passed `acquire`. Every mode now takes a claim file beside the journal first.
+- The `index.lock` files the migration holds stay, with the reason beside the code (Git's protocol, one per index,
+  `O_EXCL`, never waited for, from the last delta to the end of the rewrite). The catch-up pass runs under them on purpose: it
+  can copy files whose index entries the rewrite then describes.
+
+### Inventory of locks in this scope
+
+- `worktree_convert_journal.rs` `ConversionLock` (`flock`, per worktree, no wait): removed, replaced by the claim.
+- `worktree_convert.rs` `acquire(index.lock)` from before the first copy: shortened to the proof, swap and rewrite.
+- `subvolume_lock.rs` (`lock_paths`, `acquire`), `subvolume_migrate.rs` (`drop_old_locks`, `acquire_all`),
+  `subvolume_rollback.rs` and `subvolume_index_files.rs` (`IndexLock::Acquire`, `Held`): Git's `index.lock`, kept, reasons
+  written beside each. `drop_old_locks` removes only the migration's own token locks that travelled with the old tree.
+- `subvolume_preflight.rs` only reads lock names and takes none.
+- `package/mutation-test/cli-cargo-mutants/src/campaign-lock.ts` (`flock`, per campaign, refuses and never waits) and
+  `src/gate-slot.ts` (six host-wide `flock` slots, waits only while all are in use): kept, reasons written beside each; porting
+  the campaign lock to a claim file is the owner's decision.
+
+### Verification
+
+- Red first at `d1b6d2e783`: three of the new controls failed (kernel lock file created, `index.lock` held across the first
+  copy and the removal, no guard on a second migration).
+- Each guard was removed once and the matching controls failed: owner liveness, the withdrawal of a stale claimant, the probe of
+  an older release, the lock given back after a failed proof, the lock taken again before the rewrite, the lock given back after
+  the rewrite, the lock taken before the proof, and the migration's claim.
+
 ## Review requests
 
 - The stamp argument under "What FICLONE guarantees and how a concurrent writer is detected", and the 20 ms settled

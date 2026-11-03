@@ -48,7 +48,8 @@ const JOURNAL_HEADER: &str = "cli-git-convert v1";
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Phase {
-    /// The journal and the index lock exist; nothing else.
+    /// The journal exists; nothing else (Git's `index.lock` is taken only for the proving pass, and a release up to 0.5.20 took it
+    ///  here, which a rerun accepts).
     Started,
     /// The converting subvolume is being created, or exists.
     Creating,
@@ -58,7 +59,7 @@ pub enum Phase {
     Exchanged,
     /// The index stat fields describe the files of the subvolume.
     Refreshed,
-    /// The old tree is gone; only the journal and the lock remain.
+    /// The old tree is gone; only the journal remains.
     Removed,
 }
 
