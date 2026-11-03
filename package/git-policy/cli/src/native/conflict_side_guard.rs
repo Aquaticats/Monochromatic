@@ -40,7 +40,8 @@ use super::discarded_prune::{Limits, Problem, directory_name_of, prune};
 use super::global_arguments::command_tokens;
 use super::private_storage::read_regular_file;
 use super::repo_read_index::{IndexEntry, parse_index};
-use super::repo_read_layout::{RepoLayout, read_layout, read_layout_without};
+use super::repo_read_layout::{RepoLayout, read_layout};
+use super::repo_read_layout_without::read_layout_without;
 use super::transaction_git::GitContext;
 use std::ffi::OsString;
 

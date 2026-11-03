@@ -158,7 +158,7 @@ pub fn env_config_avoids(variables: &[(OsString, OsString)], declines: &dyn Fn(&
 
 /// Whether every `GIT_` variable among `variables` is one that cannot move discovery:
 ///  a tolerated prefix, or one of this package's own.
-fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
+pub(super) fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
     for (name, _) in variables {
         let Some(text) = name.to_str() else {
             continue;
@@ -172,7 +172,7 @@ fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
 }
 
 /// The environment Git would see: the process environment with the child overlay applied over it.
-fn effective_environment(overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
+pub(super) fn effective_environment(overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
     let mut variables: Vec<(OsString, OsString)> = std::env::vars_os()
         .filter(|(name, _)| { return !overlay.iter().any(|(added, _)| { return added == name; }); })
         .collect();
@@ -182,7 +182,7 @@ fn effective_environment(overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsS
 
 /// The directory a command starts in: the process directory moved by leading `-C <path>` options.
 ///  Any other global option returns `None`.
-fn start_directory(global_prefix: &[OsString]) -> Option<PathBuf> {
+pub(super) fn start_directory(global_prefix: &[OsString]) -> Option<PathBuf> {
     let mut directory: PathBuf = std::env::current_dir().ok()?;
     let mut options = global_prefix.iter();
     while let Some(option) = options.next() {
@@ -467,33 +467,6 @@ pub fn read_layout(global_prefix: &[OsString], overlay: &[(OsString, OsString)])
 }
 
 /// What:
-///  The layout `read_layout` would find if the global options in `options` and the variables in `variables` were absent.
-/// Why:
-///   A conflict-side line under a pathspec mode is rejected because the reader declines every global option but `-C` and
-///  every variable it does not know; to tell a person that the same line without the mode would be allowed, the reader
-///  must be asked the question with the mode left out, and only then.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const layout = readLayoutWithout(globalPrefix, overlay, ['--icase-pathspecs'], ['GIT_ICASE_PATHSPECS']);
-/// ```
-pub fn read_layout_without(global_prefix: &[OsString], overlay: &[(OsString, OsString)], options: &[&str], variables: &[&str]) -> Option<RepoLayout> {
-    if !enabled(overlay) {
-        return None;
-    }
-    let prefix: Vec<OsString> = global_prefix.iter().filter(|each| { return !options.iter().any(|option| { return each.as_encoded_bytes() == option.as_bytes(); }); }).cloned().collect();
-    let kept: Vec<(OsString, OsString)> = effective_environment(overlay)
-        .into_iter()
-        .filter(|(name, _)| { return !variables.iter().any(|variable| { return name.as_encoded_bytes() == variable.as_bytes(); }); })
-        .collect();
-    if !environment_is_plain(kept.as_slice()) || !environment_is_accepted(kept.as_slice()) {
-        return None;
-    }
-    let start: PathBuf = start_directory(prefix.as_slice())?;
-    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(kept.as_slice()), true);
-}
-
-/// What:
 ///  The read with its environment injected: the variables Git would see and the configuration scope facts.
 /// Why:
 ///   The controls run in a process whose own environment and home they must not depend on.
@@ -592,7 +565,7 @@ pub fn read_layout_after_success_for(global_prefix: &[OsString], overlay: &[(OsS
 }
 
 /// Walk from `start` to the root looking for the first `.git`, as Git does, and build the layout there.
-fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
+pub(super) fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
     let mut directory: PathBuf = start.to_path_buf();
     loop {
         if let Some(entry) = dot_git_target(directory.as_path())? {
