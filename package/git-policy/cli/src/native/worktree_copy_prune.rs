@@ -33,9 +33,9 @@ pub const COPY_RUN_RECORDS: bool = false;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const CACHE_NAMES = ['.pnpm-store', '.gradle', '.kotlin'] as const;
+/// const CACHE_NAMES = ['.pnpm-store', '.gradle', '.kotlin', '.zig-cache'] as const;
 /// ```
-const CACHE_NAMES: [&str; 3] = [".pnpm-store", ".gradle", ".kotlin"];
+const CACHE_NAMES: [&str; 4] = [".pnpm-store", ".gradle", ".kotlin", ".zig-cache"];
 
 /// What:
 ///  Directory names that are caches only inside a Cargo `target` directory.

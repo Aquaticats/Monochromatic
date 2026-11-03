@@ -349,3 +349,7 @@ mod child_bound;
 /// What the person's terminal shows of a commit the service landed: warnings, one summary line, the waits.
 #[path = "binary_client_service_tests.rs"]
 mod client_service;
+
+/// The package-manager repair of a new worktree: pnpm, Cargo and the toolchain launchers work at the new location.
+#[path = "binary_package_repair_tests.rs"]
+mod package_repair;
