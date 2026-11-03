@@ -10,7 +10,10 @@ The container-owned checkout is `/work/check/src`,
 the build directory is `out/metrics`,
 and logs are under `/work/logs`.
 The source revision is `360d943d418b3d6645fea86766f5dcc4a7cc3b2e`.
-Run the native tests before the live browser check and before the failing startup control.
+Apply the reviewed formatting delta and verify source checksums before the final native build.
+Run the native tests,
+then the failing startup control,
+then the live browser check on the restored candidate.
 The failing control replaces only the startup file with its unmodified source,
 requires the persistent-location assertion to fail,
 then restores and rebuilds the candidate before rerunning the native tests.
@@ -25,10 +28,90 @@ as `/work/recording-client.ts`.
 The test evaluates backing selection and sample counts;
 it does not benchmark latency or inject filesystem stalls.
 
+## finalize-source.ts
+
+Source SHA-256:
+`ab770bf63817efbaecf81efe805dd51c50ab9cba5f9ba53ca8ffbd247f4b28ca`.
+
+```typescript
+// /work/finalize-source.ts
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { createHash } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { finished } from 'node:stream/promises';
+
+//region Apply the formatter's reviewed delta only after the original build has ended.
+const source = '/work/check/src';
+const directory = await mkdtemp('/work/logs/final-source-');
+const revision = '360d943d418b3d6645fea86766f5dcc4a7cc3b2e';
+const environment = { ...process.env, TMPDIR: '/work/tmp', DEPOT_TOOLS_UPDATE: '0',
+  DEPOT_TOOLS_METRICS: '0', PATH: `/work/depot_tools:${process.env.PATH}` };
+class FinalSourceError extends Error {}
+
+/** Retain each actual command result and return its complete output for small checks. */
+async function run({ name, command, args, capture = false }: {
+  name: string; command: string; args: string[]; capture?: boolean;
+}): Promise<string> {
+  const started = Date.now();
+  const path = `${directory}/${name}.log`;
+  const log = createWriteStream(path);
+  console.log(JSON.stringify({ event: 'step_start', name, at: new Date(started).toISOString() }));
+  const child = spawn(command, args, { cwd: source, env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
+  child.stdout.pipe(log, { end: false });
+  child.stderr.pipe(log, { end: false });
+  const [code, signal] = await once(child, 'close');
+  log.end();
+  await finished(log);
+  const record = { name, command, args, code, signal, elapsedMs: Date.now() - started,
+    at: new Date().toISOString() };
+  await writeFile(`${directory}/${name}.json`, JSON.stringify(record, null, 2) + '\n');
+  console.log(JSON.stringify({ event: 'step_end', ...record }));
+  if (code !== 0 || signal) {
+    process.stderr.write((await readFile(path, 'utf8')).slice(-24000));
+    throw new FinalSourceError(`${name}: exit ${code}, signal ${signal}`);
+  }
+  return capture ? await readFile(path, 'utf8') : '';
+}
+
+const actual = await run({ name: 'source-revision', command: 'git', args: ['rev-parse', 'HEAD'], capture: true });
+assert.equal(actual.trim(), revision, 'Source revision changed before finalization');
+await run({ name: 'formatting-check', command: 'git', args: ['apply', '--check', '-p0', '/work/formatting.patch'] });
+await run({ name: 'formatting-apply', command: 'git', args: ['apply', '-p0', '/work/formatting.patch'] });
+await run({ name: 'source-identity', command: 'sha256sum', args: ['--check', '/work/candidate-source.sha256'] });
+const sourceChecksums = await readFile('/work/candidate-source.sha256', 'utf8');
+const expectedPaths = sourceChecksums.trim().split('\n').map(line => {
+  const match = /^[a-f0-9]{64}  (.+)$/u.exec(line);
+  assert(match, 'Malformed source checksum entry');
+  return match[1];
+});
+const changed = await run({ name: 'changed-paths', command: 'git',
+  args: ['diff', '--name-only', '-z', 'HEAD'], capture: true });
+const actualPaths = changed.split('\0').filter(Boolean);
+assert.deepEqual(actualPaths.toSorted(), expectedPaths.toSorted(), 'Build checkout has unexpected source changes');
+await run({ name: 'patch-whitespace', command: 'git', args: ['diff', '--check'] });
+const style = await run({ name: 'chromium-style', command: 'git',
+  args: ['cl', 'format', '--dry-run', '--diff', '--upstream=HEAD'], capture: true });
+assert.equal(style.trim(), '', 'Formatter still produced output after applying its delta');
+const patch = await readFile('/work/candidate-final.patch');
+const inputs = { revision, candidatePatchSha256: createHash('sha256').update(patch).digest('hex'),
+  sourceChecksums,
+  gnArguments: await readFile(`${source}/out/metrics/args.gn`, 'utf8') };
+await writeFile(`${directory}/inputs.json`, JSON.stringify(inputs, null, 2) + '\n');
+await run({ name: 'final-native-build', command: '/work/depot_tools/autoninja',
+  args: ['-C', 'out/metrics', '-j', '28', 'chrome', 'chrome/test:unit_tests', 'chrome/test:browser_tests'] });
+await writeFile('/work/logs/latest-final-source.json', JSON.stringify({ directory,
+  completedAt: new Date().toISOString(), ...inputs }, null, 2) + '\n');
+console.log(JSON.stringify({ event: 'final_build_complete', directory }));
+//endregion
+```
+
 ## native-test.ts
 
 Source SHA-256:
-`81af9290dddbe28c92367d5a3f42153a3ef27a11fbc10166e3a2206f704f8b19`.
+`0c7c452e975763a404210f0f1b39686664581b73b4aae0f7b73f08128a8165ce`.
 
 ```typescript
 // /work/native-test.ts
@@ -125,7 +208,7 @@ await withDisplay({ directory, run: async display => {
   const accessorTests = [...accessorSource.matchAll(/TEST_F\(\s*ChromeMetricsServiceAccessorTest,\s*(\w+)\s*\)/gu)]
     .map(match => `ChromeMetricsServiceAccessorTest.${match[1]}`);
   const browserSource = await readFile(`${source}/chrome/browser/metrics/metrics_service_browsertest.cc`, 'utf8');
-  const browserTests = [...browserSource.matchAll(/IN_PROC_BROWSER_TEST_F\(\s*(NonReportingPersistentHistogramsBrowserTest|MetricsServiceBrowserFilesTest|MetricsServiceBrowserSampledOutTest),\s*(\w+)\s*\)/gu)]
+  const browserTests = [...browserSource.matchAll(/IN_PROC_BROWSER_TEST_F\(\s*(NonReportingPersistentHistogramsBrowserTest|MetricsServiceBrowserDoUploadTest|MetricsServiceBrowserNoUploadTest|MetricsServiceBrowserSampledOutTest),\s*(\w+)\s*\)/gu)]
     .map(match => `${match[1]}.${match[2]}`);
   const guardTests = browserTests.filter(name => name.startsWith('NonReportingPersistentHistogramsBrowserTest.'));
   if (expectedFailure) {
@@ -135,7 +218,7 @@ await withDisplay({ directory, run: async display => {
     await run({ name: 'accessor-policy', binary: 'unit_tests',
       filter: 'ChromeMetricsServiceAccessorTest.*', expectedNames: accessorTests, display });
     await run({ name: 'startup-and-file-policy', binary: 'browser_tests',
-      filter: 'NonReportingPersistentHistogramsBrowserTest.*:MetricsServiceBrowserFilesTest.*:MetricsServiceBrowserSampledOutTest.*',
+      filter: 'NonReportingPersistentHistogramsBrowserTest.*:MetricsServiceBrowserDoUploadTest.*:MetricsServiceBrowserNoUploadTest.*:MetricsServiceBrowserSampledOutTest.*',
       expectedNames: browserTests, display });
   }
   await writeFile('/work/logs/latest-native-tests.json', JSON.stringify({ directory, expectedFailure, completedAt: new Date().toISOString() }, null, 2) + '\n');

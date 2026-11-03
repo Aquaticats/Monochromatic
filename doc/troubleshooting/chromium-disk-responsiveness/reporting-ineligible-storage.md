@@ -18,6 +18,8 @@ The [build research](../../planning/browser-disk-responsiveness/chromium-metrics
 records the selected native toolchain and test targets.
 The [retained validation drivers](native-validation.md) record the actual test and browser checks,
 including the failing startup control and candidate restoration.
+The [source checksums](reporting-ineligible-storage.sha256)
+identify the formatted files that the final build must consume.
 
 ## Intended behavior and limits
 
@@ -67,3 +69,25 @@ The build retains its logs in the named container volume;
 the [handover](../../handover/chromium-live-histogram-contribution.md)
 records the resource bounds and acquisition evidence.
 Compilation and behavioral verification remain pending.
+
+## Formatted candidate prepared at 2026-11-03T18:21:27+00:00
+
+Chromium's formatter produced indentation and line-wrapping changes.
+They were applied in the separate prototype and committed as `ab9cdcd4e3`.
+The retained patch includes that formatting.
+The active compilation still uses its original inputs;
+the prepared `build:formatted` task will apply the exact formatter delta after that process stops,
+verify every changed file against the retained checksums,
+and build the final candidate.
+
+The native test driver now selects the actual `MetricsServiceBrowserDoUploadTest`
+and `MetricsServiceBrowserNoUploadTest` fixtures.
+Its initial filter named their shared base fixture,
+which contains no tests.
+No native run had yet used that incomplete filter.
+The corrected checks include those file-policy paths,
+sampled-out reporting,
+and the new reporting-ineligible startup regression.
+The final order is native tests,
+the deliberately failing control and candidate restoration,
+then the live browser check on the restored candidate.

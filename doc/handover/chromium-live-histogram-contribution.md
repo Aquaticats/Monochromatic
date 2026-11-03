@@ -330,8 +330,8 @@ It has external networking disabled,
 I/O weight `10`,
 and a `3h` ceiling.
 Run `test`,
-then `test:browser`,
-then `test:guard-control` after the native build succeeds.
+then `test:guard-control`,
+then `test:browser` after the final native build succeeds.
 The updated drivers passed the local `lint:types` task and were synchronized to the volume.
 
 The issue watch remains active.
@@ -366,3 +366,43 @@ The local TypeScript check also passed.
 The public Chromium AI policy was fetched again:
 the human submitter must review and understand code and documentation sent for review.
 That human obligation follows completion of the agent's technical validation work.
+
+## Formatted source and corrected test coverage at 2026-11-03T18:21:27+00:00
+
+The prototype worktree is
+`${HOME}/temp/agent/chromium-metrics-worktree.X65bMQ/src`,
+on `fix/metrics-reporting-storage`.
+The similarly named `chromium-metrics-patch.QLa5st` directory is its unmodified base clone,
+not the patched worktree.
+The formatter's `137`-line delta has SHA-256
+`64ac49e554aad0caa868ec06935d442f1bd5482e19719c95af55cea5a3c27562`.
+It passed `git apply --check -p0`,
+was applied in the prototype,
+and was committed as `ab9cdcd4e3`.
+The prototype's complete diff passes `git diff --check`.
+Its push destination remains deliberately disabled;
+the complete candidate is retained in this repository.
+
+The final-source driver verifies the target revision,
+applies the formatter delta,
+checks the source hashes and changed-path set,
+requires the formatter to produce no further output,
+then rebuilds the actual targets.
+Its inputs are `formatting.patch`,
+`candidate-final.patch`,
+and `candidate-source.sha256` in the private build context.
+The `build:formatted` task runs without networking and retains the existing native build bounds.
+The original compilation must stop before that task starts.
+The current implementation plan is to interrupt the owned compiler before applying these prepared corrections.
+Record that as intentional interruption,
+not a C++ failure or test result.
+
+Source inspection found that `MetricsServiceBrowserFilesTest` is a base fixture with no test bodies.
+The prepared native driver incorrectly selected that name.
+It now selects `MetricsServiceBrowserDoUploadTest`,
+`MetricsServiceBrowserNoUploadTest`,
+`MetricsServiceBrowserSampledOutTest`,
+and `NonReportingPersistentHistogramsBrowserTest`.
+No native test had run with the incomplete filter.
+The corrected driver and final-source driver passed TypeScript checking,
+and the updated sources are retained in the validation record.
