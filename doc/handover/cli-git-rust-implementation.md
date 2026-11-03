@@ -9403,3 +9403,9 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   user data, recovery never deletes what it cannot prove it made. Sent to the ladder agent.
 - Journal-logging review running (`~/temp/agent/review-journal-logging/`: `journald_native.rs`,
   `discarded_prune.rs`, `config_discarded.rs`).
+- QUEUED for the next free agent slot (seen live, 0.5.15): `git push origin --delete <branch absent on origin>` printed
+  an `engine-failure` event with code `content-unavailable`, message "Git could not determine push updates: error:
+  unable to delete '...': remote ref does not exist", and the hint about content missing from the clone. Source:
+  `package/git-policy/cli/src/native/manual_push_probe.rs` `probe_manual_push_updates` (empty porcelain plus a nonzero
+  exit becomes a probe error). A push Git's own dry run refuses should end as Git's refusal (its message, its exit
+  code), with no hint that names a cause that is not the case.
