@@ -61,9 +61,9 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::BranchMovedMessageSaved { .. } => 17,
         ClientFailure::OtherRelease => 18,
         ClientFailure::BranchSwitched { .. } => 19,
-        ClientFailure::ContentPruned => 20,
-        ClientFailure::StillWithService { .. } => 21,
-        ClientFailure::WithdrawalUnconfirmed => 22,
+        ClientFailure::ContentPruned => 22,
+        ClientFailure::StillWithService { .. } => 20,
+        ClientFailure::WithdrawalUnconfirmed => 21,
     };
 }
 

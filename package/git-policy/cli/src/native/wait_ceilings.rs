@@ -45,5 +45,6 @@ pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
 pub const CONNECTED_PUSH_QUIET_WINDOW: Duration = Duration::from_secs(150);
 
 /// The longest a test marker compiled into the release executable waits for its release file; the marker is armed only by an
-///  environment variable, and the controls that arm it finish within seconds. Unmeasured, the patience of the other controls.
-pub const PHASE_PATIENCE: Duration = Duration::from_secs(60);
+///  environment variable. Five minutes is the longest any test may run (`.config/nextest.toml`: a test is stopped after
+///  `slow-timeout` 60 s times `terminate-after` 5), so the marker never outlives the control that armed it.
+pub const PHASE_PATIENCE: Duration = Duration::from_secs(5 * 60);

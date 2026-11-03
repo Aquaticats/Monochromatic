@@ -196,7 +196,7 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::StillWithService { minutes, blocker } => format!(
             "This commit waited {minutes} minutes for the commit service and was withdrawn, so it will not land later by itself.{} \
              Your staged changes and your worktree are as they were. Run the commit again; if the service is stuck, look at why with \
-             `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
+             `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`. {NOTHING_CHANGED}",
             blocker.as_ref().map_or_else(String::new, |text| { return format!(" It was waiting for: {text}."); })
         ),
         ClientFailure::WithdrawalUnconfirmed => format!(
