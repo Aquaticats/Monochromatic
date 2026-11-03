@@ -66,6 +66,12 @@ pub mod dump;
 /// Reads the lockfiles of a base revision with git.
 pub mod git_base;
 
+/// The reader of the few Git configuration keys the trust base needs, without Git.
+pub mod git_config;
+
+/// The plain-file reader of `HEAD`, branch configuration and references that chooses the trust base without Git.
+pub mod git_refs;
+
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `cargo`.
 pub mod guard;
 
