@@ -455,13 +455,13 @@ await describe({
         it({
           name: 'reads the disk-weight arguments the runners write, and records made before them, but not another weight',
           fn: async () => {
-            await using root = await evidenceRoot();
             /**
              Arguments of a gate that ran before the runners wrote a disk weight.
              */
             const beforeWeight = gateLimits.filter(function isNotWeight(argument) {
               return !diskWeightArguments().includes(argument);
             });
+            expect(beforeWeight.length).toBeLessThan(gateLimits.length);
             /**
              Arguments with a disk weight above the lowest, which the runners never write.
              */
@@ -469,33 +469,26 @@ await describe({
               ...beforeWeight,
               `--blkio-weight=${String(lowestDiskWeight + 1)}`,
             ];
-            /**
-             Gate directories by name and the arguments their manifest records.
-             */
-            const runs = {
-              'native-with-weight': gateLimits,
-              'native-before-weight': beforeWeight,
-              'native-other-weight': otherWeight,
-            };
-            await Promise.all(Object.entries(runs).map(function writeRun([name, limits]) {
-              return writeGateDirectory({
+            for (const { limits, proves } of [
+              { limits: gateLimits, proves: true },
+              { limits: beforeWeight, proves: true },
+              { limits: otherWeight, proves: false },
+            ]) {
+              await using root = await evidenceRoot();
+              await writeGateDirectory({
                 root: root.path,
-                name,
+                name: 'native-run',
                 files: {
                   'manifest.json': manifestOf(image, limits),
                   'passed.json': JSON.stringify(gatePassedRecord(image)),
                 },
               });
-            }));
-            expect(beforeWeight.length).toBeLessThan(gateLimits.length);
-            expect((await passingGateEvidence({
-              evidenceRoot: root.path,
-              image,
-              limits: campaignLimits,
-            })).toSorted()).toEqual([
-              join(root.path, 'native-before-weight'),
-              join(root.path, 'native-with-weight'),
-            ]);
+              expect(await passingGateEvidence({
+                evidenceRoot: root.path,
+                image,
+                limits: campaignLimits,
+              })).toEqual(proves ? [join(root.path, 'native-run')] : []);
+            }
           },
         }),
         it({
