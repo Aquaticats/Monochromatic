@@ -153,3 +153,20 @@ fn something_where_a_directory_was_is_never_replaced_unsaved() {
         remove(&fixture);
     }
 }
+
+/// `git restore --source -W --staged -- a.rs` takes `-W` as the name of the source, which a tag can be called, and so restores
+///  the index only; the guard must not read that `-W` as the worktree option, save a copy, and let the line through as a
+///  worktree restore.
+#[test]
+fn an_option_value_named_like_the_worktree_option_is_not_that_option() {
+    let fixture: Fixture = fixture("side-option-value");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    git(&fixture, repo.as_path(), &["update-ref", "refs/tags/-W", "topic"]);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["restore", "--source", "-W", "--staged", "--", "a.rs"]);
+    let said: String = stderr_of(&observed);
+    assert!(!said.contains("saved your copy"), "no worktree file is replaced, so none is saved: {said}");
+    assert_eq!(std::fs::read(repo.join("a.rs")).expect("a.rs"), HAND_EDITED, "{said}");
+    assert!(!saved_root(repo.as_path()).exists(), "no copy was made: {said}");
+    assert!(audit_lines(repo.as_path()).iter().all(|line| { return !line.contains("saved-conflict"); }), "{said}");
+    remove(&fixture);
+}

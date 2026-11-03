@@ -105,3 +105,25 @@ fn other_commands_never_qualify() {
         assert_eq!(paths_of(word, &["--theirs", "--", "a.rs"]), None, "{word}");
     }
 }
+
+/// A token that Git takes as the value of `--source`, `-s` or `--conflict` is not an option: `-W` there does not make an
+///  index-only restore a worktree restore, and `-S` there does not make a worktree restore an index-only one.
+#[test]
+fn an_option_value_is_not_read_as_an_option() {
+    for (values, expected) in [
+        (vec!["--source", "-W", "--staged", "--", "a.rs"], None),
+        (vec!["--staged", "--source", "-W", "--", "a.rs"], None),
+        (vec!["-S", "-s", "-W", "--", "a.rs"], None),
+        (vec!["--staged", "--conflict", "-W", "--", "a.rs"], None),
+        (vec!["--staged", "--source", "--worktree", "--", "a.rs"], None),
+        (vec!["--source=-W", "--staged", "--", "a.rs"], None),
+        (vec!["--source", "-W", "--", "a.rs"], Some(vec!["a.rs"])),
+        (vec!["--source", "--staged", "--", "a.rs"], Some(vec!["a.rs"])),
+        (vec!["--source", "-S", "-W", "--", "a.rs"], Some(vec!["a.rs"])),
+        (vec!["--staged", "-W", "--source", "HEAD", "--", "a.rs"], Some(vec!["a.rs"])),
+        (vec!["--source", "HEAD", "--staged", "--worktree", "--", "a.rs"], Some(vec!["a.rs"])),
+    ] {
+        let typed: Option<Vec<String>> = expected.map(|paths| { return paths.iter().map(|each| { return String::from(*each); }).collect(); });
+        assert_eq!(paths_of("restore", values.as_slice()), typed, "{values:?}");
+    }
+}
