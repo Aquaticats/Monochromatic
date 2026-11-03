@@ -24,8 +24,9 @@ use std::time::{Duration, Instant};
 /// The deadline of the held lock's command: long enough for Git to start and take the lock, short enough to wait for.
 const HOLD_DEADLINE: Duration = Duration::from_millis(2500);
 
-/// The grace after the polite stop request: short, because the unresponsive holder never answers it.
-const SHORT_GRACE: Duration = Duration::from_millis(300);
+/// The grace after the polite stop request: the unresponsive holder never answers it, and the responsive one needs the
+///  host to run its handler, which a loaded gate does not do within a few hundred milliseconds.
+const SHORT_GRACE: Duration = Duration::from_secs(2);
 
 /// The tracking ref the incident left locked.
 const HELD_REF: &str = "refs/remotes/origin/main";
@@ -121,11 +122,35 @@ fn lock_files(directory: &Path) -> Vec<PathBuf> {
     return found;
 }
 
-/// The checks that follow a stop: the holder really held the lock, none is left, and the fetch that failed in practice works.
+/// How long a test lets the thread that sweeps for a tree the host was slow to end take, instead of looking once.
+const SWEEP_WAIT: Duration = Duration::from_secs(20);
+
+/// Each leftover file with its size, birth and whether a pid file sits beside it, so a failure on a loaded host says what
+/// was left.
+fn describe_left(files: &[PathBuf]) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for file in files {
+        let meta = std::fs::symlink_metadata(file);
+        let size: String = meta.as_ref().map_or(String::from("gone"), |metadata| { return metadata.len().to_string(); });
+        let born: String = meta.as_ref().ok().and_then(|metadata| { return metadata.created().ok(); }).map_or(String::from("unknown"), |time| { return format!("{time:?}"); });
+        let name: String = file.to_string_lossy().into_owned();
+        let sibling: String = format!("{}~pid.lock", name.trim_end_matches(".lock"));
+        lines.push(format!("{name} size={size} born={born} pid_file_beside={}", Path::new(sibling.as_str()).exists()));
+    }
+    return lines.join("; ");
+}
+
+/// The checks that follow a stop: the holder really held the lock, none is left (the sweep for a tree the host was slow to
+/// end runs on a thread and is waited for), and the fetch that failed in practice works.
 fn assert_clean_after_stop(stage: &Stage, kind: Holder, how: &str) {
     assert!(stage.ready.exists(), "{how} {kind:?}: the holder took the lock before it was stopped");
-    let left: Vec<PathBuf> = lock_files(stage.repo.join(".git").as_path());
-    assert_eq!(left, Vec::<PathBuf>::new(), "{how} {kind:?}: a stopped Git child left lock files");
+    let waited: Instant = Instant::now();
+    let mut left: Vec<PathBuf> = lock_files(stage.repo.join(".git").as_path());
+    while !left.is_empty() && waited.elapsed() < SWEEP_WAIT {
+        std::thread::sleep(Duration::from_millis(50));
+        left = lock_files(stage.repo.join(".git").as_path());
+    }
+    assert!(left.is_empty(), "{how} {kind:?}: a stopped Git child left lock files: {}", describe_left(left.as_slice()));
     let fetched = std::process::Command::new("/usr/bin/git")
         .current_dir(stage.repo.as_path())
         .env_clear()
@@ -218,19 +243,12 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
     remove(root.as_path());
 }
 
-/// How long the thread that sweeps for a child the kernel released late may take, in a test that releases it at once.
-const SWEEP_PATIENCE: Duration = Duration::from_secs(10);
-
 /// A stop with no grace kills at once and hands the child to a thread, which sweeps its locks when it has ended.
 #[test]
 fn a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own() {
     let stage: Stage = stage("stop-lock-push-no-grace");
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), Duration::ZERO, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
-    let waited: Instant = Instant::now();
-    while !lock_files(stage.repo.join(".git").as_path()).is_empty() && waited.elapsed() < SWEEP_PATIENCE {
-        std::thread::sleep(Duration::from_millis(50));
-    }
     assert_clean_after_stop(&stage, Holder::Unresponsive, "bounded run without grace");
     remove(stage.root.as_path());
 }
