@@ -9996,3 +9996,18 @@ by the coordinator at merge.
   (`systemctl --user set-property --runtime`), `~/temp/agent/gate/launch-gate.ts` now sets 10, and every running
   agent was told. Older scratch scripts under `~/temp/agent` still set 25 to 100; they are past runs and get the new
   value if reused. The podman `--blkio-weight` in HXR was not part of the request and is unchanged.
+- 2026-11-03T00:59:50-05:00, main `615abe1db1`: the conflict-side gate (3803/3803) and the remove-path gate
+  (3796/3796), both run with main merged in, passed; each had one SLOW test,
+  `service_landing_state::awkward_change_lists_land_as_native_git_commits_them` (over 60 s, passed) while the two
+  gates ran side by side. Both branches merged into main with no conflict. Main now holds slow route, trash,
+  conflict-side and remove-path; the slow-route worktree was fast-forwarded to it for the combined gate.
+- Disk weight of gate containers, measured 2026-11-03 (`~/temp/agent/podman-io-weight-probe.ts`): both disks use
+  BFQ, which reads `io.bfq.weight`. A systemd scope with `IOWeight=10` sets `io.weight` and `io.bfq.weight` to 10.
+  Rootless podman containers live in their own `libpod-<id>.scope` under `user@1000.service/user.slice`, outside the
+  unit that starts them, so the gate unit's `IOWeight` never reached them; with no option they run at 100 and 100.
+  `--blkio-weight=10` sets `io.bfq.weight` 10 (podman's lowest value; it accepts 10 to 1000) and leaves `io.weight`
+  at 100; `--cgroup-conf=io.weight=10` sets only `io.weight`. The runners' shared
+  `package/mutation-test/cli-cargo-mutants/src/container-limits.ts` passes no disk weight, against AGENTS.md HXR.
+  An agent is adding both options on `fix/mutation-test-cli-cargo-mutants-container-disk-weight` (worktree
+  `.claude/worktrees/container-disk-weight`), with a real-container check. The combined main gate waits for it:
+  merge main into that branch, gate it, merge, release 0.5.20, install, verify a commit.
