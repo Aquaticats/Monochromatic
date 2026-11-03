@@ -15,7 +15,8 @@ The installed CLI does not accept this spelling.
 Its `--help` lists `--dangerously-skip-permissions`,
 and the current [CLI reference][cli-reference] describes that option as:
 
-> Skip permission prompts. Equivalent to --permission-mode bypassPermissions.
+> Skip permission prompts.
+> Equivalent to --permission-mode bypassPermissions.
 
 The reference also distinguishes `--allow-dangerously-skip-permissions`:
 it adds bypass mode to the mode cycle without starting in that mode.
@@ -91,6 +92,10 @@ with the shorthand first.
 It does not intercept programs that spawn the executable directly.
 No user shell configuration was changed.
 
+The troubleshooting record and proposal passed the scoped `format:monochromatic-lint` task
+and a CommonMark-to-HTML-tree rendering check using the repository's installed renderer.
+Rendered evidence is retained beside the private harness as `*.hast.json`.
+
 ## What does not work
 
 The literal `--yolo` option fails on the installed executable.
@@ -105,11 +110,22 @@ Nothing to file under the [Claude Code exemption](../../.out-of-scope/claude-cod
 The finding is a local shorthand request,
 not evidence that the documented upstream option is broken.
 
-- Upstream fault: not established; the supported option works in the mode-selection probe.
-- Fixability: an upstream alias is conceivable; implementation source was not inspected.
-- Supported use case: bypass mode is documented; `--yolo` is not listed.
-- Contribution policy: not investigated because upstream tracking is excluded.
-- Likely upstream action: not assessed; no tracker or duplicate search was performed under the exemption.
-- Prototype: the local Bash function was tested; no upstream patch was created.
+- Upstream fault:
+  not established;
+  the supported option works in the mode-selection probe.
+- Fixability:
+  an upstream alias is conceivable;
+  implementation source was not inspected.
+- Supported use case:
+  bypass mode is documented;
+  `--yolo` is not listed.
+- Contribution policy:
+  not investigated because upstream tracking is excluded.
+- Likely upstream action:
+  not assessed;
+  no tracker or duplicate search was performed under the exemption.
+- Prototype:
+  the local Bash function was tested;
+  no upstream patch was created.
 
 [cli-reference]: https://code.claude.com/docs/en/cli-reference#:~:text=--dangerously-skip-permissions
