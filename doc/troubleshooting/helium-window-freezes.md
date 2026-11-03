@@ -249,11 +249,14 @@ The browser order was reversed for the repeated pass.
 Each completed run reported `20` IndexedDB transactions and `10` local-storage writes.
 Completed-run flush counts were:
 
-- Helium: `300` and `291`,
+- Helium:
+  `300` and `291`,
   all `fdatasync`.
-- Chromium: `298` and `297`,
+- Chromium:
+  `298` and `297`,
   all `fdatasync`.
-- Firefox ESR: `3,824` and `4,359`,
+- Firefox ESR:
+  `3,824` and `4,359`,
   all `fsync`.
 
 These counts include fresh-profile initialization and browser background activity.
