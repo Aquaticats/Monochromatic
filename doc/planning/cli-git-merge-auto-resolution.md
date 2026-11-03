@@ -1807,3 +1807,67 @@ attribute-tree precedences, the service identifier, the pull rebase state, and `
 2. The 8 MiB bound and the 64 nesting levels are this implementation's choices (measured for the first, not for the second).
 3. One extra Git start for `attr.tree` in an environment the in-process readers decline.
 4. Declining the finish for `pull --autostash` and for `branch.<name>.mergeOptions`.
+
+## 2026-11-03T04:45:20-05:00: hooks parity, autostash and mergeOptions, a derived nesting bound, plain environments
+
+Follow-ups on the same branch, after the container gate began on a copy. Red controls first (`e95e54d9a0`), code in `8bc4b70b7a`.
+
+### Hooks
+
+The premise that a finished run must run the hooks a clean run runs does not change the code, because the wrapper runs none:
+every Git it starts has every hook event switched off (`hooks_off.rs`; `SPEC.md`, the hook section), so a user's hooks, traditional or
+configured, see nothing on a clean merge, rebase, cherry-pick or revert and nothing on a finished one.
+The control `user_hooks_see_the_same_on_a_finished_run_as_on_a_clean_run` records ten hook events for both, compares them, and has
+real Git run directly as the positive control (it fires them), so an empty log means something. It was green from the start; the
+only red it can show is a finish that bypasses the wrapper's Git starts.
+What Git would run if hooks were run, from the source: a clean merge `pre-merge-commit`, `prepare-commit-msg`, `commit-msg` (`builtin/merge.c`
+lines 931, 966 and 975) and `post-merge` (line 537); a concluding `git commit` `pre-commit`, `prepare-commit-msg`, `commit-msg` and
+`post-commit` (`builtin/commit.c` lines 780, 1116, 1133 and 1966); a clean pick `prepare-commit-msg` and `post-commit`
+(`sequencer.c` lines 1367 and 1699); a rebase `pre-rebase` (`builtin/rebase.c` line 1839) and `post-rewrite` (`sequencer.c` lines 1329
+and 5328). If hooks are ever supported, the finish would run `git commit` hooks where the clean merge runs the merge ones; that
+difference then needs a decision. The earlier SPEC sentence that a concluding commit "runs `pre-commit` where a clean merge runs
+`pre-merge-commit`" was true of Git and not of the wrapper, and is rewritten.
+
+### Autostash and mergeOptions
+
+Nothing needs declining. A merge's `--autostash` and `merge.autoStash` are applied by the ending `git commit` (`builtin/commit.c` line 1982) as
+the clean merge's `finish` applies them (`builtin/merge.c` line 1848); a rebase's `--autostash` and `rebase.autoStash` by the continuing step
+(`sequencer.c` lines 4980 and 5330); a pull hands both to its child. Controls: merge flag and config, rebase flag and config, pull.
+The rebase pair was already green: `rebase --continue` does the work.
+One real defect was found by the merge control: the wrapper's commit builds the ending commit in a shadow repository that held a *link*
+to the real `MERGE_AUTOSTASH` pseudoref, so Git's removal after applying it removed only the link and the real pseudoref stayed; the
+next merge's concluding commit would have applied the stash again. `MERGE_AUTOSTASH` is now a conclusion state file with a private copy in the
+shadow, and landing removes the real one (`conclusion_cleanup.rs`). A stash whose apply conflicts is stored by Git in the shadow's refs
+and is not carried back; that is the wrapper's existing behaviour for a person's own `git commit` after `merge --autostash` too, and
+is not changed here.
+`branch.<name>.mergeoptions` is split as Git splits it (`alias.c` lines 126 to 180) and parsed before the command line
+(`builtin/merge.c` lines 1407 to 1409), for the branch that is checked out; controls: `--no-commit` there stops the finished merge, a quoted `-m` is its message.
+
+### The nesting bound
+
+The fixed 64 is gone. The budget is the remaining todo length plus one for a rebase; for a cherry-pick or revert the sequencer todo length
+(one for a single pick), because every pick of a range can conflict and each is one finish; one for a merge (the coordinator's "one
+finish"). The controls pin the three values and the comparison.
+
+### Variables the in-process readers tolerate
+
+`GIT_EDITOR` was already tolerated (`repo_read_layout.rs`); the decline seen in this shell's unit tests came from the real user-level
+configuration, not from it. The list now also tolerates the `GIT_` names that only trace, word output, reach a network or a tool, or set
+a limit or a write-time choice, each with the file and line of Git 2.56.0's reader in the comment above `PLAIN_ENVIRONMENT_PREFIXES`; every name that can
+move a configuration, attribute tree, layout, index, object, ref or pathspec answer, every `GIT_TEST_*` and any name not known stays a decline.
+The attribute-tree probe now reads with the variables its children get, so a person's usual environment costs no Git start (control with
+a runner that refuses every start).
+
+### Tests
+
+Clippy clean; library suite 3448 passed and 5 skipped; binary suite 598 passed, 1 failed, 1 skipped, the failure being
+`commit_timing::a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait`, a timing attribution that passed alone straight
+afterwards (14 of 14 of its module). Guards removed in turn, each failing a control: mergeOptions before the command line, its quoting,
+the three budget values and the comparison, `--autostash`, the landing removal of `MERGE_AUTOSTASH`, `GIT_TRACE` and a moving variable in the
+plain list, the in-process attribute probe.
+
+### Needs the owner's decision
+
+1. If hooks are ever supported: the finished merge runs the hooks of `git commit`, a clean merge those of `git merge` (list above).
+2. The edit to `conclusion_cleanup.rs` is outside the merge paths (a commit-conclusion file); it is small and fixes a defect, but another agent may be editing near it.
+3. A stash whose apply conflicts inside the shadow is not carried back to the real repository.

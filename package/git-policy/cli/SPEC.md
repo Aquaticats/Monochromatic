@@ -2844,7 +2844,8 @@ Each merged file is one journal entry of priority `warning` under `SYSLOG_IDENTI
 When every conflicted file of the command resolved, the operation is finished the way Git finishes it after a clean run
 (owner decision of 2026-11-03, "Finish like a clean merge"), through the wrapper's own command path: the continuing step is
 `run_process` of this process, so the commit policies apply to it and a later pick of a rebase that conflicts gets the pass again
-(nested at most 64 deep, after which the operation stays stopped).
+(nested no deeper than the budget the outermost finish takes from its input: a rebase's remaining todo length plus one, a
+cherry-pick or revert sequence's todo length, one for a merge; past it the operation stays stopped).
 The exit status and the output are the finishing command's; what Git printed when it stopped (`CONFLICT` lines, "Automatic merge
 failed") is already out and stays.
 What Git does after a clean run, from the Git 2.56.0 source:
@@ -2855,8 +2856,18 @@ What Git does after a clean run, from the Git 2.56.0 source:
   cut from `MERGE_MSG`, `append_conflicts_hint`, `sequencer.c` line 722) or, when the editor is wanted, plain `git commit`.
   The editor is wanted by `--edit`/`-e`, or by default when no `-m`/`-F` was given, `GIT_MERGE_AUTOEDIT` is unset and standard
   input and output are one terminal (`default_edit_option`, lines 1158 to 1180). `-S`, `--gpg-sign`, `--no-gpg-sign` and
-  `--signoff` are handed to the commit. A concluding `git commit` runs `pre-commit` where a clean merge runs `pre-merge-commit`
-  (`builtin/commit.c` line 781); every hook is switched off in the wrapper's Git starts anyway.
+  `--signoff` are handed to the commit. `--autostash` and `merge.autoStash` need nothing: the ending `git commit` applies
+  `MERGE_AUTOSTASH` after it concludes the merge (`builtin/commit.c` line 1982), as a clean merge's `finish` does
+  (`builtin/merge.c` line 1848). The wrapper's commit builds the commit in a shadow repository, which now holds a private copy of
+  `MERGE_AUTOSTASH`; landing removes the real pseudoref when the shadow consumed it (`conclusion_cleanup.rs`). A
+  `branch.<name>.mergeoptions` value of the checked-out branch is split as Git splits it (`alias.c` lines 126 to 180) and read
+  before the command line (`merge.c` lines 1407 to 1409), so `--no-commit`, `--squash`, `--edit` or `-m` set there is honoured.
+  Hooks: the wrapper switches every hook event off in every Git it starts, so a user's hooks see nothing on a clean merge and
+  nothing on a finished one (a control compares the two, with real Git run directly as the positive control). Were hooks run, a
+  clean merge would run `pre-merge-commit`, `prepare-commit-msg`, `commit-msg` and `post-merge` (`merge.c` lines 931, 966, 975
+  and 537), a concluding `git commit` `pre-commit`, `prepare-commit-msg`, `commit-msg` and `post-commit` (`builtin/commit.c`
+  lines 780, 1116, 1133 and 1966), and a clean pick `prepare-commit-msg` and `post-commit` (`sequencer.c` lines 1367 and 1699);
+  that difference would then need a decision.
 - `cherry-pick` and `revert`: `git commit --no-edit --cleanup=strip`, which is what Git's own `--continue` runs for a conflicted
   pick (`continue_single_pick`, `sequencer.c` lines 5354 to 5378), edited when `--edit` is given or, for `revert`, when standard
   input is a terminal (`should_edit`, line 2217); then `<command> --continue` when a sequencer todo file exists, which picks the
@@ -2868,12 +2879,13 @@ What Git does after a clean run, from the Git 2.56.0 source:
   with `GIT_EDITOR=:` for its Git children (the in-process variable `CLI_GIT_CHILD_SET_GIT_EDITOR`, `child_environment.rs`), and a
   rebase whose remaining todo list holds `reword`, `squash` or `fixup -c`/`-C` is not finished, because the same setting would
   switch off the editor those steps want. The original author is kept because `--continue` reads `rebase-merge/author-script`
-  (a plain `git commit` would not).
+  (a plain `git commit` would not). `--autostash` and `rebase.autoStash` need nothing: the continuing step applies the autostash
+  when the rebase ends (`sequencer.c` lines 4980 and 5330).
 - `pull` runs `git merge` or `git rebase` as a child of Git (`builtin/pull.c` lines 525 and 750), out of the wrapper's reach, so the
   wrapper sees the pull's exit and its state files: `rebase-merge` or `rebase-apply` means the rebase, `MERGE_HEAD` (or
-  `--squash`) the merge. Pull's own options are read like merge's plus the fetch and rebase options it passes on; the finish is not
-  made when an option is unknown, when `--autostash` is given, or when `branch.<name>.mergeOptions` is set (it may carry
-  `--no-commit` or `--squash`, which the wrapper cannot see).
+  `--squash`) the merge. Pull's own options are read like merge's plus the fetch and rebase options it passes on, and the
+  child merge applies `branch.<name>.mergeoptions` and `--autostash` as a merge does; the finish is not made when an option is
+  unknown.
 Options are read by exact spelling, since Git accepts unambiguous abbreviations; a command line with an option this reader does not know
 leaves the operation stopped with the files staged and Git's exit status, as before the finish existed.
 A file that does not resolve keeps the stop of Git for every operation.
@@ -2890,7 +2902,8 @@ No worktree is read by these merges, so the attribute tree is named where Git wo
 (`attr.c` lines 1202 to 1231). The wrapper sets `GIT_ATTR_SOURCE` to the first side's tip (the isolated merge's `HEAD`, the
 reconcile merge's branch tip, the landed tip of a replay) only when none of the three applies: a person's choice is never
 overridden. `attr.tree` is read in process, or from Git when the in-process readers decline the environment (a `GIT_*` variable
-such as `GIT_EDITOR` makes them decline), which costs one Git start in that case.
+such as `GIT_NAMESPACE` makes them decline; the variables that only trace, word output, reach a network or a tool, or set a limit
+do not, each checked against Git 2.56.0 in `repo_read_layout.rs`), which costs one Git start in that case.
 The `doc/handover/*.md merge=union` line of `.gitattributes` therefore applies in them.
 A `.gitattributes` that only the second side has is not read (Git takes one tree).
 The isolated merge prints the part lines before Git's own words and sends the journal entries after the merge is in the checkout;

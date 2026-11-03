@@ -892,8 +892,9 @@ When every conflicted file resolves, the operation is finished the way Git finis
  continues, a rebase continues, and the exit status is the finishing command's.
 `--no-commit` and `--squash` stop as they would after a clean run, with Git's line "Automatic merge went well; stopped before
  committing as requested" and status 0, and `--edit` opens the editor.
-`git pull` is covered, both its merge and its rebase; a pull with `--autostash`, with `branch.<name>.mergeOptions` set, or with an
- option the wrapper does not read exactly is left stopped with the files staged and Git's status.
+`git pull` is covered, both its merge and its rebase; `--autostash`, `merge.autoStash`, `rebase.autoStash` and `branch.<name>.mergeOptions` are applied
+ as Git applies them; a command with an option the wrapper does not read exactly is left stopped with the files staged and
+ Git's status.
 What Git printed when it stopped (`CONFLICT` lines) is already out and stays.
 Standard error lists every part that was merged, with the file and the lines in the base, your side and the other side,
  and the text it became:
