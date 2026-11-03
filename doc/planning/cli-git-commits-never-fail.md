@@ -1436,7 +1436,7 @@ Each pick stays open to the owner's veto; its reason follows the question's opti
    - Picked: A. Nothing is lost and `git restore --staged` undoes the residue; the owner's "Update the index (Recommended)" chose a
      current index over a lagging one, and B makes the index lag after any foreign write.
 
-Two decisions the seventh review leaves to the owner. Neither is picked here; the coordinator picks under the owner's delegation.
+Two decisions the seventh review leaves to the owner, picked by the coordinator under the owner's delegation (reasons beside each).
 
 A. A Git child that ignores the terminate signal and holds a ref lock.
    Case: the service runs `update-ref` for `main`; it creates `.git/refs/heads/main.lock`, then stalls and ignores the terminate signal; the person
@@ -1447,6 +1447,13 @@ A. A Git child that ignores the terminate signal and holds a ref lock.
    - Option A2, kill it and leave its lock for the person to clear: the child ends; `main.lock` stays (the wrapper never removes a ref lock); the request
      and the requests behind it are pending behind a lock with no live holder, and the notice names the file and says to remove it if no Git runs.
      Visible: the same pending state, now with a lock file that needs a person's action, and the stuck child gone.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): A2. The owner's "End Git, hold hooks (Recommended)" ends our
+     own stalled Git and redoes the step; A1 keeps a child the owner chose to end, with every later request behind it.
+     The lock it leaves is then judged by the rule already shipped since 0.5.26 (`package/git-policy/cli/SPEC.md`, "Reference locks left by a Git
+     that was killed"; `src/native/stale_ref_lock_judge.rs` and its siblings), which removes a lock only when its holder is proven gone and
+     otherwise prints what it found and the command that clears it. That rule contradicts this revision's "the wrapper never removes a ref lock";
+     the eighth review is asked whether the shipped proof survives the seventh review's foreign-lock schedule. If it does not, A2 stands as
+     written (the notice names the file for the person), and the shipped rule is reopened too.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
@@ -1455,6 +1462,9 @@ B. A quiet owner that holds the gate with no person's program running.
    - Option B2, restart anyway: the waiting command ends the owner without the gate and the manager restarts the service. Visible: the commit lands after
      the restart, but if the owner was inside a ref transaction with a child, ending it can leave `main.lock` that the wrapper will not remove, with
      the pending state of A2.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): B2. B1 hands an internal wedge of our own code to the person,
+     against "never leak internal things that could be resolved to the user" (`package/git-policy/cli/DESIGN.md`, 2026-11-01) and "never stuck";
+     a lock left by it goes through the same shipped rule as A2.
 
 ## Verification plan and build order
 
