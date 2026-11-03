@@ -53,23 +53,13 @@ const PATIENCE: Duration = Duration::from_secs(20);
 /// How long the probe sleeps when it only holds what it holds: far longer than any control, ended by the control.
 const HOLD: Duration = Duration::from_secs(600);
 
-/// A probe process the control started, ended with the control whatever the control's outcome.
-struct Owned(Option<Child>);
+/// A probe process the control started, which `test_support::spawn_owned` ends with the test thread whatever the outcome.
+struct Owned(Child);
 
 impl Owned {
     /// The process number of the probe.
     fn pid(&self) -> u32 {
-        return self.0.as_ref().map_or(0, Child::id);
-    }
-}
-
-impl Drop for Owned {
-    /// End the probe and collect it; what it started ends with it (the probe asks the kernel for that when it starts).
-    fn drop(&mut self) {
-        if let Some(mut child) = self.0.take() {
-            let _killed = child.kill();
-            let _collected = child.wait();
-        }
+        return self.0.id();
     }
 }
 
@@ -114,8 +104,7 @@ fn tcp_probe() {
 
 /// A process that reads in a process list as `git <subcommand> ...`: this test binary, asked to only exist.
 fn spawn_named_child(subcommand: &str) -> Child {
-    #[allow(clippy::disallowed_methods, reason = "identifies the running test binary so the probe can start itself under another name")]
-    let test_binary: std::path::PathBuf = std::env::current_exe().expect("this test binary");
+    let test_binary: std::path::PathBuf = crate::test_support::this_test_binary().expect("this test binary");
     return Command::new(test_binary)
         .arg0("git")
         .arg(subcommand)
@@ -131,8 +120,7 @@ fn spawn_named_child(subcommand: &str) -> Child {
 
 /// Start the probe against a listener's port, in a mode, with a child under a Git subcommand's name or none.
 fn start_probe(port: u16, mode: &str, child: Option<&str>) -> Owned {
-    #[allow(clippy::disallowed_methods, reason = "identifies the running test binary so the control can start the probe test of it as a process of its own")]
-    let test_binary: std::path::PathBuf = std::env::current_exe().expect("this test binary");
+    let test_binary: std::path::PathBuf = crate::test_support::this_test_binary().expect("this test binary");
     let mut command: Command = Command::new(test_binary);
     command
         .args(["--exact", PROBE_NAME, "--nocapture", "--test-threads", "1"])
@@ -144,7 +132,7 @@ fn start_probe(port: u16, mode: &str, child: Option<&str>) -> Owned {
     if let Some(subcommand) = child {
         command.env(CHILD_VARIABLE, subcommand);
     }
-    return Owned(Some(command.spawn().expect("start the probe")));
+    return Owned(crate::test_support::spawn_owned(&mut command).expect("start the probe"));
 }
 
 /// The connection the probe made, taken from the listener.
@@ -265,8 +253,7 @@ fn a_pack_still_being_made_is_a_stall() {
 /// A tree with no connection at all (a push to a local path, whose hook is a child) is a stall, as before.
 #[test]
 fn a_tree_with_no_connection_is_a_stall() {
-    let child: Child = Command::new("sleep").arg("600").stdin(Stdio::null()).spawn().expect("sleep");
-    let owned: Owned = Owned(Some(child));
+    let owned: Owned = Owned(crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("sleep"));
     let mut clock: Clock = push_clock(owned.pid());
     let began: Instant = Instant::now();
     let cause: Option<StopCause> = drive(&mut clock, PATIENCE);
