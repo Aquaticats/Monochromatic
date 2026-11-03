@@ -11,6 +11,7 @@
 //! const done = await wrapped(['merge', '--no-edit', 'topic']); // status 0, a merge commit, nothing left unmerged
 //! ```
 
+use super::commit::wrapped_commit;
 use super::support::{Fixture, Observed, executable, fixture, git, observe, remove, repository, run_direct, run_wrapped, stderr_of, wrapped};
 use super::word_merge::{ADJACENT, Stop, STOPS, arguments_of, corpus, expected_after, merge_lines, prepared, tracked, unmerged};
 use std::ffi::OsStr;
@@ -356,35 +357,66 @@ fn after_autostash(fixture: &Fixture, repo: &Path) -> (String, String, String) {
     );
 }
 
-/// A merge told `--autostash` whose stash conflicts with the merged file when the ending commit applies it: the person's
-///  work stays reachable exactly as with Git (in the stash, with Git's words), never dropped.
+/// A merge told `--autostash` whose stash would conflict with the merged file when the ending commit applies it is not finished:
+///  the merge stays stopped as Git leaves it, with the resolved file staged and the person's work still in `MERGE_AUTOSTASH`,
+///  because the ending commit would apply the stash in its scratch repository and lose the stash entry.
 #[test]
-#[ignore = "red on purpose: the stash and the unmerged entries Git's apply made in the commit's scratch repository are not carried back (doc/planning/cli-git-merge-auto-resolution.md, owner decision 3)"]
 fn a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it() {
     let direct: Fixture = fixture("finish-autostash-conflict-git");
+    let git_repo: PathBuf = prepared(&direct, Stop::Merge, &[ADJACENT]);
+    let edited: &str = with_overlapping_work(&direct, git_repo.as_path());
+    let stopped: Observed = run_direct(&direct, git_repo.as_path(), &["merge", "--autostash", "--no-edit", "topic"]);
+    let git_state: Vec<&str> = state_left(git_repo.as_path());
+    let git_stash_file: bool = git_repo.join(".git/MERGE_AUTOSTASH").exists();
+    remove(&direct);
+    assert_eq!(stopped.code, Some(1), "Git stops the merge");
+    assert!(git_stash_file, "Git keeps the work in MERGE_AUTOSTASH until the merge is concluded");
+    let fixture: Fixture = fixture("finish-autostash-conflict-wrapper");
+    let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
+    with_overlapping_work(&fixture, repo.as_path());
+    let before: String = text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--autostash", "--no-edit", "topic"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, stopped.code, "the status is Git's: {said}");
+    assert_eq!(state_left(repo.as_path()), git_state, "the merge stays stopped as Git leaves it: {said}");
+    assert_eq!(text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "nothing is committed: {said}");
+    assert_eq!(unmerged(&fixture, repo.as_path()), Vec::<String>::new(), "the pass still staged the resolved file: {said}");
+    let stash: String = std::fs::read_to_string(repo.join(".git/MERGE_AUTOSTASH")).expect("the work waits in MERGE_AUTOSTASH").trim().to_owned();
+    let kept: String = text(&fixture, repo.as_path(), &["show", format!("{stash}:{}", tracked(ADJACENT)).as_str()]);
+    assert!(kept.contains(edited.trim_end()), "the person's edit is in the kept stash: {kept}");
+    remove(&fixture);
+}
+
+/// The person's own `git commit` after `git merge --autostash` stopped, with a stash that conflicts on apply, ends as Git's does:
+///  `stash@{0}: autostash` kept and the file unmerged.
+#[test]
+#[ignore = "fixed by carry-back A, queued after the index writer's third round"]
+fn a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it() {
+    let direct: Fixture = fixture("commit-autostash-conflict-git");
     let git_repo: PathBuf = prepared(&direct, Stop::Merge, &[ADJACENT]);
     let edited: &str = with_overlapping_work(&direct, git_repo.as_path());
     let stopped: Observed = run_direct(&direct, git_repo.as_path(), &["merge", "--autostash", "--no-edit", "topic"]);
     assert_eq!(stopped.code, Some(1), "Git stops the merge: {}", stderr_of(&stopped));
     std::fs::write(git_repo.join(tracked(ADJACENT)), corpus(ADJACENT, "word.out")).expect("the resolution");
     git(&direct, git_repo.as_path(), &["add", "--", tracked(ADJACENT).as_str()]);
-    let concluded: Observed = run_direct(&direct, git_repo.as_path(), &["commit", "--no-edit"]);
-    let git_said: String = stderr_of(&concluded);
+    let _concluded: Observed = run_direct(&direct, git_repo.as_path(), &["commit", "--no-edit"]);
     let kept: (String, String, String) = after_autostash(&direct, git_repo.as_path());
-    assert!(kept.0.contains("autostash"), "Git keeps the conflicted stash: {kept:?} {git_said}");
-    let git_state: Vec<&str> = state_left(git_repo.as_path());
+    assert!(kept.0.contains("autostash"), "Git keeps the conflicted stash: {kept:?}");
     remove(&direct);
-    let fixture: Fixture = fixture("finish-autostash-conflict-wrapper");
+    let fixture: Fixture = fixture("commit-autostash-conflict-wrapper");
     let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
     with_overlapping_work(&fixture, repo.as_path());
-    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--autostash", "--no-edit", "topic"]);
-    let said: String = stderr_of(&observed);
+    let first: Observed = run_direct(&fixture, repo.as_path(), &["merge", "--autostash", "--no-edit", "topic"]);
+    assert_eq!(first.code, Some(1), "Git stops the merge: {}", stderr_of(&first));
+    std::fs::write(repo.join(tracked(ADJACENT)), corpus(ADJACENT, "word.out")).expect("the resolution");
+    git(&fixture, repo.as_path(), &["add", "--", tracked(ADJACENT).as_str()]);
+    let concluded: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), &["commit", "--no-edit"]), b"");
+    let said: String = stderr_of(&concluded);
     let ours: (String, String, String) = after_autostash(&fixture, repo.as_path());
     assert_eq!(ours.0, kept.0, "the stash list is Git's: {said}");
     assert_eq!(ours.1, kept.1, "the status is Git's: {said}");
     assert_eq!(ours.2, kept.2, "the file is Git's: {said}");
     assert!(ours.0.contains("autostash") || ours.2.contains(edited), "the work is kept: {said}");
-    assert_eq!(state_left(repo.as_path()), git_state, "{said}");
     remove(&fixture);
 }
 
