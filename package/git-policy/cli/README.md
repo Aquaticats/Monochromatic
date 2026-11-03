@@ -1192,6 +1192,15 @@ fractional or non-numeric value is ignored.
    once it is gone the wrapper removes the lock files it left (the rules are in the push deadline entry of `SPEC.md`),
    so a later `git fetch` or `git commit` does not fail with "Unable to create ... File exists".
   The same stop applies to a Git step that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
+- A lock that a Git killed in any other way left (a closed terminal, the out-of-memory killer, a reboot, a release before
+  0.5.23) is judged before the wrapper's own fetch and push and before your plain `git fetch` and `git push`.
+  It is removed only when its holder is proven gone: the process its pid file names has ended or its number now belongs to a
+  program that is not Git, or the lock is older than the boot; and never while a process has it open or a running Git is
+  named.
+  Git writes no process number into a lock, and a live Git holds its reference locks with no file open, so nothing else can
+  prove a lock stale.
+  A lock that is not proven is left, and the wrapper prints what it found and the exact `rm` command that clears it
+  (`SPEC.md`, "Reference locks left by a Git that was killed").
 
 A command that passes through to Git unchanged,
  and the editor of a commit,

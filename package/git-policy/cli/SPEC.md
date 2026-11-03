@@ -1468,8 +1468,9 @@ Release 0.5.23 removes the lock files of a Git child that the wrapper itself sto
 A lock that any other killed Git leaves (a terminal closed mid-fetch, the out-of-memory killer, a reboot, a release before
 0.5.23) blocked every later `git fetch` and `git push` of the same reference with "Unable to create ... File exists"
 until someone deleted the file by hand.
-This entry extends the same module (`src/native/stopped_git_locks.rs` for the Git directories and the pid-file reader,
-`src/native/stale_ref_locks.rs` for the judgement) to those locks, with one rule: a lock is removed only when its holder is
+This entry extends the same code (`src/native/stopped_git_locks.rs` for the pid-file reader, `src/native/git_directory_roots.rs`
+for the Git directories it shares, `src/native/stale_ref_locks.rs` and the `stale_ref_lock_*` modules for the judgement) to those
+locks, with one rule: a lock is removed only when its holder is
 **proven** gone, and otherwise the wrapper says what it found and prints the command that clears it.
 
 #### Owner requirements
@@ -1540,8 +1541,12 @@ A candidate is judged without starting Git, from the file system and `/proc`, in
    `btrfs`, `ext4`, `xfs`, `f2fs`, `tmpfs`, `overlay`, `zfs`, `bcachefs`) is unproven, because a Git on another machine is
    invisible here.
 3. A process of the account that has the candidate open (same device and inode in `/proc/<pid>/fd`) makes it **held**.
-   A process list that cannot be read, or a process of the account whose descriptors cannot be read, makes it unproven.
-4. A pid file born at or after the lock, naming a process, decides:
+   A process list that cannot be read, or a Git process of the account whose descriptors cannot be read, makes it unproven.
+   A process of the account that is not Git and cannot be read is skipped: on the measured host `systemd --user` and
+   `ssh-agent` are never readable (`CapEff` and set-group-id), so refusing on them would make every proof unreachable, and a
+   program that is not Git does not create Git locks.
+4. A pid file born at or after the lock (Git creates it after the lock, so this is the order of a pid file the holder wrote),
+   naming a process, decides:
    - a process that is gone, or a zombie, proves the lock stale;
    - a process that runs and whose command name does not start with `git` proves the number was reused after the holder
      ended, and the lock stale;
@@ -1557,7 +1562,11 @@ The removal itself takes no lock of the wrapper's own (`Use as few locks as poss
 It sets the lock aside with one `rename` to a private name in the Git directory, reads the identity of what it moved (device,
 inode and size), removes it only if that is the file that was judged, and otherwise puts it back with a hard link.
 Two wrappers that judge the same lock at the same time therefore cannot remove a lock that a live Git created between them.
-The pid file is removed after the lock has been set aside.
+The pid file, and for `packed-refs.lock` the staging file `packed-refs.new` that Git creates with `O_EXCL` while it holds that
+lock (`refs/packed-backend.c:1398`), are removed after the lock has been set aside.
+A killed Git leaves the staging file too, and a later packed-references update fails on it ("unable to create file
+packed-refs.new: File exists") exactly as on the lock, so a lock is cleared together with it, and the command given for a lock
+that is not cleared names it.
 
 #### Races, and how each is handled
 
@@ -1590,19 +1599,69 @@ The pid file is removed after the lock has been set aside.
 
 #### Where it applies
 
-- The wrapper's own pushes and fetches (the commit service's auto-push and the reconcile fetch, the stacked and LFS-upload
-  pushes, all of which go through `run_bounded_push`) clear before they start and, when one fails, again before the one
-  repetition.
-  They are the commands that run unattended, so a lock that blocks them is repaired without anyone present.
-- The person's own forwarded `git fetch` and `git push` that the wrapper runs as a child (the stacked push) go through the
-  same path.
-- The person's own forwarded `git fetch` and a plain forwarded `git push` replace the wrapper process with Git, so there
-  is no "after" to look at; the wrapper judges and clears before it hands over, and its notice precedes Git's own refusal.
-  This costs one walk of `refs/` of the Git directories and nothing else when no lock exists.
-- Not covered: `git pull`, `git merge` and every other command (they belong to the merge and index-writer paths), the wrapper's
-  own `update-ref` and other ref writes of a commit, and a command that names its repository with `--git-dir`.
+- The wrapper's own pushes and fetches (the commit service's auto-push and its reconcile fetch, the stacked push, the Git LFS
+  upload's pushes) all start through `run_bounded_push`, which judges and clears first (`src/native/push_lock_clearing.rs`).
+  Every repetition of a push starts through it too, so the service's repetitions after a refused tracking reference
+  (`PUSH_LOCK_RETRIES`) clear again before each one; no repetition of its own was added, and nothing waits.
+  These are the commands that run unattended, so a lock that blocks them is repaired with nobody present.
+- A plain forwarded `git fetch` or `git push` replaces the wrapper process with Git, so there is no "after" to look at: the
+  wrapper judges and clears before it hands over, and the notice (standard error) precedes Git's own words
+  (`src/native/forwarded_lock_notice.rs`, called from `stack_if_push` in `entry.rs`).
+  The repository is the one the wrapper's `-C` options and `GIT_DIR` name.
+  A push that the wrapper runs as a child (stacked or with an LFS upload) goes through the first item.
+- The cost on a command with no lock is one walk of `refs/` of the Git directory and the common Git directory plus two file
+  lookups: measured on 2026-11-03 at a median 1.9 ms (25 runs, 1.85 to 2.15 ms) for 5000 loose references in 50 directories,
+  and no change with an unproven lock younger than the margin.
+  A lock old enough to be judged adds one scan of the descriptors of every process: median 53 ms (25 runs, 47 to 63 ms) with
+  1182 processes on the host, paid only when a lock exists.
+  No Git is started.
+- Not covered: `git pull`, `git merge` and every other command (they belong to the merge and index-writer paths); a command that
+  names its repository with `--git-dir` or any global option other than `-C`; the wrapper's own `update-ref` and other ref writes
+  of a commit; locks younger than the margin, which a command meets once as Git's own refusal (the repetition of a push clears
+  them when they have aged); and the notice of a push that Git delivers and exits 0 for after being refused the tracking
+  reference (`cannot lock ref` in output with exit 0): the service's report shows only `remote:` lines for a push that exits 0,
+  so that notice reaches the service's log and is not shown, the retry loop of `auto_push.rs` being left as it is.
 
-<!-- messages: written with the implementation -->
+#### Messages as printed
+
+Every line starts with `cli-git: `, and every path is quoted for a shell (a plain name as it is, other printable names in single
+quotes with `'\''` for a quote, names with a control character or a byte that is not UTF-8 as `$'...'`), so the command can be
+pasted and a terminal escape in a file name is never printed raw.
+
+```text
+# A lock the wrapper removed (the process of the pid file ended).
+cli-git: removed the reference lock /r/.git/refs/remotes/origin/gone.lock, left by a Git that is gone: process 2629996, named by the pid file beside it, has ended.
+# A lock whose pid number now belongs to a program that is not Git.
+cli-git: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.
+# A lock from before the boot, with no pid file.
+cli-git: removed the reference lock /r/.git/refs/heads/c.lock, left by a Git that is gone: it was made before this boot of the machine, so no process that exists now can hold it.
+# A lock a running Git holds.
+cli-git: the reference lock /r/.git/packed-refs.lock is in use: process 2630147 (git), which the pid file beside it names, is running; it was left alone.
+# A lock nothing proves stale.
+cli-git: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open.
+cli-git: it is 0 bytes, made 2026-11-03T11:57:55.882Z (2 seconds ago). If no Git process is running in this repository, clear it with:
+cli-git:   rm -- /r/.git/refs/remotes/origin/gone.lock
+cli-git: Git writes a process number beside its locks only when `core.lockfilePid` is on. The wrapper turns it on for the Git it starts; `git config --global core.lockfilePid true` does it for the rest, so the next lock can be proven.
+```
+
+For `packed-refs.lock` the `rm` line also names `packed-refs.new` and the pid file when they exist.
+Git's own refusal follows these lines unchanged, because the wrapper becomes Git.
+In a process that is not in the initial PID namespace the reason of a lock with a pid file is "the pid file beside it names process
+N, but this process runs in a PID namespace of its own and cannot see every process of the machine, so it cannot tell whether N is
+gone", and the lock is left with the same `rm` line.
+
+#### Measured on 2026-11-03
+
+With real Git 2.56.0 (`git update-ref --stdin` told `start`, three `delete`/`update` lines, `prepare`, then held, and `git fetch
+--prune` held by a `reference-transaction` hook at `prepared`):
+
+- A live Git held four locks (`packed-refs.lock`, three reference locks) and their pid files with **no lock file descriptor open**:
+  its descriptors were its three standard streams and nothing else.
+  Every reference lock was empty, including the one whose reference already had the wanted value.
+- A Git killed with `SIGKILL` in that state left all of them, and `packed-refs.new`.
+- A push that delivers and then cannot lock the tracking reference prints "error: update_ref failed for ref ...: cannot lock ref"
+  and exits 0.
+
 
 ### Real Git starts with traditional hooks off
 
