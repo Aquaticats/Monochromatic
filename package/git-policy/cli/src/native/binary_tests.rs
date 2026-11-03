@@ -113,6 +113,9 @@ mod management;
 /// `git cli-git migrate-to-subvolume` and the doctor's filesystem section through the executable.
 #[path = "binary_subvolume_tests.rs"]
 mod subvolume;
+/// `git cli-git convert-worktree-to-subvolume` started the way a person starts it, with no forward-target variable.
+#[path = "binary_convert_tests.rs"]
+mod convert;
 
 #[path = "binary_coordination_tests.rs"]
 mod coordination;
