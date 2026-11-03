@@ -390,7 +390,6 @@ fn a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it() {
 /// The person's own `git commit` after `git merge --autostash` stopped, with a stash that conflicts on apply, ends as Git's does:
 ///  `stash@{0}: autostash` kept and the file unmerged.
 #[test]
-#[ignore = "fixed by carry-back A, queued after the index writer's third round"]
 fn a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it() {
     let direct: Fixture = fixture("commit-autostash-conflict-git");
     let git_repo: PathBuf = prepared(&direct, Stop::Merge, &[ADJACENT]);
@@ -417,6 +416,9 @@ fn a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it
     assert_eq!(ours.1, kept.1, "the status is Git's: {said}");
     assert_eq!(ours.2, kept.2, "the file is Git's: {said}");
     assert!(ours.0.contains("autostash") || ours.2.contains(edited), "the work is kept: {said}");
+    // The stash entry is whole: its objects are in the repository and hold the person's edit, and the repository is sound.
+    assert!(text(&fixture, repo.as_path(), &["stash", "show", "-p", "stash@{0}"]).contains(edited.trim_end()), "the stash holds the edit: {said}");
+    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
     remove(&fixture);
 }
 

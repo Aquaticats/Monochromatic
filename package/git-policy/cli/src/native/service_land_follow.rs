@@ -13,6 +13,7 @@
 //! await updateIndex(git, repository, newCommit, paths); await removeConclusionState(git, repository, cleanup);
 //! ```
 
+use super::autostash_carry::carry_stash;
 use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 use super::diagnostic_log::warn;
 use super::index_holder_wait::{IndexWait, wait_for_index_release_here};
@@ -321,6 +322,11 @@ pub fn remove_conclusion_state(git: &GitContext, repository: &Path, cleanup: &Cl
     }
     let format: RefFormat = if cleanup.reftable { RefFormat::Reftable } else { RefFormat::Files };
     let shadow = cleanup.scratch.join("shadow");
+    // The stash Git stored in the scratch repository when its apply conflicted is stored in the repository before the cleanup
+    //  removes the pseudoref that named it; if that fails the state stays, so the cleanup runs again.
+    if !carry_stash(git, repository, cleanup) {
+        return false;
+    }
     return match reproduce_conclusion_cleanup(git, repository, cleanup.git_dir.as_path(), shadow.as_path(), cleanup.scratch.as_path(), format) {
         Ok(()) => true,
         Err(error) => {

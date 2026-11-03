@@ -20,6 +20,7 @@ use super::service_pruned::batch_content_missing;
 use super::service_journal::{INDEXED_EXTENSION, Intent, Recovery, OPEN_EXTENSION, is_indexed, list_intents, mark_done, mark_indexed, recovery_for, write_intent};
 use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait, remove_stale, try_acquire};
 use super::service_timing::{LandTiming, wait_line};
+use super::autostash_carry::carry_stages;
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
 use super::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
@@ -158,6 +159,13 @@ fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLo
     let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), &lock, intent.seq) else {
         return false;
     };
+    // The files a conflicted autostash apply left unmerged are unmerged in the index the landing installs.
+    if let Some(cleanup) = intent.cleanup.as_ref()
+        && !carry_stages(git, repository, cleanup, built.as_path())
+    {
+        let _removed = std::fs::remove_file(&built);
+        return false;
+    }
     let recorded = || -> std::io::Result<()> { return mark_indexed(journal, intent.seq, intent.new.as_str()); };
     return lock.release_with_record(built.as_path(), &recorded).is_ok() && cleaned;
 }
