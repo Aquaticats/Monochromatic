@@ -1,0 +1,482 @@
+import {
+  mkdir,
+  readdir,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
+import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
+
+import {
+  describe,
+  expect,
+  it,
+} from '@monochromatic-dev/test-harness-core/ts';
+
+import {
+  plantClaim,
+  runClaimHolder,
+  scratchDirectory,
+  startOldHolder,
+  unusedProcessId,
+} from './claim-test-support.ts';
+import {
+  foreignOwnerPatienceMs,
+  noLiveOwner,
+} from './claim-liveness.ts';
+import { listGenerations } from './claim-record.ts';
+import { watchDirectoryChanges } from './directory-watch.ts';
+import {
+  type GateSlotOptions,
+  slotClaimPrefix,
+  slotLockPath,
+} from './gate-slot.ts';
+import {
+  runInSlot,
+  takeAnySlot,
+} from './gate-slot-run.ts';
+import { liveOwnerOf } from './owner-claim.ts';
+
+/**
+ Path of the module the holder children import.
+ */
+const claimModule = join(
+  import.meta.dirname,
+  'owner-claim.ts',
+);
+
+/**
+ Slots the cases use: two are enough to show every behaviour, and keep the processes the cases start few.
+ */
+const slotCount = 2;
+
+/**
+ Longest a case waits for a gate that must wake, in milliseconds.
+ */
+const wakeBudgetMs = 10_000;
+
+/**
+ Milliseconds that count as "did not happen yet" when a case checks that a gate is still waiting.
+ */
+const stillWaitingMs = 400;
+
+/**
+ Settings for a case: two slots in a disposable directory, a fallback re-check so long that only a wake can explain a quick
+ start, and the given command.
+
+ @param overrides - the settings a case changes
+
+ @returns the settings
+
+ @example
+ ```ts
+ gateOptions({ lockDirectory: '/d' });
+ ```
+ */
+function gateOptions(overrides: Partial<GateSlotOptions> & { readonly lockDirectory: string }): GateSlotOptions {
+  return {
+    slotCount,
+    pollIntervalMs: 600_000,
+    noticeIntervalMs: 600_000,
+    command: ['cmd'],
+    ...overrides,
+  };
+}
+
+/**
+ Make a gate directory for a case.
+
+ @param name - what the case is, the start of the directory's name
+
+ @returns the directory, removed when disposed
+
+ @example
+ ```ts
+ await using directory = await gateDirectory('gate-x-');
+ ```
+ */
+async function gateDirectory(name: string): Promise<AsyncDisposable & { readonly path: string }> {
+  return await scratchDirectory(name);
+}
+
+await describe({
+  name: '',
+  children: [
+    describe({
+      name: takeAnySlot.name,
+      children: [
+        it({
+          name: 'takes the lowest free slot at once, and the next one while the first is held',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-take-');
+            const options = gateOptions({ lockDirectory: directory.path });
+            const first = await takeAnySlot({ options });
+            const second = await takeAnySlot({ options });
+            expect([first.kind, second.kind]).toEqual(['taken', 'taken']);
+            expect([first, second].map((taken) => (taken.kind === 'taken' ? taken.slot : 0))).toEqual([1, 2]);
+          },
+        }),
+        it({
+          name: 'reports every holder, and takes nothing, only when all slots are held by live processes',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-full-');
+            const options = gateOptions({ lockDirectory: directory.path });
+            await takeAnySlot({ options });
+            await using holder = await runClaimHolder({
+              claimModule,
+              directory: directory.path,
+              prefix: slotClaimPrefix(2),
+            });
+            const full = await takeAnySlot({ options });
+            expect(full).toEqual({
+              kind: 'full',
+              holders: [
+                {
+                  kind: 'process',
+                  slot: 1,
+                  pid: process.pid,
+                },
+                {
+                  kind: 'process',
+                  slot: 2,
+                  pid: holder.pid,
+                },
+              ],
+            });
+            expect(await listGenerations({
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+            })).toEqual([1]);
+          },
+        }),
+        it({
+          name: 'frees the slot of a holder that was killed, as the next generation, without a person',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-dead-');
+            const options = gateOptions({ lockDirectory: directory.path });
+            const holder = await runClaimHolder({
+              claimModule,
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+            });
+            // The second slot is this process's, so the first is the only one that can free up.
+            await takeAnySlot({ options });
+            const before = await takeAnySlot({ options });
+            expect(before.kind).toBe('full');
+            await holder.kill();
+            const after = await takeAnySlot({ options });
+            expect(after.kind).toBe('taken');
+            expect(await listGenerations({
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+            })).toEqual([2]);
+          },
+        }),
+        it({
+          name: 'reuses a released slot as the next generation of its series, never the same number',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-released-');
+            const options = gateOptions({
+              lockDirectory: directory.path,
+              slotCount: 1,
+            });
+            const first = await takeAnySlot({ options });
+            if (first.kind !== 'taken')
+              throw new Error('The first take was refused.');
+            await first.claim.release();
+            const second = await takeAnySlot({ options });
+            if (second.kind !== 'taken')
+              throw new Error('The second take was refused.');
+            expect([first.claim.generation, second.claim.generation]).toEqual([1, 2]);
+          },
+        }),
+        it({
+          name: 'counts a holder in another PID namespace as live until its claim is older than the patience, then frees the slot',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-foreign-');
+            const options = gateOptions({
+              lockDirectory: directory.path,
+              slotCount: 1,
+            });
+            const path = await plantClaim({
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+              generation: 1,
+              pid: await unusedProcessId(),
+              birth: 'linux:1@not-a-boot',
+              namespace: 'pid:[not-this-namespace]',
+            });
+            expect((await takeAnySlot({ options })).kind).toBe('full');
+            const longAgo = new Date(Date.now() - foreignOwnerPatienceMs - 60_000);
+            await utimes(
+              path,
+              longAgo,
+              longAgo,
+            );
+            expect((await takeAnySlot({ options })).kind).toBe('taken');
+          },
+        }),
+        it({
+          name: 'respects a gate of the earlier release that holds the kernel lock on a slot file, then removes the file once it ended',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-legacy-');
+            const options = gateOptions({ lockDirectory: directory.path });
+            const lockFile = slotLockPath({
+              lockDirectory: directory.path,
+              slot: 1,
+            });
+            const holder = await startOldHolder(lockFile);
+            const taken = await takeAnySlot({ options });
+            expect(taken.kind === 'taken' ? taken.slot : 0).toBe(2);
+            const full = await takeAnySlot({ options });
+            expect(full).toEqual({
+              kind: 'full',
+              holders: [
+                {
+                  kind: 'earlier-release',
+                  slot: 1,
+                },
+                {
+                  kind: 'process',
+                  slot: 2,
+                  pid: process.pid,
+                },
+              ],
+            });
+            await holder.kill();
+            const freed = await takeAnySlot({ options });
+            expect(freed.kind === 'taken' ? freed.slot : 0).toBe(1);
+            expect((await readdir(directory.path)).includes('slot-1.lock')).toBe(false);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: runInSlot.name,
+      children: [
+        it({
+          name: 'runs the command in the first free slot at once, holding the claim while it runs and giving it back after, with the command\'s status',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-run-');
+            const seen: unknown[] = [];
+            const notices: string[] = [];
+            const status = await runInSlot({
+              options: gateOptions({ lockDirectory: directory.path }),
+              runCommand: async ({ slot }) => {
+                seen.push([slot, await liveOwnerOf({
+                  directory: directory.path,
+                  prefix: slotClaimPrefix(slot),
+                })]);
+                return 7;
+              },
+              write: (text) => {
+                notices.push(text);
+              },
+            });
+            expect(status).toBe(7);
+            expect(seen).toEqual([[1, {
+              pid: process.pid,
+              path: join(
+                directory.path,
+                'slot-1.owner.1',
+              ),
+            }]]);
+            expect(await liveOwnerOf({
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+            })).toBe(noLiveOwner);
+            expect(notices).toEqual([]);
+          },
+        }),
+        it({
+          name: 'gives the slot back when the command fails',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-throws-');
+            let caught: unknown;
+            try {
+              await runInSlot({
+                options: gateOptions({ lockDirectory: directory.path }),
+                runCommand: async () => {
+                  throw new Error('the command could not start');
+                },
+                write: () => {},
+              });
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(String(caught)).toContain('the command could not start');
+            expect(await liveOwnerOf({
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+            })).toBe(noLiveOwner);
+          },
+        }),
+        it({
+          name: 'waits only while every slot is held, says what it waits for and who holds it, and wakes on a release within the budget though the fallback re-check is far off',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-wake-');
+            const options = gateOptions({
+              lockDirectory: directory.path,
+              noticeIntervalMs: 50,
+            });
+            const one = await takeAnySlot({ options });
+            const two = await takeAnySlot({ options });
+            if ((one.kind !== 'taken') || (two.kind !== 'taken'))
+              throw new Error('The holders could not be set up.');
+            const started: number[] = [];
+            const notices: string[] = [];
+            const waiting = runInSlot({
+              options,
+              runCommand: async ({ slot }) => {
+                started.push(slot);
+                return 0;
+              },
+              write: (text) => {
+                notices.push(text);
+              },
+            });
+            await sleep(stillWaitingMs);
+            expect(started).toEqual([]);
+            expect(notices.length).toBeGreaterThan(0);
+            expect(notices[0]).toContain('waiting for a free slot');
+            expect(notices[0]).toContain(String(process.pid));
+            expect(notices[0]).toContain('slot 1');
+            expect(notices[0]).toContain('slot 2');
+            const released = Date.now();
+            await two.claim.release();
+            await waiting;
+            expect(started).toEqual([2]);
+            expect(Date.now() - released).toBeLessThan(wakeBudgetMs);
+          },
+        }),
+        it({
+          name: 'writes a notice at a steady pace while it waits, not one per wake and not a tight poll',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-notices-');
+            const options = gateOptions({
+              lockDirectory: directory.path,
+              noticeIntervalMs: 100,
+              slotCount: 1,
+            });
+            const held = await takeAnySlot({ options });
+            if (held.kind !== 'taken')
+              throw new Error('The holder could not be set up.');
+            const notices: string[] = [];
+            let watches = 0;
+            const waiting = runInSlot({
+              options,
+              runCommand: async () => 0,
+              write: (text) => {
+                notices.push(text);
+              },
+              watchDirectory: (watched) => {
+                watches += 1;
+                return watchDirectoryChanges(watched);
+              },
+            });
+            await sleep(1_050);
+            await held.claim.release();
+            await waiting;
+            expect(notices.length).toBeGreaterThanOrEqual(5);
+            expect(notices.length).toBeLessThanOrEqual(12);
+            expect(notices[0]).toContain('waiting for a free slot');
+            expect(notices.slice(1).every((notice) => notice.includes('still waiting'))).toBe(true);
+            // One attempt per notice at most, plus the first and the last: the waits end at the next notice or a change.
+            expect(watches).toBeLessThanOrEqual(notices.length + 3);
+          },
+        }),
+        it({
+          name: 'wakes within the fallback re-check when the holder was killed, which makes no event',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-killed-wake-');
+            const options = gateOptions({
+              lockDirectory: directory.path,
+              slotCount: 1,
+              pollIntervalMs: 200,
+            });
+            const holder = await runClaimHolder({
+              claimModule,
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+            });
+            const started: number[] = [];
+            const waiting = runInSlot({
+              options,
+              runCommand: async ({ slot }) => {
+                started.push(slot);
+                return 0;
+              },
+              write: () => {},
+            });
+            await sleep(stillWaitingMs);
+            expect(started).toEqual([]);
+            await holder.kill();
+            await waiting;
+            expect(started).toEqual([1]);
+            expect(await listGenerations({
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+            })).toEqual([2]);
+          },
+        }),
+        it({
+          name: 'never lets more commands run at once than there are slots, and runs every one',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-cap-');
+            const options = gateOptions({
+              lockDirectory: directory.path,
+              pollIntervalMs: 100,
+            });
+            let running = 0;
+            let peak = 0;
+            const finished: number[] = [];
+            const statuses = await Promise.all([1, 2, 3, 4, 5].map(async function gate(index) {
+              return await runInSlot({
+                options,
+                runCommand: async () => {
+                  running += 1;
+                  peak = Math.max(
+                    peak,
+                    running,
+                  );
+                  await sleep(150);
+                  running -= 1;
+                  finished.push(index);
+                  return index;
+                },
+                write: () => {},
+              });
+            }));
+            expect(statuses.toSorted()).toEqual([1, 2, 3, 4, 5]);
+            expect(peak).toBeLessThanOrEqual(slotCount);
+            expect(finished).toHaveLength(5);
+          },
+        }),
+        it({
+          name: 'does not wait for a slot file of an earlier release that nothing holds: it removes the file and runs',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-legacy-free-');
+            await mkdir(directory.path, { recursive: true });
+            await Promise.all([1, 2].map(async function leaveLockFile(slot) {
+              await writeFile(
+                slotLockPath({
+                  lockDirectory: directory.path,
+                  slot,
+                }),
+                '',
+              );
+            }));
+            const status = await runInSlot({
+              options: gateOptions({ lockDirectory: directory.path }),
+              runCommand: async () => 0,
+              write: () => {},
+            });
+            expect(status).toBe(0);
+            expect((await readdir(directory.path)).filter((name) => name.endsWith('.lock'))).toEqual([]);
+          },
+        }),
+      ],
+    }),
+  ],
+});
