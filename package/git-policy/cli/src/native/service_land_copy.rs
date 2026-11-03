@@ -145,7 +145,8 @@ impl PrivateCopy {
                 let live_permissions: std::fs::Permissions = source.metadata().map_err(|error| { return storage_failure(&error); })?.permissions();
                 let mut made: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(copy.path.as_path()).map_err(|error| { return storage_failure(&error); })?;
                 std::io::copy(&mut source, &mut made).map_err(|error| { return storage_failure(&error); })?;
-                made.sync_all().map_err(|error| { return storage_failure(&error); })?;
+                // No flush here: every writer of the copy replaces it by rename, and the copy that is installed is flushed by the
+                //  release of the lock, after its last writer (`service_index_hold.rs`).
                 std::fs::set_permissions(copy.path.as_path(), live_permissions).map_err(|error| { return storage_failure(&error); })?;
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}

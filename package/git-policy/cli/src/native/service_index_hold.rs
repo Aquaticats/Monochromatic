@@ -186,8 +186,23 @@ impl IndexLock {
                 return Err(std::io::Error::other(message));
             }
         }
-        // No index existed and nothing was staged when `built` is absent: there is nothing to install.
-        if built.exists() {
+        // No index existed and nothing was staged when `built` is absent: there is nothing to install. A copy that holds the live
+        //  index's own bytes is not installed either: the live file stays the same file, with the access list it has, and no
+        //  flush or rename is spent on it. Any other copy is flushed after its last writer (the in-process update, Git's own
+        //  `reset`, or the carried conflict stages, each of which may leave unflushed bytes) and before the rename, so a
+        //  completion that is recorded durably never certifies an index whose contents are not on the disk. A flush that fails
+        //  installs nothing, as a rename that fails does.
+        if built.exists() && !same_index(built, &self.index) {
+            let flushed: std::io::Result<()> = if crate::service_fault::fails("sync-built-index") {
+                Err(std::io::Error::other("the flush of the new index was made to fail by a control"))
+            } else {
+                std::fs::File::open(built).and_then(|file| { return file.sync_all(); })
+            };
+            crate::service_fault::note("sync-built-index");
+            if let Err(error) = flushed {
+                crate::service_error!("the new index {} could not be flushed to the disk ({error}), so the index was not replaced", built.display());
+                return Err(error);
+            }
             std::fs::rename(built, &self.index)?;
         }
         // From the installation on, the lock is given up only by this function's own removal: a failure or an unwinding panic
@@ -211,6 +226,49 @@ impl IndexLock {
     }
 }
 
+/// What:
+///  Whether the file `built` holds the same bytes as the live index file `live`.
+/// Why:
+///   An index ends with a checksum of all it holds, so files of one size with the same tail are the same file, and the common
+///  case is settled by reading the tails only. A tail of zeros is what a skipped checksum looks like and proves nothing, so then
+///  the files are compared in full. A file that cannot be read is taken as different, which installs the copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sameIndex(built, live) // true: nothing to install
+/// ```
+fn same_index(built: &Path, live: &Path) -> bool {
+    use std::io::{Read as _, Seek as _, SeekFrom};
+    const TAIL: u64 = 32;
+    let (Ok(mut first), Ok(mut second)) = (std::fs::File::open(built), std::fs::File::open(live)) else {
+        return false;
+    };
+    let (Ok(first_size), Ok(second_size)) = (first.metadata().map(|found| { return found.len(); }), second.metadata().map(|found| { return found.len(); })) else {
+        return false;
+    };
+    if first_size != second_size {
+        return false;
+    }
+    let kept: u64 = first_size.min(TAIL);
+    let mut tails: [Vec<u8>; 2] = [vec![0; kept as usize], vec![0; kept as usize]];
+    let read_tail = |file: &mut std::fs::File, tail: &mut Vec<u8>| -> std::io::Result<()> {
+        file.seek(SeekFrom::Start(first_size - kept))?;
+        return file.read_exact(tail.as_mut_slice());
+    };
+    let [first_tail, second_tail] = &mut tails;
+    if read_tail(&mut first, first_tail).is_err() || read_tail(&mut second, second_tail).is_err() || first_tail != second_tail {
+        return false;
+    }
+    if first_tail.iter().any(|byte| { return *byte != 0; }) {
+        return true;
+    }
+    // A skipped checksum: compare every byte.
+    return match (std::fs::read(built), std::fs::read(live)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
+    };
+}
+
 impl Drop for IndexLock {
     fn drop(&mut self) {
         if !self.armed {
@@ -230,3 +288,8 @@ impl Drop for IndexLock {
         }
     }
 }
+
+/// Controls for what the release installs stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_hold_tests.rs"]
+mod tests;
