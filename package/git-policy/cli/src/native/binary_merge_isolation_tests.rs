@@ -1043,3 +1043,44 @@ fn the_fast_forward_to_the_merge_commit_starts_without_quiet() {
     }
     remove_settled(&fixture);
 }
+
+/// What:
+///  What Git says of the wrapper's own fast-forward reaches the journal, and the person's merge prints what native Git's does.
+/// Why:
+///   The owner dropped `--quiet` from every run the wrapper starts, so the fast-forward says "Updating a..b" and "Fast-forward";
+///  those words are about the wrapper's step, not the merge the person asked for, whose output is compared with native Git's
+///  in `the_merge_equals_what_native_git_writes_on_a_clean_checkout`. They go to the journal, as one entry that names the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { stdout } = await wrapped(['merge', 'feature'], dirty, { journal }); expect(stdout).not.toContain('Fast-forward'); expect(await journal.next()).toContain('Fast-forward');
+/// ```
+#[test]
+fn what_git_says_of_the_fast_forward_reaches_the_journal_and_not_the_person() {
+    use std::os::linux::net::SocketAddrExt;
+    let fixture: Fixture = fixture("merge-words");
+    let dirty: PathBuf = diverged(&fixture, "dirty");
+    stage_unrelated_work(&fixture, dirty.as_path());
+    let name: String = format!("cli-git-test-journal-merge-{}", std::process::id());
+    let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("an abstract address");
+    let receiver = std::os::unix::net::UnixDatagram::bind_addr(&address).expect("bind the journal stand-in");
+    receiver.set_read_timeout(Some(std::time::Duration::from_secs(5))).expect("a read timeout");
+    let observed: Observed = observe(
+        wrapped_in(&fixture, dirty.as_path(), &["merge", "feature"]).env(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@{name}")),
+        b"",
+    );
+    assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
+    assert!(!text(&observed.stdout).contains("Fast-forward"), "{}", text(&observed.stdout));
+    assert!(text(&observed.stdout).contains("Merge made by the 'ort' strategy."), "{}", text(&observed.stdout));
+    let mut said: Option<String> = None;
+    let mut buffer: Vec<u8> = vec![0; 65_536];
+    while said.is_none() {
+        let length: usize = receiver.recv(buffer.as_mut_slice()).expect("the entry about the fast-forward reached the journal stand-in");
+        let entry: String = String::from_utf8_lossy(&buffer[..length]).into_owned();
+        if entry.contains("git merge --ff-only --no-edit") && entry.contains(" said: ") {
+            said = Some(entry);
+        }
+    }
+    assert!(said.is_some_and(|entry| { return entry.contains("Fast-forward"); }));
+    remove_settled(&fixture);
+}

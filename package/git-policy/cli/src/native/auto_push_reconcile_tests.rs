@@ -1474,3 +1474,21 @@ fn the_fetch_and_the_fast_forward_of_a_reconcile_start_without_quiet() {
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     remove(&s.root);
 }
+
+/// What the fetch and the fast-forward of a reconcile say is kept in the service's log: one entry for each, naming the command.
+#[test]
+fn what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal() {
+    let s = scenario("ar-words");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let entries = crate::service_timing::capture::entries_of(|| {
+        let (result, err) = run(&s, &landed);
+        assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    });
+    let said = |command: &str| -> Vec<&crate::service_timing::capture::Captured> {
+        return entries.iter().filter(|entry| { return entry.message.contains(format!("git {command}").as_str()) && entry.message.contains(" said: "); }).collect();
+    };
+    assert_eq!(said("fetch --no-tags").len(), 1, "Git's report of the fetched branch: {entries:?}");
+    assert_eq!(said("merge --ff-only").len(), 1, "Git's report of the fast-forward: {entries:?}");
+    remove(&s.root);
+}

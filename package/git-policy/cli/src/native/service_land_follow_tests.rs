@@ -101,3 +101,22 @@ fn the_index_update_starts_reset_without_quiet_in_every_form() {
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     remove(root.as_path());
 }
+
+/// What `reset` says while the index is updated (the list of files still changed in the worktree) is kept in the service's log.
+#[test]
+fn what_reset_says_is_kept_in_the_journal() {
+    let (root, repo, _first, second) = index_behind("service-follow-words", &[b"new.txt".to_vec()]);
+    let shim: PathBuf = root.join("saying-git");
+    let words: &str = "Unstaged changes after reset:";
+    let script: String = format!("#!/bin/sh\ncase \" $* \" in *\" reset \"*) printf '%s\\n' '{words}';; esac\nexec {} \"$@\"\n", crate::test_support::REAL_GIT);
+    crate::test_support::executable(shim.as_path(), script.as_bytes());
+    let mut context: GitContext = git_context();
+    context.real_git = shim;
+    let listed: Vec<String> = vec![String::from("new.txt")];
+    let entries = crate::service_timing::capture::entries_of(|| {
+        update_index(&context, repo.as_path(), second.as_str(), IndexPaths::Listed(listed.as_slice())).expect("updated");
+    });
+    assert_eq!(entries.len(), 1, "{entries:?}");
+    assert!(entries[0].message.contains(words), "{:?}", entries[0]);
+    remove(root.as_path());
+}

@@ -137,7 +137,7 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
         return Err(format!("`git read-tree --reset -u` ended with {:?}", reset.code));
     }
     let reset_ms: u128 = began.elapsed().as_millis();
-    let clean = run_step(run_git_step, in_stage(&["clean", "--force", "-d", "--quiet"]).as_slice(), environment.as_slice())?;
+    let clean = run_step(run_git_step, in_stage(&["clean", "--force", "-d"]).as_slice(), environment.as_slice())?;
     if !clean.succeeded() {
         return Err(format!("`git clean --force -d` ended with {:?}", clean.code));
     }

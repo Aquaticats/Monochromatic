@@ -15,6 +15,7 @@
 
 use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 use super::diagnostic_log::warn;
+use super::inner_git_words::record_words;
 use super::service_protocol::{Cleanup, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use super::transaction_journal::RefFormat;
@@ -102,7 +103,7 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     let output: GitOutput = match paths {
         IndexPaths::Listed(listed) => {
             let specs: Vec<String> = listed.iter().map(|path| { return format!(":(top,literal){path}"); }).collect();
-            let mut arguments: Vec<&str> = vec!["reset", "-q", new, "--"];
+            let mut arguments: Vec<&str> = vec!["reset", new, "--"];
             arguments.extend(specs.iter().map(String::as_str));
             run(git, repository, &arguments, None, index)?
         }
@@ -112,19 +113,22 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &["reset", "-q", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
+            run(git, repository, &["reset", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
         IndexPaths::Derived { old } => {
             let input: Vec<u8> = pathspec_input(derived_names(git, repository, old, new)?.as_slice());
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &["reset", "-q", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
+            run(git, repository, &["reset", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
     };
     if !output.succeeded() {
         return Err(classify(&output));
     }
+    // The `reset` carries no `-q`: its list of paths left changed in the worktree ("Unstaged changes after reset:") is kept
+    //  in the service's log.
+    record_words(&["reset", "<commit>", "--", "<paths>"], &output);
     return Ok(());
 }
 

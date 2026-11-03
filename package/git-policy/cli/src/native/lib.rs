@@ -1306,6 +1306,9 @@ pub mod worktree_ladder_run;
 #[cfg(target_os = "linux")]
 pub mod client_journal;
 
+/// Where the words of a Git run the wrapper or the service started on its own go, now that none carries `--quiet`.
+pub mod inner_git_words;
+
 /// The plain sentence that says why an add was not made as a snapshot, and where it goes.
 #[cfg(target_os = "linux")]
 pub mod worktree_slow_route;

@@ -24,6 +24,8 @@ use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_patience, r
 use super::lfs_bounded_push::run_push;
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::{debug, warn};
+/// Where Git's words go now that the fetch and the fast-forward carry no `--quiet`.
+use super::inner_git_words::{record_streams, record_text};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 
@@ -136,7 +138,6 @@ fn fetch_remote_tip(
     let arguments = argv(&[
         "fetch",
         "--no-tags",
-        "--quiet",
         &destination.remote,
         &refspec,
     ]);
@@ -146,6 +147,8 @@ fn fetch_remote_tip(
     if fetched.exit_code != 0 {
         return Ok(Err(fetched));
     }
+    // The fetch carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
+    record_text(&["fetch", "--no-tags", destination.remote.as_str(), refspec.as_str()], fetched.output.as_str());
     let tip = git_output(
         git,
         &argv(&[
@@ -329,7 +332,10 @@ fn advance_local_branch(
             )));
         }
     }
-    let moved = run_query(git, &argv(&["merge", "--ff-only", "--quiet", merge_oid]))?;
+    let moved = run_query(git, &argv(&["merge", "--ff-only", merge_oid]))?;
+    if moved.code == Some(0) {
+        record_streams(&["merge", "--ff-only", merge_oid], &moved.stdout, &moved.stderr);
+    }
     if moved.code != Some(0) {
         let detail = String::from_utf8_lossy(&moved.stderr);
         return Ok(Err(format!(
