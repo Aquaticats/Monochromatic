@@ -229,3 +229,46 @@ fn leftovers_of_a_killed_run_are_swept_and_nothing_else_is() {
     assert!(std::fs::symlink_metadata(link.as_path()).expect("link").file_type().is_symlink(), "a link is never swept");
     remove(parent.as_path());
 }
+
+/// The exclusive write refuses every kind of path that already exists, and leaves it as it was: a plain file keeps its
+///  bytes, a link is not followed and a dangling link creates nothing.
+#[test]
+fn the_exclusive_write_refuses_anything_already_there() {
+    let (parent, _path) = journal_path("journal-exclusive");
+    let plain: PathBuf = parent.join("plain");
+    std::fs::write(plain.as_path(), b"kept").expect("plain file");
+    let victim: PathBuf = parent.join("victim");
+    std::fs::write(victim.as_path(), b"kept").expect("victim");
+    let link: PathBuf = parent.join("link");
+    std::os::unix::fs::symlink(victim.as_path(), link.as_path()).expect("link");
+    let aimed_at: PathBuf = parent.join("never-created");
+    let dangling: PathBuf = parent.join("dangling");
+    std::os::unix::fs::symlink(aimed_at.as_path(), dangling.as_path()).expect("dangling link");
+    for occupied in [&plain, &link, &dangling] {
+        let error: std::io::Error = write_exclusively(occupied.as_path(), b"journal").expect_err("refused");
+        assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists, "{}", occupied.display());
+    }
+    assert_eq!(std::fs::read(plain.as_path()).expect("plain"), b"kept");
+    assert_eq!(std::fs::read(victim.as_path()).expect("victim"), b"kept");
+    assert!(std::fs::symlink_metadata(aimed_at.as_path()).is_err());
+    remove(parent.as_path());
+}
+
+/// The temporary file is private to its owner, and the names of the writer's leftovers are recognized exactly: the old fixed
+///  name and the name with a process number and a clock reading, nothing longer, shorter or non-numeric.
+#[test]
+fn the_temporary_file_is_private_and_only_the_writers_own_names_are_leftovers() {
+    let (parent, _path) = journal_path("journal-shapes");
+    let written: PathBuf = parent.join("written");
+    write_exclusively(written.as_path(), b"journal").expect("written");
+    let mode: u32 = std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(written.as_path()).expect("metadata").permissions());
+    assert_eq!(mode & 0o777, PRIVATE_FILE_MODE);
+    let name: &[u8] = b"j.json";
+    for own in ["j.json.tmp", "j.json.tmp.1.2", "j.json.tmp.123456.1700000000000000000"] {
+        assert!(is_leftover_name(own.as_bytes(), name), "{own}");
+    }
+    for foreign in ["j.json", "j.json.tmp.", "j.json.tmp.1", "j.json.tmp.1.", "j.json.tmp..2", "j.json.tmp.1.2.3", "j.json.tmp.a.2", "j.json.tmpx", "j.json.old", "x.j.json.tmp", "j.json.tmp.1.2x"] {
+        assert!(!is_leftover_name(foreign.as_bytes(), name), "{foreign}");
+    }
+    remove(parent.as_path());
+}
