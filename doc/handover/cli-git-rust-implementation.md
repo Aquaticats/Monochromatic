@@ -10710,7 +10710,8 @@ by the coordinator at merge.
     unknown.
   QUEUED (all five agent slots busy): the inner `--quiet` removal, red tests first; the slow-server change,
   red tests first, deterministic with a fixture remote whose hook sleeps silently.
-- 2026-11-03T07:35:00-05:00: the owner ran `mpm i -g`: the shadow's global install ran (62 unchanged, 0 failed) and
+- 2026-11-03T07:24:19-05:00 (commit `a1c899d587`; first written with a guessed 07:35:00 label, corrected at
+  07:26:03): the owner ran `mpm i -g`: the shadow's global install ran (62 unchanged, 0 failed) and
   warned that `cargo:monochromatic-git-policy-cli` was locked at 0.5.19 in the global lock while 0.5.25 runs. I
   copied the global lock (`~/.config/monochromatic-dev/toolchain/toolchain.lock.json`, not under Git) to
   `~/temp/agent/global-lock/toolchain.lock.json.before-2026-11-03T0715` (holds 0.5.19), ran
@@ -10747,3 +10748,20 @@ by the coordinator at merge.
   lines in `install.rs`, `update.rs`, `commands.rs` get rewritten. Cross-vendor review after that, before any
   publish.
   Agent launched on the two owner answers: `fix/git-policy-cli-no-inner-quiet-and-slow-server-waits`.
+- 2026-11-03T07:26:03-05:00: owner, verbatim: "never fail doesn't primarily mean retries!". CORRECTION of the
+  07:01:29 entry: I had adopted D5 as "no-progress bounds with retry" and briefed the commits-never-fail agent
+  retry-first (start dead things again, rebuild on a moved head, keep going while progressing). That reading is
+  retracted. "Commits should never fail." / "Auto merging should never fail." / "Manual merge should never fail
+  too." mean the design removes each failure mode by construction; a retry is at most a last resort for a cause
+  outside the system (network, full disk, a process someone else killed), and must say why that cause cannot be
+  designed out. Sent to the commits-never-fail agent: stop retry-based fixes, keep its commits, rewrite
+  `doc/planning/cli-git-commits-never-fail.md` per item as root cause, by-construction change, residue; add a
+  merge section (the merge-fixes branch's index-lock wait and 20-round moved-head loop); report the design
+  before building; quote the owner's sentence in `SPEC.md`. Suggested directions (revisable): one index owner
+  per worktree (the service) or new-index-and-rename, landings serialized by that owner so the head cannot move
+  under a landing, a commit that does not depend on a service that might not start, objects held reachable so
+  nothing prunes them, no time-based killing and the slow steps made fast (main's `diff-index --cached --quiet
+  HEAD` took over 50 s today). The design goes to a cross-vendor review and the owner's choices to the owner
+  before building. Still to weigh against this sentence: the merge-fixes branch already in the 0.5.26 candidate
+  (index-lock wait, 20-round loop), and the push retry plan (network failures are outside the system, so
+  retry stays there, with the by-construction parts named).
