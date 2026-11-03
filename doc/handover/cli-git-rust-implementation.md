@@ -10215,3 +10215,26 @@ by the coordinator at merge.
   Service and subvolume merge cleanly together: integration branch
   `integrate/git-policy-cli-service-and-subvolume-locks` (main, service, subvolume) is in gate
   `gpc-gate-service-and-subvolume-locks-20261103T025533-0500`; the subvolume-only gate also runs.
+- 2026-11-03T03:01:34-05:00, owner answers (question tool): rule FOT: "Add rule FOT (Recommended)" (added beside RCI, CLAUDE.md
+  regenerated); stub link: "Delete the link (Recommended)" (done: the link
+  `package/rolldown-plugin/import-attributes/node_modules/@monochromatic-dev/pnpm-override-stub-silent` removed
+  from main after checking it was still a link); disk weight: "Both flags in all six (Recommended)" (delegated on
+  `fix/star-containers-at-lowest-disk-weight`); add forms: "Accept, read more forms (Recommended)" (sent to the
+  settlement agent: abbreviated long options and global `--git-dir`/`--work-tree` get the copy, red first).
+- 2026-11-03T03:01:34-05:00: subvolume-only gate `gpc-gate-subvolume-claims-with-main-20261103T024559-0500` passed (3936 run, 3936
+  passed, 6 skipped); the subvolume branch is merged into main. The second 0-byte lock of the 01:38:01 incident,
+  `.git/refs/remotes/origin/feat/git-policy-cli-package-manager-aware-worktree-copy.lock` (mtime
+  2026-11-03T06:38:01.440Z, no Git network process running), is removed; `git fetch --dry-run` of that branch
+  works again.
+- 2026-11-03T03:01:34-05:00: stopped-push fix done (branch `fix/git-policy-cli-deadline-stop-leaves-no-git-lock`, host suites 3327
+  and 550 passed). Findings: `bounded_push.rs` was already SIGTERM first; the SIGKILL-at-once path was
+  `child_watch.rs` `stop_process` (every `run_git` step and `candidate_reader`); and the service started its Git
+  without `core.lockfilePid` because `service_work.rs` `push_git` passed the raw environment and
+  `service_main.rs` an empty overlay. Git 2.56.0 removes its lock files on catchable signals
+  (`tempfile.c` `remove_tempfiles_on_signal`), but not between `open(O_CREAT|O_EXCL)` and registration. New
+  `stopped_git_locks.rs` removes, after the stopped tree has ended, a lock whose pid file names a dead tree member,
+  and an empty lock with no pid file born after the child and still empty after a 1 s settle (flagged for the
+  owner). Deadline hits today: 8 of 136 pushes stopped at 30 s, normal pushes 3.5 to 12 s, stops in pairs at the
+  same instant (host-wide stalls). Adopted unasked from standing rules: the migration keeps `index.lock` over the
+  catch-up ("never discard user data"); the one-hour patience for an owner in another PID namespace matches the
+  wrapper's other owner records.
