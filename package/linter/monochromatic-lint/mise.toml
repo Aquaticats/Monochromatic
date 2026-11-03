@@ -179,6 +179,7 @@ import { spawnSync } from 'node:child_process';
 import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { diskWeightArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 // Concurrent worktrees set MONOCHROMATIC_LINT_IMAGE_TAG so one snapshot never runs another's image.
 const imageTag = process.env.MONOCHROMATIC_LINT_IMAGE_TAG ?? 'development';
 const tag = 'localhost/monochromatic-lint-processors:' + imageTag;
@@ -210,9 +211,10 @@ try {
   command(['build', '--network=none', '--http-proxy=false', '--pull=never',
     '--memory=2g', '--cpu-period=100000', '--cpu-quota=200000', '--tag', tag, context]);
   console.log('Processor snapshot: ' + JSON.parse(command(['image', 'inspect', tag]).stdout)[0].Id);
-  command(['run', '--rm', '--init', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=128', tag]);
-  command(['run', '--rm', '--init', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=128', tag,
-    '/work/package/linter/monochromatic-lint/target/processors_consumer']);
+  command(['run', '--rm', '--init', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=128',
+    ...diskWeightArguments(), tag]);
+  command(['run', '--rm', '--init', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=128',
+    ...diskWeightArguments(), tag, '/work/package/linter/monochromatic-lint/target/processors_consumer']);
 } finally {
   await rm(context, { recursive: true, force: true });
 }
@@ -227,6 +229,7 @@ description = "Probe consumer failure anchors against the existing immutable lib
 shell = "node --input-type=module-typescript -e"
 run = '''
 import { spawnSync } from 'node:child_process';
+import { diskWeightArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 function podman(args, allowFailure = false) {
   const result = spawnSync('podman', args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
   if (result.error) throw result.error;
@@ -235,7 +238,7 @@ function podman(args, allowFailure = false) {
   return result;
 }
 const container = podman(['create', '--init', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=128',
-  'localhost/monochromatic-lint-processors:' + (process.env.MONOCHROMATIC_LINT_IMAGE_TAG ?? 'development'), 'sh', '-c',
+  ...diskWeightArguments(), 'localhost/monochromatic-lint-processors:' + (process.env.MONOCHROMATIC_LINT_IMAGE_TAG ?? 'development'), 'sh', '-c',
   'rustc --edition=2024 --extern monochromatic_lint=target/debug/libmonochromatic_lint.rlib -L dependency=target/debug/deps --out-dir /tmp /tmp/processors_consumer.rs && /tmp/processors_consumer']).stdout.trim();
 try {
   podman(['cp', 'src/processors_consumer.rs', container + ':/tmp/processors_consumer.rs']);
@@ -255,6 +258,7 @@ import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { diskWeightArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 const root = resolve('../../..');
 const modules = await readdir(join(root, 'node_modules/.pnpm'));
 const rendererDirectory = modules.find(function micromarkDirectory(name) { return name.startsWith('micromark@'); });
@@ -278,7 +282,7 @@ if (image.error) throw image.error;
 if (image.status !== 0) throw new Error(image.stderr);
 const imageId = JSON.parse(image.stdout)[0].Id;
 const checked = spawnSync('podman', ['run', '--rm', '--init', '--network=none', '--memory=2g', '--cpus=2',
-  '--pids-limit=128', imageId, 'sha256sum', ...Object.keys(sources)], { encoding: 'utf8' });
+  '--pids-limit=128', ...diskWeightArguments(), imageId, 'sha256sum', ...Object.keys(sources)], { encoding: 'utf8' });
 if (checked.error) throw checked.error;
 if (checked.status !== 0) throw new Error(checked.stderr);
 for (const line of checked.stdout.trim().split('\n')) {
@@ -318,11 +322,12 @@ depends = ["test:processors"]
 shell = "node --input-type=module-typescript -e"
 run = '''
 import { spawnSync } from 'node:child_process';
+import { diskWeightArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 const compiler = spawnSync('rustc', ['--print', 'sysroot'], { encoding: 'utf8' });
 if (compiler.error) throw compiler.error;
 if (compiler.status !== 0) throw new Error(compiler.stderr);
 const result = spawnSync('podman', [
-  'run', '--rm', '--init', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=128',
+  'run', '--rm', '--init', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=128', ...diskWeightArguments(),
   '--security-opt', 'label=disable', '--volume', compiler.stdout.trim() + ':/toolchain:ro',
   '--env', 'PATH=/toolchain/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
   '--env', 'RUSTC=/toolchain/bin/rustc', '--env', 'RUSTDOC=/toolchain/bin/rustdoc',
