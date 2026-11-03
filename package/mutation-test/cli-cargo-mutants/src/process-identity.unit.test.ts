@@ -14,6 +14,8 @@ import {
 import { CargoMutantsToolingError } from './error.ts';
 import {
   currentProcessIdentity,
+  namespaceUnknown,
+  processGone,
   readBootId,
   readPidNamespace,
   readProcessBirth,
@@ -107,22 +109,24 @@ await describe({
         it({
           name: 'reads field twenty-two after the last closing parenthesis, whatever the command name holds',
           fn: async () => {
-            expect(startTicksFromStat(statText({
+            const stat = statText({
               command: 'node a) b',
               state: 'S',
               startTicks: '275883698',
-            }))).toBe('275883698');
+            });
+            expect(startTicksFromStat(stat)).toBe('275883698');
           },
         }),
         ...['Z', 'X'].map(function exitedState(state) {
           return it({
             name: `reports no start time for a process in the exited state ${state}`,
             fn: async () => {
-              expect(startTicksFromStat(statText({
+              const stat = statText({
                 command: 'node',
                 state,
                 startTicks: '5',
-              }))).toBeUndefined();
+              });
+              expect(startTicksFromStat(stat)).toBe(processGone);
             },
           });
         }),
@@ -154,8 +158,8 @@ await describe({
             const second = await readProcessBirth({ pid: process.pid });
             const bootId = await readBootId();
             expect(first).toBe(second);
-            expect(first).toMatch(/^linux:\d+@/u);
-            expect(first?.endsWith(`@${bootId}`)).toBe(true);
+            expect(String(first).startsWith('linux:')).toBe(true);
+            expect(String(first).endsWith(`@${bootId}`)).toBe(true);
           },
         }),
         it({
@@ -167,14 +171,14 @@ await describe({
             } = startIdleChild();
             const own = await readProcessBirth({ pid: process.pid });
             const alive = await readProcessBirth({ pid });
-            expect(alive).toMatch(/^linux:\d+@/u);
+            expect(String(alive).startsWith('linux:')).toBe(true);
             expect(alive).not.toBe(own);
             child.kill('SIGKILL');
             await once(
               child,
               'close',
             );
-            expect(await readProcessBirth({ pid })).toBeUndefined();
+            expect(await readProcessBirth({ pid })).toBe(processGone);
           },
         }),
         it({
@@ -187,7 +191,7 @@ await describe({
               '/proc/sys/kernel/pid_max',
               'utf8',
             )).trim());
-            expect(await readProcessBirth({ pid: unused })).toBeUndefined();
+            expect(await readProcessBirth({ pid: unused })).toBe(processGone);
           },
         }),
         it({
@@ -227,7 +231,7 @@ await describe({
               readText: async () => {
                 throw exited;
               },
-            })).toBeUndefined();
+            })).toBe(processGone);
           },
         }),
       ],
@@ -265,7 +269,7 @@ await describe({
               child,
               'close',
             );
-            expect(await readPidNamespace({ pid })).toBeUndefined();
+            expect(await readPidNamespace({ pid })).toBe(namespaceUnknown);
           },
         }),
       ],
