@@ -10110,3 +10110,14 @@ by the coordinator at merge.
   `fix/git-policy-cli-deadline-stop-leaves-no-git-lock`. Git's own `index.lock` and ref locks are Git's protocol for
   writing those files and stay; the work there is shorter holds and fewer waits. Each branch: red controls, guards
   shown red, SPEC and README; then the coordinator gates, merges and releases.
+- 2026-11-03T02:12:00-05:00, merge auto-resolution fully decided. Merge-code measurements (same-vendor agent;
+  `~/temp/agent/merge-code-options/`) are recorded in `doc/planning/cli-git-merge-auto-resolution.md` (`a8471c17c5`):
+  all three buildable options matched `jj` 0.46.0 on 44 of 44 inputs, byte for byte, and own-on-`similar` with Myers
+  matched on 600 of 600 random edits. Owner's choices (question tool): "Own merge on similar (Recommended)" and, for
+  union, "doc/handover/*.md only (Recommended)", done in `.gitattributes` (`8ecbb0b188`; `git check-attr` checked).
+  QUEUED, waiting for a free agent slot (all five busy with the lock passes, the deadline fix and the pnpm-in-image
+  fix): implement the word-level second pass on `similar` 3.2.1 (Myers) for merges a person runs and for the
+  wrapper's unattended merges (auto-push reconciliation, commit replay), accepting a file only when every part
+  resolves and logging each merged part on stderr and in the journal; decide which tree supplies attributes to
+  `git merge-tree` so the union line applies there too; tests that keep the results equal to Jujutsu's on the
+  measured corpus. Release 0.5.20 published (crates.io 07:02:27Z); install running.
