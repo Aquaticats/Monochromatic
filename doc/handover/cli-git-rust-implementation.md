@@ -136,24 +136,91 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   Against "We should never invoke ourselves recursively."
   (`doc/planning/cli-git-no-self-invocation.md`);
   without a cap it can exhaust the host's process limit.
-- Shipped-limits picks 2 and 6,
-  branch `feat/git-policy-cli-index-lock-and-service-waits` from the 0.5.28 base `5299b6d102`,
-  worktree `.claude/worktrees/index-lock-and-service-waits`.
-- Not agents:
-  the 0.5.27 `native:release:wait`;
+- Done and merged into the 0.5.28 base (`177f9ebc50`):
+  shipped-limits picks 2 and 6,
+  `feat/git-policy-cli-index-lock-and-service-waits` `008b74d3a3`.
+  Its follow-ups,
+  picked under the delegation (veto open) and queued:
+  an unproven lock owner is waited for like a proven one,
+  because an editor-held `git commit` would otherwise make ours fail after 1 s;
+  poll when no inotify watch is available;
+  ask the service manager to start an inactive unit after `START_WAIT`;
+  a scratch file can be aged out during a wait longer than a day.
+  The 150 s hold-age margin is for the owner to approve on return.
+- The two shipped lock-deletion P1s from the eighth design review (S-1,
+  S-2),
+  branch `fix/git-policy-cli-never-removes-a-live-lock` from the 0.5.28 base `177f9ebc50`:
+  `stopped_git_locks.rs` deletes live foreign empty locks,
+  and `stale_ref_lock_judge.rs` judges by PID-namespace and boot-clock heuristics,
+  then checks and unlinks in two steps.
+- Done:
   the second cross-vendor review of cargo-shadow,
   split in three after the whole 733 KB diff timed out at 3600 s with no output
-  (2026-11-03T11:23:48-05:00):
-  the Git reader (`cargo-shadow-sol-2a.txt`,
-  90 KB diff),
-  the journal and restore (`cargo-shadow-sol-2b.txt`,
-  100 KB),
-  install,
+  (2026-11-03T11:23:48-05:00),
+  each part from `504a82aa3f` to `09bb7820ea` with the first review attached.
+  None of the three parts passes.
+  Part 2a (the Git reader,
+  `cargo-shadow-sol-2a.txt`,
+  2026-11-03T11:38:43-05:00) says "not correct",
+  with three P1s that can pick `HEAD` where Git picks an older upstream:
+  a `\` at the end of a comment line joins the next line,
+  hiding an `[include]`;
+  `extensions.worktreeConfig = yes` (or `on`,
+  or a nonzero number) is not read as true;
+  the last `branch.<name>.merge` entry is used where Git uses the first.
+  P2s:
+  the section header parser (dotted section with a quoted subsection,
+  `]` inside quotes);
+  trailing whitespace trimmed from quoted values;
+  a bare key read as the string `true`;
+  worktree-private refs read from the common directory;
+  `refs/remotes/<name>/HEAD` missing from short-name lookup;
+  a hexadecimal ref value taken as a commit without reading the object;
+  `/etc/gitconfig` assumed as the system file;
+  `gitdir:` path whitespace trimmed and `commondir` read errors taken as absence;
+  unknown extensions and invalid refspecs answered natively.
+  P3:
+  the fallback can start four Git processes,
+  not one.
+  It asks for a differential suite with Git as the oracle.
+  Part 2b (the journal and restore,
+  `cargo-shadow-sol-2b.txt`) says "Not correct":
+  output attributed by reading after Cargo returns,
+  an exchange-then-unlink race,
+  a fallback race,
+  predictable temporary names,
+  read errors taken as empty,
+  no fsync ordering,
+  an unreadable manifest index read as success,
+  a global `kept_a_lock`,
+  no recovery claim;
+  P2s for lossy paths and CSV memory.
+  Part 2c (install,
   verify,
-  policy and the planning record (`cargo-shadow-sol-2c.txt`,
-  212 KB),
-  each from `504a82aa3f` to `09bb7820ea` with the first review attached;
-  the follow-ups are done:
+  policy and the planning record,
+  `cargo-shadow-sol-2c.txt`,
+  2026-11-03T11:37:58-05:00) says "not ready for 0.1.0",
+  with seven P1s:
+  a Cargo call that writes a lockfile and then exits nonzero leaves it unrecorded,
+  and the `--locked` fallback builds it;
+  a lookup error after an age refusal erases the refusal and builds;
+  `cargo update` checks only versions this command added,
+  so an unchanged `--precise` target is never judged;
+  the same post-Cargo read attribution as 2b;
+  placeholder cleanup reads,
+  then deletes,
+  so a lockfile published in between is lost;
+  a sync-failure rollback writes the old catalog over another writer's edit;
+  a malformed historical timestamp sorts first and gives a new publisher earlier history.
+  P2s:
+  frozen non-strict age warnings are dropped;
+  `cargo update -m` without a value becomes a full update;
+  an option value equal to the verb is taken as the verb;
+  partial sync edits are not recorded.
+  P3:
+  seven comments say the opposite of the code.
+  Before those reviews,
+  the first review's follow-ups were done:
   294 of 294 tests,
   the trust base read from Git's files with one `git` start only in the cases they cannot answer,
   saving 1.5 to 4 ms per call,
@@ -163,8 +230,37 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   which the review checks for false statements).
 - Step 1 of the commits-never-fail build (models and crash fixtures),
   branch `feat/git-policy-cli-commit-protocol-models`.
-- Shipped-limits follow-ups after the citations (task 151),
-  the citations agent on `fix/git-policy-cli-limits-cite-measurements` after merging the 0.5.28 base into it.
+- Done,
+  not yet merged into the 0.5.28 base:
+  the shipped-limits follow-ups after the citations (task 151),
+  `fix/git-policy-cli-limits-cite-measurements` `e314460f79`
+  (2026-11-03,
+  measured under the load other sessions put on the host;
+  figures in the audit doc's "Follow-up measurements" section).
+  Lock age `MARGIN` 7 s (twice 3438 ms,
+  rounded up),
+  `BOOT_SLACK` 3607 s;
+  8 local queries at once (the earlier measurement,
+  not repeated) and 4 remote;
+  batch cap 256,
+  the size at which the per-request landing cost (0.16 ms) had not yet doubled,
+  from a burst of up to 1024 clients against a throwaway service;
+  claim lease kept at 120 s (a killed claim recovered 119.55 to 119.57 s after the kill;
+  a live holder losing its claim was not measured);
+  copy,
+  install and clone go parallel from 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`;
+  the old 4096,
+  1024 and 512 left up to 145,
+  50 and 12 ms unused);
+  removal split depth 3,
+  install batch 4096 (12% slower than one batch with a stand-in recorder;
+  the owner's trade) and 4 index copies kept as measured.
+  Red tests first for each changed value;
+  688 unit tests,
+  8 binary tests and clippy clean;
+  the full gate was not run.
+  The claim-kill probe's scope showed inactive before the tests ran,
+  so that run was bounded only by the tests' five-minute limit.
 - Fallback to the real Git the wrapper was installed over (task 150),
   branch `feat/git-policy-cli-falls-back-to-installed-git` from the 0.5.28 base `a7a19b590a`.
 - The word-level second merge pass brought up to the 0.5.28 base (task 114):
@@ -177,9 +273,29 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   4424 of 4424,
   7 skipped,
   one slow).
-- Not an agent:
-  the eighth cross-vendor design review (`~/temp/agent/reviews/commits-never-fail-sol-8.txt`),
+- Done:
+  the eighth cross-vendor design review (`~/temp/agent/reviews/commits-never-fail-sol-8.txt`,
+  2026-11-03T11:33:50-05:00),
   with the shipped stale-lock code attached.
+  Recorded in `doc/planning/cli-git-commits-never-fail.md` on `fix/git-policy-cli-commits-never-fail` (`a7b917e47e`,
+  section on the owner questions):
+  the shipped stale-lock rule does not survive (S-1,
+  S-2,
+  fixed on their own branch);
+  B2 is withdrawn for B1,
+  because a restarter's correct "no program running" observation can be followed by a hook starting,
+  which the restart then ends (R8-1);
+  A2 stays as an accepted narrowing:
+  ending a stalled Git child that ignores the terminate signal can leave a lock only the person clears.
+  The other findings need design revision 9:
+  the ledger has several writers,
+  C2 is not immutable,
+  generations do not cover every state,
+  X1's classification,
+  M2 brings back a removed path,
+  T1 conflicts with G3,
+  and the state machine has gaps,
+  merge among them (R8-2 to R8-8).
   Revision 8 `833b4ef80a` to `3f49d76ec6` (2026-11-03T11:04:37-05:00 to 11:06:22) is the normative state machine
   (L1 to L7,
   C1 to C5,
@@ -291,7 +407,8 @@ in this order:
   `service_index_hold.rs` and the lock-marker code attached whole.
 - Third round on the in-process index writer and its outer landing code,
   first in line,
-  started when the index-lock and service waits agent finishes (both touch `service_land.rs` and the lock files).
+  starting now that the index-lock and service waits branch is merged (`177f9ebc50`);
+  resume its agent with the findings in this entry.
   From the third re-review (2026-11-03T11:29:26-05:00,
   `~/temp/agent/reviews/follow-up-index-sol-3.txt`:
   "Safe after named fixes,
@@ -328,8 +445,23 @@ in this order:
     the reclamation check-then-unlink in `service_index_lock.rs` 285-289 needs a per-physical-index single-reclaimer
     guarantee or a test;
     the non-Linux test imports stay paused.
-- Gate the 0.5.28 base once that and the remaining shipped-limits branches are merged into it,
-  then release 0.5.28.
+- Merge the citations follow-ups (`e314460f79`) into the 0.5.28 base.
+- The index-lock and service waits follow-ups listed with that branch's merge in this handover's running list:
+  resume the waits agent with them.
+- Design revision 9 for the eighth review's R8-2 to R8-8,
+  with B1 in place of B2 and A2 as an accepted narrowing:
+  resume the design agent with `~/temp/agent/reviews/commits-never-fail-sol-8.txt`.
+- cargo-shadow fixes for all three second-review parts
+  (`cargo-shadow-sol-2a.txt`,
+  `-2b.txt`,
+  `-2c.txt`),
+  starting with the P1s,
+  then a third review split the same way:
+  resume the cargo-shadow agent.
+- Gate the 0.5.28 base once the index round,
+  the lock-deletion fix and the remaining shipped-limits branches are merged into it,
+  then release 0.5.28,
+  install it and time commits against native Git.
 - After 0.5.28:
   fall back to the real Git the wrapper was installed over when `PATH` holds none after it,
   with a one-line notice (task 150).
