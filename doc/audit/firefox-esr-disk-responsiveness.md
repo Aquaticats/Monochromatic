@@ -172,8 +172,11 @@ returns early in content processes and calls `SetUpTempFile()` in the parent.
 - Only then creates/configures the background saver and calls its `SetTarget()` at `1535`.
 
 The background data writer therefore does not move these initial filesystem operations off the parent event path.
-`GetInitialDownloadDirectory()` also contains synchronous directory existence/creation paths
-at [`nsExternalHelperAppService.cpp:230-246`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/uriloader/exthandler/nsExternalHelperAppService.cpp#L230-L246) and `268-375`.
+`GetInitialDownloadDirectory()` at `400-424` delegates to directory helpers.
+Its temporary-directory helper performs synchronous existence/creation checks
+at [`nsExternalHelperAppService.cpp:230-246`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/uriloader/exthandler/nsExternalHelperAppService.cpp#L230-L246)
+on non-macOS Unix when `browser.download.start_downloads_in_tmp_dir` selects that helper.
+The preferred-download-directory helpers contain additional synchronous checks at `268-375`.
 `SetDownloadToLaunch()` reserves the final filename with another `CreateUnique()` at line `2694`.
 
 The helper-dialog JS has another directly visible path:
@@ -322,6 +325,8 @@ This can touch several saved application paths while populating the menu.
 
 Confirmed parent JS installation path.
 
+The `about:addons` file-picker callback calls `AddonManager.getInstallForFile`
+at [`toolkit/mozapps/extensions/content/aboutaddons-utils.mjs:340-358`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/mozapps/extensions/content/aboutaddons-utils.mjs#L340-L358).
 [`toolkit/mozapps/extensions/internal/XPIInstall.sys.mjs:3383-3393`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/mozapps/extensions/internal/XPIInstall.sys.mjs#L3383-L3393)
 constructs `LocalAddonInstall` for a local XPI and calls `init()`.
 `init()` at `2291-2325` checks existence and file size,
