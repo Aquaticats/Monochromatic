@@ -10121,3 +10121,8 @@ by the coordinator at merge.
   resolves and logging each merged part on stderr and in the journal; decide which tree supplies attributes to
   `git merge-tree` so the union line applies there too; tests that keep the results equal to Jujutsu's on the
   measured corpus. Release 0.5.20 published (crates.io 07:02:27Z); install running.
+- 2026-11-03T02:14:00-05:00, 0.5.20 installed (lock commit by `upgrade-wrapper.ts`): its commit landed through the
+  new service (0.5.19 retired, 0.5.20 started, landing 58 ms) but took 4351 ms end to end, with `buildMs` 2434 and
+  `provisionMs` 841, against 1419 ms for the 0.5.19 install's sample; one sample under load average near 30 is not
+  evidence of a regression, so `native:perf` (30 paired samples, wrapped against direct Git, limit 5000 ms per
+  delta) is running in `.claude/worktrees/add-explains-slow-route` fast-forwarded to main.
