@@ -22,6 +22,7 @@ use crate::crates::read_locks;
 use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles};
 use crate::lockfile::direct_dependency_names;
 use crate::shadow_step::{Prepared, now_millis, prepare};
+use crate::tighten::FileEnforcer;
 use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
 use crate::update_plan::{UpdatePlan, plan_update};
 
@@ -158,6 +159,7 @@ fn run_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, kind: &
             runner: &prepared.runner,
             registry: &prepared.registry,
             forward,
+            syncer: &FileEnforcer,
         },
         kind,
     );

@@ -25,6 +25,7 @@ use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles, is_c
 use crate::real_binary::find_real_cargo;
 use crate::registry::CratesIo;
 use crate::toolchain::cargo_toolchain;
+use crate::tighten::FileEnforcer;
 use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
 use crate::workspace::find_catalog_root;
 
@@ -207,6 +208,7 @@ pub fn run_command(command: Command) -> i32 {
                     runner: &runner,
                     registry: &registry,
                     forward: &[],
+                    syncer: &FileEnforcer,
                 },
                 &UpdateKind::Full,
             );

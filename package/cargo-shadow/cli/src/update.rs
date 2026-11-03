@@ -36,6 +36,7 @@ use crate::prune::prune_excludes;
 use crate::registry::Registry;
 use crate::selectors::{matches_pattern, parse_selector};
 use crate::set_aside::{SetAsideRequest, set_aside_until_clean};
+use crate::tighten::{Syncer, raise_floors, raised_names};
 use crate::time_text::publish_time_cutoff;
 
 /// Which procedure the update runs.
@@ -69,6 +70,8 @@ pub struct UpdateRequest<'a> {
     pub registry: &'a dyn Registry,
     /// Cargo options forwarded to every cargo call (`--offline`, `--config`, `-Z`, `--color`, `-q`, `-v`).
     pub forward: &'a [String],
+    /// Renders the catalog into the manifests after `--breaking` raised floors.
+    pub syncer: &'a dyn Syncer,
 }
 
 /// The outcome of an update.
@@ -278,6 +281,21 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             fs::write(request.catalog_path, &result.source).map_err(|error| { return other(error.to_string()); })?;
         }
         pruned = result.removed;
+    }
+    // `--breaking` is `pnpm update --latest`: the new range goes into the catalog entry and the sync renders it (tighten.rs).
+    if keep && let UpdateKind::Targeted { cargo_args } = kind && cargo_args.iter().any(|argument| { return argument == "--breaking"; }) {
+        let before_versions: Vec<LockedVersion> = registry_versions(&before_sources).map_err(other)?;
+        let after_versions: Vec<LockedVersion> = registry_versions(&after).map_err(other)?;
+        let source: String = fs::read_to_string(request.catalog_path).map_err(|error| { return other(error.to_string()); })?;
+        let (raised_source, changes) = raise_floors(&source, &after_versions, &raised_names(&before_versions, &after_versions)).map_err(other)?;
+        if !changes.is_empty() {
+            fs::write(request.catalog_path, &raised_source).map_err(|error| { return other(error.to_string()); })?;
+            warnings.extend(changes.iter().map(|change| { return format!("Raised the catalog floor {change}"); }));
+            match request.syncer.sync(request.root) {
+                Ok(done) => warnings.push(done),
+                Err(message) => warnings.push(message),
+            }
+        }
     }
     return Ok(UpdateReport { crate_dirs: request.crate_dirs.to_vec(), added, problems, warnings, fell_back, written: keep, pruned });
 }

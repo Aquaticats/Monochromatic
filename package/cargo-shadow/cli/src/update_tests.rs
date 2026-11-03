@@ -334,7 +334,7 @@ fn breaking_is_pnpm_update_latest_it_raises_the_catalog_floor_and_runs_the_sync(
     assert!(report.written, "{:?}", report.problems);
     assert!(fs::read_to_string(&world.catalog).expect("catalog").contains("dep = \">=1.0.1\""));
     assert_eq!(*syncer.calls.borrow(), 1);
-    assert!(report.pruned.iter().any(|line| { return line.contains("dep: >=1.0.0 to >=1.0.1"); }) || report.warnings.iter().any(|line| { return line.contains("dep: >=1.0.0 to >=1.0.1"); }));
+    assert!(report.warnings.iter().any(|line| { return line.contains("dep: >=1.0.0 to >=1.0.1"); }));
 }
 
 #[test]
@@ -357,7 +357,7 @@ fn a_refused_breaking_update_changes_neither_the_lock_nor_the_catalog() {
     let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
     let syncer: RecordingSyncer = RecordingSyncer { calls: RefCell::new(0) };
-    let args: Vec<String> = ["update", "--breaking", "--precise", "1.0.1", "dep"].iter().map(|argument| { return argument.to_string(); }).collect();
+    let args: Vec<String> = ["update", "--breaking", "--package", "dep@1.0.0", "--precise", "1.0.1"].iter().map(|argument| { return argument.to_string(); }).collect();
 
     let report = run_with_syncer(&world, &cargo, &registry, &syncer, &args);
 
