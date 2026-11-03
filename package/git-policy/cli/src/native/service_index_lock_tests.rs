@@ -5,7 +5,7 @@
 use super::*;
 use crate::process_identity::{ProcessIdentityError, process_birth_identity};
 use crate::service_index_marker::own_identity;
-use crate::service_index_placement::rename_noreplace;
+use crate::service_index_placement::{place_marked, rename_noreplace};
 use crate::service_index_staging::stage_marker;
 use crate::service_index_marker::{HolderState, ReaderView, check_procfs_view, holder_is_gone, holder_is_running, holder_state_in, identity_in_view, pid_of_self_stat};
 use crate::test_support::{fixture, remove};
@@ -1243,6 +1243,254 @@ fn a_service_lock_is_described_by_its_marker_and_the_state_of_its_holder() {
     std::fs::remove_file(&lock_path).expect("removed");
     assert_eq!(describe_lock(&lock_path), "vanished");
     remove(root.as_path());
+}
+
+//endregion
+
+//region Survivors of the mutation campaign over round 4: each control checks the behaviour one mutant changes.
+
+/// A marker whose holder fields are present but whose identity is empty is no marker:
+/// a trailing space after the process number is a cut,
+/// not a holder.
+#[test]
+fn a_marker_with_an_empty_identity_is_no_marker() {
+    assert_eq!(parse_marker("cli-git-service 7 123 \n"), None);
+    assert_eq!(parse_marker("cli-git-service 7  \n"), None);
+    assert_eq!(parse_marker("cli-git-service 7 123\n"), None, "a process number alone");
+    assert!(parse_marker("cli-git-service 7 123 linux:1\n").is_some());
+}
+
+/// The PID namespace is the number of a `pid:[number]` link and nothing else:
+/// an empty number,
+/// letters in it,
+/// another kind of namespace and a missing bracket are no namespace.
+#[test]
+fn only_a_pid_link_with_a_number_names_a_scope() {
+    use crate::service_index_identity::scope_of_link;
+    assert_eq!(scope_of_link("pid:[4026531836]").as_deref(), Some("4026531836"));
+    for other in ["pid:[]", "pid:[12ab]", "pid:[ab]", "pid:[1 2]", "net:[4026531836]", "pid:[4026531836", "pid:4026531836]", "", "pid:[-1]"] {
+        assert_eq!(scope_of_link(other), None, "{other:?}");
+    }
+}
+
+/// A process's `/proc` numbers it as the system does only when its own record is readable and names its own number:
+/// an unreadable record,
+/// an empty one and one of another process do not.
+#[test]
+fn a_proc_agrees_only_when_its_record_names_the_process() {
+    use crate::service_index_identity::procfs_agrees_with;
+    let own: u32 = std::process::id();
+    assert!(procfs_agrees_with(Ok(format!("{own} (cli) S 1").into_bytes()), own));
+    assert!(!procfs_agrees_with(Err(std::io::Error::from_raw_os_error(libc::EACCES)), own), "an unreadable record proves nothing");
+    assert!(!procfs_agrees_with(Ok(Vec::new()), own));
+    assert!(!procfs_agrees_with(Ok(b"1 (init) S 0".to_vec()), own));
+    assert!(crate::service_index_identity::ReaderView::current().procfs_agrees, "the real /proc of this process agrees");
+}
+
+thread_local! {
+    /// How many times the check of the controls below was made on this thread.
+    static CHECKS: Cell<usize> = const { Cell::new(0) };
+}
+
+/// A check that answers `Owned` and counts its calls.
+fn counted_owned(_: &Path, _: &std::fs::File, _: &str) -> Ownership {
+    CHECKS.with(|checks| { checks.set(checks.get() + 1); });
+    return Ownership::Owned;
+}
+
+/// A check that cannot be made,
+/// counting its calls.
+fn counted_unreadable(_: &Path, _: &std::fs::File, _: &str) -> Ownership {
+    CHECKS.with(|checks| { checks.set(checks.get() + 1); });
+    return Ownership::Unreadable(std::io::Error::from_raw_os_error(libc::EMFILE));
+}
+
+/// A check that cannot be made the first time and answers the second.
+fn unreadable_once(_: &Path, _: &std::fs::File, _: &str) -> Ownership {
+    let calls: usize = CHECKS.with(|checks| { checks.set(checks.get() + 1); return checks.get(); });
+    return if calls == 1 { Ownership::Unreadable(std::io::Error::from_raw_os_error(libc::EMFILE)) } else { Ownership::Owned };
+}
+
+/// The holder asks about its lock once when the answer is final,
+/// and again,
+/// up to a bound,
+/// only when the check could not be
+/// made:
+/// an answer is not asked for twice,
+/// and a failure that passes is not taken for the final one.
+#[test]
+fn a_check_is_repeated_only_while_it_cannot_be_made() {
+    let (root, index) = index_in("index-lock-check-count");
+    let measure = |check: fn(&Path, &std::fs::File, &str) -> Ownership| -> usize {
+        CHECKS.with(|checks| { checks.set(0); });
+        let platform: Platform = Platform { inspect: check, ..SYSTEM };
+        let lock = acquire_on(&platform, &index, 120, Duration::from_secs(1), &|_| {}).expect("taken");
+        let built: PathBuf = index.with_file_name("index.built");
+        std::fs::write(&built, "new index").expect("built");
+        let _released = lock.release_with(&built);
+        // A check that cannot be made leaves the lock for the restart; the next measurement starts without it.
+        let _removed = std::fs::remove_file(lock_path_of(&index));
+        return CHECKS.with(Cell::get);
+    };
+    assert_eq!(measure(counted_owned), 1, "a final answer is asked for once");
+    assert!(measure(counted_unreadable) > 1, "a check that cannot be made is asked again");
+    assert_eq!(measure(unreadable_once), 2, "the second look answers, so there is no third");
+    remove(root.as_path());
+}
+
+/// The flush the service makes of its marker is the operating system's:
+/// a file that cannot be flushed (a pipe has no data to
+/// make durable) is an error from `sync_file`,
+/// and a file that can be flushed is not.
+/// Durability itself is not observable without a crash;
+/// what is observable is that the call is made and its answer returned.
+#[test]
+fn the_flush_of_the_marker_is_the_operating_systems() {
+    use crate::service_index_placement::sync_file;
+    use std::os::fd::FromRawFd;
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    // SAFETY: `pipe` fills the two integers of the array it is given.
+    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0);
+    // SAFETY: each descriptor is a fresh end of the pipe, owned by exactly one `File`.
+    let (reader, writer) = unsafe { (std::fs::File::from_raw_fd(ends[0]), std::fs::File::from_raw_fd(ends[1])) };
+    let refused = sync_file(&writer).expect_err("a pipe cannot be flushed");
+    assert_eq!(refused.raw_os_error(), Some(libc::EINVAL));
+    drop((reader, writer));
+    let (root, index) = index_in("index-lock-sync-file");
+    let file = std::fs::File::create(index.with_file_name("a-file")).expect("a file");
+    assert!(sync_file(&file).is_ok());
+    remove(root.as_path());
+}
+
+/// A rename that fails for any reason but "this filesystem cannot do it" ends the placement with that error and tries no hard
+/// link:
+/// a lock that exists,
+/// storage that failed and a refusal are not reasons to place the lock another way.
+/// The reasons that do say the filesystem cannot are the ones the system names for it.
+#[test]
+fn only_an_unsupported_rename_falls_back_to_a_link() {
+    let (root, index) = index_in("index-lock-fallback");
+    let lock_path: PathBuf = lock_path_of(&index);
+    let staged: PathBuf = root.join("staged");
+    std::fs::write(&staged, "marker").expect("staged");
+    let tried_link: Cell<bool> = Cell::new(false);
+    let link = |_: &Path, _: &Path| -> std::io::Result<()> {
+        tried_link.set(true);
+        return refusal(libc::EPERM);
+    };
+    for code in [libc::EEXIST, libc::EIO, libc::EACCES, libc::ENOSPC, libc::EXDEV] {
+        tried_link.set(false);
+        let rename = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(code); };
+        let platform: Platform = Platform { rename: &rename, link: &link, ..SYSTEM };
+        let error = place_marked(&platform, &staged, &lock_path).expect_err("refused");
+        assert_eq!(error.raw_os_error(), Some(code), "the rename's own error comes back");
+        assert!(!tried_link.get(), "errno {code} is no reason to link");
+    }
+    for code in [libc::EINVAL, libc::ENOSYS, libc::EOPNOTSUPP] {
+        tried_link.set(false);
+        let rename = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(code); };
+        let platform: Platform = Platform { rename: &rename, link: &link, ..SYSTEM };
+        let error = place_marked(&platform, &staged, &lock_path).expect_err("neither way works");
+        assert!(tried_link.get(), "errno {code} says the filesystem cannot rename this way, so a link is tried");
+        assert_eq!(error.kind(), std::io::ErrorKind::Unsupported);
+    }
+    remove(root.as_path());
+}
+
+/// A hard link that fails for any reason but "this filesystem makes none" ends the placement with that error;
+/// the two reasons the system names for it (`EPERM`,
+/// `EOPNOTSUPP`) say neither way works.
+#[test]
+fn only_an_unsupported_link_ends_as_unsupported() {
+    let (root, index) = index_in("index-lock-link-reasons");
+    let lock_path: PathBuf = lock_path_of(&index);
+    let staged: PathBuf = root.join("staged");
+    std::fs::write(&staged, "marker").expect("staged");
+    let no_rename = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(libc::EINVAL); };
+    for code in [libc::EEXIST, libc::EIO, libc::EACCES, libc::ENOSPC] {
+        let link = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(code); };
+        let platform: Platform = Platform { rename: &no_rename, link: &link, ..SYSTEM };
+        let error = place_marked(&platform, &staged, &lock_path).expect_err("refused");
+        assert_eq!(error.raw_os_error(), Some(code), "the link's own error comes back");
+    }
+    for code in [libc::EPERM, libc::EOPNOTSUPP] {
+        let link = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(code); };
+        let platform: Platform = Platform { rename: &no_rename, link: &link, ..SYSTEM };
+        let error = place_marked(&platform, &staged, &lock_path).expect_err("neither way works");
+        assert_eq!(error.kind(), std::io::ErrorKind::Unsupported, "errno {code}");
+    }
+    remove(root.as_path());
+}
+
+/// The rename that does not replace really places the file:
+/// the staged name is gone,
+/// the lock holds its text,
+/// and a second rename onto the lock fails with `AlreadyExists`
+/// and leaves both files as they were.
+#[test]
+#[cfg(target_os = "linux")]
+fn the_rename_that_does_not_replace_places_the_file_and_refuses_a_held_lock() {
+    let (root, index) = index_in("index-lock-rename-real");
+    let lock_path: PathBuf = lock_path_of(&index);
+    let first: PathBuf = root.join("first");
+    let second: PathBuf = root.join("second");
+    std::fs::write(&first, "first").expect("first");
+    std::fs::write(&second, "second").expect("second");
+    rename_noreplace(&first, &lock_path).expect("placed");
+    assert!(!first.exists(), "the staged name is gone");
+    assert_eq!(std::fs::read_to_string(&lock_path).expect("lock"), "first");
+    let refused = rename_noreplace(&second, &lock_path).expect_err("a lock that exists is not replaced");
+    assert_eq!(refused.kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(std::fs::read_to_string(&second).expect("second stays"), "second");
+    assert_eq!(std::fs::read_to_string(&lock_path).expect("lock stays"), "first");
+    remove(root.as_path());
+}
+
+/// Environment variable that makes the test below run its inner half:
+/// the number of the PID namespace the outer half left.
+#[cfg(target_os = "linux")]
+const OUTSIDE_SCOPE: &str = "INDEX_LOCK_TEST_OUTSIDE_PID_SCOPE";
+
+/// A process in a PID namespace of its own,
+/// still reading the `/proc` of the namespace it left,
+/// is told by the view of the
+/// reader:
+/// its `/proc` does not number it as the system does,
+/// and its scope is the new namespace's.
+/// The outer half starts the inner half through `unshare`;
+/// the inner half only runs when started that way.
+#[test]
+#[cfg(target_os = "linux")]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "starts this test binary, not the wrapper, under `unshare`; the ban on `current_exe` guards the wrapper's own start"
+)]
+fn a_new_pid_namespace_over_the_old_proc_is_told_from_the_view() {
+    let Ok(outside) = std::env::var(OUTSIDE_SCOPE) else {
+        let probe = std::process::Command::new("unshare").args(["--user", "--map-root-user", "--pid", "--fork", "true"]).output();
+        if !probe.is_ok_and(|done| { return done.status.success(); }) {
+            eprintln!("skipped: this host does not let an unprivileged process make a PID namespace");
+            return;
+        }
+        let own: String = std::fs::read_link("/proc/self/ns/pid").expect("own namespace").to_string_lossy().to_string();
+        let own_number: &str = own.strip_prefix("pid:[").and_then(|rest| { return rest.strip_suffix(']'); }).expect("a pid link");
+        let done = std::process::Command::new("unshare")
+            .args(["--user", "--map-root-user", "--pid", "--fork"])
+            .arg(std::env::current_exe().expect("this test binary"))
+            .args(["--exact", "service_index_lock::tests::a_new_pid_namespace_over_the_old_proc_is_told_from_the_view", "--nocapture"])
+            .env(OUTSIDE_SCOPE, own_number)
+            .output()
+            .expect("unshare runs");
+        let text: String = String::from_utf8_lossy(done.stdout.as_slice()).to_string() + String::from_utf8_lossy(done.stderr.as_slice()).as_ref();
+        assert!(done.status.success(), "the inner half failed:\n{text}");
+        assert!(text.contains("1 passed"), "the inner half did not run:\n{text}");
+        return;
+    };
+    let view = crate::service_index_identity::ReaderView::current();
+    assert!(!view.procfs_agrees, "the old /proc numbers this process by the old namespace");
+    let scope: &str = view.scope.expect("a pid link names a scope");
+    assert!(scope.bytes().all(|byte| { return byte.is_ascii_digit(); }) && !scope.is_empty());
+    assert_ne!(scope, outside, "the scope is the new namespace's");
 }
 
 //endregion
