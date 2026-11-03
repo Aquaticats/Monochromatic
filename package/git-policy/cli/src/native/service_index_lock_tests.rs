@@ -799,10 +799,14 @@ fn a_release_whose_check_cannot_be_made_keeps_the_lock_and_the_old_index() {
 /// with the quota of inotify instances used up by that one,
 /// the second is created at all.
 /// The closure plays a quota of one by refusing a watch while the first is open.
+/// The foreign holder lets go inside the second call, once the quota has been checked,
+/// so no clock decides whether the lock is still held when the wait looks at it (a slow staging flush, as under load,
+/// changes nothing).
 #[test]
 fn an_ended_watch_is_dropped_before_the_next_is_set() {
     let (root, index) = index_in("index-lock-watch-quota");
-    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let foreign: PathBuf = lock_path_of(&index);
+    std::fs::write(&foreign, "foreign").expect("foreign lock");
     let decoy: PathBuf = root.join("decoy");
     std::fs::create_dir(&decoy).expect("decoy");
     let calls: Cell<u32> = Cell::new(0);
@@ -816,18 +820,30 @@ fn an_ended_watch_is_dropped_before_the_next_is_set() {
         if crate::service_index_watch::live_watches_on_this_thread() > 0 {
             return None;
         }
+        std::fs::remove_file(&foreign).expect("the foreign holder lets go");
         return Watch::on(directory);
     };
     let slow_flush = |_: &std::fs::File| -> std::io::Result<()> { std::thread::sleep(Duration::from_millis(600)); return Ok(()); };
     let platform: Platform = Platform { watch: &quota_of_one, sync: &slow_flush, ..SYSTEM };
-    let foreign: PathBuf = lock_path_of(&index);
-    let release = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(300));
-        std::fs::remove_file(foreign).expect("the foreign holder lets go");
-    });
     let lock = acquire_on(&platform, &index, 90, Duration::from_secs(30), &|_| {}).expect("taken once the foreign holder let go");
-    release.join().expect("thread");
     assert_eq!(calls.get(), 2, "a second watch was set");
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// A lock that is free at the first attempt needs no second watch:
+/// the wait is for a held lock, and the watch set before the attempt is the only one.
+#[test]
+fn a_lock_free_at_the_first_attempt_sets_one_watch() {
+    let (root, index) = index_in("index-lock-watch-free");
+    let calls: Cell<u32> = Cell::new(0);
+    let counting = |directory: &Path| -> Option<Watch> {
+        calls.set(calls.get() + 1);
+        return Watch::on(directory);
+    };
+    let platform: Platform = Platform { watch: &counting, ..SYSTEM };
+    let lock = acquire_on(&platform, &index, 92, Duration::from_secs(1), &|_| {}).expect("taken");
+    assert_eq!(calls.get(), 1, "one watch, set before the attempt");
     drop(lock);
     remove(root.as_path());
 }

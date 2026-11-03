@@ -215,6 +215,8 @@ fn a_hold_whose_process_runs_is_not_stale_by_age() {
 /// The wait that sets a new watch after the first ended drops the first before it asks for the next:
 /// with the quota used up by the first,
 /// the second is created only then.
+/// The holder lets go inside the second call, once the quota has been checked,
+/// so no clock decides whether the lock is still held when the wait looks at it.
 #[test]
 fn the_wait_drops_an_ended_watch_before_it_sets_the_next() {
     let root: PathBuf = fixture("index-wait-watch-quota");
@@ -231,18 +233,16 @@ fn the_wait_drops_an_ended_watch_before_it_sets_the_next() {
             std::fs::remove_dir(&decoy).expect("the watched directory goes");
             return Some(ending);
         }
-        return if crate::service_index_watch::live_watches_on_this_thread() > 0 { None } else { Watch::on(directory) };
+        if crate::service_index_watch::live_watches_on_this_thread() > 0 {
+            return None;
+        }
+        std::fs::remove_file(&lock).expect("release");
+        return Watch::on(directory);
     };
-    let released: PathBuf = lock.clone();
-    let releaser = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(300));
-        std::fs::remove_file(released).expect("release");
-    });
     let began: Instant = Instant::now();
     let mut out: Vec<u8> = Vec::new();
     let slow: Cadence = Cadence { grace: Duration::from_secs(30), interval: Duration::from_secs(30) };
     let outcome: Waited = wait_with_watches(index.as_path(), "add", Duration::from_secs(60), slow, &mut out, &quota_of_one);
-    releaser.join().expect("releaser");
     assert_eq!(outcome, Waited::Released);
     assert_eq!(calls.get(), 2);
     // The release is seen as an event, long before the poll that is 30 seconds away.
