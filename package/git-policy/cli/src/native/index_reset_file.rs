@@ -27,7 +27,7 @@ use super::repo_read_layout::{ObjectFormat, RepoLayout, read_layout_with};
 use super::repo_read_object::name_length;
 use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_tree::FlatEntry;
-use super::service_land_follow::{IndexPaths, private_index_path};
+use super::service_land_follow::{IndexPaths, PrivateCopy};
 use super::service_protocol::is_zero_object;
 use super::subvolume_sha::{sha1, sha256};
 use super::transaction_git::GitContext;
@@ -123,19 +123,22 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 }
 
 /// What:
-///  Reset the index entries of `paths` in the landing's private index for batch `seq` to the commit `new` without starting Git;
-///  whether it did.
+///  Reset the index entries of `paths` in the landing's private copy to the commit `new` without starting Git; whether it did.
 /// Why:
 ///   The private index is the copy the landing made while it holds the live index lock: the function takes a borrow of that
-///  lock, so only the holder can call it, and it works on `index.cli-git-<seq>` beside the lock's index and nothing else. A `false` leaves the file as it was (the new file replaces it only by rename
+///  lock, so only the holder can call it, and the copy, a file the landing created exclusively, so it works on no other file. A `false` leaves the file as it was (the new file replaces it only by rename
 ///  after it is complete), so the caller can run `git reset --no-refresh` on the same file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// resetIndexFile({ git, repository, commit, paths, indexFile }): boolean
 /// ```
-pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, seq: u64) -> bool {
-    let built: PathBuf = private_index_path(lock.index(), seq);
+pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, copy: &PrivateCopy) -> bool {
+    // The copy is installed by a rename onto the live index, so it must be beside it.
+    if copy.path().parent() != lock.index().parent() {
+        return false;
+    }
+    let built: PathBuf = copy.path().to_path_buf();
     let done: bool = guarded(|| { return reset_file(git, repository, new, paths, built.as_path()); }).is_some();
     debug("indexResetFile", format!("in-process reset of {}: {}", built.display(), if done { "done" } else { "declined, Git answers" }).as_str());
     return done;
