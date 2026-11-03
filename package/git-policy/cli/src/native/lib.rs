@@ -1423,3 +1423,15 @@ pub mod worktree_convert_command;
 /// Setting aside what a snapshot of the main checkout leaves out, and having the commit service empty it.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash;
+
+/// Disposal of a snapshot's trash: the work item, the foreground fallback and the service's handler.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_dispose;
+
+/// What a snapshot's leave-out made and moved, with identities, as the text a work item carries.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_manifest;
+
+/// Removal of a directory tree beneath a held parent handle, never following a link.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_remove;
