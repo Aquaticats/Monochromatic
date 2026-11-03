@@ -10820,3 +10820,11 @@ by the coordinator at merge.
   by the package tests; it is not triggered live, because that needs a lock older than the running tool.
   Measured on main meanwhile: the lock commit waited over 50 s in the client's `git add --all --
   toolchain.lock.json`, and an earlier commit over 20 s in `git read-tree --reset` (sent to the commits agent).
+- 2026-11-03T07:38:40-05:00: owner: "I'm feeling pretty discouraged and disappointed, I would say. Anyway, we
+  gotta work this out." Misses I named to the owner: main still breaks "commits vs native git should not take 5s
+  longer" (50 s `add`, 20 s `read-tree`, 50 s merge `diff-index`, 120 s commits today); the owner had to correct
+  "never fail" (retries), the cargo-shadow `trustLockfile` brief, and a hint naming a mise task; my own rule
+  slips (guessed timestamps twice, waits on a process found by name twice). Focus question (question tool):
+  owner chose "Keep all lines": continue the five lines in parallel and release whenever a gate passes. My
+  own corrections stay in force: quote `doc/decision/` records in briefs (DQB), real `date` or `%cI`
+  timestamps only, wait on PIDs only, measure on main against native Git before calling commit work done.
