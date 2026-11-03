@@ -95,8 +95,14 @@ fn oracle(directory: &Path, base: &str, current: &str, result: &str) -> Oracle {
     let text: String = String::from_utf8(output.stdout).expect("utf-8");
     let mut lines = text.lines();
     let tree: String = lines.next().expect("tree line").to_string();
-    let conflicted: BTreeSet<Vec<u8>> =
-        lines.take_while(|line| { return !line.is_empty(); }).map(|line| { return line.as_bytes().to_vec(); }).collect();
+    // Git names the side it moved aside for a type conflict `path~<object name>`; the conflicted path is the part before it.
+    let conflicted: BTreeSet<Vec<u8>> = lines
+        .take_while(|line| { return !line.is_empty(); })
+        .map(|line| {
+            let suffixed: Option<usize> = line.rfind('~').filter(|at| { return line[*at + 1..].len() >= 40 && line[*at + 1..].chars().all(|c| { return c.is_ascii_hexdigit(); }); });
+            return line[..suffixed.unwrap_or(line.len())].as_bytes().to_vec();
+        })
+        .collect();
     return Oracle { clean: output.status.success(), tree, conflicted };
 }
 
