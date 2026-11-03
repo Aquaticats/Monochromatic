@@ -284,10 +284,33 @@ Done since the last list:
   not built yet),
   then to merge the base tip.
   The 150 s `UNASKABLE_HOLD_AGE` still waits for the owner.
-- Queued for the next free agent slot:
-  the components fixes from the fourth review;
-  the explorer fix and the rest of the models review's findings (independent of revision 12),
-  then the models for revision 12.
+- Models round 6 started (the step-1 agent resumed on `feat/git-policy-cli-commit-protocol-models` from `c044a1112e`):
+  the explorer's bounded-wait P1 first,
+  then the models reviews' P1s and P2s,
+  then the fourth components review's fixes with avoidable syncs and rescans cut;
+  the models for revision 12 come after that design lands.
+- cargo-shadow round 4 done:
+  `feat/cargo-shadow-cli` tip `e4451f1a75`,
+  396 of 396 tests,
+  clippy clean,
+  67 `avoidable-closure` warnings left (bracket-style callbacks such as `run_recording`).
+  Correctness no longer depends on `ctime` attribution:
+  no inode that was live at a path is unlinked;
+  displaced and exchanged files get a surviving hard-linked name first.
+  Agent's picks,
+  veto open:
+  one non-blocking `flock` per run as liveness (no `/proc`,
+  pid names or claim renames);
+  bounds chosen and not measured (cargo call 30 min,
+  Git call 60 s,
+  `file-enforcer write` 5 min,
+  429 pause at most 2 min,
+  dump download 1 h,
+  name searches 10,000 tries,
+  other retry loops 100),
+  so LQM is not met yet and the values need measurements;
+  the person's own command after the checks has no bound (as Git's option B).
+  Fourth cross-vendor review running in four parts (`cargo-shadow-sol-4a/4b/4b2/4c.txt`).
 
 Older entries,
 from the 2026-11-03T10:00-05:00 list,
