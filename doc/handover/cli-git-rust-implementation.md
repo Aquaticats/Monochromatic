@@ -118,6 +118,12 @@ Agent on `perf/git-policy-cli-follow-up-index-in-process` writes the committed e
 as `builtin/commit.c` does for a partial commit,
 and answers the merge's `diff-index` check in process,
 with differential tests against real Git and a measured before and after.
+An observed one-file commit on main at 2026-11-03T08:42:37-05:00 took 343 ms
+(`~/temp/agent/tools/observe-main-commit.ts`),
+with no new cap hit and one new major fault in the service cgroup,
+so the slow case is conditional;
+the 66.8 s commit was the first after the service started,
+at host load 18 to 57.
 Found 2026-11-03T08:38:42-05:00 to 08:40:51-05:00 (open, being observed):
 plain `/usr/bin/git` on main runs `diff-index --cached --quiet HEAD --` in 12 ms and
 `--no-optional-locks status --porcelain=v1 -z --untracked-files=no` in 10 ms,
@@ -190,10 +196,51 @@ not designed out;
 pending-ref non-transmission is an assertion without enforcement).
 Foreign-lock reclamation is closed,
 and captured-change replay and the refusal classes are substantively corrected.
+Third cross-vendor review:
+`~/temp/agent/reviews/commits-never-fail-sol-3.txt`,
+verdict "Not ready to build as the live transaction protocol",
+four Critical and eight High findings
+(receipt does not prove publication;
+receipt deletion loses deduplication;
+the ref fence does not cover obsolete worktree,
+index and cleanup work;
+index checksum is not provenance;
+every displaced inode needs retention;
+capture and takeover need ref writes a foreign lock blocks;
+the fence ref is repository-wide;
+`queue/<n>` is not fenced acceptance;
+logical head needs a logical-index model;
+index extensions cannot be kept byte for byte;
+spool reclamation needs an overlapping-prune proof;
+push enforcement,
+hooks and deterministic hangs).
+Revision `a7bfea3b4a` and `d428b27385` (2026-11-03T08:47:23-05:00 and 08:48:42) removes the features instead:
+no live takeover,
+receipt,
+fence ref,
+numbered queue,
+checksum provenance or base hold ref;
+one kernel lock per worktree held on an open file description that Git children inherit;
+a systemd watchdog ends a wedged owner;
+acceptance writes no ref;
+publication is a compare-and-swap `update-ref`;
+retirement writes an fsynced ledger line first.
+The agent's five questions for the owner,
+held until the fourth review answers whether each narrowing is needed:
+lock per worktree or a service-only lane;
+a signed commit whose parent moved waits for a new signature;
+a Git child that hangs twice on identical input leaves the commit pending with exit 0;
+a prune that overlaps a request and deletes after the lane's check is treated as corruption by another tool;
+after a crash on a repository with no branch reflog,
+a published commit removed by a non-descendant rewrite reappears once.
+Fourth review running,
+output `~/temp/agent/reviews/commits-never-fail-sol-4.txt`.
 Remaining:
-revise the design for the second review's findings (the revision is open work on this branch),
-review it again,
-then build with red tests first.
+read it,
+fold it in,
+ask the owner the questions it leaves,
+then build in the reviewer's order (models and crash fixtures first),
+with the exit inventory as a gate.
 Interim code in 0.5.26 (index-lock wait and a bounded moved-head loop) stays until the by-construction design replaces
 it
 (owner:
@@ -320,9 +367,45 @@ clippy clean,
 `monochromatic-lint` 0 errors
 (26 `avoidable-closure` warnings left,
 18 fixable).
+Cross-vendor review returned 2026-11-03T08:40:49-05:00:
+`~/temp/agent/reviews/cargo-shadow-sol.txt`,
+verdict "Do not rely on this implementation as a policy-enforcement boundary yet",
+with P1 findings (a refused version still runs through the `--locked` fallback;
+the freshness stamp skips the policy and base checks;
+non-frozen installs skip existing entries;
+unapproved lockfiles are visible to other invocations;
+registry identity is dropped;
+the lazy owner lookup misses a downgrade;
+unreadable timestamps grant the age exemption;
+rollback and recovery can overwrite another writer's lockfile or lose the last copy;
+`/proc` liveness;
+`--breaking` edits outside the transaction;
+the missing-lockfile placeholder;
+the recursion-guard kind;
+`-m` and `--package=` spellings),
+P2 findings (CSV EOF and row width,
+unbounded parser memory,
+the global cutoff defeating exemptions,
+set-aside range) and a P3 README contradiction.
+Owner answers of 2026-11-03 (question tool):
+"Try asking better. pnpm nowadays just warn and runs when a dep could be updated to something published within a day."
+Adopted from that and pnpm 12.16.1 (`pickRespectingMinReleaseAge`;
+no message found in its source):
+the install step sets a newly needed release under the age limit aside for the newest older passing release and runs.
+For a committed Cargo.lock holding a release under a day old (case 1) and one holding a trust downgrade (case 2),
+both answered "Set it back, build (Recommended)":
+the shadow changes that entry to the newest older release that passes,
+prints one line,
+and builds;
+it stops only when nothing older fits.
+Scoped to local runs;
+CI keeps the frozen behavior;
+operational failures keep warn-and-run with `--locked`.
+An agent is fixing every finding and building these answers on the branch,
+red tests first.
 Remaining,
 in the order the agent's report adopted:
-1. cross-vendor review of the crate before any publish;
+1. the review fixes and the two answers (agent running), then a second cross-vendor review;
 2. publish `monochromatic-dependency-catalog` 0.2.0 (publishes itself on merge through `cargo-publish.yml`);
 3. rebuild file-enforcer-cli with it and run `toolchain:update`,
    then land `912e82a0c7` (`trustLockfile = true` in `rust-catalog.toml`;
