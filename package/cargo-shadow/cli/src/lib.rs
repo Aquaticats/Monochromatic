@@ -77,6 +77,9 @@ pub mod toolchain;
 /// Finds the catalog repository and the Cargo workspace of a directory.
 pub mod workspace;
 
+/// The fingerprint stamp that lets a cargo call skip the install check.
+pub mod stamp;
+
 /// The command-word rules: what the shadow does for a cargo command line.
 pub mod verb;
 

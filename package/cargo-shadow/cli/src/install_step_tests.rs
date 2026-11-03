@@ -66,7 +66,7 @@ impl Registry for FakeRegistry {
 /// A catalog repository with one crate whose lock text is given.
 fn repository(lock: &str) -> tempfile::TempDir {
     let root = scratch();
-    fs::write(root.path().join("rust-catalog.toml"), "[catalog]\n").expect("catalog");
+    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
     fs::create_dir_all(root.path().join(CRATE_DIR).join("src")).expect("crate dir");
     fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "[package]\nname = \"y\"\nversion = \"0.1.0\"\n\n[workspace]\n").expect("manifest");
     fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), lock).expect("lock");
