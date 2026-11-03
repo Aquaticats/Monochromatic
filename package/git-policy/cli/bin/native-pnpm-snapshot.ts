@@ -34,7 +34,7 @@ const platform = 'linux-x64';
 const contextDirectory = 'pnpm-tree';
 
 /**
- Where the extracted tree lives in the image; `pnpm` is linked from `/usr/local/bin` so the test process finds it.
+ Where the extracted tree lives in the image; the directory joins `PATH`, so the test process finds `pnpm`.
  */
 const imageDirectory = '/opt/pnpm';
 
@@ -114,12 +114,8 @@ export function lockedPnpm({ lockText, }: {
 export function pnpmCopyLines(): string[] {
   return [
     `COPY --chmod=0755 ${contextDirectory} ${imageDirectory}`,
-    `RUN ${JSON.stringify([
-      'ln',
-      '--symbolic',
-      `${imageDirectory}/pnpm`,
-      '/usr/local/bin/pnpm',
-    ])}`,
+    // The build runs as the tester, who cannot write `/usr/local/bin`, so the directory joins the search path instead of a link.
+    `ENV PATH=${imageDirectory}:$PATH`,
     'RUN ["pnpm", "--version"]',
   ];
 }
