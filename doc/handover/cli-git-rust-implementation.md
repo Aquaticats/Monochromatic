@@ -91,8 +91,6 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
 - Shipped-limits picks 4 and 9,
   branch `feat/git-policy-cli-steps-end-only-on-no-progress` from the 0.5.28 base `f58510c538`,
   worktree `.claude/worktrees/steps-end-only-on-no-progress`.
-- The in-process index review fixes,
-  the agent that wrote `perf/git-policy-cli-follow-up-index-in-process`.
 - The wrapper never runs itself as Git,
   branch `fix/git-policy-cli-never-runs-itself-as-git` from main `7ea0414e80`,
   worktree `.claude/worktrees/never-runs-itself-as-git`.
@@ -124,10 +122,26 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   and about 4300 comment lines,
   partly from a regex tool,
   which the review checks for false statements).
+- Design revision 7,
+  the design agent on `fix/git-policy-cli-commits-never-fail`,
+  from the sixth review's findings.
+- Not an agent:
+  the cross-vendor re-review of the in-process index fixes (`pi`,
+  output `~/temp/agent/reviews/follow-up-index-sol-2.txt`);
+  the fixes are done (`dac87edc5e`,
+  merged into the 0.5.28 base):
+  the helper refuses to run unless the live `index.lock` marker names this process and batch,
+  the landing holds that lock from the copy through the install (`service_land.rs:359`,
+  `147-153`,
+  `service_index_hold.rs:140-165`),
+  one exclusively created temporary per run,
+  Git's mode under `core.sharedRepository`,
+  EWAH bitmaps checked and bounded,
+  every protected-name spelling declined;
+  the intent-to-add finding does not reproduce on Git 2.56.0 (a byte-for-byte differential pins it).
 Queued,
 in this order:
-design revision 7 (resume the design agent with the sixth review's findings),
-then the step 1 models and crash fixtures (see "Commits, merges and pushes that never fail");
+the step 1 models and crash fixtures (see "Commits, merges and pushes that never fail");
 then gate the 0.5.28 base with each finished branch.
 
 0.5.27 ships without the in-process index work
