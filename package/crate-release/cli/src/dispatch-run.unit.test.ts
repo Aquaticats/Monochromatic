@@ -88,22 +88,25 @@ function answerGit({
   readonly call: ProgramCall;
   readonly replies: GitReplies;
 }): ProgramResult {
-  switch (call.args[0]) {
-    case 'ls-remote':
-      return replies.lsRemote ?? finished({
-        stdout: `ref: refs/heads/${defaultBranch}\tHEAD\n0123456789abcdef0123456789abcdef01234567\tHEAD\n`,
-      });
-    case 'fetch':
-      return replies.fetch ?? finished();
-    case 'merge-base':
-      return replies.isAncestor ?? finished();
-    case 'rev-list':
-      return replies.revList ?? finished({ stdout: '1\n' });
-    case 'log':
-      return replies.log ?? finished({ stdout: 'abc1234\tAdd the thing\n' });
-    default:
-      throw new Error(`Unexpected git call: ${call.args.join(' ')}`);
-  }
+  /**
+   Canned answers by the subcommand that asks.
+   */
+  const answers: Readonly<Record<string, ProgramResult>> = {
+    'ls-remote': replies.lsRemote ?? finished({
+      stdout: `ref: refs/heads/${defaultBranch}\tHEAD\n0123456789abcdef0123456789abcdef01234567\tHEAD\n`,
+    }),
+    'fetch': replies.fetch ?? finished(),
+    'merge-base': replies.isAncestor ?? finished(),
+    'rev-list': replies.revList ?? finished({ stdout: '1\n' }),
+    'log': replies.log ?? finished({ stdout: 'abc1234\tAdd the thing\n' }),
+  };
+  /**
+   The answer for this call's subcommand.
+   */
+  const answer = answers[call.args[0] ?? ''];
+  if (answer === undefined)
+    throw new Error(`Unexpected git call: ${call.args.join(' ')}`);
+  return answer;
 }
 
 /**

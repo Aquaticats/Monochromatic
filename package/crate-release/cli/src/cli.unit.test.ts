@@ -264,6 +264,23 @@ function manifestStubKey(sha: string): string {
   return `gh.api-${manifestEndpoint(sha).replaceAll('/', '_')}`;
 }
 
+/**
+ Default branch the stubbed origin names in the dispatch executable tests.
+ */
+const stubbedDefaultBranch = 'trunk';
+
+/**
+ Make the stubbed `git` answer as a checkout whose default branch origin holds completely.
+
+ @param fixture - the stub fixture
+ */
+async function scriptOriginHoldsDefaultBranch(fixture: StubFixture): Promise<void> {
+  await fixture.script({
+    key: 'git.ls-remote',
+    stdout: `ref: refs/heads/${stubbedDefaultBranch}\tHEAD\n0123456789abcdef0123456789abcdef01234567\tHEAD\n`,
+  });
+}
+
 await describe({
   name: '',
   children: [
@@ -441,6 +458,7 @@ await describe({
           name: 'starts the release workflow for a registry crate with gh only and prints the run address',
           fn: async () => {
             await using fixture = await createStubFixture();
+            await scriptOriginHoldsDefaultBranch(fixture);
             await fixture.script({
               key: 'gh.workflow-run',
               stdout: '✓ Created workflow_dispatch event for crate-release.yml at main\nhttps://github.com/o/r/actions/runs/42\n',
@@ -459,8 +477,15 @@ await describe({
             expect(child.status).toBe(0);
             expect(child.stdout).toContain('RELEASE STARTED https://github.com/o/r/actions/runs/42');
             const calls = await fixture.calls();
-            expect(calls).toHaveLength(1);
-            expect(calls[0]).toEqual({
+            expect(calls.map(function programAndSubcommand(call) {
+              return `${call.program} ${call.args[0]}`;
+            })).toEqual([
+              'git ls-remote',
+              'git fetch',
+              'git merge-base',
+              'gh workflow',
+            ]);
+            expect(calls.at(-1)).toEqual({
               program: 'gh',
               args: [
                 'workflow',
@@ -498,6 +523,7 @@ await describe({
           name: 'exits 1 and shows what gh said when gh refuses to start the workflow',
           fn: async () => {
             await using fixture = await createStubFixture();
+            await scriptOriginHoldsDefaultBranch(fixture);
             await fixture.script({ key: 'gh.workflow-run', status: 1 });
             const child = spawnSync('node', [
               dispatchBin,
@@ -511,6 +537,33 @@ await describe({
             ], { env: fixture.environment(), encoding: 'utf8' });
             expect(child.status).toBe(failureExitCode);
             expect(child.stdout).toContain(`FAILED ${releaseWorkflow} was not started (gh exited 1)`);
+          },
+        }),
+        it({
+          name: 'exits 1 without starting gh when origin lacks a commit of the local default branch',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await scriptOriginHoldsDefaultBranch(fixture);
+            await fixture.script({ key: 'git.merge-base', status: 1 });
+            await fixture.script({ key: 'git.rev-list', stdout: '2\n' });
+            await fixture.script({ key: 'git.log', stdout: 'abc1234\tNewest unpushed commit\n' });
+            const child = spawnSync('node', [
+              dispatchBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              '0.6.0',
+              '0.6.1',
+              'n',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(failureExitCode);
+            expect(child.stdout).toContain(`2 commits of local ${stubbedDefaultBranch}`);
+            expect(child.stdout).toContain('abc1234 Newest unpushed commit');
+            expect(child.stdout).toContain(`git push origin ${stubbedDefaultBranch}`);
+            expect((await fixture.calls()).some(function isGh(call) {
+              return call.program === 'gh';
+            })).toBe(false);
           },
         }),
         it({

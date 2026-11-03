@@ -25,13 +25,17 @@ await describe({
         it({
           name: 'reads the branch of the symbolic reference line',
           fn: async () => {
-            expect(parseDefaultBranch(symrefAnswer('trunk'))).toEqual({ found: true, value: 'trunk' });
+            expect(
+              parseDefaultBranch(symrefAnswer('trunk')),
+            ).toEqual({ found: true, value: 'trunk' });
           },
         }),
         it({
           name: 'keeps the slashes of a branch name',
           fn: async () => {
-            expect(parseDefaultBranch(symrefAnswer('release/stable'))).toEqual({ found: true, value: 'release/stable' });
+            expect(
+              parseDefaultBranch(symrefAnswer('release/stable')),
+            ).toEqual({ found: true, value: 'release/stable' });
           },
         }),
         it({
