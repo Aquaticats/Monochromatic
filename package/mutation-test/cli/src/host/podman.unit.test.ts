@@ -69,8 +69,14 @@ await describe({
              */
             const imageIndex = args.indexOf(fixtureImage,);
             expect(imageIndex,).toBeGreaterThan(0,);
-            for (const option of diskWeightArguments())
-              expect(args.indexOf(option,),).toBeLessThan(imageIndex,);
+            for (const option of diskWeightArguments()) {
+              /**
+               Where the option sits; -1 means the argv lacks it.
+               */
+              const optionIndex = args.indexOf(option,);
+              expect(optionIndex,).toBeGreaterThanOrEqual(0,);
+              expect(optionIndex,).toBeLessThan(imageIndex,);
+            }
           },
         },),
         it({
