@@ -221,7 +221,9 @@ state generation, the lane lock, the gate or `index.lock` across the execution o
 
 Named entities. A worktree has one lane. The lane has an owner, an incarnation, a lock `lane/owner`, a gate `lane/gate`, a state file
 `lane/state` with a generation, a journal, an order file `lane/order`, a queue, an inbox, and a spool per request. The common directory
-`$GIT_COMMON_DIR/cli-git/` holds the identity bindings `ids/`, the ledger, and the maintenance registry `maintenance/`.
+`$GIT_COMMON_DIR/cli-git/` holds the identity bindings `ids/`, one ledger per lane (`ledgers/<instance>/ledger`, appended only by
+that lane's owner), the release intents `releases/`, and the maintenance registry `maintenance/`. Nothing in the common directory has more
+than one appender: a binding or a registry entry is a file created once by `link`, and a ledger is appended by exactly one lane.
 
 Request states: `drafted` (client only) -> `bound` -> `accepted` -> `adopted` -> (`held` | `ready`) -> `publishing` -> (`published` |
 `pending` | `landing` | `rewritten-away`) -> (`materialized` | `voided`) -> `retired`; a hook may end a request as `refused`. A request
@@ -237,8 +239,10 @@ Lane transitions (the owner and its incarnation)
   processes. Crash: repeat L2. Until L2 completes the owner mutates nothing. Never targeted: a live owner, a group not named `P`.
 - L3 incarnate. Pre: L2 done. Do: write `lane/incarnation` (a fresh id, process identity, pid-namespace identity, the cgroup name),
   create that cgroup, move this process into it. Crash: the next owner reaps this incarnation by L2.
-- L4 resume. Pre: L3 done. Do: complete or roll back any journaled mutation, repair torn tails of `lane/order` and the ledger, write an even
-  state generation, then continue each request from its recorded state. Crash: repeat L4.
+- L4 resume. Pre: L3 done. Do: first write the generation odd (fsync), so that no capture can mix the state of a half-completed mutation;
+  then complete or roll back each journaled mutation; repair the torn tail of `lane/order` and of this lane's own ledger only (never
+  another lane's ledger: another lane's tail may be an append in progress, and a reader of another lane's ledger treats a torn tail as not
+  yet written); write the generation even; then continue each request from its recorded state. Crash: repeat L4, odd first.
 - L5 spawn a child. Pre: L3 done. Do: start the child inside the incarnation's cgroup with the lock and gate descriptions closed at exec
   and the parent-death signal set. Crash: a child between fork and exec holds the lock description until it execs or dies (L1 waits for it).
 - L6 gate-shared. Pre: none. Do: take `lane/gate` shared before spawning any person's program (hook, filter, signer, helper) or any
@@ -311,7 +315,7 @@ Materialization and retirement
   the entry rule decline. Do: record `voided` for the request and the paths, release their consumption entries, tell the person.
   Crash: repeated.
 - T1 retire. Pre: published (materialized or voided) or terminal otherwise, and no overlapping open maintenance entry whose scope is
-  non-empty, and a connectivity check passed. Do: append the terminal line to the ledger, then release the retention of a request that
+  non-empty, and a connectivity check passed. Do: append the terminal line to this lane's own ledger (this lane is the only appender), then release the retention of a request that
   is not promised as saved. Crash: the ledger line exists, the release is completed; retention is never released first.
 
 Cancellation
