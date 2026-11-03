@@ -17,7 +17,8 @@ use super::service_fault::reach;
 use super::service_head::still_checked_out;
 use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
-use super::service_journal::{INDEXED_EXTENSION, Intent, Recovery, OPEN_EXTENSION, is_indexed, list_intents, mark_done, mark_indexed, recovery_for, write_intent};
+use super::service_journal::{INDEXED_EXTENSION, Indexed, Intent, Recovery, OPEN_EXTENSION, Started, indexed_state, list_intents, mark_done, mark_indexed, read_start, recovery_for, remove_start, write_intent, write_start};
+use super::service_land_start::split_by_start;
 use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within, remove_stale, try_acquire};
 use super::service_timing::{LandTiming, wait_line};
 use super::autostash_carry::carry_stages;
@@ -182,13 +183,13 @@ fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLo
     };
     // The files a conflicted autostash apply left unmerged are unmerged in the index the landing installs.
     if let Some(cleanup) = intent.cleanup.as_ref()
-        && !carry_stages(git, repository, cleanup, built.as_path())
+        && !carry_stages(git, repository, cleanup, built.path())
     {
-        let _removed = std::fs::remove_file(&built);
+        // The private copy goes with `built`, which is dropped here.
         return false;
     }
     let recorded = || -> std::io::Result<()> { return mark_indexed(journal, intent.seq, intent.new.as_str()); };
-    return lock.release_with_record(built.as_path(), &recorded).is_ok() && cleaned;
+    return lock.release_with_record(built.path(), &recorded).is_ok() && cleaned;
 }
 
 /// What:
@@ -273,7 +274,7 @@ pub fn land_batch_timed(
         //  symbolic `HEAD` is not refused by Git's own compare when it is told not to follow it (measured: it replaces the
         //  symbolic reference), so a head that became a branch is found here, before the move. The same question is asked
         //  again once the index lock is held, because the worktree can switch while the lock is awaited.
-        if !still_checked_out(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
+        if !still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
             return Ok(vec![Outcome::BranchMoved; requests.len()]);
         }
         let amended_parents: Vec<String> = if alone && !unborn {
@@ -427,7 +428,7 @@ pub fn land_batch_timed(
         let hold_began: Instant = Instant::now();
         // The worktree may have switched while the lock was awaited: the checked-out branch is read again with the lock held and
         //  before the ref moves, and a landing that no longer belongs to this worktree's head stops with nothing changed.
-        let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str());
+        let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str());
         if !matches!(still, Ok(true)) {
             let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
             let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
@@ -436,6 +437,21 @@ pub fn land_batch_timed(
                 Err(code) => Err(code),
             };
         }
+        // The entries of the paths now, under the lock, are what a replay of this batch compares before it resets a path. A commit
+        //  Git built lists its paths only when it is finished, so it records none, and neither does an index this cannot read: a
+        //  replay of such a batch resets every path, as it did before the record existed.
+        if !derived {
+            let names: Vec<Vec<u8>> = intent.paths.iter().map(|path| { return path.as_bytes().to_vec(); }).collect();
+            match crate::index_reset_file::read_entries(first.index.as_path(), new.len(), names.as_slice()) {
+                Some(entries) => {
+                    if let Err(error) = write_start(context.journal.as_path(), seq, entries.as_slice()) {
+                        crate::service_error!("batch {seq}: the entries the index update starts from could not be recorded ({error}); a replay would reset every path");
+                    }
+                }
+                None => crate::service_log!("batch {seq}: the index is a form the entries are not read from; a replay would reset every path"),
+            }
+        }
+        reach("before-ref");
         // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
         let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
         // A detached head is the `HEAD` file itself: it is updated without following a symbolic reference, so a head that
@@ -449,6 +465,7 @@ pub fn land_batch_timed(
         if !moved.succeeded() {
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
             let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+            remove_start(context.journal.as_path(), seq);
             let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
             // For an amend, the next round finds the tip away from its base and answers that the branch moved.
             attempts_left -= 1;
@@ -459,6 +476,21 @@ pub fn land_batch_timed(
             continue;
         }
         reach("after-ref");
+        // Git refuses a `symref-verify HEAD` beside an update of the branch `HEAD` names, so a switch after the last check cannot
+        //  be caught inside the transaction. The head is read again with the lock held: a worktree that left the branch keeps
+        //  its own index, and the commits stay on the branch they were made for.
+        let on_branch: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str());
+        if on_branch != Ok(true) {
+            drop(held);
+            if on_branch == Ok(false) {
+                let _marked = mark_done(context.journal.as_path(), seq);
+            }
+            timing.hold += hold_began.elapsed();
+            for (slot, (index, _request)) in landing.iter().enumerate() {
+                outcomes[*index] = Outcome::Landed { commit: commits[slot].clone() };
+            }
+            return Ok(outcomes);
+        }
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
         let sync_began: Instant = Instant::now();
         let synced: bool = follow_up(&git, repository, &intent, held, context.journal.as_path());
@@ -517,6 +549,44 @@ pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryRe
     return recover_selected(context, &ours, false);
 }
 
+/// What:
+///  The intent a replay runs: only the paths whose index entries are still what the landing started from.
+/// Why:
+///   An index update that never installed is replayed after the lock was given up, so another session may have staged into the
+///  same paths. Such a path is left as that session left it and a one-line notice says so; the rest are finished. A batch with
+///  no start record (an older one, a commit Git built, or an index form the entries are not read from) replays every path, as
+///  before the record existed. A record or an index that cannot be read stops the replay, and the batch stays open.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const replay = replayable(journal, intent) // undefined: leave the batch open
+/// ```
+fn replayable(journal: &Path, intent: &Intent) -> Option<Intent> {
+    if intent.derived {
+        return Some(intent.clone());
+    }
+    let recorded = match read_start(journal, intent.seq) {
+        Started::Absent => return Some(intent.clone()),
+        Started::Unreadable => {
+            crate::service_error!("batch {} stays open: the entries its index update started from cannot be read", intent.seq);
+            return None;
+        }
+        Started::Recorded(entries) => entries,
+    };
+    let names: Vec<Vec<u8>> = intent.paths.iter().map(|path| { return path.as_bytes().to_vec(); }).collect();
+    let Some(current) = crate::index_reset_file::read_entries(intent.index.as_path(), intent.new.len(), names.as_slice()) else {
+        crate::service_error!("batch {} stays open: the index cannot be read to compare its entries with those the update started from", intent.seq);
+        return None;
+    };
+    let (unchanged, changed) = split_by_start(recorded.as_slice(), current.as_slice(), names.as_slice());
+    for name in &changed {
+        crate::service_log!("batch {}: {} was staged after the landing started and is left as it is", intent.seq, String::from_utf8_lossy(name));
+    }
+    let mut replay: Intent = intent.clone();
+    replay.paths = unchanged.iter().map(|name| { return String::from_utf8_lossy(name).into_owned(); }).collect();
+    return Some(replay);
+}
+
 fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, remove_unreadable: bool) -> Vec<RecoveryReport> {
     let mut reports: Vec<RecoveryReport> = Vec::new();
     for (path, parsed) in list_intents(context.journal.as_path(), OPEN_EXTENSION) {
@@ -539,22 +609,40 @@ fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, r
                 remove_stale(intent.index.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
                 let _record_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));
+                remove_start(context.journal.as_path(), intent.seq);
             }
             Recovery::Finish => {
                 remove_stale(intent.index.as_path(), intent.seq);
-                // A worktree that has since switched away from the batch's branch has an index that describes another branch: the
-                //  branch has its commit, so there is no index update to finish and the batch is done.
-                if still_checked_out(&git, intent.repository.as_path(), intent.index.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) == Ok(false) {
-                    let _marked = mark_done(context.journal.as_path(), intent.seq);
-                } else if is_indexed(context.journal.as_path(), intent.seq, intent.new.as_str()) {
-                    // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
+                // A worktree that has since switched away from the batch's branch has a default index that describes another
+                //  branch: the branch has its commit, so that index is not updated. An index kept in another file belongs to no
+                //  branch and is still finished, and the conclusion state is removed either way; the batch is done when both are.
+                let own_index: bool = intent.index == intent.git_dir.join("index");
+                if own_index && still_checked_out(&git, intent.repository.as_path(), intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) == Ok(false) {
                     if cleanup_done(&git, intent.repository.as_path(), &intent) {
                         let _marked = mark_done(context.journal.as_path(), intent.seq);
                     }
-                } else if let Some(held) = try_acquire(intent.index.as_path(), intent.seq)
-                    && follow_up(&git, intent.repository.as_path(), &intent, held, context.journal.as_path())
-                {
-                    let _marked = mark_done(context.journal.as_path(), intent.seq);
+                } else {
+                    match indexed_state(context.journal.as_path(), intent.seq, intent.new.as_str()) {
+                        // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
+                        Indexed::Installed => {
+                            if cleanup_done(&git, intent.repository.as_path(), &intent) {
+                                let _marked = mark_done(context.journal.as_path(), intent.seq);
+                            }
+                        }
+                        // A record that cannot be read may say the index was installed: the batch stays open and the index alone.
+                        Indexed::Unreadable => {
+                            crate::service_error!("batch {} stays open: its completion record cannot be read, so the index is left as it is", intent.seq);
+                            continue;
+                        }
+                        Indexed::Absent => {
+                            if let Some(held) = try_acquire(intent.index.as_path(), intent.seq)
+                                && let Some(replay) = replayable(context.journal.as_path(), &intent)
+                                && follow_up(&git, intent.repository.as_path(), &replay, held, context.journal.as_path())
+                            {
+                                let _marked = mark_done(context.journal.as_path(), intent.seq);
+                            }
+                        }
+                    }
                 }
             }
         }
