@@ -17,7 +17,7 @@ use crate::worktree_add_plan::AddPlan;
 /// Take the snapshot with the administrative directory opened as the ladder holds it.
 fn take(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &Path, pointer: &[u8]) -> Result<(), String> {
     let held: File = open_root(admin).expect("administrative directory");
-    return take_snapshot(source, plan, stage, &held, pointer);
+    return take_snapshot(source, plan, stage, &held, pointer).map(|_made: ObjectId| {}).map_err(|failure: SnapshotFailure| { return failure.reason; });
 }
 
 /// The identity of a directory by its canonical path.
@@ -325,5 +325,26 @@ fn btrfs_a_failed_swap_back_does_not_claim_the_stage() {
     let error: PlaceError = put_in_place_with(stage.as_path(), destination.as_path(), 0o750, made, &mut PlaceSeams { after_check: &mut replace, before_swap_back: &mut remove_published }).expect_err("refused");
     assert!(!error.stage_is_ours, "{error:?}");
     assert_eq!(std::fs::read(stage.join("theirs")).expect("their directory is at the stage name"), b"someone's directory");
+    remove(root.as_path());
+}
+
+/// A snapshot that is taken reports the identity of the stage it made; a snapshot that fails after the stage exists reports it
+///  too, so that the stage the failed run made is the one it may remove.
+#[test]
+fn btrfs_the_stage_a_snapshot_made_is_identified_even_when_the_snapshot_fails() {
+    let Some(root) = btrfs_fixture("snapshot-stage-identity") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    let (destination, admin, pointer) = no_checkout_worktree(repo.as_path(), "topic");
+    let plan = plan_to(destination);
+    let source = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("a source");
+    std::fs::write(admin.join("index.lock"), b"held by another Git").expect("a lock");
+    let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
+    let held: File = open_root(admin.as_path()).expect("administrative directory");
+    let failure: SnapshotFailure = take_snapshot(&source, &plan, stage.as_path(), &held, pointer.as_slice()).expect_err("refused");
+    assert_eq!(failure.stage, Some(id_of_directory(stage.as_path())), "the failed run names the stage it made");
+    std::fs::remove_file(admin.join("index.lock")).expect("lock gone");
+    let stage_two: PathBuf = root.join(".cli-git-worktree-copy-test-two");
+    let made: ObjectId = take_snapshot(&source, &plan, stage_two.as_path(), &held, pointer.as_slice()).expect("snapshot");
+    assert_eq!(made, id_of_directory(stage_two.as_path()));
     remove(root.as_path());
 }

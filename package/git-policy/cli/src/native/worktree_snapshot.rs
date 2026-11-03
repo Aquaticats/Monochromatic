@@ -137,12 +137,25 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File) -> Result<
 /// ```ts
 /// await takeSnapshot({ source, plan, stage, admin, pointer });
 /// ```
-pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8]) -> Result<(), String> {
-    snapshot_create_at(source.root.as_path(), stage).map_err(|error| { return format!("the snapshot was refused ({error})"); })?;
-    std::fs::set_permissions(stage, std::fs::Permissions::from_mode(0o700)).map_err(|error| { return format!("the stage cannot be made private ({error})"); })?;
-    remove_stubs(stage, source, plan)?;
-    replace_git_pointer(stage, pointer)?;
-    return install_index(source, stage, admin);
+pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8]) -> Result<ObjectId, SnapshotFailure> {
+    snapshot_create_at(source.root.as_path(), stage).map_err(|error| { return SnapshotFailure { reason: format!("the snapshot was refused ({error})"), stage: None }; })?;
+    // From here the stage exists and this process made it; its identity is what a later removal checks.
+    let made: Option<ObjectId> = open_root(stage.parent().unwrap_or(stage)).ok().and_then(|parent: File| { return identity_at(&parent, stage.file_name()?).ok(); });
+    let failed = |reason: String| -> SnapshotFailure { return SnapshotFailure { reason, stage: made }; };
+    std::fs::set_permissions(stage, std::fs::Permissions::from_mode(0o700)).map_err(|error| { return failed(format!("the stage cannot be made private ({error})")); })?;
+    remove_stubs(stage, source, plan).map_err(failed)?;
+    replace_git_pointer(stage, pointer).map_err(failed)?;
+    install_index(source, stage, admin).map_err(failed)?;
+    return made.ok_or_else(|| { return failed(String::from("the stage cannot be examined")); });
+}
+
+/// Why a snapshot could not be taken, and the identity of the stage it left, if it left one.
+#[derive(Debug, Eq, PartialEq)]
+pub struct SnapshotFailure {
+    /// The reason, in words.
+    pub reason: String,
+    /// The identity of the stage this process made before it failed.
+    pub stage: Option<ObjectId>,
 }
 
 /// Why a swap of the stage with the destination did not complete, and whether the stage name still holds the snapshot.

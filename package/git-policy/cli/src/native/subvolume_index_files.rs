@@ -294,7 +294,7 @@ pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn
     let ours = identity_of(&created).map_err(|error| { return format!("the lock cannot be examined ({error})"); })?;
     // Before the rename, the lock is ours to remove, but only if the name still holds the file made here.
     let give_up = |reason: String| -> Result<String, String> {
-        let _kept = super::fs_beneath::remove_owned_at(admin, lock, ours, super::fs_beneath::Contents::Nothing);
+        let _kept = super::fs_beneath::remove_owned_at(admin, lock, ours);
         return Err(reason);
     };
     match entry_metadata_at(admin, index) {

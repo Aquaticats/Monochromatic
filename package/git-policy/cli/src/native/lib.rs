@@ -1206,9 +1206,9 @@ pub mod worktree_snapshot_source;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot;
 
-/// The removal of a worktree an interrupted or failed `git worktree add` of the wrapper left registered and incomplete.
+/// The binding of a `git worktree add` to the directories Git made for it, its record, and the check that the binding holds.
 #[cfg(target_os = "linux")]
-pub mod worktree_add_rollback;
+pub mod worktree_add_binding;
 
 /// The clone rung: tracked files cloned into the new worktree, the source's index installed with fresh stat fields.
 #[cfg(target_os = "linux")]

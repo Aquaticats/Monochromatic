@@ -468,17 +468,20 @@ snapshot with the copied index, installs the index with `rewrite_index_stat_with
 dropped), applies the tree difference with `git read-tree -m -u <source commit> <new commit>` under Git's
 `GIT_DIR` and `GIT_WORK_TREE`, gives the stage the source's mode and swaps it with the destination
 (`RENAME_EXCHANGE`).
-The directory real Git made is then removed.
+The directory real Git made, now at the stage name, is settled without a recursive removal: Git's pointer and the empty
+directory go, and anything another process added to it meanwhile stays there and is named in a warning.
 Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet` was given.
 The snapshot carries the whole ignored state of the source, so the ignored-state copy skips that destination.
-A refusal before the swap destroys the stage and completes the worktree with `git reset --hard --no-recurse-submodules`
-(`--quiet` when given), whose status is then the command's.
+A refusal before the swap destroys the stage, only while the stage name still holds the directory the wrapper made, and
+completes the worktree with `git reset --hard --no-recurse-submodules` (`--quiet` when given), whose status is then the
+command's.
 
 Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the destination in one clone domain.
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links
 recreated), a second comparison of the source with its own index, the installation of the index, and the same tree
 difference.
-A refusal clears the destination except Git's `.git` file and completes it with `git reset --hard`.
+A refusal removes the entries the clones created, each only while it is still the object the wrapper made, and completes
+the worktree with `git reset --hard`; a file another process put into the destination is never removed.
 The ignored-state copy then runs as for Git's checkout.
 
 Rung 3 is Git's checkout and the ignored-state copy.
@@ -486,8 +489,18 @@ Where the destination's parent is on btrfs and the rung is 2 or 3, the wrapper f
 empty subvolume (`BTRFS_IOC_SUBVOL_CREATE`), which Git accepts as an empty directory, and removes it again if Git leaves
 it empty.
 No rung runs a hook: every real-Git start of the wrapper switches hooks off.
-A process killed between Git's `--no-checkout` run and the swap leaves the claim; the next recovery removes the stage
-(destroying it as a subvolume where the mount allows) and prints the commands that check out or discard the worktree.
+The wrapper never deletes or unregisters a worktree, a registration or a stage it did not make in the running process.
+After Git's `--no-checkout` run it binds the add to the two directories Git made (the destination and its administrative
+directory, proven to name each other below this repository's `worktrees`), records their identities, and checks the
+binding again before every write into the worktree and before the fallback checkout; a worktree that was moved, replaced
+or edited meanwhile is not written to, the add fails with one report, and nothing is changed.
+When the fallback checkout fails, the worktree and its registration stay as they are, the command fails with Git's
+status, and one report names the path, `git -C <path> reset --hard` (retry) and `git worktree remove --force <path>`.
+A process killed between Git's run and the end of the add leaves the claim and a record; the next recovery changes
+nothing, prints that report once for a bound add (or says that nothing proves a leftover is the add's when the add was
+never bound), prints the stage it did not remove, and drops the record. A record or a completion marker that cannot be
+looked up keeps the record and says that the state is unknown. The cost: an interrupted or failed add can leave an
+incomplete registered worktree for the person to complete or remove.
 
 `git worktree remove <directory>` with no option, for a registered, unlocked, clean linked worktree that is a subvolume
 root, on a mount that lists `user_subvol_rm_allowed`, destroys the subvolume (`BTRFS_IOC_SNAP_DESTROY`) and deletes the

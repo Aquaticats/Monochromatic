@@ -3,7 +3,7 @@
 use super::*;
 use crate::private_storage::create_private_directory;
 use crate::test_support::{fixture, git_context, remove, repository};
-use crate::worktree_add_rollback::{Recorded, bind_registration, decode_record};
+use crate::worktree_add_binding::{Recorded, bind_registration, decode_record};
 use crate::worktree_copy_journal::{JOURNAL_PARENT_NAME, create_journal, ensure_journal_root, journal_root};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::stage_ignored_snapshot;
@@ -314,7 +314,7 @@ fn releasing_an_add_claim_removes_the_destination_record() {
 }
 
 /// A process killed between Git and the swap, before the add was bound, leaves a claim, a stage and a destination nothing
-///  proves to be the add's: recovery removes the stage, deletes nothing else, and tells the person how to see and remove it.
+///  proves to be the add's: recovery changes nothing, and tells the person about the stage and how to see and remove the destination.
 #[test]
 fn an_unbound_add_deletes_nothing_and_is_reported() {
     let (root, common, destination) = scene("claim-add-interrupted");
@@ -326,8 +326,9 @@ fn an_unbound_add_deletes_nothing_and_is_reported() {
     // The process dies here: the claim is neither released nor dropped cleanly.
     std::mem::forget(claim);
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
-    assert!(!container.exists(), "the stage is removed");
+    assert!(container.exists(), "the stage stays");
     assert_eq!(notices.len(), 2, "{notices:?}");
+    std::fs::set_permissions(container.join("payload/locked"), std::fs::Permissions::from_mode(0o700)).expect("writable");
     let shown: String = quote(destination.to_string_lossy().as_ref());
     assert!(notices[1].contains("nothing proves it is the add's") && notices[1].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[1]);
     assert!(destination.join(".git").exists(), "nothing was deleted");
@@ -373,55 +374,39 @@ fn an_add_killed_before_git_never_deletes_a_worktree_someone_else_made_at_the_pa
     remove(root.as_path());
 }
 
-/// An add killed after it was bound and before it completed leaves a registered worktree whose identities the record names:
-///  the next recovery removes the directory and the registration, says so once, and the repository lists only its main worktree.
+/// An add killed after it was bound and before it completed leaves a registered worktree: recovery changes nothing, says
+///  once what is incomplete and the commands that finish or remove it, and drops its records.
 #[test]
-fn an_add_killed_after_binding_is_removed_with_its_registration() {
+fn an_add_killed_after_binding_is_reported_and_nothing_is_changed() {
     let (root, repo, destination, admin) = killed_add("claim-add-killed", true, false);
+    std::fs::write(destination.join("mine.txt"), b"work started in the incomplete worktree").expect("their work");
     let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
-    assert!(!destination.exists() && !admin.exists(), "{notices:?}");
+    assert!(destination.join(".git").exists() && destination.join("mine.txt").exists() && admin.exists(), "{notices:?}");
     assert_eq!(notices.len(), 1, "{notices:?}");
-    assert!(notices[0].contains("removed") && notices[0].contains("run the command again"), "{}", notices[0]);
+    let shown: String = quote(destination.to_string_lossy().as_ref());
+    assert!(notices[0].contains(format!("git -C {shown} reset --hard").as_str()) && notices[0].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[0]);
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records are gone");
     assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), Vec::<String>::new(), "said once");
     remove(root.as_path());
 }
 
-/// A bound destination that another process replaced with a worktree of its own, at the same path, is no longer the add's:
-///  recovery keeps it and its registration whole, says so, and drops the record.
+/// A bound destination that another process replaced with a worktree of its own is left whole with its registration; the
+///  report names the path, and nothing is deleted or unregistered.
 #[test]
-fn a_bound_destination_that_was_replaced_is_kept() {
-    let (root, repo, destination, admin) = killed_add("claim-add-replaced", true, false);
-    crate::test_support::git(repo.as_path(), &["worktree", "remove", "--force", "../topic"]);
+fn a_replaced_destination_is_left_whole_and_reported() {
+    let (root, repo, destination, _admin) = killed_add("claim-add-replaced", true, false);
+    crate::test_support::git(repo.as_path(), &["worktree", "move", "../topic", "../moved"]);
     crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic-again", "../topic"]);
     std::fs::write(destination.join("mine.txt"), b"work in the new worktree").expect("their work");
     let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
     assert!(destination.join("mine.txt").exists() && destination.join("file.txt").exists(), "{notices:?}");
-    assert!(repo.join(".git/worktrees/topic").exists() || admin.parent().expect("worktrees").read_dir().expect("listing").count() == 1, "their registration stands");
-    assert!(notices.iter().any(|notice: &String| { return notice.contains("no longer the directory the add made"); }), "{notices:?}");
-    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing is pending");
+    let listed: String = crate::test_support::git_text(repo.as_path(), &["worktree", "list", "--porcelain"]);
+    assert_eq!(listed.lines().filter(|line: &&str| { return line.starts_with("worktree "); }).count(), 3, "all three worktrees stay registered: {listed}");
+    assert!(root.join("moved").exists(), "the moved worktree stays");
     remove(root.as_path());
 }
 
-/// A removal that cannot finish keeps the record and the claim, says so, and the next recovery completes it.
-#[test]
-fn a_removal_that_cannot_finish_is_retried_by_the_next_recovery() {
-    let (root, repo, destination, admin) = killed_add("claim-add-retry", true, false);
-    let parent: PathBuf = destination.parent().expect("parent").to_path_buf();
-    std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o500)).expect("read-only parent");
-    let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
-    std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o755)).expect("writable again");
-    assert!(destination.join(".git").exists() && admin.exists(), "nothing was removed: {first:?}");
-    assert!(first.iter().any(|notice: &String| { return notice.contains("the next command retries it"); }), "{first:?}");
-    assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stays");
-    let second: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap again");
-    assert!(!destination.exists() && !admin.exists(), "{second:?}");
-    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"));
-    remove(root.as_path());
-}
-
-/// An add that was marked complete before the kill is a whole worktree: recovery keeps it, whatever it holds, and drops the
-///  records.
+/// An add that was marked complete before the kill is a whole worktree: recovery keeps it and says nothing.
 #[test]
 fn an_add_marked_complete_is_kept_by_recovery() {
     let (root, repo, destination, admin) = killed_add("claim-add-marked", true, true);
@@ -433,44 +418,36 @@ fn an_add_marked_complete_is_kept_by_recovery() {
     remove(root.as_path());
 }
 
-/// Withdrawing the authority of an add removes its record and marker and keeps the claim: recovery then deletes nothing.
+/// A lookup that fails other than by absence is not "complete" and not "incomplete": the record stays, the report says that
+///  the state is unknown, and nothing is changed.
 #[test]
-fn a_withdrawn_add_cannot_be_removed_by_recovery() {
-    let root: PathBuf = fixture("claim-add-withdrawn");
-    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
-    std::fs::write(repo.join("file.txt"), b"content\n").expect("file");
-    crate::test_support::git(repo.as_path(), &["add", "file.txt"]);
-    crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
-    let wanted: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("topic");
-    let claim: StageClaim = claim_stage_for_add(repo.join(".git").as_path(), wanted.as_path()).expect("claim");
-    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
-    let found = bind_registration(repo.join(".git").as_path(), wanted.as_path()).expect("bound");
-    claim.record_binding(&found.binding).expect("recorded");
-    claim.withdraw_authority().expect("withdrawn");
-    std::mem::forget(claim);
-    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
-    assert!(wanted.join(".git").exists() && repo.join(".git/worktrees/topic").exists(), "{notices:?}");
-    remove(root.as_path());
+fn a_lookup_that_fails_keeps_the_record_and_says_the_state_is_unknown() {
+    let record: PathBuf = PathBuf::from("/records/one.add");
+    let denied = || -> std::io::Error { return std::io::Error::from(std::io::ErrorKind::PermissionDenied); };
+    let marker_unknown: Settlement = settle_from(record.as_path(), Err(denied()), &mut || { return Ok(String::new()); });
+    assert!(marker_unknown.keep && marker_unknown.notice.as_deref().is_some_and(|text: &str| { return text.contains("cannot be checked"); }));
+    let record_unknown: Settlement = settle_from(record.as_path(), Ok(false), &mut || { return Err(denied()); });
+    assert!(record_unknown.keep && record_unknown.notice.as_deref().is_some_and(|text: &str| { return text.contains("cannot be read"); }));
+    let absent: Settlement = settle_from(record.as_path(), Ok(false), &mut || { return Err(std::io::Error::from(std::io::ErrorKind::NotFound)); });
+    assert!(!absent.keep && absent.notice.is_none(), "a record that is gone is nothing to report");
+    let complete: Settlement = settle_from(record.as_path(), Ok(true), &mut || { return Err(denied()); });
+    assert!(!complete.keep && complete.notice.is_none(), "a complete add needs no look at its record");
 }
 
-/// A stage made by a snapshot is a subvolume with nested contents; recovery removes it whether the mount allows the
-///  one-call destroy or not.
+/// A stage that the claim of a worktree add names is reported and never removed, whatever stands at the name.
 #[test]
-fn btrfs_an_abandoned_snapshot_stage_is_removed() {
-    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("claim-snapshot-stage") else { return };
-    let common: PathBuf = root.join("common");
-    std::fs::create_dir_all(common.as_path()).expect("common");
-    let destination: PathBuf = root.join("topic");
+fn a_stage_named_by_an_add_is_reported_and_never_removed() {
+    let (root, common, destination) = scene("claim-add-stage");
     let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
-    crate::fs_btrfs_ioctl::subvolume_create_at(claim.container()).expect("stage subvolume");
-    std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
-    std::fs::create_dir_all(claim.container().join("deep/er")).expect("nested directories");
-    std::fs::write(claim.container().join("deep/er/file"), b"x").expect("file");
+    abandoned_stage(claim.container());
+    std::fs::write(claim.container().join("payload/foreign"), b"somebody else's directory").expect("foreign content");
     let container: PathBuf = claim.container().to_path_buf();
     std::mem::forget(claim);
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
-    assert!(!container.exists());
-    assert_eq!(notices.len(), 1, "{notices:?}");
+    assert!(container.join("payload/foreign").exists(), "the stage stays");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("was left by an interrupted"); }), "{notices:?}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "reported once");
+    std::fs::set_permissions(container.join("payload/locked"), std::fs::Permissions::from_mode(0o700)).expect("writable");
     remove(root.as_path());
 }
 

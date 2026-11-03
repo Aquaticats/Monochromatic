@@ -513,9 +513,13 @@ What the code does:
   below this repository's `worktrees`, that directory's `gitdir` must name the pointer back, and the identities (device,
   inode, birth time) of both directories and the pointer bytes are written to the record with both directories held open.
   A pair that cannot be proven ends the ladder for this add and leaves what Git made as it is.
-- Deletion is allowed only for an object that still has a recorded identity, and goes through a quarantine rename in the
-  held parent whose object is compared with the identity before anything is removed. A replacement is put back and kept.
-  The registration is removed only after the destination was.
+- The wrapper never deletes or unregisters a worktree or a registration, and recovery never deletes a stage. The binding
+  is not authority to remove: it is what the fast rungs and the fallback checkout verify (identities at their paths, the
+  pointer bytes, the registration's back-link) before every write, and what the report of an interrupted add names. The only
+  deletions are of objects the running process made: the stage it took and never exchanged (removed only while the name
+  still holds the object it made), and the entries its clones created (each moved into a private directory made for the
+  call, compared there with the identity recorded at creation, and removed only if that matches; a directory only when
+  empty). Anything else, including every doubt, is kept and reported.
 - The snapshot rung takes the snapshot at a stage name beside the destination, removes the stubs below a held handle of
   the stage without following a link, writes Git's own `.git` pointer, installs the index bytes that were proven clean
   (never a second read of the file) through the administrative directory's handle under `index.lock` without replacing an
@@ -535,13 +539,18 @@ What the code does:
   filter selected by an attribute (tracked, `info/attributes` or a global file) declines the fast rungs, except the
   standard Git LFS definition; a `core.attributesFile` that is not an absolute path, LFS extensions, and a destination
   that is a symbolic link decline too.
-- A step that cannot finish falls to Git's own checkout (`git reset --hard`); when that fails the wrapper removes the
-  bound worktree and its registration, as Git's own `worktree add` removes what it registered. A removal that cannot
-  finish keeps the record and the next command reports it and retries.
-- Success is reported only after the completion marker is written or, when it cannot be written, the record that lets
-  recovery act is withdrawn; when neither can be done the add fails and its own objects are removed.
-- Recovery: a record that was never bound deletes nothing and is reported; a bound add with no marker is removed with its
-  registration when the objects still have the recorded identities; an add with a marker is whole and is kept.
+- A step that cannot finish falls to Git's own checkout (`git reset --hard`), run in the bound worktree after the binding is
+  verified and verified again after. When the checkout fails, or the binding no longer holds, the worktree and its
+  registration stay as they are, the command fails, and one report names the path and the two commands: `git -C <path>
+  reset --hard` to retry and `git worktree remove --force <path>` to remove it. This is the cost of the rule: Git's own
+  `worktree add` removes what it registered when its checkout fails; the wrapper leaves it, because no check made before
+  a removal is safe against another process changing the path, the registration or the contents afterwards.
+- Success needs nothing durable except the completion marker, which only keeps a later report from calling a whole worktree
+  interrupted; a marker that cannot be written is a warning.
+- Recovery changes nothing. For an add that was bound and has no marker it prints the report above once; for one that was
+  never bound it says that nothing proves a leftover at the recorded path is the add's; a stage named by an add is
+  printed with the commands that remove it and is not removed. A record that cannot be read, or a marker that cannot be
+  looked up, keeps the record and says the state is unknown.
 
 ### Cross-vendor reviews of the add path (2026-11-02)
 
@@ -561,6 +570,11 @@ modified after cloning; a pointer edited to name another worktree's registration
 conversion comparison used a set; equal configuration strings were taken for equal conversions; a failed marker write still
 reported success; the install removed the lock after publication and overwrote an index written meanwhile; a failed
 rollback dropped its record; and the primitives followed ancestors, accepted `.` and `..`, and missed bind mounts.
+
+Third review: automatic recovery and rollback could still delete or unregister what they could not prove the add made (an
+adopted worktree, a moved worktree's registration, a replacement reset by the fallback, stages identified by name,
+quarantine names replaced after the check, files inside an owned root, a failed marker lookup read as incomplete). The rule
+above replaced all of that code: recovery and rollback no longer delete anything.
 
 Not covered by a control: the arm of `finish_snapshot` that skips the stage cleanup when the stage name is not the
 wrapper's is exercised through the primitives (`btrfs_a_failed_swap_back_does_not_claim_the_stage`) and the mapping of the

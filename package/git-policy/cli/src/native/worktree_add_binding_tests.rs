@@ -1,11 +1,9 @@
-//! Controls for the binding of an add and the removal of what it made: the pair the repository confirms is bound and
-//!  removed, every object that is not the bound one is kept, and a removal that cannot finish says so.
+//! Controls for the binding of an add: the pair the repository confirms is bound, every pair it does not confirm is refused,
+//!  and the binding is verified again before anything is written: a moved, replaced or edited object stops the step.
 
 use super::*;
-use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::test_support::{fixture, git, git_text, remove, repository};
+use crate::test_support::{fixture, git, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, tracked};
-use std::os::unix::fs::PermissionsExt;
 
 /// An ordinary repository with a worktree registered without a checkout beside it: the repository, the destination, and the
 ///  administrative directory.
@@ -17,26 +15,6 @@ fn registered(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
     let admin: PathBuf = repo.join(".git/worktrees/topic");
     return (repo, destination, admin);
-}
-
-/// A bound worktree holding only Git's pointer, or a partial checkout, is removed with its registration, and the repository
-///  lists the main worktree alone afterwards.
-#[test]
-fn a_bound_incomplete_worktree_is_removed_with_its_registration() {
-    for partial in [false, true] {
-        let root: PathBuf = fixture(if partial { "rollback-partial" } else { "rollback-pointer" });
-        let (repo, destination, admin) = registered(root.as_path());
-        let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
-        if partial {
-            std::fs::create_dir_all(destination.join("dir")).expect("directory");
-            std::fs::write(destination.join("dir/file"), b"half").expect("half a checkout");
-        }
-        assert_eq!(remove_bound(&bound.binding), Removal::Removed);
-        assert!(!destination.exists() && !admin.exists(), "partial {partial}");
-        assert_eq!(git_text(repo.as_path(), &["worktree", "list", "--porcelain"]).lines().filter(|line: &&str| { return line.starts_with("worktree "); }).count(), 1);
-        assert!(repo.join("file.txt").is_file(), "the main worktree is untouched");
-        remove(root.as_path());
-    }
 }
 
 /// A pair the repository does not confirm is not bound: a pointer outside this repository's worktrees, one that names another
@@ -73,51 +51,64 @@ fn a_pair_the_repository_does_not_confirm_is_not_bound() {
     remove(root.as_path());
 }
 
-/// A directory that replaced the bound destination is not the add's: nothing is removed there, and the registration stays
-///  because it still serves whatever is at the destination.
+/// The binding of a fresh worktree holds, and holds again after a failed look: the verification changes nothing.
 #[test]
-fn a_replacement_at_the_destination_is_kept_with_the_registration() {
-    let root: PathBuf = fixture("rollback-replaced");
+fn a_binding_holds_until_an_object_it_names_changes() {
+    let root: PathBuf = fixture("binding-holds");
     let (repo, destination, admin) = registered(root.as_path());
     let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
-    std::fs::rename(destination.as_path(), destination.with_file_name("topic.moved")).expect("moved away");
-    std::fs::create_dir(destination.as_path()).expect("another directory at the path");
-    std::fs::write(destination.join("theirs.txt"), b"someone's work").expect("their file");
-    let outcome: Removal = remove_bound(&bound.binding);
-    assert!(matches!(&outcome, Removal::Kept { replaced: true, .. }), "{outcome:?}");
-    assert_eq!(std::fs::read(destination.join("theirs.txt")).expect("kept"), b"someone's work");
-    assert!(admin.exists(), "the registration stays while its destination is not removed");
+    assert_eq!(verify_association(&bound), Ok(()));
+    assert_eq!(verify_association(&bound), Ok(()));
+    assert!(destination.join(".git").exists() && admin.exists());
     remove(root.as_path());
 }
 
-/// A registration that was replaced is kept too, and the destination, which is still the bound one, goes.
+/// A destination that was moved away, with another worktree made at its path, is not the bound one: the verification names
+///  it, and the replacement is untouched.
 #[test]
-fn a_replaced_registration_is_kept() {
-    let root: PathBuf = fixture("rollback-admin-replaced");
-    let (repo, destination, admin) = registered(root.as_path());
+fn a_destination_moved_and_replaced_no_longer_verifies() {
+    let root: PathBuf = fixture("binding-replaced");
+    let (repo, destination, _admin) = registered(root.as_path());
     let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
-    std::fs::rename(admin.as_path(), admin.with_file_name("topic.moved")).expect("moved");
-    std::fs::create_dir(admin.as_path()).expect("another directory");
-    std::fs::write(admin.join("marker"), b"theirs").expect("their file");
-    let outcome: Removal = remove_bound(&bound.binding);
-    assert!(matches!(&outcome, Removal::Kept { replaced: true, .. }), "{outcome:?}");
-    assert!(!destination.exists(), "the bound destination went");
-    assert_eq!(std::fs::read(admin.join("marker")).expect("kept"), b"theirs");
+    git(repo.as_path(), &["worktree", "move", "../topic", "../moved"]);
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "again", "../topic"]);
+    std::fs::write(destination.join("mine.txt"), b"work in the replacement").expect("their work");
+    let reason: String = verify_association(&bound).expect_err("replaced");
+    assert!(reason.contains("no longer the directory Git made"), "{reason}");
+    assert_eq!(std::fs::read(destination.join("mine.txt")).expect("kept"), b"work in the replacement");
     remove(root.as_path());
 }
 
-/// A removal that cannot finish is reported as pending, not as replaced, and removes nothing it cannot account for.
+/// A worktree moved to another path changes its registration: the verification refuses, and nothing is changed.
 #[test]
-fn a_removal_that_fails_is_reported_as_pending() {
-    let root: PathBuf = fixture("rollback-failure");
+fn a_moved_worktree_no_longer_verifies() {
+    let root: PathBuf = fixture("binding-moved");
     let (repo, destination, admin) = registered(root.as_path());
     let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
-    let parent: PathBuf = destination.parent().expect("parent").to_path_buf();
-    std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o500)).expect("read-only parent");
-    let outcome: Removal = remove_bound(&bound.binding);
-    std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o755)).expect("writable again");
-    assert!(matches!(&outcome, Removal::Kept { replaced: false, .. }), "{outcome:?}");
-    assert!(destination.join(".git").exists() && admin.exists(), "nothing was removed");
+    git(repo.as_path(), &["worktree", "move", "../topic", "../moved"]);
+    assert!(verify_association(&bound).is_err());
+    assert!(admin.exists(), "the registration of the moved worktree is untouched");
+    remove(root.as_path());
+}
+
+/// A registration replaced by another directory, a pointer edited after the binding and a registration re-pointed each stop
+///  the verification with a reason of their own.
+#[test]
+fn a_replaced_registration_an_edited_pointer_and_a_repointed_registration_stop_the_verification() {
+    let root: PathBuf = fixture("binding-edited");
+    let (repo, destination, admin) = registered(root.as_path());
+    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    let original: Vec<u8> = std::fs::read(destination.join(".git")).expect("pointer");
+    std::fs::write(destination.join(".git"), b"gitdir: /elsewhere\n").expect("edited pointer");
+    assert!(verify_association(&bound).expect_err("pointer").contains("no longer the pointer"));
+    std::fs::write(destination.join(".git"), original).expect("restored");
+    assert_eq!(verify_association(&bound), Ok(()), "positive control");
+    std::fs::write(admin.join("gitdir"), format!("{}\n", root.join("elsewhere/.git").display())).expect("re-pointed");
+    assert!(verify_association(&bound).expect_err("repointed").contains("no longer names"));
+    std::fs::write(admin.join("gitdir"), format!("{}\n", destination.join(".git").display())).expect("restored");
+    std::fs::rename(admin.as_path(), admin.with_file_name("topic.moved")).expect("registration moved");
+    std::fs::create_dir(admin.as_path()).expect("another registration");
+    assert!(verify_association(&bound).expect_err("replaced").contains("no longer the one Git made"));
     remove(root.as_path());
 }
 
@@ -139,20 +130,4 @@ fn a_record_round_trips_and_a_forged_one_is_nothing() {
     }
     let missing_field: String = binding.encode().replace("pointer=", "pointe=");
     assert_eq!(decode_record(missing_field.as_str()), None);
-}
-
-/// A bound destination that is a subvolume with contents is removed whole.
-#[test]
-fn btrfs_a_subvolume_destination_with_contents_is_removed() {
-    let Some(root) = btrfs_fixture("rollback-subvolume") else { return };
-    let (repo, destination, admin) = registered(root.as_path());
-    std::fs::remove_dir_all(destination.as_path()).expect("replace the directory");
-    crate::fs_btrfs_ioctl::subvolume_create_at(destination.as_path()).expect("subvolume");
-    std::fs::write(destination.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
-    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
-    std::fs::create_dir_all(destination.join("deep/er")).expect("nested");
-    std::fs::write(destination.join("deep/er/file"), b"x").expect("file");
-    assert_eq!(remove_bound(&bound.binding), Removal::Removed);
-    assert!(!destination.exists() && !admin.exists());
-    remove(root.as_path());
 }

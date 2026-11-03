@@ -301,28 +301,6 @@ pub fn identity_at(dir: &File, name: &OsStr) -> std::io::Result<ObjectId> {
     return identity_statx(dir, Some(name));
 }
 
-/// Remove everything below the open directory `dir`, depth first, through handles: no link is followed and no mount is
-///  crossed; `dir` itself stays.
-pub fn remove_contents(dir: &File) -> std::io::Result<()> {
-    let listing: Vec<OsString> = std::fs::read_dir(handle_path(dir))?.map(|entry| { return entry.map(|found| { return found.file_name(); }); }).collect::<std::io::Result<Vec<OsString>>>()?;
-    for name in listing {
-        match remove_at(dir, name.as_os_str(), false) {
-            Ok(()) => continue,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(_not_a_file) => {}
-        }
-        // A directory: empty it through its own handle, then remove it. A read-only one is made writable first.
-        let child: File = open_directory_at(dir, name.as_os_str())?;
-        if remove_contents(&child).is_err() {
-            use std::os::unix::fs::PermissionsExt;
-            child.set_permissions(std::fs::Permissions::from_mode(0o700))?;
-            remove_contents(&child)?;
-        }
-        remove_at(dir, name.as_os_str(), true)?;
-    }
-    return Ok(());
-}
-
 /// A counter for quarantine names.
 static QUARANTINE: AtomicU64 = AtomicU64::new(0);
 
@@ -337,56 +315,72 @@ pub enum Owned {
     Kept(String),
 }
 
-/// What a removal may take with the object.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Contents {
-    /// Only the object itself: a directory must be empty.
-    Nothing,
-    /// A directory and everything in it.
-    Everything,
-}
-
 /// What:
 ///  Remove the object `name` of `dir` only if it is the one with identity `expected`.
 /// Why:
-///   The name is renamed to a quarantine name in the same directory first, its identity is compared there, and only then is
-///  it deleted; a replacement that appeared at the name meanwhile is put back, never deleted. A check followed by a delete
-///  at the same name would race.
+///   The object is first moved into a private directory made for this call, whose name nothing else knows, so the name
+///  being checked is one no other process can have replaced; there its identity is compared (a directory by the handle it is
+///  opened on) and only then is it deleted. A replacement that stood at the name is put back untouched. This is for
+///  objects the calling process made itself, and a directory only when it is empty; nothing recorded earlier authorizes the
+///  removal of anything else, and no tree is ever removed through it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await removeOwnedAt(dir, 'file', expected, 'nothing');
+/// await removeOwnedAt(dir, 'file', expected); // a directory only when empty
 /// ```
-pub fn remove_owned_at(dir: &File, name: &OsStr, expected: ObjectId, contents: Contents) -> std::io::Result<Owned> {
-    let trash: OsString = OsString::from(format!(".cli-git-trash-{}-{}", std::process::id(), QUARANTINE.fetch_add(1, Ordering::SeqCst)));
-    match rename_at(dir, name, dir, trash.as_os_str(), false) {
+pub fn remove_owned_at(dir: &File, name: &OsStr, expected: ObjectId) -> std::io::Result<Owned> {
+    let box_name: OsString = OsString::from(format!(".cli-git-trash-{}-{}", std::process::id(), QUARANTINE.fetch_add(1, Ordering::SeqCst)));
+    let held: &OsStr = OsStr::new("held");
+    let c_box = name_of(box_name.as_os_str())?;
+    // SAFETY: `c_box` outlives the call and `dir` is an open descriptor.
+    checked(unsafe { libc::mkdirat(dir.as_raw_fd(), c_box.as_ptr(), 0o700) })?;
+    let boxed: File = match open_directory_at(dir, box_name.as_os_str()) {
+        Ok(opened) => opened,
+        Err(error) => {
+            let _removed = remove_at(dir, box_name.as_os_str(), true);
+            return Err(error);
+        }
+    };
+    let finish = |outcome: std::io::Result<Owned>| -> std::io::Result<Owned> {
+        // The box is empty after a removal or a put back; when the object could not be put back it stays in the box.
+        let _removed = remove_at(dir, box_name.as_os_str(), true);
+        return outcome;
+    };
+    match rename_at(dir, name, &boxed, held, false) {
         Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Owned::Absent),
-        Err(error) => return Err(error),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return finish(Ok(Owned::Absent)),
+        Err(error) => return finish(Err(error)),
     }
     let put_back = |reason: String| -> std::io::Result<Owned> {
-        return match rename_at(dir, trash.as_os_str(), dir, name, false) {
+        return finish(match rename_at(&boxed, held, dir, name, false) {
             Ok(()) => Ok(Owned::Kept(reason)),
-            Err(error) => Ok(Owned::Kept(format!("{reason}; it could not be put back and stays as {} ({error})", trash.to_string_lossy()))),
-        };
+            Err(error) => Ok(Owned::Kept(format!("{reason}; it could not be put back and stays as {}/held ({error})", box_name.to_string_lossy()))),
+        });
     };
-    let found: ObjectId = identity_at(dir, trash.as_os_str())?;
+    let found: ObjectId = match identity_at(&boxed, held) {
+        Ok(known) => known,
+        Err(error) => return put_back(format!("{} cannot be examined ({error})", name.to_string_lossy())),
+    };
     if found != expected {
         return put_back(format!("{} is not the object that was made ({} against {})", name.to_string_lossy(), found.encode(), expected.encode()));
     }
-    let metadata: std::fs::Metadata = entry_metadata_at(dir, trash.as_os_str())?;
-    if !metadata.is_dir() {
-        remove_at(dir, trash.as_os_str(), false)?;
-        return Ok(Owned::Removed);
+    let is_directory: bool = entry_metadata_at(&boxed, held).is_ok_and(|metadata: std::fs::Metadata| { return metadata.is_dir(); });
+    if !is_directory {
+        return match remove_at(&boxed, held, false) {
+            Ok(()) => finish(Ok(Owned::Removed)),
+            Err(error) => put_back(format!("{} cannot be removed ({error})", name.to_string_lossy())),
+        };
     }
-    if contents == Contents::Everything {
-        let held: File = open_directory_at(dir, trash.as_os_str())?;
-        if let Err(error) = remove_contents(&held) {
-            return put_back(format!("{} could not be emptied ({error})", name.to_string_lossy()));
-        }
+    // A directory is compared again on the handle it is opened on, which is the object itself and not a name.
+    let opened: File = match open_directory_at(&boxed, held) {
+        Ok(handle) => handle,
+        Err(error) => return put_back(format!("{} cannot be opened ({error})", name.to_string_lossy())),
+    };
+    if identity_of(&opened).ok() != Some(expected) {
+        return put_back(format!("{} is not the object that was made (the opened directory differs)", name.to_string_lossy()));
     }
-    return match remove_at(dir, trash.as_os_str(), true) {
-        Ok(()) => Ok(Owned::Removed),
+    return match remove_at(&boxed, held, true) {
+        Ok(()) => finish(Ok(Owned::Removed)),
         Err(error) => put_back(format!("{} still holds entries or cannot be removed ({error})", name.to_string_lossy())),
     };
 }

@@ -16,10 +16,9 @@
 //! const notices = await reapAbandonedStages(commonDir);
 //! ```
 
-use super::diagnostic_log::debug;
 use super::json_record::quote;
 use super::private_storage::sync_directory;
-use super::worktree_add_rollback::{Binding, Recorded, Removal, decode_record, planned_record, remove_bound};
+use super::worktree_add_binding::{Binding, Recorded, decode_record, planned_record};
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use super::worktree_copy_journal::{
     Role, TEMPORARY_SUFFIX, assert_private_path, ensure_journal_root, journal_root,
@@ -111,27 +110,6 @@ impl StageClaim {
     }
 
     /// What:
-    ///  Removes the add's record and marker, keeping the claim, so recovery has no authority over the add.
-    /// Why:
-    ///   When a completion marker cannot be written, taking the authority away is the other way to keep recovery from
-    ///  deleting a worktree that is whole.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// await claim.withdrawAuthority();
-    /// ```
-    pub fn withdraw_authority(&self) -> Result<(), WorktreeCopyError> {
-        if let Some(record) = self.destination_record.as_deref() {
-            remove_file_if_present(record)?;
-        }
-        remove_file_if_present(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
-        if let Some(parent) = self.path.parent() {
-            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
-        }
-        return Ok(());
-    }
-
-    /// What:
     ///  Removes the claim file and makes the removal durable.
     /// Why:
     ///   Once a journal names the stage, or the stage is removed, the claim must not outlive it.
@@ -212,52 +190,72 @@ pub fn claim_stage_for_add(common_dir: &Path, destination_root: &Path) -> Result
 struct Settlement {
     /// What to tell the person, if anything.
     notice: Option<String>,
-    /// Whether the record and the claim stay because something pending could not be settled.
+    /// Whether the record and the claim stay because the record could not be read or settled.
     keep: bool,
 }
 
 /// What:
-///  Settle the worktree an interrupted add may have left: remove the directories the add was bound to when they are still
-///  the bound objects, and report anything else without deleting it.
+///  Report an add that was interrupted before it was marked complete, and change nothing.
 /// Why:
-///   A record is authority only for the objects whose identities it names. An add killed before it was bound, or whose
-///  objects were replaced, deletes nothing; a removal that could not finish keeps the record so the next command retries it
-///  and the person is told.
+///   Recovery never deletes or unregisters a worktree: a path, a registration or a name can be changed by another process
+///  between any check and any act, so nothing the wrapper recorded earlier is a right to remove something later. The report
+///  names the worktree and the two commands that finish or remove it, as Git's own interrupted add leaves it. A record that
+///  cannot be read, and a marker that cannot be looked up, are not "incomplete" and not "complete": the record stays and the
+///  report says that the state is unknown.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { notice, keep } = await settleInterruptedAdd(record, completeMarker);
+/// const { notice, keep } = await reportInterruptedAdd(record);
 /// ```
 fn settle_interrupted_add(record: &Path) -> Settlement {
-    let complete: PathBuf = record.with_extension(&COMPLETE_SUFFIX[1..]);
-    if complete.exists() {
-        return Settlement { notice: None, keep: false };
+    let marker: std::io::Result<bool> = match std::fs::symlink_metadata(record.with_extension(&COMPLETE_SUFFIX[1..])) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    };
+    return settle_from(record, marker, &mut || { return std::fs::read_to_string(record); });
+}
+
+/// `settle_interrupted_add` with the two lookups as values, so that a lookup that fails other than by absence can be driven.
+fn settle_from(record: &Path, marker: std::io::Result<bool>, read: &mut dyn FnMut() -> std::io::Result<String>) -> Settlement {
+    let shown_record: String = quote(record.to_string_lossy().as_ref());
+    match marker {
+        Ok(true) => return Settlement { notice: None, keep: false },
+        Ok(false) => {}
+        Err(error) => {
+            return Settlement {
+                notice: Some(format!("cli-git: whether the `git worktree add` of {shown_record} completed cannot be checked ({error}); nothing was changed and the record stays.")),
+                keep: true,
+            };
+        }
     }
-    let Some(text) = std::fs::read_to_string(record).ok() else { return Settlement { notice: None, keep: false } };
+    let text: String = match read() {
+        Ok(found) => found,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Settlement { notice: None, keep: false },
+        Err(error) => {
+            return Settlement {
+                notice: Some(format!("cli-git: the record {shown_record} of an interrupted `git worktree add` cannot be read ({error}); nothing was changed and the record stays.")),
+                keep: true,
+            };
+        }
+    };
     return match decode_record(text.as_str()) {
         None => Settlement {
-            notice: Some(format!("cli-git: the record {} of an interrupted `git worktree add` is unreadable; it was removed and nothing else was.", quote(record.to_string_lossy().as_ref()))),
+            notice: Some(format!("cli-git: the record {shown_record} of an interrupted `git worktree add` is unreadable; nothing was changed.")),
             keep: false,
         },
         Some(Recorded::Planned(destination)) => {
             let shown: String = quote(destination.to_string_lossy().as_ref());
             let notice: Option<String> = destination.join(".git").exists().then(|| {
-                return format!("cli-git: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not removed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it.");
+                return format!("cli-git: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not changed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it.");
             });
             Settlement { notice, keep: false }
         }
         Some(Recorded::Registered(binding)) => {
             let shown: String = quote(binding.destination.to_string_lossy().as_ref());
-            match remove_bound(&binding) {
-                Removal::Removed => Settlement {
-                    notice: Some(format!("cli-git: removed {shown} and its registration, which an interrupted `git worktree add` left incomplete; run the command again.")),
-                    keep: false,
-                },
-                Removal::Kept { reason, replaced } => {
-                    debug("settleInterruptedAdd", format!("{shown} is not removed ({reason})").as_str());
-                    let advice: &str = if replaced { "it is no longer the directory the add made, so nothing was removed" } else { "the removal did not finish and the next command retries it" };
-                    Settlement { notice: Some(format!("cli-git: an interrupted `git worktree add` left {shown}: {advice} ({reason}).")), keep: !replaced }
-                }
+            Settlement {
+                notice: Some(format!("cli-git: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. `git -C {shown} reset --hard` completes its checkout, and `git worktree remove --force {shown}` removes it.")),
+                keep: false,
             }
         }
     };
@@ -416,7 +414,17 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
                 Err(error) => return Err(raw_failure(&error)),
             };
-            if present && !journaled.contains(&container) {
+            let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
+            // The claim of a worktree add names a stage by its path alone, which proves nothing about what stands there now
+            // (a snapshot, a directory another process put there, or nothing): such a stage is reported and never removed.
+            // A record that cannot be looked up counts as one: when in doubt the stage is kept.
+            let of_an_add: bool = !matches!(std::fs::symlink_metadata(record.as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
+            if present && !journaled.contains(&container) && of_an_add {
+                notices.push(format!(
+                    "cli-git: the stage {} was left by an interrupted `git worktree add` and was not changed; remove it yourself once nothing needs it (`btrfs subvolume delete` for a snapshot, `rm -r` otherwise).",
+                    quote(container.to_string_lossy().as_ref())
+                ));
+            } else if present && !journaled.contains(&container) {
                 assert_private_path(container.as_path(), Role::PrivateStage)?;
                 remove_stage(container.as_path())?;
                 notices.push(format!(
@@ -424,7 +432,6 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
                     quote(container.to_string_lossy().as_ref())
                 ));
             }
-            let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
             let settled: Settlement = settle_interrupted_add(record.as_path());
             if let Some(notice) = settled.notice {
                 notices.push(notice);

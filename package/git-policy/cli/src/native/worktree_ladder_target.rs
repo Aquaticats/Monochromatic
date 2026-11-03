@@ -24,7 +24,7 @@ use super::worktree_add_plan::AddPlan;
 use super::worktree_clean::head_commit;
 use super::worktree_copy::{GitRunner, GitStatus, GitStep};
 use super::fs_beneath::handle_path;
-use super::worktree_add_rollback::{Bound, path_identity};
+use super::worktree_add_binding::{Bound, path_identity};
 use super::worktree_snapshot_source::SnapshotSource;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};

@@ -183,36 +183,48 @@ fn only_the_recorded_object_is_removed() {
     // Another process replaces the name with its own file of the same name.
     std::fs::rename(root.join("made"), root.join("moved-away")).expect("moved");
     std::fs::write(root.join("made"), b"theirs").expect("a replacement");
-    let outcome: Owned = remove_owned_at(&held, OsStr::new("made"), made, Contents::Nothing).expect("outcome");
+    let outcome: Owned = remove_owned_at(&held, OsStr::new("made"), made).expect("outcome");
     assert!(matches!(outcome, Owned::Kept(ref reason) if reason.contains("is not the object that was made")), "{outcome:?}");
     assert_eq!(std::fs::read(root.join("made")).expect("the replacement stays"), b"theirs");
     assert!(std::fs::read_dir(&root).expect("listing").flatten().all(|entry| { return !entry.file_name().to_string_lossy().starts_with(".cli-git-trash"); }), "no quarantine name is left");
     // The recorded object itself goes, and a second request finds nothing.
     let moved: ObjectId = identity_at(&held, OsStr::new("moved-away")).expect("identity");
-    assert_eq!(remove_owned_at(&held, OsStr::new("moved-away"), moved, Contents::Nothing).expect("removed"), Owned::Removed);
+    assert_eq!(remove_owned_at(&held, OsStr::new("moved-away"), moved).expect("removed"), Owned::Removed);
     assert!(!root.join("moved-away").exists());
-    assert_eq!(remove_owned_at(&held, OsStr::new("moved-away"), moved, Contents::Nothing).expect("absent"), Owned::Absent);
+    assert_eq!(remove_owned_at(&held, OsStr::new("moved-away"), moved).expect("absent"), Owned::Absent);
     remove(root.as_path());
 }
 
-/// A directory is removed with its contents only when asked, and with nothing in it otherwise; a directory that holds
-///  entries the caller did not make stays.
+/// A directory is removed only when it is empty: one that holds anything is put back whole, and no call empties a tree.
 #[test]
-fn a_directory_is_emptied_only_when_asked() {
+fn a_directory_is_removed_only_when_it_is_empty() {
     let root: PathBuf = fixture("beneath-owned-directory");
     let held: File = open_directory(root.as_path()).expect("root");
     std::fs::create_dir_all(root.join("tree/deep/er")).expect("tree");
     std::fs::write(root.join("tree/deep/er/file"), b"x").expect("file");
-    std::fs::create_dir_all(root.join("outside")).expect("outside");
-    std::fs::write(root.join("outside/file"), b"not the tree's").expect("outside file");
-    std::os::unix::fs::symlink(root.join("outside"), root.join("tree/link-out")).expect("a link out of the tree");
     let tree: ObjectId = identity_at(&held, OsStr::new("tree")).expect("identity");
-    let kept: Owned = remove_owned_at(&held, OsStr::new("tree"), tree, Contents::Nothing).expect("outcome");
+    let kept: Owned = remove_owned_at(&held, OsStr::new("tree"), tree).expect("outcome");
     assert!(matches!(kept, Owned::Kept(ref reason) if reason.contains("still holds entries")), "{kept:?}");
     assert!(root.join("tree/deep/er/file").exists(), "put back whole");
-    assert_eq!(remove_owned_at(&held, OsStr::new("tree"), tree, Contents::Everything).expect("removed"), Owned::Removed);
+    std::fs::remove_dir_all(root.join("tree/deep")).expect("emptied by its owner");
+    assert_eq!(remove_owned_at(&held, OsStr::new("tree"), tree).expect("removed"), Owned::Removed);
     assert!(!root.join("tree").exists());
-    assert_eq!(std::fs::read(root.join("outside/file")).expect("kept"), b"not the tree's", "the link's target was not followed");
+    remove(root.as_path());
+}
+
+/// The private directory a removal works in is gone afterwards, whether the object was removed, put back or absent.
+#[test]
+fn no_quarantine_directory_is_left_behind() {
+    let root: PathBuf = fixture("beneath-no-quarantine");
+    let held: File = open_directory(root.as_path()).expect("root");
+    std::fs::write(root.join("file"), b"x").expect("file");
+    let id: ObjectId = identity_at(&held, OsStr::new("file")).expect("identity");
+    let other: ObjectId = ObjectId { device: id.device, inode: id.inode + 1_000_000, birth: id.birth };
+    assert!(matches!(remove_owned_at(&held, OsStr::new("file"), other).expect("put back"), Owned::Kept(_)));
+    assert_eq!(remove_owned_at(&held, OsStr::new("file"), id).expect("removed"), Owned::Removed);
+    assert_eq!(remove_owned_at(&held, OsStr::new("file"), id).expect("absent"), Owned::Absent);
+    let left: Vec<String> = std::fs::read_dir(root.as_path()).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert_eq!(left, Vec::<String>::new());
     remove(root.as_path());
 }
 

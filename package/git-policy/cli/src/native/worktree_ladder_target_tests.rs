@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::config_snapshot::ConfigEntry;
-use crate::worktree_add_rollback::{Bound, bind_registration};
+use crate::worktree_add_binding::{Bound, bind_registration};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, tracked};
 use crate::worktree_snapshot_source::{SnapshotSource, common_source};

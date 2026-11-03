@@ -19,7 +19,7 @@
 //! await cloneTrackedFiles(source, destination, admin); // throws a reason
 //! ```
 
-use super::fs_beneath::{Contents, ObjectId, Owned, create_file_at, entry_metadata_at, identity_at, identity_of, make_directory_at, open_directory_at, open_file_at, open_root, plain_components, read_link_at, remove_owned_at, set_times_at, symlink_at};
+use super::fs_beneath::{ObjectId, Owned, create_file_at, entry_metadata_at, identity_at, identity_of, make_directory_at, open_directory_at, open_file_at, open_root, plain_components, read_link_at, remove_owned_at, set_times_at, symlink_at};
 use super::fs_clone_exchange::clone_file;
 use super::subvolume_index::StatFields;
 use super::subvolume_index_files::{fields_of, install_index_in};
@@ -150,7 +150,7 @@ fn remove_created(directories: &Directories, created: &[Created]) -> Vec<String>
             kept.push(format!("{} has no held parent", name.to_string_lossy()));
             continue;
         };
-        match remove_owned_at(parent, name.as_os_str(), entry.id, Contents::Nothing) {
+        match remove_owned_at(parent, name.as_os_str(), entry.id) {
             Ok(Owned::Removed | Owned::Absent) => {}
             Ok(Owned::Kept(reason)) => kept.push(reason),
             Err(error) => kept.push(format!("{} cannot be removed ({error})", name.to_string_lossy())),

@@ -1,22 +1,22 @@
 //! What:
-//!  The binding of one `git worktree add` to the objects real Git made for it, and the removal of those objects, and only
-//!  those, when the add did not complete: the destination directory and the administrative directory that registers it.
+//!  The binding of one `git worktree add` to the objects real Git made for it (the destination directory and the
+//!  administrative directory that registers it), the record that carries the binding, and the check that the binding still
+//!  holds.
 //! Why:
-//!  A pathname recorded before Git ran proves nothing about who made the directory at it later: another process, real Git
-//!  run by a person, or a reused path can put a valid worktree there. The wrapper therefore binds the add to the identities
-//!  (device, inode, birth time) of the two directories and to the bytes of the `.git` pointer right after Git returned,
-//!  writes that binding to the add's durable record, and deletes an object only when its identity is still the recorded one,
-//!  through a quarantine rename, with the object held by handle. A record that was never bound (a kill before or during
-//!  Git) deletes nothing. Everything uncertain is kept and reported.
+//!  The wrapper completes an add in place, through the bound objects, and never deletes or unregisters a worktree: a path
+//!  can be changed by another process between any check and any act, so no pathname or identity recorded earlier proves the
+//!  right to remove something later. The binding is what a fast rung and the fallback checkout verify before they write into
+//!  the worktree, and what the report of an interrupted add names. It is captured right after Git returned, and an add
+//!  whose pair cannot be proven is left exactly as Git made it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const bound = await bindRegistration(commonDir, destination); // throws when the pair is not proven
 //! await claim.recordBinding(bound.binding);
-//! const outcome = await removeBound(bound.binding); // 'removed' | 'kept' with the reason
+//! await verifyAssociation(bound); // throws when the objects are no longer where and what they were
 //! ```
 
-use super::fs_beneath::{Contents, ObjectId, Owned, identity_of, open_root, remove_owned_at};
+use super::fs_beneath::{ObjectId, identity_of, open_file_at, open_root};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
@@ -151,8 +151,8 @@ pub fn path_identity(path: &Path) -> Option<ObjectId> {
 pub fn bind_registration(common_dir: &Path, destination: &Path) -> Result<Bound, String> {
     let shown: String = destination.display().to_string();
     let held: File = open_root(destination).map_err(|error| { return format!("{shown} is not a real directory ({error})"); })?;
+    let pointer: Vec<u8> = read_through(&held, OsStr::new(".git")).map_err(|error| { return format!("{shown}/.git is unreadable ({error})"); })?;
     let pointer_path: PathBuf = destination.join(".git");
-    let pointer: Vec<u8> = std::fs::read(pointer_path.as_path()).map_err(|error| { return format!("{shown}/.git is unreadable ({error})"); })?;
     let line: &[u8] = pointer.strip_suffix(b"\n").unwrap_or(pointer.as_slice());
     let named: &[u8] = line.strip_prefix(b"gitdir: ").ok_or_else(|| { return format!("{shown}/.git is not a gitdir pointer"); })?;
     let admin_path: PathBuf = std::fs::canonicalize(destination.join(OsStr::from_bytes(named))).map_err(|error| { return format!("the administrative directory of {shown} is unreadable ({error})"); })?;
@@ -161,7 +161,7 @@ pub fn bind_registration(common_dir: &Path, destination: &Path) -> Result<Bound,
         return Err(format!("{shown} is not registered in this repository"));
     }
     let admin: File = open_root(admin_path.as_path()).map_err(|error| { return format!("the registration of {shown} cannot be opened ({error})"); })?;
-    let recorded: Vec<u8> = std::fs::read(admin_path.join("gitdir")).map_err(|error| { return format!("the registration of {shown} is unreadable ({error})"); })?;
+    let recorded: Vec<u8> = read_through(&admin, OsStr::new("gitdir")).map_err(|error| { return format!("the registration of {shown} is unreadable ({error})"); })?;
     let recorded_line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
     if recorded_line != pointer_path.as_os_str().as_bytes() {
         return Err(format!("the registration {} does not name {shown}", admin_path.display()));
@@ -176,69 +176,48 @@ pub fn bind_registration(common_dir: &Path, destination: &Path) -> Result<Bound,
     return Ok(Bound { binding, destination: held, admin });
 }
 
-/// What a removal of a bound add did.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Removal {
-    /// Both objects are gone, or were gone already.
-    Removed,
-    /// Something was kept, for this reason; the add's record must stay when the reason is a failure.
-    Kept {
-        /// Why something stayed.
-        reason: String,
-        /// Whether the objects are no longer the add's (nothing is pending) rather than the removal having failed.
-        replaced: bool,
-    },
-}
-
-/// Remove the directory `path` if it is the object with identity `expected`, through its canonical parent.
-fn remove_directory_owned(path: &Path, expected: ObjectId) -> Result<Owned, (String, bool)> {
-    let parent: &Path = path.parent().ok_or_else(|| { return (format!("{} has no parent", path.display()), false); })?;
-    let name: &OsStr = path.file_name().ok_or_else(|| { return (format!("{} has no name", path.display()), false); })?;
-    let held: File = match open_root(parent) {
-        Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Owned::Absent),
-        Err(error) => return Err((format!("{} cannot be opened ({error})", parent.display()), false)),
-    };
-    return remove_owned_at(&held, name, expected, Contents::Everything).map_err(|error| { return (format!("{} cannot be removed ({error})", path.display()), false); });
+/// The bytes of the file `name` of the held directory, read through the handle and not through a path.
+fn read_through(directory: &File, name: &OsStr) -> std::io::Result<Vec<u8>> {
+    let mut file: File = open_file_at(directory, name)?;
+    let mut bytes: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut file, &mut bytes)?;
+    return Ok(bytes);
 }
 
 /// What:
-///  Remove the destination and the registration an add was bound to, each only if it is still the bound object.
+///  Check that the objects an add was bound to are still where and what they were: the destination and the registration
+///  still have the bound identities at their paths, the pointer still has the bound bytes, and the registration still
+///  names the pointer.
 /// Why:
-///   Destination first, registration last, as Git's own junk removal does, and the registration only once the destination
-///  is gone. A path that now holds another object is not the
-///  add's and stays, with a reason that says so; a removal that failed leaves what it could not remove and says so.
+///   A write into the worktree, or a checkout by Git, must go to the exact worktree the add made; if another process moved
+///  or replaced either object, the step stops and the add is reported, with nothing changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const outcome = await removeBound(binding);
+/// await verifyAssociation(bound); // throws the first difference
 /// ```
-pub fn remove_bound(binding: &Binding) -> Removal {
-    let mut kept: Vec<String> = Vec::new();
-    let mut replaced: bool = true;
-    for (index, (path, id)) in [(binding.destination.as_path(), binding.destination_id), (binding.admin.as_path(), binding.admin_id)].into_iter().enumerate() {
-        // The registration serves whatever stands at the destination, so it goes only after the destination did.
-        if index == 1 && !kept.is_empty() {
-            kept.push(format!("{} stays because the destination was not removed", path.display()));
-            continue;
-        }
-        match remove_directory_owned(path, id) {
-            Ok(Owned::Removed | Owned::Absent) => {}
-            Ok(Owned::Kept(reason)) => {
-                // A mismatch means the object is not the add's; a failure to empty or remove it is a pending removal.
-                replaced &= reason.contains("is not the object that was made");
-                kept.push(reason);
-            }
-            Err((reason, _unused)) => {
-                replaced = false;
-                kept.push(reason);
-            }
-        }
+pub fn verify_association(bound: &Bound) -> Result<(), String> {
+    let binding: &Binding = &bound.binding;
+    let shown: String = binding.destination.display().to_string();
+    if path_identity(binding.destination.as_path()) != Some(binding.destination_id) {
+        return Err(format!("{shown} is no longer the directory Git made for this add"));
     }
-    return if kept.is_empty() { Removal::Removed } else { Removal::Kept { reason: kept.join("; "), replaced } };
+    if path_identity(binding.admin.as_path()) != Some(binding.admin_id) {
+        return Err(format!("the registration {} is no longer the one Git made for this add", binding.admin.display()));
+    }
+    let pointer: Vec<u8> = read_through(&bound.destination, OsStr::new(".git")).map_err(|error| { return format!("{shown}/.git is unreadable ({error})"); })?;
+    if pointer != binding.pointer {
+        return Err(format!("{shown}/.git is no longer the pointer Git wrote"));
+    }
+    let recorded: Vec<u8> = read_through(&bound.admin, OsStr::new("gitdir")).map_err(|error| { return format!("the registration of {shown} is unreadable ({error})"); })?;
+    let line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
+    if line != binding.destination.join(".git").as_os_str().as_bytes() {
+        return Err(format!("the registration {} no longer names {shown}", binding.admin.display()));
+    }
+    return Ok(());
 }
 
-/// Rollback controls stay out of the release executable.
+/// Binding controls stay out of the release executable.
 #[cfg(test)]
-#[path = "worktree_add_rollback_tests.rs"]
+#[path = "worktree_add_binding_tests.rs"]
 mod tests;

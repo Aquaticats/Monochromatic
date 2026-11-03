@@ -143,16 +143,36 @@ pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &Wor
     return Ladder { plan: Some(planned.clone()), rung: choose_rung(planned, context, identity) };
 }
 
-/// Destroy a stage subvolume, or unlink it when the mount does not allow the destroy.
-pub(super) fn discard_stage(stage: &Path) {
-    if std::fs::symlink_metadata(stage).is_err() {
+/// What:
+///  Destroy the stage this process made, a subvolume or, where the mount does not allow the destroy, a tree, but only if the
+///  name still holds the object that was made.
+/// Why:
+///   A name can be taken by another process; nothing is removed that is not the object this process made, and a stage that
+///  cannot be proven is left and reported. The stage name is random and private, so the window between the check and the
+///  destroy has no other party in practice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await discardStage(stage, made);
+/// ```
+pub(super) fn discard_stage(stage: &Path, made: Option<super::fs_beneath::ObjectId>) {
+    let Some(expected) = made else {
+        warn(TAG, format!("the stage {} was not identified and is left in place", stage.display()).as_str());
+        return;
+    };
+    let current = stage.parent().and_then(|parent: &Path| { return super::fs_beneath::open_root(parent).ok(); }).and_then(|held: std::fs::File| { return super::fs_beneath::identity_at(&held, stage.file_name()?).ok(); });
+    if current.is_none() {
+        return;
+    }
+    if current != Some(expected) {
+        warn(TAG, format!("the stage {} is not the directory this add made and is left in place", stage.display()).as_str());
         return;
     }
     if subvolume_destroy_at(stage).is_ok() {
         return;
     }
     if let Err(error) = super::subvolume_remove::remove_tree(stage) {
-        warn(TAG, format!("the stage {} could not be removed ({error}); the next command of the repository removes it", stage.display()).as_str());
+        warn(TAG, format!("the stage {} could not be removed ({error}); it stays for the person to remove", stage.display()).as_str());
     }
 }
 

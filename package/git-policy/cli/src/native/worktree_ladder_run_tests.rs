@@ -79,3 +79,30 @@ fn btrfs_an_eligible_source_runs_git_without_a_checkout_and_a_failure_releases_t
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the claim is released");
     remove(root.as_path());
 }
+
+/// A stage is destroyed only while the name still holds the object this process made: another directory at the name, and a
+///  stage that was never identified, are left in place.
+#[test]
+fn btrfs_a_stage_is_discarded_only_while_it_is_the_one_that_was_made() {
+    let Some(root) = btrfs_fixture("run-discard-identity") else { return };
+    let base: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical");
+    let made = |name: &str| -> (PathBuf, crate::fs_beneath::ObjectId) {
+        let stage: PathBuf = base.join(name);
+        crate::fs_btrfs_ioctl::subvolume_create_at(stage.as_path()).expect("stage");
+        std::fs::write(stage.join("file"), b"x").expect("content");
+        let parent = crate::fs_beneath::open_root(base.as_path()).expect("parent");
+        let id = crate::fs_beneath::identity_at(&parent, std::ffi::OsStr::new(name)).expect("identity");
+        return (stage, id);
+    };
+    let (stage, id) = made("stage-one");
+    discard_stage(stage.as_path(), Some(id));
+    assert!(!stage.exists(), "the stage that was made goes");
+    let (other, id_two) = made("stage-two");
+    std::fs::create_dir(base.join("stage-three")).expect("somebody's directory");
+    std::fs::write(base.join("stage-three/theirs"), b"theirs").expect("their file");
+    discard_stage(base.join("stage-three").as_path(), Some(id_two));
+    assert!(base.join("stage-three/theirs").exists(), "a directory that is not the one made stays");
+    discard_stage(other.as_path(), None);
+    assert!(other.join("file").exists(), "an unidentified stage stays");
+    remove(root.as_path());
+}
