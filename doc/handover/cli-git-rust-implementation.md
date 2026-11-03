@@ -369,9 +369,70 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   `a7b917e47e` to `5ff9706edc` (2026-11-03T11:44:10-05:00 to 11:54:15),
   answering all of the eighth review and the four model findings;
   the three choices it left were picked in `7afb60a024` (see "Picks made under the owner's delegation").
+  The ninth cross-vendor review (`~/temp/agent/reviews/commits-never-fail-sol-9.txt`,
+  2026-11-03T12:09:51-05:00):
+  "Approve continued executable-model work and disposable backend experiments only.
+  Do not approve the live protocol."
+  Closed:
+  the ungated restart,
+  the shared ledger repair,
+  shared candidates,
+  the suppression example,
+  the signal choice.
+  P1s:
+  C0 releases the lane lock while its client lives,
+  so the next owner kills a healthy client (R9-1);
+  a resend acknowledges a binding whose directory entry is not durable (R9-2);
+  M1's journaled inode number is not deletion authority (R9-3);
+  MG2 and MG3 erase unrelated staging and ignore a completed switch (R9-4);
+  T1 assumes reachability holds through a maintenance run's earlier view (R9-6);
+  and the shipped lock-removal step (R9-S,
+  see "Shipped lock removal").
+  P2s:
+  merge staging captured before publish-begin and a reverse carry that is no inverse (R9-5),
+  R4 cannot tell an erased suffix from none so the F1 closure is withdrawn (R9-7),
+  E1 retries a refusal after a foreign change (R9-8),
+  B3 with path-set changes (R9-9),
+  undefined exits (R9-10);
+  P3 rule S's arithmetic (R9-11).
+- Design revision 10 for the ninth review,
+  its agent resumed with the review and the step-1 models' C4 `EEXIST` finding.
+- Done,
+  not merged anywhere:
+  step 1,
+  second round,
+  `feat/git-policy-cli-commit-protocol-models` `52ccb3e38e`.
+  Revision 9 modelled:
+  each changelog schedule red under revision 8 and green under 9
+  (F1,
+  F3,
+  F4,
+  F6,
+  F8,
+  F9,
+  plus new two-lane ledger,
+  M1 kill-point and merge models),
+  135 of 135 tests.
+  It found one revision 9 defect:
+  C4 answers `handed over` when its no-replace link finds a visible but not durable record
+  (fix proposed as variant `NineFsyncOnExists`,
+  sent to revision 10).
+  Components review P1s fixed
+  (type-aware replay,
+  per-lane ledgers,
+  durable directory creation,
+  resends sync the name,
+  request format version 2 with the base bytes in the spool);
+  not fixed:
+  byte paths,
+  gitlink fast-forwards,
+  `merge-tree -z`,
+  race-test barriers,
+  and the comment-density pass.
+  Some red states were compile errors rather than failing assertions.
   Running,
   not an agent:
-  the ninth cross-vendor review of it (`~/temp/agent/reviews/commits-never-fail-sol-9.txt`).
+  the components re-review (`~/temp/agent/reviews/commit-components-sol-2.txt`).
 - Step 1,
   second round:
   its agent is resumed to model revision 9 (red under revision 8,
@@ -611,9 +672,16 @@ in this order:
     guarantee or a test;
     the non-Linux test imports stay paused.
 - The fifth index re-review once the fourth round writes `follow-up-index-fixes-4.diff` and its `index-r5-` files.
-- The models (about 5800 lines) are reviewed after the step-1 agent's revision 9 round,
-  together with the eighth review's section-4 controls,
-  then the components' re-review from `commit-components-2.diff`.
+- After revision 10:
+  resume the step-1 agent to model it,
+  build the ninth review's section-5 controls and the section-4 controls still missing
+  (rule S over every mutation,
+  C1 starvation,
+  M1 per-path outcomes,
+  a multi-file merge),
+  fix the components re-review's findings and the four left from the first review,
+  and do the comment-density pass;
+  then a cross-vendor review of the models.
 - The third cross-vendor review of cargo-shadow,
   three parts,
   once its fix round writes the diffs.
@@ -1861,6 +1929,28 @@ On `fix/git-policy-cli-never-removes-a-live-lock` (`9f92dae98c`).
    because the sweep runs on a background thread.
 4. Its new lines over 120 characters:
    left for the lint-debt pass (task 88).
+5. The ninth design review's R9-S:
+   the removal step (rename the lock to a private name,
+   compare,
+   remove or put back),
+   shipped since 0.5.26,
+   can break mutual exclusion:
+   if between the judgement and the move another cleaner removes the judged lock and a live Git makes a new one,
+   the move displaces that live lock,
+   and a third Git can take the path before the put-back,
+   so two Git processes hold the same ref lock.
+   No Linux call removes or moves a path only if it still names a given file.
+   Picked:
+   keep removal only on a proof about the holder,
+   with the second identity check just before the move,
+   and ship it in 0.5.28,
+   because it removes strictly fewer locks than 0.5.27 does;
+   over never removing a reference lock,
+   which makes every Git the wrapper ends leave a lock the person must `rm` before the next fetch,
+   push or commit ("Commits should never fail.").
+   Question for the owner on return:
+   accept this residue,
+   or never remove reference locks (the design's X1 already says the wrapper never removes one).
 
 ### Shipped-limits follow-ups
 
