@@ -83,3 +83,11 @@ mod model_f9_hook_bypass;
 /// The controls of finding F9.
 #[path = "model_f9_tests.rs"]
 mod model_f9_tests;
+
+/// Finding F1: publication evidence and the order recovery reads it in.
+#[path = "model_f1_evidence.rs"]
+mod model_f1_evidence;
+
+/// The controls of finding F1.
+#[path = "model_f1_tests.rs"]
+mod model_f1_tests;
