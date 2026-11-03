@@ -18,28 +18,28 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 /// The words every line about a merged part carries, so a reader can find them in a long output.
-const MERGE_LINE_MARK: &str = "word-level merge";
+pub(super) const MERGE_LINE_MARK: &str = "word-level merge";
 
 /// The corpus input whose two sides edit a line and insert a line right after it: Git conflicts, the word pass resolves.
-const ADJACENT: &str = "md1b";
+pub(super) const ADJACENT: &str = "md1b";
 
 /// The corpus input whose two sides append different sections at one point: the word pass leaves it a conflict.
-const BOTH_APPEND: &str = "md2";
+pub(super) const BOTH_APPEND: &str = "md2";
 
 /// The bytes of one stored corpus file.
-fn corpus(name: &str, extension: &str) -> Vec<u8> {
+pub(super) fn corpus(name: &str, extension: &str) -> Vec<u8> {
     return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/word_merge_corpus").join(format!("{name}.{extension}")))
         .expect("a stored corpus file");
 }
 
 /// The path a corpus input is tracked under.
-fn tracked(name: &str) -> String {
+pub(super) fn tracked(name: &str) -> String {
     return format!("{name}.md");
 }
 
 /// Which operation the control stops in.
 #[derive(Clone, Copy, Debug)]
-enum Stop {
+pub(super) enum Stop {
     /// `git merge --no-edit topic` on `main`.
     Merge,
     /// `git rebase main` on `topic`.
@@ -51,11 +51,11 @@ enum Stop {
 }
 
 /// Every operation, so a control covers all four.
-const STOPS: [Stop; 4] = [Stop::Merge, Stop::Rebase, Stop::CherryPick, Stop::Revert];
+pub(super) const STOPS: [Stop; 4] = [Stop::Merge, Stop::Rebase, Stop::CherryPick, Stop::Revert];
 
 /// A repository with the inputs tracked on `main`, ready for `stop`: the sides of each input are committed on `main`
 /// (ours) and `topic` (theirs), except for a revert, which reverts the edit made on `main` after the insertion landed.
-fn prepared(fixture: &Fixture, stop: Stop, names: &[&str]) -> PathBuf {
+pub(super) fn prepared(fixture: &Fixture, stop: Stop, names: &[&str]) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let write = |extension: &str| {
         for name in names {
@@ -91,7 +91,7 @@ fn prepared(fixture: &Fixture, stop: Stop, names: &[&str]) -> PathBuf {
 }
 
 /// The arguments of the operation.
-fn arguments_of(stop: Stop) -> Vec<&'static str> {
+pub(super) fn arguments_of(stop: Stop) -> Vec<&'static str> {
     return match stop {
         Stop::Merge => vec!["merge", "--no-edit", "topic"],
         Stop::Rebase => vec!["rebase", "main"],
@@ -101,7 +101,7 @@ fn arguments_of(stop: Stop) -> Vec<&'static str> {
 }
 
 /// What the resolved file holds: the revert keeps the insertion and undoes the edit, so it ends at the insertion side.
-fn expected_after(stop: Stop, name: &str) -> Vec<u8> {
+pub(super) fn expected_after(stop: Stop, name: &str) -> Vec<u8> {
     return match stop {
         Stop::Revert => corpus(name, "theirs"),
         _ => corpus(name, "word.out"),
@@ -109,7 +109,7 @@ fn expected_after(stop: Stop, name: &str) -> Vec<u8> {
 }
 
 /// The paths Git lists as unmerged.
-fn unmerged(fixture: &Fixture, repo: &Path) -> Vec<String> {
+pub(super) fn unmerged(fixture: &Fixture, repo: &Path) -> Vec<String> {
     let listed = git(fixture, repo, &["ls-files", "--unmerged", "-z"]);
     let mut paths: Vec<String> = listed
         .stdout
@@ -122,7 +122,7 @@ fn unmerged(fixture: &Fixture, repo: &Path) -> Vec<String> {
 }
 
 /// The lines of standard error about merged parts.
-fn merge_lines(observed: &Observed) -> Vec<String> {
+pub(super) fn merge_lines(observed: &Observed) -> Vec<String> {
     return stderr_of(observed).lines().filter(|line| { return line.contains(MERGE_LINE_MARK); }).map(String::from).collect();
 }
 
@@ -155,22 +155,21 @@ fn run_with_journal(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> (Obse
     return (observed, receiver);
 }
 
-/// A conflict Git alone stops on is resolved by the second pass in each of the four operations: the file holds the
-/// word-level merge, it is staged as resolved, Git's exit status is kept, and the part is listed on standard error.
+/// A command line with an option the finish does not read (an abbreviation of `--no-commit` here) leaves the operation stopped:
+///  the file is staged as resolved, Git's status stays, and no merge commit is made.
 #[test]
-fn each_operation_that_stops_on_an_adjacent_edit_is_resolved_and_listed() {
-    for stop in STOPS {
-        let fixture: Fixture = fixture(format!("word-merge-{stop:?}").to_lowercase().as_str());
-        let repo: PathBuf = prepared(&fixture, stop, &[ADJACENT]);
-        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments_of(stop).as_slice());
-        let said: String = stderr_of(&observed);
-        assert_eq!(observed.code, Some(1), "{stop:?}: the operation is not finished, so Git's status stays: {said}");
-        assert_eq!(unmerged(&fixture, repo.as_path()), Vec::<String>::new(), "{stop:?}: the file is staged as resolved: {said}");
-        assert!(std::fs::read(repo.join(tracked(ADJACENT))).expect("the file") == expected_after(stop, ADJACENT), "{stop:?}: {said}");
-        let lines: Vec<String> = merge_lines(&observed);
-        assert!(lines.iter().any(|line| { return line.contains(tracked(ADJACENT).as_str()); }), "{stop:?}: the file and its part are listed: {said}");
-        remove(&fixture);
-    }
+fn an_option_the_finish_does_not_know_leaves_the_operation_stopped_with_the_file_staged() {
+    let fixture: Fixture = fixture("word-merge-unknown-option");
+    let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
+    let head: Vec<u8> = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout;
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-edit", "--no-comm", "topic"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(1), "{said}");
+    assert_eq!(unmerged(&fixture, repo.as_path()), Vec::<String>::new(), "{said}");
+    assert!(std::fs::read(repo.join(tracked(ADJACENT))).expect("the file") == corpus(ADJACENT, "word.out"), "{said}");
+    assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no commit is made when an option is not read");
+    assert!(merge_lines(&observed).iter().any(|line| { return line.contains(tracked(ADJACENT).as_str()); }), "{said}");
+    remove(&fixture);
 }
 
 /// The journal receives one entry per merged file that names the file, the part and the operation.

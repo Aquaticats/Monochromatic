@@ -135,6 +135,10 @@ mod merge_isolation;
 #[path = "binary_word_merge_tests.rs"]
 mod word_merge;
 
+/// The finish after the second pass: the operation ends like a clean run, and `--no-commit`, `--squash` and `--edit` stop it.
+#[path = "binary_word_merge_finish_tests.rs"]
+mod word_merge_finish;
+
 /// Real commits through the transaction: landing, policies, replay and conflict.
 #[path = "binary_commit_tests.rs"]
 mod commit;
