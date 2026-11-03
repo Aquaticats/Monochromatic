@@ -375,6 +375,20 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   `1` when any other hook is found, also when Git LFS shims are present beside it,
   and `2` when Git cannot locate a repository or a scanned directory cannot be read.
   A directory that does not exist holds no hooks.
+- It says on stderr whether Git's own fsmonitor is off (see "Git's own fsmonitor" in `README.md`).
+  It reads one listing, `git config --list --show-origin --show-scope -z`, with the caller's global options,
+  because the configuration snapshot of the commit path names scopes but not files.
+  The last `core.fsmonitor` entry decides, as for `git config --get`.
+  When it is false (`false`, `no`, `off`, `0` or empty) or there is no entry,
+  one line says that Git's fsmonitor is off by the owner's decision of 2026-11-03, with the file and scope of the deciding entry (or "not set"),
+  the reason in one sentence, and `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+  When it is on (a true word, a number other than zero, a key without a value, or a hook path),
+  one finding names the file, the scope, the same reason and document, and the command that turns it off for that scope
+  (`git config --global core.fsmonitor false` for the global file; `--system`, `--local` and `--worktree` likewise);
+  a value from `-c` or the environment has no file, so the finding says to remove it there.
+  The line or finding comes after the other notes and before the filesystem section.
+  The exit status never depends on it, and doctor never writes configuration.
+  A listing that cannot be read or parsed is said plainly in place of the line.
 - It does not load configuration, recover transactions or take a lock, and it changes nothing.
 
 ## Lifecycle
@@ -567,7 +581,8 @@ The same words go to the journal as one entry of priority `info` under the `SYSL
 `--quiet`.
 Changes made to the main checkout while the snapshot is taken or restored are out of scope, as for every rung: using the
 command is accepting that risk, and no step defends against it.
-`core.fsmonitor` is left as configured, as everywhere in the wrapper.
+The wrapper passes no `core.fsmonitor` setting here; Git's fsmonitor is off in the person's global configuration
+(owner decision, 2026-11-03; see "Git's own fsmonitor" in `README.md`).
 
 Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and, for a source that is a
 linked worktree, no nested linked worktree that is an ordinary directory; a snapshot of the main checkout sets such a
@@ -651,7 +666,8 @@ The snapshot and clone rungs run no Git checkout of the whole tree and are not c
 Owner decision, 2026-11-03 (question tool, chosen against the coordinator's recommendation): "Pass only if unset".
 Basis: Git's parallel checkout made a 20,000-file checkout faster in all three paired runs another agent measured
 (36.9 s to 4.5 s, 3.1 to 2.3, 7.2 to 1.75).
-`core.fsmonitor` and its daemon are left alone, as everywhere in the wrapper.
+The wrapper passes no `core.fsmonitor` setting and does not touch its daemon;
+Git's fsmonitor is off in the person's global configuration (owner decision, 2026-11-03).
 
 Telling why an add was not made as a snapshot:
 when a `git worktree add` that the ladder serves succeeds without being made as a snapshot, and the person could change
@@ -1650,7 +1666,8 @@ locks, with one rule: a lock is removed only when its holder is
 - "You should (almost) never be waiting."
 - "Invoke real git as rarely as possible."
 - "Fix even pre-existing issues of the pkgs you own."
-- Git's own file-system monitor stays as the person configured it (see the README section "Git's own fsmonitor").
+- Git's own file-system monitor is off in the person's global configuration, by the owner's decision of 2026-11-03
+  (see the README section "Git's own fsmonitor"; `git cli-git doctor` says so).
   Nothing here sets, unsets, pins or passes `core.fsmonitor`, and no tier of the judgement counts the daemon's descriptors
   or working directory as evidence of anything.
 
@@ -1852,15 +1869,16 @@ the auto-push, the reconcile and integration pushes, maintenance), carries
 The directory is below a device, so nothing can create it, and Git finds no hook file there.
 The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git knows, `pre-push` included, so a hook
 defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) does not run either.
-`core.fsmonitor` is left as configured, like the other programs Git starts for its own features (filters, editors,
+`core.fsmonitor` is not in this prefix, like the programs Git starts for its own features (filters, editors,
 signing programs, credential helpers): the program it names is not reached by the hooks path or by any event switch
-(measured on Git 2.56.0, including with `hook.fsmonitor-watchman.enabled=false`), and the built-in monitor daemon keeps
-working.
-This is the owner's decision ("To stop the fsmonitor program - we don't need to.",
-recorded in `README.md`,
-"Git's own fsmonitor"):
-Git runs its monitor as the configuration says,
-and the wrapper neither stops it, starts it, nor works around it.
+(measured on Git 2.56.0, including with `hook.fsmonitor-watchman.enabled=false`).
+Owner decisions, in order, quoted with the date each was superseded:
+"To stop the fsmonitor program - we don't need to." (kept the wrapper from stopping the monitor; superseded 2026-11-03),
+and, on 2026-11-03, "If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully worked around,
+disable git's fsmonitor globally entirely and make doctor say so."
+(recorded in `README.md`, "Git's own fsmonitor").
+So the setting is off in the person's global configuration, `git cli-git doctor` says so, and the wrapper still neither
+passes `-c core.fsmonitor=...` to a child nor starts or stops a monitor daemon.
 The wrapper injects no hook of its own, so no event is an exception.
 
 - The option is part of the argument vector, so it adds no system call and no process start.
@@ -3199,7 +3217,9 @@ and the executable does not read the name it was started under.
 The wrapper itself executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`,
 not the git directory, not the environment.
 The programs Git starts for its own features (filters, editors, signing programs, credential helpers) are Git's, not the
-wrapper's, and stay, `core.fsmonitor` included; a program that is a hook event is switched off.
+wrapper's, and stay; a program that is a hook event is switched off.
+`core.fsmonitor` is among them, and the wrapper does not set it: it is off in the person's global configuration
+(owner decision, 2026-11-03), and `git cli-git doctor` says so.
 `cli-git.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
 (`Configuration key postCommit is not supported: cli-git runs no program named by any configuration ...`).
 What a hook checked belongs in a cli-git policy.

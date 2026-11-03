@@ -388,6 +388,11 @@ It also lists the hooks configured with `hook.<name>.event` (one `hook.<name> (e
 A commit does not scan for traditional hooks: it only warns when the configuration sets `core.hooksPath` or defines
  hooks, which it already knows without any extra file system access.
 
+The doctor also says whether Git's own fsmonitor is off, on standard error and before the filesystem section
+ (see "Git's own fsmonitor"): one line when `core.fsmonitor` is false or unset, and a finding with the file, the scope
+ and the command that turns it off when it is on.
+It never changes the exit status and never writes configuration.
+
 The doctor ends its standard error with a filesystem section for the main checkout of the repository Git selects
  (so `-C`, `--git-dir` and a linked worktree report the main checkout; a bare repository has none).
 It is informational: it never changes the exit status and starts no program.
@@ -1629,9 +1634,40 @@ and the crate refuses to compile under `panic = "abort"`.
 
 ### Git's own fsmonitor
 
-Git's file-system monitor stays exactly as the person configured it,
-in the wrapper and in all work on it (briefs, fixtures, measurements, repairs).
-The owner's words:
+Git's file-system monitor is off, by the owner's decision of 2026-11-03:
+
+- "If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully worked around,
+  disable git's fsmonitor globally entirely and make doctor say so."
+
+Why: Git 2.56.0's Linux daemon registers an inotify watch for every directory before it starts answering
+(`compat/fsmonitor/fsm-listen-linux.c`, then `ipc_server_start_async`),
+and a Git process that finds no listening daemon starts one and waits for it for up to `fsmonitor.startTimeout`
+(60 s by default; `builtin/fsmonitor--daemon.c`).
+On the owner's main checkout, where linked worktrees live inside the checkout, one daemon watched 2,269,377 directories
+and spent 117.7 s of CPU and 734 MB to start, and 261 daemons held 4,591,335 watches in all.
+A commit of 7.7 s spent 6.5 s with the wrapper's Git child waiting for `git fsmonitor--daemon start`,
+while a running daemon saved about 7 ms per `git status` (16 ms off, 9 ms on, five alternating runs each).
+The measurements and the cause are in `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+
+What the wrapper does now:
+
+- It still never passes `-c core.fsmonitor=...` to any Git child, never writes `core.fsmonitor` in any repository,
+  and never starts, stops or kills `git fsmonitor--daemon`.
+  The setting is the person's configuration, and it is off there: the person's global `~/.gitconfig` holds
+  `core.fsmonitor = false`.
+- `git cli-git doctor` says so on standard error.
+  When `core.fsmonitor` is false or unset it prints one line that Git's fsmonitor is off by the owner's decision of
+  2026-11-03, with the file and scope of the entry that decided (or "not set"), the reason in one sentence,
+  and the path of the document above.
+  When the last entry of `core.fsmonitor` in any scope turns it on (true, a true word, a number other than zero,
+  a key without a value, or a hook path) it prints a finding that names the file and the scope and the command that
+  turns it off for that scope, such as `git config --global core.fsmonitor false`.
+  A value from `-c` or the environment has no file, so the finding says to remove it there.
+  Doctor reports and never writes configuration, and its exit status does not depend on this line.
+  Doctor reads one more configuration listing with `--show-origin` for this, because the snapshot the commit path
+  reads names scopes but not files.
+
+The owner's earlier words, kept as history; each was superseded on 2026-11-03 by the decision above:
 
 - "\"To stop the fsmonitor program\" - we don't need to."
 - (2026-11-02) "Why are we messing with git's fsmonitor? I already told you it's fine for git to run it."
@@ -1639,17 +1675,15 @@ The owner's words:
   shouldn't mess with git's own fsmonitor s."
 - (2026-11-03) ".git/config overriding it to false is wrong."
 
-So nothing here sets, unsets, pins or passes `core.fsmonitor` (no `-c core.fsmonitor=…`, no `git config` write in any
-real repository), starts, stops or kills `git fsmonitor--daemon` in a real repository, or treats the monitor as a
-cause to chase or a speed lever.
-The person's `~/.gitconfig` sets `core.fsmonitor = true`, so Git starts a daemon for each repository it works in,
-scratch repositories included; that is Git doing its job.
-A main checkout's `.git/config` held `core.fsmonitor=false` until 2026-11-03, written by no code in this repository;
+Before that decision the person's `~/.gitconfig` set `core.fsmonitor = true`.
+A main checkout's `.git/config` had held `core.fsmonitor=false` until 2026-11-03, written by no code in this repository;
 it was removed at the owner's word.
-Tests that reproduce the person's `core.fsmonitor = true` inside their own temporary repositories
-check that the wrapper behaves as Git does under it (`repo_read_config_typed_tests.rs`, `reader_fsmonitor_tests.rs`,
-`binary_budget_tests.rs`); they never touch a real repository's monitor.
-`SPEC.md` (search "core.fsmonitor") records the same decision for each code path.
+Tests that reproduce `core.fsmonitor = true` inside their own temporary repositories stay:
+they check that the wrapper behaves as Git does under that setting
+(`repo_read_config_typed_tests.rs`, `reader_fsmonitor_tests.rs`, `binary_budget_tests.rs`),
+and they never touch a real repository's monitor.
+The controls of the doctor line are in `doctor_fsmonitor_tests.rs`, with an injected global file.
+`SPEC.md` (search "core.fsmonitor") records the decision for each code path.
 
 ### Container limits
 
