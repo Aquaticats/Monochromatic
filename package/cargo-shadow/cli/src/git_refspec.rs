@@ -334,3 +334,16 @@ pub fn map_through_refspecs(specs: &[&str], merge: &str) -> Result<Option<String
     // `None`: the present or the absent value of an `Option`.
     return Ok(None);
 }
+
+/// What:
+/// `pub fn check_refspec(spec: &str) -> Result<(), String>` says whether a fetch refspec is one this reader judges to be valid.
+/// Why:
+/// Git rejects the whole remote configuration when any refspec is invalid, whether or not that remote is used.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function checkRefspec(spec: string): void  // throws on a spec it cannot judge
+/// ```
+pub fn check_refspec(spec: &str) -> Result<(), String> {
+    return parse_refspec(spec).map(|_| { return (); });
+}

@@ -29,6 +29,7 @@
 /// Imports `fs` to read the repository files.
 use std::fs;
 /// Imports the borrowed and owned path types.
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// Imports the parsed configuration and the lexer entry point.
@@ -44,7 +45,7 @@ use crate::git_config::{ConfigEntry, ParsedConfig, parse_config};
 use crate::git_objects::OBJECT_NAME_DIGITS;
 // Imports `crate::git_refspec::{is_plain_ref_name, map...`.
 /// Imports the refspec checks and the mapping through them.
-use crate::git_refspec::{is_plain_ref_name, map_through_refspecs};
+use crate::git_refspec::{check_refspec, is_plain_ref_name, map_through_refspecs};
 
 /// The environment variables that move the repository,
 /// its references,
@@ -324,6 +325,34 @@ fn lacks_text(value: &Option<&str>) -> bool {
 }
 
 /// What:
+/// `fn is_line_end(character: char) -> bool` says whether a character ends a line (`\n` or `\r`).
+/// Why:
+/// Review finding (3a 3): Git drops only the line ending from the path in a `.git` file or a `commondir` file;
+/// a space or tab at the end of the path belongs to the directory name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLineEnd = (character: string): boolean => character === '\n' || character === '\r';
+/// ```
+fn is_line_end(character: char) -> bool {
+    return matches!(character, '\n' | '\r');
+}
+
+/// What:
+/// `fn is_symbolic_link(path: &Path) -> bool` says whether the path is a symbolic link (without following it).
+/// Why:
+/// Review finding (3a 1): Git reads a symbolic-link `HEAD` or reference as a symbolic reference
+/// (`core.preferSymlinkRefs`); reading through it would see the target's object name instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSymbolicLink = (path: string): boolean => lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink() ?? false;
+/// ```
+fn is_symbolic_link(path: &Path) -> bool {
+    return fs::symlink_metadata(path).map(|metadata| { return metadata.file_type().is_symlink(); }).unwrap_or(false);
+}
+
+/// What:
 /// `fn trim_space(text: &str) -> &str` trims the characters Git's `isspace` knows (space,
 /// tab,
 /// newline,
@@ -514,7 +543,7 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
         // Closure `|character|`: an anonymous function, like a TS arrow function.
         // Typed binding: `path: &str`.
         // Macro `matches!`: builds or prints text (or a list) from a template.
-        let path: &str = target.trim_end_matches(is_git_space);
+        let path: &str = target.trim_end_matches(is_line_end);
         if path.is_empty() {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
@@ -543,7 +572,7 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
         // `Some`: the present or the absent value of an `Option`.
         // Closure `|character|`: an anonymous function, like a TS arrow function.
         // Macro `matches!`: builds or prints text (or a list) from a template.
-        Some(text) => git_dir.join(text.trim_end_matches(is_git_space)),
+        Some(text) => git_dir.join(text.trim_end_matches(is_line_end)),
         // `None`: the present or the absent value of an `Option`.
         // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
         // Why:      The copy can be stored or moved elsewhere while the original stays in place.
@@ -558,7 +587,48 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&common_dir`: lends the value without copying or giving it away.
     check_git_directory(&common_dir)?;
+    // Review finding (3a 8): Git refuses a repository another user owns unless it is declared safe; that decision is Git's.
+    for owned in [root, git_dir.as_path(), common_dir.as_path()] {
+        let owner: u32 = fs::metadata(owned).map_err(|error| { return cannot_read(owned, &error); })?.uid();
+        if owner != environment.user_id {
+            return Err(format!("{} is owned by another user, so only Git decides whether it is safe to use", owned.display()));
+        }
+    }
     return Ok(GitLayout { git_dir, common_dir });
+}
+
+/// The remote and branch keys that mean true when written without a value.
+const BARE_KEYS: [&str; 7] = ["skipdefaultupdate", "skipfetchall", "prune", "prunetags", "mirror", "promisor", "rebase"];
+
+/// What:
+/// `fn check_remote_and_branch_settings(config: &ParsedConfig) -> Result<(), String>` checks every `remote.*` and `branch.*`
+/// variable, not only the ones the chosen branch uses.
+/// Why:
+/// Review finding (3a 6): Git loads all remote and branch configuration when it resolves an upstream, so one invalid refspec
+/// or one required string written without a value anywhere makes Git fail where a narrower check would not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkRemoteAndBranchSettings(config: ParsedConfig): void  // throws: ask Git
+/// ```
+fn check_remote_and_branch_settings(config: &ParsedConfig) -> Result<(), String> {
+    for entry in &config.entries {
+        let Some(rest) = entry.name.strip_prefix("remote.").or_else(|| { return entry.name.strip_prefix("branch."); }) else {
+            continue;
+        };
+        let key: &str = rest.rsplit('.').next().unwrap_or("");
+        if entry.name.starts_with("remote.") && key == "fetch" {
+            match &entry.value {
+                Some(spec) => check_refspec(spec)?,
+                None => return Err(format!("{} is written without a value, which Git rejects", entry.name)),
+            }
+            continue;
+        }
+        if entry.value.is_none() && !BARE_KEYS.contains(&key) {
+            return Err(format!("{} is written without a value, which Git rejects", entry.name));
+        }
+    }
+    return Ok(());
 }
 
 /// What:
@@ -586,15 +656,12 @@ fn check_repository_settings(config: &ParsedConfig) -> Result<(), String> {
     }
     // `Some`: the present or the absent value of an `Option`.
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    if let Some(format) = config.last("core", None, "repositoryformatversion")
-        && format != "0"
-        && format != "1"
-    {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("core.repositoryformatversion is {format:?}, which only Git judges"));
+    for format in config.values("core", None, "repositoryformatversion") {
+        match format {
+            Some("0" | "1") => {}
+            other => return Err(format!("core.repositoryformatversion is {other:?}, which only Git judges")),
+        }
     }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(());
 }
 
@@ -614,6 +681,12 @@ fn check_repository_settings(config: &ParsedConfig) -> Result<(), String> {
 /// export function readConfig(layout: GitLayout, env: NativeEnvironment): ParsedConfig  // throws: ask Git
 /// ```
 pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Result<ParsedConfig, String> {
+    // Review finding (3a 7): a system configuration in a place another Git build reads is a file this reader does not follow.
+    for other in &environment.other_system_configs {
+        if other.exists() {
+            return Err(format!("{} exists; a Git built for another prefix reads its system configuration there, so only Git can say what it holds", other.display()));
+        }
+    }
     let mut files: Vec<PathBuf> = vec![environment.system_config.clone()];
     if let Some(xdg) = &environment.xdg_config_home {
         files.push(xdg.join("git/config"));
@@ -647,6 +720,7 @@ pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Resul
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&merged`: lends the value without copying or giving it away.
     check_repository_settings(&merged)?;
+    check_remote_and_branch_settings(&merged)?;
     return Ok(merged);
 }
 
@@ -662,6 +736,9 @@ pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Resul
 /// ```
 pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
     let path: PathBuf = layout.git_dir.join("HEAD");
+    if is_symbolic_link(&path) {
+        return Err(format!("{} is a symbolic link, which Git reads as a symbolic reference", path.display()));
+    }
     let text: String = read_text(&path)?;
     // Borrow `&text`: lends the value without copying or giving it away.
     // Typed binding: `trimmed: &str`.
@@ -712,6 +789,9 @@ fn check_ref_name(name: &str) -> Result<(), String> {
 fn read_reference(layout: &GitLayout, name: &str) -> Result<Option<String>, String> {
     check_ref_name(name)?;
     let loose: PathBuf = layout.common_dir.join(name);
+    if is_symbolic_link(&loose) {
+        return Err(format!("{} is a symbolic link, which Git reads as a symbolic reference", loose.display()));
+    }
     match fs::read_to_string(&loose) {
         Ok(text) => {
             // Borrow `&text`: lends the value without copying or giving it away.
@@ -903,10 +983,7 @@ pub fn tracking_ref(config: &ParsedConfig, layout: &GitLayout, branch: &str) -> 
         // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("branch.{branch}.merge is {merge:?}, not a plain full reference name"));
     }
-    if remote == "." {
-        return Ok(Some(merge.to_string()));
-    }
-    if !is_plain_ref_name(remote) {
+    if remote != "." && !is_plain_ref_name(remote) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("branch.{branch}.remote is {remote:?}, which is not a plain remote name"));
@@ -949,5 +1026,26 @@ pub fn tracking_ref(config: &ParsedConfig, layout: &GitLayout, branch: &str) -> 
         }
     }
     // Borrow `&texts`: lends the value without copying or giving it away.
-    return map_through_refspecs(&texts, merge);
+    // The remote "." is the local repository: its own fetch refspecs map first, and only without a match the merge name is the
+    // local reference (review finding 3a 2).
+    return match map_through_refspecs(&texts, merge)? {
+        Some(mapped) => Ok(Some(mapped)),
+        None if remote == "." => Ok(Some(merge.to_string())),
+        None => Ok(None),
+    };
+}
+
+/// What:
+/// `pub fn tracks_locally(config: &ParsedConfig, branch: &str) -> bool` says whether the branch's upstream is in this repository
+/// (its remote is `.`).
+/// Why:
+/// Git resolves such a merge name with its name expansion when the exact reference is missing,
+/// so a missing reference there is not a plain "no upstream yet".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function tracksLocally(config: ParsedConfig, branch: string): boolean
+/// ```
+pub fn tracks_locally(config: &ParsedConfig, branch: &str) -> bool {
+    return config.last("branch", Some(branch), "remote") == Some(".");
 }

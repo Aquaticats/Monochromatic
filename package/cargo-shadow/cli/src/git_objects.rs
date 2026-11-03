@@ -72,8 +72,6 @@ const FANOUT_ENTRIES: usize = 256;
 /// The pack entry type of a commit that is stored whole.
 const PACK_TYPE_COMMIT: u8 = 1;
 
-/// The most bytes of a loose object read to learn its type (`commit 123456789\0` is far shorter).
-const LOOSE_HEADER_BYTES: usize = 32;
 
 /// What:
 /// `fn index_failure(error: std::io::Error) -> String` words a failed read of a pack index.
@@ -171,120 +169,6 @@ fn hex_to_bytes(hex: &str) -> Option<[u8; OBJECT_NAME_BYTES]> {
     }
     // `Some`: the present or the absent value of an `Option`.
     return Some(bytes);
-}
-
-/// What:
-/// `fn loose_type(path: &Path) -> Result<String, String>` reads the type word of a loose object from its compressed header.
-/// Why:
-/// A loose object starts with `<type> <size>\0` inside the zlib stream.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function looseType(path: string): string  // throws on an unreadable object
-/// ```
-fn loose_type(path: &Path) -> Result<String, String> {
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
-    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // (a, b) => body
-    // ```
-    // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
-    // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // try { ... } catch (error) { throw new MyError(String(error)); }
-    // ```
-    // Typed binding: `file: File`.
-    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-    // Why:      Text building and printing are written as one call instead of string concatenation.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // `..${x}..`   // template literal
-    // console.error(text);   // eprintln!
-    // [a, b]            // vec![a, b]
-    // ```
-    let file: File = File::open(path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
-    // `let mut`: a binding that may change.
-    // Typed binding: `header: Vec<u8>`.
-    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const list: string[] = [];   // or new Set() / new Map()
-    // ```
-    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: T[] / Set / Map / number
-    // ```
-    let mut header: Vec<u8> = Vec::new();
-    ZlibDecoder::new(file)
-        // What:     `value as i64` converts a number to another numeric type (siblings: `i32`, `u32`, `u64`, `usize`, `f64`); it truncates silently if the value does not fit.
-        // Why:      Time arithmetic and sizes come in different integer widths and must be made equal.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // Number(value)  // JS has one number type, so no cast is needed
-        // ```
-        .take(LOOSE_HEADER_BYTES as u64)
-        // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
-        // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
-        // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
-        // ```
-        .read_to_end(&mut header)
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|error|`: an anonymous function, like a TS arrow function.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        .map_err(|error| { return format!("{} is not a readable object: {error}", path.display()); })?;
-    // Closure `|byte|`: an anonymous function, like a TS arrow function.
-    // Borrow `&[`: lends the value without copying or giving it away.
-    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
-    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // value ?? fallback
-    // ```
-    // Typed binding: `word: &[u8]`.
-    let header_text: String = String::from_utf8_lossy(&header).to_string();
-    let word: &str = header_text.split(' ').next().unwrap_or("");
-    // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
-    // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // Ok(value)  is  return value;
-    // // Err(error) is  throw error;   (the caller sees it as a returned value)
-    // ```
-    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
-    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // String(value)  // JS strings are always owned values
-    // ```
-    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: string
-    // ```
-    return Ok(word.to_string());
 }
 
 /// What:
@@ -432,83 +316,165 @@ fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Result<Option<u6
     return Ok(None);
 }
 
+/// The most bytes of one commit object (compressed or not) that the reader will read to confirm it.
+/// A bound chosen for the owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely") and far above any
+/// real commit; a larger object is Git's to read.
+const MAX_COMMIT_BYTES: u64 = 16 * 1024 * 1024;
+
+/// The length of a pack file's header (`PACK`, version, object count).
+const PACK_HEADER_BYTES: usize = 12;
+
+/// What:
+/// `fn looks_like_commit(body: &[u8]) -> bool` says whether a body starts the way every commit does: `tree `, a full object name
+/// and a newline.
+/// Why:
+/// Review finding (3a 4): a type word in a header proves nothing about the body Git must parse.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const looksLikeCommit = (body: Buffer): boolean => /^tree [0-9a-f]{40}\n/.test(body.toString('latin1', 0, 46));
+/// ```
+fn looks_like_commit(body: &[u8]) -> bool {
+    let prefix: &[u8] = b"tree ";
+    return body.len() > prefix.len() + OBJECT_NAME_DIGITS
+        && body.starts_with(prefix)
+        && body[prefix.len()..prefix.len() + OBJECT_NAME_DIGITS].iter().all(u8::is_ascii_hexdigit)
+        && body[prefix.len() + OBJECT_NAME_DIGITS] == b'\n';
+}
+
+/// What:
+/// `fn loose_commit(path: &Path) -> Result<(), String>` inflates a whole loose object and confirms that it is a commit:
+/// a complete stream, a `commit <size>` header, exactly that many bytes of body, and a body that starts like a commit.
+/// Why:
+/// A prefix that merely says `commit`, or a stream that is cut off, is not an object `X^{commit}` accepts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function looseCommit(path: string): void  // throws when the object is not a whole commit
+/// ```
+fn loose_commit(path: &Path) -> Result<(), String> {
+    let file: File = File::open(path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
+    let mut inflated: Vec<u8> = Vec::new();
+    ZlibDecoder::new(file.take(MAX_COMMIT_BYTES))
+        .take(MAX_COMMIT_BYTES + 1)
+        .read_to_end(&mut inflated)
+        .map_err(|error| { return format!("{} is not a complete object: {error}", path.display()); })?;
+    let Some(end) = inflated.iter().position(|byte| { return *byte == 0; }) else {
+        return Err(format!("{} has no object header", path.display()));
+    };
+    let header: String = String::from_utf8_lossy(&inflated[..end]).to_string();
+    let Some((kind, size)) = header.split_once(' ') else {
+        return Err(format!("{} has the object header {header:?}", path.display()));
+    };
+    if kind != "commit" {
+        return Err(format!("{} is a {kind}, not a commit", path.display()));
+    }
+    let body: &[u8] = &inflated[end + 1..];
+    if size.parse::<usize>().ok() != Some(body.len()) || !looks_like_commit(body) {
+        return Err(format!("{} is not a well-formed commit", path.display()));
+    }
+    return Ok(());
+}
+
+/// A reader of a file from a fixed offset, for the inflater.
+struct At<'a> {
+    /// The pack file.
+    file: &'a File,
+    /// The offset of the next byte.
+    offset: u64,
+}
+
+impl Read for At<'_> {
+    /// What:
+    /// `fn read(&mut self, buffer) -> io::Result<usize>` reads at the offset and moves it.
+    /// Why:
+    /// The inflater reads a pack entry without moving the file's own position.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// read(buffer: Buffer): number  // readSync(fd, buffer, 0, buffer.length, position)
+    /// ```
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        let count: usize = self.file.read_at(buffer, self.offset)?;
+        self.offset += count as u64;
+        return Ok(count);
+    }
+}
+
+/// What:
+/// `fn packed_entry_is_commit(pack: &File, offset: u64) -> Result<bool, String>` confirms a pack entry: the pack header, a whole
+/// commit entry (not a delta), and an inflated body of exactly the declared size that starts like a commit.
+/// Why:
+/// Review finding (3a 4): one type byte does not show the entry is readable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function packedEntryIsCommit(pack: number, offset: number): boolean  // throws when the entry cannot be read
+/// ```
+fn packed_entry_is_commit(pack: &File, offset: u64) -> Result<bool, String> {
+    let header: Vec<u8> = read_at(pack, 0, PACK_HEADER_BYTES).map_err(pack_failure)?;
+    let version: u64 = big_endian(&header[4..8]);
+    if &header[..4] != b"PACK" || (version != 2 && version != 3) {
+        return Err("a pack has an unknown header".to_string());
+    }
+    let first: Vec<u8> = read_at(pack, offset, 1).map_err(pack_failure)?;
+    let mut byte: u8 = first[0];
+    let kind: u8 = (byte >> 4) & 0x7;
+    if kind != PACK_TYPE_COMMIT {
+        return Ok(false);
+    }
+    let mut size: u64 = u64::from(byte & 0x0f);
+    let mut shift: u32 = 4;
+    let mut position: u64 = offset + 1;
+    while byte & 0x80 != 0 {
+        if shift > 56 {
+            return Err("a pack entry has an oversized length".to_string());
+        }
+        byte = read_at(pack, position, 1).map_err(pack_failure)?[0];
+        size |= u64::from(byte & 0x7f) << shift;
+        shift += 7;
+        position += 1;
+    }
+    if size > MAX_COMMIT_BYTES {
+        return Err("a packed commit is larger than this reader confirms".to_string());
+    }
+    let mut body: Vec<u8> = Vec::new();
+    ZlibDecoder::new(At { file: pack, offset: position })
+        .take(size + 1)
+        .read_to_end(&mut body)
+        .map_err(|error| { return format!("a packed commit is not a complete stream: {error}"); })?;
+    return Ok(body.len() as u64 == size && looks_like_commit(&body));
+}
+
 /// What:
 /// `fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool, String>` says whether some pack stores the
-/// object as a whole commit.
+/// object as a whole, readable commit.
 /// Why:
-/// The type is in the top bits of the first byte of the pack entry;
-/// a tag,
-/// tree,
-/// blob or deltified entry is not a commit this reader can vouch for.
+/// A tag, tree, blob or deltified entry is not a commit this reader can vouch for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function packedCommit(objects: string, name: Uint8Array): boolean  // throws when a pack cannot be read
 /// ```
 fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool, String> {
-    // Typed binding: `pack_directory: PathBuf`.
     let pack_directory: PathBuf = objects.join("pack");
-    // `match`: picks the arm whose pattern fits the value.
-    // Borrow `&pack_directory`: lends the value without copying or giving it away.
     let listing = match fs::read_dir(&pack_directory) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(found) => found,
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
         Err(error) => return Err(format!("{} cannot be listed: {error}", pack_directory.display())),
     };
     for item in listing {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|error|`: an anonymous function, like a TS arrow function.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Typed binding: `path: PathBuf`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
         let path: PathBuf = item.map_err(|error| { return format!("{} cannot be listed: {error}", pack_directory.display()); })?.path();
-        // `Some`: the present or the absent value of an `Option`.
-        // Closure `|extension|`: an anonymous function, like a TS arrow function.
-        // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-        // Why:      They express one step of a pipeline without an index loop.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // list.map(f).filter(g)
-        // ```
         if path.extension().and_then(OsStr::to_str) != Some("idx") {
             continue;
         }
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|error|`: an anonymous function, like a TS arrow function.
-        // Borrow `&path`: lends the value without copying or giving it away.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Typed binding: `index: File`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
         let index: File = File::open(&path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
-        // `Some`: the present or the absent value of an `Option`.
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-        // Borrow `&index`: lends the value without copying or giving it away.
         let Some(offset) = pack_offset(&index, name)? else {
             continue;
         };
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|error|`: an anonymous function, like a TS arrow function.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Typed binding: `pack: File`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
         let pack: File = File::open(path.with_extension("pack")).map_err(pack_failure)?;
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|error|`: an anonymous function, like a TS arrow function.
-        // Borrow `&pack`: lends the value without copying or giving it away.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Typed binding: `first: Vec<u8>`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        let first: Vec<u8> = read_at(&pack, offset, 1).map_err(pack_failure)?;
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        return Ok((first[0] >> 4) & 0x7 == PACK_TYPE_COMMIT);
+        return packed_entry_is_commit(&pack, offset);
     }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(false);
 }
 
@@ -597,20 +563,8 @@ pub fn confirm_commit(common_dir: &Path, object: &str) -> Result<(), String> {
     // Typed binding: `loose: PathBuf`.
     let loose: PathBuf = objects.join(&object[..2]).join(&object[2..]);
     if loose.exists() {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&loose`: lends the value without copying or giving it away.
-        // Typed binding: `kind: String`.
-        let kind: String = loose_type(&loose)?;
-        if kind == "commit" {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            return Ok(());
-        }
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("{object} is a {kind}, not a commit"));
+        return loose_commit(&loose);
     }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&objects`: lends the value without copying or giving it away.
     if packed_commit(&objects, &name)? {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(());

@@ -42,27 +42,18 @@ use std::cell::Cell;
 /// import { Path } from 'std/path';
 /// ```
 use std::path::Path;
+/// Imports the length of time a Git call may take.
+use std::time::Duration;
 /// What:
-/// `use std::io::Write;` imports the trait that adds `write_all` to a pipe.
+/// `use std::process::{Command, Output};` imports the process builder and the finished process's output.
 /// Why:
-/// The revisions to resolve are written to the standard input of the one Git process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // child.stdin.write(text)
-/// ```
-use std::io::Write;
-/// What:
-/// `use std::process::{Command, Stdio};` imports the process builder and the pipe settings.
-/// Why:
-/// `Command` starts Git;
-/// `Stdio::piped` connects its input and output to this process.
+/// `Command` describes the Git call; `Output` is what a bounded run returns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { spawn } from 'node:child_process';
 /// ```
-use std::process::{Command, Stdio};
+use std::process::{Command, Output};
 
 /// What:
 /// `use crate::constants::LOCKFILE_NAME;` imports `LOCKFILE_NAME` from another module of this crate so this file can name it unqualified.
@@ -74,6 +65,8 @@ use std::process::{Command, Stdio};
 /// import { LOCKFILE_NAME } from 'crate/constants';
 /// ```
 use crate::constants::LOCKFILE_NAME;
+/// Imports the bounded child run that every Git call goes through.
+use crate::bounded_run::{Bound, RunError, output_within};
 /// What:
 /// `use crate::git_native::native_base;` imports the choice of the trust base made from the repository files.
 /// Why:
@@ -136,65 +129,6 @@ pub struct TrustBase {
     pub commit: Result<String, String>,
     /// How many Git processes were started to choose it (none when the files answered).
     pub git_starts: u32,
-}
-
-/// What:
-/// `fn resolve_commit(root, base) -> Result<String, String>` is the commit a revision names in the repository at `root`.
-/// Why:
-/// A remembered pass is keyed by the commit,
-/// not by how the base is spelled,
-/// so a base that moves is a different base.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function resolveCommit(root: string, base: string): string  // git rev-parse --verify base^{commit}
-/// ```
-fn resolve_commit(root: &Path, base: &str, starts: &Cell<u32>) -> Result<String, String> {
-    // Every Git process started here is counted, so a test (and a measurement) can say how many a choice cost.
-    starts.set(starts.get() + 1);
-    let resolved = Command::new("git")
-        // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
-        // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
-        // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
-        // ```
-        // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-        // Why:      Text building and printing are written as one call instead of string concatenation.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // `..${x}..`   // template literal
-        // console.error(text);   // eprintln!
-        // [a, b]            // vec![a, b]
-        // ```
-        .args(["rev-parse", "--verify", "--quiet", "--end-of-options", &format!("{base}^{{commit}}")])
-        .current_dir(root)
-        .output()
-        .map_err(git_start_failure)?;
-    if !resolved.status.success() {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        return Err(not_a_commit_message(base));
-    }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    // Borrow `&resolved.stdout`: lends the value without copying or giving it away.
-    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
-    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // String(value)  // JS strings are always owned values
-    // ```
-    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: string
-    // ```
-    return Ok(String::from_utf8_lossy(&resolved.stdout).trim().to_string());
 }
 
 /// What:
@@ -277,152 +211,132 @@ fn commit_of_line(line: &str) -> Option<String> {
 }
 
 /// What:
-/// `fn batch_answers(root: &Path) -> Result<Vec<Option<String>>, String>` starts Git once and returns,
-/// for each input of
-/// `batch_inputs` in order,
-/// the commit it names or `None`.
+/// `fn run_git(environment, root, arguments, input) -> Result<Output, String>` runs Git within its bound.
 /// Why:
-/// A line is `<oid> commit <size>` for a commit and `<input> missing` (or `ambiguous`) otherwise;
-/// an input whose line is absent (the fatal `@{upstream}` of a branch without one) names nothing.
+/// Review finding (3a 9) and the owner's rule of 2026-11-03: every Git call has a bound, a timeout names what blocked and the
+/// command to run again, and the child is always reaped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function batchAnswers(root: string): (string | undefined)[]  // throws when git cannot start
+/// function runGit(environment: NativeEnvironment, root: string, args: string[], input?: Buffer): Output  // throws a message
 /// ```
-fn batch_answers(root: &Path) -> Result<Vec<Option<String>>, String> {
-    // Typed binding: `inputs: [String; 4]`.
-    let inputs: [String; 4] = batch_inputs();
-    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
-    // Why:      The value is built up or replaced step by step below.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // let x = ...;   // plain Rust `let` is TS `const`
-    // ```
-    let mut child = Command::new("git")
-        .args(["cat-file", "--batch-check"])
-        .current_dir(root)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
-        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
-        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const value = await expr;   // throws to the caller on failure
-        // ```
-        // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
-        // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // try { ... } catch (error) { throw new MyError(String(error)); }
-        // ```
-        .map_err(git_start_failure)?;
-    // `Some`: the present or the absent value of an `Option`.
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    if let Some(mut stdin) = child.stdin.take() {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
-        // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // (a, b) => body
-        // ```
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-        // Why:      They express one step of a pipeline without an index loop.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // list.map(f).filter(g)
-        // ```
-        stdin.write_all(inputs.join("\n").as_bytes()).and_then(|()| { return stdin.write_all(b"\n"); }).map_err(git_start_failure)?;
+fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &[&str], input: Option<&[u8]>) -> Result<Output, String> {
+    let mut command: Command = Command::new(&environment.git.program);
+    if environment.git.clean_environment {
+        command.env_clear();
     }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    let finished = child.wait_with_output().map_err(git_start_failure)?;
-    // Borrow `&finished.stdout`: lends the value without copying or giving it away.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // Typed binding: `text: String`.
-    let text: String = String::from_utf8_lossy(&finished.stdout).to_string();
-    // `let mut`: a binding that may change.
-    let mut lines = text.lines();
-    // `let mut`: a binding that may change.
-    // Typed binding: `answers: Vec<Option<String>>`.
-    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: T[] / Set / Map / number
-    // ```
-    let mut answers: Vec<Option<String>> = Vec::new();
-    // Borrow `&inputs`: lends the value without copying or giving it away.
-    for _input in &inputs {
-        // Closure `|line|`: an anonymous function, like a TS arrow function.
-        // Adapter `.and_then(`: transforms or selects items with a closure.
-        // Typed binding: `answer: Option<String>`.
-        let answer: Option<String> = lines.next().and_then(commit_of_line);
-        answers.push(answer);
-    }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    return Ok(answers);
+    command.envs(environment.git.environment.iter().map(|(name, value)| { return (name.as_str(), value.as_str()); }));
+    command.args(arguments).current_dir(root);
+    let bound: Bound = Bound {
+        limit: environment.git.bound,
+        what: format!("`git {}` (cargo-shadow asks it which commit to compare with)", arguments.join(" ")),
+        rerun: "the same cargo command".to_string(),
+    };
+    return output_within(&mut command, input, &bound).map_err(|error| {
+        return match error {
+            RunError::Io(inner) => git_start_failure(inner),
+            timed_out => timed_out.to_string(),
+        };
+    });
 }
 
 /// What:
-/// `fn resolve_batch(root: &Path, starts: &Cell<u32>) -> TrustBase` chooses the base with one Git start:
-/// `@{upstream}`,
-/// else `origin/main`,
-/// else `origin/master`,
-/// else `HEAD`.
+/// `fn resolve_commit(environment, root, base, starts) -> Result<String, String>` asks Git which commit a revision names.
 /// Why:
-/// The reader of the files declined,
-/// so Git answers,
-/// and it answers all candidates at once.
+/// It is the one start for an explicit base and for each candidate of the sequential fallback.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function resolveBatch(root: string, starts: { count: number }): TrustBase
+/// function resolveCommit(environment: NativeEnvironment, root: string, base: string, starts: { count: number }): string  // throws a message
 /// ```
-fn resolve_batch(root: &Path, starts: &Cell<u32>) -> TrustBase {
+fn resolve_commit(environment: &NativeEnvironment, root: &Path, base: &str, starts: &Cell<u32>) -> Result<String, String> {
     starts.set(starts.get() + 1);
-    // `match`: picks the arm whose pattern fits the value.
-    // Typed binding: `answers: Vec<Option<String>>`.
-    let answers: Vec<Option<String>> = match batch_answers(root) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        Ok(found) => found,
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    let resolved = run_git(environment, root, &["rev-parse", "--verify", "--quiet", "--end-of-options", &format!("{base}^{{commit}}")], None)?;
+    if !resolved.status.success() {
+        return Err(not_a_commit_message(base));
+    }
+    return Ok(String::from_utf8_lossy(&resolved.stdout).trim().to_string());
+}
+
+/// What the one batched Git start answered.
+enum Batch {
+    /// Every candidate was answered: the commits of `origin/main`, `origin/master` and `HEAD`, and of `@{upstream}`
+    /// (`None` when Git stopped at it because the branch has none, or it names no commit).
+    Complete(Vec<Option<String>>),
+    /// Git stopped before it answered every non-upstream candidate (a corrupt object, for example).
+    /// Nothing can be concluded about the unanswered ones.
+    Incomplete,
+}
+
+/// What:
+/// `fn batch_answers(environment, root) -> Result<Batch, String>` starts Git once and returns, for each input of `batch_inputs`
+/// in order, the commit it names or `None`.
+/// Why:
+/// A line is `<oid> commit <size>` for a commit and `<input> missing` (or `ambiguous`) otherwise.
+/// `@{upstream}` is last because Git stops with a fatal error on a branch without one, after the earlier lines are printed:
+/// a missing last line is that expected end, but a missing earlier line means Git stopped early (review finding 3a 5),
+/// and an unanswered higher-priority query is never read as a missing revision.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function batchAnswers(environment: NativeEnvironment, root: string): Batch  // throws when git cannot start
+/// ```
+fn batch_answers(environment: &NativeEnvironment, root: &Path) -> Result<Batch, String> {
+    let inputs: [String; 4] = batch_inputs();
+    let finished = run_git(environment, root, &["cat-file", "--batch-check"], Some(format!("{}\n", inputs.join("\n")).as_bytes()))?;
+    let text: String = String::from_utf8_lossy(&finished.stdout).to_string();
+    let lines: Vec<&str> = text.lines().collect();
+    if lines.len() < inputs.len() - 1 {
+        return Ok(Batch::Incomplete);
+    }
+    let answers: Vec<Option<String>> = (0..inputs.len()).map(|position| { return lines.get(position).copied().and_then(commit_of_line); }).collect();
+    return Ok(Batch::Complete(answers));
+}
+
+/// What:
+/// `fn resolve_sequentially(environment, root, starts) -> TrustBase` resolves the candidates one Git start each, in priority
+/// order.
+/// Why:
+/// When the batch stopped early, each candidate is asked on its own so a corrupt lower-priority one cannot hide a higher one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveSequentially(environment: NativeEnvironment, root: string, starts: { count: number }): TrustBase
+/// ```
+fn resolve_sequentially(environment: &NativeEnvironment, root: &Path, starts: &Cell<u32>) -> TrustBase {
+    for candidate in [UPSTREAM_BASE, DEFAULT_REMOTE_BASES[0], DEFAULT_REMOTE_BASES[1]] {
+        if let Ok(commit) = resolve_commit(environment, root, candidate, starts) {
+            return TrustBase { spelling: candidate.to_string(), commit: Ok(commit), git_starts: starts.get() };
+        }
+    }
+    let commit: Result<String, String> = resolve_commit(environment, root, DEFAULT_BASE, starts);
+    return TrustBase { spelling: DEFAULT_BASE.to_string(), commit, git_starts: starts.get() };
+}
+
+/// What:
+/// `fn resolve_batch(environment, root, starts) -> TrustBase` chooses the base with one Git start:
+/// `@{upstream}`, else `origin/main`, else `origin/master`, else `HEAD`.
+/// Why:
+/// The reader of the files declined, so Git answers, and it answers all candidates at once;
+/// only when Git stopped early does the choice fall back to one start per candidate.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveBatch(environment: NativeEnvironment, root: string, starts: { count: number }): TrustBase
+/// ```
+fn resolve_batch(environment: &NativeEnvironment, root: &Path, starts: &Cell<u32>) -> TrustBase {
+    starts.set(starts.get() + 1);
+    let answers: Vec<Option<String>> = match batch_answers(environment, root) {
+        Ok(Batch::Complete(found)) => found,
+        Ok(Batch::Incomplete) => return resolve_sequentially(environment, root, starts),
         Err(message) => return TrustBase { spelling: DEFAULT_BASE.to_string(), commit: Err(message), git_starts: starts.get() },
     };
-    // Borrow `&str`: lends the value without copying or giving it away.
-    // Typed binding: `order: [(usize, &str); 4]`.
     let order: [(usize, &str); 4] = [(3, UPSTREAM_BASE), (0, DEFAULT_REMOTE_BASES[0]), (1, DEFAULT_REMOTE_BASES[1]), (2, DEFAULT_BASE)];
     for (position, spelling) in order {
-        // `Some`: the present or the absent value of an `Option`.
-        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         if let Some(Some(commit)) = answers.get(position) {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
-            // Why:      The copy can be stored or moved elsewhere while the original stays in place.
-            // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // structuredClone(value)  // or [...list] / {...object}
-            // ```
-            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             return TrustBase { spelling: spelling.to_string(), commit: Ok(commit.clone()), git_starts: starts.get() };
         }
     }
-    // `Err(...)`: builds the success or the failure variant of a `Result`.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     return TrustBase { spelling: DEFAULT_BASE.to_string(), commit: Err(not_a_commit_message(DEFAULT_BASE)), git_starts: starts.get() };
 }
 
@@ -487,7 +401,7 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
         let spelling: String = found.trim().to_string();
         // Borrow `&spelling`: lends the value without copying or giving it away.
         // Typed binding: `commit: Result<String, String>`.
-        let commit: Result<String, String> = resolve_commit(root, &spelling, &starts);
+        let commit: Result<String, String> = resolve_commit(environment, root, &spelling, &starts);
         return TrustBase { spelling, commit, git_starts: starts.get() };
     }
     // The files answer for the plain layouts.
@@ -498,14 +412,14 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
     if in_ci {
         // Borrow `&starts`: lends the value without copying or giving it away.
         // Typed binding: `commit: Result<String, String>`.
-        let commit: Result<String, String> = resolve_commit(root, DEFAULT_BASE, &starts);
+        let commit: Result<String, String> = resolve_commit(environment, root, DEFAULT_BASE, &starts);
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return TrustBase { spelling: DEFAULT_BASE.to_string(), commit, git_starts: starts.get() };
     }
     // Delegated pick (2026-11-03): a local run compares with what is already on the upstream branch, so a lockfile that arrived
     // with a commit not pushed yet is new since the base; the first candidate that names a commit wins.
     // One Git start answers every candidate (review finding 2a 13).
-    return resolve_batch(root, &starts);
+    return resolve_batch(environment, root, &starts);
 }
 
 /// What:
@@ -533,8 +447,20 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
         // Typed binding: `object: String`.
         // Macro `format!`: builds or prints text (or a list) from a template.
         let object: String = format!("{commit_text}:{crate_dir}/{LOCKFILE_NAME}");
-        return match Command::new("git").args(["show", &object]).current_dir(&root_path).output() {
+        let mut command: Command = Command::new("git");
+        command.args(["show", &object]).current_dir(&root_path);
+        let bound: Bound = Bound {
+            limit: Duration::from_secs(crate::git_refs::GIT_CALL_SECONDS),
+            what: format!("`git show {object}` (cargo-shadow reads the lockfile of the verification base)"),
+            rerun: "the same cargo command".to_string(),
+        };
+        return match output_within(&mut command, None, &bound) {
             Ok(shown) if shown.status.success() => format!("{}\n", String::from_utf8_lossy(&shown.stdout)),
+            // A lockfile that cannot be read from the base is read as absent there, which checks more, never less.
+            Err(error @ RunError::TimedOut { .. }) => {
+                eprintln!("cargo-shadow: warning: {error}; the lockfile is treated as absent at the base, so every version in it is checked");
+                String::new()
+            }
             _ => String::new(),
         };
     });

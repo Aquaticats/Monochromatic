@@ -65,7 +65,25 @@ use crate::git_objects::confirm_commit;
 /// ```ts
 /// import { GitLayout, Head, NativeBase, NativeEnvironment, findLayout, lookupRef, lookupShort, readConfig, readHead, trackingRef } from 'crate/git_refs';
 /// ```
-use crate::git_refs::{GitLayout, Head, NativeBase, NativeEnvironment, find_layout, lookup_ref, lookup_short, read_config, read_head, tracking_ref};
+use crate::git_refs::{GitLayout, Head, NativeBase, NativeEnvironment, find_layout, lookup_ref, lookup_short, read_config, read_head, tracking_ref, tracks_locally};
+
+/// What:
+/// `fn lookup_tracked(config, layout, branch, tracking) -> Result<Option<String>, String>` reads the upstream reference and
+/// declines when a local upstream is missing.
+/// Why:
+/// For the remote `.` Git expands a missing merge name (`refs/heads/refs/heads/base`), which this reader does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lookupTracked(config: ParsedConfig, layout: GitLayout, branch: string, tracking: string): string | undefined  // throws: ask Git
+/// ```
+fn lookup_tracked(config: &ParsedConfig, layout: &GitLayout, branch: &str, tracking: &str) -> Result<Option<String>, String> {
+    let found: Option<String> = lookup_ref(layout, tracking)?;
+    if found.is_none() && tracks_locally(config, branch) {
+        return Err(format!("the local upstream {tracking} does not exist as written, and Git expands such names"));
+    }
+    return Ok(found);
+}
 
 /// What:
 /// `fn confirmed(layout, object) -> Result<Result<String, String>, String>` accepts an object name from a reference or `HEAD` as a
@@ -189,7 +207,7 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
         // `Some`: the present or the absent value of an `Option`.
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&layout`: lends the value without copying or giving it away.
-        && let Some(object) = lookup_ref(&layout, &tracking)?
+        && let Some(object) = lookup_tracked(&config, &layout, branch, &tracking)?
     {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
