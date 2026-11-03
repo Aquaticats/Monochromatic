@@ -10590,3 +10590,14 @@ by the coordinator at merge.
   QUEUED for me after its next report: review; first hand-publish of `monochromatic-cargo-shadow` 0.1.0
   (`doc/runbook/publish-crate-first-time.md`); the `toolchain.plan.jsonc` entry; `toolchain:update`; a check of the
   launcher-backed link; then its workflow commit.
+- 2026-11-03T06:40:00-05:00: mpm-shadow 0.2.3 on crates.io (2026-11-03T11:22:20Z, release assets present), locked by
+  `toolchain:update -- mpm-shadow` (only that tool moved) as `7c2418ffe2`, installed by `toolchain:install` ("exported
+  to mise: ANDROID_HOME, ANDROID_SDK_ROOT, JAVA_HOME, RUSTUP_TOOLCHAIN"). Checked at the user boundary: `mpm --version`
+  in the repository names "mpm-shadow 0.2.3" and prints cleanup as one line ("post-run cleanup after the mpm command
+  (not part of it): removed 2 superseded cached copies ... set MPM_SHADOW_VERBOSE=1 to list every path"); a fresh
+  login shell's `mise env` in the repository exports the four variables and outside it exports none of them (it
+  still exports two others, so the empty match is a real answer). The fragment
+  `.config/mise/conf.d/30-toolchain-env.local.toml` is ignored by `.gitignore:11` (`*.local.*`). Not exercised live:
+  the nested-launch guard and EAGAIN retry of issue 6259, because reproducing it means a real `mpm i -g` on the
+  owner's global tools; the package tests cover them. Issue 6259 was already closed by its merge commit. Upstream
+  noise seen on every `mpm` call: "Unrecognized Linux distribution" from extra-platforms (os_release_id `bazzite`).
