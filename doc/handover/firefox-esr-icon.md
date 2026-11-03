@@ -43,6 +43,13 @@ The search popup was closed after inspection.
 An existing ESR window therefore was not available for taskbar or switcher verification.
 The temporary KWin inspection script was unloaded.
 
+The user's subsequent launcher screenshot also shows the requested artwork beside `Firefox ESR`.
+A fresh download from the exact supplied URL matched the installed SVG's SHA-256.
+Visual comparison with the backed-up PNG confirms the change:
+the original icon has a purple center,
+while the replacement has a blue globe and the fox's extended snout.
+The handover was rendered through Pandoc's CommonMark reader and its HTML output inspected.
+
 ## Backups and continuation
 
 Original launcher and PNG files,
