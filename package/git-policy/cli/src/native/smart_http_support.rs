@@ -176,5 +176,5 @@ fn serve(stream: TcpStream, project_root: &Path) {
     }
     let mut writer: &TcpStream = &stream;
     let _sent = writer.write_all(format!("HTTP/1.1 {status}\r\n{response_headers}Content-Length: {}\r\nConnection: close\r\n\r\n", payload.len()).as_bytes());
-    let _sent = writer.write_all(payload);
+    let _payload_sent = writer.write_all(payload);
 }
