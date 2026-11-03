@@ -297,9 +297,11 @@ fn inspector_identity(command: &str, arguments: &[String], prefix: &str) -> Opti
 
 /// What:
 ///  Whether a failure to read a process's record says the process is gone:
-/// no such file (`ENOENT`), or the process exited during the read (`ESRCH`).
+/// no such file (`ENOENT`),
+/// or the process exited during the read (`ESRCH`).
 /// Why:
-///   Any other failure (a refusal, a record that is a directory) says nothing about the process,
+///   Any other failure (a refusal,
+/// a record that is a directory) says nothing about the process,
 /// and reading it as "gone" would let a lock of a running service be taken.
 ///
 /// In TS you'd write (pseudocode):
@@ -325,20 +327,21 @@ pub(crate) fn record_is_gone(error: &std::io::Error) -> bool {
 /// ```
 #[cfg(target_os = "linux")]
 fn linux_identity(pid: i64) -> Result<Option<String>, ProcessIdentityError> {
-    return linux_identity_read_by(pid, |path| { return std::fs::read(path); });
+    return linux_identity_read_by(pid, std::fs::read::<String>);
 }
 
 /// What:
 ///  `linux_identity` with the read of the record given,
-///  so a failure the host cannot be made to show (a refusal, an I/O error) can be shown to it.
+///  so a failure the host cannot be made to show (a refusal,
+/// an I/O error) can be shown to it.
 /// Why:
 ///   Which failures mean "gone" and which are errors is the whole decision of this function.
 #[cfg(target_os = "linux")]
 pub(crate) fn linux_identity_read_by(
     pid: i64,
-    read: impl FnOnce(&str) -> std::io::Result<Vec<u8>>,
+    read_record: impl FnOnce(String) -> std::io::Result<Vec<u8>>,
 ) -> Result<Option<String>, ProcessIdentityError> {
-    let bytes: Vec<u8> = match read(format!("/proc/{pid}/stat").as_str()) {
+    let bytes: Vec<u8> = match read_record(format!("/proc/{pid}/stat")) {
         Ok(read) => read,
         Err(error) if record_is_gone(&error) => return Ok(None),
         Err(error) => return Err(ProcessIdentityError::Io { pid, error }),

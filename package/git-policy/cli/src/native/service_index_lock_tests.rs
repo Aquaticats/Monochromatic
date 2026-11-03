@@ -1243,7 +1243,8 @@ fn a_service_lock_is_described_by_its_marker_and_the_state_of_its_holder() {
 //region Survivors of the mutation campaign over round 4: each control checks the behaviour one mutant changes.
 
 /// A marker whose holder fields are present but whose identity is empty is no marker:
-/// a trailing space after the process number is a cut, not a holder.
+/// a trailing space after the process number is a cut,
+/// not a holder.
 #[test]
 fn a_marker_with_an_empty_identity_is_no_marker() {
     assert_eq!(parse_marker("cli-git-service 7 123 \n"), None);
@@ -1253,7 +1254,9 @@ fn a_marker_with_an_empty_identity_is_no_marker() {
 }
 
 /// The PID namespace is the number of a `pid:[number]` link and nothing else:
-/// an empty number, letters in it, another kind of namespace and a missing bracket are no namespace.
+/// an empty number,
+/// letters in it,
+/// another kind of namespace and a missing bracket are no namespace.
 #[test]
 fn only_a_pid_link_with_a_number_names_a_scope() {
     use crate::service_index_identity::scope_of_link;
@@ -1264,7 +1267,8 @@ fn only_a_pid_link_with_a_number_names_a_scope() {
 }
 
 /// A process's `/proc` numbers it as the system does only when its own record is readable and names its own number:
-/// an unreadable record, an empty one and one of another process do not.
+/// an unreadable record,
+/// an empty one and one of another process do not.
 #[test]
 fn a_proc_agrees_only_when_its_record_names_the_process() {
     use crate::service_index_identity::procfs_agrees_with;
@@ -1287,7 +1291,8 @@ fn counted_owned(_: &Path, _: &std::fs::File, _: &str) -> Ownership {
     return Ownership::Owned;
 }
 
-/// A check that cannot be made, counting its calls.
+/// A check that cannot be made,
+/// counting its calls.
 fn counted_unreadable(_: &Path, _: &std::fs::File, _: &str) -> Ownership {
     CHECKS.with(|checks| { checks.set(checks.get() + 1); });
     return Ownership::Unreadable(std::io::Error::from_raw_os_error(libc::EMFILE));
@@ -1299,8 +1304,13 @@ fn unreadable_once(_: &Path, _: &std::fs::File, _: &str) -> Ownership {
     return if calls == 1 { Ownership::Unreadable(std::io::Error::from_raw_os_error(libc::EMFILE)) } else { Ownership::Owned };
 }
 
-/// The holder asks about its lock once when the answer is final, and again, up to a bound, only when the check could not be
-/// made: an answer is not asked for twice, and a failure that passes is not taken for the final one.
+/// The holder asks about its lock once when the answer is final,
+/// and again,
+/// up to a bound,
+/// only when the check could not be
+/// made:
+/// an answer is not asked for twice,
+/// and a failure that passes is not taken for the final one.
 #[test]
 fn a_check_is_repeated_only_while_it_cannot_be_made() {
     let (root, index) = index_in("index-lock-check-count");
@@ -1311,8 +1321,6 @@ fn a_check_is_repeated_only_while_it_cannot_be_made() {
         let built: PathBuf = index.with_file_name("index.built");
         std::fs::write(&built, "new index").expect("built");
         let _released = lock.release_with(&built);
-        std::fs::write(lock_path_of(&index), "").ok();
-        std::fs::remove_file(lock_path_of(&index)).ok();
         return CHECKS.with(Cell::get);
     };
     assert_eq!(measure(counted_owned), 1, "a final answer is asked for once");
@@ -1321,9 +1329,12 @@ fn a_check_is_repeated_only_while_it_cannot_be_made() {
     remove(root.as_path());
 }
 
-/// The flush the service makes of its marker is the operating system's: a file that cannot be flushed (a pipe has no data to
-/// make durable) is an error from `sync_file`, and a file that can be flushed is not.
-/// Durability itself is not observable without a crash; what is observable is that the call is made and its answer returned.
+/// The flush the service makes of its marker is the operating system's:
+/// a file that cannot be flushed (a pipe has no data to
+/// make durable) is an error from `sync_file`,
+/// and a file that can be flushed is not.
+/// Durability itself is not observable without a crash;
+/// what is observable is that the call is made and its answer returned.
 #[test]
 fn the_flush_of_the_marker_is_the_operating_systems() {
     use crate::service_index_placement::sync_file;
@@ -1343,7 +1354,9 @@ fn the_flush_of_the_marker_is_the_operating_systems() {
 }
 
 /// A rename that fails for any reason but "this filesystem cannot do it" ends the placement with that error and tries no hard
-/// link: a lock that exists, storage that failed and a refusal are not reasons to place the lock another way.
+/// link:
+/// a lock that exists,
+/// storage that failed and a refusal are not reasons to place the lock another way.
 /// The reasons that do say the filesystem cannot are the ones the system names for it.
 #[test]
 fn only_an_unsupported_rename_falls_back_to_a_link() {
@@ -1376,7 +1389,8 @@ fn only_an_unsupported_rename_falls_back_to_a_link() {
 }
 
 /// A hard link that fails for any reason but "this filesystem makes none" ends the placement with that error;
-/// the two reasons the system names for it (`EPERM`, `EOPNOTSUPP`) say neither way works.
+/// the two reasons the system names for it (`EPERM`,
+/// `EOPNOTSUPP`) say neither way works.
 #[test]
 fn only_an_unsupported_link_ends_as_unsupported() {
     let (root, index) = index_in("index-lock-link-reasons");
@@ -1400,7 +1414,9 @@ fn only_an_unsupported_link_ends_as_unsupported() {
 }
 
 /// The rename that does not replace really places the file:
-/// the staged name is gone, the lock holds its text, and a second rename onto the lock fails with `AlreadyExists`
+/// the staged name is gone,
+/// the lock holds its text,
+/// and a second rename onto the lock fails with `AlreadyExists`
 /// and leaves both files as they were.
 #[test]
 fn the_rename_that_does_not_replace_places_the_file_and_refuses_a_held_lock() {
@@ -1420,13 +1436,23 @@ fn the_rename_that_does_not_replace_places_the_file_and_refuses_a_held_lock() {
     remove(root.as_path());
 }
 
-/// Environment variable that makes the test below run its inner half: the number of the PID namespace the outer half left.
+/// Environment variable that makes the test below run its inner half:
+/// the number of the PID namespace the outer half left.
 const OUTSIDE_SCOPE: &str = "INDEX_LOCK_TEST_OUTSIDE_PID_SCOPE";
 
-/// A process in a PID namespace of its own, still reading the `/proc` of the namespace it left, is told by the view of the
-/// reader: its `/proc` does not number it as the system does, and its scope is the new namespace's.
-/// The outer half starts the inner half through `unshare`; the inner half only runs when started that way.
+/// A process in a PID namespace of its own,
+/// still reading the `/proc` of the namespace it left,
+/// is told by the view of the
+/// reader:
+/// its `/proc` does not number it as the system does,
+/// and its scope is the new namespace's.
+/// The outer half starts the inner half through `unshare`;
+/// the inner half only runs when started that way.
 #[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "starts this test binary, not the wrapper, under `unshare`; the ban on `current_exe` guards the wrapper's own start"
+)]
 fn a_new_pid_namespace_over_the_old_proc_is_told_from_the_view() {
     let Ok(outside) = std::env::var(OUTSIDE_SCOPE) else {
         let probe = std::process::Command::new("unshare").args(["--user", "--map-root-user", "--pid", "--fork", "true"]).output();

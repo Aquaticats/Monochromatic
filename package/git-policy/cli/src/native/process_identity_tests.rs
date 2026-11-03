@@ -258,7 +258,9 @@ fn failures_are_described() {
 }
 
 /// A record that cannot be read says the process is gone only when it is missing or the process exited during the read;
-/// a refusal, a record that is a directory, and any other failure say nothing about the process,
+/// a refusal,
+/// a record that is a directory,
+/// and any other failure say nothing about the process,
 /// and reading them as "gone" would let a lock of a running service be taken.
 #[cfg(target_os = "linux")]
 #[test]
@@ -274,13 +276,15 @@ fn only_a_missing_record_or_an_exit_during_the_read_says_the_process_is_gone() {
     assert!(!record_is_gone(&std::io::Error::other("something else")));
 }
 
-/// A record that is missing or whose process exited during the read is an exited process; a refusal and an I/O error are
-/// errors naming the process, and a record that reads is parsed.
+/// A record that is missing or whose process exited during the read is an exited process;
+/// a refusal and an I/O error are
+/// errors naming the process,
+/// and a record that reads is parsed.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_failure_to_read_the_record_is_an_exit_only_when_it_says_so() {
     use super::linux_identity_read_by;
-    let failing = |code: i32| { return move |_: &str| -> std::io::Result<Vec<u8>> { return Err(std::io::Error::from_raw_os_error(code)); }; };
+    let failing = |code: i32| { return move |_: String| -> std::io::Result<Vec<u8>> { return Err(std::io::Error::from_raw_os_error(code)); }; };
     assert_eq!(linux_identity_read_by(4242, failing(libc::ENOENT)).expect("gone is not an error"), None);
     assert_eq!(linux_identity_read_by(4242, failing(libc::ESRCH)).expect("gone is not an error"), None);
     for code in [libc::EACCES, libc::EIO, libc::EISDIR] {
@@ -294,7 +298,7 @@ fn a_failure_to_read_the_record_is_an_exit_only_when_it_says_so() {
     }
     let seen_path = std::cell::RefCell::new(String::new());
     let read = linux_identity_read_by(4242, |path| {
-        *seen_path.borrow_mut() = path.to_string();
+        *seen_path.borrow_mut() = path;
         return Ok(stat_line("git", "S").into_bytes());
     });
     assert_eq!(read.expect("a record that reads"), Some(String::from("linux:8423337")));
