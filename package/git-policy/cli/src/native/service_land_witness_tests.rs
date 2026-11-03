@@ -182,3 +182,65 @@ fn a_changed_index_resets_no_path_of_the_batch() {
     assert!(batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION).exists(), "the batch is finished");
     remove(world.root.as_path());
 }
+
+/// A conflicted autostash apply left in a scratch repository: the stash is stored there, the commit's private index holds the
+///  three stages of `c.txt`, and the copy of `MERGE_AUTOSTASH` names the stash. Returns the record of the commit's cleanup.
+fn conflicted_autostash(world: &World) -> crate::service_protocol::Cleanup {
+    use std::io::Write as _;
+    let scratch: PathBuf = world.root.join("scratch");
+    let shadow: PathBuf = scratch.join("shadow");
+    std::fs::create_dir_all(scratch.join("conclusion")).expect("directories");
+    git(world.root.as_path(), &["init", "--quiet", "--bare", shadow.to_str().expect("UTF-8")]);
+    // The scratch repository writes into the real repository's object store, as the commit's own scratch repository does.
+    let alternates: PathBuf = shadow.join("objects/info/alternates");
+    std::fs::create_dir_all(alternates.parent().expect("parent")).expect("info directory");
+    std::fs::write(&alternates, format!("{}\n", world.repo.join(".git/objects").display())).expect("alternates");
+    let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    let stash: String = git_text(world.repo.as_path(), &["commit-tree", tree.as_str(), "-m", "autostash"]);
+    git(shadow.as_path(), &["update-ref", "refs/stash", stash.as_str()]);
+    std::fs::write(scratch.join("conclusion/MERGE_AUTOSTASH"), format!("{stash}\n")).expect("copy of MERGE_AUTOSTASH");
+    let mut lines: String = String::new();
+    for (stage, text) in ["base", "ours", "theirs"].iter().enumerate() {
+        let path: PathBuf = world.root.join(format!("blob-{text}"));
+        std::fs::write(&path, format!("{text}\n")).expect("blob file");
+        let blob: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--", path.to_str().expect("UTF-8")]);
+        lines.push_str(format!("100644 {blob} {}\tc.txt\n", stage + 1).as_str());
+    }
+    let mut child = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(world.repo.as_path())
+        .env("GIT_INDEX_FILE", scratch.join("commit.index"))
+        .args(["update-index", "--index-info"])
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .expect("update-index");
+    child.stdin.take().expect("stdin").write_all(lines.as_bytes()).expect("stages");
+    assert!(child.wait().expect("update-index ends").success());
+    return crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false };
+}
+
+/// The files a conflicted autostash apply left unmerged are unmerged in the index a replay installs, as in the landing's own.
+#[test]
+fn a_replay_over_the_index_the_landing_saw_carries_the_conflict_stages() {
+    let world: World = world("service-witness-stages");
+    let mut landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    landed.cleanup = Some(conflicted_autostash(&world));
+    land_with_failed_index(&world, 1, &[landed]);
+    recover(&world.context);
+    assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--unmerged", "--format=%(stage)", "--", "c.txt"]).lines().collect::<Vec<_>>(), vec!["1", "2", "3"]);
+    remove(world.root.as_path());
+}
+
+/// Once another session staged the path the autostash conflicted in, the saved stages are not put over its staging: a replay
+///  that is not made over the index the landing saw carries nothing either.
+#[test]
+fn saved_conflict_stages_are_not_put_over_later_staging() {
+    let world: World = world("service-witness-stages-later");
+    let mut landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    landed.cleanup = Some(conflicted_autostash(&world));
+    land_with_failed_index(&world, 1, &[landed]);
+    stage(&world, "c.txt", "resolved and staged by someone\n");
+    recover(&world.context);
+    assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--unmerged", "--", "c.txt"]), "", "no conflict stage came back");
+    assert_eq!(staged(&world, "c.txt"), "resolved and staged by someone");
+    remove(world.root.as_path());
+}
