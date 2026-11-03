@@ -9344,3 +9344,41 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   lock_place_ms=0` (first commit after the 0.5.14 service retired, so cold as designed). Log `~/temp/agent/upgrade-0.5.15.log`.
 - Gate 56 running on `feat/git-policy-cli-journal-logging` (`dd6bb845a4`, main merged; unit `gpc-gate56-journal-logging`,
   log `~/temp/agent/gate/gate56-journal-logging.log`; gate unit and image tag names now say what they gate).
+- Gate 56 PASSED 3396 of 3396 (6 skipped). `feat/git-policy-cli-journal-logging` merged into main `4a3f2afe33`, pushed;
+  0.5.16 dispatched (run 41568194623). Its cross-vendor review (pruning and `discardedCopies` config) is QUEUED for the
+  next free `pi` slot.
+- pnpm shared store on main (`fd76595e49`, branch `chore/pnpm-shared-store`): `storeDir: ${HOME}/.local/share/pnpm/store`.
+  Measured in the branch worktree: `pnpm fetch --frozen-lockfile` 10.6 s (32 packages downloaded, the rest already in the
+  home store); then `pnpm install --frozen-lockfile --offline` 529 ms; `mise run //package/git-policy/cli:test:unit` exit 0.
+  pnpm 12.16.1 on a store change: no prompt; it installs against the new store, and an install that fails (offline,
+  packages missing) leaves `node_modules` without `.modules.yaml`; a later install against a filled store restores it
+  (1.6 s). So an existing worktree relinks on its next `pnpm install`. Main's `node_modules` is still the old store's:
+  run `pnpm install --frozen-lockfile` in main only when no session uses main. With `HOME` unset pnpm expands the
+  setting to `/.local/share/pnpm/store` (measured); Windows and macOS CI effects are paused per the owner.
+- Survivors done: index lock round 4 (8 killed, 1 equivalent on Linux; `test/git-policy-cli-index-lock-survivors`
+  `a53d9ecf4c`) and subvolume-2 plus timing-service (`test/git-policy-cli-subvolume-timing-survivors` `ae73ff8a8a`;
+  24 of the 25 subvolume lines are already dispositioned on the ladder branch; `fs_mount_options.rs:182:81` is a
+  detected timeout). Bundled on `test/git-policy-cli-index-lock-and-subvolume-timing-survivors` (both merges clean);
+  gate 58 running (unit `gpc-gate58-survivors-bundle`). The survivor branch's push rejection was transient: a retry
+  said "Everything up-to-date".
+- Gap to close on the ladder: the controls for `subvolume_platform.rs:76` and `:80` run only on a btrfs host, so those
+  two mutants stay MISSED in the container until a control needs no btrfs.
+- Load flakes found by the survivor agents, each given to its own agent under the owner's "Fix flaky tests properly.":
+  `fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository` ("the fixture's
+  commit service never listened" after 60 s in a full binary run; branch `fix/git-policy-cli-fault-limits-service-listen`)
+  and `an_ended_watch_is_dropped_before_the_next_is_set` ("a second watch was set"; branch
+  `fix/git-policy-cli-ended-watch-order`).
+- Gate 57 running on `fix/git-policy-cli-bound-supervisor` `50e58c73eb` (main merged by the survivors agent; unit
+  `gpc-gate57-bound-supervisor`).
+- Ladder round 3 rework done (`38e01bcd33`, `8acb9a635a`, `7477201129`): recovery and rollback no longer delete or
+  unregister; the fallback `reset --hard` runs only in the verified bound worktree; 16 guard mutants red, one equivalent.
+  Two scope calls accepted (mine, veto open): stages of the older ignored-state copy are still removed on recovery (they
+  are the wrapper's own stage directories), and the recovery report uses the existing `warn` notice path. Cost, now in
+  `SPEC.md`: unlike Git's own `worktree add`, a failed add leaves its registered worktree for the person to complete or
+  remove. Branch renamed to `feat/git-policy-cli-btrfs-worktree-add`. Part B review running
+  (`~/temp/agent/review-btrfs-ladder-add-4/`: `fs_beneath.rs`, `worktree_clone.rs`, `subvolume_index_files.rs`,
+  `worktree_add_binding.rs`). Next: merge main into it, the btrfs-free controls, gate, merge, release.
+- Planted-control round 8 review (`~/temp/agent/review-planted-controls-8/sol-review.txt`): P1 the lock holder's
+  readiness is taken for lifetime ownership (a dead holder frees the lock while the campaign runs); P2 a failed
+  handshake is accepted; P2 a markerless legacy layout is read as never executed. Given to a new agent on
+  `fix/mutation-test-cli-cargo-mutants-campaign-lock`.
