@@ -78,15 +78,77 @@ pub enum FinalFailure {
     Declined,
 }
 
-/// The failure of a push that no retry can mend, from Git's own words; nothing for a failure that can pass.
-pub fn final_failure(output: &str) -> Option<FinalFailure> {
-    return output.contains(CONFLICT_PHRASE).then_some(FinalFailure::Conflict);
+/// The mark of a line in which the server rejected one reference; Git prints it for every refused reference
+/// (`transport.c`, `print_ref_status('!', "[remote rejected]", ...)`, Git 2.56.0).
+pub const REMOTE_REJECTED: &str = "[remote rejected]";
+
+/// The words every hook decline of Git's own server side carries in the rejection's reason: `"pre-receive hook declined"` and
+/// `"push-to-checkout hook declined"` and `"hook declined"` (the update hook) in `builtin/receive-pack.c`, Git 2.56.0; a hosting
+/// service's own reason that names a hook, such as `protected branch hook declined`, ends the same way.
+pub const HOOK_DECLINED: &str = "hook declined";
+
+/// The words with which Git and the programs it runs say that the remote wanted a login the push did not have, each from a
+/// fixture run of `git push` from Git 2.56.0 on 2026-11-03:
+/// - `remote-curl.c` `die(_("Authentication failed for '%s'"))`: a 401 and no usable password;
+/// - `prompt.c` `die("could not read %s%s", prompt, "terminal prompts disabled")`: a 401 with no user name and no prompt allowed;
+/// - `http.c` `"The requested URL returned error: %ld"` with 401 or 403: the server refused the login or the permission;
+/// - OpenSSH's `Permission denied (publickey).`, which Git relays when the key is refused.
+pub const LOGIN_PHRASES: [&str; 5] = ["Authentication failed for", "terminal prompts disabled", "returned error: 401", "returned error: 403", "Permission denied ("];
+
+/// The lines of an output in which the server rejected a reference.
+fn rejection_lines(output: &str) -> impl Iterator<Item = &str> {
+    return output.lines().map(str::trim).filter(|line| { return line.contains(REMOTE_REJECTED); });
 }
 
-/// The first line in which the server rejected the push for a reason this release does not know, or nothing.
-pub fn unrecognised_rejection(output: &str) -> Option<String> {
-    let _unused = output;
+/// The failure of a push that no retry can mend, from Git's own words; nothing for a failure that can pass (a stall, the ceiling, the
+/// network, a held lock) and for a rejection whose reason this release does not know.
+pub fn final_failure(output: &str) -> Option<FinalFailure> {
+    if output.contains(CONFLICT_PHRASE) {
+        return Some(FinalFailure::Conflict);
+    }
+    if rejection_lines(output).any(|line| { return line.contains(HOOK_DECLINED); }) {
+        return Some(FinalFailure::Declined);
+    }
+    if LOGIN_PHRASES.iter().any(|phrase| { return output.contains(phrase); }) {
+        return Some(FinalFailure::Login);
+    }
     return None;
+}
+
+/// The first line in which the server rejected the push for a reason this release does not know, or nothing: a push with such a
+/// line stays retried, and the journal names the line so that the reason can be learned.
+pub fn unrecognised_rejection(output: &str) -> Option<String> {
+    if final_failure(output).is_some() {
+        return None;
+    }
+    return rejection_lines(output).next().map(str::to_string);
+}
+
+/// What:
+///  The plain words the person's failure record starts with for a failure that stops the retry, or nothing for a conflict, whose
+///  report already says what to do.
+/// Why:
+///   The owner's decision is that a login failure and a server hook's decline stop until the next commit
+///  ("Offline is retried, but auth and server hook declines stop until your next commit."); the person is told which one it was,
+///  in words, above Git's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plainWords(cause) // 'cli-git: the remote wants a login ...'
+/// ```
+pub fn plain_words(cause: FinalFailure) -> Option<&'static str> {
+    return match cause {
+        FinalFailure::Conflict => None,
+        FinalFailure::Login => Some(
+            "cli-git: the remote wants a login that the commit service does not have, so this push failed and the commit service stops pushing this branch \
+             until your next commit. Log in in a way the service can use (a credential helper, or an SSH key without a passphrase that its environment \
+             reaches), then push by hand or commit again.",
+        ),
+        FinalFailure::Declined => Some(
+            "cli-git: the server refused this push: a hook on the server declined it, with the message shown below. Trying again would be refused the same way, \
+             so the commit service stops pushing this branch until your next commit. Fix what the message names, then push by hand or commit again.",
+        ),
+    };
 }
 
 /// Whether a failed push's output says something stopped it that only the person can resolve.

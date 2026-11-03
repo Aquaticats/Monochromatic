@@ -25,7 +25,7 @@ use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use super::auto_push::AutoPushOutcome;
 use super::claim_time::ClaimTime;
 use super::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
-use super::push_retry::{Due, PushRetries, RetryChange, Retrying, needs_the_person, pause_before};
+use super::push_retry::{Due, PushRetries, RetryChange, Retrying, final_failure, pause_before, plain_words, unrecognised_rejection};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use super::service_claim_renewal::{ClaimRenewal, HeldClaims, Renewal, held_claims, renewal_interval};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
@@ -789,9 +789,21 @@ impl WorkHandlers for GitHandlers {
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
             Ok(result) if result.exit_code == 0 => Verdict::Done,
-            // Only a conflict needs the person; every other failure can pass (a stall, the ceiling, the network, a held lock).
-            Ok(result) if needs_the_person(result.shown.as_str()) => Verdict::Failed(result.shown),
-            Ok(result) => Verdict::Retry(result.shown),
+            // A conflict, a login the service does not have and a server hook's decline need the person; every other failure can pass
+            //  (a stall, the ceiling, the network, a held lock).
+            Ok(result) => match final_failure(result.shown.as_str()) {
+                Some(cause) => Verdict::Failed(match plain_words(cause) {
+                    Some(words) => format!("{words}\n{}", result.shown),
+                    None => result.shown,
+                }),
+                None => {
+                    // A rejection by the server whose reason is not known is tried again, and named so that it can be learned.
+                    if let Some(line) = unrecognised_rejection(result.shown.as_str()) {
+                        crate::service_warn!("the server rejected the push for a reason this release does not know, so it is tried again: {line}");
+                    }
+                    Verdict::Retry(result.shown)
+                }
+            },
             Err(error) => Verdict::Retry(format!("{error}")),
         };
     }

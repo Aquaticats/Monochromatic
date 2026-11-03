@@ -358,7 +358,7 @@ fn a_push_that_needs_a_login_is_not_tried_again() {
     assert_eq!(round_with_real_git(&stage, &mut retries), None, "no wake is asked for a login failure");
     assert!(retries.directories().is_empty(), "no plan is made for a login failure");
     let record: String = notice_text(&stage);
-    assert!(record.contains("log in") && record.contains("until your next commit") && !record.contains("tries this push again"), "{record}");
+    assert!(record.contains("Log in") && record.contains("until your next commit") && !record.contains("tries this push again"), "{record}");
     remove(stage.root.as_path());
 }
 
@@ -375,5 +375,35 @@ fn an_offline_push_is_still_tried_again() {
     assert!(wait <= PAUSE + RETRY_SLACK, "{wait:?}");
     assert_eq!(retries.directories().len(), 1, "the push is planned again");
     assert!(notice_text(&stage).contains("tries this push again by itself"));
+    remove(stage.root.as_path());
+}
+
+/// A rejection by the server for a reason this release does not know is tried again, and the journal names the line it did not
+///  recognise. Git 2.56.0 refuses a reference that `receive.hideRefs` hides with `deny updating a hidden ref`
+///  (`builtin/receive-pack.c`), which is no hook and no login, so it stands for a reason nobody has listed.
+#[test]
+fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal() {
+    use crate::journald_native::Priority;
+    let stage: Stage = stage("push-retry-unknown-rejection");
+    // The stage's hook stalls the first push; this control is about the answer of the server, so the hook goes.
+    std::fs::remove_file(stage.remote.join("hooks").join("pre-receive")).expect("the stalling hook");
+    git(stage.remote.as_path(), &["config", "receive.hideRefs", "refs/heads/main"]);
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: stage.repo.display().to_string(),
+        git_dir: stage.repo.join(".git").display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: stage.landed.clone(),
+        parent: String::new(),
+        created: String::from("2026-11-03T05:40:00.000Z"),
+        tries: 0,
+    };
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    let mut verdict: Option<Verdict> = None;
+    let entries = crate::service_timing::capture::entries_of(|| { verdict = Some(handlers.push(std::slice::from_ref(&item))); });
+    assert!(matches!(verdict, Some(Verdict::Retry(_))), "{verdict:?}");
+    let named = entries.iter().find(|entry| { return entry.message.contains("a reason this release does not know"); }).expect("the journal names the rejection");
+    assert_eq!(named.priority, Priority::Warning);
+    assert!(named.message.contains("[remote rejected] main -> main (deny updating a hidden ref)"), "{}", named.message);
     remove(stage.root.as_path());
 }
