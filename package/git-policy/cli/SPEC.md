@@ -496,8 +496,10 @@ Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the 
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links
 recreated), a second comparison of the source with its own index, the installation of the index, and the same tree
 difference.
-A refusal removes the entries the clones created, each only while it is still the object the wrapper made, and completes
-the worktree with `git reset --hard`; a file another process put into the destination is never removed.
+A refusal removes nothing, because a name cannot be checked and unlinked in one step: the entries the clones created stay,
+`git reset --hard` overwrites the tracked ones, a message counts them and names `git -C <path> status` for any other, and a
+file another process put into the destination is never touched. The index records the stat fields of the regular files the
+wrapper made, taken from their descriptors; a cloned link keeps the source's stat fields, which Git compares by target.
 The ignored-state copy then runs as for Git's checkout.
 
 Rung 3 is Git's checkout and the ignored-state copy.
@@ -505,9 +507,12 @@ Where the destination's parent is on btrfs and the rung is 2 or 3, the wrapper f
 empty subvolume (`BTRFS_IOC_SUBVOL_CREATE`), which Git accepts as an empty directory, and removes it again if Git leaves
 it empty.
 No rung runs a hook: every real-Git start of the wrapper switches hooks off.
-The wrapper never deletes or unregisters a worktree, a registration or a stage it did not make in the running process.
+The wrapper never deletes or unregisters a worktree, a registration or a stage it did not make in the running process, and
+the only entry it removes by name is its own lock file, while the name still holds the file it made.
 After Git's `--no-checkout` run it binds the add to the two directories Git made (the destination and its administrative
-directory, proven to name each other below this repository's `worktrees`), records their identities, and checks the
+directory, proven to name each other below this repository's `worktrees`, the pointer resolving to the registration without
+any symbolic link; a pointer through a link ends the ladder for the add with a message that names the pointer and says to make
+the worktree with a canonical path), records their identities, and checks the
 binding again before every write into the worktree and before the fallback checkout; a worktree that was moved, replaced
 or edited meanwhile is not written to, the add fails with one report, and nothing is changed.
 When the fallback checkout fails, the worktree and its registration stay as they are, the command fails with Git's
