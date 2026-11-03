@@ -65,8 +65,6 @@ pub struct BuildInput<'a> {
     /// Whether the private index already holds a selection made with `--include`, `--patch` or `--interactive`, so that Git
     ///  is not given those options again.
     pub selected_privately: bool,
-    /// Whether Git is told to print no summary, because the caller prints one line for the commit that lands.
-    pub quiet: bool,
 }
 
 /// The parents named by a stored commit's header block.
@@ -121,10 +119,9 @@ pub fn private_invocation(
 pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionStop> {
     let shadow = input.scratch.join("shadow");
     create_shadow_repository_at(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch)?;
-    let (globals, mut commit_args): (Vec<String>, Vec<String>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
-    if input.quiet {
-        commit_args.push(String::from("--quiet"));
-    }
+    // The wrapper adds no option of its own to the person's command line: Git prints what it prints, and `--quiet` reaches it only
+    //  when the person typed it.
+    let (globals, commit_args): (Vec<String>, Vec<String>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
     let request: PreparationRequest<'_> = PreparationRequest {
         capture: input.capture,
         shadow: shadow.as_path(),

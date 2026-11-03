@@ -1317,15 +1317,50 @@ in-process reader can) gives every value of the multi-valued keys.
   When the branch could not be fast-forwarded it stays behind the remote,
   and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
 - No step of the push waits without a bound.
-  The push runs under a deadline,
-  `CLI_GIT_PUSH_DEADLINE_SECONDS` whole seconds,
-  30 by default;
-  a zero,
-  negative,
-  fractional or non-numeric value is ignored.
-  Past the deadline the push is asked to end with `SIGTERM` (its helpers and hooks too),
+  The push is stopped on no progress, under a ceiling.
+  A push is at work, and not stalled, when the push or any process it started shows one of three signs,
+  each read from `/proc` twice a second (`SAMPLE_INTERVAL` in `push_progress.rs`):
+  it moved bytes, which is `rchar` plus `wchar` of `/proc/<pid>/io` growing;
+  it used processor time, which is `utime` plus `stime` of `/proc/<pid>/stat` growing;
+  or a task of it is able to run (state `R`) or waiting for the disk (state `D`) at the look,
+  read per task in `/proc/<pid>/task/<tid>/stat`, because a thread waits in an `fsync` while the process itself sleeps.
+  Only a tree that shows none of them for the stall window is stalled.
+  The three were chosen by measurement on 2026-11-03:
+  a 30 MB push to a local bare remote moved 94 MB of `rchar` and 156 MB of `wchar` over its four processes,
+  while `read_bytes` was 64 KB and `write_bytes` arrived late and in bursts from the receiver's disk writes,
+  so the block-layer counters do not see the transfer;
+  `rchar` and `wchar` count `read` and `write` calls, not `send` and `recv`
+  (measured: 102 bytes for 100000 bytes sent and received, 100102 through `read` and `write`),
+  so a transfer that curl alone performs is seen through the pipe that feeds or drains it;
+  a `dd` of 64 MB with `conv=fsync` was in state `D` in six of seven looks and used no processor tick (a tick is 10 ms),
+  so a wait for the disk shows in neither bytes nor processor time;
+  a process reading a silent socket and a `sleep` stay in state `S` with a constant tick count.
+  The signs cost this:
+  bytes alone stop a push that is busy on a slow disk, as a gate saw (an `fsync` of 5 seconds after the hook, 13 seconds in all);
+  processor time makes a process that spins or polls look alive, at a resolution of one tick;
+  state `D` makes a process wedged for ever in the kernel look alive, and state `R` one that only waits for a processor;
+  the ceiling bounds all of these.
+  A server that checks the push before it answers is in state `S` with nothing moving, which cannot be told from a dead peer:
+  a check longer than the stall window is stopped, and raising `CLI_GIT_PUSH_DEADLINE_SECONDS` is the remedy.
+  The ceiling does not help there; it bounds the opposite case, a push that never stalls.
+  Two limits apply, each in whole seconds and each ignored when zero, negative, fractional or non-numeric:
+  the stall window, `CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 by default (`DEFAULT_PUSH_DEADLINE`),
+  is how long the push may show no sign of work;
+  the variable keeps its name, so a setting made for the old fixed deadline now sets the stall window,
+  and it is not an alias of anything else.
+  The ceiling, `CLI_GIT_PUSH_CEILING_SECONDS`, 1800 by default (`DEFAULT_PUSH_CEILING`),
+  is how long the push may run in all, however much it moves, so a trickle that never stalls cannot hold the service for good.
+  A stop reports the limit that was hit:
+  `limit=stall` with `made no progress for <window> seconds`,
+  or `limit=ceiling` with `was still running after <ceiling> seconds, though it kept moving data`,
+  and in both `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output, which the service journals.
+  Where `/proc/<pid>/io` cannot be read (a system without `/proc`, such as macOS, or a kernel without task I/O accounting)
+  nothing is measured: the stall window is then a fixed deadline for the whole push, as it was before,
+  the ceiling is not consulted, and the line says `limit=deadline`.
+  Read-only Git queries have no transfer to measure and keep a fixed bound.
+  Past a limit the push is asked to end with `SIGTERM` (its helpers and hooks too),
   killed after a five second grace,
-  and reported as failed with exit code 124 whose output ends with a line naming the deadline.
+  and reported as failed with exit code 124.
   The same stop (a catchable request, five seconds, then the kill) ends every Git child the wrapper stops:
   the push, its read-only queries, the reconcile fetch, the Git LFS upload and a Git step of a commit
   that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
@@ -2510,6 +2545,28 @@ A preparation failure removes the scratch directory and leaves real index,
 worktree,
 and real ref bytes unchanged.
 Do not invoke Git with a lock path as `GIT_INDEX_FILE`.
+
+#### Wrapper output and options
+
+The wrapper never appends `--quiet` or `-q` to a Git command it builds for the user's command line.
+Owner decision (2026-11-03), verbatim:
+"No the wrapper should never append --quiet. Letting native git emit whatever it wants to is expected."
+A `--quiet` or `-q` that the user typed reaches Git untouched, and Git's own standard output and standard error
+reach the user as Git emits them.
+Consequently a commit that real Git builds prints Git's own summary (`[<branch> <name>] <subject>` and the change lines)
+from the scratch repository, and the wrapper prints no summary of its own for it.
+A commit the service builds itself, with no `git commit` run, still prints the one summary line the wrapper writes
+once the branch has moved.
+A commit that Git builds again because the branch moved prints Git's summary for each build,
+so the line of a build that did not land can precede the line of the commit that did.
+
+Every option the wrapper itself adds to a command line precedes the user's `--`,
+because Git reads every token after it as a path.
+A `--` that is the value of an option (`git commit -m --`) is a value and not the separator.
+A pathspec commit during a revert or a cherry-pick, which Git accepts,
+and during a merge or a conflicted cherry-pick, which Git refuses with `cannot do a partial commit`,
+behaves as real Git does,
+including paths named like options (`--quiet`, `-o`, `-dash.txt`) and `--pathspec-from-file`.
 
 #### Scratch repository layout
 

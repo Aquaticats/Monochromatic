@@ -145,7 +145,7 @@ fn one_trailing_line_break_is_removed() {
 fn a_finished_push_keeps_the_interleaved_output_and_exit_code() {
     let attempt: PushAttempt = run_bounded_push(
         shell("echo one; echo two >&2; echo three; exit 3"),
-        Duration::from_secs(60),
+        Patience::Fixed(Duration::from_secs(60)),
         Duration::from_secs(1),
         scratch_environment().as_slice(),
     )
@@ -154,7 +154,7 @@ fn a_finished_push_keeps_the_interleaved_output_and_exit_code() {
     assert_eq!(attempt.output, "one\ntwo\nthree");
     let clean: PushAttempt = run_bounded_push(
         shell("echo remote: done"),
-        Duration::from_secs(60),
+        Patience::Fixed(Duration::from_secs(60)),
         Duration::from_secs(1),
         scratch_environment().as_slice(),
     )
@@ -170,7 +170,7 @@ fn a_finished_push_keeps_the_interleaved_output_and_exit_code() {
 fn a_push_ended_by_a_signal_reports_one() {
     let attempt: PushAttempt = run_bounded_push(
         shell("echo before; kill -9 $$"),
-        Duration::from_secs(60),
+        Patience::Fixed(Duration::from_secs(60)),
         Duration::from_secs(1),
         scratch_environment().as_slice(),
     )
@@ -188,7 +188,7 @@ fn a_stalled_push_is_stopped_at_its_deadline() {
     let started: Instant = Instant::now();
     let attempt: PushAttempt = run_bounded_push(
         shell("echo started; exec sleep 8"),
-        deadline,
+        Patience::Fixed(deadline),
         Duration::from_secs(10),
         scratch_environment().as_slice(),
     )
@@ -226,7 +226,7 @@ fn a_stalled_push_is_stopped_at_its_deadline() {
 fn a_silent_stalled_push_reports_only_the_reason() {
     let attempt: PushAttempt = run_bounded_push(
         shell("exec sleep 8"),
-        Duration::from_millis(200),
+        Patience::Fixed(Duration::from_millis(200)),
         Duration::from_secs(10),
         scratch_environment().as_slice(),
     )
@@ -250,7 +250,7 @@ fn a_push_that_ignores_the_stop_request_is_killed_after_the_grace() {
     let started: Instant = Instant::now();
     let attempt: PushAttempt = run_bounded_push(
         shell("trap '' TERM; echo up; exec sleep 8"),
-        deadline,
+        Patience::Fixed(deadline),
         grace,
         scratch_environment().as_slice(),
     )
@@ -269,7 +269,7 @@ fn a_push_that_ignores_the_stop_request_is_killed_after_the_grace() {
 fn a_push_that_honors_the_stop_request_ends_within_the_grace() {
     let attempt: PushAttempt = run_bounded_push(
         shell("trap 'echo got-the-request; exit 0' TERM; echo up; while :; do sleep 0.05; done"),
-        Duration::from_millis(200),
+        Patience::Fixed(Duration::from_millis(200)),
         Duration::from_secs(3),
         scratch_environment().as_slice(),
     )
@@ -308,7 +308,7 @@ fn a_flooding_push_is_stopped_and_its_output_capped() {
     let flood: String = format!("head -c {} /dev/zero; exec sleep 8", MAX_PUSH_OUTPUT * 2);
     let attempt: PushAttempt = run_bounded_push(
         shell(flood.as_str()),
-        Duration::from_secs(60),
+        Patience::Fixed(Duration::from_secs(60)),
         Duration::from_secs(10),
         scratch_environment().as_slice(),
     )
@@ -331,7 +331,7 @@ fn a_flooding_push_is_stopped_and_its_output_capped() {
 fn a_program_that_cannot_start_is_a_start_failure() {
     let failure: SingleFlightError = run_bounded_push(
         Command::new("/nonexistent/cli-git-push-fixture"),
-        Duration::from_secs(5),
+        Patience::Fixed(Duration::from_secs(5)),
         Duration::from_secs(1),
         scratch_environment().as_slice(),
     )
