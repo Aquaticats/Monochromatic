@@ -9705,3 +9705,15 @@ by the coordinator at merge.
   the clone rung); the 0.5.18 snapshot route brings builds along once the nested worktrees are converted.
   Corrective comment on `1a49aa2254`:
   https://github.com/Aquaticats/Monochromatic/commit/1a49aa2254cfb6cd7b4b1cff6339db80423bf4d4#commitcomment-207866173
+- 0.5.18 PUBLISHED (crates.io 2026-11-03T03:46:55Z, built from `f984fb4111`) and installed (lock commit `b878c2e92a`;
+  sample commit 1145 ms): the main snapshot route, `convert-worktree-to-subvolume`, the push refusal and hint fixes.
+- Conversion dry run on the real repository (`git cli-git convert-worktree-to-subvolume --dry-run --all`, log
+  `~/temp/agent/convert-dry-run.log`): 159 worktrees; 93 already subvolumes; 31 would convert; 7 busy (a process
+  inside; right to skip); 33 refused wrongly: 16 for a detached HEAD, 15 racily clean ("as new as the index"), 2 stat
+  mismatches. Sent to the tool's author (`fix/git-policy-cli-convert-accepts-clean-worktrees`): accept a detached HEAD
+  naming a commit, settle racy and stat-mismatched entries by hashing the content in process, refuse filtered paths.
+  The real conversion waits for the conversion and trash review (`~/temp/agent/review-main-snapshot/`), since it
+  removes each old tree.
+- Gate 65 PASSED 3460 of 3460 on the journal and prune fixes; merged into main. Gate 66 running on
+  `fix/git-policy-cli-signal-log-never-blocks` `0335a8f4f8` (the signal handler's stderr fallback never waits for room;
+  two full-pipe controls red before).
