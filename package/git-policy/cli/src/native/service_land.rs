@@ -14,10 +14,10 @@
 
 use super::journald_native::Priority;
 use super::service_fault::reach;
-use super::service_head::head_names;
+use super::service_head::still_checked_out;
 use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
-use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
+use super::service_journal::{INDEXED_EXTENSION, Intent, Recovery, OPEN_EXTENSION, is_indexed, list_intents, mark_done, mark_indexed, recovery_for, write_intent};
 use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait, remove_stale, try_acquire};
 use super::service_timing::{LandTiming, wait_line};
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
@@ -143,15 +143,23 @@ fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
     return if intent.derived { IndexPaths::Derived { old: intent.old.as_str() } } else { IndexPaths::Listed(intent.paths.as_slice()) };
 }
 
+/// Removes the conclusion state a landed batch leaves, when it has one. Whether it is gone.
+fn cleanup_done(git: &GitContext, repository: &Path, intent: &Intent) -> bool {
+    return intent.cleanup.as_ref().is_none_or(|cleanup| { return remove_conclusion_state(git, repository, cleanup); });
+}
+
 /// Finishes what follows the branch move: the conclusion state is removed, then the index entries are updated. Both are
-///  idempotent. Whether both are done.
-fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock) -> bool {
-    let cleaned: bool = intent.cleanup.as_ref().is_none_or(|cleanup| { return remove_conclusion_state(git, repository, cleanup); });
+///  idempotent, and they are recorded apart: the installed index is recorded in the journal while the lock is still held
+///  (`<batch>.indexed`), so a restart never replays the index update over what another program staged after the lock was given
+///  up, whether or not the conclusion state could be removed. Whether both are done.
+fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock, journal: &Path) -> bool {
+    let cleaned: bool = cleanup_done(git, repository, intent);
     // The new index is built beside the real one and installed by the release of the lock the landing holds.
     let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), &lock, intent.seq) else {
         return false;
     };
-    return lock.release_with(built.as_path()).is_ok() && cleaned;
+    let recorded = || -> std::io::Result<()> { return mark_indexed(journal, intent.seq, intent.new.as_str()); };
+    return lock.release_with_record(built.as_path(), &recorded).is_ok() && cleaned;
 }
 
 /// What:
@@ -231,14 +239,12 @@ pub fn land_batch_timed(
         if alone && first.base != old {
             return Ok(vec![Outcome::BranchMoved]);
         }
-        // Git's own compare does not refuse a symbolic `HEAD` when it is told not to follow it (measured: it replaces the
-        //  symbolic reference), so a head that became a branch since the commit was prepared is found here, before the move.
-        if first.reference == "HEAD" && run(&git, repository, &["symbolic-ref", "--quiet", "HEAD"], None)?.succeeded() {
-            return Ok(vec![Outcome::BranchMoved]);
-        }
         // Native Git updates `HEAD`, so a worktree that switched branches while the commit waited fails the commit with nothing
-        //  changed. The named branch would move all the same, and the index built for it would replace the other branch's.
-        if first.reference != "HEAD" && !head_names(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
+        //  changed. The named branch would move all the same, and the index built for it would replace the other branch's. A
+        //  symbolic `HEAD` is not refused by Git's own compare when it is told not to follow it (measured: it replaces the
+        //  symbolic reference), so a head that became a branch is found here, before the move. The same question is asked
+        //  again once the index lock is held, because the worktree can switch while the lock is awaited.
+        if !still_checked_out(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
             return Ok(vec![Outcome::BranchMoved; requests.len()]);
         }
         let amended_parents: Vec<String> = if alone && !unborn {
@@ -386,6 +392,17 @@ pub fn land_batch_timed(
             }
         };
         let hold_began: Instant = Instant::now();
+        // The worktree may have switched while the lock was awaited: the checked-out branch is read again with the lock held and
+        //  before the ref moves, and a landing that no longer belongs to this worktree's head stops with nothing changed.
+        let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str());
+        if !matches!(still, Ok(true)) {
+            let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+            let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+            return match still {
+                Ok(_) => Ok(vec![Outcome::BranchMoved; requests.len()]),
+                Err(code) => Err(code),
+            };
+        }
         // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
         let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
         // A detached head is the `HEAD` file itself: it is updated without following a symbolic reference, so a head that
@@ -411,7 +428,7 @@ pub fn land_batch_timed(
         reach("after-ref");
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
         let sync_began: Instant = Instant::now();
-        let synced: bool = follow_up(&git, repository, &intent, held);
+        let synced: bool = follow_up(&git, repository, &intent, held, context.journal.as_path());
         timing.sync += sync_began.elapsed();
         timing.hold += hold_began.elapsed();
         if synced {
@@ -488,11 +505,21 @@ fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, r
             Recovery::Drop => {
                 remove_stale(intent.index.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
+                let _record_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));
             }
             Recovery::Finish => {
                 remove_stale(intent.index.as_path(), intent.seq);
-                if let Some(held) = try_acquire(intent.index.as_path(), intent.seq)
-                    && follow_up(&git, intent.repository.as_path(), &intent, held)
+                // A worktree that has since switched away from the batch's branch has an index that describes another branch: the
+                //  branch has its commit, so there is no index update to finish and the batch is done.
+                if still_checked_out(&git, intent.repository.as_path(), intent.index.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) == Ok(false) {
+                    let _marked = mark_done(context.journal.as_path(), intent.seq);
+                } else if is_indexed(context.journal.as_path(), intent.seq, intent.new.as_str()) {
+                    // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
+                    if cleanup_done(&git, intent.repository.as_path(), &intent) {
+                        let _marked = mark_done(context.journal.as_path(), intent.seq);
+                    }
+                } else if let Some(held) = try_acquire(intent.index.as_path(), intent.seq)
+                    && follow_up(&git, intent.repository.as_path(), &intent, held, context.journal.as_path())
                 {
                     let _marked = mark_done(context.journal.as_path(), intent.seq);
                 }

@@ -160,8 +160,8 @@ What the cross-vendor review of the branch at `48d6abb28c` changed:
   now takes a borrow of the held `IndexLock`, so only the holder can call it, and works on
   `private_index_path(lock.index(), seq)` alone; its only caller is `follow_up`, which owns the lock on both paths. It
   writes through a temporary file it creates exclusively (no run shares a name, and a run removes only its own), sets
-  Git's index mode on that file before the first byte (owner-only creation, then the mode `calc_shared_perm` makes of
-  the file Git would have created under the process mask), flushes it, and renames it.
+  Git's index mode on that file before the first byte (created as Git creates its lock file, then the mode `calc_shared_perm` makes of
+  the mode the new file really has, default ACL included), flushes it, and renames it.
 - A bitmap in the fsmonitor or untracked-cache extension is read only if its runs, literals and last run-length word
   are consistent with its bit size and the bit size is at most the entries or the directories; a 20-byte bitmap that
   described terabytes is refused before anything is listed.
@@ -172,6 +172,25 @@ What the cross-vendor review of the branch at `48d6abb28c` changed:
 - The review expected an intent-to-add entry equal to the tree's to be replaced. Git 2.56.0 leaves it with its flag
   (the differential control `an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it`), and so does the
   update.
+
+What the third cross-vendor review changed (the first three items are defects of the landing's outer protocol that
+shipped in 0.5.27, and are fixed here for the same reason):
+
+- A batch whose index was installed and whose lock was given up could be replayed by a restart that found its intent still open,
+  overwriting a change another session staged in between. The installed index is now recorded in the journal while the lock is
+  held (`<batch>.indexed`), a failed record keeps the lock, and a restart that finds the record retries only the conclusion
+  state, which is recorded apart.
+- The worktree's checked-out branch was read before the index lock was awaited. It is read again with the lock held and before
+  the ref moves, and a restart that finds another branch checked out finishes the batch without touching the index.
+- The private copy could be the live index (a client's `GIT_INDEX_FILE` named like one) or another client's index. It is now a
+  `PrivateCopy`, created exclusively with a name built from the whole live name, and the in-process update takes that value.
+- The mode of the published file starts from the mode the file system gave the new file, so a default ACL of the Git directory
+  is honoured as it is for Git's own lock file.
+- An interrupted write is tried again; the status and diff controls a truncated rewrite had deleted are back; the racy-entry
+  fallback has an end-to-end control through `build_index`.
+- Not changed: `remove_stale` reads a lock's marker and then removes the lock, which is not atomic. Two services reclaiming the
+  same physical index at once could remove a lock a third program took in between; the service lifecycle (one per worktree
+  instance) excludes it, a shared alternate index is not covered, and no control exercises competing reclaimers.
 
 Measured on 2026-11-03 on throwaway copies of main's shape (20 672 tracked files, 53 000 ignored, a signed explicit-path commit,
 `core.untrackedCache = true`, no fsmonitor, release builds, 20 rounds after 2 warm-up rounds, native Git and both wrappers in

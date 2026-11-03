@@ -3261,17 +3261,28 @@ The built index is written without a Git process (`index_reset_file.rs`, called 
 the ported rules are in `doc/planning/cli-git-main-commit-within-native-plus-five.md`, "The landing's index update and the
 index check in process").
 It runs only for the landing that holds the live index lock, and the type system says so: `reset_index_file` and `build_index`
-take a borrow of the held `IndexLock`, so only the holder can call them, and they work on the one file `private_index_path` names
-for that lock's index and batch (`index.cli-git-<batch>` beside the live index), never on another file in the directory.
-The private copy is made from the live index while the lock is held, and the lock's release renames the copy over the live index
-(`IndexLock::release_with`).
+take a borrow of the held `IndexLock`, so only the holder can call them, and the in-process update takes a `PrivateCopy`,
+a file this landing created exclusively beside the live index (`service_land_follow.rs`), named from the live index's whole
+name and the batch and never reusing a name that is taken, so it is never the live index and never another client's index.
+The copy is filled from the live index while the lock is held, and the lock's release renames it over the live index
+(`IndexLock::release_with_record`).
 The only caller is `follow_up` in `service_land.rs`, which owns the lock; it is reached from the landing with the lock that
 `acquire_noting_wait` gave, and from the restart with the lock that `try_acquire` gave.
 So a foreign `git add` finds the lock taken from the copy to the installation, and what it staged before is in the copy.
-The result goes to a temporary file made exclusively beside the copy, owner-only when `core.sharedRepository` is set and then
-given Git's index file mode before any byte is written (the mode `adjust_shared_perm` gives Git's lock file, from the process
-mask in `/proc/self/status`), flushed to the disk, and renamed over the copy; a run removes only the file it made.
+The installed index is recorded in the journal (`<batch>.indexed`, holding the commit, synced) after the rename and before the
+lock is removed, and a record that cannot be made keeps the lock for the restart to reclaim.
+A restart that finds the record does not replay the index update, which would overwrite what another program staged after the
+lock was given up; it retries only the conclusion state, so a cleanup that failed never makes the index update replayable.
+The checked-out branch is read again once the lock is held and before the ref moves (a worktree can switch while the lock is
+awaited), and a restart that finds the worktree on another branch finishes the batch without touching its index.
+The result goes to a temporary file made exclusively beside the copy, given Git's index file mode before any byte is written
+(created as Git creates its lock file, so the mask and any default ACL of the directory apply, then `adjust_shared_perm`'s
+calculation from the mode the file really has), flushed to the disk, and renamed over the copy; an interrupted write is
+tried again, and a run removes only the file it made.
 An entry another session staged in the same second as the copy is racily clean to Git, so the update leaves that landing to Git.
+One lifecycle requirement stays: at most one service reclaims the stale lock of a physical index at a time
+(`remove_stale` reads the marker and then removes the lock, which is not one step), which the one service per worktree
+instance gives; a shared alternate index used by several worktrees is not covered by it.
 Whatever the update does not reproduce (the list is in the planning section) is left to `git reset --no-refresh` on the same
 private file, so Git's `core.fsync` governs only that fallback; the in-process write always flushes the file, as Git's default does.
 The rename that installs the copy has the durability native Git's has, by default and when the user opts in.

@@ -206,9 +206,40 @@ pub fn write_intent(dir: &Path, intent: &Intent) -> std::io::Result<()> {
     return File::open(dir)?.sync_all();
 }
 
-/// Marks a batch finished. Not synced: if the mark is lost a restart redoes an idempotent step.
+/// The extension of the record that a batch's index update is installed.
+pub const INDEXED_EXTENSION: &str = "indexed";
+
+/// What:
+///  Records durably that the index update of the open batch `seq`, which landed the commit `new`, is installed.
+/// Why:
+///   The service writes it while it still holds the index lock, so no other program can have changed the installed index when
+///  the record exists, and a restart that finds it does not replay the update over what was staged after the lock was given up.
+///  The record names the commit, so a record left behind by a batch number that is used again does not stop another batch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await markIndexed(dir, seq, newCommit)
+/// ```
+pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
+    let temporary: PathBuf = batch_path(dir, seq, TEMPORARY_EXTENSION);
+    let mut file: File = File::create(&temporary)?;
+    file.write_all(format!("{new}\n").as_bytes())?;
+    file.sync_all()?;
+    fs::rename(&temporary, batch_path(dir, seq, INDEXED_EXTENSION))?;
+    return File::open(dir)?.sync_all();
+}
+
+/// Whether the index update of the open batch `seq` that landed `new` is recorded as installed.
+pub fn is_indexed(dir: &Path, seq: u64, new: &str) -> bool {
+    return fs::read_to_string(batch_path(dir, seq, INDEXED_EXTENSION)).is_ok_and(|text| { return text.trim_end() == new; });
+}
+
+/// Marks a batch finished and drops its record of the index update. Not synced: if the mark is lost a restart redoes an
+///  idempotent step, and the record stays to say the index is not one of them.
 pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
-    return fs::rename(batch_path(dir, seq, OPEN_EXTENSION), batch_path(dir, seq, DONE_EXTENSION));
+    fs::rename(batch_path(dir, seq, OPEN_EXTENSION), batch_path(dir, seq, DONE_EXTENSION))?;
+    let _record_removed = fs::remove_file(batch_path(dir, seq, INDEXED_EXTENSION));
+    return Ok(());
 }
 
 /// What:

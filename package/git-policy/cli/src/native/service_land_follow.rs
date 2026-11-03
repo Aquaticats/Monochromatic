@@ -190,45 +190,109 @@ pub fn update_index(git: &GitContext, repository: &Path, index: &Path, new: &str
 /// const built = await buildIndex(git, repository, newCommit, paths, indexPath, seq)
 /// ```
 pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, seq: u64) -> Result<std::path::PathBuf, FailureCode> {
-    let index: &Path = lock.index();
-    let built: std::path::PathBuf = private_index_path(index, seq);
-    let _stale = std::fs::remove_file(&built);
-    if index.exists() {
-        std::fs::copy(index, &built).map_err(|error| { return storage_failure(&error); })?;
-    }
+    let copy: PrivateCopy = PrivateCopy::make(lock, seq)?;
+    let built: std::path::PathBuf = copy.path().to_path_buf();
     let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
-    if !empty && !reset_in_process(git, repository, new, paths, (lock, seq)) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
+    if !empty && !reset_in_process(git, repository, new, paths, (lock, &copy)) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
         let _removed = std::fs::remove_file(&built);
         return Err(code);
     }
     return Ok(built);
 }
 
-/// Whether the private index of batch `seq` (the copy of the live index made while `lock` is held) was reset to
+/// Whether the private copy (made from the live index while `lock` is held) was reset to
 ///  the commit without starting Git; Git's own command follows when it was not.
 #[cfg(target_os = "linux")]
-fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (lock, seq): (&IndexLock, u64)) -> bool {
-    return super::index_reset_file::reset_index_file(git, repository, new, paths, lock, seq);
+fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (lock, copy): (&IndexLock, &PrivateCopy)) -> bool {
+    return super::index_reset_file::reset_index_file(git, repository, new, paths, lock, copy);
 }
 
 /// Without the in-process update on this platform, Git's own command always runs.
 #[cfg(not(target_os = "linux"))]
-fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&IndexLock, u64)) -> bool {
+fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&IndexLock, &PrivateCopy)) -> bool {
     return false;
 }
 
 /// What:
-///  The only name a landing gives its private copy of the live index `live` for batch `seq`.
+///  The name a landing first tries for its private copy of the live index `live` for batch `seq`: the whole name of the live index
+///  and the batch.
 /// Why:
-///   `build_index` makes the copy under this name and the in-process update works on this name alone, so no other file beside
-///  the live index (another client's index chosen by `GIT_INDEX_FILE`, another batch's copy) can be replaced by it.
+///   Built from the whole name, the copy's name is longer than the live index's and so never the live index itself, whatever a
+///  client's `GIT_INDEX_FILE` is called; `PrivateCopy::make` still creates it exclusively, because another client's index may
+///  have the name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const built = join(dirname(live), `index.cli-git-${seq}`);
+/// const first = join(dirname(live), `${basename(live)}.cli-git-${seq}`);
 /// ```
 pub fn private_index_path(live: &Path, seq: u64) -> std::path::PathBuf {
-    return live.with_file_name(format!("index.cli-git-{seq}"));
+    let mut name: std::ffi::OsString = live.file_name().map_or_else(|| { return std::ffi::OsString::from("index"); }, std::ffi::OsString::from);
+    name.push(format!(".cli-git-{seq}"));
+    return live.with_file_name(name);
+}
+
+/// How many names a landing tries for its private copy before it gives up.
+const COPY_NAME_TRIES: usize = 16;
+
+/// What:
+///  The landing's private copy of the live index: a file this landing created itself, exclusively, and filled with the live
+///  index's bytes while it holds the lock.
+/// Why:
+///   Only a value of this type can be handed to the in-process update, so the update can work on no other file, and the file
+///  cannot be the live index or another client's index: a name that is taken is never reused, the next one is tried. A copy that
+///  is not installed is removed by whoever holds the value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const copy = await PrivateCopy.make(lock, seq) // throws when no name is free
+/// ```
+#[derive(Debug)]
+pub struct PrivateCopy {
+    /// Where the copy is; absent when the live index did not exist.
+    path: std::path::PathBuf,
+}
+
+impl PrivateCopy {
+    /// Where the copy is.
+    pub fn path(&self) -> &Path {
+        return self.path.as_path();
+    }
+
+    /// Reserve a name beside the lock's live index by creating the file exclusively and copy the live index into it; when there
+    /// is no live index the reservation is given back at once and the name is of a file that does not exist.
+    pub fn make(lock: &IndexLock, seq: u64) -> Result<PrivateCopy, FailureCode> {
+        let live: &Path = lock.index();
+        let first: std::path::PathBuf = private_index_path(live, seq);
+        for attempt in 0..COPY_NAME_TRIES {
+            let path: std::path::PathBuf = if attempt == 0 {
+                first.clone()
+            } else {
+                let mut name: std::ffi::OsString = first.file_name().map(std::ffi::OsString::from).unwrap_or_default();
+                name.push(format!("-{attempt}"));
+                first.with_file_name(name)
+            };
+            let mut reserved: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+                Ok(created) => created,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(storage_failure(&error)),
+            };
+            let copied: std::io::Result<u64> = match std::fs::File::open(live) {
+                Ok(mut source) => std::io::copy(&mut source, &mut reserved),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    drop(reserved);
+                    let _given_back = std::fs::remove_file(&path);
+                    return Ok(PrivateCopy { path });
+                }
+                Err(error) => Err(error),
+            };
+            if let Err(error) = copied {
+                let _removed = std::fs::remove_file(&path);
+                return Err(storage_failure(&error));
+            }
+            return Ok(PrivateCopy { path });
+        }
+        return Err(FailureCode::Unavailable);
+    }
 }
 
 /// The failure a storage error stands for.

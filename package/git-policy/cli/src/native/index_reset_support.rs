@@ -206,17 +206,15 @@ pub(crate) fn landing_reset(context: &crate::transaction_git::GitContext, repo: 
 pub(crate) fn landing_reset_copy(context: &crate::transaction_git::GitContext, repo: &Path, new: &str, paths: crate::service_land_follow::IndexPaths<'_>, old_copy: bool) -> bool {
     let live: PathBuf = repo.join(".git").join("index");
     let seq: u64 = NEXT_BATCH.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let built: PathBuf = crate::service_land_follow::private_index_path(live.as_path(), seq);
     let Some(held) = crate::service_index_lock::try_acquire(live.as_path(), seq) else {
         return false;
     };
-    if live.exists() {
-        std::fs::copy(&live, &built).expect("the private copy");
-        if old_copy {
-            age(built.as_path());
-        }
+    let copy = crate::service_land_follow::PrivateCopy::make(&held, seq).expect("the private copy");
+    let built: PathBuf = copy.path().to_path_buf();
+    if old_copy && built.exists() {
+        age(built.as_path());
     }
-    let done: bool = crate::index_reset_file::reset_index_file(context, repo, new, paths, &held, seq);
+    let done: bool = crate::index_reset_file::reset_index_file(context, repo, new, paths, &held, &copy);
     if done {
         held.release_with(built.as_path()).expect("installed");
     } else {
