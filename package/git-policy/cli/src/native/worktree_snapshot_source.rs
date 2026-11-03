@@ -16,9 +16,9 @@
 use super::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot};
 use super::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
 use super::fs_mount_options::read_mount_facts;
-use super::transaction_git::GitContext;
+use super::transaction_git::{GitContext, GitRequest, run_git};
 use super::worktree_add_plan::AddPlan;
-use super::worktree_clean::{CleanSource, check_clean};
+use super::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, dirty_source};
 use super::worktree_identity::WorktreeIdentity;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
@@ -50,6 +50,77 @@ pub struct SnapshotSource {
     /// Whether Git ignores the place a snapshot of the main checkout sets its left-out directories aside; false for a linked
     ///  worktree, which sets nothing aside.
     pub trash_ignored: bool,
+    /// The uncommitted changes of a source that is not clean, when it is snapshotted anyway and restored to its `HEAD`;
+    ///  nothing for a clean source.
+    pub dirty: Option<ChangedPaths>,
+}
+
+/// What:
+///  What Git's status lists as changed or untracked in a worktree.
+/// Why:
+///   The person is told how many paths and one name; the restore refuses a changed `.gitattributes` file, whose rules could
+///  change how the restore writes other files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ChangedPaths = { count: number; first: string; attributesChanged: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangedPaths {
+    /// How many paths `git status` lists.
+    pub count: usize,
+    /// The first of them, with control characters shown as `?`.
+    pub first: String,
+    /// Whether a `.gitattributes` file is changed or untracked.
+    pub attributes_changed: bool,
+}
+
+/// What:
+///  The text with every control character replaced by `?`.
+/// Why:
+///   A path in a sentence on a terminal or in the journal must not carry an escape sequence or start a line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.replace(/\p{Cc}/gu, '?')
+/// ```
+pub fn plain(text: &str) -> String {
+    return text.chars().map(|character: char| { return if character.is_control() { '?' } else { character }; }).collect();
+}
+
+/// What:
+///  The paths `git status` lists as changed or untracked in the worktree at `root`, counted, with the first, and whether a
+///  `.gitattributes` file is among them (also one inside an untracked directory).
+/// Why:
+///   Only Git's own status tells a real change from a stale record of file times. The read takes no optional lock, so it never
+///  disturbs the checkout a person works in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const changed = await changedPaths(context, root); // undefined when Git cannot say
+/// ```
+pub fn changed_paths(context: &GitContext, root: &Path) -> Option<ChangedPaths> {
+    let ask = |arguments: &[&str]| -> Option<Vec<u8>> {
+        let request: GitRequest = GitRequest { cwd: root.to_path_buf(), arguments: arguments.iter().map(|word: &&str| { return (*word).into(); }).collect(), without_prefix: true, ..GitRequest::default() };
+        return match run_git(context, &request) {
+            Ok(found) if found.code == Some(0) => Some(found.stdout),
+            Ok(found) => {
+                super::diagnostic_log::debug("changedPaths", format!("Git could not list the changes ({:?}: {})", found.code, String::from_utf8_lossy(found.stderr.as_slice()).trim()).as_str());
+                None
+            }
+            Err(error) => {
+                super::diagnostic_log::debug("changedPaths", format!("Git could not list the changes ({error})").as_str());
+                None
+            }
+        };
+    };
+    let listing: Vec<u8> = ask(&["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=normal", "--no-renames"])?;
+    let untracked_attributes: Vec<u8> = ask(&["--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z", "--", ":(glob)**/.gitattributes"])?;
+    // Each status entry is two status letters, a space, then the path.
+    let paths: Vec<&[u8]> = listing.split(|byte: &u8| { return *byte == 0; }).filter(|entry: &&[u8]| { return !entry.is_empty(); }).filter_map(|entry: &[u8]| { return entry.get(3..); }).collect();
+    let first: &[u8] = paths.first()?;
+    let attributes_changed: bool = !untracked_attributes.is_empty() || paths.iter().any(|path: &&[u8]| { return *path == b".gitattributes" || path.ends_with(b"/.gitattributes"); });
+    return Some(ChangedPaths { count: paths.len(), first: plain(String::from_utf8_lossy(first).as_ref()), attributes_changed });
 }
 
 /// What:
@@ -240,9 +311,8 @@ pub fn clone_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<Stri
 /// Which kind of check refused a source, so the person can be told the cause in words that fit it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RefusalKind {
-    /// The source's files or index could not be proven unchanged since its `HEAD`: a change, an untracked file, an operation
-    ///  in progress, an index that cannot yet vouch for its files.
-    Unclean,
+    /// The source could not be proven clean, for the kind of reason the clean check gives.
+    Unclean(CleanRefusalKind),
     /// A feature a copy of the files does not reproduce, or a state the checks cannot read.
     Unsupported,
 }
@@ -284,6 +354,26 @@ impl Refusal {
 /// async function sourceRefusal(context: GitContext, identity: WorktreeIdentity): Promise<SnapshotSource>; // throws a Refusal
 /// ```
 pub fn source_refusal(context: &GitContext, identity: &WorktreeIdentity) -> Result<SnapshotSource, Refusal> {
+    return checked_source(context, identity, false);
+}
+
+/// What:
+///  `source_refusal`, except that a main checkout with only ordinary uncommitted changes is a source too, carrying the list of
+///  its changes; every other refusal stays.
+/// Why:
+///   The ladder snapshots such a source and restores the copy to the new worktree's `HEAD`; the clone rung and the other
+///  callers of the clean answer never see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function sourceOrDirty(context: GitContext, identity: WorktreeIdentity): Promise<SnapshotSource>; // throws a Refusal
+/// ```
+pub fn source_or_dirty(context: &GitContext, identity: &WorktreeIdentity) -> Result<SnapshotSource, Refusal> {
+    return checked_source(context, identity, true);
+}
+
+/// The checks of `source_refusal`, and of `source_or_dirty` when `allow_dirty` is set.
+fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty: bool) -> Result<SnapshotSource, Refusal> {
     let (root, git_dir, common_dir): (&PathBuf, &PathBuf, &PathBuf) = worktree_of(identity).map_err(Refusal::unsupported)?;
     if git_dir.join("info/sparse-checkout").exists() || common_dir.join("info/sparse-checkout").exists() {
         return Err(Refusal::unsupported("the source has a sparse checkout"));
@@ -293,9 +383,35 @@ pub fn source_refusal(context: &GitContext, identity: &WorktreeIdentity) -> Resu
     if let Some(reason) = configuration_refusal(snapshot.entries()) {
         return Err(Refusal::unsupported(reason));
     }
-    let clean: CleanSource = check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path()).map_err(|reason: String| { return Refusal { reason, kind: RefusalKind::Unclean }; })?;
+    let unclean = |why: CleanRefusal| -> Refusal { return Refusal { reason: why.reason, kind: RefusalKind::Unclean(why.kind) }; };
+    let (clean, dirty): (CleanSource, Option<ChangedPaths>) = match check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path()) {
+        Ok(found) => (found, None),
+        Err(why) if allow_dirty && restorable_here(identity) && why.kind.restorable() => {
+            let found = dirty_source(git_dir.as_path(), common_dir.as_path(), why).map_err(unclean)?;
+            let changed: ChangedPaths = changed_paths(context, root.as_path()).ok_or_else(|| { return Refusal::unsupported("Git could not list the uncommitted changes"); })?;
+            if changed.attributes_changed {
+                return Err(Refusal::unsupported("a .gitattributes file is among the uncommitted changes, and its rules could change how the restore writes other files"));
+            }
+            (found.source, Some(changed))
+        }
+        Err(why) => return Err(unclean(why)),
+    };
     let trash_ignored: bool = git_dir == common_dir && super::worktree_trash::trash_location_is_ignored(context, root.as_path());
-    return Ok(SnapshotSource { root: root.clone(), git_dir: git_dir.clone(), common_dir: common_dir.clone(), clean, nested, config: snapshot, trash_ignored });
+    return Ok(SnapshotSource { root: root.clone(), git_dir: git_dir.clone(), common_dir: common_dir.clone(), clean, nested, config: snapshot, trash_ignored, dirty });
+}
+
+/// What:
+///  Whether a source that is not clean can be copied and restored: the main checkout, whose index lies inside the snapshot.
+/// Why:
+///   The restore starts from the index the snapshot carries, which is one instant with the files; a linked worktree's index
+///  lies outside its directory and is not in the snapshot.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function restorableHere(identity: WorktreeIdentity): boolean;
+/// ```
+fn restorable_here(identity: &WorktreeIdentity) -> bool {
+    return matches!(identity, WorktreeIdentity::MainWorktree { worktree_root, git_dir, .. } if *git_dir == worktree_root.join(".git"));
 }
 
 /// What:

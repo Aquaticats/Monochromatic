@@ -23,7 +23,7 @@ fn aged_repository(root: &Path) -> PathBuf {
 }
 
 /// The check for a main checkout, whose Git directory is its `.git`.
-fn check(repo: &Path) -> Result<CleanSource, String> {
+fn check(repo: &Path) -> Result<CleanSource, CleanRefusal> {
     let git_dir: PathBuf = repo.join(".git");
     return check_clean(&git_context(), repo, git_dir.as_path(), git_dir.as_path());
 }
@@ -52,30 +52,30 @@ fn to_hex_for_test(name: &[u8]) -> String {
 fn each_difference_is_refused_with_its_reason() {
     let root: PathBuf = fixture("clean-dirty");
     type Make = fn(&Path);
-    let cases: [(&str, &str, Make); 10] = [
-        ("rewritten content", "a.txt differs from its index entry", |tree| { std::fs::write(tree.join("a.txt"), b"ALPHA\n").expect("write"); }),
-        ("deleted", "dir/b.txt is missing", |tree| { std::fs::remove_file(tree.join("dir/b.txt")).expect("remove"); }),
-        ("executable bit", "a.txt changed its executable bit", |tree| {
+    let cases: [(&str, &str, CleanRefusalKind, Make); 10] = [
+        ("rewritten content", "a.txt differs from its index entry", CleanRefusalKind::StatStale, |tree| { std::fs::write(tree.join("a.txt"), b"ALPHA\n").expect("write"); }),
+        ("deleted", "dir/b.txt is missing", CleanRefusalKind::FileChanged, |tree| { std::fs::remove_file(tree.join("dir/b.txt")).expect("remove"); }),
+        ("executable bit", "a.txt changed its executable bit", CleanRefusalKind::FileChanged, |tree| {
             std::fs::set_permissions(tree.join("a.txt"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("chmod");
         }),
-        ("type change", "link changed its type", |tree| {
+        ("type change", "link changed its type", CleanRefusalKind::FileChanged, |tree| {
             std::fs::remove_file(tree.join("link")).expect("remove");
             std::fs::write(tree.join("link"), b"a.txt").expect("write");
         }),
-        ("untracked", "new.txt is untracked and not ignored", |tree| { std::fs::write(tree.join("new.txt"), b"n").expect("write"); }),
-        ("untracked in a directory", "dir/", |tree| { std::fs::write(tree.join("dir/new.txt"), b"n").expect("write"); }),
-        ("staged change", "a.txt is staged with a change", |tree| {
+        ("untracked", "new.txt is untracked and not ignored", CleanRefusalKind::Untracked, |tree| { std::fs::write(tree.join("new.txt"), b"n").expect("write"); }),
+        ("untracked in a directory", "dir/", CleanRefusalKind::Untracked, |tree| { std::fs::write(tree.join("dir/new.txt"), b"n").expect("write"); }),
+        ("staged change", "a.txt is staged with a change", CleanRefusalKind::StagedChange, |tree| {
             std::fs::write(tree.join("a.txt"), b"staged\n").expect("write");
             git(tree, &["add", "a.txt"]);
         }),
-        ("staged deletion", "the index and the tree of HEAD hold different numbers", |tree| { git(tree, &["rm", "--quiet", "--cached", "a.txt"]); }),
-        ("merge in progress", "MERGE_HEAD exists", |tree| {
+        ("staged deletion", "the index and the tree of HEAD hold different numbers", CleanRefusalKind::StagedChange, |tree| { git(tree, &["rm", "--quiet", "--cached", "a.txt"]); }),
+        ("merge in progress", "MERGE_HEAD exists", CleanRefusalKind::OperationInProgress("MERGE_HEAD"), |tree| {
             let head: String = git_text(tree, &["rev-parse", "HEAD"]);
             std::fs::write(tree.join(".git/MERGE_HEAD"), head.as_bytes()).expect("write");
         }),
-        ("held index lock", "index.lock exists", |tree| { std::fs::write(tree.join(".git/index.lock"), b"").expect("write"); }),
+        ("held index lock", "index.lock exists", CleanRefusalKind::OperationInProgress("index.lock"), |tree| { std::fs::write(tree.join(".git/index.lock"), b"").expect("write"); }),
     ];
-    for (label, expected, make) in cases {
+    for (label, expected, kind, make) in cases {
         let one: PathBuf = repository(root.as_path(), format!("case-{}", label.replace(' ', "-")).as_str());
         std::fs::write(one.join(".gitignore"), b"ignored/\n").expect("gitignore");
         std::fs::write(one.join("a.txt"), b"alpha\n").expect("a");
@@ -89,8 +89,9 @@ fn each_difference_is_refused_with_its_reason() {
         git(one.as_path(), &["commit", "--quiet", "--message=files"]);
         assert!(check(one.as_path()).is_ok(), "{label}: clean before the change");
         make(one.as_path());
-        let reason: String = check(one.as_path()).expect_err(label);
-        assert!(reason.contains(expected), "{label}: {reason}");
+        let refusal: CleanRefusal = check(one.as_path()).expect_err(label);
+        assert!(refusal.reason.contains(expected), "{label}: {refusal}");
+        assert_eq!(refusal.kind, kind, "{label}: the kind is what the callers decide by");
     }
     remove(root.as_path());
 }
@@ -103,8 +104,9 @@ fn a_racy_entry_is_refused() {
     std::fs::write(repo.join("fresh.txt"), b"fresh\n").expect("fresh");
     git(repo.as_path(), &["add", "fresh.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=fresh"]);
-    let reason: String = check(repo.as_path()).expect_err("racy");
-    assert!(reason.contains("as new as the index"), "{reason}");
+    let refusal: CleanRefusal = check(repo.as_path()).expect_err("racy");
+    assert!(refusal.reason.contains("as new as the index"), "{refusal}");
+    assert_eq!(refusal.kind, CleanRefusalKind::Racy);
     remove(root.as_path());
 }
 
@@ -116,8 +118,9 @@ fn a_submodule_entry_is_refused() {
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     git(repo.as_path(), &["update-index", "--add", "--cacheinfo", format!("160000,{},sub", head.trim()).as_str()]);
     git(repo.as_path(), &["commit", "--quiet", "--message=submodule"]);
-    let reason: String = check(repo.as_path()).expect_err("submodule");
-    assert!(reason.contains("sub is a submodule"), "{reason}");
+    let refusal: CleanRefusal = check(repo.as_path()).expect_err("submodule");
+    assert!(refusal.reason.contains("sub is a submodule"), "{refusal}");
+    assert_eq!(refusal.kind, CleanRefusalKind::NotPlain);
     remove(root.as_path());
 }
 
@@ -134,7 +137,7 @@ fn a_linked_worktree_is_checked_against_its_own_git_directory() {
     git(linked.as_path(), &["update-index", "--refresh"]);
     let admin: PathBuf = repo.join(".git/worktrees/linked");
     // Git wrote the linked index within the second the files were aged, so refresh made it newer than the entries.
-    let outcome: Result<CleanSource, String> = check_clean(&git_context(), linked.as_path(), admin.as_path(), repo.join(".git").as_path());
+    let outcome: Result<CleanSource, CleanRefusal> = check_clean(&git_context(), linked.as_path(), admin.as_path(), repo.join(".git").as_path());
     assert!(outcome.is_ok(), "{outcome:?}");
     std::fs::write(linked.join("untracked.txt"), b"u").expect("write");
     assert!(check_clean(&git_context(), linked.as_path(), admin.as_path(), repo.join(".git").as_path()).is_err());
@@ -173,5 +176,49 @@ fn metadata_of_a_file_in_hand_is_judged_like_its_path() {
     std::fs::write(repo.join("a.txt"), b"ALPHA\n").expect("rewritten");
     let changed = std::fs::File::open(repo.join("a.txt")).expect("open").metadata().expect("metadata");
     assert!(metadata_differs_from_entry(entry, &changed, clean.index_seconds).expect("changed").contains("a.txt"));
+    remove(root.as_path());
+}
+
+/// Which kinds a reset can undo: ordinary changes, and neither an operation in progress nor an entry Git keeps outside the files.
+#[test]
+fn only_ordinary_changes_are_restorable() {
+    let restorable = [CleanRefusalKind::StagedChange, CleanRefusalKind::FileChanged, CleanRefusalKind::StatStale, CleanRefusalKind::Racy, CleanRefusalKind::Untracked];
+    let kept = [CleanRefusalKind::OperationInProgress("index.lock"), CleanRefusalKind::Unreadable, CleanRefusalKind::NotPlain];
+    assert!(restorable.iter().all(|kind: &CleanRefusalKind| { return kind.restorable(); }));
+    assert!(kept.iter().all(|kind: &CleanRefusalKind| { return !kind.restorable(); }));
+}
+
+/// A staged change that comes first in the index does not hide a skip-worktree, assume-unchanged or submodule entry that
+///  comes later, and an operation in progress is never restorable; an ordinary change is, and names `HEAD` with no index bytes.
+#[test]
+fn a_dirty_source_is_found_only_when_nothing_a_reset_cannot_undo_hides_in_it() {
+    let root: PathBuf = fixture("clean-dirty-source");
+    let repo: PathBuf = aged_repository(root.as_path());
+    let git_dir: PathBuf = repo.join(".git");
+    let why = |repo: &Path| -> CleanRefusal { return check(repo).expect_err("not clean"); };
+    // A staged change on the first path in index order.
+    std::fs::write(repo.join(".gitignore"), b"ignored/
+staged
+").expect("write");
+    git(repo.as_path(), &["add", ".gitignore"]);
+    let refusal: CleanRefusal = why(repo.as_path());
+    assert_eq!(refusal.kind, CleanRefusalKind::StagedChange);
+    let found: DirtySource = dirty_source(git_dir.as_path(), git_dir.as_path(), refusal.clone()).expect("an ordinary change");
+    assert_eq!(found.source.head_commit, git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim());
+    assert_eq!(found.source.index_bytes, std::fs::read(git_dir.join("index")).expect("index"), "the index as read, which proves nothing about the files");
+    assert_eq!(found.why, refusal);
+    for (label, arguments, expected) in [
+        ("skip-worktree", vec!["update-index", "--skip-worktree", "dir/b.txt"], "skip-worktree"),
+        ("assume-unchanged", vec!["update-index", "--assume-unchanged", "a.txt"], "assume-unchanged"),
+    ] {
+        git(repo.as_path(), arguments.as_slice());
+        let hidden = dirty_source(git_dir.as_path(), git_dir.as_path(), why(repo.as_path())).expect_err(label);
+        assert_eq!(hidden.kind, CleanRefusalKind::NotPlain, "{label}");
+        assert!(hidden.reason.contains(expected), "{label}: {hidden}");
+        git(repo.as_path(), &["update-index", if label == "skip-worktree" { "--no-skip-worktree" } else { "--no-assume-unchanged" }, if label == "skip-worktree" { "dir/b.txt" } else { "a.txt" }]);
+    }
+    std::fs::write(repo.join(".git/MERGE_HEAD"), git_text(repo.as_path(), &["rev-parse", "HEAD"]).as_bytes()).expect("merge mark");
+    let merging = why(repo.as_path());
+    assert_eq!(dirty_source(git_dir.as_path(), git_dir.as_path(), merging.clone()), Err(merging), "an operation in progress stays a refusal");
     remove(root.as_path());
 }

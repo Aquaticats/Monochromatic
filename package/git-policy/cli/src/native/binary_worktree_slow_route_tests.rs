@@ -13,7 +13,7 @@
 //! ```
 
 /// Import the shared fixtures, and the helpers of the snapshot controls.
-use super::support::{Fixture, Observed, fixture, git, observe, remove, stderr_of, wrapped};
+use super::support::{Fixture, Observed, fixture, git, observe, remove, run_wrapped, stderr_of, wrapped};
 use super::worktree_snapshot::{on_btrfs_or_acknowledged, subvolume_repository};
 use std::path::{Path, PathBuf};
 
@@ -40,6 +40,16 @@ fn add(fixture: &Fixture, repo: &Path, name: &str, extra: &[&str]) -> Observed {
     );
 }
 
+/// A linked worktree that a snapshot made from the main checkout (so it is a subvolume) with one file edited: a source whose
+///  changes are not restored by a snapshot, because only the main checkout is.
+fn dirty_linked_worktree(fixture: &Fixture, repo: &Path) -> PathBuf {
+    let made: Observed = run_wrapped(fixture, repo, &["worktree", "add", "--quiet", "-b", "linked", "../linked"]);
+    assert_eq!(made.code, Some(0), "{}", stderr_of(&made));
+    let linked: PathBuf = fixture.root.join("linked");
+    std::fs::write(linked.join("shared.txt"), b"dirty edit\n").expect("modify");
+    return linked;
+}
+
 /// A source with an uncommitted change says so: one line, the cause with the count and a path, and what makes the next add quick.
 #[test]
 fn a_dirty_source_says_why_the_add_was_not_a_snapshot() {
@@ -49,14 +59,14 @@ fn a_dirty_source_says_why_the_add_was_not_a_snapshot() {
         return;
     }
     let repo: PathBuf = subvolume_repository(&fixture);
-    std::fs::write(repo.join("shared.txt"), b"dirty edit\n").expect("modify");
-    let created: Observed = add(&fixture, repo.as_path(), "topic", &[]);
+    let linked: PathBuf = dirty_linked_worktree(&fixture, repo.as_path());
+    let created: Observed = add(&fixture, linked.as_path(), "topic", &[]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let lines: Vec<String> = slow_lines(&created);
     assert_eq!(lines.len(), 1, "one plain line: {}", stderr_of(&created));
     let line: &str = lines[0].as_str();
     assert!(line.starts_with("cli-git: "), "{line}");
-    assert!(line.contains("uncommitted changes in 1 path (for example shared.txt)"), "the cause: {line}");
+    assert!(line.contains("this worktree has uncommitted changes in 1 path (for example shared.txt)"), "the cause: {line}");
     assert!(line.contains("Commit or stash"), "what makes the next add quick: {line}");
     assert!(!line.contains('[') && !line.to_lowercase().contains("rung"), "plain words, no log prefix, no internal names: {line}");
     remove(&fixture);
@@ -71,8 +81,8 @@ fn quiet_silences_the_slow_route_line() {
         return;
     }
     let repo: PathBuf = subvolume_repository(&fixture);
-    std::fs::write(repo.join("shared.txt"), b"dirty edit\n").expect("modify");
-    let created: Observed = add(&fixture, repo.as_path(), "topic", &["--quiet"]);
+    let linked: PathBuf = dirty_linked_worktree(&fixture, repo.as_path());
+    let created: Observed = add(&fixture, linked.as_path(), "topic", &["--quiet"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     assert_eq!(slow_lines(&created), Vec::<String>::new(), "{}", stderr_of(&created));
     assert!(!stderr_of(&created).contains("shared.txt"), "{}", stderr_of(&created));
@@ -130,7 +140,7 @@ fn the_journal_receives_the_slow_route_entry_even_when_quiet() {
         return;
     }
     let repo: PathBuf = subvolume_repository(&fixture);
-    std::fs::write(repo.join("shared.txt"), b"dirty edit\n").expect("modify");
+    let linked: PathBuf = dirty_linked_worktree(&fixture, repo.as_path());
     let name: String = format!("cli-git-test-journal-slow-route-{}", std::process::id());
     let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("an abstract address");
     let receiver = std::os::unix::net::UnixDatagram::bind_addr(&address).expect("bind the journal stand-in");
@@ -138,7 +148,7 @@ fn the_journal_receives_the_slow_route_entry_even_when_quiet() {
     let created: Observed = observe(
         wrapped(&fixture)
             .env(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@{name}"))
-            .current_dir(repo.as_path())
+            .current_dir(linked.as_path())
             .args(["worktree", "add", "--quiet", "-b", "topic", "../topic"]),
         b"",
     );

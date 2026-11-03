@@ -82,20 +82,30 @@ fn btrfs_an_eligible_source_runs_git_without_a_checkout_and_a_failure_releases_t
     remove(root.as_path());
 }
 
-/// A subvolume source with an uncommitted change gets Git's checkout and a sentence that names the change; the same source
-///  untouched gets the snapshot and none.
+/// A subvolume main checkout with an uncommitted change gets the snapshot rung with its list of changes and nothing to explain;
+///  the same checkout in the middle of a merge keeps its reason for the person and gets Git's checkout.
 #[test]
-fn btrfs_a_dirty_subvolume_source_keeps_its_reason_for_the_person() {
+fn btrfs_a_dirty_subvolume_source_is_snapshotted_and_a_merging_one_keeps_its_reason() {
     let Some(root) = btrfs_fixture("run-dirty-reason") else { return };
     let repo: PathBuf = subvolume_repository(root.as_path());
     std::fs::write(repo.join("shared.txt"), b"edited\n").expect("edit");
     let plan = plan_to(root.join("topic"));
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
-    assert_eq!(ladder.first_step(), GitStep::Person, "no snapshot of a source with a change");
-    let line: String = ladder.slow.as_ref().expect("a reason").line();
-    assert!(line.contains("uncommitted changes in 1 path (for example shared.txt)"), "{line}");
+    assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at), "a snapshot serves a source with a change");
+    assert_eq!(ladder.slow, None, "a snapshot has nothing to explain");
+    let Rung::Snapshot(source, _claim) = &ladder.rung else { panic!("the snapshot rung is expected") };
+    let changed = source.dirty.as_ref().expect("the changes are listed");
+    assert_eq!(changed.first, "shared.txt");
     let mut runner = no_runner();
     ladder.finish(FAILED, None, &mut runner, &git_context(), &mut std::io::sink());
+    let head: String = String::from_utf8_lossy(&crate::test_support::git(repo.as_path(), &["rev-parse", "HEAD"]).stdout).trim().to_string();
+    std::fs::write(repo.join(".git/MERGE_HEAD"), format!("{head}\n")).expect("merge mark");
+    let merging: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
+    assert_eq!(merging.first_step(), GitStep::Person, "an unfinished merge stays a refusal");
+    let line: String = merging.slow.as_ref().expect("a reason").line();
+    assert!(line.contains("MERGE_HEAD"), "{line}");
+    let mut second = no_runner();
+    merging.finish(FAILED, None, &mut second, &git_context(), &mut std::io::sink());
     remove(root.as_path());
 }
 

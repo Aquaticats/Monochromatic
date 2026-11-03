@@ -24,7 +24,7 @@ use super::worktree_add_plan::AddPlan;
 use super::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add};
 use super::worktree_identity::WorktreeIdentity;
 use super::worktree_slow_route::{SlowRoute, explain_cheap_refusal, explain_refusal, explain_unsupported};
-use super::worktree_snapshot_source::{SnapshotSource, clone_refusal, snapshot_blocker, snapshot_refusal, source_refusal};
+use super::worktree_snapshot_source::{SnapshotSource, clone_refusal, snapshot_blocker, snapshot_refusal, source_or_dirty};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -107,7 +107,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         reasons("neither a snapshot nor clones apply");
         return (Rung::Git(prepare_subvolume_destination(plan)), cheap);
     }
-    let source: SnapshotSource = match source_refusal(context, identity) {
+    let source: SnapshotSource = match source_or_dirty(context, identity) {
         Ok(found) => found,
         Err(refusal) => {
             reasons(refusal.reason.as_str());
@@ -128,7 +128,8 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     } else {
         debug(TAG, format!("no snapshot for {} ({:?})", plan.destination.display(), snapshot_blocked).as_str());
     }
-    if clone_refusal.is_none() {
+    // Clones copy the tracked files of a source the checks proved clean; a source with changes is only ever snapshotted.
+    if clone_refusal.is_none() && source.dirty.is_none() {
         // The record comes first: without it a killed add could not be removed, so the rung is not tried.
         match claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()) {
             Ok(claim) => return (Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim), slow),
