@@ -31,19 +31,24 @@ use crate::model_explore::{Limits, Report, explore};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'seven-no-binding-sync' | 'seven-no-record-sync';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'candidate-no-binding-sync' | 'candidate-no-record-sync';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
     /// Revision 6: check the places, write a temporary record, rename it over `inbox/<id>`.
     Six,
-    /// Revision 7: create `ids/<xx>/<id>` with `O_EXCL`, fsync it, write the record, publish it with a no-replace
-    /// link, fsync `inbox/` and answer.
+    /// Revision 7 (the seventh review's target): create `ids/<xx>/<id>` with `O_EXCL`, write the hash into it, fsync
+    /// it, write the record, publish it with a no-replace link, fsync `inbox/` and answer; a same-hash binding
+    /// without a record is answered "from the record or the ledger", which cannot be done.
     Seven,
-    /// Revision 7 with the fsync of the binding file left out (a mutation that must stay red).
-    SevenNoBindingSync,
-    /// Revision 7 with the fsync of the published record left out (a mutation that must stay red).
-    SevenNoRecordSync,
+    /// A candidate that answers the seventh review's required changes: the complete binding is published atomically
+    /// (a temporary file linked without replacing), and a same-hash binding without a record continues acceptance.
+    /// It is a proposal of this model, not a rule of the design.
+    Candidate,
+    /// The candidate with the fsync of the binding left out (a mutation that must stay red).
+    CandidateNoBindingSync,
+    /// The candidate with the fsync of the published record left out (a mutation that must stay red).
+    CandidateNoRecordSync,
 }
 
 /// What:
@@ -79,8 +84,12 @@ pub struct Slot {
 pub enum Phase {
     /// Nothing done yet.
     Start,
-    /// Revision 7: the binding file is created but not yet made durable.
+    /// Revision 7: the binding file exists but its content is not yet written (creation is visible before content).
+    Creating,
+    /// The binding is complete but not yet made durable.
     Bound,
+    /// The client met a binding it cannot act on (partial, or its own with no record to answer from) and is stuck.
+    Stuck,
     /// Revision 7: the record is linked into `inbox/<id>` but not yet made durable.
     Linked,
     /// The places were read and held no record of the identity.
@@ -142,10 +151,22 @@ pub struct State {
     pub ledger: Slot,
 }
 
+/// The hash value of a binding that exists but whose content is not written yet.
+const PARTIAL: u8 = 255;
+
 /// A slot with nothing in it.
 const EMPTY: Slot = Slot { hash: 0, durable: true };
 
-/// The names used in step labels, by client index.
+/// What:
+///  `const NAMES: [&str; 2]` is a fixed-size array of two borrowed texts, read as `NAMES[who]`.
+///  Sibling: `Vec<&str>`, which could grow.
+/// Why:
+///  The labels of a schedule name the client; a constant array needs no allocation.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const NAMES = ['A', 'B'] as const;
+/// ```
 const NAMES: [&str; 2] = ["A", "B"];
 
 /// What:
@@ -193,6 +214,14 @@ fn recorded(state: &State) -> u8 {
 /// function steps(s: State): [string, State][];
 /// ```
 pub fn steps(state: &State) -> Vec<(String, State)> {
+    // What:     `let mut found: Vec<(String, State)> = Vec::new();` makes a changeable (`mut`) variable typed as a
+    //           growable list of pairs (a tuple is `(String, State)`, like a TS `[string, State]`), starting empty.
+    // Why:      Collect every enabled step as `(label, next state)`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const found: [string, State][] = [];
+    // ```
     let mut found: Vec<(String, State)> = Vec::new();
     for who in 0..2 {
         // What:     `found.extend(list)` appends every entry of another list; `client_steps(state, who)` returns
@@ -208,9 +237,25 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
     if state.inbox.hash != 0 {
         // Adoption moves the record from `inbox/<id>` to `queue/<id>` with a rename, which replaces a record there.
         let mut after: State = state.clone();
+        // What:     `let mut after: State = state.clone();` copies the whole state (`.clone()` makes an independent
+        //           copy; `state` is only borrowed here) so the step can change the copy.
+        // Why:      Each step is a new state; the old one stays the explorer's record.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const after = structuredClone(state);
+        // ```
         // The lane fsyncs what it writes, so the queue entry is durable.
         after.queue = Slot { hash: state.inbox.hash, durable: true };
         after.inbox = EMPTY;
+        // What:     `"...".to_string()` turns the borrowed literal into an owned `String`; `found.push((a, b))`
+        //           appends the pair.
+        // Why:      The step list owns its labels.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // found.push(['lane: adopts the record, moving inbox/<id> to queue/<id>', after]);
+        // ```
         found.push(("lane: adopts the record, moving inbox/<id> to queue/<id>".to_string(), after));
     }
     if state.queue.hash != 0 {
@@ -240,14 +285,30 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
 /// ```
 fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
     let mut found: Vec<(String, State)> = Vec::new();
+    // What:     `NAMES[who]` reads entry `who` of the array of borrowed texts (`&str`, sibling: owned `String`).
+    // Why:      Name the client in the step labels.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const name = NAMES[who];
+    // ```
     let name: &str = NAMES[who];
     let client: Client = state.clients[who];
     let seven: bool = state.rules != Rules::Six;
+    let candidate: bool = state.rules != Rules::Six && state.rules != Rules::Seven;
     if client.phase == Phase::Start && !seven {
         let known: u8 = recorded(state);
         let mut after: State = state.clone();
         if known == 0 {
             after.clients[who].phase = Phase::Checked;
+            // What:     `format!("{}: ...", name)` builds an owned `String`, putting `name` where `{}` is
+            //           (a standard macro, called like a function; `.push((label, after))` appends the pair).
+            // Why:      Label the step with the client's name.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // found.push([`${name}: reads the inbox, the queue and the ledger and finds no record`, after]);
+            // ```
             found.push((format!("{}: reads the inbox, the queue and the ledger and finds no record", name), after));
         } else if known == client.hash {
             after.clients[who].phase = Phase::Resent;
@@ -260,21 +321,50 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
     if client.phase == Phase::Start && seven {
         // `O_EXCL` creation of `ids/<xx>/<id>`: exactly one client creates it, the others read it.
         let mut after: State = state.clone();
-        if state.binding.hash == 0 {
+        if state.binding.hash == 0 && !candidate {
+            // Creation is visible before the content is written.
+            after.binding = Slot { hash: PARTIAL, durable: false };
+            after.clients[who].phase = Phase::Creating;
+            found.push((format!("{}: creates ids/<xx>/<id> with O_EXCL, still empty", name), after));
+        } else if state.binding.hash == 0 {
+            // The candidate links a fully written temporary file without replacing: nothing partial is visible.
             after.binding = Slot { hash: client.hash, durable: false };
             after.clients[who].phase = Phase::Bound;
-            found.push((format!("{}: creates ids/<xx>/<id> with O_EXCL", name), after));
-        } else if state.binding.hash == client.hash {
+            found.push((format!("{}: links a complete binding ids/<xx>/<id> without replacing", name), after));
+        } else if state.binding.hash == PARTIAL {
+            after.clients[who].phase = Phase::Stuck;
+            found.push((format!("{}: finds a binding with no content", name), after));
+        } else if state.binding.hash == client.hash && recorded(state) == client.hash {
             after.clients[who].phase = Phase::Resent;
-            found.push((format!("{}: finds its own hash in the binding and answers from the record", name), after));
+            if candidate && state.rules != Rules::CandidateNoRecordSync && state.inbox.hash == client.hash {
+                // The record found may be visible but not durable: the resend makes it durable before answering.
+                after.inbox.durable = true;
+                found.push((format!("{}: finds its own hash and record, fsyncs the record and answers from it", name), after));
+            } else {
+                found.push((format!("{}: finds its own hash in the binding and answers from the record", name), after));
+            }
+        } else if state.binding.hash == client.hash && candidate {
+            // The binding is this client's own and no record exists (the earlier attempt died before its record was
+            // durable): acceptance continues from the binding step.
+            after.clients[who].phase = Phase::Bound;
+            found.push((format!("{}: finds its own hash in the binding and no record, and continues", name), after));
+        } else if state.binding.hash == client.hash {
+            after.clients[who].phase = Phase::Stuck;
+            found.push((format!("{}: finds its own hash in the binding and no record to answer from", name), after));
         } else {
             after.clients[who].phase = Phase::Rejected;
             found.push((format!("{}: finds a different hash in the binding and is refused", name), after));
         }
     }
+    if client.phase == Phase::Creating {
+        let mut after: State = state.clone();
+        after.binding.hash = client.hash;
+        after.clients[who].phase = Phase::Bound;
+        found.push((format!("{}: writes the hash into the binding", name), after));
+    }
     if client.phase == Phase::Bound {
         let mut after: State = state.clone();
-        if state.rules == Rules::SevenNoBindingSync {
+        if state.rules == Rules::CandidateNoBindingSync {
             // Mutation: the binding is not fsynced before the record is written.
             after.clients[who].phase = Phase::Checked;
             found.push((format!("{}: goes on without syncing the binding", name), after));
@@ -318,7 +408,7 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
     if client.phase == Phase::Linked {
         let mut after: State = state.clone();
         after.clients[who].phase = Phase::Published;
-        if state.rules == Rules::SevenNoRecordSync {
+        if state.rules == Rules::CandidateNoRecordSync {
             // Mutation: the record is answered for without fsyncing `inbox/` and its parent.
             found.push((format!("{}: goes on without syncing inbox/", name), after));
         } else {
@@ -326,7 +416,8 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
             found.push((format!("{}: fsyncs the record, inbox/ and its parent", name), after));
         }
     }
-    let alive_midway: bool = client.phase == Phase::Bound
+    let alive_midway: bool = client.phase == Phase::Creating
+        || client.phase == Phase::Bound
         || client.phase == Phase::Checked
         || client.phase == Phase::Temp
         || client.phase == Phase::Linked
@@ -336,6 +427,12 @@ fn client_steps(state: &State, who: usize) -> Vec<(String, State)> {
         let mut after: State = state.clone();
         after.clients[who].phase = Phase::Crashed;
         found.push((format!("{}: the process dies", name), after));
+    }
+    if client.phase == Phase::Crashed {
+        // A client that died resends later with the same identity and content.
+        let mut after: State = state.clone();
+        after.clients[who].phase = Phase::Start;
+        found.push((format!("{}: resends the same request", name), after));
     }
     if client.phase == Phase::Published {
         let mut after: State = state.clone();
@@ -389,28 +486,58 @@ fn after_power_loss(state: &State) -> State {
 /// ```
 pub fn invariant(state: &State) -> Option<String> {
     let mut content: u8 = 0;
+    // What:     `for slot in [a, b, c]` loops over a three-entry array, giving each `Slot` by value (`Slot` is `Copy`,
+    //           a small type duplicated on use, so no `&` is needed).
+    // Why:      Compare the content in every place a record can be.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const slot of [state.inbox, state.queue, state.ledger]) {
+    // ```
     for slot in [state.inbox, state.queue, state.ledger] {
         if slot.hash == 0 {
             continue;
         }
         if content != 0 && content != slot.hash {
+            // What:     `Some(text)` is the present case of `Option`; the check returns it to say "violated, because ...".
+            // Why:      Tell the explorer which property failed.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // return 'two different contents are recorded for one identity';
+            // ```
             return Some("two different contents are recorded for one identity".to_string());
         }
         content = slot.hash;
     }
-    if state.binding.hash != 0 && content != 0 && state.binding.hash != content {
+    if state.binding.hash != 0 && state.binding.hash != PARTIAL && content != 0 && state.binding.hash != content {
         return Some("the binding of the identity names a different content than its record".to_string());
     }
     for client in state.clients {
+        if client.phase == Phase::Resent && client.hash != content {
+            return Some("a client was answered from a record that does not exist".to_string());
+        }
         if client.phase == Phase::Acked && client.hash != content {
             return Some("an acknowledged request is not the recorded content of its identity".to_string());
         }
     }
+    // What:     `None` is the absent case of `Option`: no property failed.
+    // Why:      Tell the explorer the state is acceptable.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return undefined;
+    // ```
     return None;
 }
 
-/// A state with no enabled step is an acceptable end here: every client finished or was refused.
-pub fn acceptable_end(_state: &State) -> Option<String> {
+/// A state with no enabled step is an acceptable end unless a client is stuck on a binding it cannot act on.
+pub fn acceptable_end(state: &State) -> Option<String> {
+    for client in state.clients {
+        if client.phase == Phase::Stuck {
+            return Some("an identity is reserved with no recoverable request and a client cannot go on".to_string());
+        }
+    }
     return None;
 }
 
