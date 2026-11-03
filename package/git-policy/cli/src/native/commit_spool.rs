@@ -16,7 +16,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, sync_directory, temporary_name};
+use super::commit_identity::{create_dir_all_durable, sync_chain, sync_directory, temporary_name};
 use super::commit_integrity::{is_identity, sha256_hex};
 use super::commit_request::Request;
 
@@ -117,7 +117,7 @@ pub fn write_spool(root: &Path, id: &str, files: &[Vec<u8>], old_files: &[Vec<u8
         return Err(SpoolError::Mismatch("file counts".to_string()));
     }
     let directory: PathBuf = spool_directory(root, id)?;
-    create_dir_all_durable(&directory)?;
+    create_dir_all_durable(root, &directory)?;
     for (number, bytes) in files.iter().enumerate() {
         link_complete(&directory.join(number.to_string()), bytes)?;
     }
@@ -131,10 +131,8 @@ pub fn write_spool(root: &Path, id: &str, files: &[Vec<u8>], old_files: &[Vec<u8
     }
     let manifest: String = format!("{}end {}\n", body, sha256_hex(body.as_bytes()));
     link_complete(&directory.join("manifest"), manifest.as_bytes())?;
-    sync_directory(&directory)?;
-    if let Some(parent) = directory.parent() {
-        sync_directory(parent)?;
-    }
+    // Every successful path, a repeated write included, makes the chain through the caller's durable root durable itself.
+    sync_chain(&directory, root)?;
     return Ok(());
 }
 
@@ -159,27 +157,28 @@ pub fn verify_spool(root: &Path, id: &str) -> Result<Vec<String>, SpoolError> {
     if end != format!("end {}\n", sha256_hex(body.as_bytes())) {
         return Err(SpoolError::Mismatch("manifest hash".to_string()));
     }
+    // The manifest is canonical: `file 0` to `file n-1` in order, then `old 0` to `old n-1` in order, numeric indices only, so a
+    // name read from it can never leave the spool directory and no record can be missing, duplicated or reordered.
+    let lines: Vec<&str> = body.lines().collect();
+    if lines.len() % 2 != 0 {
+        return Err(SpoolError::Mismatch("manifest record count".to_string()));
+    }
+    let count: usize = lines.len() / 2;
     let mut hashes: Vec<String> = Vec::new();
-    let mut news: usize = 0;
-    for line in body.lines() {
+    for (position, line) in lines.iter().enumerate() {
+        let kind: &str = if position < count { "file" } else { "old" };
+        let number: usize = position % count.max(1);
         let parts: Vec<&str> = line.split(' ').collect();
-        let old: bool = parts.len() == 4 && parts[0] == "old";
-        let new: bool = parts.len() == 4 && parts[0] == "file";
-        if !old && !new {
-            return Err(SpoolError::Mismatch(format!("manifest line {}", line)));
+        let canonical: bool = parts.len() == 4 && parts[0] == kind && parts[1] == number.to_string();
+        if !canonical {
+            return Err(SpoolError::Mismatch(format!("manifest record {} is not {} {}", position, kind, number)));
         }
-        if new {
-            news += 1;
-        }
-        let name: String = if old { format!("{}.old", parts[1]) } else { parts[1].to_string() };
+        let name: String = if kind == "old" { format!("{}.old", number) } else { number.to_string() };
         let bytes: Vec<u8> = fs::read(directory.join(&name))?;
         if bytes.len().to_string() != parts[2] || sha256_hex(&bytes) != parts[3] {
             return Err(SpoolError::Mismatch(format!("file {}", name)));
         }
         hashes.push(parts[3].to_string());
-    }
-    if news * 2 != hashes.len() {
-        return Err(SpoolError::Mismatch("file counts".to_string()));
     }
     return Ok(hashes);
 }
@@ -223,7 +222,7 @@ pub fn verify_against_request(root: &Path, request: &Request) -> Result<(), Spoo
 #[derive(Debug, Eq, PartialEq)]
 pub struct ClosureEntry {
     /// The repository-relative path.
-    pub path: String,
+    pub path: Vec<u8>,
     /// Mode and bytes at the captured base, `None` when the base has no such path.
     pub old: Option<(String, Vec<u8>)>,
     /// Mode and bytes of the captured result, `None` for a deletion.
@@ -245,12 +244,24 @@ pub fn read_closure(root: &Path, request: &Request) -> Result<Vec<ClosureEntry>,
     let directory: PathBuf = spool_directory(root, &request.id)?;
     let mut entries: Vec<ClosureEntry> = Vec::new();
     for (number, change) in request.changes.iter().enumerate() {
-        let new: Option<(String, Vec<u8>)> =
-            if change.mode == "000000" { None } else { Some((change.mode.clone(), fs::read(directory.join(number.to_string()))?)) };
+        // The bytes returned are the bytes hashed here against what the request promises, not a positional vector read earlier.
+        let new: Option<(String, Vec<u8>)> = if change.mode == "000000" {
+            None
+        } else {
+            let bytes: Vec<u8> = fs::read(directory.join(number.to_string()))?;
+            if sha256_hex(&bytes) != change.sha256 {
+                return Err(SpoolError::Mismatch(format!("new bytes of change {}", number)));
+            }
+            Some((change.mode.clone(), bytes))
+        };
         let old: Option<(String, Vec<u8>)> = if change.old_mode == "000000" {
             None
         } else {
-            Some((change.old_mode.clone(), fs::read(directory.join(format!("{}.old", number)))?))
+            let bytes: Vec<u8> = fs::read(directory.join(format!("{}.old", number)))?;
+            if sha256_hex(&bytes) != change.old_sha256 {
+                return Err(SpoolError::Mismatch(format!("old bytes of change {}", number)));
+            }
+            Some((change.old_mode.clone(), bytes))
         };
         entries.push(ClosureEntry { path: change.path.clone(), old, new });
     }

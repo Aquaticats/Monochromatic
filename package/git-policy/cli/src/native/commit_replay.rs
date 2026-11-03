@@ -62,6 +62,9 @@ pub enum ConflictKind {
     /// The current side and the result both changed the path, differently (including edit against delete and add
     /// against add).
     BothChanged,
+    /// Base, current and result are three different gitlinks (submodule commits). Whether one descends from the others is an
+    /// ancestry question only the submodule's repository can answer, so the caller falls back to Git or that repository.
+    GitlinkNeedsAncestry,
     /// A path is a file on one side and has entries below it on the other.
     DirectoryFile,
 }
@@ -147,8 +150,10 @@ fn merge_cell(base: Option<&Cell>, current: Option<&Cell>, result: Option<&Cell>
     if let (Some(b), Some(c), Some(r)) = (base, current, result) {
         // Mode and object name are settled apart only among regular files (the executable bit is a mode change on one
         // file); a change of file type (regular, symlink, gitlink) on either side settles the whole cell as one value.
-        let same_type: bool = (b.0 & 0o170_000) == (c.0 & 0o170_000) && (b.0 & 0o170_000) == (r.0 & 0o170_000);
-        if !same_type {
+        // Both descendants agreeing on a type different from the base is a conversion both asked for and merges as usual; the
+        // descendants disagreeing on the type settles the whole cell.
+        let descendants_agree: bool = (c.0 & 0o170_000) == (r.0 & 0o170_000);
+        if !descendants_agree {
             return pick(&Some(b.clone()), &Some(c.clone()), &Some(r.clone()));
         }
         let mode: u32 = pick(&b.0, &c.0, &r.0)?;
@@ -189,7 +194,9 @@ pub fn replay_delta(base: &[FlatEntry], result: &[FlatEntry], current: &[FlatEnt
             }
             Ok(None) => {}
             Err(()) => {
-                conflicts.push(Conflict { path: path.clone(), kind: ConflictKind::BothChanged });
+                let gitlinks: bool = [b.get(path), c.get(path), r.get(path)].iter().all(|cell| { return cell.is_some_and(|cell| { return cell.0 == 0o160_000; }); });
+                let kind: ConflictKind = if gitlinks { ConflictKind::GitlinkNeedsAncestry } else { ConflictKind::BothChanged };
+                conflicts.push(Conflict { path: path.clone(), kind });
                 if let Some(cell) = c.get(path) {
                     settled.insert(path.clone(), cell.clone());
                 }

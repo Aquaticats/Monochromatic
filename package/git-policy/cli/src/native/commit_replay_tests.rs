@@ -42,6 +42,8 @@ fn commit_on(directory: &Path, parent: &str, edits: &[Edit]) -> String {
             Edit::Write(path, text) | Edit::Executable(path, text) => {
                 let target: PathBuf = directory.join(path);
                 std::fs::create_dir_all(target.parent().expect("parent")).expect("directories");
+                // A symlink at the path must be replaced, not written through.
+                let _ = std::fs::remove_file(&target);
                 std::fs::write(&target, text).expect("write");
                 let mode: u32 = if matches!(edit, Edit::Executable(_, _)) { 0o755 } else { 0o644 };
                 std::fs::set_permissions(&target, std::os::unix::fs::PermissionsExt::from_mode(mode)).expect("mode");
@@ -88,21 +90,14 @@ struct Oracle {
     conflicted: BTreeSet<Vec<u8>>,
 }
 
-/// Runs `git merge-tree --write-tree --name-only --merge-base=base current result`.
+/// Runs `git merge-tree --write-tree --name-only -z --merge-base=base current result` and parses its NUL-separated output:
+/// the tree name, then the conflicted names up to an empty field. Names are raw bytes, never a displayed spelling.
 fn oracle(directory: &Path, base: &str, current: &str, result: &str) -> Oracle {
     let base_argument: String = format!("--merge-base={}", base);
-    let output = git_output(directory, &["merge-tree", "--write-tree", "--name-only", &base_argument, current, result]);
-    let text: String = String::from_utf8(output.stdout).expect("utf-8");
-    let mut lines = text.lines();
-    let tree: String = lines.next().expect("tree line").to_string();
-    // Git names the side it moved aside for a type conflict `path~<object name>`; the conflicted path is the part before it.
-    let conflicted: BTreeSet<Vec<u8>> = lines
-        .take_while(|line| { return !line.is_empty(); })
-        .map(|line| {
-            let suffixed: Option<usize> = line.rfind('~').filter(|at| { return line[*at + 1..].len() >= 40 && line[*at + 1..].chars().all(|c| { return c.is_ascii_hexdigit(); }); });
-            return line.as_bytes()[..suffixed.unwrap_or(line.len())].to_vec();
-        })
-        .collect();
+    let output = git_output(directory, &["merge-tree", "--write-tree", "--name-only", "-z", &base_argument, current, result]);
+    let mut fields = output.stdout.split(|byte| { return *byte == 0; });
+    let tree: String = String::from_utf8(fields.next().expect("tree field").to_vec()).expect("utf-8");
+    let conflicted: BTreeSet<Vec<u8>> = fields.take_while(|field| { return !field.is_empty(); }).map(|field| { return field.to_vec(); }).collect();
     return Oracle { clean: output.status.success(), tree, conflicted };
 }
 
@@ -134,7 +129,20 @@ fn differential(label: &str, base: &[Edit], current: &[Edit], result: &[Edit]) -
     if git_answer.clean {
         assert_eq!(pure.entries, flatten(&directory, &git_answer.tree), "{}: resulting entries", label);
     } else {
-        assert_eq!(conflict_paths(&pure), git_answer.conflicted, "{}: conflicted paths", label);
+        // Git lists the relocated side of a type conflict as `path~<label>`, the label being the name of the side it was given
+        // (here the commit's object name); it is accepted only for a path the pure replay also reports, with exactly that label.
+        let mut ids_at: BTreeSet<Vec<u8>> = BTreeSet::new();
+        for conflict in &pure.conflicts {
+            for label in [&c, &t] {
+                let mut moved: Vec<u8> = conflict.path.clone();
+                moved.push(b'~');
+                moved.extend_from_slice(label.as_bytes());
+                ids_at.insert(moved);
+            }
+        }
+        let own: BTreeSet<Vec<u8>> = conflict_paths(&pure);
+        let explained: BTreeSet<Vec<u8>> = git_answer.conflicted.iter().filter(|name| { return !ids_at.contains(*name); }).cloned().collect();
+        assert_eq!(own, explained, "{}: conflicted paths", label);
     }
     // The comparison agrees with `git diff-tree` on the changed paths from B to T.
     let changed: BTreeSet<Vec<u8>> = compare_trees(&flatten(&directory, &b), &flatten(&directory, &t)).into_iter().map(|d| { return d.path; }).collect();
@@ -346,4 +354,27 @@ fn a_regular_file_against_a_symlink_conflicts_like_git() {
         &[Edit::Symlink("link-or-file", "old")],
     );
     assert_eq!(replayed.conflicts[0].kind, ConflictKind::BothChanged);
+}
+
+/// Re-review C: both descendants converting a symlink to a regular file is a conversion both asked for; the result's edit of the
+/// content merges, as Git does.
+#[test]
+fn an_agreed_conversion_from_a_symlink_to_a_regular_file_merges_like_git() {
+    let replayed: Replayed = differential(
+        "replay-agreed-conversion",
+        &[Edit::Symlink("thing", "old")],
+        &[Edit::Write("thing", "old")],
+        &[Edit::Write("thing", "new")],
+    );
+    assert!(replayed.conflicts.is_empty());
+}
+
+/// Re-review: three different gitlinks cannot be settled without the submodule's history, so the replay says so explicitly and
+/// the caller falls back; it is not reported as a content conflict.
+#[test]
+fn three_different_gitlinks_ask_for_an_ancestry_check() {
+    let link = |id: &str| -> Vec<FlatEntry> { return vec![FlatEntry { path: b"sub".to_vec(), mode: 0o160_000, id: id.as_bytes().to_vec() }]; };
+    let replayed: Replayed = replay_delta(&link("s0"), &link("s2"), &link("s1"));
+    assert_eq!(replayed.conflicts[0].kind, ConflictKind::GitlinkNeedsAncestry);
+    assert!(replay_delta(&link("s0"), &link("s2"), &link("s0")).conflicts.is_empty());
 }

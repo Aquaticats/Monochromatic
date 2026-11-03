@@ -12,10 +12,10 @@
 //! ```
 
 use crate::model_fixture::scratch;
-use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path, create_dir_all_durable, directory_sync_count};
+use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path, create_dir_all_durable, start_sync_trace, take_sync_trace};
 use git_policy_cli::commit_integrity::{crc32, sha256_hex};
 use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, append, encode_line, lane_ledger_path, lookup, parse_line, repair_tail};
-use git_policy_cli::commit_request::{Change, Published, Request, RequestError, content_hash, decode, encode, publish};
+use git_policy_cli::commit_request::{Change, Operation, Published, Request, RequestError, content_hash, decode, encode, publish};
 use git_policy_cli::commit_spool::{SpoolError, read_closure, verify_against_request, verify_spool, write_spool};
 use std::path::{Path, PathBuf};
 
@@ -34,19 +34,20 @@ fn request(digit: char, message: &str) -> Request {
     let content: Vec<u8> = b"new bytes".to_vec();
     return Request {
         id: identity(digit),
-        branch: "main".to_string(),
+        branch: b"main".to_vec(),
         base: "b".repeat(40),
-        message: message.to_string(),
+        message: message.as_bytes().to_vec(),
+        operation: Operation::Commit,
         changes: vec![
             Change {
-                path: "a/gone.txt".to_string(),
+                path: b"a/gone.txt".to_vec(),
                 mode: "000000".to_string(),
                 sha256: "-".to_string(),
                 old_mode: "100644".to_string(),
                 old_sha256: sha256_hex(b"old gone"),
             },
             Change {
-                path: "b/new.txt".to_string(),
+                path: b"b/new.txt".to_vec(),
                 mode: "100644".to_string(),
                 sha256: sha256_hex(&content),
                 old_mode: "000000".to_string(),
@@ -84,9 +85,9 @@ fn ledger_lines_round_trip_and_refuse_bad_fields() {
 #[test]
 fn ledger_lookup_answers_from_the_first_line() {
     let ledger: PathBuf = scratch("ledger-first").join("ledger");
-    append(&ledger, &entry('1', "published")).expect("append");
-    append(&ledger, &entry('2', "saved")).expect("append");
-    append(&ledger, &entry('1', "landed")).expect("append");
+    append(ledger.parent().expect("parent"), &ledger, &entry('1', "published")).expect("append");
+    append(ledger.parent().expect("parent"), &ledger, &entry('2', "saved")).expect("append");
+    append(ledger.parent().expect("parent"), &ledger, &entry('1', "landed")).expect("append");
     assert_eq!(lookup(&ledger, &identity('1')).expect("lookup").expect("entry").outcome, "published");
     assert_eq!(lookup(&ledger, &identity('3')).expect("lookup"), None);
 }
@@ -110,7 +111,7 @@ fn ledger_torn_tail_is_repaired_at_every_byte() {
         if cut > 0 {
             assert_eq!(std::fs::read(directory.join("ledger.torn")).expect("saved tail"), second[..cut].to_vec());
         }
-        append(&ledger, &entry('3', "landed")).expect("append after repair");
+        append(ledger.parent().expect("parent"), &ledger, &entry('3', "landed")).expect("append after repair");
         assert!(lookup(&ledger, &identity('1')).expect("lookup").is_some());
         assert!(lookup(&ledger, &identity('3')).expect("lookup").is_some());
     }
@@ -121,7 +122,7 @@ fn ledger_torn_tail_is_repaired_at_every_byte() {
 fn ledger_damaged_middle_is_reported_and_kept() {
     let ledger: PathBuf = scratch("ledger-middle").join("ledger");
     for digit in ['1', '2', '3'] {
-        append(&ledger, &entry(digit, "published")).expect("append");
+        append(ledger.parent().expect("parent"), &ledger, &entry(digit, "published")).expect("append");
     }
     let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
     let line: usize = encode_line(&entry('1', "published")).expect("encode").len();
@@ -171,10 +172,13 @@ fn identity_binding_has_one_winner_under_a_real_race() {
     let root: PathBuf = scratch("identity-race");
     let id: String = identity('6');
     let mut workers = Vec::new();
+    let start: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(8));
     for number in 0..8 {
         let worker_root: PathBuf = root.clone();
         let worker_id: String = id.clone();
+        let gate: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&start);
         workers.push(std::thread::spawn(move || {
+            gate.wait();
             return bind(&worker_root, &worker_id, &sha256_hex(format!("content {}", number).as_bytes())).expect("bind");
         }));
     }
@@ -198,7 +202,7 @@ fn request_round_trips_with_a_stable_hash() {
 fn request_fields_survive_hostile_text() {
     for message in ["end deadbeef\nchange 100644 x y", "line one\nline two\n", "quote \" and ' and \\ and \t tab", "unicode \u{1F600} \u{00E9}"] {
         let mut original: Request = request('8', message);
-        original.branch = "feature/with space\nand newline".to_string();
+        original.branch = b"feature/with space\nand \xff newline".to_vec();
         let bytes: Vec<u8> = encode(&original).expect("encode");
         assert_eq!(decode(&bytes).expect("decode"), original);
     }
@@ -222,7 +226,7 @@ fn request_validation_refuses_bad_fields() {
     let mut cases: Vec<Request> = Vec::new();
     for path in ["../escape", "/absolute", "a//b", "a/./b", ".git/config", "a/.git/x", "", "trailing/", "nul\0byte"] {
         let mut bad: Request = request('a', "m");
-        bad.changes[1].path = path.to_string();
+        bad.changes[1].path = path.as_bytes().to_vec();
         cases.push(bad);
     }
     let mut unordered: Request = request('a', "m");
@@ -238,7 +242,7 @@ fn request_validation_refuses_bad_fields() {
     deletion.changes[0].sha256 = "a".repeat(64);
     cases.push(deletion);
     cases.push(Request { id: "short".to_string(), ..request('a', "m") });
-    cases.push(Request { message: "  ".to_string(), ..request('a', "m") });
+    cases.push(Request { message: b"  ".to_vec(), ..request('a', "m") });
     cases.push(Request { base: "xyz".to_string(), ..request('a', "m") });
     for bad in cases {
         assert!(matches!(encode(&bad), Err(RequestError::Invalid(_))), "{:?}", bad);
@@ -265,9 +269,9 @@ fn request_publication_never_replaces_an_acknowledged_record() {
     let inbox: PathBuf = scratch("request-publish").join("inbox");
     let first: Request = request('c', "first");
     let second: Request = request('c', "second");
-    assert_eq!(publish(&inbox, &first).expect("publish"), Published::Created);
-    assert_eq!(publish(&inbox, &first).expect("publish"), Published::AlreadyPresent);
-    assert!(matches!(publish(&inbox, &second), Err(RequestError::Conflict)));
+    assert_eq!(publish(inbox.parent().expect("parent"), &inbox, &first).expect("publish"), Published::Created);
+    assert_eq!(publish(inbox.parent().expect("parent"), &inbox, &first).expect("publish"), Published::AlreadyPresent);
+    assert!(matches!(publish(inbox.parent().expect("parent"), &inbox, &second), Err(RequestError::Conflict)));
     let kept: Vec<u8> = std::fs::read(inbox.join(identity('c'))).expect("read");
     assert_eq!(decode(&kept).expect("decode"), first);
     assert_eq!(std::fs::read_dir(&inbox).expect("dir").count(), 1, "no temporary file stays");
@@ -279,9 +283,11 @@ fn request_publication_never_replaces_an_acknowledged_record() {
 fn request_publication_has_one_winner_under_a_real_race() {
     let inbox: PathBuf = scratch("request-race").join("inbox");
     let mut workers = Vec::new();
+    let start: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(6));
     for number in 0..6 {
         let worker_inbox: PathBuf = inbox.clone();
-        workers.push(std::thread::spawn(move || { return publish(&worker_inbox, &request('d', &format!("message {}", number))); }));
+        let gate: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&start);
+        workers.push(std::thread::spawn(move || { gate.wait(); return publish(worker_inbox.parent().expect("parent"), &worker_inbox, &request('d', &format!("message {}", number))); }));
     }
     let results: Vec<Result<Published, RequestError>> = workers.into_iter().map(|worker| { return worker.join().expect("join"); }).collect();
     assert_eq!(results.iter().filter(|result| { return matches!(result, Ok(Published::Created)); }).count(), 1);
@@ -335,37 +341,72 @@ fn scratch_directories_are_new_and_inside_the_build_tree() {
     assert!(!first.starts_with("/tmp"));
 }
 
-/// Review P1 3: every newly created ancestor is reported created, so the helper has synced the parent of each.
+/// Review P1 3 and A: every created directory is reported, and the chain through the anchor is synced on every call, the
+/// second included, which creates nothing.
 #[test]
-fn durable_directory_creation_reports_every_created_ancestor() {
+fn durable_directory_creation_syncs_the_chain_through_the_anchor_every_time() {
     let root: PathBuf = scratch("durable-dirs");
-    let created: Vec<PathBuf> = create_dir_all_durable(&root.join("a/b/c")).expect("create");
+    start_sync_trace();
+    let created: Vec<PathBuf> = create_dir_all_durable(&root, &root.join("a/b/c")).expect("create");
+    let first: Vec<PathBuf> = take_sync_trace();
     assert_eq!(created, vec![root.join("a"), root.join("a/b"), root.join("a/b/c")]);
-    assert!(create_dir_all_durable(&root.join("a/b/c")).expect("again").is_empty());
+    assert_eq!(first, vec![root.join("a/b/c"), root.join("a/b"), root.join("a"), root.clone()]);
+    start_sync_trace();
+    assert!(create_dir_all_durable(&root, &root.join("a/b/c")).expect("again").is_empty());
+    assert_eq!(take_sync_trace(), first, "a chain that merely exists is synced again");
 }
 
-/// Review P1 4: a same-content resend, which finds the name already linked, syncs the namespace itself: visibility is not
-/// durability, and the creator may have died between its link and its directory sync.
+/// Re-review A: an ancestor another creator made and never synced is synced by the next successful bind, through the anchor.
 #[test]
-fn a_resend_that_finds_the_name_syncs_the_directory_itself() {
+fn a_bind_syncs_an_ancestor_that_only_exists() {
+    let root: PathBuf = scratch("anchor-sync");
+    std::fs::create_dir_all(root.join("ids")).expect("an ancestor made by a creator that died before syncing the root");
+    let id: String = identity('d');
+    start_sync_trace();
+    assert_eq!(bind(&root, &id, &sha256_hex(b"x")).expect("bind"), Bound::Created);
+    let synced: Vec<PathBuf> = take_sync_trace();
+    assert!(synced.contains(&root.join("ids")), "{:?}", synced);
+    assert_eq!(synced.last(), Some(&root), "the chain ends at the anchor, the last directory synced");
+}
+
+/// Re-review D: a relative path works: the empty parent of a bare name is the current directory, never `create_dir("")`.
+#[test]
+fn durable_directory_creation_accepts_a_relative_path() {
+    let root: PathBuf = scratch("relative");
+    let previous: PathBuf = std::env::current_dir().expect("cwd");
+    std::env::set_current_dir(&root).expect("chdir");
+    let created = create_dir_all_durable(Path::new("."), Path::new("new/a"));
+    std::env::set_current_dir(previous).expect("chdir back");
+    assert_eq!(created.expect("create").len(), 2);
+    assert!(root.join("new/a").is_dir());
+}
+
+/// Review P1 4: a same-content resend, which finds the name already linked, syncs the namespace itself, in order, through the
+/// anchor: the directory of the name, then each directory above it.
+#[test]
+fn a_resend_that_finds_the_name_syncs_the_directory_chain_itself() {
     let root: PathBuf = scratch("resend-sync");
     let id: String = identity('1');
     let hash: String = sha256_hex(b"x");
     assert_eq!(bind(&root, &id, &hash).expect("bind"), Bound::Created);
-    let before: usize = directory_sync_count();
+    let fan_out: PathBuf = binding_path(&root, &id).expect("path").parent().expect("parent").to_path_buf();
+    start_sync_trace();
     assert_eq!(bind(&root, &id, &hash).expect("resend"), Bound::SameContent);
-    assert!(directory_sync_count() > before, "the binding resend must sync");
+    let synced: Vec<PathBuf> = take_sync_trace();
+    assert_eq!(synced.first(), Some(&fan_out));
+    assert_eq!(synced.last(), Some(&root));
     let inbox: PathBuf = root.join("inbox");
     let one: Request = request('2', "m");
-    publish(&inbox, &one).expect("publish");
-    let before_record: usize = directory_sync_count();
-    assert_eq!(publish(&inbox, &one).expect("resend"), Published::AlreadyPresent);
-    assert!(directory_sync_count() > before_record, "the record resend must sync");
+    publish(&root, &inbox, &one).expect("publish");
+    start_sync_trace();
+    assert_eq!(publish(&root, &inbox, &one).expect("resend"), Published::AlreadyPresent);
+    let synced_record: Vec<PathBuf> = take_sync_trace();
+    assert_eq!(synced_record[synced_record.len() - 2..], [inbox.clone(), root.clone()], "the inbox, then the anchor, last");
     let ledger: PathBuf = root.join("ledger");
-    append(&ledger, &entry('3', "published")).expect("append");
-    let before_append: usize = directory_sync_count();
-    append(&ledger, &entry('4', "published")).expect("append");
-    assert!(directory_sync_count() > before_append, "an append to an existing ledger syncs its directory");
+    append(&root, &ledger, &entry('3', "published")).expect("append");
+    start_sync_trace();
+    append(&root, &ledger, &entry('4', "published")).expect("append");
+    assert_eq!(take_sync_trace().last(), Some(&root));
 }
 
 /// Review P1 2 (revision 9, R8-2): each lane has its own ledger path, and a reader of a ledger never repairs it: a torn tail
@@ -376,7 +417,7 @@ fn a_reader_never_repairs_another_lanes_ledger() {
     let ledger: PathBuf = lane_ledger_path(&common, &identity('a')).expect("path");
     assert_eq!(ledger, common.join("ledgers").join(identity('a')).join("ledger"));
     assert_ne!(ledger, lane_ledger_path(&common, &identity('b')).expect("path"));
-    append(&ledger, &entry('1', "published")).expect("append");
+    append(&common, &ledger, &entry('1', "published")).expect("append");
     let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
     bytes.extend_from_slice(b"deadbeef partial line without a newline");
     std::fs::write(&ledger, &bytes).expect("torn tail of an append in progress");
@@ -385,18 +426,18 @@ fn a_reader_never_repairs_another_lanes_ledger() {
     assert_eq!(std::fs::read(&ledger).expect("read"), bytes, "a reader changes nothing");
 }
 
-/// Review P2: the bytes cut from a torn tail are in a directory entry that is durable before the ledger is truncated.
+/// Review P2: the bytes cut from a torn tail are saved, and their directory is synced before the ledger is truncated.
 #[test]
 fn a_repair_saves_the_cut_bytes_before_it_truncates() {
     let directory: PathBuf = scratch("torn-first");
     let ledger: PathBuf = directory.join("ledger");
-    append(&ledger, &entry('1', "published")).expect("append");
+    append(&directory, &ledger, &entry('1', "published")).expect("append");
     let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
     bytes.extend_from_slice(b"abc");
     std::fs::write(&ledger, &bytes).expect("torn");
-    let before: usize = directory_sync_count();
+    start_sync_trace();
     repair_tail(&ledger).expect("repair");
-    assert!(directory_sync_count() > before, "the .torn entry is synced before the truncation");
+    assert_eq!(take_sync_trace(), vec![directory.clone()], "the .torn entry's directory is synced");
     assert_eq!(std::fs::read(directory.join("ledger.torn")).expect("saved"), b"abc".to_vec());
 }
 
@@ -413,7 +454,7 @@ fn spool_closure_survives_the_removal_of_the_base_objects() {
     let base_bytes: Vec<u8> = crate::model_fixture::git(&repository, &["show", "HEAD:kept.txt"]);
     let mut original: Request = request('9', "m");
     original.changes = vec![Change {
-        path: "kept.txt".to_string(),
+        path: b"kept.txt".to_vec(),
         mode: "100644".to_string(),
         sha256: sha256_hex(b"new bytes"),
         old_mode: "100644".to_string(),
@@ -434,6 +475,70 @@ fn spool_closure_survives_the_removal_of_the_base_objects() {
 fn a_request_with_no_changes_is_valid() {
     let mut empty: Request = request('8', "message only");
     empty.changes = Vec::new();
+    empty.operation = Operation::EmptyCommit;
     let bytes: Vec<u8> = encode(&empty).expect("encode");
     assert_eq!(decode(&bytes).expect("decode"), empty);
+}
+
+/// Re-review E: an empty commit and a message-only amend are different requests with different hashes, and an ordinary commit
+/// with no change, an empty commit with changes and an amend of a non-object are refused.
+#[test]
+fn the_operation_kind_and_amend_target_are_part_of_the_request() {
+    let mut empty: Request = request('7', "checkpoint");
+    empty.changes = Vec::new();
+    empty.operation = Operation::EmptyCommit;
+    let mut amend: Request = empty.clone();
+    amend.operation = Operation::Amend("c".repeat(40));
+    assert_ne!(content_hash(&empty).expect("hash"), content_hash(&amend).expect("hash"));
+    assert_eq!(decode(&encode(&amend).expect("encode")).expect("decode"), amend);
+    let mut bare: Request = empty.clone();
+    bare.operation = Operation::Commit;
+    assert!(matches!(encode(&bare), Err(RequestError::Invalid("changes"))));
+    let mut full: Request = request('7', "m");
+    full.operation = Operation::EmptyCommit;
+    assert!(matches!(encode(&full), Err(RequestError::Invalid("changes"))));
+    amend.operation = Operation::Amend("zz".to_string());
+    assert!(matches!(encode(&amend), Err(RequestError::Invalid("amend target"))));
+}
+
+/// Re-review: paths and branch names are bytes (a tracked path need not be UTF-8).
+#[test]
+fn paths_and_branch_names_are_bytes() {
+    let mut original: Request = request('6', "m");
+    original.changes[1].path = b"b/\xff\xfe.txt".to_vec();
+    original.branch = b"topic/\xff".to_vec();
+    assert_eq!(decode(&encode(&original).expect("encode")).expect("decode"), original);
+}
+
+/// Re-review B: a manifest whose records are reordered, renumbered or point outside the spool is refused, even with a correct
+/// end hash, and `read_closure` returns only bytes that match the request.
+#[test]
+fn spool_refuses_a_manifest_that_swaps_the_new_and_old_records() {
+    let root: PathBuf = scratch("spool-manifest");
+    let original: Request = request('5', "m");
+    let new_files: Vec<Vec<u8>> = vec![Vec::new(), b"new bytes".to_vec()];
+    let old_files: Vec<Vec<u8>> = vec![b"old gone".to_vec(), Vec::new()];
+    write_spool(&root, &original.id, &new_files, &old_files).expect("write");
+    let manifest: PathBuf = root.join("spool").join(&original.id).join("manifest");
+    let good: String = std::fs::read_to_string(&manifest).expect("manifest");
+    let body: &str = &good[..good.rfind("end ").expect("end")];
+    let lines: Vec<&str> = body.lines().collect();
+    let hostile: Vec<Vec<&str>> = vec![
+        vec![lines[2], lines[3], lines[0], lines[1]],
+        vec![lines[1], lines[0], lines[2], lines[3]],
+        vec![lines[0], lines[0], lines[2], lines[3]],
+        vec![lines[0], lines[1], lines[2]],
+    ];
+    for records in hostile {
+        let mut forged: String = records.join("\n");
+        forged.push('\n');
+        let with_end: String = format!("{}end {}\n", forged, sha256_hex(forged.as_bytes()));
+        std::fs::remove_file(&manifest).expect("remove");
+        std::fs::write(&manifest, with_end).expect("forge");
+        assert!(matches!(verify_spool(&root, &original.id), Err(SpoolError::Mismatch(_))), "{:?}", records);
+    }
+    let escaping: String = format!("file ../x 0 {}\nold 0 0 {}\n", sha256_hex(b""), sha256_hex(b""));
+    std::fs::remove_file(&manifest).expect("remove");
+    std::fs::write(&manifest, format!("{}end {}\n", escaping, sha256_hex(escaping.as_bytes()))).expect("forge");
+    assert!(matches!(verify_spool(&root, &original.id), Err(SpoolError::Mismatch(_))));
 }

@@ -15,10 +15,11 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, sync_directory, temporary_name};
+use super::commit_identity::{create_dir_all_durable, sync_chain, temporary_name};
 use super::commit_integrity::{hex, is_identity, is_object_name, sha256_hex, unhex};
 
-/// The record format version this module reads and writes.
+/// The record format version this module reads and writes. These components are unreleased and no version-1 request was ever
+/// accepted anywhere, so version 1 is rejected rather than migrated; a later format change would need a reader of the older one.
 pub const REQUEST_VERSION: u32 = 2;
 
 /// What:
@@ -33,8 +34,8 @@ pub const REQUEST_VERSION: u32 = 2;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Change {
-    /// The repository-relative path, `/` separated, no empty, `.` or `..` component.
-    pub path: String,
+    /// The repository-relative path as bytes, `/` separated, no empty, `.`, `..` or `.git` component (Git paths need not be UTF-8).
+    pub path: Vec<u8>,
     /// The mode: `100644`, `100755`, `120000`, `160000`, or `000000` for a deletion.
     pub mode: String,
     /// The SHA-256 of the captured bytes, or `-` for a deletion.
@@ -44,6 +45,26 @@ pub struct Change {
     /// The SHA-256 of the path's bytes at the captured base, or `-` when the base has no such path. The spool holds those bytes,
     /// so a replay needs no object of the base.
     pub old_sha256: String,
+}
+
+/// What:
+///  `enum Operation { ... }`: the kind of commit a request asks for. `Amend` names the commit it amends.
+/// Why:
+///  A request with no changes is an empty commit or a message-only amend, which need different parent and history treatment;
+///  the record must say which before it is accepted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Operation = { kind: 'commit' } | { kind: 'empty-commit' } | { kind: 'amend'; target: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Operation {
+    /// An ordinary commit; it has at least one change.
+    Commit,
+    /// `git commit --allow-empty`: no change, a new commit on the base.
+    EmptyCommit,
+    /// An amendment of the commit with this object name (possibly message-only).
+    Amend(String),
 }
 
 /// What:
@@ -59,12 +80,14 @@ pub struct Change {
 pub struct Request {
     /// The request identity.
     pub id: String,
-    /// The branch the request was captured on.
-    pub branch: String,
+    /// The branch the request was captured on, as bytes.
+    pub branch: Vec<u8>,
     /// The captured base commit (or the empty tree for an unborn branch), as an object name.
     pub base: String,
-    /// The commit message.
-    pub message: String,
+    /// The commit message, as bytes.
+    pub message: Vec<u8>,
+    /// What the request asks for, so an empty commit and a message-only amend differ.
+    pub operation: Operation,
     /// The changes, in path order.
     pub changes: Vec<Change>,
 }
@@ -99,11 +122,11 @@ impl From<io::Error> for RequestError {
 
 /// Whether `path` is a safe repository-relative path: non-empty, no NUL, no leading or trailing `/`, no empty, `.`,
 /// `..` or `.git` component.
-pub fn valid_path(path: &str) -> bool {
-    if path.is_empty() || path.contains('\0') || path.starts_with('/') || path.ends_with('/') {
+pub fn valid_path(path: &[u8]) -> bool {
+    if path.is_empty() || path.contains(&0) || path.starts_with(b"/") || path.ends_with(b"/") {
         return false;
     }
-    return path.split('/').all(|part| { return !part.is_empty() && part != "." && part != ".." && part != ".git"; });
+    return path.split(|byte| { return *byte == b'/'; }).all(|part| { return !part.is_empty() && part != b"." && part != b".." && part != b".git"; });
 }
 
 /// Checks every field of `request`.
@@ -111,24 +134,30 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
     if !is_identity(&request.id) {
         return Err(RequestError::Invalid("id"));
     }
-    if request.branch.is_empty() || request.branch.contains('\0') {
+    if request.branch.is_empty() || request.branch.contains(&0) {
         return Err(RequestError::Invalid("branch"));
     }
     if !is_object_name(&request.base) {
         return Err(RequestError::Invalid("base"));
     }
-    if request.message.trim().is_empty() || request.message.contains('\0') {
+    if request.message.iter().all(|byte| { return byte.is_ascii_whitespace(); }) || request.message.contains(&0) {
         return Err(RequestError::Invalid("message"));
     }
-    let mut previous: Option<&str> = None;
+    match &request.operation {
+        Operation::Commit if request.changes.is_empty() => return Err(RequestError::Invalid("changes")),
+        Operation::EmptyCommit if !request.changes.is_empty() => return Err(RequestError::Invalid("changes")),
+        Operation::Amend(target) if !is_object_name(target) => return Err(RequestError::Invalid("amend target")),
+        _ => {}
+    }
+    let mut previous: Option<&[u8]> = None;
     for change in &request.changes {
         if !valid_path(&change.path) {
             return Err(RequestError::Invalid("path"));
         }
-        if previous.is_some_and(|before| { return before >= change.path.as_str(); }) {
+        if previous.is_some_and(|before| { return before >= change.path.as_slice(); }) {
             return Err(RequestError::Invalid("path order"));
         }
-        previous = Some(change.path.as_str());
+        previous = Some(change.path.as_slice());
         let deletion: bool = change.mode == "000000";
         let mode_ok: bool = deletion || ["100644", "100755", "120000", "160000"].contains(&change.mode.as_str());
         if !mode_ok {
@@ -160,10 +189,15 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
 pub fn encode(request: &Request) -> Result<Vec<u8>, RequestError> {
     validate(request)?;
     let mut body: String = format!("cli-git-request {}\nid {}\n", REQUEST_VERSION, request.id);
-    body.push_str(&format!("branch {}\nbase {}\n", hex(request.branch.as_bytes()), request.base));
-    body.push_str(&format!("message {}\n", hex(request.message.as_bytes())));
+    body.push_str(&format!("branch {}\nbase {}\n", hex(&request.branch), request.base));
+    body.push_str(&format!("message {}\n", hex(&request.message)));
+    match &request.operation {
+        Operation::Commit => body.push_str("operation commit\n"),
+        Operation::EmptyCommit => body.push_str("operation empty-commit\n"),
+        Operation::Amend(target) => body.push_str(&format!("operation amend {}\n", target)),
+    }
     for change in &request.changes {
-        body.push_str(&format!("change {} {} {} {} {}\n", change.mode, change.sha256, change.old_mode, change.old_sha256, hex(change.path.as_bytes())));
+        body.push_str(&format!("change {} {} {} {} {}\n", change.mode, change.sha256, change.old_mode, change.old_sha256, hex(&change.path)));
     }
     let end: String = format!("end {}\n", sha256_hex(body.as_bytes()));
     body.push_str(&end);
@@ -205,6 +239,12 @@ pub fn decode(bytes: &[u8]) -> Result<Request, RequestError> {
     let branch_hex: &str = field(lines.next(), "branch ", "branch")?.trim_end();
     let base: String = field(lines.next(), "base ", "base")?.trim_end().to_string();
     let message_hex: &str = field(lines.next(), "message ", "message")?.trim_end();
+    let operation_text: &str = field(lines.next(), "operation ", "operation")?.trim_end();
+    let operation: Operation = match operation_text {
+        "commit" => Operation::Commit,
+        "empty-commit" => Operation::EmptyCommit,
+        other => Operation::Amend(other.strip_prefix("amend ").ok_or(RequestError::Damaged("operation"))?.to_string()),
+    };
     let mut changes: Vec<Change> = Vec::new();
     let mut end: Option<String> = None;
     for line in lines {
@@ -213,8 +253,7 @@ pub fn decode(bytes: &[u8]) -> Result<Request, RequestError> {
             if parts.len() != 5 || end.is_some() {
                 return Err(RequestError::Damaged("change"));
             }
-            let path: String = String::from_utf8(unhex(parts[4]).ok_or(RequestError::Damaged("path"))?)
-                .map_err(|_| { return RequestError::Damaged("path"); })?;
+            let path: Vec<u8> = unhex(parts[4]).ok_or(RequestError::Damaged("path"))?;
             changes.push(Change {
                 path,
                 mode: parts[0].to_string(),
@@ -234,9 +273,10 @@ pub fn decode(bytes: &[u8]) -> Result<Request, RequestError> {
     let recorded: String = end.ok_or(RequestError::Damaged("end"))?;
     let request: Request = Request {
         id,
-        branch: String::from_utf8(unhex(branch_hex).ok_or(RequestError::Damaged("branch"))?).map_err(|_| { return RequestError::Damaged("branch"); })?,
+        branch: unhex(branch_hex).ok_or(RequestError::Damaged("branch"))?,
         base,
-        message: String::from_utf8(unhex(message_hex).ok_or(RequestError::Damaged("message"))?).map_err(|_| { return RequestError::Damaged("message"); })?,
+        message: unhex(message_hex).ok_or(RequestError::Damaged("message"))?,
+        operation,
         changes,
     };
     let again: Vec<u8> = encode(&request).map_err(|_| { return RequestError::Damaged("fields"); })?;
@@ -276,9 +316,9 @@ pub enum Published {
 /// ```ts
 /// function publish(inbox: string, request: Request): Published;
 /// ```
-pub fn publish(inbox: &Path, request: &Request) -> Result<Published, RequestError> {
+pub fn publish(anchor: &Path, inbox: &Path, request: &Request) -> Result<Published, RequestError> {
     let bytes: Vec<u8> = encode(request)?;
-    create_dir_all_durable(inbox)?;
+    create_dir_all_durable(anchor, inbox)?;
     let target: PathBuf = inbox.join(&request.id);
     let temporary: PathBuf = temporary_name(inbox)?;
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
@@ -288,15 +328,12 @@ pub fn publish(inbox: &Path, request: &Request) -> Result<Published, RequestErro
     fs::remove_file(&temporary)?;
     match linked {
         Ok(()) => {
-            sync_directory(inbox)?;
+            sync_chain(inbox, anchor)?;
             return Ok(Published::Created);
         }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             // A resend finds the name linked by a writer that may have died before syncing the directory.
-            sync_directory(inbox)?;
-            if let Some(parent) = inbox.parent() {
-                sync_directory(parent)?;
-            }
+            sync_chain(inbox, anchor)?;
             let existing: Vec<u8> = fs::read(&target)?;
             if existing == bytes {
                 return Ok(Published::AlreadyPresent);

@@ -24,7 +24,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, sync_directory};
+use super::commit_identity::{create_dir_all_durable, sync_chain, sync_directory};
 use super::commit_integrity::{crc32, is_identity, is_object_name};
 
 /// What:
@@ -285,17 +285,20 @@ pub fn lane_ledger_path(common_dir: &Path, instance: &str) -> Result<PathBuf, Le
 /// ```ts
 /// function append(path: string, entry: LedgerEntry): void;
 /// ```
-pub fn append(ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
+pub fn append(anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
     let line: Vec<u8> = encode_line(entry)?;
     repair_tail(ledger)?;
     if let Some(parent) = ledger.parent() {
-        create_dir_all_durable(parent)?;
+        create_dir_all_durable(anchor, parent)?;
     }
     let mut file: File = OpenOptions::new().create(true).append(true).open(ledger)?;
     file.write_all(&line)?;
     file.sync_all()?;
-    // Always: the file may exist because a writer that died created it before syncing the directory.
-    sync_parent(ledger)?;
+    // Always, through the caller's durable anchor: the file or a directory above it may exist because a writer that died created
+    // it before syncing.
+    if let Some(parent) = ledger.parent() {
+        sync_chain(parent, anchor)?;
+    }
     return Ok(());
 }
 
