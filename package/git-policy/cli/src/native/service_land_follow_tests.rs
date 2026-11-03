@@ -282,3 +282,36 @@ fn a_racily_clean_entry_sends_the_follow_up_to_git_with_the_same_result() {
     assert_eq!(staged_against(repo.as_path(), second.as_str()), vec![String::from("racy.txt")]);
     remove(root.as_path());
 }
+
+/// The record of the installed index is made after the index is installed and while the lock is still held; a record that cannot
+/// be made keeps the lock in place (the restart reclaims it) and the installed index, and the error is returned.
+#[test]
+fn the_record_is_made_between_the_installation_and_the_unlock_and_a_failed_record_keeps_the_lock() {
+    use crate::service_index_lock::{lock_path_of, try_acquire};
+    let files: Vec<Vec<u8>> = vec![b"top.txt".to_vec()];
+    let (root, repo, _first, second) = index_behind("service-follow-record", files.as_slice());
+    let mut context = git_context();
+    context.common_dir = Some(repo.join(".git"));
+    let index: PathBuf = repo.join(".git").join("index");
+    let lock: PathBuf = lock_path_of(index.as_path());
+    let held = try_acquire(index.as_path(), 8).expect("the lock is free");
+    let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &held, 8).expect("built");
+    let built_bytes: Vec<u8> = std::fs::read(&built).expect("built bytes");
+    let seen: std::cell::RefCell<Vec<(bool, bool)>> = std::cell::RefCell::new(Vec::new());
+    let record = || -> std::io::Result<()> {
+        seen.borrow_mut().push((lock.exists(), std::fs::read(&index)? == built_bytes));
+        return Ok(());
+    };
+    held.release_with_record(built.as_path(), &record).expect("installed and recorded");
+    assert_eq!(seen.into_inner(), vec![(true, true)], "the lock was held and the index installed when the record was made");
+    assert!(!lock.exists());
+    // A record that cannot be made.
+    let second_hold = try_acquire(index.as_path(), 9).expect("the lock is free");
+    let second_built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &second_hold, 9).expect("built");
+    let broken = || -> std::io::Result<()> { return Err(std::io::Error::other("no space left")); };
+    assert!(second_hold.release_with_record(second_built.as_path(), &broken).is_err());
+    assert!(lock.exists(), "the lock stays for the restart to reclaim");
+    assert!(!differs(repo.as_path(), second.as_str()), "the installed index stays");
+    std::fs::remove_file(&lock).expect("the restart reclaims the lock");
+    remove(root.as_path());
+}

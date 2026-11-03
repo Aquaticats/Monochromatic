@@ -966,3 +966,40 @@ fn a_restart_does_not_replay_an_index_update_that_was_installed_and_unlocked() {
     assert!(!world.context.journal.join("1.indexed").exists(), "and its record is gone");
     remove(world.root.as_path());
 }
+
+/// A landing whose conclusion state could not be removed still records the installed index, so the restart that retries the
+/// removal does not replay the index update over what another session staged after the lock was given up.
+#[test]
+fn a_cleanup_that_fails_does_not_make_the_index_update_replayable() {
+    use crate::service_journal::{INDEXED_EXTENSION, is_indexed};
+    let world: World = world("service-land-cleanup-fails");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    let new: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    std::fs::rename(&done, &open).expect("reopen");
+    let mut intent: Intent = parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
+    // A conclusion whose scratch directory exists and whose state cannot be reproduced removes nothing and says so.
+    let scratch: PathBuf = world.root.join("scratch");
+    std::fs::create_dir_all(scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY)).expect("a copy directory with no record in it");
+    intent.cleanup = Some(crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false });
+    crate::service_journal::write_intent(world.context.journal.as_path(), &intent).expect("intent with a cleanup");
+    let landing_git: GitContext = world.context.git.clone();
+    let lock = try_acquire(world.repo.join(".git/index").as_path(), 1).expect("the lock is free");
+    let finished: bool = follow_up(&landing_git, world.repo.as_path(), &intent, lock, world.context.journal.as_path());
+    assert!(!finished, "the cleanup did not finish");
+    assert!(is_indexed(world.context.journal.as_path(), 1, new.as_str()), "the installed index is recorded all the same");
+    assert!(!world.repo.join(".git/index.lock").exists());
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    // Another session stages a new version; the restart that retries the cleanup leaves it alone.
+    std::fs::write(world.repo.join("landed.txt"), "staged after the landing\n").expect("edit");
+    git(world.repo.as_path(), &["add", "landed.txt"]);
+    recover(&world.context);
+    assert_eq!(git_text(world.repo.as_path(), &["show", ":landed.txt"]), "staged after the landing");
+    assert!(open.exists(), "the batch stays open while the cleanup fails");
+    assert!(world.context.journal.join(format!("1.{INDEXED_EXTENSION}")).exists());
+    remove(world.root.as_path());
+}
