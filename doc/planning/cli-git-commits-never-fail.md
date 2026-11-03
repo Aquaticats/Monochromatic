@@ -1978,6 +1978,8 @@ machine and owed an executable model in step 1; nothing is built). The verdict i
 
 - Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
   conflict recorded, and a replay conflict keeps the captured inputs).
+- `withdrawn` at a bound (owner, 2026-11-03T12:45, "Return with an error"): any wait of a command ends with an error naming the blocker, the commit is kept on a side
+  ref for a retry and nothing lands by itself; the register in the state machine lists each wait and its bound.
 - A failing hook or a failing required clean filter (owner): the commit ends with its own message and changes nothing.
 - `sign-pending` (the configured signer failed, an outside cause): nonzero with a clear message; the work stays on disk and the next command of the lane
   tries the signer again (revision 10, B1).
@@ -2179,6 +2181,25 @@ G. Retention against late maintenance (restated in revision 11; for the coordina
      person; G-root beats G-handshake because it adds no wait to maintenance.
    - Earlier pick (coordinator, 2026-11-03, before the tenth review, veto open): G-root, because of "You should (almost) never be waiting."; the machine now
      carries G-order with the root as extra protection, and the pick is for the coordinator to re-make.
+N. The retry of a live owner after a proven store failure (new in revision 11; for the coordinator to pick).
+   Case: P2a failed because a branch lock is held; the live owner records it and retries on the trigger; meanwhile another writer could in principle have
+   installed the abandoned commit by its id and removed it again, and the erased reflog would show nothing. The tenth review (R10-8) asks that this
+   ambiguity be handled as unclear publication or explicitly conceded.
+   - Option N-silent, the live owner retries with a newly built commit and says nothing. Pros: the common benign case (a held lock) has no extra notice;
+     the abandoned object is private and no ref names it. Cons: in the far-fetched history above the deliberately removed change returns without the
+     unclear-publication notice; this is a concession.
+   - Option N-notice, every retry after a store failure carries the unclear-publication notice of decision 3. Pros: no silent concession. Cons: the notice
+     appears on every ordinary held-lock retry, which teaches the person to ignore it.
+   - Ranking: N-silent > N-notice. N-silent beats N-notice because the far-fetched history needs another program to read a private object and install it by id,
+     while the notice would be noise in the common case.
+H2. Reruns of a hook after owner deaths (new in revision 11, refines H; for the coordinator to pick).
+   Case: a hook performs an external effect, the owner dies before a durable result exists, the next owner runs the hook again, and dies again before a durable result.
+   - Option H-episode, one new invocation for each recovery episode that lacks a durable result, with a notice each time. Pros: the request still completes
+     after repeated outside kills. Cons: the hook's external effect may repeat once per such death; there is no total bound of one.
+   - Option H-total, after one rerun the request stops running the hook: it ends with an error (W1, naming the hook and that its result is unknown) and the
+     commit is kept for a retry. Pros: at most one repeat of an external effect. Cons: a second outside kill makes the commit fail with an error.
+   - Ranking: H-episode > H-total. H-episode beats H-total because "Commits should never fail." and the outside-cause rule treat a kill as the outside's act,
+     and a hook that is not idempotent is already covered by Git's own contract that a hook "may thus get called multiple times".
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
