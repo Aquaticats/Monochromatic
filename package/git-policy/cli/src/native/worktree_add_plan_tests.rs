@@ -375,3 +375,20 @@ fn the_option_table_matches_what_git_prints_for_dash_h() {
         assert!(listed.contains(entry), "the table lists {entry:?}, which Git does not: {text}");
     }
 }
+
+/// An exact name wins over a longer name it is a prefix of, even when the longer name comes first; the real table has no such
+/// pair, so a table that has one shows the rule.
+#[test]
+fn an_exact_name_wins_over_the_names_it_is_a_prefix_of() {
+    static TABLE: &[AddOption] = &[
+        AddOption { short: None, long: Some("reason"), takes: Takes::Nothing },
+        AddOption { short: None, long: Some("re"), takes: Takes::Required },
+        AddOption { short: None, long: Some("reset"), takes: Takes::Nothing },
+    ];
+    let found = resolve_in(TABLE, "re").expect("the exact name");
+    assert_eq!(found.option.long, Some("re"));
+    assert!(resolve_in(TABLE, "res").is_some_and(|found| { return found.option.long == Some("reset"); }), "a unique prefix");
+    assert!(resolve_in(TABLE, "rea").is_some_and(|found| { return found.option.long == Some("reason"); }));
+    assert!(resolve_in(TABLE, "r").is_none(), "three names share the prefix");
+    assert!(resolve_in(TABLE, "re=1").is_some_and(|found| { return found.attached == Some("1"); }));
+}

@@ -281,6 +281,20 @@ struct LongOption<'a> {
 /// function resolveLongOption(arg: string): { option; unset; attached? } | undefined;
 /// ```
 fn resolve_long(arg: &str) -> Option<LongOption<'_>> {
+    return resolve_in(ADD_OPTIONS, arg);
+}
+
+/// What:
+///  `resolve_long` over a given table of options.
+/// Why:
+///   The real table has no option whose name is a prefix of another's, so the rule that an exact name wins can only be
+///  shown with a table that has one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveIn(options: AddOption[], arg: string): { option; unset; attached? } | undefined;
+/// ```
+fn resolve_in<'a>(table: &'static [AddOption], arg: &'a str) -> Option<LongOption<'a>> {
     let arg_end: usize = arg.find('=').unwrap_or(arg.len());
     // `--no-x` is the negation of `x`; `--no-no-x` is accepted by no option whose name has no `no-` (line 535 to 543).
     let (arg_start, unset, double_negation): (&str, bool, bool) = match arg.strip_prefix("no-") {
@@ -297,7 +311,7 @@ fn resolve_long(arg: &str) -> Option<LongOption<'_>> {
     let length: usize = arg_end.checked_sub(arg.len() - arg_start.len())?;
     let mut abbreviated: Option<(&'static AddOption, bool)> = None;
     let mut ambiguous: bool = false;
-    for option in ADD_OPTIONS {
+    for option in table {
         let Some(name) = option.long else { continue };
         if let Some(rest) = arg_start.strip_prefix(name) {
             // An exact name returns at once, even after prefixes were seen.
