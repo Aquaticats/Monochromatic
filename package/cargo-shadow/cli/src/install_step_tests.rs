@@ -695,3 +695,39 @@ fn a_package_from_an_unsupported_registry_stops_the_command() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(frozen, StepOutcome::Refused(_)), "frozen: {frozen:?}");
 }
+
+/// Whether the process may ignore directory permissions, which makes a read-only directory no obstacle.
+fn ignores_permissions() -> bool {
+    use std::os::unix::fs::MetadataExt;
+    return fs::metadata("/proc/self").map(|metadata| { return metadata.uid() == 0; }).unwrap_or(true);
+}
+
+/// Review finding (3c P1-1): cargo succeeds, the policy refuses what it wrote, and the rollback cannot complete.
+/// A policy report is a result, not an error, so the rollback failure must not turn it into a warn-and-run fallback.
+#[test]
+fn a_policy_refusal_whose_rollback_cannot_complete_stops_the_command() {
+    use std::os::unix::fs::PermissionsExt;
+    if ignores_permissions() {
+        return;
+    }
+    let young: String = format!("# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let directory = start.clone();
+    let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+        }
+        if arguments[0] == "update" && !arguments.iter().any(|argument| { return argument == "--precise"; }) {
+            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
+            fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).map_err(|error| { return error.to_string(); })?;
+            return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+        }
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    };
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+    fs::set_permissions(&start, fs::Permissions::from_mode(0o755)).expect("make the directory writable again");
+
+    assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the refused lockfile: {outcome:?}");
+}

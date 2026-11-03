@@ -784,20 +784,19 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // Review finding (2c 1): output of this run's cargo that is still live after the rollback is unapproved, and the shim's
         // `--locked` fallback would build it, so the step stops instead of reporting an operational failure.
         let still_live: Vec<String> = unapproved_roots(request.root, &produced.borrow());
-        if !still_live.is_empty() && outcome.is_err() {
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Review finding (3c P1-1): a policy refusal is a successful report with problems, not an error; a rollback that cannot
+        // complete stops the command whether cargo failed or its output was refused, and the refusal travels in the message.
+        if !still_live.is_empty() || restored.is_err() {
+            let refusal: String = match &outcome {
+                Ok(report) if !report.problems.is_empty() => format!("\nThe policy refused it: {}", report.problems.join("; ")),
+                _ => String::new(),
+            };
             return Err(InstallError::Unsettled {
-                // Macro `format!`: builds or prints text (or a list) from a template.
                 message: format!(
-                    "cargo-shadow: this run's cargo changed {} and the change could not be put back ({}), so the command was not run",
-                    still_live.join(", "),
-                    // `match`: picks the arm whose pattern fits the value.
-                    // Borrow `&restored`: lends the value without copying or giving it away.
+                    "cargo-shadow: this run's cargo changed {} and the change could not be put back ({}), so the command was not run{refusal}",
+                    if still_live.is_empty() { "a lockfile".to_string() } else { still_live.join(", ") },
                     match &restored {
-                        // `Ok(...)`: builds the success or the failure variant of a `Result`.
                         Ok(warnings) => warnings.join("; "),
-                        // `Err(...)`: builds the success or the failure variant of a `Result`.
-                        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
                         Err(error) => error.to_string(),
                     }
                 ),
