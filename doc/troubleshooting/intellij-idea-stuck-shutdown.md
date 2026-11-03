@@ -305,7 +305,24 @@ double-click exclusion,
 and replacement through the unmodified wrapper into a running systemd service.
 Fixture cleanup reported no remaining matching processes.
 Desktop entries passed `desktop-file-validate`.
-Live launch verification is pending.
+The changed original desktop entry was then launched through `gio launch`.
+The recovery log recorded termination of the old root PID `2448935`
+and creation of `intellij-idea-recovered-1793681333401.service`.
+The old root PID disappeared;
+`systemctl --user show` reported the service active with main PID `3235452`.
+A KWin D-Bus script confirmed an IDEA window belonging to that new PID:
+
+```text
+# KWin journal output, 2026-11-02 America/New_York
+IDEA_RECOVERY_20261102 count=1
+IDEA_RECOVERY_20261102 pid=3235452 minimized=false active=false
+```
+
+The KWin verification script was unloaded after inspection.
+The live restart completed with `SIGTERM`;
+the forced termination path was exercised by the disposable resistant process.
+The documentation passed scoped `mise run lint:monochromatic-lint`
+and a rendered check with `glow`.
 
 The fixture initially expected GIO to forward a `file:` URL verbatim;
 the measured argument was its decoded filesystem path.
@@ -314,6 +331,12 @@ Another failed assertion tested the desktop lock after the child had already exi
 the harness captured inherited output pipes with `execFileSync`.
 Using ignored output handles allowed the harness to test the lock while the child was still alive.
 The resulting live-lock assertion passed.
+Both wrapper invocations use `systemd-run --expand-environment=no`
+to preserve literal dollar expressions in arguments.
+The desktop test forwarded a link containing `$HOME` and a semicolon unchanged.
+A separate verification command that omitted this option emitted
+`Referenced but unset environment variable evaluates to an empty string: started`;
+rerunning that command with expansion disabled preserved its JavaScript template expression.
 
 This is a requested local launch policy,
 not new evidence identifying an upstream shutdown defect.
