@@ -245,6 +245,11 @@ Use an explicit build context containing only intended source,
 patch,
 and build-input records.
 Give the container its own home and caches.
+Use a dedicated non-root user for dependency synchronization,
+compilation,
+and the browser;
+the [pinned updater explicitly exits when `USER` is `root`][depot-user].
+Install the OS packages during image setup.
 Do not forward the user's home,
 SSH agent,
 Git credentials,
@@ -379,6 +384,7 @@ Source citations and rendered Markdown checks remain to be completed for this do
 [depot-client-digest]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/cipd_client_version.digests#18
 [depot-bootstrap]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/cipd_manifest.txt#21
 [depot-updater]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/update_depot_tools#105
+[depot-user]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/update_depot_tools#8
 [autoninja-local]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/autoninja.py#489
 [gclient-sync]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/gclient.py#4719
 [gclient-revinfo]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/gclient.py#5106
