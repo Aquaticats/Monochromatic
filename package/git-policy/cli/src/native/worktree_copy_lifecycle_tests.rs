@@ -745,7 +745,7 @@ fn the_repair_is_handed_exactly_the_confirmed_destination() {
     let observation: WorktreeCopyObservation = observe_copy_source(&main_identity(main.as_path(), common.as_path()), main.as_path())
         .expect("observed")
         .expect("applicable");
-    let (_settlement, after) = settle_creation(
+    let (_first, after) = settle_creation(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
         &observation,
         &mut |_step| {
@@ -759,7 +759,7 @@ fn the_repair_is_handed_exactly_the_confirmed_destination() {
     assert_eq!(after.source_root, Some(main.clone()));
     // An unknown destination hands nothing on, even though Git made a worktree.
     let unknown: PathBuf = canonical_root.join("unknown");
-    let (_settlement, none) = settle_creation(
+    let (_second, none) = settle_creation(
         &creation_from(main.as_path(), common.as_path(), None),
         &observation,
         &mut |_step| return Ok(run_real(main.as_path(), add_arguments("unknown", unknown.as_path()).as_slice())),
