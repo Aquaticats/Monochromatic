@@ -338,3 +338,51 @@ fn a_program_that_cannot_start_is_a_start_failure() {
     .expect_err("no such program");
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");
 }
+
+/// A child the kernel releases only after the push was reported has its lock swept when it ends, on a thread of its own.
+#[cfg(unix)]
+#[test]
+fn a_child_released_late_has_its_lock_swept_when_it_ends() {
+    let root: std::path::PathBuf = crate::test_support::fixture("sweep-after-exit");
+    let heads: std::path::PathBuf = root.join(".git").join("refs").join("heads");
+    std::fs::create_dir_all(heads.as_path()).expect("ref directory");
+    let lock: std::path::PathBuf = heads.join("late.lock");
+    let mut command: Command = shell(": > \"$LOCK\"; exec sleep 1");
+    command.current_dir(root.as_path()).env("LOCK", lock.as_os_str());
+    let locks: LockLedger = LockLedger::before_start(&command);
+    let child: Child = command.spawn().expect("start the child");
+    let member: TreeMember = member_of(i32::try_from(child.id()).expect("pid")).expect("a running child");
+    let sweeper = sweep_after_exit(child, vec![member], locks).expect("the sweeping thread starts");
+    sweeper.join().expect("the sweeping thread ends");
+    assert!(!lock.exists(), "the lock the child left is swept once it ended");
+    crate::test_support::remove(root.as_path());
+}
+
+/// How long the member of a stopped tree outlives the stop in the control below, longer than the grace it is given.
+const LINGERING_MEMBER_SECONDS: &str = "1";
+
+/// A tree that has not ended when the grace is over is not swept then, which would remove nothing and never be tried again:
+/// the sweep waits for it on a thread of its own, and removes the lock once it has ended.
+#[cfg(unix)]
+#[test]
+fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {
+    let root: std::path::PathBuf = crate::test_support::fixture("sweep-lingering-member");
+    let heads: std::path::PathBuf = root.join(".git").join("refs").join("heads");
+    std::fs::create_dir_all(heads.as_path()).expect("ref directory");
+    let lock: std::path::PathBuf = heads.join("lingering.lock");
+    let mut command: Command = Command::new("true");
+    command.current_dir(root.as_path());
+    let locks: LockLedger = LockLedger::before_start(&command).with_settle(Duration::from_millis(100));
+    let mut ended: Child = command.spawn().expect("start the collected child");
+    let mut lingering: Child = Command::new("sleep").arg(LINGERING_MEMBER_SECONDS).spawn().expect("start the member");
+    let member: TreeMember = member_of(i32::try_from(lingering.id()).expect("pid")).expect("a running member");
+    std::fs::write(lock.as_path(), "").expect("an empty lock the tree left");
+    ended.wait().expect("the child is collected");
+    let started = settle_locks(ended, true, vec![member], locks, Duration::from_millis(100));
+    assert!(lock.exists(), "a tree that still runs is not swept");
+    let sweeper = started.expect("the sweep waits for the tree on a thread of its own");
+    lingering.wait().expect("the member ends");
+    sweeper.join().expect("the sweeping thread ends");
+    assert!(!lock.exists(), "the lock is swept once the tree has ended");
+    crate::test_support::remove(root.as_path());
+}

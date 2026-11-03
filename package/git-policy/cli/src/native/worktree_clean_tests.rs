@@ -222,3 +222,64 @@ staged
     assert_eq!(dirty_source(git_dir.as_path(), git_dir.as_path(), merging.clone()), Err(merging), "an operation in progress stays a refusal");
     remove(root.as_path());
 }
+
+/// One walk below a held directory both judges every tracked file against its entry and returns the stat fields the snapshot's
+///  index takes, equal to what a lookup of each path alone returns, so the files are looked at once.
+#[test]
+fn one_walk_judges_the_files_and_returns_their_stat_fields() {
+    let root: PathBuf = fixture("clean-one-walk");
+    let repo: PathBuf = aged_repository(root.as_path());
+    let clean: CleanSource = check(repo.as_path()).expect("clean");
+    let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
+    let held: std::fs::File = crate::fs_beneath::open_root(std::fs::canonicalize(repo.as_path()).expect("canonical").as_path()).expect("handle");
+    let fields: Vec<StatFields> = tree_fields_beneath(&held, entries.as_slice(), clean.index_seconds).expect("every file agrees");
+    assert_eq!(fields.len(), entries.len());
+    for (entry, found) in entries.iter().zip(&fields) {
+        assert_eq!(Some(found.clone()), stat_fields_beneath(&held, entry.path.as_slice()), "{}", String::from_utf8_lossy(entry.path.as_slice()));
+    }
+    remove(root.as_path());
+}
+
+/// The one walk refuses a changed file and names its path.
+#[test]
+fn the_one_walk_refuses_a_changed_file() {
+    let root: PathBuf = fixture("clean-one-walk-changed");
+    let repo: PathBuf = aged_repository(root.as_path());
+    let clean: CleanSource = check(repo.as_path()).expect("clean");
+    let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
+    let held: std::fs::File = crate::fs_beneath::open_root(std::fs::canonicalize(repo.as_path()).expect("canonical").as_path()).expect("handle");
+    std::fs::write(repo.join("a.txt"), b"alpha, changed and longer\n").expect("change");
+    let changed: CleanRefusal = tree_fields_beneath(&held, entries.as_slice(), clean.index_seconds).expect_err("a changed file");
+    assert!(changed.reason.contains("a.txt"), "{}", changed.reason);
+    remove(root.as_path());
+}
+
+/// The one walk does not read through a link that stands where a directory was.
+#[test]
+fn the_one_walk_refuses_a_link_in_place_of_a_directory() {
+    let root: PathBuf = fixture("clean-one-walk-link");
+    let repo: PathBuf = aged_repository(root.as_path());
+    let clean: CleanSource = check(repo.as_path()).expect("clean");
+    let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
+    let held: std::fs::File = crate::fs_beneath::open_root(std::fs::canonicalize(repo.as_path()).expect("canonical").as_path()).expect("handle");
+    std::fs::create_dir(root.join("copy")).expect("copy");
+    std::fs::copy(repo.join("dir/b.txt"), root.join("copy/b.txt")).expect("copy of the file");
+    std::fs::rename(repo.join("dir"), root.join("dir.orig")).expect("moved away");
+    std::os::unix::fs::symlink(root.join("copy"), repo.join("dir")).expect("link in its place");
+    let linked: CleanRefusal = tree_fields_beneath(&held, entries.as_slice(), clean.index_seconds).expect_err("a link");
+    assert!(linked.reason.contains("dir/b.txt"), "{}", linked.reason);
+    remove(root.as_path());
+}
+
+/// A cursor keeps the directory it opened for the next path in it, and opens another when the parent changes.
+#[test]
+fn the_cursor_answers_like_a_lookup_of_each_path_alone() {
+    let root: PathBuf = fixture("clean-cursor");
+    let repo: PathBuf = aged_repository(root.as_path());
+    let held: std::fs::File = crate::fs_beneath::open_root(std::fs::canonicalize(repo.as_path()).expect("canonical").as_path()).expect("handle");
+    let mut cursor: StatCursor<'_> = StatCursor::new(&held);
+    for path in ["a.txt", "dir/b.txt", "a.txt", "link", "dir/b.txt", "dir/absent", "absent/dir/file"] {
+        assert_eq!(cursor.fields(path.as_bytes()), stat_fields_beneath(&held, path.as_bytes()), "{path}");
+    }
+    remove(root.as_path());
+}

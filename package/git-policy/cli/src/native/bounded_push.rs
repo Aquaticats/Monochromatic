@@ -19,7 +19,9 @@ use super::diagnostic_log::debug;
 /// How to allow a push longer, in the words of the program that runs it.
 use super::push_deadline_advice::extend_clause;
 /// The helpers and hooks a stopped push leaves running.
-use super::process_tree::{TreeMember, descendants_of, kill_members, still_running, terminate_members};
+use super::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
+/// The lock files a stopped push leaves, and the ledger that finds them.
+use super::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
 /// The anonymous output file of the push, made in the per-user scratch directory.
 use super::scratch_location::scratch_file;
@@ -221,22 +223,70 @@ fn is_flood(size: u64) -> bool {
     return size > MAX_PUSH_OUTPUT;
 }
 
-/// What:
-///  Stop a running push: ask politely,
-///  wait the grace,
-///  then kill and collect it.
-/// Why:
-///   Git's own signal handling ends the helpers it started,
-///  and a push that ignores the request cannot outlive the kill.
+/// Wait, bounded by `grace`, until every member of a stopped tree has ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL');
+/// await Promise.race([allEnded(tree), delay(graceMs)]);
 /// ```
-pub fn stop_push(child: &mut Child, grace: Duration) {
+fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
+    let waited: Instant = Instant::now();
+    while grace_remains(waited.elapsed(), grace) && tree.iter().any(still_running) {
+        std::thread::sleep(POLL_PAUSE);
+    }
+}
+
+/// What:
+///  Collect a killed child that the kernel has not released, and sweep the locks it leaves, on a thread of its own.
+/// Why:
+///   A killed process in an uninterruptible call (a stalled disk or file system) ends only when the kernel lets it go,
+///  and on its way out it can create a lock file that nothing will remove (measured on 2026-11-03: empty tracking-ref
+///  locks born about 37 seconds after the stop). The push is reported at its deadline and does not wait for that, so
+///  the child is collected here, and its locks are swept when it is gone. The thread holds no lock and ends with the child.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// void child.exited.then(() => locks.sweep(tree));
+/// ```
+pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<std::thread::JoinHandle<()>> {
+    return std::thread::Builder::new()
+        .name(String::from("cli-git-lock-sweep"))
+        .spawn(move || {
+            // The exit status is not reported: the push was reported at its deadline.
+            let _status = child.wait();
+            // Nothing waits for this thread, so it waits for the rest of the tree as long as that runs.
+            while tree.iter().any(still_running) {
+                std::thread::sleep(POLL_PAUSE);
+            }
+            locks.sweep(tree.as_slice());
+        })
+        .inspect_err(|error| {
+            debug(TAG, &format!("could not start the thread that sweeps a stopped push's locks: {error}"));
+        })
+        .ok();
+}
+
+/// What:
+///  Stop a running push: ask politely,
+///  wait the grace,
+///  then kill and collect it,
+///  and remove the lock files it could not remove itself.
+/// Why:
+///   Git's own signal handling ends the helpers it started and removes its lock files,
+///  and a push that ignores the request cannot outlive the kill.
+///  A killed push leaves its lock files, which fail every later Git command on the same refs, so once the push and
+///  what it started are gone the locks they hold are swept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep(tree);
+/// ```
+pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
     // Read before the push is signalled: once it has exited, its helpers and hooks no longer point to it.
     let below: Vec<TreeMember> = i32::try_from(child.id()).map(descendants_of).unwrap_or_default();
-    ask_to_stop(child);
+    let mut tree: Vec<TreeMember> = i32::try_from(child.id()).ok().and_then(member_of).into_iter().collect();
+    tree.extend(below.iter().cloned());
+    ask_to_stop(&child);
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
     let mut ended: bool = false;
@@ -246,16 +296,20 @@ pub fn stop_push(child: &mut Child, grace: Duration) {
             Ok(None) => std::thread::sleep(POLL_PAUSE),
         }
     }
+    let mut collected: bool = ended;
     if !ended {
         // The child is being abandoned; its exit is not reported, only the cause.
         let _killed = child.kill();
         // A killed process that sits in uninterruptible I/O (a stalled disk or network file system) cannot be
         //  collected until the kernel releases it, so the wait is bounded by the grace again and the child is then
-        //  left to be collected when this process ends, instead of holding the service's push for as long as the stall.
+        //  left to be collected on a thread of its own, instead of holding the service's push for as long as the stall.
         let killed_at: Instant = Instant::now();
         while grace_remains(killed_at.elapsed(), grace) {
             match child.try_wait() {
-                Ok(Some(_)) | Err(_) => break,
+                Ok(Some(_)) | Err(_) => {
+                    collected = true;
+                    break;
+                }
                 Ok(None) => std::thread::sleep(POLL_PAUSE),
             }
         }
@@ -267,6 +321,29 @@ pub fn stop_push(child: &mut Child, grace: Duration) {
         std::thread::sleep(POLL_PAUSE);
     }
     kill_members(below.as_slice());
+    let _sweeper = settle_locks(child, collected, tree, locks, grace);
+}
+
+/// What:
+///  Remove the locks of a stopped tree now when it has ended, or on a thread of its own when it has not.
+/// Why:
+///   A killed process ends only when the kernel has run it once more, which a loaded or stalled host may not do within the
+///  grace; a sweep before that finds the tree running and removes nothing, and nothing would try again. The thread waits for
+///  the whole tree and then sweeps. Returns the thread, if one was started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (collected && allEnded(tree)) { locks.sweep(tree); return undefined; } return sweepAfterExit(child, tree, locks);
+/// ```
+pub fn settle_locks(child: Child, collected: bool, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<std::thread::JoinHandle<()>> {
+    if collected {
+        wait_for_tree(tree.as_slice(), grace);
+        if tree.iter().all(|member| { return !still_running(member); }) {
+            locks.sweep(tree.as_slice());
+            return None;
+        }
+    }
+    return sweep_after_exit(child, tree, locks);
 }
 
 /// Read the shared output file back from its start,
@@ -358,11 +435,13 @@ pub fn run_bounded_push(
         .stdin(Stdio::null())
         .stdout(Stdio::from(for_stdout))
         .stderr(Stdio::from(for_stderr));
+    // Taken before the push starts, so a lock born earlier is never taken for the push's.
+    let locks: LockLedger = LockLedger::before_start(&command);
     let mut child: Child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
     drop(command);
     let ended: Result<ExitStatus, StopCause> = wait_until_done(&mut child, &[&output], deadline)?;
     if ended.is_err() {
-        stop_push(&mut child, grace);
+        stop_push(child, grace, locks);
     }
     let captured: String = read_output(&mut output)?;
     let shown: &str = strip_one_line_break(captured.as_str());

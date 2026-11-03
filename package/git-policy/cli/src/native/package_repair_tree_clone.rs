@@ -38,6 +38,15 @@ struct Entry {
 /// The entries per worker below which a clone stays on one thread; starting threads costs more than a small clone.
 const PARALLEL_MIN_ENTRIES: usize = 512;
 
+/// What a clone made and what it left out.
+#[derive(Debug, Eq, PartialEq)]
+pub struct Cloned {
+    /// The entries of the source that the destination now holds.
+    pub made: usize,
+    /// The paths below the source that could not be read and so are not in the destination.
+    pub left_out: Vec<PathBuf>,
+}
+
 /// What:
 ///  Every entry below the source, parents before children, without following links.
 /// Why:
@@ -47,12 +56,21 @@ const PARALLEL_MIN_ENTRIES: usize = 512;
 /// ```ts
 /// function walk(source: string): Entry[];
 /// ```
-fn walk(source: &Path) -> Result<Vec<Entry>, String> {
+fn walk(source: &Path) -> Result<(Vec<Entry>, Vec<PathBuf>), String> {
     let mut found: Vec<Entry> = Vec::new();
+    let mut left_out: Vec<PathBuf> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![PathBuf::new()];
     while let Some(relative) = pending.pop() {
         let directory: PathBuf = source.join(&relative);
-        let listing = std::fs::read_dir(&directory).map_err(|error| { return format!("{} cannot be read ({error})", directory.display()); })?;
+        let listing = match std::fs::read_dir(&directory) {
+            Ok(listed_directory) => listed_directory,
+            // A directory a test or a tool left without read permission has nothing the clone can take; it is made empty and named.
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && !relative.as_os_str().is_empty() => {
+                left_out.push(relative);
+                continue;
+            }
+            Err(error) => return Err(format!("{} cannot be read ({error})", directory.display())),
+        };
         for listed in listing {
             let item = listed.map_err(|error| { return format!("{} cannot be listed ({error})", directory.display()); })?;
             let path: PathBuf = relative.join(item.file_name());
@@ -69,7 +87,8 @@ fn walk(source: &Path) -> Result<Vec<Entry>, String> {
     }
     // Parents sort before their children, so directories can be made in list order.
     found.sort_by(|left: &Entry, right: &Entry| { return left.relative.cmp(&right.relative); });
-    return Ok(found);
+    left_out.sort();
+    return Ok((found, left_out));
 }
 
 /// What:
@@ -81,19 +100,28 @@ fn walk(source: &Path) -> Result<Vec<Entry>, String> {
 /// ```ts
 /// function place(source: string, destination: string, entry: Entry): void;
 /// ```
-fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<(), String> {
+fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<PathBuf>, String> {
     let from: PathBuf = source.join(&entry.relative);
     let to: PathBuf = destination.join(&entry.relative);
     if entry.kind == Kind::Link {
         let target: PathBuf = std::fs::read_link(&from).map_err(|error| { return format!("{} cannot be read as a link ({error})", from.display()); })?;
-        return symlink(&target, &to).map_err(|error| { return format!("{} cannot be made ({error})", to.display()); });
+        return symlink(&target, &to).map(|()| { return None; }).map_err(|error| { return format!("{} cannot be made ({error})", to.display()); });
     }
     let before: Metadata = std::fs::metadata(&from).map_err(|error| { return format!("{} cannot be read ({error})", from.display()); })?;
-    copy_file_exclusive(&from, &to).map_err(|error| { return format!("{} cannot be cloned ({})", from.display(), error.0); })?;
+    if let Err(error) = copy_file_exclusive(&from, &to) {
+        // A file without read permission cannot be cloned or copied by anyone but its owner's chmod, which the source is never given:
+        //  the file stays out of the destination (a missing file only makes Cargo rebuild what needs it) and is named.
+        if matches!(std::fs::File::open(&from), Err(ref denied) if denied.kind() == std::io::ErrorKind::PermissionDenied) {
+            // The partial file is this clone's own creation in the new tree.
+            let _removed = std::fs::remove_file(&to);
+            return Ok(Some(entry.relative.clone()));
+        }
+        return Err(format!("{} cannot be cloned ({})", from.display(), error.0));
+    }
     std::fs::set_permissions(&to, before.permissions()).map_err(|error| { return format!("{} cannot take its mode ({error})", to.display()); })?;
     let times: FileTimes = FileTimes::new().set_accessed(before.accessed().unwrap_or(std::time::UNIX_EPOCH)).set_modified(before.modified().unwrap_or(std::time::UNIX_EPOCH));
     let made: std::fs::File = std::fs::File::open(&to).map_err(|error| { return format!("{} cannot be opened ({error})", to.display()); })?;
-    return made.set_times(times).map_err(|error| { return format!("{} cannot take its times ({error})", to.display()); });
+    return made.set_times(times).map(|()| { return None; }).map_err(|error| { return format!("{} cannot take its times ({error})", to.display()); });
 }
 
 /// What:
@@ -106,8 +134,8 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<(), String>
 /// ```ts
 /// async function cloneTree(args: { source: string; destination: string; workers: number }): Promise<number>;
 /// ```
-pub fn clone_tree(source: &Path, destination: &Path, workers: usize) -> Result<usize, String> {
-    let entries: Vec<Entry> = walk(source)?;
+pub fn clone_tree(source: &Path, destination: &Path, workers: usize) -> Result<Cloned, String> {
+    let (entries, mut left_out): (Vec<Entry>, Vec<PathBuf>) = walk(source)?;
     let root: Metadata = std::fs::metadata(source).map_err(|error| { return format!("{} cannot be read ({error})", source.display()); })?;
     if let Some(parent) = destination.parent() {
         std::fs::create_dir_all(parent).map_err(|error| { return format!("{} cannot be made ({error})", parent.display()); })?;
@@ -122,23 +150,25 @@ pub fn clone_tree(source: &Path, destination: &Path, workers: usize) -> Result<u
     let leaves: Vec<&Entry> = entries.iter().filter(|entry: &&Entry| { return entry.kind != Kind::Directory; }).collect();
     let used: usize = if leaves.len() < PARALLEL_MIN_ENTRIES { 1 } else { workers.max(1) };
     let slice_length: usize = leaves.len().div_ceil(used).max(1);
-    let outcomes: Vec<Result<(), String>> = std::thread::scope(|scope| {
+    let outcomes: Vec<Result<Vec<PathBuf>, String>> = std::thread::scope(|scope| {
         let handles: Vec<_> = leaves
             .chunks(slice_length)
             .map(|slice: &[&Entry]| {
                 return scope.spawn(move || {
+                    let mut skipped: Vec<PathBuf> = Vec::new();
                     for entry in slice {
-                        place(source, destination, entry)?;
+                        skipped.extend(place(source, destination, entry)?);
                     }
-                    return Ok(());
+                    return Ok(skipped);
                 });
             })
             .collect();
         return handles.into_iter().map(|handle| { return handle.join().unwrap_or_else(|_panic| { return Err(String::from("a clone worker stopped unexpectedly")); }); }).collect();
     });
     for outcome in outcomes {
-        outcome?;
+        left_out.extend(outcome?);
     }
+    left_out.sort();
     // Modes last, so a read-only directory does not stop its own contents from being placed.
     for directory in directories.iter().rev() {
         let made: PathBuf = destination.join(&directory.relative);
@@ -146,7 +176,8 @@ pub fn clone_tree(source: &Path, destination: &Path, workers: usize) -> Result<u
         std::fs::set_permissions(&made, mode).map_err(|error| { return format!("{} cannot take its mode ({error})", made.display()); })?;
     }
     std::fs::set_permissions(destination, root.permissions()).map_err(|error| { return format!("{} cannot take its mode ({error})", destination.display()); })?;
-    return Ok(entries.len());
+    let skipped_files: usize = entries.iter().filter(|entry: &&Entry| { return entry.kind != Kind::Directory && left_out.contains(&entry.relative); }).count();
+    return Ok(Cloned { made: entries.len() - skipped_files, left_out });
 }
 
 /// Tree clone controls stay out of the release executable.

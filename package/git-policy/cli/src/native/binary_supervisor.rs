@@ -463,6 +463,13 @@ fn judge_one(pid: i32, now: Instant) {
 pub fn end_command(pin: &Pin, message: &str, end: &dyn Fn(&Pin)) {
     with_registry(|registry| { registry.kills.push(Kill { pid: pin.pid(), message: message.to_string(), at: Instant::now() }); });
     end(pin);
+    // The test has the whole grace to claim the record from the moment the command is gone: an ending that a starved host
+    //  makes slow must not use the grace up before the test has had a chance to run (a gate saw the process abort that way).
+    with_registry(|registry| {
+        if let Some(kill) = registry.kills.iter_mut().rev().find(|kill| { return kill.pid == pin.pid(); }) {
+            kill.at = Instant::now();
+        }
+    });
 }
 
 /// Whether a kill of the command `pid` is recorded and not claimed.

@@ -1044,8 +1044,14 @@ The repairs, which run side by side:
   When Cargo keeps the build directory outside the worktree and the worktree has none, the source's is cloned
   (`FICLONE` per file, modes, times and links kept) to the worktree's; under the default layout it is inside `target/`, which the
   copy already carried.
+  An entry of the source's build directory that cannot be read (a file or directory a test left without read permission) is left
+  out of the clone, never altered in the source, and counted in the success line; the workspace is then cleaned as any other, and
+  Cargo rebuilds what it needs of what is missing.
   Then `cargo clean --offline --package <member>` for every member, so registry and git dependencies are reused and
   the worktree's own crates rebuild with the worktree's own paths.
+  The workspaces are repaired side by side on as many threads as the host's available parallelism (the standard library reads the
+  CPU quota of the control group, so a capped session gets its own share), each workspace's clone and clean in order, because a
+  clean needs its own clone first and two workspaces share no build directory.
   `--locked` is not passed to the clean, because a committed `Cargo.lock` that disagrees with its manifest (ten workspaces of this
   repository do) makes Cargo refuse; the lock is read before and put back byte for byte after, so the new worktree stays as
   checked out.
@@ -1317,9 +1323,43 @@ in-process reader can) gives every value of the multi-valued keys.
   a zero,
   negative,
   fractional or non-numeric value is ignored.
-  Past the deadline the push is asked to end,
+  Past the deadline the push is asked to end with `SIGTERM` (its helpers and hooks too),
   killed after a five second grace,
   and reported as failed with exit code 124 whose output ends with a line naming the deadline.
+  The same stop (a catchable request, five seconds, then the kill) ends every Git child the wrapper stops:
+  the push, its read-only queries, the reconcile fetch, the Git LFS upload and a Git step of a commit
+  that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
+  A stopped Git child leaves none of Git's lock files behind.
+  Git removes its own `.lock` files when it ends or is asked to end with a signal it catches,
+  so a child that answers the request cleans up after itself.
+  A child that does not answer in the grace (it sits in an uninterruptible call such as a stalled disk,
+  where the request waits and the kill wins) cannot,
+  and neither can one whose signal arrives between creating a lock and registering it for removal
+  (`tempfile.c` of Git 2.56.0, `create_tempfile_mode` and `activate_tempfile`).
+  Once the child and everything it started are gone, the wrapper removes the lock files that child left,
+  and only these:
+  a lock whose `~pid.lock` file (Git writes it beside every lock under `core.lockfilePid`, which the wrapper turns on for
+  every Git it starts, the commit service's pushes and steps included) names a process of the stopped tree that has ended,
+  together with that pid file;
+  and an empty lock with no pid file that was born after the child started and is still empty after a settle time
+  of one second, while the whole stopped tree has ended.
+  The second kind exists because a child can die between creating a lock and writing its pid file,
+  and an empty file holds nothing;
+  the settle time exists because Git makes a ref lock empty and fills it a moment later,
+  so a lock that a live process just made is not taken for a left one.
+  A lock whose pid file names any other process, a lock with content and no pid file, a lock older than the child,
+  a lock that is filled during the settle time and a lock while any process of the tree still runs are left alone.
+  The repository is the one of the child's working directory or its `GIT_DIR`; a step that names its repository with
+  `-C` or `--git-dir` arguments, or a lock outside the Git directories (a private `GIT_INDEX_FILE`), is not swept,
+  which leaves a lock where one was left and never removes a wrong one.
+  Both the Git directory and the common Git directory are searched, except `hooks` and the loose-object directories.
+  A child that the kernel does not release within the grace after the kill, or a stopped tree that has not all ended by
+  then (a loaded or stalled host has not yet run the killed processes), is waited for on a thread of its own,
+  and its locks are removed when the whole tree has ended; the push is reported at its deadline and does not wait for it.
+  The removal takes no lock of its own: it looks at files the stopped child created and removes only those.
+  The one case the rules cannot tell apart is a Git that writes no pid files (not started by the wrapper)
+  holding an empty lock for longer than the settle time while a stopped tree ends:
+  its lock is taken for a left one, and that process then fails loudly when it renames its lock.
   A push whose output grows past 4 MiB is stopped the same way, and only the first 4 MiB are kept.
   The commit stays saved.
   Git's low-speed abort is added to the push's environment
@@ -2926,6 +2966,33 @@ a sandbox that fakes the boot ID per process but shows the host's machine ID
 makes its processes see each other's claims as of an earlier boot.
 
 ### Timing logs
+
+A slow worktree add is split by step from `<common-git-dir>/cli-git-worktree-add-timing.jsonl`, written the same way as the commit
+timing file below (one append, no flush to disk, size-capped by the same appender, never changing the add's result).
+Code: `src/native/add_timing.rs`.
+Each line has `schemaVersion`, `time`, `startMillis`, `pid`, `release`, `exitCode`, `totalMs`, `steps`, `otherMs`, `work` and `notes`.
+`steps` maps a step name to `{ms, calls}`; steps are disjoint (a step inside another is taken out of the outer one) and
+`otherMs` is what no step covers, so the steps and `otherMs` add up to `totalMs`.
+The steps are, in order: `recover`, `chooseRung` (its parts `refusals`, `checkSource`, `claimStage`, and the Git runs inside, named
+`git <subcommand>`), `gitAdd`, `finishRung` (its parts `bindRegistration`, `recordBinding`, `prepareTarget`, `takeSnapshot` with
+`snapshotIoctl`, `readOwnIndex`, `prune`, `removeStubs`, `replacePointer`, `walkSnapshot`, `installIndexFile`, then `applyDifference`
+or `restoreDirty`, `exchange`, `settleDisplaced`, `disposeTrash`, `markComplete` with `markCompleteFile` and
+`markCompleteDirectory`, `releaseClaim`), `copyIgnored` and `repair`.
+`work` sums time spent on worker threads by name over all threads (`cargoRepairWorkspace`, `cargoCloneTree`, `cargoClean`,
+`cargoMetadataWorktree`, `cargoMetadataSource`, `repairPnpm`, `repairToolchain`, `repairCargo`, `readConfig`, `trashIgnored`,
+`untrackedScan`); threads overlap, so `work` is not part of the sum rule, and a name whose sum exceeds the step that waited for it
+is work that ran side by side.
+`notes` names the rung taken (`route`) and the cause when the add was not a snapshot (`slowRoute`).
+
+The completion marker (`markCompleteFile`) is written by rename without a flush to disk, by the owner's decision of
+2026-11-03 ("Drop the fsync (Recommended)").
+The rename and the subvolume swap before it land in one btrfs transaction, so a crash keeps both or neither: never a half-made
+worktree, and nothing of the user's is lost.
+A flush here made the add durable before the next periodic commit, but because the swap renamed a subvolume, btrfs turned that
+one flush into a full filesystem commit that waited on every other writer (Linux `fs/btrfs/inode.c` rename-exchange sets the
+log-full-commit flag; `fs/btrfs/file.c` then commits), measured at 1.2 to 18 seconds per add.
+A power loss within one periodic commit of an add can therefore undo that add; the next invocation finds no marker and prints a
+notice, and running the add again recreates it.
 
 A slow commit is split by phase from logs that exist without verbose mode.
 Neither log reaches the person's terminal,

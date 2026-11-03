@@ -20,6 +20,7 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
+use super::add_timing::{begin as begin_timing, finish as finish_timing, step as timed};
 use super::json_record::quote;
 use super::transaction_git::GitContext;
 use super::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure};
@@ -362,10 +363,10 @@ fn settle_creation(
         .destination
         .as_deref()
         .is_some_and(|destination| { return destination_is_registered(observation.common_dir.as_path(), destination); });
-    let ladder = begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity);
-    let ran: Result<GitStatus, WorktreeCopyError> = run_git(&ladder.first_step());
+    let ladder = timed("chooseRung", || { return begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity); });
+    let ran: Result<GitStatus, WorktreeCopyError> = timed("gitAdd", || { return run_git(&ladder.first_step()); });
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
-        Ok(status) => Ok(ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout())),
+        Ok(status) => Ok(timed("finishRung", || { return ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout()); })),
         Err(error) => {
             // Git did not start: the ladder only has its empty subvolume to remove, whatever status it is given.
             ladder.finish(GitStatus { code: None }, run_git, &invocation.context, &mut std::io::sink());
@@ -375,7 +376,7 @@ fn settle_creation(
     let LadderResult { git, carried } = settled?;
     let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
         if git.succeeded() || invocation.destination.is_some() {
-            match synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), stderr) {
+            match timed("copyIgnored", || { return synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), stderr); }) {
                 Ok(roots) => (None, roots),
                 // A copy that failed leaves a worktree that is not whole; repairing it would hide that.
                 Err(failure) => (Some(failure), Vec::new()),
@@ -429,16 +430,44 @@ fn settle_invocation(
     else {
         return forward_only(run_git);
     };
+    // The record of an add's steps covers a creating command the ladder serves; every other command is forwarded unrecorded.
+    let recorded: bool = invocation.creates && invocation.add_plan.is_some();
+    if recorded {
+        begin_timing(observation.common_dir.clone());
+    }
+    let settled: Result<Settlement, WorktreeCopyError> = settle_observed(invocation, &observation, run_git, stderr);
+    if recorded {
+        finish_timing(settled.as_ref().map_or(1, exit_code));
+    }
+    return settled;
+}
+
+/// What:
+///  The part of a forwarded command's settlement that follows the observation of its source: recovery, then, for a creating
+///  command, the ladder, the copy of the ignored state and the repairs.
+/// Why:
+///   The caller records the steps of a creating command around this whole part, whichever way it ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await settleObserved({ invocation, observation, runGit, stderr });
+/// ```
+fn settle_observed(
+    invocation: &Invocation,
+    observation: &WorktreeCopyObservation,
+    run_git: &mut GitRunner,
+    stderr: &mut dyn Write,
+) -> Result<Settlement, WorktreeCopyError> {
     // Recovery never waits: it takes over only journals and claims whose owner is dead, and one rename picks its single winner.
-    recover_pending_worktree_copies(observation.common_dir.as_path(), stderr)?;
+    timed("recover", || { return recover_pending_worktree_copies(observation.common_dir.as_path(), stderr); })?;
     if !invocation.creates {
         return forward_only(run_git);
     }
-    let (settlement, after) = settle_creation(invocation, &observation, run_git, stderr)?;
+    let (settlement, after) = settle_creation(invocation, observation, run_git, stderr)?;
     // No lock stands around the add: the repairs touch only the new worktree and read the source, and another add never waits
     //  for them.
     #[cfg(target_os = "linux")]
-    repair_created(invocation, &after, stderr);
+    timed("repair", || { repair_created(invocation, &after, stderr); });
     #[cfg(not(target_os = "linux"))]
     let _after = after;
     return Ok(settlement);

@@ -105,7 +105,8 @@ fn a_wait_past_the_bound_is_announced_then_the_child_is_stopped() {
     let status = child.wait().expect("the stopped child is collected");
     watch.end();
     assert!(watch.expired());
-    assert_eq!(status.signal(), Some(9), "{status:?}");
+    // A child that does not catch the request ends from it, in the grace, before any kill.
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
     let text: String = sink.text();
     let lines: Vec<&str> = text.lines().collect();
     assert!(!lines.is_empty(), "{text}");
