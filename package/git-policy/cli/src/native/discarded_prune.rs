@@ -126,6 +126,19 @@ pub fn parse_stamp(name: &str) -> Option<i64> {
     return Some(((days_from_civil(year, month, day) * 24 + hour) * 60 + minute) * 60_000 + second * 1000);
 }
 
+/// Which directory a listing saw: the pair that tells a directory from one that took its name later.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Identity {
+    /// The device it lives on.
+    pub device: u64,
+    /// Its inode number.
+    pub inode: u64,
+    /// When it last changed, whole seconds.
+    pub changed_seconds: i64,
+    /// When it last changed, the nanoseconds past the second.
+    pub changed_nanos: i64,
+}
+
 /// One copy directory, as listed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Stamped {
@@ -133,8 +146,60 @@ pub struct Stamped {
     pub name: String,
     /// The time its name stands for.
     pub millis: i64,
-    /// The bytes of the files it holds.
-    pub bytes: u64,
+    /// The bytes of the files it holds; wide, so that no sum of file lengths can wrap.
+    pub bytes: u128,
+    /// The directory the listing saw under that name.
+    pub identity: Identity,
+}
+
+/// What went wrong with the folder or one of its directories; each is kept, never guessed at.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProblemKind {
+    /// The folder cannot be used as a store: a link stands where it should be, or it cannot be opened.
+    StoreUnusable,
+    /// A directory could not be read, so its size is unknown and it is kept.
+    EntryUnreadable,
+    /// A directory was replaced or changed between the listing and the removal, and was kept.
+    EntryChanged,
+    /// A removal failed after some files were gone.
+    PartiallyRemoved,
+    /// A removal failed before anything was removed.
+    NotRemoved,
+    /// The audit file could not be opened for appending, so nothing was removed.
+    AuditUnwritable,
+    /// A directory was removed but its audit line could not be written.
+    RemovedWithoutAudit,
+}
+
+/// One thing a pass or a listing could not do, with the path it concerns and the reason in plain words.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Problem {
+    /// The folder or directory concerned.
+    pub path: PathBuf,
+    /// What kind of trouble.
+    pub kind: ProblemKind,
+    /// The reason, as the system gave it.
+    pub detail: String,
+}
+
+/// What a listing found: the directories named like the wrapper's own, and what it could not read.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Listing {
+    /// The directories, oldest first.
+    pub entries: Vec<Stamped>,
+    /// What could not be read.
+    pub problems: Vec<Problem>,
+}
+
+/// What a pass did.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct PruneOutcome {
+    /// The directories removed, in order.
+    pub removed: Vec<Removed>,
+    /// What could not be done.
+    pub problems: Vec<Problem>,
+    /// Whether another pass held the folder, so that this one did nothing.
+    pub busy: bool,
 }
 
 /// Why a directory goes.
@@ -175,11 +240,11 @@ pub fn plan(entries: &[Stamped], now_millis: i64, limits: Limits, keep: Option<&
             doomed.push((index, Reason::Age));
         }
     }
-    let mut total: u64 = entries.iter().enumerate().filter(|(index, _)| { return !doomed.iter().any(|(gone, _)| { return gone == index; }); }).map(|(_, entry)| { return entry.bytes; }).sum();
+    let mut total: u128 = entries.iter().enumerate().filter(|(index, _)| { return !doomed.iter().any(|(gone, _)| { return gone == index; }); }).map(|(_, entry)| { return entry.bytes; }).sum();
     let mut oldest_first: Vec<usize> = (0..entries.len()).filter(|index| { return reachable(&entries[*index]) && !doomed.iter().any(|(gone, _)| { return gone == index; }); }).collect();
     oldest_first.sort_by(|left, right| { return entries[*left].millis.cmp(&entries[*right].millis).then_with(|| { return entries[*left].name.cmp(&entries[*right].name); }); });
     for index in oldest_first {
-        if total <= limits.max_bytes {
+        if total <= u128::from(limits.max_bytes) {
             break;
         }
         total = total.saturating_sub(entries[index].bytes);
@@ -190,9 +255,9 @@ pub fn plan(entries: &[Stamped], now_millis: i64, limits: Limits, keep: Option<&
 
 /// The files below a directory (symbolic links counted by their own size, never followed), as relative names and the sum of
 /// their sizes; a work stack walks it, so a deep tree takes no recursion.
-fn walk(root: &Path) -> (Vec<String>, u64) {
+fn walk(root: &Path) -> (Vec<String>, u128) {
     let mut names: Vec<String> = Vec::new();
-    let mut bytes: u64 = 0;
+    let mut bytes: u128 = 0;
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
         let Ok(listing) = std::fs::read_dir(&directory) else { continue };
@@ -201,7 +266,7 @@ fn walk(root: &Path) -> (Vec<String>, u64) {
             if kind.is_dir() {
                 pending.push(entry.path());
             } else {
-                bytes += entry.metadata().map_or(0, |metadata| { return metadata.len(); });
+                bytes += u128::from(entry.metadata().map_or(0, |metadata| { return metadata.len(); }));
                 names.push(entry.path().strip_prefix(root).unwrap_or(entry.path().as_path()).to_string_lossy().into_owned());
             }
         }
@@ -211,9 +276,10 @@ fn walk(root: &Path) -> (Vec<String>, u64) {
 }
 
 /// Every directory of the folder that is named like the wrapper's own, with its size; none when the folder is absent.
-pub fn list_stamped(saved_root: &Path) -> Vec<Stamped> {
-    let Ok(listing) = std::fs::read_dir(saved_root) else {
-        return Vec::new();
+pub fn list_stamped(common_dir: &Path) -> Listing {
+    let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
+    let Ok(listing) = std::fs::read_dir(&saved_root) else {
+        return Listing::default();
     };
     let mut found: Vec<Stamped> = Vec::new();
     for entry in listing.flatten() {
@@ -222,10 +288,10 @@ pub fn list_stamped(saved_root: &Path) -> Vec<Stamped> {
         if !entry.file_type().is_ok_and(|kind| { return kind.is_dir(); }) {
             continue;
         }
-        found.push(Stamped { name, millis, bytes: walk(entry.path().as_path()).1 });
+        found.push(Stamped { name, millis, bytes: walk(entry.path().as_path()).1, identity: Identity::default() });
     }
     found.sort_by(|left, right| { return left.millis.cmp(&right.millis).then_with(|| { return left.name.cmp(&right.name); }); });
-    return found;
+    return Listing { entries: found, problems: Vec::new() };
 }
 
 /// One removed directory.
@@ -234,7 +300,7 @@ pub struct Removed {
     /// The directory that was removed.
     pub path: PathBuf,
     /// Its bytes.
-    pub bytes: u64,
+    pub bytes: u128,
     /// Why.
     pub reason: Reason,
 }
@@ -250,7 +316,7 @@ pub struct Removed {
 /// ```ts
 /// JSON.stringify({ schemaVersion: 1, time, form: 'PruneDiscarded', outcome: 'pruned', reason, path, bytes, copies }) + '\n'
 /// ```
-pub fn prune_line(removed: &Removed, copies: &[String], limits: Limits, folder_bytes: u64, now_millis: i64) -> String {
+pub fn prune_line(removed: &Removed, copies: &[String], limits: Limits, folder_bytes: u128, now_millis: i64) -> String {
     let limit: u64 = match removed.reason {
         Reason::Age => limits.max_age_days,
         Reason::Size => limits.max_bytes,
@@ -283,14 +349,21 @@ pub fn prune_line(removed: &Removed, copies: &[String], limits: Limits, folder_b
 /// ```ts
 /// const removed = await pruneFolder({ commonDir, nowMillis, limits, keep })
 /// ```
-pub fn prune(common_dir: &Path, now_millis: i64, limits: Limits, keep: Option<&str>) -> Vec<Removed> {
+pub fn prune(common_dir: &Path, now_millis: i64, limits: Limits, keep: Option<&str>) -> PruneOutcome {
+    return prune_with(common_dir, now_millis, limits, keep, &mut |_candidate: &Path| {});
+}
+
+/// `prune` with a step run for each chosen directory after the listing and before its removal: the controls use it to
+/// change the folder at the moment a pass is most exposed; `prune` passes a step that does nothing.
+pub fn prune_with(common_dir: &Path, now_millis: i64, limits: Limits, keep: Option<&str>, before_removal: &mut dyn FnMut(&Path)) -> PruneOutcome {
     let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
-    let entries: Vec<Stamped> = list_stamped(saved_root.as_path());
-    let folder_bytes: u64 = entries.iter().map(|entry| { return entry.bytes; }).sum();
+    let entries: Vec<Stamped> = list_stamped(common_dir).entries;
+    let folder_bytes: u128 = entries.iter().map(|entry| { return entry.bytes; }).sum();
     let mut removed: Vec<Removed> = Vec::new();
     for (index, reason) in plan(entries.as_slice(), now_millis, limits, keep) {
         let entry: &Stamped = &entries[index];
         let path: PathBuf = saved_root.join(entry.name.as_str());
+        before_removal(path.as_path());
         let (copies, _) = walk(path.as_path());
         if let Err(error) = std::fs::remove_dir_all(&path) {
             debug(TAG, &format!("{} could not be removed: {error}", path.display()));
@@ -303,7 +376,7 @@ pub fn prune(common_dir: &Path, now_millis: i64, limits: Limits, keep: Option<&s
         }
         removed.push(gone);
     }
-    return removed;
+    return PruneOutcome { removed, problems: Vec::new(), busy: false };
 }
 
 /// The name of the directory under the folder that holds a copy, or nothing for a path outside the folder.
@@ -315,7 +388,9 @@ pub fn directory_name_of(saved_root: &Path, copy: &Path) -> Option<String> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Report {
     /// Bytes of every copy.
-    pub bytes: u64,
+    pub bytes: u128,
+    /// What could not be read.
+    pub problems: Vec<Problem>,
     /// How many files the copies are.
     pub copies: usize,
     /// How many saves (directories) they came from.
@@ -327,10 +402,11 @@ pub struct Report {
 /// The folder's size, copy count and oldest save, or nothing when it holds no copy.
 pub fn report(common_dir: &Path) -> Option<Report> {
     let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
-    let entries: Vec<Stamped> = list_stamped(saved_root.as_path());
+    let listing: Listing = list_stamped(common_dir);
+    let entries: &Vec<Stamped> = &listing.entries;
     let oldest: &Stamped = entries.first()?;
     let copies: usize = entries.iter().map(|entry| { return walk(saved_root.join(entry.name.as_str()).as_path()).0.len(); }).sum();
-    return Some(Report { bytes: entries.iter().map(|entry| { return entry.bytes; }).sum(), copies, saves: entries.len(), oldest: oldest.name.clone() });
+    return Some(Report { bytes: entries.iter().map(|entry| { return entry.bytes; }).sum(), copies, saves: entries.len(), oldest: oldest.name.clone(), problems: listing.problems.clone() });
 }
 
 /// The doctor's text for the folder: empty when it holds no copy, otherwise one block with the size, the count, the oldest
@@ -357,3 +433,8 @@ pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
 #[cfg(test)]
 #[path = "discarded_prune_tests.rs"]
 mod tests;
+
+/// What a pass may touch and what it must say is controlled in the guard test module.
+#[cfg(test)]
+#[path = "discarded_prune_guard_tests.rs"]
+mod guard_tests;
