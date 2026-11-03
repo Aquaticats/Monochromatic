@@ -1218,6 +1218,8 @@ pub mod worktree_subvolume;
 /// Whether a worktree is clean enough to copy from or to remove without asking Git, proven in process.
 #[cfg(target_os = "linux")]
 pub mod worktree_clean;
+pub mod worktree_attributes;
+pub mod worktree_clean_content;
 
 /// The plan of a `git worktree remove` that names one directory and no option.
 #[cfg(unix)]
@@ -1255,6 +1257,14 @@ pub mod worktree_ladder_target;
 /// The ladder's choice of rung before real Git runs.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_run;
+
+/// One entry from the wrapper a person ran to the journal, sent without waiting.
+#[cfg(target_os = "linux")]
+pub mod client_journal;
+
+/// The plain sentence that says why an add was not made as a snapshot, and where it goes.
+#[cfg(target_os = "linux")]
+pub mod worktree_slow_route;
 
 /// The ladder's steps after real Git returned: the snapshot rung and the fall back to Git's checkout.
 #[cfg(target_os = "linux")]
@@ -1402,6 +1412,8 @@ pub mod doctor_filesystem;
 /// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path, resumably.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert;
+pub mod worktree_convert_journal;
+pub mod worktree_convert_remove;
 
 /// The grammar of `git cli-git convert-worktree-to-subvolume`.
 pub mod worktree_convert_arguments;
@@ -1413,3 +1425,15 @@ pub mod worktree_convert_command;
 /// Setting aside what a snapshot of the main checkout leaves out, and having the commit service empty it.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash;
+
+/// Disposal of a snapshot's trash: the work item, the foreground fallback and the service's handler.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_dispose;
+
+/// What a snapshot's leave-out made and moved, with identities, as the text a work item carries.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_manifest;
+
+/// Removal of a directory tree beneath a held parent handle, never following a link.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_remove;

@@ -1387,11 +1387,13 @@ TRV:
  an unawaited lazy suite exits 0 while running nothing.
 
 MGN:
- Tests never assert magic numbers or magic lists;
- derive expectations from the named constant,
+ Tests,
+ code and docs never use magic numbers,
+ magic lists or ordinal labels;
+ derive values from the named constant,
  the input,
  or the relation under test,
- so a legitimate change breaks no test.
+ so a legitimate change breaks nothing.
 
 GFP:
  A guard test proves nothing until shown to fail:
@@ -1509,6 +1511,12 @@ WR4:
  a measured result being compared);
  otherwise count-neutral words;
  never list lengths.
+
+WHN:
+ Label an iteration,
+ section or record by what it covers plus a second-precise ISO 8601 timestamp with offset
+ (`git log --format=%cI` for a commit),
+ never a round number or a bare date.
 
 WR5:
  Never point by relative position ("above",

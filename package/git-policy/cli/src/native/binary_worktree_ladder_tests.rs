@@ -82,7 +82,10 @@ fn a_worktree_added_from_the_main_checkout_is_a_subvolume() {
     let wrapped: String = stderr_of(&created).replace("topic", "NAME");
     let git_words: String = stderr_of(&control).replace("control", "NAME");
     assert!(wrapped.starts_with(git_words.as_str()), "the caller sees Git's own words first: {wrapped}");
-    assert!(wrapped[git_words.len()..].starts_with("cli-git: copied "), "{wrapped}");
+    // Then the line that says why this was not a snapshot (the main checkout here is no subvolume), then the copy summary.
+    let after_git: Vec<&str> = wrapped[git_words.len()..].lines().collect();
+    assert!(after_git.first().is_some_and(|line: &&str| { return line.starts_with("cli-git: this worktree was not made as a snapshot"); }), "{wrapped}");
+    assert!(after_git.get(1).is_some_and(|line: &&str| { return line.starts_with("cli-git: copied "); }), "{wrapped}");
     let topic: PathBuf = fixture.root.join("topic");
     assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the new worktree is a subvolume");
     assert!(!is_subvolume_root(fixture.root.join("control").as_path()).expect("probe"), "real Git makes an ordinary directory");

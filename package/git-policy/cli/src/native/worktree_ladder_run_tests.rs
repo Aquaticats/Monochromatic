@@ -36,6 +36,7 @@ fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of(
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
     assert_eq!(ladder.first_step(), GitStep::Person);
     assert!(is_subvolume_root(plan.destination.as_path()).expect("probe"));
+    assert_eq!(ladder.slow.as_ref().map(|route| { return route.word(); }), Some("not-subvolume"), "an ordinary directory on btrfs is told to be converted: {:?}", ladder.slow);
     let mut runner = no_runner();
     let result: LadderResult = ladder.finish(FAILED, None, &mut runner, &git_context(), &mut std::io::sink());
     assert_eq!(result, LadderResult { git: FAILED, carried: None });
@@ -71,12 +72,30 @@ fn btrfs_an_eligible_source_runs_git_without_a_checkout_and_a_failure_releases_t
     let plan = plan_to(root.join("topic"));
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
     assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at));
+    assert_eq!(ladder.slow, None, "a snapshot has nothing to explain");
     assert!(!plan.destination.exists(), "a snapshot rung makes no subvolume before Git");
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the stage name is claimed durably");
     let mut runner = no_runner();
     let result: LadderResult = ladder.finish(FAILED, None, &mut runner, &git_context(), &mut std::io::sink());
     assert_eq!(result, LadderResult { git: FAILED, carried: None });
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the claim is released");
+    remove(root.as_path());
+}
+
+/// A subvolume source with an uncommitted change gets Git's checkout and a sentence that names the change; the same source
+///  untouched gets the snapshot and none.
+#[test]
+fn btrfs_a_dirty_subvolume_source_keeps_its_reason_for_the_person() {
+    let Some(root) = btrfs_fixture("run-dirty-reason") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    std::fs::write(repo.join("shared.txt"), b"edited\n").expect("edit");
+    let plan = plan_to(root.join("topic"));
+    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
+    assert_eq!(ladder.first_step(), GitStep::Person, "no snapshot of a source with a change");
+    let line: String = ladder.slow.as_ref().expect("a reason").line();
+    assert!(line.contains("uncommitted changes in 1 path (for example shared.txt)"), "{line}");
+    let mut runner = no_runner();
+    ladder.finish(FAILED, None, &mut runner, &git_context(), &mut std::io::sink());
     remove(root.as_path());
 }
 

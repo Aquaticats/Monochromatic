@@ -22,6 +22,7 @@ use super::subvolume_remove::remove_tree;
 use super::worktree_add_plan::AddPlan;
 use super::worktree_clean::{StatEntry, stat_fields_beneath, stored_stats, tree_differs_from_index_beneath};
 use super::worktree_snapshot_source::SnapshotSource;
+use super::worktree_trash::{Pruned, TrashManifest, prune_snapshot};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::fs::PermissionsExt;
@@ -137,17 +138,28 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File) -> Result<
 /// ```ts
 /// await takeSnapshot({ source, plan, stage, admin, pointer });
 /// ```
-pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8]) -> Result<ObjectId, SnapshotFailure> {
+pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8]) -> Result<Snapshotted, SnapshotFailure> {
     snapshot_create_at(source.root.as_path(), stage).map_err(|error| { return SnapshotFailure { reason: format!("the snapshot was refused ({error})"), stage: None }; })?;
     // From here the stage exists and this process made it; its identity is what a later removal checks.
     let made: Option<ObjectId> = open_root(stage.parent().unwrap_or(stage)).ok().and_then(|parent: File| { return identity_at(&parent, stage.file_name()?).ok(); });
     let failed = |reason: String| -> SnapshotFailure { return SnapshotFailure { reason, stage: made }; };
     std::fs::set_permissions(stage, std::fs::Permissions::from_mode(0o700)).map_err(|error| { return failed(format!("the stage cannot be made private ({error})")); })?;
-    super::worktree_trash::prune_snapshot(stage, source).map_err(failed)?;
+    let pruned: Pruned = prune_snapshot(stage, source).map_err(failed)?;
     remove_stubs(stage, source, plan).map_err(failed)?;
     replace_git_pointer(stage, pointer).map_err(failed)?;
     install_index(source, stage, admin).map_err(failed)?;
-    return made.ok_or_else(|| { return failed(String::from("the stage cannot be examined")); });
+    let stage_id: ObjectId = made.ok_or_else(|| { return failed(String::from("the stage cannot be examined")); })?;
+    return Ok(Snapshotted { stage: stage_id, trash: pruned.trash });
+}
+
+/// What a snapshot that was taken left for the steps after it.
+#[derive(Debug, Eq, PartialEq)]
+pub struct Snapshotted {
+    /// The identity of the stage this process made.
+    pub stage: ObjectId,
+    /// The trash the leave-out made in the stage, with the identity of everything it moved there; the disposal after the swap
+    ///  empties exactly that.
+    pub trash: Option<TrashManifest>,
 }
 
 /// Why a snapshot could not be taken, and the identity of the stage it left, if it left one.

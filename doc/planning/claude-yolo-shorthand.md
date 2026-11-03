@@ -1,4 +1,24 @@
-# Proposed `claude --yolo` shorthand
+# Installed `claude --yolo` shorthand
+
+## Installation status
+
+On 2026-11-02 in `America/New_York`,
+the user authorized installation:
+
+> Okay,
+> install the bash fn.
+
+The tested definition is installed at `${HOME}/.bashrc.d/claude.sh` with mode `0644`.
+The existing `.bashrc` already loads that directory.
+No existing startup file or Claude executable was changed.
+Post-installation checks passed:
+a fresh interactive Bash loaded the installed drop-in through the actual `.bashrc`,
+using a disposable home;
+the installed definition also passed argument-preservation,
+delimiter,
+exit-status,
+and real Claude parser checks.
+Evidence is recorded in the [installation verification](../troubleshooting/claude-code-yolo-option.md#installation).
 
 ## Corrected requirements
 
@@ -13,7 +33,7 @@ The user also rejected modifying Claude:
 The first-position-only Bash function was rejected.
 The initial recommendation incorrectly treated the example `claude --yolo` as permission to restrict option order.
 Its passing forwarding tests did not test the user's intended command grammar.
-No shell function or binary patch was installed.
+No shell function or binary patch was installed during those design discussions.
 
 The user subsequently clarified:
 
@@ -23,7 +43,8 @@ The user selected `Reserve standalone --yolo (Recommended)` when asked whether e
 before `--` may be translated,
 with literal option values written as `--system-prompt=--yolo`.
 This selection removes the need to reproduce Claude's option-value grammar.
-It does not authorize installing a shell change.
+That selection did not itself authorize installation;
+the subsequent explicit request recorded in `Installation status` did.
 
 ## Revised recommendation
 
@@ -35,7 +56,7 @@ and no binary patch.
 The tested definition is:
 
 ```bash
-# Proposed personal configuration: ${HOME}/.bashrc.d/claude.sh
+# Installed personal configuration: ${HOME}/.bashrc.d/claude.sh
 claude() {
   local arg
   local -a args=()
@@ -57,7 +78,7 @@ Quoted arrays retain argument boundaries,
 and `command claude` avoids recursively calling the function.
 The function returns the real command's exit status.
 The inspected `.bashrc` loads `.bashrc.d` files,
-but the function has not been installed.
+including the installed function.
 
 Literal text after `--` is unchanged.
 `--system-prompt=--yolo` is also unchanged.
@@ -102,7 +123,8 @@ argument boundaries,
 an unknown future option,
 exit status,
 and real Claude parser acceptance after translation.
-No authenticated model turn or installation check was performed for this revised function.
+The installation check also passed after the user's explicit authorization.
+No authenticated model turn was performed.
 
 ## Proposed agent-guidance correction
 

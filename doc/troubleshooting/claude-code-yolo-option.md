@@ -95,7 +95,7 @@ The intermediate executable-wrapper recommendation was also superseded:
 the user clarified that Bash functions remain acceptable and chose a reserved-token convention.
 The [current proposal](../planning/claude-yolo-shorthand.md) contains the corrected,
 tested Bash function.
-No user shell configuration was changed.
+No user shell configuration was changed during the proposal and prototype checks.
 
 The troubleshooting record and proposal passed the scoped `format:monochromatic-lint` task
 and a CommonMark-to-HTML-tree rendering check using the repository's installed renderer.
@@ -154,7 +154,31 @@ and accepted the attached literal `--system-prompt=--yolo`.
 A deliberate invalid sentinel option then stopped each invocation during parsing.
 These are parser checks,
 not authenticated model sessions.
-No user configuration was changed.
+No user configuration was changed during these prototype checks.
+
+### Installation
+
+The user subsequently authorized installing the function.
+On 2026-11-02 in `America/New_York`,
+the exact tested definition was written to `${HOME}/.bashrc.d/claude.sh` with mode `0644`.
+The write required the destination to be absent,
+and the existing `.bashrc` drop-in loading remains unchanged.
+`${HOME}/temp/agent/claude-yolo.5Z9XjC4z/installed-probe.ts` verified startup with
+`bash --noprofile --rcfile <actual-user-bashrc> -i +m -c 'declare -f claude'`,
+a disposable home,
+and copies of the installed drop-in files.
+The fresh interactive shell defined `claude` with the expected translation and executable delegation.
+
+The same harness read the installed file and reran the argument,
+delimiter,
+exit-status,
+and real-Claude parser checks successfully.
+The private startup and consumer output is retained under
+`${HOME}/temp/agent/claude-yolo-installed.lGmIeL`.
+The recording-executable fixtures are under `${HOME}/temp/agent/claude-yolo-reserved.AIjStt`.
+The installed file's measured mode is `0644`.
+Existing shells retain their current function definitions until they source the drop-in or restart;
+new interactive Bash shells load it through `.bashrc`.
 
 This function has no list of Claude options to keep synchronized.
 The earlier maintenance warning concerned a different,

@@ -175,6 +175,36 @@ pub fn refresh_index_file_with(index_path: &Path, tree: &Path, options: &Refresh
 /// `refresh_index_file_with` with a call at the moment right after the rewrite, before the lock is looked at again, where a
 ///  control may let another command take the lock name.
 pub fn refresh_index_file_seamed(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, after_rewrite: &mut dyn FnMut()) -> String {
+    return refresh_index_file_report_seamed(index_path, tree, options, after_rewrite).line;
+}
+
+/// How a refresh ended, apart from the words that describe it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RefreshStatus {
+    /// The new index was installed.
+    Refreshed,
+    /// There is no index file, which is nothing to refresh and no failure.
+    NoIndex,
+    /// The index was left as it was, for the reason in the line.
+    Skipped,
+}
+
+/// A refresh's line for the person and its status for the caller.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RefreshReport {
+    /// The one-line report.
+    pub line: String,
+    /// How it ended.
+    pub status: RefreshStatus,
+}
+
+/// `refresh_index_file_with` that says how it ended, so a caller that must not go on after a failed refresh can stop.
+pub fn refresh_index_file_report(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>) -> RefreshReport {
+    return refresh_index_file_report_seamed(index_path, tree, options, &mut || {});
+}
+
+/// `refresh_index_file_report` with a call at the moment right after the rewrite.
+pub fn refresh_index_file_report_seamed(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, after_rewrite: &mut dyn FnMut()) -> RefreshReport {
     let mut lock_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
     lock_name.push(".lock");
     let lock_path: PathBuf = PathBuf::from(lock_name);
@@ -183,24 +213,24 @@ pub fn refresh_index_file_seamed(index_path: &Path, tree: &Path, options: &Refre
         IndexLock::Acquire => match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock_path) {
             Ok(opened) => created = Some(opened),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                return String::from("skipped (index.lock exists: a Git command is running there; its first status will be slow)");
+                return RefreshReport { line: String::from("skipped (index.lock exists: a Git command is running there; its first status will be slow)"), status: RefreshStatus::Skipped };
             }
-            Err(error) => return format!("skipped (cannot create the lock: {error})"),
+            Err(error) => return RefreshReport { line: format!("skipped (cannot create the lock: {error})"), status: RefreshStatus::Skipped },
         },
         IndexLock::Held(token) => {
             if !is_ours(lock_path.as_path(), token) {
-                return String::from("skipped (index.lock is held by another Git command; its first status will be slow)");
+                return RefreshReport { line: String::from("skipped (index.lock is held by another Git command; its first status will be slow)"), status: RefreshStatus::Skipped };
             }
         }
     }
-    let (outcome, published): (String, bool) = rewrite_under_lock(index_path, tree, options, created.as_mut(), &lock_path);
+    let (outcome, status): (String, RefreshStatus) = rewrite_under_lock(index_path, tree, options, created.as_mut(), &lock_path);
     after_rewrite();
     // Once the lock was renamed over the index the name is any Git command's to take; it is never touched again. Before that,
     // the lock is removed only if the name still holds the file this call made.
-    if let (Some(file), false) = (created.as_ref(), published) {
+    if let (Some(file), true) = (created.as_ref(), status != RefreshStatus::Refreshed) {
         remove_if_same_file(lock_path.as_path(), file);
     }
-    return outcome;
+    return RefreshReport { line: outcome, status };
 }
 
 /// Remove the file at `path` if it is the very file `held` is open on (same device and inode).
@@ -216,23 +246,23 @@ fn remove_if_same_file(path: &Path, held: &std::fs::File) {
 
 /// The read, rewrite and install of one index while its lock is held; `lock_file` is the lock when this call made it. The flag
 ///  says whether the new index was published, after which the lock name is not this call's any more.
-fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>, lock_path: &Path) -> (String, bool) {
+fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>, lock_path: &Path) -> (String, RefreshStatus) {
     let index_mtime: Option<(u32, u32)> = match std::fs::metadata(index_path) {
         Ok(metadata) => Some((metadata.mtime() as u32, metadata.mtime_nsec() as u32)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (String::from("no index file"), false),
-        Err(error) => return (format!("skipped (cannot examine it: {error})"), false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (String::from("no index file"), RefreshStatus::NoIndex),
+        Err(error) => return (format!("skipped (cannot examine it: {error})"), RefreshStatus::Skipped),
     };
     let bytes: Vec<u8> = match std::fs::read(index_path) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (String::from("no index file"), false),
-        Err(error) => return (format!("skipped (cannot read it: {error})"), false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (String::from("no index file"), RefreshStatus::NoIndex),
+        Err(error) => return (format!("skipped (cannot read it: {error})"), RefreshStatus::Skipped),
     };
     return rewrite_and_install(bytes.as_slice(), index_mtime, [index_path, tree, lock_path], options, lock_file);
 }
 
 /// The rewrite of the stat fields of `bytes` and the install of the result over `index_path`, with `paths` naming the index, the tree it
 ///  describes and the lock file.
-fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&Path; 3], options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>) -> (String, bool) {
+fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&Path; 3], options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>) -> (String, RefreshStatus) {
     let [index_path, tree, lock_path]: [&Path; 3] = paths;
     let context: RewriteContext = RewriteContext { hash_length: options.hash_length, index_mtime };
     let outcome: IndexOutcome = rewrite_index_stat_with(
@@ -250,7 +280,7 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
     );
     let (rewritten, updated, total): (Vec<u8>, usize, usize) = match outcome {
         IndexOutcome::Rewritten { bytes: new_bytes, updated, total } => (new_bytes, updated, total),
-        IndexOutcome::Skipped(reason) => return (format!("skipped ({reason})"), false),
+        IndexOutcome::Skipped(reason) => return (format!("skipped ({reason})"), RefreshStatus::Skipped),
     };
     // With its own lock the new index is written into the lock file and the lock is renamed over the index, as Git does.
     // Under a held lock the lock stays, and a sibling file is renamed over the index instead.
@@ -259,9 +289,9 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
         None => stage_and_replace(index_path, rewritten.as_slice()),
     };
     if let Err(error) = installed {
-        return (format!("skipped (cannot install the new index: {error})"), false);
+        return (format!("skipped (cannot install the new index: {error})"), RefreshStatus::Skipped);
     }
-    return (format!("{updated} of {total} entries refreshed"), true);
+    return (format!("{updated} of {total} entries refreshed"), RefreshStatus::Refreshed);
 }
 
 /// What:
