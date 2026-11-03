@@ -27,7 +27,8 @@ use std::io::Write;
 /// Why:
 ///   The switch is shared with the TypeScript tools (decision recorded in
 ///       `doc/handover/cli-git-rust-implementation.md`,
-///  "Adopted without a question").
+///  "Adopted without a question"; that section was removed from the handover on 2026-11-03,
+///  and the behavior it decided is specified in `package/git-policy/cli/SPEC.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
