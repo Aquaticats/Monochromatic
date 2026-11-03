@@ -377,9 +377,6 @@ pub fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict]) -> Result<Vec
     let mut wanted: Vec<&str> = Vec::new();
     for (index, _) in &candidates {
         let conflict: &Conflict = &conflicts[*index];
-        if attributes.get(&conflict.path).is_some_and(|value| { return !TEXT_MERGE_VALUES.contains(&value.as_str()); }) {
-            continue;
-        }
         for stage in [&conflict.base, &conflict.ours, &conflict.theirs].into_iter().flatten() {
             if !wanted.contains(&stage.oid.as_str()) {
                 wanted.push(stage.oid.as_str());

@@ -281,3 +281,20 @@ fn an_isolated_merge_with_a_both_append_conflict_is_still_refused() {
     assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head);
     remove(&fixture);
 }
+
+/// One file that resolves does not carry a second that does not: the isolated merge is refused whole, and nothing changes.
+#[test]
+fn an_isolated_merge_with_one_unresolvable_file_among_resolvable_ones_is_refused_whole() {
+    let fixture: Fixture = fixture("word-merge-isolated-partial");
+    let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT, BOTH_APPEND]);
+    std::fs::write(repo.join("staged.txt"), b"another session's work\n").expect("staged file");
+    git(&fixture, repo.as_path(), &["add", "--", "staged.txt"]);
+    let head: Vec<u8> = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout;
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments_of(Stop::Merge).as_slice());
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(2), "{said}");
+    assert!(said.contains(tracked(BOTH_APPEND).as_str()) && said.contains(tracked(ADJACENT).as_str()), "both conflicted paths are named: {said}");
+    assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head);
+    assert!(merge_lines(&observed).is_empty(), "{said}");
+    remove(&fixture);
+}
