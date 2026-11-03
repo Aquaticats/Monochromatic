@@ -597,10 +597,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 
 ### Known flakes and failures not yet fixed
 
-- `a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait` aborted once under load and passed alone
-  (timing-dependent;
-  derive its bound from the measured wait,
-  as was done for its siblings).
+- `a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait` failed twice alone at load 38 to 44
+  (`objects_ms=6760`,
+  `attempts=2`:
+  the stand-in holder let go before the commit's wait) and passed at load 11;
+  an agent is making the holder release only once the commit is observably waiting,
+  on branch `fix/git-policy-cli-foreign-index-holder-test-waits-for-the-wait` (started 2026-11-03).
 - `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` failed
   once in a full
   binary run,
@@ -735,9 +737,7 @@ Still open from them:
   a question for the owner (does "never discard user data" cover the audit history?),
   folded into the shipped-limits audit;
 - a non-file at `slot-N.lock` makes `holdLegacyLock` return `absent`,
-  which the gate treats as an earlier-release holder forever;
-- `package/git-policy/cli/SPEC.md` line 814 says the campaign's two kernel locks stay,
-  which is only partly accurate now.
+  which the gate treats as an earlier-release holder forever.
 
 Accepted limit with a documented remedy,
 no code fix:
