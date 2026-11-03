@@ -57,3 +57,23 @@ fn the_checked_out_state_is_read_for_a_branch_and_for_a_detached_head() {
     assert_eq!(ask("refs/heads/main"), Ok(false));
     remove(root.as_path());
 }
+
+/// A linked worktree whose index file sits in the main worktree's Git directory (an alternate index) still has its own head: the
+/// head is read from the Git directory of the worktree that asked, not from the directory the index is in, so the main worktree's
+/// branch is never taken for the linked worktree's.
+#[test]
+fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
+    use crate::test_support::{fixture, git, git_context, remove, repository};
+    let root = fixture("head-linked-alternate");
+    let repo = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["branch", "linked-branch"]);
+    let linked = root.join("linked");
+    git(repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("path"), "linked-branch"]);
+    let common = repo.join(".git");
+    // The linked worktree uses an index file that lives in the main worktree's Git directory.
+    let alternate = common.join("alternate-index");
+    let context = git_context();
+    assert_eq!(still_checked_out(&context, linked.as_path(), alternate.as_path(), common.as_path(), "refs/heads/linked-branch"), Ok(true));
+    assert_eq!(still_checked_out(&context, linked.as_path(), alternate.as_path(), common.as_path(), "refs/heads/main"), Ok(false));
+    remove(root.as_path());
+}

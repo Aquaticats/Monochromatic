@@ -403,6 +403,7 @@ pub fn land_batch_timed(
                 Err(code) => Err(code),
             };
         }
+        reach("before-ref");
         // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
         let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
         // A detached head is the `HEAD` file itself: it is updated without following a symbolic reference, so a head that

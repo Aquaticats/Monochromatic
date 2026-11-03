@@ -1056,3 +1056,22 @@ fn a_restart_leaves_the_index_of_another_checked_out_branch_alone() {
     assert!(done.exists() && !open.exists(), "the batch is finished");
     remove(world.root.as_path());
 }
+
+/// A worktree that switches branches after the landing's last check and before its ref transaction does not get the other
+/// branch's index replaced: the transaction itself verifies that `HEAD` still names the branch (`symref-verify`), so the landing
+/// is answered as moved, the branch stays where it was, and no lock or intent is left.
+#[test]
+fn a_switch_after_the_last_check_is_caught_by_the_ref_transaction() {
+    let world: World = world("service-land-switch-late");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["branch", "other"]);
+    let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let repo: PathBuf = world.repo.clone();
+    crate::service_fault::hooks::set("before-ref", std::rc::Rc::new(move || { git(repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]); }));
+    let outcome = land_batch(&world.context, 1, std::slice::from_ref(&mine));
+    assert_eq!(outcome, Ok(vec![Outcome::BranchMoved]));
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]), base, "the branch did not move");
+    assert!(!world.repo.join(".git/index.lock").exists(), "no index lock is left");
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0, "no open intent is left");
+    remove(world.root.as_path());
+}

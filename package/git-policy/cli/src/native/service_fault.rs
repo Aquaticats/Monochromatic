@@ -26,6 +26,8 @@ pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref
 /// reach('after-intent')
 /// ```
 pub fn reach(point: &str) {
+    #[cfg(test)]
+    hooks::run(point);
     if std::env::var(FAULT_VARIABLE).is_ok_and(|armed| { return armed == point; }) {
         crate::service_log!("test fault at {point}");
         #[cfg(unix)]
@@ -57,5 +59,30 @@ pub fn queued(id: &str) {
     let path: std::path::PathBuf = std::path::Path::new(&directory).join(format!("queued-{name}"));
     if let Err(error) = std::fs::write(&path, b"") {
         crate::service_warn!("cannot leave the queued-request file {}: {error}", path.display());
+    }
+}
+
+/// Hooks a control sets to run its own code at a point of a landing, on the thread that reaches the point; never part of the
+///  release executable.
+#[cfg(test)]
+pub(crate) mod hooks {
+    use std::cell::RefCell;
+
+    thread_local! {
+        /// The point and the code to run at it.
+        static HOOK: RefCell<Option<(String, std::rc::Rc<dyn Fn()>)>> = const { RefCell::new(None) };
+    }
+
+    /// Run `code` whenever the landing of this thread reaches `point`.
+    pub(crate) fn set(point: &str, code: std::rc::Rc<dyn Fn()>) {
+        HOOK.with(|hook| { *hook.borrow_mut() = Some((point.to_string(), code)); });
+    }
+
+    /// Run the hook if it is for `point`.
+    pub(super) fn run(point: &str) {
+        let code: Option<std::rc::Rc<dyn Fn()>> = HOOK.with(|hook| { return hook.borrow().as_ref().filter(|(named, _)| { return named == point; }).map(|(_, code)| { return std::rc::Rc::clone(code); }); });
+        if let Some(code) = code {
+            code();
+        }
     }
 }
