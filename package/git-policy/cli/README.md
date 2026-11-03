@@ -223,6 +223,7 @@ Read-only commands,
    subvolumes). A snapshot of the main checkout does not decline for one: it sets those worktrees, other checkouts, caches
    and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards, deleting
    only the directories the snapshot itself moved there (recorded with their identities) and never following a link.
+   Those directories are emptied side by side, within the threads and memory the host allows.
    It does decline when a registered nested worktree holds a file the main checkout tracks. A trash that cannot be
    emptied is reported with its path and the reason, and its work item stays for the service. Another process that
    replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
@@ -521,11 +522,20 @@ Deleting a subvolume uses the kernel's destroy call where the mount has `user_su
 
 ### Converting nested worktrees to subvolumes
 
-`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)` turns a linked worktree that is an
-ordinary directory into a btrfs subvolume at the same path, one worktree at a time.
+`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)` turns a linked
+worktree that is an ordinary directory into a btrfs subvolume at the same path, several worktrees side by side.
 A snapshot of the main checkout shows a nested worktree that is a subvolume as an empty directory, so converting the ones
 under `.claude/worktrees/` once removes the work of setting each of them aside at every `git worktree add`.
 
+- The worktrees share nothing but the filesystem (each has its own administrative directory, index, claim file and journal), so
+  they are converted side by side, as many at once as the host allows: the threads this process may run less an eighth of
+  them (at least one, none when only two), no more than the free memory holds at the measured peak of one conversion, and no
+  more than `--jobs <count>` when it is given. The report is the one a run of one worktree after another gives: each worktree's
+  name and lines together, in the order named (with `--all`, sorted by path), whichever finishes first, with the lines of the
+  first unfinished worktree shown as they happen. A worktree named twice is converted once and then found converted.
+- A worktree that fails after its journal began does not stop the others. It keeps its journal and says so, every other worktree
+  is converted, the closing line counts the failures, and the status is 2; running the same command again finishes the failed
+  ones. Releases before this one stopped at the first failure.
 - `--dry-run` lists each worktree and either `would convert` or why it is skipped: locked, an `index.lock`, an operation in
   progress, a modified tracked file, a process with its working directory or an open file inside it, a worktree registered
   inside it, or a converting directory that no journal owns.
