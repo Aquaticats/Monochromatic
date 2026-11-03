@@ -1,5 +1,17 @@
 # Restore Claude Code Shift+Enter in OdyTTY after an update
 
+## Current-version check
+
+On 2026-11-02,
+Claude Code `2.1.317` in OdyTTY `0.17.5` passed a live input test without this patch:
+Shift+Enter inserted a newline,
+Enter submitted,
+and Ctrl+C cleared input.
+See [the current verification and its limits](../troubleshooting/claude-code-odytty-keyboard.md).
+Do not apply the historical patch merely because the terminal-name allowlist lacks `odytty`.
+
+## Historical failure and workaround
+
 In OdyTTY,
  pressing **Shift+Enter** at the Claude Code prompt submits the message instead of inserting a newline,
 and `/terminal-setup` refuses with `Terminal setup cannot be run from odytty.`.

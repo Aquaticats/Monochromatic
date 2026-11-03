@@ -270,6 +270,21 @@ export const environmentNameCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkl
 //endregion Accepted characters
 
 /**
- Name of the file, in a pass's evidence directory, that says a container was started there.
+ Name of the file, in a pass's evidence directory, that says a start of a container was attempted there. It is written
+ right before the start, so it does not prove a container ran (a kill in between leaves it), but a run that started and was
+ killed before anything else was written is never without it.
  */
 export const containerStartedFile = 'container-started.json';
+
+/**
+ Name of the file, in a campaign's evidence directory, that says the directory was created by a runner that writes
+ {@link containerStartedFile} before every start. Where it is there, a pass directory with an attempt and no started marker
+ holds no container that started; where it is not (a directory of an older runner, or one a newer runner resumed), that
+ absence proves nothing.
+ */
+export const campaignProtocolFile = 'campaign-protocol.json';
+
+/**
+ Version recorded in {@link campaignProtocolFile}: the started marker is written before every container start.
+ */
+export const startedMarkerProtocolVersion = 1;

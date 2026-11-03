@@ -128,6 +128,12 @@ A product puts there whatever its kept outcomes depend on:
 the native wrapper adds the digest of its planted controls and the identity of the code that judges them,
 so a changed control table or runner rescores everything instead of keeping outcomes scored under the old ones.
 A product with no `keyParts` keeps its keys.
+A directory the runner creates also gets `campaign-protocol.json`,
+which says the runner writes `container-started.json` before every container start,
+so a reader may take a missing marker beside an opened attempt as proof that no container started.
+A directory that already held anything is never given it,
+because an earlier runner may have started a container there without leaving a marker;
+for such a directory a missing manifest beside an attempt is unknown, not harmless.
 Each run of the container is an attempt with its own `attempt-NNN/` directory inside it, bind-mounted at the
 container's report path.
 cargo-mutants appends every scored mutant to `caught.txt`, `missed.txt`, `timeout.txt` or `unviable.txt` as it goes,
@@ -160,8 +166,23 @@ status 3 although the last attempt, handed nothing to score, exits 0), plus `att
 
 ### Single writer
 
-`campaign.lock` names the running process by process number, boot ID and start time, so a second run of the same
-campaign is refused while the first lives, and the lock of a killed run or a rebooted host is taken over.
+The right to run a campaign is a kernel advisory lock on its evidence directory,
+held by the campaign process itself:
+it opens the directory and lends the open descriptor to a short-lived `flock` process (the program the gate-slot limiter
+already uses), which takes the lock on it and ends, and the lock stays with the descriptor the campaign process keeps open.
+No helper outlives the handshake, so nothing can drop the lock while the campaign goes on,
+and a `flock` that fails, is missing or is killed makes the run refuse to start.
+A second run of the same campaign is refused while the first holds it,
+and the kernel drops the lock when the campaign process ends,
+whether the run released it,
+was stopped by `systemctl --user stop`,
+lost its host in a reboot or was killed,
+so there is no lock file to go stale and no takeover to race.
+The lock is needed although the parallel launcher names each campaign's systemd unit,
+because a run started by hand,
+or by another launcher under another label for the same file,
+names the same directory,
+and the runner removes an orphaned container of the campaign's name before it creates its own.
 A container left by a killed run keeps its name (`cargo-mutants-<key>`) and is removed before the next one is
 created.
 On `SIGTERM`, `SIGINT` or `SIGHUP` the runner stops the container (the container is supervised outside the

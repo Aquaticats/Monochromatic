@@ -19,6 +19,39 @@ needed for copying the qcow2 into `/var/lib/libvirt/images/`.
 
 ## Usage
 
+The image installs OdyTTY `0.17.5` from its upstream x86-64 RPM,
+verifies its SHA-256,
+and seeds the existing OdyTTY preferences and KDE/XDG terminal defaults.
+The version matches the user's interim desktop choice;
+change the version and checksum together when updating it.
+The Ghostty COPR is no longer configured.
+
+Build the image without replacing a VM:
+
+```sh
+# package/vm-builder/cli
+mise run //package/vm-builder/cli:image:build
+```
+
+The optional `--build-arg FEDORA_DIRECT_MIRROR=true` uses Fedora's direct download endpoint
+for the Fedora release and updates repositories when a selected mirror delays the build.
+Package signature checks remain enabled.
+This opt-in also selects that endpoint for those repositories in the resulting VM image;
+the default build retains Fedora's metalink mirror selection.
+
+`mise run //package/vm-builder/cli:image:check` runs the installed OdyTTY as the image's `user`
+in disposable containers with networking disabled.
+It prints the version,
+effective OdyTTY preferences,
+KDE/XDG defaults,
+and desktop entry for inspection.
+It does not boot or replace a VM.
+
+The full build,
+conversion,
+and import task follows.
+It replaces an existing `monochromatic-dev` VM as described in Re-running.
+
 ```bash
 mise run //package/vm-builder/cli:run
 ```

@@ -326,13 +326,17 @@ impl FixtureService {
         children.insert(key.clone(), child);
         let began: std::time::Instant = std::time::Instant::now();
         while std::os::unix::net::UnixStream::connect(&socket).is_err() {
-            // A control whose fault may keep the service from starting (a disk that is full from its first write) goes on once
-            //  the service has ended or a short wait has passed: what the client then says is the control's to check.
+            // A service that has ended will never listen, so waiting out the patience for it only hides how it ended. A
+            //  control whose fault may keep the service from starting (a disk that is full from its first write) goes on
+            //  once the service has ended or a short wait has passed: what the client then says is the control's to check.
+            let ended: Option<std::process::ExitStatus> = children.get_mut(&key).and_then(|started| { return started.try_wait().ok().flatten(); });
             if launch.may_fail_to_start {
-                let ended: bool = children.get_mut(&key).is_some_and(|started| { return started.try_wait().is_ok_and(|status| { return status.is_some(); }); });
-                if ended || began.elapsed() > std::time::Duration::from_secs(20) {
+                if ended.is_some() || began.elapsed() > std::time::Duration::from_secs(20) {
                     return;
                 }
+            } else if let Some(status) = ended {
+                children.remove(&key);
+                panic!("the fixture's commit service ended ({status}) before it listened at {}; what it wrote to its log is in this test's output", socket.display());
             }
             assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
             std::thread::sleep(std::time::Duration::from_millis(5));
@@ -567,9 +571,49 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     return Fixture { root, wrapper, service: std::sync::Mutex::new(None), service_environment: std::sync::Mutex::new(Vec::new()), service_launch: std::sync::Mutex::new(ServiceLaunch::default()) };
 }
 
+/// How many times a removal that finds the directory still gaining entries is tried,
+/// and the pause between tries.
+const REMOVAL_TRIES: usize = 50;
+
+/// The pause between two tries of a removal.
+const REMOVAL_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// What:
+///  Remove the tree at `root` with `attempt`,
+/// trying again while the directory is not empty.
+/// Why:
+///   A landed commit or a command that stopped a service leaves a child finishing for a moment,
+/// and removing a directory that
+///  still gains entries fails with "not empty";
+/// that is an event that ends by itself,
+/// so the removal waits for it.
+/// A tree that
+///  is already gone is not a failure,
+/// and any other error is returned at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rm(root, { recursive: true, maxRetries: tries, retryDelay: pause })
+/// ```
+pub fn remove_patiently(root: &Path, attempt: &dyn Fn(&Path) -> std::io::Result<()>, tries: usize, pause: std::time::Duration) -> std::io::Result<()> {
+    let mut last: std::io::Result<()> = Ok(());
+    for _ in 0..tries {
+        match attempt(root) {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::DirectoryNotEmpty => {
+                last = Err(error);
+                std::thread::sleep(pause);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    return last;
+}
+
 /// Remove only the fixture directory a control created.
 pub fn remove(fixture: &Fixture) {
-    std::fs::remove_dir_all(&fixture.root).expect("remove only the fixture");
+    remove_patiently(&fixture.root, &|root| { return std::fs::remove_dir_all(root); }, REMOVAL_TRIES, REMOVAL_PAUSE).expect("remove only the fixture");
 }
 
 /// Apply the hermetic environment every wrapped and direct run shares.
@@ -786,6 +830,41 @@ fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
     return None;
 }
 
+/// What:
+///  Waits for a spawned child with its input and its output moving from the first moment,
+/// claims the supervisor's kill of it
+///  if there is one,
+/// and only then runs `cleanup`.
+/// Why:
+///   The input is written by a thread of its own,
+/// so a child that fills its output before it reads all its input is not
+///  deadlocked by the test,
+/// and `wait_with_output` drains both pipes from then on:
+/// a command that writes much is not idle.
+///  The kill is claimed before the cleanup because the cleanup can take longer than the grace in which an unclaimed kill
+///  aborts the process.
+///
+/// # Panics
+///  With the supervisor's message when it ended the command.
+pub fn supervised_wait(mut child: Child, input: &[u8], cleanup: impl FnOnce()) -> Output {
+    let child_id: u32 = child.id();
+    let mut stdin = child.stdin.take().expect("piped stdin");
+    let owned: Vec<u8> = input.to_vec();
+    // A child that exits without reading its input closes the pipe;
+    // that is not a test failure.
+    let writer = std::thread::spawn(move || { let _ = stdin.write_all(owned.as_slice()); });
+    let output: Output = child.wait_with_output().expect("process finishes");
+    let _joined = writer.join();
+    // The supervisor ended it:
+    // a loop or a deadlock,
+    // with the reason and the tasks of the tree in the message.
+    if let Some(message) = super::supervisor::take_kill(child_id) {
+        panic!("{message}");
+    }
+    cleanup();
+    return output;
+}
+
 /// Run a command to completion with every byte of its output kept,
 ///  feeding `input` to its standard input.
 /// # Panics
@@ -804,23 +883,17 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
         ),
         None => {}
     }
-    let mut child = command
+    let child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("process starts");
-    let child_id: u32 = child.id();
-    // A child that exits without reading its input closes the pipe; that is not a test failure.
-    let _ = child.stdin.take().expect("piped stdin").write_all(input);
-    let output: Output = child.wait_with_output().expect("process finishes");
-    if let Some(directory) = command.get_current_dir() {
-        settle_service_work(directory);
-    }
-    // The supervisor ended it: a loop or a deadlock, with the reason and the tasks of the tree in the message.
-    if let Some(message) = super::supervisor::take_kill(child_id) {
-        panic!("{message}\nthe command: {:?} in {:?}", command.get_args().collect::<Vec<&OsStr>>(), command.get_current_dir());
-    }
+    let output: Output = supervised_wait(child, input, || {
+        if let Some(directory) = command.get_current_dir() {
+            settle_service_work(directory);
+        }
+    });
     assert_ne!(
         output.status.signal(),
         Some(TIMED_OUT_SIGNAL),

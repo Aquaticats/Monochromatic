@@ -159,11 +159,38 @@ fn options_follow_the_script_environment() {
     assert!(!full_review_requested(&none));
 }
 
-/// The bounded runner returns a fast job's value, gives up on a slow job at the limit, and survives a panic.
+/// How long a stuck runner is left blocked on a job before the control lets the job go and fails it;
+/// a runner that gives up on
+/// time never meets it,
+/// so it decides no verdict by elapsed time.
+const RUNNER_WATCHDOG: Duration = Duration::from_secs(30);
+
+/// The bounded runner returns a fast job's value,
+/// gives up on a job that does not finish at the limit,
+/// and survives a panic.
+/// The job blocks on a channel that is released only after the runner returned:
+/// a runner that waited for the whole job could
+/// not return before that,
+/// so it either fails the control when the watchdog lets the job go or is stopped by the per-test limit.
 #[test]
 fn the_runner_is_bounded() {
     assert_eq!(run_within(Duration::from_secs(5), || return 7_u8), Some(7));
-    assert_eq!(run_within(SHORT, || { std::thread::sleep(SHORT * 4); return 1_u8; }), None);
+    let (release, blocked) = std::sync::mpsc::channel::<()>();
+    let watchdog = release.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(RUNNER_WATCHDOG);
+        let _released = watchdog.send(());
+    });
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let marks: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
+    let abandoned: Option<u8> = run_within(SHORT, move || {
+        let _released = blocked.recv();
+        marks.store(true, std::sync::atomic::Ordering::SeqCst);
+        return 1_u8;
+    });
+    assert_eq!(abandoned, None);
+    assert!(!finished.load(std::sync::atomic::Ordering::SeqCst), "the runner waited for the job to finish before it gave up");
+    release.send(()).expect("the abandoned job is still waiting for its release");
     assert_eq!(run_within(Duration::from_secs(5), || -> u8 { panic!("job failure") }), None);
 }
 

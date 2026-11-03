@@ -9547,3 +9547,105 @@ by the coordinator at merge.
   readiness is taken for lifetime ownership (a dead holder frees the lock while the campaign runs); P2 a failed
   handshake is accepted; P2 a markerless legacy layout is read as never executed. Given to a new agent on
   `fix/mutation-test-cli-cargo-mutants-campaign-lock`.
+- 0.5.16 run 41568194623 refused its push ("PUSH REFUSED: Paths the release depends on changed on main since
+  4a3f2afe33") because I merged `fix/git-policy-cli-bound-supervisor` (gate 57 PASSED 3351 of 3351) into main during
+  it. DECIDED BY THE OWNER (2026-11-03, question tool note): "This is expected and fine, the correct answer is to release
+  again combining all the changes." This supersedes my earlier self-rule (0.5.1 entry) of holding merges while a release
+  runs: merge gated work as it passes, and dispatch again with everything combined. Run 41568920733 was cancelled before
+  its push so the gated survivors bundle could join; run 41569276274 releases main with journal logging, the bound
+  supervisor and the survivors bundle.
+- Gate 58 on the survivors bundle PASSED 3409 of 3409 (6 skipped); merged into main.
+- `an_ended_watch_is_dropped_before_the_next_is_set` fixed on `fix/git-policy-cli-ended-watch-order` (`e2f2ed684a`,
+  test only): the test raced its own 300 ms release timer against a cold staging flush; reproduced deterministically
+  with a 600 ms flush hook (`36575e186a`). The sibling wait test had the same race. Same agent now audits every
+  timer-based releaser in the crate's tests.
+- Ladder: main merged (`4b3e472171`), btrfs-free controls for `subvolume_platform.rs:76` and `:80` (`b9826f2d3f`;
+  each hand-applied mutant red on tmpfs). Part B review (`~/temp/agent/review-btrfs-ladder-add-4/sol-review.txt`):
+  6 P1, 1 P2 (trash-box swap before unlink, rollback of a replaced parent or symlink, symlink stat from a live name,
+  `index.lock` swapped before publication, refresh deleting the next Git command's lock, staging write following a
+  symlink, binding verified against the saved admin path instead of the pointer's target). No threat model is written
+  for same-user processes (searched `SPEC.md` and the planning doc); handled under the rules in force: never discard
+  user data, recovery never deletes what it cannot prove it made. Sent to the ladder agent.
+- Journal-logging review running (`~/temp/agent/review-journal-logging/`: `journald_native.rs`,
+  `discarded_prune.rs`, `config_discarded.rs`).
+- QUEUED for the next free agent slot (seen live, 0.5.15): `git push origin --delete <branch absent on origin>` printed
+  an `engine-failure` event with code `content-unavailable`, message "Git could not determine push updates: error:
+  unable to delete '...': remote ref does not exist", and the hint about content missing from the clone. Source:
+  `package/git-policy/cli/src/native/manual_push_probe.rs` `probe_manual_push_updates` (empty porcelain plus a nonzero
+  exit becomes a probe error). A push Git's own dry run refuses should end as Git's refusal (its message, its exit
+  code), with no hint that names a cause that is not the case.
+- Journal-logging review back (`~/temp/agent/review-journal-logging/sol-review.txt`), QUEUED for the next free agent
+  slot (the code ships in 0.5.16). P1: `discarded_prune.rs` follows a symlinked `discarded` root (or one swapped in
+  between listing and removal) and `remove_dir_all` deletes outside the store; P1: removal follows the stale pathname,
+  so a replacement directory (possibly younger than 24 hours) is deleted. P2: `journald_native.rs` flattens newlines
+  instead of the length-prefixed native form; field-name validation (the reviewer says a leading digit is allowed;
+  check systemd's `journal_field_valid` source before following that); the stderr fallback can drop or splice lines,
+  and can block on a full pipe; concurrent prune passes; impossible calendar dates accepted as stamps; the 24-hour
+  floor measured from the start of the stamped second; unchecked size and age arithmetic; traversal, removal and
+  audit failures reported as success. `config_discarded.rs`: no findings.
+- 0.5.16 PUBLISHED (crates.io 2026-11-03T03:05:45Z, built from `a0c5ad2cc4`) and installed (lock commit `89eadbab68`):
+  sample commit wall 1491 ms (`provisionMs` 674: the 0.5.15 service retired and 0.5.16 started for this commit),
+  service `landing_ms=70`. New service lines `started` and `ready` carry distinct journal times 270 µs apart, the
+  native-datagram transport at work; the retiring 0.5.15 lines still share one stream timestamp.
+- Fault-limits flake fixed (`fix/git-policy-cli-fault-limits-service-listen`, `9c3e62339e` red, `c16c6f48b1` fix): the
+  probe counted any `connect` during the about 1 ms a starved service lived (it binds, cannot start its acceptor thread
+  under `RLIMIT_AS`, exits 4) as a start, and the fixture then polled a dead service for 60 s. Now a start counts only
+  with a greeting, and the fixture fails at once when the child has exited. No product change (the service already
+  exits loudly). Gate 59 running.
+- Timer-race audit done on `fix/git-policy-cli-ended-watch-order` (`41e2faf1c0`, `f029ed4a09`, `3caa3279fc`,
+  `ebff8fe9c5`): about 70 test files read; race-dependent releasers converted to product-side release points (a
+  600 ms injected stall before the wait's first look turned the old tests red). Its first binary run had one failure
+  whose name was not captured; a `--no-fail-fast` rerun passed 474 of 474. Gate 60 running on it to name any recurrence.
+  Two residual races (`binary_service_replay_tests.rs` `run_one_batch` 300 ms sleep; the supervisor's 600 ms window)
+  sent back to the same agent.
+- Campaign lock round 8 fixed (`fix/mutation-test-cli-cargo-mutants-campaign-lock`, `c4d7d0b305` to `d5e5911ba1`): the
+  campaign process opens the evidence directory and lends the descriptor to a short `flock --nonblock`, so the lock
+  lives exactly as long as the campaign process; start evidence is tri-state, and a markerless attempt without a
+  `campaign-protocol.json` record is unknown and rejected. Consequence: legacy evidence directories with such attempts
+  now fail reconcile as invalid. Main merged into it; unit suites running before the merge to main.
+- QUEUED for the next free agent slot: the mutation-test package's `test:unit` times out and hits ENOENT under
+  `TasksMax=300` (campaign-passes, -resume, -baseline suites), and killed runs left about 40 orphaned
+  `campaign-fixture.ts` processes.
+- Journal-logging review fixes assigned (`fix/git-policy-cli-journal-and-prune-review`).
+- Gate 59 on `fix/git-policy-cli-fault-limits-service-listen` PASSED 3398 of 3398 (6 skipped). Merged into main as
+  `f55eae57f9`; one conflict in `binary_fixture_tests.rs` (both sides added tests and imports; kept both), then
+  `native:clippy` on main clean. Campaign lock round 8 merged into main (both TypeScript unit suites green on the merged
+  branch: 79 and 70 suite PASS lines, exit 0). Round 9 review running (`~/temp/agent/review-planted-controls-9/`).
+  The round-8 agent now fixes the mutation-test unit flakes and orphans on
+  `fix/mutation-test-cli-cargo-mutants-unit-under-process-limits`.
+- Ladder part B fixed (`7d94adbc87` to `3681539d6b`): `remove_owned_at` and the quarantine box deleted (what the ladder
+  made is kept and reported); clone cleanup removed (cost: after a mid-run failure, extra untracked files can remain,
+  reported); created symlinks keep the source's stored stat fields; the index is published by `linkat` of the open file
+  (cannot replace); refresh never touches the lock name after publishing; staging created exclusively; a `gitdir:`
+  pointer through a link ends the ladder with a message. Gate 61 running.
+- Two reviews hit the one-hour bound with no output (both launched 21:13, while `pi` was slow): the ladder remove path
+  and the conflict-side rule. Relaunched at 03:20 (`~/temp/agent/review-btrfs-ladder-remove-3/` with current branch
+  files; `~/temp/agent/review-merge-sides/` with three files); recent reviews returned in about 10 minutes.
+- Main-sourced worktrees built (research agent, `feat/git-policy-cli-main-snapshot-worktree` `91c306da97`, based on the
+  ladder at `38e01bcd33` plus `main-ignored-copy`): `git cli-git convert-worktree-to-subvolume [--dry-run | --abandon]
+  (--all | <worktree>...)` (journaled, refuses busy or dirty worktrees, rerun completes after a kill at any phase;
+  about 4.2 s per 22k-entry worktree under load, so about 200 s once for the 48 real ones), and the snapshot route
+  (nested `.git` pointers unlinked, skip set moved to `.claude/cli-git-trash/<40 hex>`, handed to the service as a
+  `trash` work item; add returns in 3.4 s after conversion). Sent back to merge the current ladder head, replace the
+  misleading "copied 0" line, and test that an older service without `trash` support is replaced before hand-over.
+  QUEUED for the next free `pi` slot: cross-vendor review of `worktree_convert.rs` and `worktree_trash.rs` (both
+  delete). The conversion runs on real worktrees only after this branch is gated and released, skipping busy ones.
+- Timer races: `binary_service_replay_tests.rs` now waits on a test-only `queued-<id>` marker the service writes after
+  queueing (`CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DIRECTORY`, armed like the fault points; 600 ms injected stall: old 2 of 7
+  failed, new 7 of 7 passed); the supervisor test's script now shows life every 10 ms, so only a real 600 ms stall,
+  the monitor's own rule, can end it (`cca0e733f2`, `22f975caff`).
+- Push refusal pass-through done (`fix/git-policy-cli-push-refusal-pass-through` `9d9af780ef` to `d6f888edb8`): a push
+  Git's own dry run refuses ends with Git's exit code and stderr (six refusals checked against plain Git). One control
+  changed: `git push --no-such-option` now equals plain Git (exit 129). Same agent now makes the hint follow the cause
+  for the remaining probe failures.
+- Campaign lock round 9 review (`~/temp/agent/review-planted-controls-9/sol-review.txt`): `campaign-lock.ts` and
+  `campaign-protocol.ts` no defect; one P2 in `startEvidenceOf`: the campaign-wide protocol record can certify a later
+  attempt made by an older markerless runner that reused the directory. Fix (per-attempt protocol record) sent to the
+  agent on `fix/mutation-test-cli-cargo-mutants-unit-under-process-limits`.
+- Conversion and trash review started (`~/temp/agent/review-main-snapshot/`: `worktree_convert.rs`,
+  `worktree_trash.rs` at `91c306da97`).
+- Gate 60 PASSED 3398 of 3398 on the timer-race audit (`ebff8fe9c5`); gate 62 running on the branch head `22f975caff`.
+- Gate 61 PASSED 3559 of 3559 (6 skipped) on `feat/git-policy-cli-btrfs-worktree-add` `3681539d6b`. Merged into main
+  `c0d7bf8bf3` (no conflict), `native:clippy` on main clean. 0.5.17 dispatched (run 41571832948): new worktrees on btrfs
+  are subvolumes. The remove-path review (`~/temp/agent/review-btrfs-ladder-remove-3/`) is still running and is handled
+  as a follow-up per the owner's "Treat reviews as async".

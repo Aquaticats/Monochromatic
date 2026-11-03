@@ -281,6 +281,15 @@ the setup portable across hypervisors.
 
 ## Why ghostty is a COPR RPM, not an AppImage
 
+This section records the original choice.
+On 2026-11-02 the user selected OdyTTY as the interim desktop and VM terminal.
+The VM now installs OdyTTY's upstream RPM with a verified SHA-256,
+and the Ghostty COPR was removed.
+The RPM integration rationale remains applicable,
+but OdyTTY publishes release RPMs without a package repository,
+so its version and checksum must be updated together in the Containerfile.
+See [the migration record](../handover/odytty-interim-switch.md).
+
 The original plan was to install ghostty as an AppImage in the first-login provisioner.
 The scottames/ghostty COPR provides an official RPM for Fedora,
  which is a better fit:

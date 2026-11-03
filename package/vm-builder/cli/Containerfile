@@ -5,7 +5,7 @@
 # Layers on top of ucore-hci:
 # - KDE Plasma desktop (full plasma-workspace)
 # - Browser (LibreWolf) + password manager (KeePassXC)
-# - Terminal (Ghostty via COPR)
+# - Terminal (OdyTTY upstream RPM)
 # - Dev tools (helix, strace, inotify-tools, etc.)
 # - mise (task runner in the user's ~/.local/bin; tool versions are provisioned
 #   per worktree by `mise run toolchain:install`, never seeded into the image)
@@ -17,15 +17,24 @@ FROM ghcr.io/ublue-os/ucore-hci:stable
 RUN curl -fsSLo /etc/yum.repos.d/librewolf.repo \
     https://repo.librewolf.net/librewolf.repo
 
-# Add scottames/ghostty COPR repo
-# shellcheck disable=SC1091
-RUN . /etc/os-release && \
-    curl -fsSL \
-      "https://copr.fedorainfracloud.org/coprs/scottames/ghostty/repo/fedora-${VERSION_ID}/scottames-ghostty-fedora-${VERSION_ID}.repo" \
-      -o /etc/yum.repos.d/scottames-ghostty.repo
+# Match the user's interim desktop version. Verify the upstream release artifact
+# before rpm-ostree consumes it; upgrades must update the version and checksum together.
+ARG ODYTTY_VERSION=0.17.5
+ARG ODYTTY_RPM_SHA256=66694895f83eee90b2b75250c4f8bc0acce84052b200344295b6df2c9472ad55
+RUN curl --fail --silent --show-error --location \
+      "https://github.com/ghreprimand/odytty/releases/download/v${ODYTTY_VERSION}/odytty-${ODYTTY_VERSION}-x86_64.rpm" \
+      --output /var/tmp/odytty.rpm \
+    && printf '%s  %s\n' "${ODYTTY_RPM_SHA256}" /var/tmp/odytty.rpm | sha256sum --check --strict
 
 # Install all system packages in a single layer.
 # rpm-ostree is used because ucore-hci is an ostree native container.
+# Opt in only when the selected metalink mirror is unsuitable for this build.
+# Keep Fedora's package-signature checks and release/architecture substitutions.
+ARG FEDORA_DIRECT_MIRROR=false
+RUN test "${FEDORA_DIRECT_MIRROR}" != true || sed --in-place \
+      --expression='s|^metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\$releasever&arch=\$basearch$|baseurl=https://download-ib01.fedoraproject.org/pub/fedora/linux/releases/$releasever/Everything/$basearch/os/|' \
+      --expression='s|^metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f\$releasever&arch=\$basearch$|baseurl=https://download-ib01.fedoraproject.org/pub/fedora/linux/updates/$releasever/Everything/$basearch/|' \
+      /etc/yum.repos.d/fedora.repo /etc/yum.repos.d/fedora-updates.repo
 RUN rpm-ostree install \
       plasma-workspace \
       sddm \
@@ -34,7 +43,7 @@ RUN rpm-ostree install \
       virt-manager \
       librewolf \
       keepassxc \
-      ghostty \
+      /var/tmp/odytty.rpm \
       helix \
       strace \
       inotify-tools \
@@ -43,6 +52,8 @@ RUN rpm-ostree install \
       msitools \
     && rpm-ostree cleanup -m \
     && ostree container commit
+
+RUN rm --force /var/tmp/odytty.rpm
 
 # Set graphical target and enable SDDM so KDE starts on boot.
 # ucore-hci defaults to multi-user.target; without this, SDDM never starts.
@@ -80,4 +91,5 @@ USER root
 
 # Bake dotfiles from package/config/dotfiles/ into the user's ~/.config/.
 # Build context is the monorepo root, so paths are relative to that.
-COPY --chown=user:user package/config/dotfiles/ghostty/ /home/user/.config/ghostty/
+COPY --chown=user:user package/config/dotfiles/odytty/ /home/user/.config/odytty/
+COPY --chown=user:user package/config/dotfiles/kdeglobals package/config/dotfiles/xdg-terminals.list /home/user/.config/

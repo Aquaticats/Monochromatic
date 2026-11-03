@@ -86,6 +86,10 @@
   ],
   "evidenceFiles": [
     [
+      "verification/native-mutation-<ID>/campaign-protocol.json",
+      "{\n  \"version\": 1\n}\n"
+    ],
+    [
       "verification/native-mutation-<ID>/campaign.json",
       "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"keyParts\": [\"<KEY PARTS>\"]\n}\n"
     ]

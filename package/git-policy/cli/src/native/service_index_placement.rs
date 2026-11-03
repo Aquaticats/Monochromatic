@@ -115,7 +115,7 @@ pub fn rename_noreplace(_from: &Path, _to: &Path) -> std::io::Result<()> {
 /// Whether a failed rename without replacing means the filesystem cannot do one (renameat2(2):
 /// `EINVAL`),
 /// not that the lock exists or storage failed.
-fn rename_unsupported(error: &std::io::Error) -> bool {
+pub fn rename_unsupported(error: &std::io::Error) -> bool {
     if error.kind() == std::io::ErrorKind::Unsupported {
         return true;
     }
@@ -132,7 +132,7 @@ fn rename_unsupported(error: &std::io::Error) -> bool {
 /// Whether a failed hard link means the filesystem makes none (link(2):
 /// `EPERM`),
 /// not that the lock exists or storage failed.
-fn links_unsupported(error: &std::io::Error) -> bool {
+pub fn links_unsupported(error: &std::io::Error) -> bool {
     if error.kind() == std::io::ErrorKind::Unsupported {
         return true;
     }

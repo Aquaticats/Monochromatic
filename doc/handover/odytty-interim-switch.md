@@ -3,7 +3,10 @@
 ## Authorized scope
 
 On 2026-11-02 the user requested:
-"Ghostty is currently bad. For the meantime we want to use Odytty. Do all the changes needed. Ask me whenever unsure."
+"Ghostty is currently bad.
+For the meantime we want to use Odytty.
+Do all the changes needed.
+Ask me whenever unsure."
 The user subsequently chose to retain existing OdyTTY settings and also change the development VM image.
 
 This is implementation of the user's terminal choice,
@@ -14,17 +17,65 @@ No new ranking or complete technology audit is claimed.
 
 ## Work queue
 
-- [ ] Switch KDE's terminal defaults and pinned taskbar launcher to the installed OdyTTY desktop entry.
+- [x] Switch KDE's terminal defaults and pinned taskbar launcher to the installed OdyTTY desktop entry.
   Verify the live Plasma configuration and actual command launch.
-- [ ] Switch the explicit terminal launcher preference and exercise command arguments,
+- [x] Switch the explicit terminal launcher preference and exercise command arguments,
   working directory,
   title,
   and application ID through `terminal-exec` in a disposable environment.
 - [ ] Replace the VM image's Ghostty installation and dotfile seed with OdyTTY and explicit terminal defaults.
   Validate the release package and image integration without replacing an existing VM.
-- [ ] Check current agent input compatibility,
+- [x] Check current agent input compatibility,
   especially the historical Claude Code Shift+Enter limitation.
 - [ ] Commit scoped changes and record verification results and remaining limits.
+
+## Completed verification
+
+Claude Code `2.1.317` passed the live OdyTTY input check without patching:
+Shift+Enter inserted a newline,
+Ctrl+C cleared input,
+and Enter submitted.
+The [keyboard verification](../troubleshooting/claude-code-odytty-keyboard.md) records isolation and limits.
+
+`probe-launch.ts launcher-verified` in the private migration scratch directory passed through the built `terminal-exec`.
+The isolated OdyTTY window received the requested title,
+application ID,
+working directory,
+and a literal argument containing spaces,
+a semicolon,
+and command-substitution syntax.
+Its child reported `TERM_PROGRAM=odytty` and `TERM=xterm-256color`.
+Legacy input and Kitty disambiguation mode were exercised with Enter,
+Shift+Enter,
+Ctrl+C,
+and Escape.
+The hold option retained the window after child exit;
+the next key closed it with exit status `0`.
+The same checks passed through the installed system `xdg-terminal-exec` in `xdg-verified`.
+Its read-only `--print-id --print-cmd` probe against the real host configuration selects `odytty.desktop`.
+
+The scoped Markdown lint task passed for every changed Markdown file.
+The installed `marked` renderer produced the expected headings,
+code spans,
+links,
+and lists for those files;
+rendered output was inspected.
+
+The VM image definition and dotfiles were committed in `39113fdeba`.
+The build-context allowlist referenced obsolete `packages/config/dotfiles/`;
+it now names `package/config/dotfiles/` so the new seeds reach the image.
+An `image:build` task builds only the OS image,
+without converting disks or replacing a libvirt VM.
+The first build verified the RPM checksum,
+then was stopped during Fedora metadata retrieval.
+Its selected mirror connection received `36,790,730` bytes after `550.930` seconds since its request.
+A separate fetch of Fedora's `15,678,154`-byte primary metadata file from the direct Fedora endpoint
+completed in `3.460687` seconds.
+These are different requests,
+not a controlled bandwidth benchmark or a build completion forecast.
+The next build uses the optional `FEDORA_DIRECT_MIRROR=true` argument,
+preserving package signature verification.
+The stopped build log is `${HOME}/temp/agent/odytty-switch-20261102/image-build.log`.
 
 ## Initial inventory
 
@@ -70,6 +121,14 @@ The upstream RPM is cross-built and described as best-effort;
 installation and runtime checks remain necessary.
 
 ## Recovery
+
+Host configuration was switched with `kwriteconfig6 --notify` and Plasma's live scripting API.
+Taskmanager widget `30` now pins `applications:odytty.desktop` in Ghostty's former position.
+`kreadconfig6` passed a disposable fixture before the real write.
+The live API returned the changed launcher list,
+and the persisted files match.
+The before/after `odytty.conf` comparison was byte-identical.
+Backups are under `${HOME}/temp/agent/odytty-switch-20261102/host-before`.
 
 Retain the host Ghostty installation and configuration during this interim switch.
 Restoring the saved KDE terminal keys,
