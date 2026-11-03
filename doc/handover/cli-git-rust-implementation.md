@@ -10807,3 +10807,16 @@ by the coordinator at merge.
   `a_fetch_after_a_killed_fetch_clears_the_locks_where_the_holder_is_provably_gone`.
   0.5.26 candidate contents once the retry-plan fix builds: perf + merge-fixes (in the integration branch),
   then merge test-helpers, stale-ref-locks and conflicted-path-warns.
+- 2026-11-03T07:36:08-05:00: owner, verbatim: "We also have the advantage of git itself being OSS so we're not
+  just wrapping a black box." Applied as design practice for every Git step the wrapper runs or replaces: read
+  Git 2.56.0's own source for what the step locks, waits on and can exit nonzero for, cite file and line, and
+  where a step moves in process port Git's logic so the result equals Git's (the stale-ref-locks work already
+  cites `a018953688`). Sent to the commits-never-fail agent (including the 60 s `diff-tree` and `reset` of the
+  120 s commit, and whether the 60.0 s `reset` met the wrapper's own 60 s quick-class bound) and to the
+  inner-quiet and slow-server agent (`--quiet` semantics per command; how `push` and `remote-curl` relay
+  sideband and keepalive packets). Git's fsmonitor stays out of scope as a cause.
+  mpm-shadow 0.2.5 PUBLISHED (crates.io 2026-11-03T12:28:18Z), locked (`toolchain:update -- mpm-shadow`, only it
+  moved), installed; a login shell's `mpm --version` names "mpm-shadow 0.2.5". The new hint wording is covered
+  by the package tests; it is not triggered live, because that needs a lock older than the running tool.
+  Measured on main meanwhile: the lock commit waited over 50 s in the client's `git add --all --
+  toolchain.lock.json`, and an earlier commit over 20 s in `git read-tree --reset` (sent to the commits agent).
