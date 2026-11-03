@@ -177,19 +177,20 @@ fn install_batch(
 }
 
 /// What:
-///  The leaves per worker below which a batch's files and links are created on one thread.
+///  The leaves below which a batch's files and links are created on one thread: `PARALLEL_BREAK_EVEN_ENTRIES`.
 /// Why:
-///   A large batch spends its time in independent link calls; a small one is faster without the thread start.
-///  Not measured on the install itself. `clone_tree`, which makes files by the same calls, was faster with 8 workers than with
-///  one at every size it ran in parallel (13 ms against 39 ms at 555 entries, 20 ms against 74 ms at 1,077); its own threshold
-///  is 512. This value is the coordinator's pick under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
+///   A large batch spends its time in independent link calls; a very small one is faster without the thread start. Measured with
+///  `install_snapshot` itself forced to 1, 2, 4 and 8 workers on reflinked trees of this repository (2026-11-03, five runs each in
+///  alternating orders, other sessions running, a debug build): 8 workers took 1.3 ms against 1.6 ms for 30 entries, 8.9 ms
+///  against 14.8 ms for 296, 49.2 ms against 107.7 ms for 2,119, and 244.9 ms against 500.2 ms for 9,301, so the old threshold of
+///  1024 left batches of up to 1,023 leaves on one thread for up to 50 ms more. Picked by the coordinator under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const PARALLEL_INSTALL_MIN_LEAVES = 1024;
+/// const PARALLEL_INSTALL_MIN_LEAVES = PARALLEL_BREAK_EVEN_ENTRIES;
 /// ```
-const PARALLEL_INSTALL_MIN_LEAVES: usize = 1024;
+const PARALLEL_INSTALL_MIN_LEAVES: usize = super::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
 
 /// What:
 ///  Creates one slice of files and links, stopping at the first failure, and returns what it created with that failure.

@@ -960,12 +960,11 @@ Stage each destination separately in a mode-`0700` sibling directory so file clo
  on the destination filesystem.
 Copy regular files into the stage with an exclusive copy-on-write request whose unsupported-filesystem behavior falls
 back to a full copy.
-A manifest of at least 4096 entries is copied by up to 8 threads, bounded by the CPUs the process may use,
+A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 threads, bounded by the CPUs the process may use,
 over contiguous slices after every directory exists; the first failure stops the others.
-The cap of eight is measured: cloning 22,718 entries took 1549, 880, 555, 397 and 415 ms at 1, 2, 4, 8 and 16 workers
-(`doc/planning/cli-git-shipped-limits-audit.md`, "Measurement record").
-The threshold of 4096 is not measured on the copy stage itself; the same file-making primitive was faster in parallel
-from 555 entries up, so the threshold is kept as an open question there.
+Both numbers are measured: the copy stage forced to 1, 2, 4 and 8 workers took 1.1, 1.0, 0.7 and 0.7 ms for 30 entries and 397.6,
+222.2, 139.4 and 104.4 ms for 9,301, and cloning 22,718 entries took 1549, 880, 555, 397 and 415 ms at 1, 2, 4, 8 and 16 workers
+(`doc/planning/cli-git-shipped-limits-audit.md`, "Measurement record"). The install and the clone of a package repair use the same break-even.
 Preserve directory and regular-file permission bits plus exact symbolic-link target text.
 Never follow a symbolic link while classifying source or destination entries.
 
