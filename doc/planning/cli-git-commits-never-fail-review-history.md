@@ -4,7 +4,7 @@ Scope: `package/git-policy/cli`. This is the history of `doc/planning/cli-git-co
 stays within the size a reviewer can read whole.
 Every section below is superseded by the normative state machine of that design (revision 12 at the time of the move);
 each section keeps its own note saying which mechanisms it names were withdrawn.
-The revision 9 and 10 changelogs and the answers to the ninth and tenth reviews were moved here in revision 12; the revision 11 changelog stays in the design.
+The revision 9, 10 and 11 changelogs and the answers to the ninth and tenth reviews were moved here in revision 12.
 
 ## Answers to the first review
 
@@ -594,3 +594,48 @@ owed an executable model; nothing is built). The verdict is accepted: continued 
 - Assessment of the five picks: R-never stands (normal abort is now defined separately); P-wait and W-detect are re-opened as choices under the owner's rule; G-root is demoted to extra protection with G-order carried; M-A stands as an
   ordering choice whose correctness now rests on MG5 and MG6 as repaired.
 - Not a defect: none of the thirteen findings was rejected. One refinement: the review's "a person can delete the root" is answered by removing the reliance on the root, not by contract or coordination.
+
+## Revision 11 changelog, moved from the design in revision 12
+
+### Revision 11 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
+
+Naming. Names are stable where the meaning holds. New names: rule B (the register of waits), W1, W2, T0, MG4n, `withdrawn`, `sign-failed` (was `sign-pending`),
+the resume values `MG4n`, `MG5`, `MG6`. Bodies changed: P2 (now three steps P2a prepare, P2b decide, P2c commit), P4, Q1, E1, R4 (withdrawn), T1, M1, MG1 to MG6, C0, C3,
+C5, B1, rule N, the Publication target rule and the Client result rule. Owner-question letters added: N and H2; P, W and G are restated. Each schedule goes red
+under revision 10 and green under revision 11; a model marked "new" is added to step 1.
+- Rule B, the register, W1, W2, P2, P4, Client result (the owner's bound rule and answers; models new "bounded wait" and "withdrawal versus landing", F2). Schedules:
+  (1) a person's `reference-transaction` hook that never returns inside P2a and a client that reaches FOREGROUND: red under 10 (the command waits without end, or
+  returns exit 0 and the commit lands when the hook finally accepts); green under 11 (W1 creates the decision `withdraw`, prepare returns later, P2b finds it,
+  `abort` is written, the request never lands, the staging is as it was). (2) W1 and P2b race on `lane/decision/<id>`: both orders are explored; exactly one
+  of `commit` and `withdraw` exists; a client that lost reports `published`. (3) a crash after W1 and before W2, and a crash between P2a and P2c: still
+  withdrawn after restart; `update-ref` aborts a prepared transaction when its input ends (`builtin/update-ref.c:786-793`), so no prepared transaction survives. (4)
+  every entry of the register reaches its bound in the model (START, FOREGROUND, MARKER, ACQUIRE, REAP, KILL, COMMITTING, STALL, PUSH).
+- M1 and rule N (R10-1, R10-2; models new "intent without lock", "lock after an unfulfilled intent", "normal abort after lock creation"). Schedules: the owner dies
+  after the intent and before `open(O_EXCL)`: red under 10 (absence of the lock is read as "renamed", M3(c) drops the entry, a plain commit reverses `x`); green under
+  11 (the index is re-read, `E` found, the entry stays). A foreign lock present after an earlier intent: red (attributed to the dead incarnation); green (reported
+  without a claim). A declined guard after a successful `O_EXCL`: red (undefined: "released" versus "never removed"); green (normal abort by the live creator, with
+  the replacement race as a stated premise of every Git lock).
+- MG1 to MG6, MG4n, resume table (R10-3, R10-9; models new "restore after a detected switch", "switch after the post-check", "retarget with own checkout entries",
+  "retarget to a no-op", F5). Schedules: MG3 installs, the switch finishes, the post-check sees `topic`: red under 10 (MG6 needs authority to do, which has just failed, and
+  ends `refused`, then proceeds to MG4); green under 11 (authority to undo, reason `switched`, `resume = MG4n`). A switch that finishes after the last check: red (files stay in the
+  topic worktree with nothing scheduled); green (MG4 repeats the check and every lane event checks; the residue is stated and needs approval). Retarget after a lost
+  swap: red (MG1's pre-scan reads the lane's own `x=1` as staged); green (MG5's own plan). A foreign successor makes the merge a no-op while `x=1` is checked out:
+  red (`already` leaves the obsolete checkout); green (the union of old and new paths is reconciled). A waiting merge and a later commit of exactly the blocking paths:
+  red (blocked behind it); green (proceeds ahead and resolves it).
+- T1 (R10-4; models F8 extended, new "mixed-time view", "root deleted", "root not covering the replay"). Schedule: admission between the registry read and the check,
+  the branch away at the run's view, the branch back, T1 releases: red under 10 (the root named only the captured closure; the check and the root removal were not
+  ordered against admission); green under 11 (the registry is re-read after the check; the run is non-terminal in that read and T1 withdraws). Hold ref absent,
+  deleted, or unwritable: no change in behaviour (it was never load-bearing), and publication is never blocked by it.
+- C0 (R10-5; model new "helper loses acquisition"). Schedule: the helper's try loses to a service that then runs a hook that never returns: red under 10 (the client waits behind the helper, which waits in L1);
+  green under 11 (one non-blocking try, the client re-evaluates and captures).
+- C3, T0, C5 (R10-6, R10-7; models new "resend after candidate release", "terminal lookup before retirement", F7). Schedules: B1 records `refused`, the request leaves the document, a
+  maintenance run keeps T1 from running, a resend arrives: red under 10 (answered "adopted"); green (the `outcome` line is in the ledger first). Resend after T1 released the candidate:
+  red (rule D requires a deleted directory); green (the terminal route reads only the ledger). C5 meets a visible but unflushed inbox entry: red (adopts on it); green (rule D).
+- R4, E1 (R10-8, R10-10; models F1 with new "live lock-held then satisfied and removed", new "hook descendant output"). Schedules: lock-held recorded, another writer installs and removes the
+  commit, the reflog suffix is erased, the owner dies: red under 10 (R4 lands silently); green (R5 with the notice; the live retry is choice N). A hook descendant prints a held-lock line after Git's
+  diagnostic and the hook refused: red (classified lock-held, the hook runs again); green (a non-zero `child_exit` of the hook in Git's event stream is `refused`; stderr text is never parsed).
+- B1 hook runner (R10-11; model new "repeated deaths before a durable hook result"). Schedule: the hook performs its effect and the owner dies twice before a result file: red under 10 (the text promised a total bound of one rerun);
+  green (the text and the model say one invocation per recovery episode, choice H2). Runner lifecycle: the writer of the result must not keep the scope non-empty (backend experiment).
+- Publication target (R10-12; model new "HEAD attaches between check and P2"). Schedule: detached at `B`, another program attaches `HEAD` to a branch whose tip is `B`, P2 runs: red under 10 (`--no-deref` replaces the
+  symbolic reference); green (no `--no-deref`; the update lands on the branch `HEAD` now names with the old-value check, M1 declines).
+- Properties and heading (R10-13). The L2 and L7 properties are separated and the heading says revision 11; remaining "odd generation" narrative is updated.
