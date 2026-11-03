@@ -14,7 +14,21 @@ Branch: `fix/git-policy-cli-commits-fast-under-disk-pressure`.
 
 ## Result first
 
-The 0.5.28 base is worse than the installed 0.5.27 under the same conditions.
+The 0.5.28 base is worse than the installed 0.5.27, in two ways.
+Warm, its commits take longer (below).
+And under a stalled disk it is more exposed: it waits for twelve syncs per landing where 0.5.27 waits for about four and
+native Git for none (60 against 21 over five traced landings).
+The extra syncs come with what 0.5.28 adds on the landing path (the in-process index writer with its directory syncs, the
+start record and the sync before the completion record); only the totals were traced for 0.5.27, so which of the twelve
+are new was not itemized.
+This branch removes one of those syncs and the other work below; it does not remove the rest.
+The tip still waits for eleven syncs per landing (56 over five), which is 2.75 times the exposure of 0.5.27 under a stall,
+and its landing is still longer than 0.5.27's in `sync_ms` (47 against 25 ms, signed).
+Removing those syncs from the waiting path is the owner's decision (options B to E, below), so the base is a 0.5.28
+blocker for stall exposure until the owner decides.
+Warm, the tip is faster than both.
+
+Warm numbers first.
 Two builds, alternating arms, nineteen warm paired rounds each (median of the wrapped time minus the native time of
 the same round), on a main-shaped fixture (20,740 tracked files, 2.8 MB index, the main checkout's pack and hooks):
 
@@ -141,12 +155,16 @@ system calls, 8 `pread64`, no sync call and 16 process starts (including the `po
 6. The client still starts nine Git processes (unsigned route) and the service three or four per landing; `add`,
    `cat-file`, `ls-tree`, `diff-index`, `rev-list` and `var` (twice) in the client, and for a signed commit the
    scratch repository's `commit`, `update-ref` and `symbolic-ref` remain (see the options).
-7. The first landing of a fresh fixture took 98 and 361 ms of `sync_ms` on the base and 1,230 and 1,537 ms on the
-   tip in the two signed runs of each, and the unsigned runs of the tip had a second-round sample at about one
-   second where one base run had 3.2 s.
-   The cause was not isolated; the in-process index update declines an entry whose time is in the second of the
-   copy's own time and Git's `reset` then runs, which is the suspect (`service_land_follow_tests.rs`, "racily
-   clean").
+7. The first landing of a fresh fixture is slow in some runs, on every build: `sync_ms` of the first landing was 98 to 361 ms on
+   the base (five signed runs) and 117 to 1,537 ms on the tip (eight signed runs, three of them above one second), 23 to 48 ms
+   on 0.5.27 and the tip's unsigned runs, and one base run had a second-round sample at 3.2 s.
+   A trace of the tip's first landing (`NATIVE_PERF_TRACE_CALLS=execve,fsync,rename`) shows the in-process update, no Git
+   `reset`, and two syncs that took 178 ms (the replacement file of the index) and 298 ms (the Git directory after the
+   index rename), where the same syncs take 6 ms later in the run.
+   The fixture's own setup has just written a lot (the reflink copies, the refresh of four indexes), and a sync waits for
+   the writeback that is pending on the file system: the production stall in miniature, on a quiet host.
+   Whether the tip's tail is longer than the base's is not established; the base pays the same backlog in the sync it makes
+   on the private copy, which the tip no longer makes.
 
 ## What was changed
 
