@@ -815,6 +815,9 @@ pub mod landing_location;
 ///  the landing lock held while real Git runs as a child.
 pub mod index_writer_forward;
 
+/// The three-way merge by line and by word that resolves a conflict Git's line merge reports.
+pub mod word_merge;
+
 /// The `git merge` command lines the wrapper completes in isolation, and those it leaves to native Git.
 pub mod merge_options;
 

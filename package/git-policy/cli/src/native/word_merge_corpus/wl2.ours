@@ -1,0 +1,3 @@
+fn main() {
+    let total = scale(10, 2);
+}

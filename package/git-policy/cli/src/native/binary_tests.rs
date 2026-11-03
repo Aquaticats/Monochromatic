@@ -128,6 +128,10 @@ mod dependent_version;
 #[path = "binary_merge_isolation_tests.rs"]
 mod merge_isolation;
 
+/// The word-level second merge pass after a merge, rebase, cherry-pick or revert that Git stops with a conflict.
+#[path = "binary_word_merge_tests.rs"]
+mod word_merge;
+
 /// Real commits through the transaction: landing, policies, replay and conflict.
 #[path = "binary_commit_tests.rs"]
 mod commit;
