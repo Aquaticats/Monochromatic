@@ -15,7 +15,8 @@ The installed CLI does not accept this spelling.
 Its `--help` lists `--dangerously-skip-permissions`,
 and the current [CLI reference][cli-reference] describes that option as:
 
-> Skip permission prompts. Equivalent to --permission-mode bypassPermissions.
+> Skip permission prompts.
+> Equivalent to --permission-mode bypassPermissions.
 
 The reference also distinguishes `--allow-dangerously-skip-permissions`:
 it adds bypass mode to the mode cycle without starting in that mode.
@@ -44,7 +45,7 @@ Private harness and captured output:
 `${HOME}/temp/agent/claude-yolo.5Z9XjC4z/probe.ts`,
 `live.stdout`,
 and `live.stderr`.
-The harness invokes the proposed function in `bash --noprofile --norc`,
+The original harness invokes the first-position-only function in `bash --noprofile --norc`,
 with a disposable executable named `claude` that records its argument array and exits with status `37`.
 
 Passing cases:
@@ -83,13 +84,115 @@ The harness stopped the process at its configured deadline while it retried the 
 That verifies mode selection without an authenticated model turn.
 It does not verify interactive onboarding or permission behavior under managed policies.
 
-## Verified workaround
+## Rejected workaround and corrected scope
 
-The [proposed Bash function](../planning/claude-yolo-shorthand.md) passed the argument and status checks.
-It supports `claude --yolo` in shells that load the function,
-with the shorthand first.
-It does not intercept programs that spawn the executable directly.
-No user shell configuration was changed.
+The original Bash function passed the recorded argument and status checks,
+but those checks omitted normal option ordering.
+On 2026-11-02 the user required `claude --model sonnet --yolo` as well.
+The function only examined the first argument,
+so the recommendation did not satisfy the clarified requirement and is withdrawn.
+The intermediate executable-wrapper recommendation was also superseded:
+the user clarified that Bash functions remain acceptable and chose a reserved-token convention.
+The [current proposal](../planning/claude-yolo-shorthand.md) contains the corrected,
+tested Bash function.
+No user shell configuration was changed during the proposal and prototype checks.
+
+The troubleshooting record and proposal passed the scoped `format:monochromatic-lint` task
+and a CommonMark-to-HTML-tree rendering check using the repository's installed renderer.
+Rendered evidence is retained beside the private harness as `*.hast.json`.
+
+### Corrected argument-grammar probes
+
+`${HOME}/temp/agent/claude-yolo-native.RkvlTxjV/grammar-probe.ts` ran the installed Claude Code
+with disposable configuration and a deliberately invalid sentinel option.
+Every invocation exited during parsing,
+before a model turn.
+
+- `--model sonnet --yolo` and `--model=sonnet --yolo` produced `error: unknown option '--yolo'`.
+- `--system-prompt --yolo` consumed `--yolo` as the required value,
+  then rejected the sentinel option.
+- `--system-prompt=--yolo` also rejected the sentinel option rather than the value.
+- With the sentinel before `-- --yolo`,
+  Claude rejected the sentinel option.
+  This last probe does not independently prove delimiter handling,
+  because parsing can reject the sentinel before examining the later tokens.
+
+The required-value probe rules out blindly replacing every matching argument as a transparent alias.
+No claim about a complete wrapper follows from these parser probes.
+The user later chose an explicit reserved-token convention,
+so complete transparency for a separate literal option value is no longer required.
+
+### Reserved-token function verification
+
+The user selected replacement of standalone `--yolo` before `--`,
+with literal values written using `--system-prompt=--yolo`.
+`${HOME}/temp/agent/claude-yolo.5Z9XjC4z/reserved-probe.ts` tests the exact function in the current proposal.
+Its disposable fixture is `${HOME}/temp/agent/claude-yolo-reserved.BIezsd`.
+
+The recording executable verified:
+
+- `--yolo` before or after `--model sonnet`,
+  and after `--model=sonnet`.
+- Every standalone alias before `--` is rewritten,
+  including the deliberately reserved separate-value spelling.
+- `--system-prompt=--yolo`,
+  text containing `--yolo`,
+  and `--yolo=true` remain unchanged.
+- `-- --yolo` remains unchanged,
+  and aliases on opposite sides of `--` follow the selected rule.
+- An invented `--future-option value` passes through while a following `--yolo` is translated.
+- Empty arguments,
+  newlines,
+  quotes,
+  command-substitution text,
+  separators,
+  and globs retain their original argument boundaries.
+- The executable's exit status `37` is preserved throughout.
+
+The real Claude `2.1.317` parser also accepted the translated alias before and after `--model sonnet`,
+and accepted the attached literal `--system-prompt=--yolo`.
+A deliberate invalid sentinel option then stopped each invocation during parsing.
+These are parser checks,
+not authenticated model sessions.
+No user configuration was changed during these prototype checks.
+
+### Installation
+
+The user subsequently authorized installing the function.
+On 2026-11-02 in `America/New_York`,
+the exact tested definition was written to `${HOME}/.bashrc.d/claude.sh` with mode `0644`.
+The write required the destination to be absent,
+and the existing `.bashrc` drop-in loading remains unchanged.
+`${HOME}/temp/agent/claude-yolo.5Z9XjC4z/installed-probe.ts` verified startup with
+`bash --noprofile --rcfile <actual-user-bashrc> -i +m -c 'declare -f claude'`,
+a disposable home,
+and copies of the installed drop-in files.
+The fresh interactive shell defined `claude` with the expected translation and executable delegation.
+
+The same harness read the installed file and reran the argument,
+delimiter,
+exit-status,
+and real-Claude parser checks successfully.
+The private startup and consumer output is retained under
+`${HOME}/temp/agent/claude-yolo-installed.lGmIeL`.
+The recording-executable fixtures are under `${HOME}/temp/agent/claude-yolo-reserved.AIjStt`.
+The installed file's measured mode is `0644`.
+Existing shells retain their current function definitions until they source the drop-in or restart;
+new interactive Bash shells load it through `.bashrc`.
+
+This function has no list of Claude options to keep synchronized.
+The earlier maintenance warning concerned a different,
+fully transparent parser-copying design.
+No measured release-to-release breakage rate supports treating the selected function as costly to maintain.
+
+### Abandoned binary inspection
+
+The user explicitly rejected patching Claude Code itself.
+An in-progress `tweakcc unpack` inspection was terminated;
+it returned exit status `143` and produced no extracted file.
+No repack or patch command ran,
+and no installed binary was modified.
+This cancellation establishes no conclusion about current `tweakcc` compatibility.
 
 ## What does not work
 
@@ -105,11 +208,23 @@ Nothing to file under the [Claude Code exemption](../../.out-of-scope/claude-cod
 The finding is a local shorthand request,
 not evidence that the documented upstream option is broken.
 
-- Upstream fault: not established; the supported option works in the mode-selection probe.
-- Fixability: an upstream alias is conceivable; implementation source was not inspected.
-- Supported use case: bypass mode is documented; `--yolo` is not listed.
-- Contribution policy: not investigated because upstream tracking is excluded.
-- Likely upstream action: not assessed; no tracker or duplicate search was performed under the exemption.
-- Prototype: the local Bash function was tested; no upstream patch was created.
+- Upstream fault:
+  not established;
+  the supported option works in the mode-selection probe.
+- Fixability:
+  an upstream alias is conceivable;
+  implementation source was not inspected.
+- Supported use case:
+  bypass mode is documented;
+  `--yolo` is not listed.
+- Contribution policy:
+  not investigated because upstream tracking is excluded.
+- Likely upstream action:
+  not assessed;
+  no tracker or duplicate search was performed under the exemption.
+- Prototype:
+  the first-position-only Bash function was rejected;
+  the corrected reserved-token function passed argument and parser checks;
+  no upstream patch was created.
 
 [cli-reference]: https://code.claude.com/docs/en/cli-reference#:~:text=--dangerously-skip-permissions

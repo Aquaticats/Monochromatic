@@ -254,6 +254,30 @@ fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child> {
     return answer.recv().expect("the spawner thread answers");
 }
 
+/// How long a fixture waits for an ended service's socket to stop answering before it says the service is still there.
+const SOCKET_RELEASE_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// What:
+///  Waits until nothing answers at `socket`: the file is absent, or it is a stale socket whose listener is gone.
+/// Why:
+///   Ending a service that runs under a tracer reaps the tracer, and the traced service dies a moment later, so its socket can
+///  still answer after the fixture counts the service as ended. A new service cannot take such a socket, and a readiness poll
+///  that connects to it reports a service that is not the new one.
+///
+/// # Panics
+/// When something still answers after `SOCKET_RELEASE_PATIENCE`, which is a service the fixture did not end.
+fn wait_until_nothing_listens(socket: &Path) {
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        match std::os::unix::net::UnixStream::connect(socket) {
+            Err(error) if matches!(error.kind(), std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::NotFound) => return,
+            Ok(_) | Err(_) => {}
+        }
+        assert!(began.elapsed() < SOCKET_RELEASE_PATIENCE, "something still answers at {} although the fixture ended its service", socket.display());
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
 impl FixtureService {
     /// What:
     ///  Starts the service of the worktree whose own Git directory is `git_dir`, listening at the socket the wrapper looks for,
@@ -269,6 +293,9 @@ impl FixtureService {
             return;
         }
         let socket: PathBuf = git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path());
+        // A service ended a moment ago may still hold the socket; the new one would end with its address in use while the poll below
+        //  connected to the old one and called the new one ready.
+        wait_until_nothing_listens(&socket);
         let launch: ServiceLaunch = fixture.service_launch.lock().expect("the service launch").clone();
         let mut command: Command = match launch.prefix.split_first() {
             Some((program, rest)) => {
@@ -353,10 +380,28 @@ impl FixtureService {
     ///  what the user manager does when a service has gone.
     pub fn stop_all(&self) {
         let mut children = self.children.lock().expect("the fixture's services");
-        for child in children.values_mut() {
+        for (key, child) in children.iter_mut() {
             kill_with_everything_it_started(child);
+            // Reaping the child is not the service's end when a tracer is the child: the socket answers until the service is gone.
+            wait_until_nothing_listens(git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path()).as_path());
         }
         children.clear();
+    }
+
+    /// What:
+    ///  Forgets the services that ended on their own, so that the next start of their worktree's service runs again.
+    /// Why:
+    ///   The fixture has no manager, and a service that is recorded as running is never started again, ended or not.
+    ///
+    /// Returns whether any service had ended.
+    pub fn forget_ended(&self) -> bool {
+        let mut children = self.children.lock().expect("the fixture's services");
+        let ended: Vec<PathBuf> =
+            children.iter_mut().filter_map(|(key, child)| { return child.try_wait().ok().flatten().map(|_| { return key.clone(); }); }).collect();
+        for key in &ended {
+            children.remove(key);
+        }
+        return !ended.is_empty();
     }
 
     /// Starts the service of every worktree under the fixture root that has none yet: the repositories and the linked
@@ -389,6 +434,21 @@ pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
         }
     }
     return found;
+}
+
+/// What:
+///  Does what the user manager does when a service has ended: starts the worktree's service again, as production runs it,
+///  with no tracer and no fault.
+/// Why:
+///   The manager owns the socket and starts the service at the next connection. A control that kills the service during a
+///  commit relies on that start for the client's resend, so it calls this while the commit runs.
+pub fn restart_ended_services(fixture: &Fixture) {
+    let service = fixture.service.lock().expect("the fixture's service lock");
+    let Some(services) = service.as_ref() else { return };
+    if services.forget_ended() {
+        *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch::default();
+        services.serve_worktrees(fixture);
+    }
 }
 
 /// The runtime directory of the fixture's services, with a service running for every worktree of the fixture, so a wrapped

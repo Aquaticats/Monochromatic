@@ -196,3 +196,41 @@ fn a_fixture_service_that_ends_before_it_listens_fails_the_start_at_once() {
     let status: String = std::process::Command::new("/usr/bin/false").status().expect("the stand-in program runs").to_string();
     assert!(said.contains(status.as_str()), "the failure must give the exit status ({status}): {said}");
 }
+
+/// How long the stand-in for an earlier service that is still dying keeps its listener.
+const DYING_SERVICE_LINGER: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// How long a connection to the fixture's new service may take to be greeted once the fixture said the service listens.
+const GREETING_PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// What:
+///  A fixture does not report its new commit service as listening while an earlier service of the same worktree still holds the
+///  socket.
+/// Why:
+///   Ending a service that runs under a tracer reaps the tracer, which leaves the traced service to die a moment later. The
+///  fixture's readiness poll connected to that dying listener, reported the new service as listening, and the new service, which
+///  cannot take a socket that still answers, ended with its address in use. Nothing restarts a service in a fixture, so the
+///  next commit waited out the client's whole start wait and failed with "did not start". The stand-in here is a listener that
+///  answers nothing and goes away after a moment, as the dying service's does.
+#[test]
+fn a_fixture_service_starts_after_an_earlier_service_that_is_still_dying() {
+    let created: Fixture = fixture("service-after-dying");
+    let services: FixtureService = start_fixture_service(&created);
+    let git_dir: PathBuf = created.root.join("repo").join(".git");
+    let socket: PathBuf = git_policy_cli::service_instance::socket_for(services.runtime.as_path(), git_dir.as_path());
+    let dying: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind(&socket).expect("the stand-in listener");
+    let lingering = std::thread::spawn(move || {
+        std::thread::sleep(DYING_SERVICE_LINGER);
+        drop(dying);
+    });
+    services.serve(&created, git_dir.as_path());
+    lingering.join().expect("the stand-in ends");
+    let stream = std::os::unix::net::UnixStream::connect(&socket).expect("the fixture's service listens once the earlier one is gone");
+    stream.set_read_timeout(Some(GREETING_PATIENCE)).expect("a read timeout");
+    let mut greeting: String = String::new();
+    std::io::BufRead::read_line(&mut std::io::BufReader::new(stream), &mut greeting).expect("the service greets");
+    assert!(
+        matches!(git_policy_cli::service_protocol::decode_service(greeting.trim_end()), Ok(git_policy_cli::service_protocol::ServiceMessage::Welcome { .. })),
+        "the new service must greet, said {greeting:?}"
+    );
+}

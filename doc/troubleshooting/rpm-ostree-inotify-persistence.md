@@ -36,7 +36,8 @@ The relevant excerpt is
 The installed `sysctl.d(5)` manual says that `systemd-sysctl.service` applies these files at boot,
 with the last assignment in filename order taking precedence.
 The installed `rpm-ostree(1)` manual's rollback section says that each deployment has a separate `/etc`.
-Consequently, normal reboots and forward upgrades preserve this configuration,
+Consequently,
+normal reboots and forward upgrades preserve this configuration,
 but booting a deployment created before the change can use its older configuration.
 
 ## Verification
@@ -64,7 +65,10 @@ Read-only checks produced these results:
 The initial change applied the configuration through the boot service's executable,
 `/usr/lib/systemd/systemd-sysctl --strict --verify --prefix=/fs/inotify/max_user_watches`,
 which exited successfully.
-No reboot, upgrade, rollback, or exhaustion test allocating watches was performed.
+No reboot,
+upgrade,
+rollback,
+or exhaustion test allocating watches was performed.
 Persistence is supported by the documented mechanism and configuration checks,
 not by an observed reboot or upgrade.
 
@@ -96,12 +100,13 @@ Neither supplied the requested value without the administrator override.
 
 There is nothing to report upstream because no tool defect was observed.
 
-- Upstream fault: not established; the documented configuration mechanism works in the live check.
-- Fix feasibility: not applicable without a defect.
-- Supported use case: local `/etc` configuration is covered by the OSTree documentation.
-- Contribution acceptance: not assessed because no contribution is proposed.
-- Maintainer intent to fix: not assessed because no defect is proposed.
-- Prototype: not applicable; the change is administrator configuration.
+- No upstream fault is established.
+  The documented configuration mechanism works in the live check.
+- Fix feasibility is not applicable without a defect.
+- The supported use case of local `/etc` configuration is covered by the OSTree documentation.
+- Contribution acceptance was not assessed because no contribution is proposed.
+- Maintainer intent to fix was not assessed because no defect is proposed.
+- A prototype is not applicable because the change is administrator configuration.
 
 No issue or comment draft is needed,
 and no upstream message was sent.

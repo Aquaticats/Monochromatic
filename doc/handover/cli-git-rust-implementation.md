@@ -9737,3 +9737,123 @@ by the coordinator at merge.
   ended services for `Effect::Kill` and a guard requires one commit through a restarted service. Host runs: library
   3122 of 3122, binary 525 of 525, no SLOW; the three tests 20 s, 20 s, 28 s (was 87 s). Unverified: the exact
   dying-tracee timing was not reproduced without load. Gate 67 running.
+- Conversion over-refusals fixed (`fix/git-policy-cli-convert-accepts-clean-worktrees`: `9caeea0a07` red controls,
+  `952f9283a9`, `8fe8bff1c3`, `981e654548` docs; main merged in as `65805045bc`). Correction to my diagnosis: the 16
+  "HEAD is not a plain ref to a commit" worktrees were not detached; their branch was only in `packed-refs`, and the
+  in-process reader (`repo_read_refs.rs`) gave up on the whole file because of tags like
+  `refs/tags/@monochromatic-dev/module-logger@0.4.1`. A lookup of a plain name now skips such lines. The same reader
+  serves `lfs_object_plan.rs`, `worktree_clean.rs`, `repo_read_query_refs.rs` and `auto_push_trigger.rs`, which in this
+  repository could not resolve any packed ref in process before. Racy and stale-stat entries are now settled by
+  hashing content in process (`worktree_clean_content.rs`), refusing filter/ident/encoding attributes, carriage
+  returns and files over 32 MiB; the agent declined to refuse on `text`/`eol` (every path here has `text=auto eol=lf`),
+  reasoning they only strip CR on the way in. Fixed-build dry run: 160 looked at, 94 subvolumes, 65 would convert, 1
+  real difference (`package/forbidden-strings/core/Cargo.lock`). Gate 68 running.
+- QUEUED: cross-vendor review of the content decision (`~/temp/agent/review-convert-content/`, `question.txt` plus
+  `worktree_clean_content.rs`, `worktree_clean.rs`, `repo_read_refs.rs`, `branch.diff`), to start when one of the
+  three running reviews ends. The real conversion waits for this review and the conversion and trash review.
+- 0.5.19 PUBLISHED (crates.io 2026-11-03T04:13:37Z, built from `baa2ae3638`) and installed (lock commit `39d7f26c32`;
+  sample commit 1419 ms including the upgrade: the 0.5.18 service retired on request and 0.5.19 answered `landed`
+  about 240 ms after it started). Ships the prune, journal and signal fixes.
+- Gate 67 PASSED 3686 of 3686 (no SLOW, 204 s) on the fault_trace fix; merged into main (`0bd66b5d45`); clippy clean;
+  branch deleted locally and on origin. Test harness only, so no release is needed for it.
+- Cross-vendor reviews: the three that timed out at 23:2x (conversion and trash, remove path, conflict side) never
+  wrote a pi session file (`~/.pi/agent/sessions/--var-mnt-encrypted-temp-agent-review-*--/` empty), so they stalled
+  inside pi before sending, not on a slow model; a one-word probe answered in about 5 s. All relaunched with their
+  original questions (recovered from the transcript into each folder's `question.txt`) and each wrote its session file
+  at once. The conversion and trash review now reads the conversion branch's `worktree_convert.rs` and
+  `worktree_trash.rs`. The content-check review (`review-convert-content`) is running too.
+- pnpm store change, user-visible: in the main checkout `pnpm update -r --no-save` stopped with
+  `ERR_PNPM_UNEXPECTED_STORE` because main's `node_modules` was still linked from `node_modules/.pnpm-store/v11` (the
+  relink of main had been deferred, and the comment on `storeDir` said only that the next install relinks). By
+  23:22:56 main's `node_modules/.modules.yaml` named the shared store, so a `pnpm install` had run (not by this
+  session). The comment now says other commands stop until that install (`91e5e8cd58`). That commit also swept in the
+  user's concurrent catalog bumps (pi-* `>=1.5.0`, `hb-subset-wasm` `>=0.5.0`, `unbash` `>=6.0.3`) without their
+  `pnpm-lock.yaml`, which stays uncommitted and is the user's; corrective comment:
+  https://github.com/Aquaticats/Monochromatic/commit/91e5e8cd58f5fe5db0cf6db1f2a001673ea96ab5#commitcomment-207870800
+  The old in-tree store `node_modules/.pnpm-store` is still on disk and no longer used.
+- Branch-name cleanup: 13 merged branches from this effort with nondescript names (`fix-push-semantics`,
+  `fix-review-log-common`, `fix-takeover-hook-race`, `integ-20261101`, `follow-ups-059`, `normal-conditions-gaps`,
+  `fix-service-queue`, `integrate/cli-git-native-command-parser`, `perf-harness-service`, `test-hang-bounds`,
+  `fix-lfs-hermetic-20261101`, `integrate-slices`, `lint-lockfiles`); deleting them locally and on origin was refused
+  by the auto-mode classifier ("Git Destructive"), so it waits for the owner. `e2e-trace-diagnosis-20261101` is
+  unmerged and stays. The other 88 nonconforming branches belong to other work (audit:
+  `~/temp/agent/branch-name-audit.txt`).
+- Content-check review returned (`~/temp/agent/review-convert-content/sol-review.txt`): five P0 false-clean defects
+  (system attributes path derived from `GIT_CONFIG_SYSTEM`; lossy UTF-8 decoding and Unicode lowercasing of paths and
+  patterns; Unicode whitespace and NUL lexing unlike `attr.c`; symlinked parent directories followed; metadata and
+  hashed bytes not tied to one file state) and a P2 unbounded read. No defect in blob framing, CR/eol reasoning,
+  precedence, index exclusions or the packed-refs change. Sent back to the author (same branch). The conversion
+  branch is NOT merged although gate 68 passed (3705 of 3705; its one SLOW is the pre-fix kill sweep, since that
+  merge of main predates `0bd66b5d45`). The real conversion stays held.
+- Conflict-side review returned (`~/temp/agent/review-merge-sides/sol-review.txt`) on shipped code: P1 icase
+  pathspecs can overwrite an unsaved case-variant path; P1 symlinked ancestors are saved through the link; P2 an
+  option value `-W` passes as `--worktree`; P2 a rewrite during the copy yields a stale backup. Assigned to a new
+  agent on `fix/git-policy-cli-conflict-side-review-findings`.
+- Remove-path review returned (`~/temp/agent/review-btrfs-ladder-remove-3/sol-review.txt`) on shipped code: P1
+  `worktree remove ""` resolves to the current worktree; P1 canonicalising erases symlink traversal (check Git's own
+  behaviour first); P1 registration not scoped to the invoking repository; P1 races between the clean check and the
+  ioctl (identity, cleanliness, lock); P1 admin cleanup can delete a reused admin path; P1 `remove_tree` crosses nested
+  subvolumes and mounts; P2 lock lookup errors read as unlocked; P2 failed admin cleanup returns success; P2
+  settlement can remove an empty subvolume it did not create. QUEUED for an agent on
+  `fix/git-policy-cli-remove-path-review-findings` once its worktree exists.
+- Observation: `git worktree add -b ... main` at 23:3x took the Git checkout plus ignored-copy route (190433 entries,
+  minutes) instead of the main snapshot route, and printed no reason. Likely cause (unverified): the main checkout had
+  an uncommitted `pnpm-lock.yaml`. Follow-ups to propose: say why the snapshot route was not taken; consider
+  snapshotting a dirty main and restoring its modified tracked paths from the index in the new worktree.
+- Conversion and trash review returned (`~/temp/agent/review-main-snapshot/sol-review.txt`, on the conversion
+  branch's files). `worktree_convert.rs` findings 1 to 8 (P1: temporary journal file truncation; journal does not
+  record the created subvolume's identity; a `Synced` resume skips re-proving; concurrent runs not serialized; removal
+  re-resolves the path; nested check skipped for bare layouts; substring filtering hides refusals; P2: failed refresh
+  recorded as done) went to the conversion author, same branch. `worktree_trash.rs` findings 9 to 15 (P1: registered
+  nested worktrees bypass tracked protection; gitlinks unprotected; trash ownership by name only; ancestor symlinks;
+  lossy names; P2: lossy hand-over path; cleanup errors returned as success) affect every main-snapshot add since
+  0.5.18; assigned to a new agent on `fix/git-policy-cli-snapshot-trash-review-findings`.
+- Agents now running: conversion author (content and conversion findings), conflict-side fixes, remove-path fixes,
+  add-explains-slow-route (`fix/git-policy-cli-add-explains-slow-route`: measure why the two adds fell back, print the
+  reason, and a `doc/planning` proposal on snapshotting a dirty main for the owner), and the trash fixes. Each comes
+  back for a container gate, merge, and one combined release.
+- Owner request: "Add useGlobalVirtualStore: true in my pnpm-workspace.yaml". pnpm 12.16.1 has no such key (0 hits in
+  its binary; a throwaway install with it stayed local); `enableGlobalVirtualStore: true` and `virtualStoreType:
+  global` both link into `<store>/v11/links`, and pnpm's docs call the former the older spelling of the latter.
+  Committed `virtualStoreType: global` (`70af0c823b`). Adding it to an existing install made no command refuse;
+  the next `pnpm install` relinks. Main's `node_modules` has not been reinstalled with it yet.
+- Owner requirements, verbatim: "Our wrapper must work with pnpm w/o a storeDir set, enableGlobalVirtualStore on or
+  off. Try not to degrade the end user experience in any situation." and "Compatibility with all pnpm configurations
+  is required."
+- Measured gap: a global-virtual-store `node_modules` holds relative links that climb to `/` and back down into the
+  store; copied verbatim two levels deeper they resolve to nothing (throwaway probe: source resolves, copy BROKEN).
+  The wrapper copies link targets verbatim (`worktree_copy_stage.rs:289`, `worktree_clone.rs:227`,
+  `worktree_copy_install_entry.rs:250`), and a snapshot keeps them too. So once main is reinstalled with the global
+  store, new worktrees from every rung would get dead `node_modules` links. Matrix probe of all pnpm configurations
+  under a verbatim copy running (`~/temp/agent/pnpm-matrix-probe.ts`, log `~/temp/agent/pnpm-matrix.log`).
+- QUEUED: a pnpm-compatibility agent (all five agent slots are busy) to fix the copy, clone, snapshot and conversion
+  paths so a copied link resolves to the same thing it did in the source (links that stay inside the tree stay
+  relative; links that leave it keep their absolute target), plus whatever the matrix shows for store and metadata
+  paths, with a real-pnpm compatibility matrix as its test.
+- pnpm matrix under a verbatim copy into a new subvolume (`~/temp/agent/pnpm-matrix-probe-2.ts`, log
+  `~/temp/agent/pnpm-matrix-2.log`; real pnpm 12.16.1, a workspace root plus one package, copies nested under
+  `.claude/worktrees/topic` and outside the tree at another depth). The first probe run was misleading: Node fell
+  back to the source's `node_modules` above a nested copy, so "resolves" hid dead links; the second checks each
+  tree's own entry and where resolution lands.
+  - Fine in every case (own entries resolve inside the copy; `pnpm run` and `pnpm install --offline
+    --frozen-lockfile` succeed in under 0.2 s): store set or unset, isolated virtual store, linker isolated, hoisted
+    or pnp; and global virtual store with no `storeDir` (pnpm then keeps it in `node_modules/.pnpm-store/v11/links`,
+    inside the tree). With no `storeDir` the copy's `.modules.yaml` still names the source's in-tree store; nothing
+    failed because of it, but later installs in the copy may write into the source's store (unmeasured).
+  - Broken: global virtual store with the store outside the tree (`storeDir` set, the current main config). Nested
+    copy: its own links are dead and resolution silently uses the main checkout's `node_modules` above it (wrong
+    versions whenever the branch's lockfile differs). Outside copy: dead, and `pnpm run` fails with
+    `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE` (`.modules.yaml` records `virtualStoreDir` as a relative path) until
+    `pnpm install --offline --frozen-lockfile`, which repairs it in about 50 ms.
+  - Suggested invariant for the fix: a copied link resolves to the corresponding place in the new worktree when its
+    target lies inside the source tree, and to the same place when it lies outside; then measure whether pnpm's
+    relative `virtualStoreDir` in `.modules.yaml` still needs handling. Applies to the copy, clone and snapshot
+    rungs; conversion keeps depth, so it is unaffected.
+- Owner decision, verbatim: "The wrapper may launch pnpm itself for worktree copying." Plan for the queued
+  pnpm-compatibility agent (suggestions, revisable): after any rung fills a new worktree that has `pnpm-lock.yaml`
+  and a copied `node_modules`, run the workspace's pnpm offline with the frozen lockfile in that worktree so pnpm
+  rewrites its own layout for the new location; keep the generic link rule (inside-tree links follow the copy,
+  outside-tree links keep their target) for non-pnpm tools; measure the added time on the real repository under
+  each configuration; when pnpm is missing, offline data is incomplete, or the lockfile does not match, keep the
+  copied worktree as it is and print one plain line saying what to run, never fail the add; respect `--quiet` and
+  `--no-checkout`. Real-pnpm matrix tests for every configuration in the matrix entry, nested and outside.

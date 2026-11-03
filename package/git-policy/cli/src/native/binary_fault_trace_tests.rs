@@ -18,7 +18,7 @@
 use super::commit::{git_text, remove_settled};
 use super::fault::{COMMIT_ARGUMENTS, Effect, Injection, When, staged_repository, verify_recovery_with};
 use super::fault_limits::check_limited_run;
-use super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, spawn_watched, unbounded_wrapper};
+use super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, spawn_watched, unbounded_wrapper, with_manager};
 use super::strace::{strace_available, strace_program};
 use super::support::{Fixture, ServiceLaunch, fixture, hermetic, service_runtime, wrapper_first_path};
 use std::collections::HashMap;
@@ -156,7 +156,9 @@ fn service_case(label: &str, fault: &Injection, found: &Found, recover: Recovery
     *fixture.service_launch.lock().expect("the service launch") =
         ServiceLaunch { prefix: tracer(trace.as_path(), fault.syscall, Some(fault), fault.follow_forks), may_fail_to_start: true, ..ServiceLaunch::default() };
     let repo: PathBuf = staged_repository(&fixture, "repo");
-    let output: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
+    // A service that is killed is started again by the user manager at the client's next connection; a failing disk does not end it.
+    let run = || { return run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS)); };
+    let output: Output = if matches!(fault.effect, Effect::Kill) { with_manager(&fixture, run) } else { run() };
     let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
     end_the_pressure(&fixture);
     let traced: String = std::fs::read_to_string(&trace).unwrap_or_default();
@@ -209,6 +211,11 @@ fn sweep_service(label: &str, calls: &[&'static str], effect: Effect, when: fn(u
     });
     assert!(failures.is_empty(), "{} of {} faults left the repository unrecovered (call counts {counts:?}):\n{}", failures.len(), points.len(), failures.join("\n"));
     assert!(found.reached.load(Ordering::SeqCst) > 0, "no run reached its fault, so the sweep tested nothing (call counts {counts:?})");
+    // The manager starts a killed service again, so the client's resend must land at least some of the commits it interrupted.
+    assert!(
+        !matches!(effect, Effect::Kill) || found.landed.load(Ordering::SeqCst) > 0,
+        "no commit landed through the restarted service, so the resend after a kill was not tested (call counts {counts:?})"
+    );
 }
 
 /// The disk is full from the `n`th write on: every write, in the service and in each Git it starts, fails with no space left.
