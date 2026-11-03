@@ -388,8 +388,8 @@ Materialization and retirement
   that file (device and inode) and the intent, fsync; (3) take the lock by `linkat` of that file to `index.lock` (it fails with `EEXIST` when
   a foreign program holds the lock, which is the single try; then the request keeps its entries and Q1-style retry is a later single try);
   (4) with the lock held read `HEAD` before and after reading the current index and decline unless it is attached to the request's target
-  ref in both reads (declined: M2); if the index read under the lock differs from the one the file was built from, unlink only our own
-  `index.lock` (its inode is the journaled one), and repeat from (1); (5) S1 replacement setting the marker `materializing` (odd); (6) rename
+  ref in both reads (declined: M2); if the index read under the lock differs from the one the file was built from, rewrite the contents of our
+  own file (its inode is the journaled one and we still hold its descriptor) from the index read under the lock, and fsync it; no second try of the lock is made; (5) S1 replacement setting the marker `materializing` (odd); (6) rename
   `index.lock` over the index; (7) apply M3 (c) and record the per-path outcomes; write even. Per-path outcomes, one each and recorded
   with the request: `installed` (the entry was `E` and the worktree held the target; staged), `already` (the entry already equals the
   target; nothing written), `preserved` (the entry is neither `E` nor the target: the person's own staging; left alone; the entry is
