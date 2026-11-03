@@ -378,9 +378,9 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {
     let member: TreeMember = member_of(i32::try_from(lingering.id()).expect("pid")).expect("a running member");
     std::fs::write(lock.as_path(), "").expect("an empty lock the tree left");
     ended.wait().expect("the child is collected");
-    let sweeper = settle_locks(ended, true, vec![member], locks, Duration::from_millis(100));
+    let started = settle_locks(ended, true, vec![member], locks, Duration::from_millis(100));
     assert!(lock.exists(), "a tree that still runs is not swept");
-    let sweeper = sweeper.expect("the sweep waits for the tree on a thread of its own");
+    let sweeper = started.expect("the sweep waits for the tree on a thread of its own");
     lingering.wait().expect("the member ends");
     sweeper.join().expect("the sweeping thread ends");
     assert!(!lock.exists(), "the lock is swept once the tree has ended");

@@ -634,9 +634,9 @@ fn the_grace_to_claim_a_kill_starts_when_the_ending_is_over() {
     let pid: i32 = i32::try_from(child.id()).expect("fits");
     let started: u64 = stat_of(pid).expect("the child runs").started;
     let pin: Pin = Pin::open(pid, started).expect("the child can be pinned");
-    end_command(&pin, "a slow ending", &|pin| {
+    end_command(&pin, "a slow ending", &|named| {
         std::thread::sleep(UNCLAIMED_GRACE + SLOW_ENDING_EXTRA);
-        end_tree(pin);
+        end_tree(named);
     });
     assert_eq!(unclaimed_kill(Instant::now(), UNCLAIMED_GRACE), None, "the ending took longer than the grace and the test had none left");
     assert!(take_kill(child.id()).is_some(), "the kill is still there to claim");

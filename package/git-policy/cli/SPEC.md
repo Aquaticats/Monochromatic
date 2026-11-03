@@ -1294,8 +1294,9 @@ in-process reader can) gives every value of the multi-valued keys.
   `-C` or `--git-dir` arguments, or a lock outside the Git directories (a private `GIT_INDEX_FILE`), is not swept,
   which leaves a lock where one was left and never removes a wrong one.
   Both the Git directory and the common Git directory are searched, except `hooks` and the loose-object directories.
-  A child that the kernel does not release within the grace after the kill is collected on a thread of its own,
-  and its locks are removed when it has ended; the push is reported at its deadline and does not wait for it.
+  A child that the kernel does not release within the grace after the kill, or a stopped tree that has not all ended by
+  then (a loaded or stalled host has not yet run the killed processes), is waited for on a thread of its own,
+  and its locks are removed when the whole tree has ended; the push is reported at its deadline and does not wait for it.
   The removal takes no lock of its own: it looks at files the stopped child created and removes only those.
   The one case the rules cannot tell apart is a Git that writes no pid files (not started by the wrapper)
   holding an empty lock for longer than the settle time while a stopped tree ends:
