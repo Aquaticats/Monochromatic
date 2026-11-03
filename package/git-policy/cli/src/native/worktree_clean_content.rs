@@ -7,40 +7,96 @@
 //!  that kept the index's old inode and times. The hash of the raw bytes is conclusive only when Git's own conversion on the
 //!  way into the index (`filter`, `ident`, `working-tree-encoding`, or a line-ending conversion that strips a carriage
 //!  return) leaves the bytes alone, so a path such an attribute applies to, and a file with a carriage return, are refused
-//!  with that reason instead of guessed.
+//!  with that reason instead of guessed. The file is read through a handle opened below the worktree root without following a
+//!  link, its type and mode are judged on that handle, and its state is compared before and after the read, so the bytes that
+//!  were hashed are the bytes of the one file that was judged.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const judge = new ContentJudge({ root, gitDir, commonDir, scope, format });
-//! judge.agrees(entry, blobId); // throws the reason the file cannot be proven equal to the blob
+//! const judge = new ContentJudge({ root, gitDir, commonDir, environment, format });
+//! judge.agrees({ directory, parents, name, entry, id, indexSeconds }); // throws the reason the file cannot be proven equal
 //! ```
 
+use super::fs_beneath::{entry_metadata_at, open_directory_beneath, open_file_at, read_link_at};
+use super::git_system_config::system_attributes_for;
 use super::repo_read_config_list::list_config;
 use super::repo_read_config_scan::ScopeEnvironment;
-use super::repo_read_config_text::last_entry;
+use super::repo_read_config_text::{ConfigEntry, last_entry, parse_bool};
 use super::repo_read_layout::ObjectFormat;
 use super::subvolume_sha::{sha1, sha256};
-use super::worktree_clean::StatEntry;
+use super::worktree_attributes::{AttributeLine, CONVERTING_ATTRIBUTES, attribute_name, may_apply, parse_attribute_lines};
+use super::worktree_clean::{StatEntry, StatVerdict, metadata_verdict};
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::OsStrExt;
+use std::io::Read;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// The largest file read into memory to be hashed; a larger one is refused with that reason.
 pub const CONTENT_LIMIT: u64 = 32 << 20;
 
-/// The attributes that change a file's bytes on the way into the index, besides the line-ending ones.
-const CONVERTING_ATTRIBUTES: &[&str] = &["filter", "ident", "working-tree-encoding"];
+/// The largest attributes file read; Git ignores a larger one, which here is a refusal.
+pub const ATTRIBUTES_LIMIT: u64 = 4 << 20;
 
-/// One line of an attributes file: a pattern with its attribute tokens, or a macro definition.
+/// Where Git reads the system attributes file from, as far as it can be established.
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct AttributeLine {
-    /// The pattern, or the macro name when `is_macro`.
-    subject: String,
-    /// Whether the line defines a macro (`[attr]name ...`).
-    is_macro: bool,
-    /// The attribute tokens as written (`filter=lfs`, `-text`, `ident`).
-    tokens: Vec<String>,
+pub enum SystemAttributes {
+    /// `GIT_ATTR_NOSYSTEM` turns the file off.
+    Disabled,
+    /// The file the executable reads, at its own prefix.
+    File(PathBuf),
+    /// The location, or the variable's value, could not be established without running Git.
+    Unknown,
+}
+
+/// What:
+///  The environment facts the content decision depends on: the configuration files Git reads and the system attributes file.
+/// Why:
+///   A control injects both, so a decision never depends on the machine it runs on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ConversionEnvironment = { scope: ScopeEnvironment; systemAttributes: 'disabled' | { file: string } | 'unknown' };
+/// ```
+#[derive(Clone, Debug)]
+pub struct ConversionEnvironment {
+    /// Which system and global configuration files Git reads.
+    pub scope: ScopeEnvironment,
+    /// Where the system attributes file is.
+    pub system_attributes: SystemAttributes,
+}
+
+impl ConversionEnvironment {
+    /// The facts of this process.
+    pub fn from_process() -> ConversionEnvironment {
+        let variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+        return ConversionEnvironment { scope: ScopeEnvironment::from_variables(variables.as_slice()), system_attributes: system_attributes_from(variables.as_slice()) };
+    }
+}
+
+/// What:
+///  Where the system attributes file is for a Git started with `variables`.
+/// Why:
+///   `GIT_ATTR_NOSYSTEM` is read as Git reads a boolean environment variable (empty is false); the file is where the
+///  executable says it is, never derived from the system configuration path, which `GIT_CONFIG_SYSTEM` moves alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function systemAttributesFrom(variables: [string, string][]): SystemAttributes;
+/// ```
+pub fn system_attributes_from(variables: &[(OsString, OsString)]) -> SystemAttributes {
+    let switch: Option<&OsString> = variables.iter().rev().find(|(name, _value): &&(OsString, OsString)| { return name == "GIT_ATTR_NOSYSTEM"; }).map(|(_name, value): &(OsString, OsString)| { return value; });
+    let disabled: Option<bool> = match switch {
+        None => Some(false),
+        Some(value) if value.is_empty() => Some(false),
+        Some(value) => parse_bool(Some(value.as_bytes())),
+    };
+    return match disabled {
+        Some(true) => SystemAttributes::Disabled,
+        Some(false) => system_attributes_for(variables).map_or(SystemAttributes::Unknown, SystemAttributes::File),
+        None => SystemAttributes::Unknown,
+    };
 }
 
 /// One attributes file as it was read.
@@ -49,112 +105,18 @@ struct AttributeFile {
     /// How the reason names the file.
     label: String,
     /// The directory of the file relative to the worktree root, `/` separated, empty for the root.
-    base: String,
+    base: Vec<u8>,
     /// Its lines.
     lines: Vec<AttributeLine>,
 }
 
-/// What:
-///  The lines of an attributes file's text: patterns with tokens, and macro definitions.
-/// Why:
-///   A comment or blank line applies nothing; a quoted pattern keeps its quotes so the matcher can decline it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function parseAttributeLines(text: string): AttributeLine[];
-/// ```
-fn parse_attribute_lines(text: &str) -> Vec<AttributeLine> {
-    let mut lines: Vec<AttributeLine> = Vec::new();
-    for raw in text.lines() {
-        let line: &str = raw.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let (subject, rest): (&str, &str) = if line.starts_with('"') {
-            match line[1..].find('"') {
-                Some(end) => (&line[..end + 2], &line[end + 2..]),
-                None => (line, ""),
-            }
-        } else {
-            line.split_once(char::is_whitespace).unwrap_or((line, ""))
-        };
-        let tokens: Vec<String> = rest.split_whitespace().map(String::from).collect();
-        match subject.strip_prefix("[attr]") {
-            Some(name) => lines.push(AttributeLine { subject: String::from(name), is_macro: true, tokens }),
-            None => lines.push(AttributeLine { subject: String::from(subject), is_macro: false, tokens }),
-        }
-    }
-    return lines;
-}
-
-/// The attribute a token sets, unset or leaves unspecified, without the sign and the value.
-fn attribute_name(token: &str) -> &str {
-    return token.trim_start_matches(['-', '!']).split('=').next().unwrap_or("");
-}
-
-/// What:
-///  Whether `text` matches the shell pattern `pattern` of an attributes line, where `*` and `?` stop at a slash.
-/// Why:
-///   Both are compared in lower case, so a case-insensitive file system can only make a match more likely, which refuses more.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function wildcard(pattern: string, text: string): boolean;
-/// ```
-fn wildcard(pattern: &[u8], text: &[u8]) -> bool {
-    // `reach[j]` says the pattern consumed so far can match the first `j` bytes of the text.
-    let mut reach: Vec<bool> = vec![false; text.len() + 1];
-    reach[0] = true;
-    for &symbol in pattern {
-        let mut next: Vec<bool> = vec![false; text.len() + 1];
-        if symbol == b'*' {
-            next[0] = reach[0];
-            for at in 1..=text.len() {
-                next[at] = reach[at] || (next[at - 1] && text[at - 1] != b'/');
-            }
-        } else {
-            for at in 1..=text.len() {
-                let same: bool = if symbol == b'?' { text[at - 1] != b'/' } else { symbol == text[at - 1] };
-                next[at] = reach[at - 1] && same;
-            }
-        }
-        reach = next;
-    }
-    return reach[text.len()];
-}
-
-/// What:
-///  Whether the pattern of an attributes line in the directory `base` may apply to the file `path`; a spelling the matcher
-///  does not model (a quote, an escape, a bracket class, `**`, a trailing slash) answers yes.
-/// Why:
-///   Answering yes refuses a file that Git might not have matched; answering no for a file it matches would accept one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function mayApply(pattern: string, base: string, path: string): boolean;
-/// ```
-fn may_apply(pattern: &str, base: &str, path: &str) -> bool {
-    if pattern.is_empty() {
-        return false;
-    }
-    if pattern.starts_with('"') || pattern.contains(['\\', '[']) || pattern.contains("**") || pattern.ends_with('/') {
-        return true;
-    }
-    let relative: &str = if base.is_empty() {
-        path
-    } else {
-        match path.strip_prefix(base).and_then(|rest: &str| { return rest.strip_prefix('/'); }) {
-            Some(rest) => rest,
-            None => return false,
-        }
-    };
-    let lowered_path: String = relative.to_lowercase();
-    let lowered_pattern: String = pattern.to_lowercase();
-    if lowered_pattern.contains('/') {
-        return wildcard(lowered_pattern.trim_start_matches('/').as_bytes(), lowered_path.as_bytes());
-    }
-    let name: &str = lowered_path.rsplit('/').next().unwrap_or("");
-    return wildcard(lowered_pattern.as_bytes(), name.as_bytes());
+/// The attributes files that apply whatever the path is, and the macros among them that set a converting attribute.
+#[derive(Clone, Debug)]
+struct FixedSources {
+    /// The files, in no particular order: any of them may apply.
+    files: Vec<AttributeFile>,
+    /// Macro names that set a converting attribute, directly or through another macro.
+    macros: Vec<Vec<u8>>,
 }
 
 /// The object name of `data` stored as a blob.
@@ -168,66 +130,142 @@ fn blob_name(data: &[u8], format: ObjectFormat) -> Vec<u8> {
 }
 
 /// What:
+///  Everything `reader` yields, or nothing when it yields more than `limit` bytes; it is never asked for more than
+///  `limit + 1`.
+/// Why:
+///   A file can grow after its size was looked at; the bound is on the read, not on an earlier look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readAtMost(reader: Reader, limit: number): Buffer | undefined;
+/// ```
+pub fn read_at_most(reader: impl Read, limit: u64) -> std::io::Result<Option<Vec<u8>>> {
+    let mut data: Vec<u8> = Vec::new();
+    reader.take(limit + 1).read_to_end(&mut data)?;
+    return Ok(if data.len() as u64 > limit { None } else { Some(data) });
+}
+
+/// Whether two metadata describe one unchanged file: same object, size, mode and times.
+fn same_state(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
+    return first.dev() == second.dev()
+        && first.ino() == second.ino()
+        && first.size() == second.size()
+        && first.mode() == second.mode()
+        && first.mtime() == second.mtime()
+        && first.mtime_nsec() == second.mtime_nsec()
+        && first.ctime() == second.ctime()
+        && first.ctime_nsec() == second.ctime_nsec();
+}
+
+/// Whether a token or a macro name can change a file's bytes on the way into the index.
+fn converts(token: &[u8], macros: &[Vec<u8>]) -> bool {
+    let name: &[u8] = attribute_name(token);
+    return CONVERTING_ATTRIBUTES.contains(&name) || macros.iter().any(|known: &Vec<u8>| { return known.as_slice() == name; });
+}
+
+/// What:
 ///  Decides, one entry at a time, whether a file equals its committed blob by content.
 /// Why:
 ///   The attributes files are read once, on the first entry that needs them, and the per-directory ones are cached.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class ContentJudge { agrees(entry: StatEntry, id: Uint8Array): void /* throws the reason */ }
+/// class ContentJudge { agrees(args: Place & { entry: StatEntry; id: Uint8Array; indexSeconds: number }): void /* throws the reason */ }
 /// ```
 pub struct ContentJudge<'a> {
-    /// The worktree root.
-    root: &'a Path,
+    /// The worktree root, held open.
+    root: &'a std::fs::File,
     /// The worktree's Git directory.
     git_dir: &'a Path,
     /// The shared Git directory.
     common_dir: &'a Path,
-    /// Which system and global files Git reads in this environment.
-    scope: &'a ScopeEnvironment,
+    /// Which files Git reads in this environment.
+    environment: &'a ConversionEnvironment,
     /// The object format of the repository.
     format: ObjectFormat,
-    /// The attributes files that do not depend on the path, and the macros that set a converting attribute.
-    fixed: Option<Result<(Vec<AttributeFile>, Vec<String>), String>>,
-    /// The `.gitattributes` of each directory, read at most once; `None` when the directory has none.
-    directories: HashMap<String, Option<AttributeFile>>,
+    /// The attributes files that do not depend on the path.
+    fixed: Option<Result<FixedSources, String>>,
+    /// The `.gitattributes` of each directory, keyed by its path, read at most once; `None` when it has none.
+    directories: HashMap<Vec<u8>, Option<AttributeFile>>,
+}
+
+/// The moments of a judgment at which a control changes the file under it.
+pub struct ReadSeams<'a> {
+    /// Called after the file's state was first read and before it is opened.
+    pub before_open: &'a mut dyn FnMut(),
+    /// Called after the open handle was judged and before the bytes are read.
+    pub before_read: &'a mut dyn FnMut(),
+    /// Called after the bytes were read and before the state is read again.
+    pub after_read: &'a mut dyn FnMut(),
+}
+
+/// Where a tracked file is: the held directory that contains it, the names above it and its own name.
+pub struct Place<'a> {
+    /// The directory holding the file, opened below the root without following a link.
+    pub directory: &'a std::fs::File,
+    /// The names of the directories between the root and the file.
+    pub parents: &'a [OsString],
+    /// The file's own name.
+    pub name: &'a OsStr,
 }
 
 impl<'a> ContentJudge<'a> {
-    /// A judge for the worktree at `root`.
-    pub fn new(root: &'a Path, git_dir: &'a Path, common_dir: &'a Path, scope: &'a ScopeEnvironment, format: ObjectFormat) -> ContentJudge<'a> {
-        return ContentJudge { root, git_dir, common_dir, scope, format, fixed: None, directories: HashMap::new() };
+    /// A judge for the worktree held open as `root`.
+    pub fn new(root: &'a std::fs::File, git_dir: &'a Path, common_dir: &'a Path, environment: &'a ConversionEnvironment, format: ObjectFormat) -> ContentJudge<'a> {
+        return ContentJudge { root, git_dir, common_dir, environment, format, fixed: None, directories: HashMap::new() };
     }
 
-    /// Read an attributes file; absent is `None`, unreadable is the reason.
-    fn read_file(path: &Path, label: String, base: String) -> Result<Option<AttributeFile>, String> {
-        return match std::fs::read(path) {
-            Ok(bytes) => Ok(Some(AttributeFile { label, base, lines: parse_attribute_lines(String::from_utf8_lossy(bytes.as_slice()).as_ref()) })),
-            Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => Ok(None),
-            Err(error) => Err(format!("the attributes file {} cannot be read ({error})", path.display())),
+    /// Read an attributes file at an absolute path the way Git does, following a link; absent is `None`.
+    fn read_outside(path: &Path, label: String) -> Result<Option<AttributeFile>, String> {
+        let file = match std::fs::File::open(path) {
+            Ok(opened) => opened,
+            Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => return Ok(None),
+            Err(error) => return Err(format!("the attributes file {} cannot be read ({error})", path.display())),
         };
+        return Self::parse_open(file, label, Vec::new());
+    }
+
+    /// Read the `.gitattributes` of the held directory `directory`; absent is `None`, a link or anything but a file is a refusal.
+    fn read_in(directory: &std::fs::File, label: String, base: Vec<u8>) -> Result<Option<AttributeFile>, String> {
+        let file = match open_file_at(directory, OsStr::new(".gitattributes")) {
+            Ok(opened) => opened,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(format!("{label} cannot be read without following a link ({error}), so the attributes it sets cannot be ruled out")),
+        };
+        return Self::parse_open(file, label, base);
+    }
+
+    /// Parse an attributes file that is open, refusing one that is not a plain file or is larger than the limit.
+    fn parse_open(file: std::fs::File, label: String, base: Vec<u8>) -> Result<Option<AttributeFile>, String> {
+        let metadata: std::fs::Metadata = file.metadata().map_err(|error: std::io::Error| { return format!("{label} cannot be examined ({error})"); })?;
+        if !metadata.file_type().is_file() {
+            return Err(format!("{label} is not a plain file, so the attributes it sets cannot be ruled out"));
+        }
+        let bytes: Vec<u8> = read_at_most(&file, ATTRIBUTES_LIMIT)
+            .map_err(|error: std::io::Error| { return format!("{label} cannot be read ({error})"); })?
+            .ok_or_else(|| { return format!("{label} is larger than {ATTRIBUTES_LIMIT} bytes, so the attributes it sets cannot be ruled out"); })?;
+        return Ok(Some(AttributeFile { label, base, lines: parse_attribute_lines(bytes.as_slice()) }));
     }
 
     /// The attributes file `core.attributesFile` names, or the default one, from the configuration read in process.
     fn global_attributes_path(&self) -> Result<Option<PathBuf>, String> {
         let variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-        let listed = list_config(self.common_dir, self.git_dir, self.scope, variables.as_slice())
+        let listed = list_config(self.common_dir, self.git_dir, &self.environment.scope, variables.as_slice())
             .ok_or_else(|| { return String::from("the Git configuration cannot be read without running Git, so a global attributes file cannot be ruled out"); })?;
-        let entries: Vec<super::repo_read_config_text::ConfigEntry> = listed.into_iter().map(|item| { return item.entry; }).collect();
+        let entries: Vec<ConfigEntry> = listed.into_iter().map(|item| { return item.entry; }).collect();
         if let Some(entry) = last_entry(entries.as_slice(), "core.attributesfile") {
             let value: &[u8] = entry.value.as_deref().ok_or_else(|| { return String::from("core.attributesFile has no value"); })?;
-            let text: String = String::from_utf8_lossy(value).into_owned();
-            if let Some(rest) = text.strip_prefix("~/") {
-                let home: &Path = self.scope.home.as_deref().ok_or_else(|| { return String::from("core.attributesFile starts with ~/ but HOME is not set"); })?;
-                return Ok(Some(home.join(rest)));
+            if let Some(rest) = value.strip_prefix(b"~/") {
+                let home: &Path = self.environment.scope.home.as_deref().ok_or_else(|| { return String::from("core.attributesFile starts with ~/ but HOME is not set"); })?;
+                return Ok(Some(home.join(OsStr::from_bytes(rest))));
             }
             let path: PathBuf = PathBuf::from(OsStr::from_bytes(value));
             if !path.is_absolute() {
-                return Err(format!("core.attributesFile is {text:?}, which is not an absolute path"));
+                return Err(format!("core.attributesFile is {:?}, which is not an absolute path", String::from_utf8_lossy(value)));
             }
             return Ok(Some(path));
         }
-        return Ok(match (&self.scope.xdg, &self.scope.home) {
+        return Ok(match (&self.environment.scope.xdg, &self.environment.scope.home) {
             (Some(directory), _) => Some(directory.join("git/attributes")),
             (None, Some(home)) => Some(home.join(".config/git/attributes")),
             (None, None) => None,
@@ -235,24 +273,33 @@ impl<'a> ContentJudge<'a> {
     }
 
     /// The attributes files that apply whatever the path is, with the macros among them that set a converting attribute.
-    fn load_fixed(&self) -> Result<(Vec<AttributeFile>, Vec<String>), String> {
+    fn load_fixed(&self) -> Result<FixedSources, String> {
         let mut files: Vec<AttributeFile> = Vec::new();
-        let system: PathBuf = self.scope.system.clone().or_else(|| { return self.scope.system_default.clone(); }).and_then(|config: PathBuf| { return config.parent().map(|directory: &Path| { return directory.join("gitattributes"); }); }).unwrap_or_else(|| { return PathBuf::from("/etc/gitattributes"); });
-        let mut sources: Vec<(PathBuf, String)> = vec![(self.root.join(".gitattributes"), String::from(".gitattributes")), (self.common_dir.join("info/attributes"), String::from("info/attributes")), (system.clone(), system.display().to_string())];
-        if let Some(path) = self.global_attributes_path()? {
-            sources.push((path.clone(), path.display().to_string()));
+        if let Some(root_file) = Self::read_in(self.root, String::from(".gitattributes"), Vec::new())? {
+            files.push(root_file);
         }
-        for (path, label) in sources {
-            if let Some(file) = Self::read_file(path.as_path(), label, String::new())? {
+        let mut outside: Vec<(PathBuf, String)> = vec![(self.common_dir.join("info/attributes"), String::from("info/attributes"))];
+        match &self.environment.system_attributes {
+            SystemAttributes::Disabled => {}
+            SystemAttributes::File(path) => outside.push((path.clone(), path.display().to_string())),
+            SystemAttributes::Unknown => return Err(String::from("the location of the system attributes file cannot be established without running Git, so what it sets cannot be ruled out")),
+        }
+        if let Some(path) = self.global_attributes_path()? {
+            outside.push((path.clone(), path.display().to_string()));
+        }
+        for (path, label) in outside {
+            if let Some(file) = Self::read_outside(path.as_path(), label)? {
                 files.push(file);
             }
         }
-        let mut macros: Vec<String> = Vec::new();
+        if let Some(line) = files.iter().flat_map(|file: &AttributeFile| { return file.lines.iter().map(move |line: &AttributeLine| { return (file, line); }); }).find(|(_file, line): &(&AttributeFile, &AttributeLine)| { return line.quoted && line.is_macro; }) {
+            return Err(format!("{} has a quoted line that may define a macro, which is not modelled, so what it sets cannot be ruled out", line.0.label));
+        }
+        let mut macros: Vec<Vec<u8>> = Vec::new();
         loop {
             let before: usize = macros.len();
             for line in files.iter().flat_map(|file: &AttributeFile| { return file.lines.iter(); }) {
-                let converts: bool = line.tokens.iter().any(|token: &String| { return CONVERTING_ATTRIBUTES.contains(&attribute_name(token.as_str())) || macros.iter().any(|name: &String| { return name == attribute_name(token.as_str()); }); });
-                if line.is_macro && converts && !macros.contains(&line.subject) {
+                if line.is_macro && line.tokens.iter().any(|token: &Vec<u8>| { return converts(token.as_slice(), macros.as_slice()); }) && !macros.contains(&line.subject) {
                     macros.push(line.subject.clone());
                 }
             }
@@ -260,36 +307,38 @@ impl<'a> ContentJudge<'a> {
                 break;
             }
         }
-        return Ok((files, macros));
+        return Ok(FixedSources { files, macros });
     }
 
-    /// The first converting attribute that may apply to `path` and where it is set, or nothing.
-    fn converting_attribute(&mut self, path: &str) -> Result<Option<(String, String)>, String> {
+    /// The `.gitattributes` of the directory below the root named by `parents`, read once.
+    fn directory_file(&mut self, parents: &[OsString]) -> Result<Option<AttributeFile>, String> {
+        let key: Vec<u8> = parents.iter().map(|name: &OsString| { return name.as_bytes().to_vec(); }).collect::<Vec<Vec<u8>>>().join(&b'/');
+        if !self.directories.contains_key(&key) {
+            let directory = open_directory_beneath(self.root, parents).map_err(|error: std::io::Error| { return format!("{} cannot be opened below the worktree ({error})", String::from_utf8_lossy(key.as_slice())); })?;
+            let label: String = format!("{}/.gitattributes", String::from_utf8_lossy(key.as_slice()));
+            let file: Option<AttributeFile> = Self::read_in(&directory, label, key.clone())?;
+            self.directories.insert(key.clone(), file);
+        }
+        return Ok(self.directories.get(&key).cloned().flatten());
+    }
+
+    /// The first converting attribute that may apply to the file at `path` and where it is set, or nothing.
+    fn converting_attribute(&mut self, path: &[u8], parents: &[OsString]) -> Result<Option<(String, String)>, String> {
         if self.fixed.is_none() {
             self.fixed = Some(self.load_fixed());
         }
-        let (fixed, macros): (Vec<AttributeFile>, Vec<String>) = self.fixed.clone().ok_or_else(|| { return String::from("the attributes were not loaded"); })??;
-        let mut files: Vec<AttributeFile> = fixed;
-        let mut base: String = String::new();
-        let mut parents: Vec<String> = vec![String::new()];
-        for part in path.split('/').take(path.matches('/').count()) {
-            base = if base.is_empty() { String::from(part) } else { format!("{base}/{part}") };
-            parents.push(base.clone());
-        }
-        for directory in parents.into_iter().filter(|name: &String| { return !name.is_empty(); }) {
-            if !self.directories.contains_key(&directory) {
-                let file: Option<AttributeFile> = Self::read_file(self.root.join(&directory).join(".gitattributes").as_path(), format!("{directory}/.gitattributes"), directory.clone())?;
-                self.directories.insert(directory.clone(), file);
-            }
-            if let Some(Some(file)) = self.directories.get(&directory) {
-                files.push(file.clone());
+        let fixed: FixedSources = self.fixed.clone().ok_or_else(|| { return String::from("the attributes were not loaded"); })??;
+        let mut files: Vec<AttributeFile> = fixed.files;
+        for depth in 1..=parents.len() {
+            if let Some(file) = self.directory_file(&parents[..depth])? {
+                files.push(file);
             }
         }
         for file in &files {
             for line in file.lines.iter().filter(|line: &&AttributeLine| { return !line.is_macro; }) {
-                let Some(token) = line.tokens.iter().find(|token: &&String| { return CONVERTING_ATTRIBUTES.contains(&attribute_name(token.as_str())) || macros.iter().any(|name: &String| { return name == attribute_name(token.as_str()); }); }) else { continue };
-                if may_apply(line.subject.as_str(), file.base.as_str(), path) {
-                    return Ok(Some((token.clone(), file.label.clone())));
+                let Some(token) = line.tokens.iter().find(|token: &&Vec<u8>| { return converts(token.as_slice(), fixed.macros.as_slice()); }) else { continue };
+                if line.quoted || may_apply(line.subject.as_slice(), file.base.as_slice(), path) {
+                    return Ok(Some((String::from_utf8_lossy(token.as_slice()).into_owned(), file.label.clone())));
                 }
             }
         }
@@ -297,32 +346,74 @@ impl<'a> ContentJudge<'a> {
     }
 
     /// What:
-    ///  Whether the file of `entry` equals the blob named `id`; the reason it cannot be proven so when it does not.
+    ///  The bytes of the file at `place`, judged to be the one file its entry describes: opened below the held directory
+    ///  without following a link, its type and mode judged on the open handle, and its state the same before and after.
+    /// Why:
+    ///   A swap, a `chmod` or a write while the file is read must refuse instead of passing, and the read is bounded.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function readStable(place: Place, entry: StatEntry, indexSeconds: number): Buffer; // throws the reason
+    /// ```
+    fn read_stable(place: &Place<'_>, entry: &StatEntry, index_seconds: u32, shown: &str, seams: &mut ReadSeams<'_>) -> Result<Vec<u8>, String> {
+        let changed = || -> String { return format!("{shown} changed while it was examined, so it cannot be proven equal to the committed content"); };
+        let named: std::fs::Metadata = entry_metadata_at(place.directory, place.name).map_err(|error: std::io::Error| { return format!("{shown} cannot be examined ({error})"); })?;
+        if let StatVerdict::Differs(reason) = metadata_verdict(entry, &named, index_seconds) {
+            return Err(reason);
+        }
+        if named.file_type().is_symlink() {
+            let target: PathBuf = read_link_at(place.directory, place.name).map_err(|error: std::io::Error| { return format!("{shown} cannot be read ({error})"); })?;
+            let again: std::fs::Metadata = entry_metadata_at(place.directory, place.name).map_err(|_error: std::io::Error| { return changed(); })?;
+            if !same_state(&named, &again) {
+                return Err(changed());
+            }
+            return Ok(target.into_os_string().into_vec());
+        }
+        (seams.before_open)();
+        let file: std::fs::File = open_file_at(place.directory, place.name).map_err(|error: std::io::Error| { return format!("{shown} cannot be opened without following a link ({error})"); })?;
+        let held: std::fs::Metadata = file.metadata().map_err(|error: std::io::Error| { return format!("{shown} cannot be examined ({error})"); })?;
+        if held.dev() != named.dev() || held.ino() != named.ino() {
+            return Err(changed());
+        }
+        if let StatVerdict::Differs(reason) = metadata_verdict(entry, &held, index_seconds) {
+            return Err(reason);
+        }
+        let too_large = || -> String { return format!("{shown} is larger than {CONTENT_LIMIT} bytes, which is more than is read to compare it by content"); };
+        if held.len() > CONTENT_LIMIT {
+            return Err(too_large());
+        }
+        (seams.before_read)();
+        let data: Vec<u8> = read_at_most(&file, CONTENT_LIMIT).map_err(|error: std::io::Error| { return format!("{shown} cannot be read ({error})"); })?.ok_or_else(too_large)?;
+        (seams.after_read)();
+        let after: std::fs::Metadata = file.metadata().map_err(|_error: std::io::Error| { return changed(); })?;
+        let by_name: std::fs::Metadata = entry_metadata_at(place.directory, place.name).map_err(|_error: std::io::Error| { return changed(); })?;
+        if !same_state(&held, &after) || !same_state(&held, &by_name) {
+            return Err(changed());
+        }
+        return Ok(data);
+    }
+
+    /// What:
+    ///  Whether the file at `place` equals the blob named `id`; the reason it cannot be proven so when it does not.
     /// Why:
     ///   Where a conversion applies, or the file has a carriage return, the bytes alone prove nothing and the answer is a
     ///  refusal that says so; a file that really differs says it differs.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// judge.agrees(entry, id); // throws the reason
+    /// judge.agrees(place, entry, id, indexSeconds); // throws the reason
     /// ```
-    pub fn agrees(&mut self, entry: &StatEntry, id: &[u8]) -> Result<(), String> {
+    pub fn agrees(&mut self, place: &Place<'_>, entry: &StatEntry, id: &[u8], index_seconds: u32) -> Result<(), String> {
+        return self.agrees_seamed(place, entry, id, index_seconds, &mut ReadSeams { before_open: &mut || {}, before_read: &mut || {}, after_read: &mut || {} });
+    }
+
+    /// `agrees` with the moments at which a control may change the file.
+    pub fn agrees_seamed(&mut self, place: &Place<'_>, entry: &StatEntry, id: &[u8], index_seconds: u32, seams: &mut ReadSeams<'_>) -> Result<(), String> {
         let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
-        if let Some((token, label)) = self.converting_attribute(shown.as_str())? {
+        if let Some((token, label)) = self.converting_attribute(entry.path.as_slice(), place.parents)? {
             return Err(format!("{shown} cannot be compared by content: the attribute {token} from {label} may change its bytes on the way into the index"));
         }
-        let location: PathBuf = self.root.join(OsStr::from_bytes(entry.path.as_slice()));
-        let metadata: std::fs::Metadata = std::fs::symlink_metadata(&location).map_err(|error: std::io::Error| { return format!("{shown} cannot be examined ({error})"); })?;
-        let data: Vec<u8> = if metadata.file_type().is_symlink() {
-            std::fs::read_link(&location).map_err(|error: std::io::Error| { return format!("{shown} cannot be read ({error})"); })?.as_os_str().as_bytes().to_vec()
-        } else if metadata.file_type().is_file() {
-            if metadata.len() > CONTENT_LIMIT {
-                return Err(format!("{shown} is larger than {} bytes, which is more than is read to compare it by content", CONTENT_LIMIT));
-            }
-            std::fs::read(&location).map_err(|error: std::io::Error| { return format!("{shown} cannot be read ({error})"); })?
-        } else {
-            return Err(format!("{shown} is neither a file nor a symbolic link"));
-        };
+        let data: Vec<u8> = Self::read_stable(place, entry, index_seconds, shown.as_str(), seams)?;
         if blob_name(data.as_slice(), self.format) != id {
             return Err(format!("{shown} differs from the committed content (its recorded size and times could not vouch for it, so its content was compared)"));
         }
@@ -336,3 +427,8 @@ impl<'a> ContentJudge<'a> {
 #[cfg(test)]
 #[path = "worktree_clean_content_tests.rs"]
 mod tests;
+
+/// Controls for the findings of the review of the content decision, on real Git repositories.
+#[cfg(test)]
+#[path = "worktree_clean_content_safety_tests.rs"]
+mod safety_tests;

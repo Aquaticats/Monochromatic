@@ -1218,6 +1218,7 @@ pub mod worktree_subvolume;
 /// Whether a worktree is clean enough to copy from or to remove without asking Git, proven in process.
 #[cfg(target_os = "linux")]
 pub mod worktree_clean;
+pub mod worktree_attributes;
 pub mod worktree_clean_content;
 
 /// The plan of a `git worktree remove` that names one directory and no option.
@@ -1401,6 +1402,8 @@ pub mod doctor_filesystem;
 /// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path, resumably.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert;
+pub mod worktree_convert_journal;
+pub mod worktree_convert_remove;
 
 /// The grammar of `git cli-git convert-worktree-to-subvolume`.
 pub mod worktree_convert_arguments;

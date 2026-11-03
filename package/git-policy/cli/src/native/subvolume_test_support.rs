@@ -75,8 +75,11 @@ impl PlainPlatform {
 
 /// The five operations on plain directories.
 impl Platform for PlainPlatform {
-    fn config_scope(&self) -> super::repo_read_config_scan::ScopeEnvironment {
-        return super::repo_read_config_scan::ScopeEnvironment { no_system: true, ..super::repo_read_config_scan::ScopeEnvironment::default() };
+    fn conversion_environment(&self) -> super::worktree_clean_content::ConversionEnvironment {
+        return super::worktree_clean_content::ConversionEnvironment {
+            scope: super::repo_read_config_scan::ScopeEnvironment { no_system: true, ..super::repo_read_config_scan::ScopeEnvironment::default() },
+            system_attributes: super::worktree_clean_content::SystemAttributes::Disabled,
+        };
     }
 
     fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {
