@@ -277,3 +277,19 @@ fn directories_of_different_name_lengths_equal_git() {
     same_as_git(&scene, &named(&["aa/x", "c/y", "longer-name/inner/q"]), "name lengths");
     finish(scene);
 }
+
+/// An intent-to-add entry whose mode and object name equal the tree's (an empty file removed from the index and added again
+/// with `-N`) is no difference to `git reset`: the review expected Git to replace it, and Git 2.56.0 keeps the entry with its
+/// flag, so the update keeps it too and the two index files are equal.
+#[test]
+fn an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it() {
+    let files: [(&str, &[u8], bool); 3] = [("e", b"", false), ("a", b"a one\n", false), ("z", b"z one\n", false)];
+    let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
+    let scene: Scene = scene("index-reset-ita-empty", &Plan { files: &files, edits: edits.as_slice(), ..Plan::default() });
+    git(scene.repo.as_path(), &["rm", "--quiet", "--cached", "e"]);
+    git(scene.repo.as_path(), &["add", "--intent-to-add", "e"]);
+    assert_eq!(&index_bytes(scene.repo.as_path())[4..8], &[0, 0, 0, 3], "the entry carries the intent-to-add flag");
+    same_as_git(&scene, &named(&["e", "a"]), "empty intent-to-add");
+    assert_eq!(&index_bytes(scene.repo.as_path())[4..8], &[0, 0, 0, 3], "Git's own result still carries the flag");
+    finish(scene);
+}
