@@ -825,6 +825,49 @@ transition. Each schedule goes red under revision 9 and green under revision 10;
   green: result file honoured, otherwise re-run once with a notice); a detached `HEAD` after the wrapper's own successful update (red: declined by
   comparing with the captured value; green: `new` or a descendant).
 
+### Revision 11 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
+
+Naming. Names are stable where the meaning holds. New names: rule B (the register of waits), W1, W2, T0, MG4n, `withdrawn`, `sign-failed` (was `sign-pending`),
+the resume values `MG4n`, `MG5`, `MG6`. Bodies changed: P2 (now three steps P2a prepare, P2b decide, P2c commit), P4, Q1, E1, R4 (withdrawn), T1, M1, MG1 to MG6, C0, C3,
+C5, B1, rule N, the Publication target rule and the Client result rule. Owner-question letters added: N and H2; P, W and G are restated. Each schedule goes red
+under revision 10 and green under revision 11; a model marked "new" is added to step 1.
+- Rule B, the register, W1, W2, P2, P4, Client result (the owner's bound rule and answers; models new "bounded wait" and "withdrawal versus landing", F2). Schedules:
+  (1) a person's `reference-transaction` hook that never returns inside P2a and a client that reaches FOREGROUND: red under 10 (the command waits without end, or
+  returns exit 0 and the commit lands when the hook finally accepts); green under 11 (W1 creates the decision `withdraw`, prepare returns later, P2b finds it,
+  `abort` is written, the request never lands, the staging is as it was). (2) W1 and P2b race on `lane/decision/<id>`: both orders are explored; exactly one
+  of `commit` and `withdraw` exists; a client that lost reports `published`. (3) a crash after W1 and before W2, and a crash between P2a and P2c: still
+  withdrawn after restart; `update-ref` aborts a prepared transaction when its input ends (`builtin/update-ref.c:786-793`), so no prepared transaction survives. (4)
+  every entry of the register reaches its bound in the model (START, FOREGROUND, MARKER, ACQUIRE, REAP, KILL, COMMITTING, STALL, PUSH).
+- M1 and rule N (R10-1, R10-2; models new "intent without lock", "lock after an unfulfilled intent", "normal abort after lock creation"). Schedules: the owner dies
+  after the intent and before `open(O_EXCL)`: red under 10 (absence of the lock is read as "renamed", M3(c) drops the entry, a plain commit reverses `x`); green under
+  11 (the index is re-read, `E` found, the entry stays). A foreign lock present after an earlier intent: red (attributed to the dead incarnation); green (reported
+  without a claim). A declined guard after a successful `O_EXCL`: red (undefined: "released" versus "never removed"); green (normal abort by the live creator, with
+  the replacement race as a stated premise of every Git lock).
+- MG1 to MG6, MG4n, resume table (R10-3, R10-9; models new "restore after a detected switch", "switch after the post-check", "retarget with own checkout entries",
+  "retarget to a no-op", F5). Schedules: MG3 installs, the switch finishes, the post-check sees `topic`: red under 10 (MG6 needs authority to do, which has just failed, and
+  ends `refused`, then proceeds to MG4); green under 11 (authority to undo, reason `switched`, `resume = MG4n`). A switch that finishes after the last check: red (files stay in the
+  topic worktree with nothing scheduled); green (MG4 repeats the check and every lane event checks; the residue is stated and needs approval). Retarget after a lost
+  swap: red (MG1's pre-scan reads the lane's own `x=1` as staged); green (MG5's own plan). A foreign successor makes the merge a no-op while `x=1` is checked out:
+  red (`already` leaves the obsolete checkout); green (the union of old and new paths is reconciled). A waiting merge and a later commit of exactly the blocking paths:
+  red (blocked behind it); green (proceeds ahead and resolves it).
+- T1 (R10-4; models F8 extended, new "mixed-time view", "root deleted", "root not covering the replay"). Schedule: admission between the registry read and the check,
+  the branch away at the run's view, the branch back, T1 releases: red under 10 (the root named only the captured closure; the check and the root removal were not
+  ordered against admission); green under 11 (the registry is re-read after the check; the run is non-terminal in that read and T1 withdraws). Hold ref absent,
+  deleted, or unwritable: no change in behaviour (it was never load-bearing), and publication is never blocked by it.
+- C0 (R10-5; model new "helper loses acquisition"). Schedule: the helper's try loses to a service that then runs a hook that never returns: red under 10 (the client waits behind the helper, which waits in L1);
+  green under 11 (one non-blocking try, the client re-evaluates and captures).
+- C3, T0, C5 (R10-6, R10-7; models new "resend after candidate release", "terminal lookup before retirement", F7). Schedules: B1 records `refused`, the request leaves the document, a
+  maintenance run keeps T1 from running, a resend arrives: red under 10 (answered "adopted"); green (the `outcome` line is in the ledger first). Resend after T1 released the candidate:
+  red (rule D requires a deleted directory); green (the terminal route reads only the ledger). C5 meets a visible but unflushed inbox entry: red (adopts on it); green (rule D).
+- R4, E1 (R10-8, R10-10; models F1 with new "live lock-held then satisfied and removed", new "hook descendant output"). Schedules: lock-held recorded, another writer installs and removes the
+  commit, the reflog suffix is erased, the owner dies: red under 10 (R4 lands silently); green (R5 with the notice; the live retry is choice N). A hook descendant prints a held-lock line after Git's
+  diagnostic and the hook refused: red (classified lock-held, the hook runs again); green (a non-zero `child_exit` of the hook in Git's event stream is `refused`; stderr text is never parsed).
+- B1 hook runner (R10-11; model new "repeated deaths before a durable hook result"). Schedule: the hook performs its effect and the owner dies twice before a result file: red under 10 (the text promised a total bound of one rerun);
+  green (the text and the model say one invocation per recovery episode, choice H2). Runner lifecycle: the writer of the result must not keep the scope non-empty (backend experiment).
+- Publication target (R10-12; model new "HEAD attaches between check and P2"). Schedule: detached at `B`, another program attaches `HEAD` to a branch whose tip is `B`, P2 runs: red under 10 (`--no-deref` replaces the
+  symbolic reference); green (no `--no-deref`; the update lands on the branch `HEAD` now names with the old-value check, M1 declines).
+- Properties and heading (R10-13). The L2 and L7 properties are separated and the heading says revision 11; remaining "odd generation" narrative is updated.
+
 ### Rationale for the lane transitions L1 to L7 (explains; the state machine governs)
 
 Why one lock, one gate. The lane of a worktree is whoever holds the exclusive advisory lock on `lane/owner`. The repository's rule is lock-free
@@ -1979,6 +2022,33 @@ machine and owed an executable model in step 1; nothing is built). The verdict i
 - Not a defect: none. One refinement: the review's "unnamed inode can die" is answered by removing the reliance, not by pinning it, because the pin
   fixes inode reuse and leaves the pathname race.
 
+## Answers to the tenth review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-10.txt`, with a closure line (closed in the model means closed in the revision 11 state machine and
+owed an executable model; nothing is built). The verdict is accepted: continued model work, pure components without reclamation, and disposable backend experiments only.
+
+- Owner rule and answers (not a review finding): "nothing should ever wait forever or indefinitely"; at a bound "Return with an error"; "No, keep it for a retry (Recommended)"; pushes "Bound it, keep retrying (Recommended)".
+  Applied as rule B, the register, W1 and W2, P2 in three steps, and the removal of every command-attached design that lands after the command returned.
+- R10-1 (P1), M1 inference: accepted. Recovery re-reads the index and re-evaluates the recorded plan; lock presence or absence and a journaled intent prove nothing. Closure: closed in the model.
+- R10-2 (P2), normal abort: accepted. A live creator releases its own lock by identity-checked unlink, with the premise stated; an abandoned lock is never removed. Closure: closed in the model; the premise is a modelled residue.
+- R10-3 (P1), W-detect and MG6: accepted. Authority to undo is separate from authority to do; the check is repeated at MG4 and at every lane event; MG6 has reasons and resume points. Closure: closed in the model
+  for the detected switch; the missed-check residue is stated and needs the owner's approval (choice W).
+- R10-4 (P1), the hold root: accepted. The root is demoted to extra protection and the proof is the order connectivity check then registry re-read; `unrooted` is removed; publication never depends on the root. Closure: closed in
+  the model for the stated residue; backend obligations: G1 durable before G2, no view before launch, deletion before `terminal`. Choice G is restated.
+- R10-5 (P2), helper wait: accepted. One non-blocking try; the client re-evaluates; the wait on a live owner is tied to the marker and ends at MARKER. Closure: closed in the model.
+- R10-6 (P2), candidate after retirement: accepted. The terminal route reads the ledger only; C5 applies rule D to the inbox record. Closure: closed in the model.
+- R10-7 (P2), terminal outcome lookup: accepted. T0 appends the `outcome` line before the request leaves `lane/state`; T1 appends `retired` later and separately. Closure: closed in the model.
+- R10-8 (P2), R4: accepted. R4 is withdrawn as a recovery class; after an owner's death a `swap-failed` is R5; the live retry is choice N (a concession to confirm). Closure: closed in the model for recovery; N is open.
+- R10-9 (P2), MG5 and resume: accepted. MG5 plans over the union of old and new paths with its own starting-state rule; the table has `MG4n`, `MG5`, `MG6`; the pending merge does not block the commit that resolves it. Closure: closed in the model.
+- R10-10 (P2), stderr provenance: accepted. Classification uses the report lines, Git's trace2 events and the exit status; standard-error text is shown and never parsed; an unclassifiable result withdraws a request that has a client.
+  Closure: closed in the model; backend obligation: those channels exist in the assumed shapes and descendants cannot alter them.
+- R10-11 (P2), hook reruns: accepted. The text says one new invocation per recovery episode; choice H2 offers a total bound. Closure: closed in the model; the runner lifecycle is a backend experiment.
+- R10-12 (P2), detached type check: accepted. `--no-deref` is never used; the update follows `HEAD` as a native commit does. Closure: closed in the model; backend obligation: the old-value check through `HEAD`.
+- R10-13 (P3), property and heading: accepted. L2 and L7 properties are separate; the heading says revision 11; "odd generation" narrative is updated or marked historical.
+- Assessment of the five picks: R-never stands (normal abort is now defined separately); P-wait and W-detect are re-opened as choices under the owner's rule; G-root is demoted to extra protection with G-order carried; M-A stands as an
+  ordering choice whose correctness now rests on MG5 and MG6 as repaired.
+- Not a defect: none of the thirteen findings was rejected. One refinement: the review's "a person can delete the root" is answered by removing the reliance on the root, not by contract or coordination.
+
 ## Exits that stay nonzero
 
 - Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
@@ -2273,6 +2343,16 @@ the revision counter and the marker with an ordinary replacement between two mar
 The models must not assume: an observable `reflog_intact` boolean with no implementable evidence; permanent uniqueness of a device/inode pair; an atomic
 identity-check-and-pathname-removal (none exists on Linux); that a quiet owner must be unhealthy; that all protected-program capabilities are already
 classified correctly (the eligibility table is verified per exact invocation, including merge drivers, conversions, signing and helpers).
+
+Models added from the tenth review (each starts as a failing control with the revision 11 changelog's schedule; observations, not completed logical operations): (1) M1 death after the intent and before lock creation; (2)
+a present foreign lock after an unfulfilled intent; (3) every normal abort after a successful `index.lock` creation; (4) a detected switch followed by MG6; (5) a switch completing after MG3's post-check; (6) retargeting when the
+lane's own checkout entries meet a pre-scan; (7) retargeting to a no-op with the old checkout still in place; (8) a hold ref that covers the captured inputs and not the replay, its write failure, its deletion, and
+retirement racing a reachability scan with a mixed-time view; (9) a recovery helper that loses acquisition to an owner running a hook that never returns; (10) resend after candidate release and terminal lookup before retirement
+is eligible; (11) a live lock-held followed by external satisfaction, removal and suffix erasure; (12) hook-descendant output after Git's final diagnostic; (13) repeated owner deaths before a durable hook result; (14) a
+detached-to-symbolic change between the check and P2; and, from the owner's rule, (15) every register entry at its bound, W1 against the commit decision in both orders, a crash at each point of W1 and W2, and a prepared
+transaction whose owner dies. "Root exists", "rename happened", "hook result is durable" and "terminal outcome is discoverable" are modelled by implementable evidence only (a file, an index content, a ledger line), never
+by a boolean the protocol cannot read. Performance gates added: ordinary acceptance and publication fsync costs, large in-flight state, unresolved suppressions, and hold-ref management overhead, each against the owner's native-Git latency
+requirement ("commits vs native git should not take 5s longer.").
 
 Properties to check at minimum (revision 11 restates the second and the third; revision 10 corrected the second: a perfect health classifier is not assumed, because the approved quiet-interval
 heuristic can target healthy but unusually quiet work, so the checkable properties concern incarnation identity, gate admission and protected
