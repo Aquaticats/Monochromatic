@@ -67,6 +67,24 @@ The unmatched `filemap_fault` samples are not attributed to metrics.
 Raw evidence is in
 `${HOME}/temp/agent/helium-fsync-capture-20261103/pagefaults.jsonl`.
 
+### Scope beyond Helium checked at 2026-11-03T02:42:31-05:00
+
+The captured storage-wait behavior is not exclusive to Helium.
+The retained main-thread observer also recorded ordinary Chromium PID `2972354`
+in `folio_wait_writeback` through `btrfs_page_mkwrite`,
+including a sample at `2026-11-03T02:08:41.068-05:00`.
+Its process name was `chromium-browse`,
+and the observer selected browser main processes while excluding `--type=` subprocesses.
+Evidence is in
+`${HOME}/temp/agent/helium-fsync-capture-20261103/main-thread.jsonl`.
+
+This establishes the same class of main-thread filesystem wait in ordinary Chromium.
+It does not establish a matching user-visible freeze or identify Chromium's faulting file:
+only Helium had the fault address correlated with its `BrowserMetrics` mapping.
+The metrics initialization itself is shared upstream Chromium code,
+as shown in "Chromium creates mapped metrics before feature flags".
+Other Chromium-derived browsers and operating systems were not tested for this failure.
+
 ### Chromium creates mapped metrics before feature flags
 
 The installed Chromium revision is `2f9a11097447f226133bc1a31c787291a5eeab98`.
