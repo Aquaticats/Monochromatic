@@ -8791,3 +8791,29 @@ Controls were shown red with the fix removed (28 textual mutants plus one correc
 publication). Not covered: the arm of `finish_snapshot` that skips the stage cleanup is exercised through the primitives and
 the error mapping; `RESOLVE_NO_XDEV` against a bind mount cannot be exercised without privilege; a process that replaces the
 destination between Git's exit and the binding is not detected.
+
+## 2026-11-02: round three of the review of the add path, and the rule that ended the class
+
+Review text: `/var/home/user/temp/agent/review-btrfs-ladder-add-3/sol-review.txt`. Its ten findings had one shape: automatic
+recovery or rollback deleted or unregistered something it could not prove the add made. Design decision of the coordinator,
+under the owner's rule of a loud, clear failure: the ladder's recovery and rollback never delete or unregister anything.
+- An interrupted or failed add completes in place through the bound worktree or leaves the worktree and its registration as
+  they are and reports once the path, `git -C <path> reset --hard` and `git worktree remove --force <path>`.
+- The fallback `reset --hard` runs only after `verify_association` (identities at their paths, pointer bytes, registration
+  back-link) and is verified again after; a moved or replaced worktree is never reset.
+- Recovery changes nothing; a stage named by an add is printed and kept; a record or marker that cannot be looked up keeps
+  the record and says the state is unknown. Stages of the older ignored-state copy (claims without an add record) are
+  still removed as before; extending the rule to them is a separate decision.
+- The deletions that remain are of objects the running process made: the stage it took and never exchanged (while the name
+  still holds that object), and the entries its clones created (moved into a private directory made for the call, compared,
+  removed; a directory only when empty).
+- Deleted: `remove_bound`, the contents removal, the withdrawal of authority, the double-fault removal, the module
+  `worktree_add_rollback` (now `worktree_add_binding`).
+Cost, in SPEC and the planning document: an interrupted or failed add can leave an incomplete registered worktree.
+Controls were shown red with each guard removed (16 textual mutants); the early `verify_association` of the clone rung
+needed a control of its own (`btrfs_the_clone_rung_writes_nothing_when_the_registration_was_replaced`). Equivalent: replacing
+the `None` stage identity of `discard_stage` by a fake identity (both leave the stage). Not guarded: the second comparison
+of the opened directory handle in `remove_owned_at` (it equals the name's identity unless a race inside one system call
+pair).
+Branch naming rule `GBN` (`<type>/<scope>-<subject>`): no branch was created in this round; `btrfs-worktree-ladder` is renamed
+by the coordinator at merge.
