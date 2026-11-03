@@ -97,3 +97,61 @@ Remaining work:
 check F2FS compression support for future media,
 complete final verification and rendering of this record,
 and collect the automatic boot-argument result.
+
+## F2FS and final mount verification at 2026-11-03T01:26:10-05:00
+
+The running kernel configuration enables F2FS compression and zstd.
+A disposable F2FS image demonstrated that this kernel accepts a live change
+from its default lz4 algorithm to `compress_algorithm=zstd:3`.
+Adding `compress_extension=*` made a newly created file receive the compression attribute.
+
+Added F2FS defaults to UDisks and the SteamOS media configuration.
+Installed and enabled `f2fs-zstd-policy.service`,
+with the same limits and notification-driven lifecycle as the Btrfs policy.
+Its mount filters require a writable F2FS mount that reports `compress_algorithm`,
+so images without the on-disk compression feature are excluded.
+The policy changes the algorithm and ensures the wildcard extension is present.
+
+The `verify-f2fs.ts` disposable-image checks passed for direct reconciliation,
+the running system service,
+UDisks defaults with the reconciliation service stopped,
+and an F2FS image without compression support.
+The unsupported image mounted successfully and remained uncompressed.
+The test preserved `rw`, `nodev`, `nosuid`, and `noexec`;
+its new file had the compression attribute.
+The service was restarted after the UDisks-only check.
+
+The first UDisks F2FS harness used `udevadm settle --timeout=30`,
+which emitted `Timed out while waiting for udev queue to empty.`
+The installed `udevadm(8)` manual confirms that this waits for the entire udev queue.
+The corrected harness uses `udisksctl loop-setup`,
+as the already successful Btrfs harness does,
+and all F2FS checks then passed.
+No cause is attributed to the unrelated queued events.
+
+`systemd-analyze verify` passed for both policy services and `mount-860.service`.
+Both policy services are enabled and running.
+`findmnt` still reports level 3 on every real Btrfs mount,
+and `lsblk` confirms that fixture loop devices were removed.
+
+The automatic boot-argument job observed the end of the update check
+and started a `KernelArgs` transaction.
+Its completion and result file remain to be collected.
+The staged deployment's `/etc` has not yet received the local files;
+do not mistake the pre-finalization tree for verified next-boot configuration.
+Verify OSTree's configuration-merge contract before declaring persistence complete.
+
+## Coverage limits
+
+The policy covers Btrfs and compression-capable F2FS mounts visible in the host mount namespace.
+UDisks and SteamOS defaults apply compression at mount time.
+The reconciliation services correct other writable mounts after notification,
+with a 60-second fallback for a listener startup race.
+A manually mounted filesystem can receive writes before reconciliation.
+
+Read-only mounts are not made writable.
+Subvolumes share the Btrfs filesystem compression setting.
+Existing extents and explicit per-inode compression exceptions are not rewritten.
+No unsupported filesystem is reformatted or given a new on-disk feature.
+Filesystems installed in the future with different compression APIs
+are outside the verified Btrfs/F2FS coverage.
