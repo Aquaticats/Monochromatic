@@ -26,6 +26,9 @@ pub mod checks;
 /// Warns about dependencies that do not use the workspace catalog.
 pub mod catalog_warning;
 
+/// A streaming reader for the dump's CSV tables.
+pub mod csv;
+
 /// Runs the real cargo for the install and update steps.
 pub mod cargo_run;
 
@@ -40,6 +43,9 @@ pub mod commands;
 
 /// Compare-before-replace for lockfile restores, and the journal that recovers a killed run.
 pub mod journal;
+
+/// Fills the history cache from the crates.io database dump.
+pub mod dump;
 
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `cargo`.
 pub mod guard;
@@ -125,6 +131,9 @@ mod catalog_warning_tests;
 
 #[cfg(test)]
 mod cli_tests;
+
+#[cfg(test)]
+mod dump_tests;
 
 #[cfg(test)]
 mod guard_tests;

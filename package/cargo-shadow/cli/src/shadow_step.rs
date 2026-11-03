@@ -111,7 +111,7 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     return Ok(Some(Prepared {
         start,
         runner: RealCargo { program, toolchain },
-        registry: CratesIo::with_defaults(&catalog_root, Box::new(UreqFetcher::new())),
+        registry: CratesIo::with_defaults(&catalog_root, Box::new(UreqFetcher::new()), Box::new(UreqFetcher::new())),
         catalog_root,
         crate_dir,
         document,

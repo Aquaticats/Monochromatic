@@ -131,7 +131,7 @@ pub fn run_command(command: Command) -> i32 {
             return INSTALL_FAILED_EXIT_CODE;
         }
     };
-    let registry: CratesIo = CratesIo::with_defaults(&root, Box::new(UreqFetcher::new()));
+    let registry: CratesIo = CratesIo::with_defaults(&root, Box::new(UreqFetcher::new()), Box::new(UreqFetcher::new()));
     if let Command::Verify { base } = &command {
         let reader = match git_base_lock_reader(&root, base) {
             Ok(found) => found,

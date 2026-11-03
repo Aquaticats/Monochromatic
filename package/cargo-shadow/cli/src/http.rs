@@ -13,6 +13,7 @@
 //! ```
 
 use std::fmt;
+use std::io::Read;
 use std::time::Duration;
 
 /// The user agent crates.io's data-access policy asks for: it names the tool and where to reach its owner.
@@ -56,9 +57,25 @@ pub trait TextFetcher {
     fn get(&self, url: &str) -> Result<String, RegistryError>;
 }
 
+/// What:
+/// `pub trait DumpSource { fn open(&self, url: &str) -> Result<Box<dyn Read>, RegistryError>; }` opens a large download as a
+/// byte stream.
+/// Why:
+/// The database dump is gigabytes and is read once, as it arrives; tests give it an archive built in memory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface DumpSource { open(url: string): AsyncIterable<Uint8Array> }
+/// ```
+pub trait DumpSource {
+    /// Opens `url` for streaming.
+    fn open(&self, url: &str) -> Result<Box<dyn Read>, RegistryError>;
+}
+
 /// The real network, through `ureq`.
 pub struct UreqFetcher {
     agent: ureq::Agent,
+    stream_agent: ureq::Agent,
 }
 
 impl UreqFetcher {
@@ -70,7 +87,14 @@ impl UreqFetcher {
             .timeout_global(Some(Duration::from_secs(REQUEST_TIMEOUT_SECONDS)))
             .build()
             .into();
-        return UreqFetcher { agent };
+        // The dump download has no overall deadline: it is gigabytes long, and the caller stops reading it early.
+        let stream_agent: ureq::Agent = ureq::Agent::config_builder()
+            .user_agent(USER_AGENT)
+            .http_status_as_error(false)
+            .timeout_global(None)
+            .build()
+            .into();
+        return UreqFetcher { agent, stream_agent };
     }
 }
 
@@ -102,5 +126,18 @@ impl TextFetcher for UreqFetcher {
         return response.body_mut().with_config().limit(MAX_BODY_BYTES).read_to_string().map_err(|error| {
             return RegistryError { message: format!("{url}: {error}"), status: None, retry_after_seconds: 0 };
         });
+    }
+}
+
+impl DumpSource for UreqFetcher {
+    fn open(&self, url: &str) -> Result<Box<dyn Read>, RegistryError> {
+        let response = self.stream_agent.get(url).call().map_err(|error| {
+            return RegistryError { message: format!("{url}: {error}"), status: None, retry_after_seconds: 0 };
+        })?;
+        let status: u16 = response.status().as_u16();
+        if !(200..300).contains(&status) {
+            return Err(RegistryError { message: format!("{url} answered HTTP {status}"), status: Some(status), retry_after_seconds: 0 });
+        }
+        return Ok(Box::new(response.into_body().into_reader()));
     }
 }

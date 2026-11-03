@@ -22,7 +22,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-use crate::http::{RegistryError, TextFetcher};
+use crate::dump::fill_histories_from_dump;
+use crate::http::{DumpSource, RegistryError, TextFetcher};
 use crate::policy::VersionRecord;
 
 /// The sparse index host.
@@ -64,7 +65,17 @@ pub trait Registry {
     fn history(&self, name: &str, versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError>;
     /// The account ids of the crate's listed individual owners.
     fn owners(&self, name: &str) -> Result<BTreeSet<String>, RegistryError>;
+    /// Warms the history cache for these crates before they are asked for one by one; a registry with nothing to warm does nothing.
+    fn prefetch(&self, _names: &BTreeSet<String>) -> Result<(), RegistryError> {
+        return Ok(());
+    }
 }
+
+/// The database dump, a gzip stream of a tar archive.
+pub const DATABASE_DUMP_URL: &str = "https://static.crates.io/db-dump.tar.gz";
+
+/// How many uncached crates make the dump cheaper than the API (one request per 1.1 seconds each).
+pub const DUMP_BREAKEVEN_CRATES: usize = 100;
 
 /// The sparse index path of a crate: `1/a`, `2/ab`, `3/a/abc`, `ab/cd/abcdef`.
 pub fn sparse_index_path(name: &str) -> String {
@@ -220,6 +231,8 @@ fn read_cached_history(path: &Path) -> Vec<VersionRecord> {
 pub struct CratesIo {
     cache_dir: PathBuf,
     fetcher: Box<dyn TextFetcher>,
+    dump: Option<Box<dyn DumpSource>>,
+    dump_breakeven: usize,
     min_interval: Duration,
     backoff: Duration,
     last_request: Cell<Option<Instant>>,
@@ -227,8 +240,17 @@ pub struct CratesIo {
 
 impl CratesIo {
     /// Builds the registry for a repository root with the real spacing and backoff.
-    pub fn with_defaults(root: &Path, fetcher: Box<dyn TextFetcher>) -> CratesIo {
-        return CratesIo::new(root, fetcher, API_MIN_INTERVAL, RATE_LIMIT_BACKOFF);
+    pub fn with_defaults(root: &Path, fetcher: Box<dyn TextFetcher>, dump: Box<dyn DumpSource>) -> CratesIo {
+        let mut registry: CratesIo = CratesIo::new(root, fetcher, API_MIN_INTERVAL, RATE_LIMIT_BACKOFF);
+        registry.dump = Some(dump);
+        return registry;
+    }
+
+    /// Sets how many uncached crates make the dump worth reading; tests lower it.
+    pub fn with_dump(mut self, dump: Box<dyn DumpSource>, breakeven: usize) -> CratesIo {
+        self.dump = Some(dump);
+        self.dump_breakeven = breakeven;
+        return self;
     }
 
     /// Builds the registry for a repository root; `min_interval` and `backoff` are parameters so tests do not wait.
@@ -236,6 +258,8 @@ impl CratesIo {
         return CratesIo {
             cache_dir: root.join(HISTORY_CACHE_DIR),
             fetcher,
+            dump: None,
+            dump_breakeven: DUMP_BREAKEVEN_CRATES,
             min_interval,
             backoff,
             last_request: Cell::new(None),
@@ -275,6 +299,29 @@ impl CratesIo {
 }
 
 impl Registry for CratesIo {
+    fn prefetch(&self, names: &BTreeSet<String>) -> Result<(), RegistryError> {
+        let dump: &dyn DumpSource = match &self.dump {
+            Some(found) => found.as_ref(),
+            None => return Ok(()),
+        };
+        let uncached: BTreeSet<String> = names.iter().filter(|name| { return !self.cache_dir.join(format!("{name}.json")).exists(); }).cloned().collect();
+        if uncached.len() < self.dump_breakeven {
+            eprintln!("cargo-shadow: {} crates lack a cached history (below {}); using the crates.io API for them", uncached.len(), self.dump_breakeven);
+            return Ok(());
+        }
+        eprintln!("cargo-shadow: {} crates lack a cached history; reading {DATABASE_DUMP_URL}", uncached.len());
+        let result = fill_histories_from_dump(dump.open(DATABASE_DUMP_URL)?, &uncached, &self.cache_dir)
+            .map_err(|error| { return RegistryError { message: error.message, status: None, retry_after_seconds: 0 }; })?;
+        eprintln!(
+            "cargo-shadow: dump: {} found, {} written, {} already cached, {} left to the API (possible Trusted Publishing releases)",
+            result.found,
+            result.written,
+            result.kept,
+            result.left_to_api.len()
+        );
+        return Ok(());
+    }
+
     fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
         return parse_index_pubtimes(&self.fetcher.get(&format!("{SPARSE_INDEX_URL}/{}", sparse_index_path(name)))?);
     }

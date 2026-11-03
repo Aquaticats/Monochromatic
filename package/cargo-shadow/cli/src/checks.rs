@@ -128,6 +128,7 @@ pub fn trust_refusals(
         return Ok(Vec::new());
     }
     eprintln!("cargo-shadow: checking the trust policy for {} versions of {} crates", versions.len(), groups.len());
+    registry.prefetch(&groups.iter().map(|group| { return group.0.clone(); }).collect::<BTreeSet<String>>())?;
     let mut refusals: Vec<TrustRefusal> = Vec::new();
     for (name, name_versions) in groups {
         let history = registry.history(&name, &name_versions)?;
