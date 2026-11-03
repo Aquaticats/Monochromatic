@@ -237,30 +237,78 @@ pub fn clone_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<Stri
     return if one_domain { None } else { Some(format!("{} and {} are on different filesystems", root.display(), parent.display())) };
 }
 
+/// Which kind of check refused a source, so the person can be told the cause in words that fit it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RefusalKind {
+    /// The source's files or index could not be proven unchanged since its `HEAD`: a change, an untracked file, an operation
+    ///  in progress, an index that cannot yet vouch for its files.
+    Unclean,
+    /// A feature a copy of the files does not reproduce, or a state the checks cannot read.
+    Unsupported,
+}
+
+/// What:
+///  Why a source cannot be copied, and which kind of check said so.
+/// Why:
+///   The reason is for the log and for the sentence the person reads; the kind lets the sentence be chosen without reading
+///  the reason's words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Refusal = { reason: string; kind: 'unclean' | 'unsupported' };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Refusal {
+    /// The reason, in words.
+    pub reason: String,
+    /// The kind of check that refused.
+    pub kind: RefusalKind,
+}
+
+impl Refusal {
+    /// A refusal by a feature or a state the checks cannot read.
+    fn unsupported(reason: impl Into<String>) -> Refusal {
+        return Refusal { reason: reason.into(), kind: RefusalKind::Unsupported };
+    }
+}
+
 /// What:
 ///  Check the creating worktree for everything a copy of its files needs, from the cheapest check to the dearest, and
-///  collect what the later steps use; the reason is the error.
+///  collect what the later steps use; the refusal is the error.
 /// Why:
 ///   The dear checks (the clean check starts one Git run) happen once for both rungs, and only after a cheap check let a
-///  rung through.
+///  rung through. The kind of the refusal lets the ladder tell the person the cause in fitting words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function sourceRefusal(context: GitContext, identity: WorktreeIdentity): Promise<SnapshotSource>; // throws a Refusal
+/// ```
+pub fn source_refusal(context: &GitContext, identity: &WorktreeIdentity) -> Result<SnapshotSource, Refusal> {
+    let (root, git_dir, common_dir): (&PathBuf, &PathBuf, &PathBuf) = worktree_of(identity).map_err(Refusal::unsupported)?;
+    if git_dir.join("info/sparse-checkout").exists() || common_dir.join("info/sparse-checkout").exists() {
+        return Err(Refusal::unsupported("the source has a sparse checkout"));
+    }
+    let nested: Vec<PathBuf> = registered_roots(common_dir.as_path()).into_iter().filter(|path: &PathBuf| { return path != root && path.starts_with(root); }).collect();
+    let snapshot: ConfigSnapshot = read_config_snapshot(context, root.as_path()).ok_or_else(|| { return Refusal::unsupported("the Git configuration could not be read"); })?;
+    if let Some(reason) = configuration_refusal(snapshot.entries()) {
+        return Err(Refusal::unsupported(reason));
+    }
+    let clean: CleanSource = check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path()).map_err(|reason: String| { return Refusal { reason, kind: RefusalKind::Unclean }; })?;
+    let trash_ignored: bool = git_dir == common_dir && super::worktree_trash::trash_location_is_ignored(context, root.as_path());
+    return Ok(SnapshotSource { root: root.clone(), git_dir: git_dir.clone(), common_dir: common_dir.clone(), clean, nested, config: snapshot, trash_ignored });
+}
+
+/// What:
+///  Check the creating worktree for everything a copy of its files needs; the reason is the error.
+/// Why:
+///   Callers that only log or compare the reason ask for the words; the ladder asks `source_refusal` for the kind too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function commonSource(context: GitContext, identity: WorktreeIdentity): Promise<SnapshotSource>; // throws a reason
 /// ```
 pub fn common_source(context: &GitContext, identity: &WorktreeIdentity) -> Result<SnapshotSource, String> {
-    let (root, git_dir, common_dir): (&PathBuf, &PathBuf, &PathBuf) = worktree_of(identity)?;
-    if git_dir.join("info/sparse-checkout").exists() || common_dir.join("info/sparse-checkout").exists() {
-        return Err(String::from("the source has a sparse checkout"));
-    }
-    let nested: Vec<PathBuf> = registered_roots(common_dir.as_path()).into_iter().filter(|path: &PathBuf| { return path != root && path.starts_with(root); }).collect();
-    let snapshot: ConfigSnapshot = read_config_snapshot(context, root.as_path()).ok_or_else(|| { return String::from("the Git configuration could not be read"); })?;
-    if let Some(reason) = configuration_refusal(snapshot.entries()) {
-        return Err(reason);
-    }
-    let clean: CleanSource = check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path())?;
-    let trash_ignored: bool = git_dir == common_dir && super::worktree_trash::trash_location_is_ignored(context, root.as_path());
-    return Ok(SnapshotSource { root: root.clone(), git_dir: git_dir.clone(), common_dir: common_dir.clone(), clean, nested, config: snapshot, trash_ignored });
+    return source_refusal(context, identity).map_err(|refusal: Refusal| { return refusal.reason; });
 }
 
 /// What:
