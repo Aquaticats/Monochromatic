@@ -393,7 +393,12 @@ pub fn tracking_ref(config: &ParsedConfig, branch: &str) -> Result<Option<String
     if remote == "." {
         return Ok(Some(merge.to_string()));
     }
-    for spec in config.values("remote", Some(remote), "fetch") {
+    let specs: Vec<&str> = config.values("remote", Some(remote), "fetch");
+    // A negative refspec can remove a match made by another one, so any of them makes the answer Git's.
+    if specs.iter().any(|spec| { return spec.trim().starts_with('^'); }) {
+        return Err("a negative fetch refspec is applied by Git".to_string());
+    }
+    for spec in specs {
         if let Some(mapped) = map_refspec(spec, merge)? {
             return Ok(Some(mapped));
         }
@@ -434,7 +439,24 @@ fn head_base(layout: &GitLayout) -> Result<NativeBase, String> {
 /// ```ts
 /// export function nativeBase(root: string, inCi: boolean, environment: NativeEnvironment): NativeBase  // throws: ask Git
 /// ```
-pub fn native_base(_root: &Path, _in_ci: bool, _environment: &NativeEnvironment) -> Result<NativeBase, String> {
-    // Scaffold for the red tests: the files do not answer yet, so every choice is asked of Git.
-    return Err("the file reader is not written yet".to_string());
+pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) -> Result<NativeBase, String> {
+    let layout: GitLayout = find_layout(root, environment)?;
+    // The configuration is read even for CI's `HEAD`, because a reftable store or an include changes what `HEAD` means.
+    let config: ParsedConfig = read_config(&layout, environment)?;
+    if in_ci {
+        return head_base(&layout);
+    }
+    if let Head::Branch(full) = read_head(&layout)?
+        && let Some(branch) = full.strip_prefix("refs/heads/")
+        && let Some(tracking) = tracking_ref(&config, branch)?
+        && let Some(object) = lookup_ref(&layout, &tracking)?
+    {
+        return Ok(NativeBase { spelling: "@{upstream}".to_string(), commit: Ok(object) });
+    }
+    for candidate in ["origin/main", "origin/master"] {
+        if let Some(object) = lookup_short(&layout, candidate)? {
+            return Ok(NativeBase { spelling: candidate.to_string(), commit: Ok(object) });
+        }
+    }
+    return head_base(&layout);
 }

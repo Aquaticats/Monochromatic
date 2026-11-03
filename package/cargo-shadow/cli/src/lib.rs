@@ -244,6 +244,36 @@ mod dump_tests;
 mod git_base_tests;
 
 /// What:
+/// `#[cfg(test)] mod git_config_tests;` declares the tests in `src/git_config_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the Git configuration reader."
+/// so the behavior of `git_config` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // git_config_tests.test.ts, run by the test runner only
+/// ```
+#[cfg(test)]
+mod git_config_tests;
+
+/// What:
+/// `#[cfg(test)] mod git_refs_tests;` declares the tests in `src/git_refs_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the plain-file reader of references and branch configuration, over hand-made repository directories."
+/// so the behavior of `git_refs` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // git_refs_tests.test.ts, run by the test runner only
+/// ```
+#[cfg(test)]
+mod git_refs_tests;
+
+/// What:
 /// `#[cfg(test)] mod guard_tests;` declares the tests in `src/guard_tests.rs`;
 /// the attribute compiles it only for test builds (a TS test file that production code never imports).
 /// Why:
