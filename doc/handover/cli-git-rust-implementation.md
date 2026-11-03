@@ -9673,3 +9673,12 @@ by the coordinator at merge.
 - NEXT after 0.5.18 is installed: `git cli-git convert-worktree-to-subvolume --dry-run --all` in main, read the
   refusals, then run the real `--all` (owner: "Convert once + snapshot (Recommended)"); busy worktrees are refused by
   the tool itself and stay ordinary until a later run.
+- Mutation-test unit flakes fixed (`fix/mutation-test-cli-cargo-mutants-unit-under-process-limits`, `8489c44dcb` to
+  `bbb6857f0a`, based on main `b1f7ca9390`): cause proved (`pids.events max 4` under `TasksMax=300`: refused spawns
+  surfaced as status 1, ENOENT or hangs); fixture programs run in their own process groups with a reaper per test file
+  (hard kill mid-suite left 0 processes); `test:unit` under `TasksMax=300` passes with `pids.peak 230`. Round-9 P2
+  fixed: the protocol record is per attempt. Sent back: the shared root `mise.toml` runner now carries this package's
+  per-file numbers (16 plus 30 tasks), so the cap moves to a per-package estimate; check other packages through the
+  runner; retry the push (its first auto-push timed out in git-lfs; no trigger-log line for that branch). Commit
+  `1a49aa2254` is scoped `mutation-test-cli-cargo-mutants` but changes root `mise.toml`: corrective commit comment
+  once it is on origin.
