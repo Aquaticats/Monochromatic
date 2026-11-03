@@ -2,7 +2,7 @@
 //!  (timestamps written by a stand-in Git), the answers keep the order Git printed them, and one that fails decides the error.
 
 use super::*;
-use crate::manual_push_probe::probe_manual_push_updates_on;
+use crate::manual_push_probe::{MOST_CONCURRENT_QUERIES, probe_manual_push_updates_on};
 use crate::parallel_budget::HostResources;
 use crate::test_support::{fixture, git, remove};
 use std::path::{Path, PathBuf};
@@ -49,6 +49,11 @@ fn intervals(log: &Path) -> Vec<(u128, u128)> {
 fn all_overlap(found: &[(u128, u128)]) -> bool {
     let first_end: u128 = found.iter().map(|(_start, end)| { return *end; }).min().unwrap_or(0);
     return found.iter().all(|(start, _end)| { return *start < first_end; });
+}
+
+/// The most intervals that were held at one moment.
+fn most_at_once(found: &[(u128, u128)]) -> usize {
+    return found.iter().map(|(start, _end)| { return found.iter().filter(|(other_start, other_end)| { return other_start <= start && start < other_end; }).count(); }).max().unwrap_or(0);
 }
 
 /// Coordinator Git over a stand-in Git.
@@ -130,5 +135,22 @@ fn an_update_that_cannot_be_scoped_fails_the_push_scope() {
     updates[0].local_oid = Some(String::from("0000000000000000000000000000000000000001"));
     let failure = scopes_of_updates_on(&LARGE_HOST, &git_plain, &updates).expect_err("the first update names no object");
     assert!(!failure.message.is_empty());
+    remove(root.as_path());
+}
+
+/// More updates than the SPEC allows queries at once are read at most that many at a time, however large the host.
+#[test]
+fn no_more_than_the_specified_number_of_updates_are_read_at_once() {
+    let branches: usize = MOST_CONCURRENT_QUERIES + 2;
+    let (root, repo) = repository_with("mp-parallel-bound", 1, branches);
+    let log: PathBuf = root.join("rev-list.log");
+    let stand_in: PathBuf = timing_git(&root, "rev-list", &log);
+    let names: Vec<OsString> = std::iter::once(OsString::from("origin")).chain((0..branches).map(|index: usize| { return OsString::from(format!("b{index}")); })).collect();
+    let git_stand_in: PushGit = git_over(&repo, &stand_in);
+    let updates = probe_manual_push_updates_on(&LARGE_HOST, &git_stand_in, &[], &names).expect("probes");
+    scopes_of_updates_on(&LARGE_HOST, &git_stand_in, &updates).expect("scopes");
+    let held = intervals(&log);
+    assert_eq!(held.len(), branches, "{held:?}");
+    assert_eq!(most_at_once(&held), MOST_CONCURRENT_QUERIES, "{held:?}");
     remove(root.as_path());
 }

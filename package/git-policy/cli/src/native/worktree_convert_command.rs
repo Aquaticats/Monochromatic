@@ -62,6 +62,25 @@ fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Vec<PathBuf>, Str
 pub const CONVERSION_MEMORY: u64 = 128 << 20;
 
 /// What:
+///  The most worktrees converted at once however many CPUs and bytes the host has.
+/// Why:
+///   The conversions are bound by the filesystem's metadata work, which stops scaling past a point. Measured on 2026-11-03 on a
+///  btrfs volume (32 worktrees of about ten thousand files each, 28 threads, other sessions running, medians of three or more
+///  runs at 1, 2, 4, 8, 16 and 18 workers: 61, 35, 19, 14, 12 and 12 seconds; further runs at 12, 16 and 24 workers: 11 to 30, 11
+///  to 16 and 16 to 18 seconds): more than sixteen workers were never faster.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const CONVERSION_STORAGE_CEILING = 16;
+/// ```
+pub const CONVERSION_STORAGE_CEILING: usize = 16;
+
+/// The workers a run of `lanes` independent conversions uses on `host`, with the person's `cap`.
+pub fn conversion_workers(lanes: usize, cap: Option<usize>, host: &HostResources) -> usize {
+    return worker_budget(&BudgetRequest { items: lanes, per_item_memory: CONVERSION_MEMORY, ceiling: Some(CONVERSION_STORAGE_CEILING), cap, host });
+}
+
+/// What:
 ///  Everything one run of the command needs besides the line sink.
 /// Why:
 ///   The platform, the interrupt and the host's resources are injected so the controls run the real command on any filesystem
@@ -144,7 +163,7 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
         say(RISK_NOTICE);
     }
     let lanes: Vec<Vec<usize>> = lanes_of(list.as_slice());
-    let workers: usize = worker_budget(&BudgetRequest { items: lanes.len(), per_item_memory: CONVERSION_MEMORY, ceiling: None, cap: arguments.jobs, host });
+    let workers: usize = conversion_workers(lanes.len(), arguments.jobs, host);
     debug(TAG, format!("{} worktree(s) in {} lane(s) on {workers} worker(s) (host {host:?}, cap {:?})", list.len(), lanes.len(), arguments.jobs).as_str());
     // Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
     //  filesystem. Lines and results come back to this thread, which says them in input order.

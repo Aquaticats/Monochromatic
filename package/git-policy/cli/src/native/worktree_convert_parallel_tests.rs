@@ -229,7 +229,7 @@ fn busiest_of(name: &str, host: &HostResources, jobs: Option<usize>, meeting: us
 #[test]
 fn the_budget_of_the_host_bounds_the_overlap() {
     let host: HostResources = HostResources { parallelism: 3, memory_available: None };
-    let allowed: usize = crate::parallel_budget::worker_budget(&crate::parallel_budget::BudgetRequest { items: usize::MAX, per_item_memory: CONVERSION_MEMORY, ceiling: None, cap: None, host: &host });
+    let allowed: usize = conversion_workers(usize::MAX, None, &host);
     assert!(allowed > 1 && allowed < WORKTREES, "the control needs a bound between one and the worktrees: {allowed}");
     assert_eq!(busiest_of("convert-parallel-budget", &host, None, allowed), allowed);
 }
@@ -295,4 +295,14 @@ fn the_output_equals_the_one_at_a_time_output() {
     assert_eq!(lines_without_root(&serial_lines, serial_root.as_path()), lines_without_root(&side_lines, side_root.as_path()));
     remove(serial_parent.as_path());
     remove(side_parent.as_path());
+}
+
+/// However large the host and however many worktrees, no more than the measured ceiling are converted at once; the person's cap
+///  still lowers it.
+#[test]
+fn a_large_host_does_not_pass_the_storage_ceiling() {
+    let huge: HostResources = HostResources { parallelism: CONVERSION_STORAGE_CEILING * 8, memory_available: None };
+    assert_eq!(conversion_workers(CONVERSION_STORAGE_CEILING * 4, None, &huge), CONVERSION_STORAGE_CEILING);
+    assert_eq!(conversion_workers(CONVERSION_STORAGE_CEILING * 4, Some(2), &huge), 2);
+    assert_eq!(conversion_workers(3, None, &huge), 3);
 }

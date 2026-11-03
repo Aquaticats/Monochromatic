@@ -2,9 +2,11 @@
 //!  not stop the others, and the host budget bounds the overlap.
 
 use super::*;
+use crate::worktree_trash_remove::remove_tree_beneath;
 use crate::fs_beneath::{identity_at, open_root};
 use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE};
 use crate::test_support::{fixture, remove};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// How many entries the trash of these controls holds.

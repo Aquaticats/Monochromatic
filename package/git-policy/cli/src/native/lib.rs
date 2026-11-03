@@ -1506,6 +1506,10 @@ pub mod package_repair;
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_dispose;
 
+/// The removal of the entries a snapshot's leave-out moved into its trash, side by side.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_entries;
+
 /// What a snapshot's leave-out made and moved, with identities, as the text a work item carries.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_manifest;
