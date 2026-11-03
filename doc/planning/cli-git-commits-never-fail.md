@@ -338,8 +338,9 @@ The publication transaction above is tried once. If it fails, the lane reads the
 For a held lock, or a branch that moves faster than the replay can follow, the request becomes `pending`: the commit is built and
 imported, the record names it, and the command answers success: "saved; the branch `<name>` will show it when the other program
 lets go".
-Extending the owner's decision from a held lock to a branch that a foreign program keeps moving is proposed, not decided;
-it is the one way a command stops waiting on a foreign writer, and the owner is asked to confirm it.
+Decided by the owner (question tool, 2026-11-03) for a branch that a foreign program keeps moving: "Save on the side ref
+(Recommended)". After the swap is lost to a foreign writer, the commit is saved under `refs/cli-git/pending/<id>`, the command
+exits 0 saying so, and the service lands it in order when the branch lets it.
 
 Pending does not depend on a ref write.
 The pending commit is held by the spool and the record (the guarantee), and by `refs/cli-git/pending/<id>` when the ref store
@@ -361,8 +362,9 @@ Order is durable: a request takes the next number by creating `queue/<n>` exclus
 the number is recorded in the record, and the lane publishes strictly in that order. A request that finds its captured logical
 base is no longer the newest is captured again against the newest before it takes a number (its bytes are the same; only the
 base changes). A branch can be checked out in one worktree only, so the order is per worktree.
-An amend, a conclusion or a revert while commits are pending acts on the logical head (an amend amends the newest pending
-commit), because that is the commit the person just made; the command says so.
+An amend, a conclusion or a revert while commits are pending acts on the logical head, because that is the commit the person just
+made; the command says so. Decided by the owner (question tool, 2026-11-03) for an amend: "Amend the pending commit
+(Recommended)": the amend replaces the newest pending commit before it lands.
 
 Publishing a pending request.
 When the lock is free the lane publishes the oldest pending request: if the tip equals the captured logical base's published
@@ -373,9 +375,11 @@ Pushes.
 Pending, hold and receipt refs are never pushed: the auto-push passes an explicit branch refspec, and the wrapper's push boundary
 (`bounded_push.rs`, the forwarded `git push`) rejects, with a message, an explicit refspec whose source or destination names
 `refs/cli-git/`.
-A `--mirror` push mirrors every ref under `refs/` by definition, so it would send them; the guarantee is therefore scoped to
-the auto-push and to explicit refspecs, and a mirror push is a question for the owner (reject it while any pending request
-exists, or let it send them).
+A `--mirror` push mirrors every ref under `refs/` by definition, so left alone it would send them. Decided by the owner (question
+tool, 2026-11-03): "Leave out wrapper refs (Recommended)": the mirror push sends everything except `refs/cli-git/*`, with a line
+saying that those refs were left out and why. The enforcement is at the wrapper's push boundary, which excludes the namespace
+(for example by adding a negative refspec for `refs/cli-git/*` to the push it runs) and prints the line; a control must show that
+a mirror push, an explicit refspec and the auto-push send none of them.
 
 ### Replay of the captured change on a moved head (owner's choice: stack on the new head)
 
@@ -409,7 +413,7 @@ May wait, off the command (the command has already exited 0), with a notice that
 May wait on the command: nothing on a foreign program.
 The remaining waits are the person's own: an editor, a signer's prompt, a hook.
 A compare-and-swap is not starvation-free, which is why a branch that a foreign writer keeps moving makes the request pending
-(proposed above) instead of looping in the command.
+(decided by the owner, above) instead of looping in the command.
 
 Hung Git children.
 The children that remain on the commit path are few: `fast-import`, `commit-tree`, `merge-tree`, `update-ref`, and the commit
@@ -727,7 +731,7 @@ Each finding of `~/temp/agent/reviews/commits-never-fail-sol-2.txt`.
   other children. A deterministic Git bug cannot be restarted away; an in-process transaction writer for the files backend is
   named as the alternative and not chosen. The exit inventory is a gate, as the reviewer asks.
 - Medium, pending refs kept from pushes by assertion: accepted. Enforcement is at the wrapper's push boundary for the auto-push and
-  explicit refspecs; `--mirror` pushes every ref by definition, so that case is a question for the owner.
+  explicit refspecs; a `--mirror` push leaves wrapper refs out with a line saying so (owner, below).
 - Foreign `index.lock` wait: the owner decided "Same as the ref lock"; the commit and the merge no longer wait on it. The
   carry-forward loop is bounded at two rounds. The reviewer's point that a wait is not a completion guarantee stands: the
   pending request and the lagging index complete only when the foreign program lets go, and the record says so.
@@ -743,11 +747,12 @@ Each finding of `~/temp/agent/reviews/commits-never-fail-sol-2.txt`.
   (committed with a warning); a live foreign ref lock or `index.lock` (the commit lands or is saved, exit 0); a merge that would
   overwrite unsaved edits (the edits are carried forward).
 
-## Questions for the owner that this revision raises
+## Questions for the owner that this revision raised, and the answers
 
-- Whether a branch that a foreign program keeps moving also makes a request pending, as a held lock does.
-- Whether a `--mirror` push is rejected while a pending request exists, or sends the pending refs.
-- Whether an amend while commits are pending amends the newest pending commit (proposed).
+All three were answered on 2026-11-03 (question tool):
+- A branch that a foreign program keeps moving: "Save on the side ref (Recommended)" (the request becomes pending, exit 0).
+- A `--mirror` push while wrapper refs exist: "Leave out wrapper refs (Recommended)" (everything except `refs/cli-git/*`, with a line).
+- An amend while commits are pending: "Amend the pending commit (Recommended)" (the amend replaces the newest pending commit).
 
 ## Verification plan
 

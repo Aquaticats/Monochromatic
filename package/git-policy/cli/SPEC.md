@@ -1154,6 +1154,11 @@ naming the files, and `merge-isolation/paths-in-use` is no longer a refusal).
 Decided by the owner (question tool, 2026-11-03) for a live foreign `index.lock`: "Same as the ref lock (Recommended)": a commit lands on the branch
 and exits 0 and says the index will catch up when the lock is free; a merge saves its result on a side ref, exits 0, and finishes the checkout when
 the lock frees, carrying forward any edits made meanwhile.
+Decided by the owner (question tool, 2026-11-03): a branch that a foreign program keeps moving: "Save on the side ref (Recommended)" (after the
+swap is lost, the commit is saved under `refs/cli-git/pending/<id>`, the command exits 0 saying so, and the service lands it in order when the
+branch lets it); a `--mirror` push while wrapper refs exist: "Leave out wrapper refs (Recommended)" (everything except `refs/cli-git/*` is sent,
+with a line saying those were left out and why); an amend while commits are pending: "Amend the pending commit (Recommended)" (the amend replaces
+the newest pending commit before it lands).
 When the owner decides how an amend, a conclusion or a revert behaves on a head that other commits moved, the result is stacked
 on the new head (owner, 2026-11-03: "Stack on the new head (Recommended)").
 
