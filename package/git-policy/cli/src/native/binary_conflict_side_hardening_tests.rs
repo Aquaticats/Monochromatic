@@ -188,3 +188,120 @@ fn an_option_value_named_like_the_worktree_option_is_rejected_as_an_index_restor
     assert!(stderr_of(&worktree).contains("overwrites files"), "{}", stderr_of(&worktree));
     remove(&fixture);
 }
+
+/// What every note about a pathspec mode or pathspec magic says once the line would be allowed without it.
+const ALLOWED_WITHOUT: &str = "saved first and then allowed";
+
+/// The global pathspec modes, as the spelling the note must name and how to put each in effect.
+fn modes() -> Vec<(&'static str, Option<&'static str>, Option<&'static str>)> {
+    // (spelling named in the note, variable set to 1, global option placed before the subcommand)
+    return vec![
+        ("GIT_ICASE_PATHSPECS", Some("GIT_ICASE_PATHSPECS"), None),
+        ("GIT_GLOB_PATHSPECS", Some("GIT_GLOB_PATHSPECS"), None),
+        ("GIT_NOGLOB_PATHSPECS", Some("GIT_NOGLOB_PATHSPECS"), None),
+        ("GIT_LITERAL_PATHSPECS", Some("GIT_LITERAL_PATHSPECS"), None),
+        ("--icase-pathspecs", None, Some("--icase-pathspecs")),
+        ("--glob-pathspecs", None, Some("--glob-pathspecs")),
+        ("--noglob-pathspecs", None, Some("--noglob-pathspecs")),
+        ("--literal-pathspecs", None, Some("--literal-pathspecs")),
+        ("--no-literal-pathspecs", None, Some("--no-literal-pathspecs")),
+    ];
+}
+
+/// Run `arguments` in `repo` under a mode: the variable set, or the option placed before the subcommand.
+fn run_under_mode(fixture: &Fixture, repo: &std::path::Path, mode: (&str, Option<&str>, Option<&str>), arguments: &[&str]) -> Observed {
+    let mut command = wrapped(fixture);
+    command.current_dir(repo);
+    if let Some(variable) = mode.1 {
+        command.env(variable, "1");
+    }
+    if let Some(option) = mode.2 {
+        command.arg(option);
+    }
+    command.args(arguments);
+    return observe(&mut command, b"");
+}
+
+/// A line refused only because a mode is in effect is still refused, and the refusal names the mode and says that the same
+///  command without it would be saved first and then allowed.
+#[test]
+fn a_refusal_for_a_pathspec_mode_names_the_mode_and_the_way_out() {
+    let fixture: Fixture = fixture("mode-note");
+    let repo: PathBuf = with_look_alike(&fixture);
+    for mode in modes() {
+        for arguments in [["checkout", "--theirs", "--", "a.rs"], ["restore", "--ours", "--", "a.rs"]] {
+            let observed: Observed = run_under_mode(&fixture, repo.as_path(), mode, &arguments);
+            let said: String = stderr_of(&observed);
+            assert!(rejected_by_policy(&observed), "{mode:?} {arguments:?}: {said}");
+            assert!(said.contains(format!("the same command without `{}`", mode.0).as_str()), "{mode:?} {arguments:?} names the mode: {said}");
+            assert!(said.contains(ALLOWED_WITHOUT), "{mode:?} {arguments:?} says the way out: {said}");
+            assert_untouched(repo.as_path(), said.as_str());
+        }
+    }
+    remove(&fixture);
+}
+
+/// The note never appears for a line the carve-out would refuse anyway: a path that is not conflicted, a mix, a form the
+///  carve-out does not cover, no operation in progress.
+#[test]
+fn no_pathspec_mode_note_appears_when_the_carve_out_would_refuse_anyway() {
+    let fixture: Fixture = fixture("mode-note-absent");
+    let repo: PathBuf = with_look_alike(&fixture);
+    for mode in modes() {
+        for arguments in [
+            vec!["checkout", "--theirs", "--", "c.rs"],
+            vec!["checkout", "--theirs", "--", "a.rs", "c.rs"],
+            vec!["checkout", "--theirs", "--", "A.rs"],
+            vec!["checkout", "-f", "--", "a.rs"],
+            vec!["checkout", "--theirs", "a.rs"],
+            vec!["restore", "--staged", "--theirs", "--", "a.rs"],
+            vec!["checkout", "--theirs", "--", "*.rs"],
+        ] {
+            let observed: Observed = run_under_mode(&fixture, repo.as_path(), mode, arguments.as_slice());
+            let said: String = stderr_of(&observed);
+            assert!(rejected_by_policy(&observed), "{mode:?} {arguments:?}: {said}");
+            assert!(!said.contains(ALLOWED_WITHOUT) && !said.contains(mode.0), "{mode:?} {arguments:?} has no note: {said}");
+        }
+    }
+    // The line is allowed without a mode, so the note is the only difference between the runs above and a run without one.
+    let ended: PathBuf = repo.join(".git/MERGE_HEAD");
+    let saved: Vec<u8> = std::fs::read(&ended).expect("MERGE_HEAD");
+    std::fs::remove_file(&ended).expect("end the operation's state");
+    for mode in modes() {
+        let observed: Observed = run_under_mode(&fixture, repo.as_path(), mode, &["checkout", "--theirs", "--", "a.rs"]);
+        let said: String = stderr_of(&observed);
+        assert!(rejected_by_policy(&observed), "{mode:?}: {said}");
+        assert!(!said.contains(ALLOWED_WITHOUT), "{mode:?} no operation, no note: {said}");
+    }
+    std::fs::write(&ended, saved).expect("restore MERGE_HEAD");
+    assert_untouched(repo.as_path(), "");
+    remove(&fixture);
+}
+
+/// Pathspec magic on a conflicted file's name is refused, and the refusal names the magic and the file and says that naming
+///  the file itself is saved first and then allowed; magic on a clean path, or beside one, gets no such sentence.
+#[test]
+fn a_refusal_for_pathspec_magic_names_the_magic_and_the_file() {
+    let fixture: Fixture = fixture("magic-note");
+    let repo: PathBuf = with_look_alike(&fixture);
+    for (token, magic) in [(":(icase)a.rs", ":(icase)"), (":(glob)a.rs", ":(glob)"), (":(literal)a.rs", ":(literal)"), (":!a.rs", ":!"), (":/a.rs", ":/"), (":(top)a.rs", ":(top)")] {
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", token]);
+        let said: String = stderr_of(&observed);
+        assert!(rejected_by_policy(&observed), "{token}: {said}");
+        assert!(said.contains(format!("`{magic}`").as_str()) && said.contains("`a.rs`") && said.contains(ALLOWED_WITHOUT), "{token}: {said}");
+        assert_untouched(repo.as_path(), said.as_str());
+    }
+    for arguments in [
+        vec!["checkout", "--theirs", "--", ":(icase)c.rs"],
+        vec!["checkout", "--theirs", "--", ":(icase)a.rs", "c.rs"],
+        vec!["checkout", "--theirs", "--", ":(icase)*.rs"],
+        vec!["checkout", "--theirs", "--", ":(attr:text)a.rs"],
+        vec!["checkout", "-f", "--", ":(icase)a.rs"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        let said: String = stderr_of(&observed);
+        assert!(rejected_by_policy(&observed), "{arguments:?}: {said}");
+        assert!(!said.contains(ALLOWED_WITHOUT), "{arguments:?} has no note: {said}");
+    }
+    remove(&fixture);
+}
