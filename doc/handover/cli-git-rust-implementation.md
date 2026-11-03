@@ -9778,3 +9778,25 @@ by the coordinator at merge.
   by the auto-mode classifier ("Git Destructive"), so it waits for the owner. `e2e-trace-diagnosis-20261101` is
   unmerged and stays. The other 88 nonconforming branches belong to other work (audit:
   `~/temp/agent/branch-name-audit.txt`).
+- Content-check review returned (`~/temp/agent/review-convert-content/sol-review.txt`): five P0 false-clean defects
+  (system attributes path derived from `GIT_CONFIG_SYSTEM`; lossy UTF-8 decoding and Unicode lowercasing of paths and
+  patterns; Unicode whitespace and NUL lexing unlike `attr.c`; symlinked parent directories followed; metadata and
+  hashed bytes not tied to one file state) and a P2 unbounded read. No defect in blob framing, CR/eol reasoning,
+  precedence, index exclusions or the packed-refs change. Sent back to the author (same branch). The conversion
+  branch is NOT merged although gate 68 passed (3705 of 3705; its one SLOW is the pre-fix kill sweep, since that
+  merge of main predates `0bd66b5d45`). The real conversion stays held.
+- Conflict-side review returned (`~/temp/agent/review-merge-sides/sol-review.txt`) on shipped code: P1 icase
+  pathspecs can overwrite an unsaved case-variant path; P1 symlinked ancestors are saved through the link; P2 an
+  option value `-W` passes as `--worktree`; P2 a rewrite during the copy yields a stale backup. Assigned to a new
+  agent on `fix/git-policy-cli-conflict-side-review-findings`.
+- Remove-path review returned (`~/temp/agent/review-btrfs-ladder-remove-3/sol-review.txt`) on shipped code: P1
+  `worktree remove ""` resolves to the current worktree; P1 canonicalising erases symlink traversal (check Git's own
+  behaviour first); P1 registration not scoped to the invoking repository; P1 races between the clean check and the
+  ioctl (identity, cleanliness, lock); P1 admin cleanup can delete a reused admin path; P1 `remove_tree` crosses nested
+  subvolumes and mounts; P2 lock lookup errors read as unlocked; P2 failed admin cleanup returns success; P2
+  settlement can remove an empty subvolume it did not create. QUEUED for an agent on
+  `fix/git-policy-cli-remove-path-review-findings` once its worktree exists.
+- Observation: `git worktree add -b ... main` at 23:3x took the Git checkout plus ignored-copy route (190433 entries,
+  minutes) instead of the main snapshot route, and printed no reason. Likely cause (unverified): the main checkout had
+  an uncommitted `pnpm-lock.yaml`. Follow-ups to propose: say why the snapshot route was not taken; consider
+  snapshotting a dirty main and restoring its modified tracked paths from the index in the new worktree.
