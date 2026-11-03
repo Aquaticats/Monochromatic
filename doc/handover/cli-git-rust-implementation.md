@@ -10374,3 +10374,25 @@ by the coordinator at merge.
   teach the in-process config reader that variables such as `GIT_EDITOR` do not change config, saving a Git start.
   Parallelism audit started on `perf/git-policy-cli-parallel-independent-work` (excludes the add path and merge
   code, owned by other agents).
+- 2026-11-03T04:30:34-05:00, INCIDENT: 0.5.22 was published without the lock-free add. A concurrent-add check with the installed
+  0.5.22 showed the second add waiting about 7 minutes on `settlement.lock`. Cause: an empty
+  `.git/refs/remotes/origin/main.lock` from 2026-11-03T03:18:10-05:00 (the stopped-push lock leak whose fix is not
+  released yet) made every fetch fail with "unable to update local ref", so auto-push stopped and the 72 local
+  commits after `94a625bc78` never reached origin; the release workflow builds from origin's main, so 0.5.22
+  (`40b3d5ad`) is 0.5.21's code with a false note. Fixed: lock removed after checking it was empty and no process of
+  this repository held it (the one running fetch was the ide/app container's grammar fetch, cwd `/work/...`); fetch
+  and merge of origin's two release commits; main pushed; origin/main equals main and contains the lock-free add.
+  Correction comment on `40b3d5ad`: https://github.com/Aquaticats/Monochromatic/commit/40b3d5adb36bb5a0d663944c18f3c5f89523d843#commitcomment-207900622
+  and the v0.5.22 release notes carry the same correction. QUEUED (first free slot, rule FOT): `dispatchRelease`
+  in `package/crate-release/cli/src/dispatch-run.ts` refuses when local main has commits the remote default branch
+  lacks, naming them, for real and dry runs. Until then the coordinator checks `main...origin/main` by hand before
+  every dispatch. 0.5.23 candidate (deadline-stop fix + no-progress push limit + main) gate
+  `gpc-gate-release-0.5.23-candidate-20261103T042900-0500` running.
+- 2026-11-03T04:30:34-05:00, owner, verbatim: "PnPM doesn't have the reconcile keyword. Our Rust catalog tooling should follow pnpm
+  and shouldn't have that keyword too." pnpm docs read today: `pnpm install` updates the lockfile when it no
+  longer satisfies the manifests outside CI, fails under `--frozen-lockfile` (the CI default), and
+  `--lockfile-only` writes only the lockfile; pnpm has no reconcile command. Sent to the catalog agent: remove
+  `--reconcile`/`rust:reconcile`, map each Rust catalog command to its pnpm counterpart, put lock consistency in the
+  counterparts that write pnpm's lockfile, with pnpm's frozen behaviour for CI; stop and report if that needs the
+  tightener or file-enforcer to write locks (decision text says they write none). Its `cli.fuzz` sha2 0.11 compile
+  break (`generators.rs:565`, `{:x}` on a digest array) fixed by the coordinator, hex per byte, same output.
