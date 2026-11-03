@@ -424,7 +424,7 @@ Capture and acceptance (client)
   of either kind for its path is not staging, and any other index entry for that path is staging; read `lane/state` again and accept only an unchanged `g` with the marker
   `none`, else repeat. The tip is not re-read to validate: a tip that moved during capture does not invalidate the capture, because the delta
   is relative to the logical head and is replayed on the actual tip at adoption (so a branch that keeps moving cannot starve C1, and the
-  moved-head decision, save pending and exit 0, is reached). Foreign changes to the index or the worktree after the single reads are later
+  replay on the new head is reached). Foreign changes to the index or the worktree after the single reads are later
   staging, not an inconsistency, and cause no retry. Crash: nothing durable. Starvation, stated: C1 repeats only when the lane's own state
   changed between its two reads, so it can be delayed by a lane that never stops changing, and it never waits on a foreign program.
 - C2 spool. Pre: C1. Do: create a private candidate directory `incoming/<id>.<hash>.<nonce>/` with an exclusive `mkdir` (the nonce is
@@ -464,7 +464,7 @@ no check-then-act on `HEAD`'s type), the reflog anchor and R3 read `logs/HEAD` a
 ancestor (the wrapper's own successful `HEAD` update moves the detached value to `new`, so comparing with the captured value would decline it).
 Publication authority is the request's recorded target, re-checked at the start of every attempt: for an attached target the compare-and-swap on the
 recorded ref stands whatever `HEAD` names now and M1 declines when `HEAD` no longer names it; for a detached target `HEAD` must still be detached, and
-if it is symbolic now the commit is saved on `refs/cli-git/<instance>/pending/<id>` with a notice and the request is `pending` (it cannot be
+if it is symbolic now the commit is saved on `refs/cli-git/<instance>/pending/<id>` and, with a client attached, the request is withdrawn by W1 with that error (a request with no client is `pending`) (it cannot be
 published to a detached `HEAD` that no longer exists, and `--no-deref` is never used: a `HEAD` attached between the check and P2 makes the update land on the branch it names, which is what a native commit would do, and M1 then declines as the guard says). The logical head, the recovery classes and the ledger use the target ref in
 place of the branch name. A repository state that has no such target (a bare worktree without `HEAD`) is not a lane.
 
@@ -2280,7 +2280,8 @@ B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
    - Option B-hand, do nothing automatic: the command prints how to restart the unit and waits; the request is durable. Visible: the command waits until
-     the person restarts the service; this conflicts with "never stuck" if such a wedge occurs.
+     the person restarts the service; this conflicts with "never stuck" if such a wedge occurs. Revision 11: the wait ends at the FOREGROUND bound with an error that
+     names the unit and the restart command, the request is withdrawn and never lands later, and the commit is kept on a side ref (the owner's bound answers).
    - Option B-restart, restart anyway: the waiting command ends the owner without the gate and the manager restarts the service. Visible: the commit lands after
      the restart, but if the owner was inside a ref transaction with a child, ending it can leave `main.lock` that the wrapper will not remove, with
      the pending state of A-kill.
