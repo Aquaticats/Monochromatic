@@ -17,6 +17,10 @@
 //! ```
 
 use super::commit_timing::CommitTiming;
+/// The marker lines a committed file still holds, and the line about an operation left open.
+use super::conflict_markers::{open_operation_line, paths_with_markers};
+/// The kind of operation a commit concludes.
+use super::transaction_journal::Conclusion;
 use super::private_index_request::indexed_request;
 use super::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
 use super::diagnostic_log::warn;
@@ -417,15 +421,20 @@ pub fn service_commit<F: RepositoryFacts>(
                     print_note(rebuilt_note(lost.as_slice(), abbreviated(commit.as_str()).as_str()).as_str());
                 }
                 // The owner: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."
-                for path in &ready.committed_conflicted {
+                //  The claim is made for a path whose committed blob holds marker lines, read from the blob and the marker size
+                //  the attributes give; a path whose blob holds none is resolved, and nothing is said about markers for it.
+                for path in paths_with_markers(invocation.context, ready.repository.as_path(), commit.as_str(), ready.committed_conflicted.as_slice()) {
                     let name: String = String::from_utf8_lossy(path.as_slice()).into_owned();
                     // Terminal output error: a warning is advisory; a failed write must not fail a commit that landed.
                     let _warned = writeln!(
                         std::io::stderr(),
-                        "cli-git: warning: {name} still has conflict markers, and they were committed. The merge in progress is not \
-                         finished by this commit. To fix it, remove the markers from {name} and make a follow-up commit: \
-                         git commit -m \"<message>\" -- {name}"
+                        "cli-git: warning: {name} still has conflict markers, and they were committed. To fix it, remove the \
+                         markers from {name} and make a follow-up commit: git commit -m \"<message>\" -- {name}"
                     );
+                }
+                // A commit of named paths leaves the merge or cherry-pick open, whether or not markers were committed.
+                if let Some(kind) = ready.leaves_open {
+                    let _noted = write!(std::io::stderr(), "{}", open_operation_line(kind == Conclusion::Merge));
                 }
                 // The corrections a policy made reach the worktree once the commit has landed, as the earlier landing did.
                 install_added_worktree_files(

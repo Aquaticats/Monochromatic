@@ -254,8 +254,7 @@ fn a_path_committed_by_name_with_marker_lines_keeps_the_claim_and_says_the_merge
     assert!(stderr.contains("y.txt still has conflict markers, and they were committed"), "{stderr}");
     assert!(stderr.contains("follow-up commit"), "the fix of the file is said: {stderr}");
     assert!(says_the_merge_is_open(stderr.as_str()), "{stderr}");
-    assert!(!stderr.contains("To fix it, remove the markers from y.txt and make a follow-up commit: git commit -m \"<message>\" -- y.txt")
-        || !stderr.contains("The merge in progress is not finished by this commit. To fix it"), "the follow-up commit is not offered as the way to finish the merge: {stderr}");
+    assert!(!stderr.contains("The merge in progress is not finished by this commit. To fix it"), "the follow-up commit is not offered as the way to finish the merge: {stderr}");
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);

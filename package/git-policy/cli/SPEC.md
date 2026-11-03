@@ -3522,6 +3522,13 @@ even if conflict markers will be committed."):
 the commit takes the bytes the worktree holds, conflict markers included,
 and once it has landed standard error says in plain words that the path still has conflict markers,
 that they were committed, and how to fix them in a follow-up commit.
+That claim is made only for a path whose committed blob holds a marker line as Git writes it
+(`conflict_markers.rs`: the size of `conflict-marker-size` from the attributes, seven by default, equal `<` or `>` characters
+followed by white space, as Git's `is_conflict_marker` reads a line); a path the person resolved by editing, with no marker line
+left, is counted as resolved and nothing is said about markers for it.
+Whenever a commit of named paths leaves a merge or a cherry-pick in progress, with markers committed or not, standard error
+carries one more line that says so and names how to finish it: stage any file still unmerged, then `git commit` with no paths,
+or `git merge --continue` (`git cherry-pick --continue`); a follow-up commit of the path alone never finishes the operation.
 The merge stays unfinished, and the index entry of that path is the committed one.
 A plain `git commit` that names no paths while files are still unmerged finishes the merge (owner, 2026-11-03, question tool:
 "Warn and finish the merge (Recommended)"):

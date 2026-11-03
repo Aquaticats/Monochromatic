@@ -128,6 +128,9 @@ pub struct Ready {
     /// The paths this commit commits that the unfinished merge or pick left in conflict. Their worktree bytes, conflict markers
     ///  included, are what is committed; the person is warned once the commit has landed (`conflicted_path_warning`).
     pub committed_conflicted: Vec<Vec<u8>>,
+    /// The operation a commit of named paths leaves in progress: the merge or the cherry-pick whose state the commit does not
+    ///  conclude. The person is told once the commit has landed.
+    pub leaves_open: Option<Conclusion>,
 }
 
 /// The all-zero object name of the repository's hash length, standing for a branch that does not exist yet.
@@ -378,6 +381,7 @@ pub fn prepare<F: RepositoryFacts>(
             fixed_parents,
             captured_at,
             committed_conflicted: Vec::new(),
+            leaves_open: None,
         });
     };
     // Files still unmerged when the commit names no paths: Git refuses here (`builtin/commit.c:348`, `refresh_cache_or_die`, which
@@ -445,11 +449,14 @@ pub fn prepare<F: RepositoryFacts>(
     events.extend(word_merge_events);
     let changes: Option<Vec<Change>> = if config_native || unborn || detached || state_present { None } else { changes_of(context, cwd, &indexes, base.as_str())? };
     let forced: bool = config_native || unborn || detached || state_present || changes.is_none();
+    // A commit of named paths leaves the merge or cherry-pick whose state it does not conclude in progress.
+    let leaves_open: Option<Conclusion> = Some(capture.layout.conclusion).filter(|kind| { return named && matches!(kind, Conclusion::Merge | Conclusion::CherryPick); });
     let mut ready: Box<Ready> = by_git(capture, events, changes, records, pass.arguments.clone(), scratch);
     ready.needs_native = forced;
     // A path in conflict that the commit takes is committed with the bytes the worktree holds, markers included.
     ready.committed_conflicted = unmerged_before.into_iter().filter(|path| { return candidate_paths.contains(path); }).collect();
     ready.committed_conflicted.extend(unmerged_files);
+    ready.leaves_open = leaves_open;
     return Ok(Prepared::Ready(ready));
 }
 

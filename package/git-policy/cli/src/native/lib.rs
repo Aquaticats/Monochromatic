@@ -1363,6 +1363,9 @@ pub mod service_hold_retry;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
+/// The marker lines a committed file still holds, and the line about an operation a commit left open.
+pub mod conflict_markers;
+
 /// The service's memory of when the bytes of the commits it landed were captured, per worktree.
 pub mod service_captures;
 
