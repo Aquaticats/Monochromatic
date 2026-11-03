@@ -198,14 +198,20 @@ fn a_loop_is_ended_by_the_processor_budget_and_reported() {
     remove(&made);
 }
 
-/// A command that is slow but moves (it writes, spawns and sleeps again and again for several windows) is never ended, and
-/// its kill record stays empty.
+/// A command that keeps moving (it writes and starts a process again and again, for several windows) is never ended, and its
+/// kill record stays empty.
+/// The window is the monitor's own wall-clock rule and cannot be taken out of this control, so the control keeps the command
+/// from ever going quiet for a window instead: it makes a sign of life every few milliseconds, and the number of rounds is
+/// derived from the window and the pause, each round lasting at least its pause, so that several windows have passed by the
+/// time the command ends without any clock in the control. Only a command that shows nothing at all for a whole window, which
+/// is what the monitor exists to end, can fail it.
 #[test]
 fn a_slow_command_that_keeps_moving_is_not_ended() {
     let made: Fixture = fixture("supervisor-crawl");
     let window: Duration = short(Duration::from_secs(60)).no_progress;
-    let rounds: u64 = 5;
-    let pause: Duration = window / 3;
+    let pause: Duration = Duration::from_millis(10);
+    let windows_crossed: u128 = 3;
+    let rounds: u64 = u64::try_from(window.as_millis() * windows_crossed / pause.as_millis()).expect("a small count");
     let script: String = format!("i=0; while [ $i -lt {rounds} ]; do echo x >> \"$PWD/log\"; sleep {:.2}; i=$((i+1)); done", pause.as_secs_f64());
     let mut child: Child = start(&made, script.as_str());
     watch(child.id(), short(Duration::from_secs(60)));
