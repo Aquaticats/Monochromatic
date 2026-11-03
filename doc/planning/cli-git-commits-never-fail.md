@@ -941,6 +941,8 @@ revision 9: T1 observes no open entry and checks connectivity; G1 publishes a re
 Under revision 9 the released closure is reachable from the tip (the check of step (3)) so `prune` cannot remove it; a copy that is not
 reachable from the tip (saved, pending, rewritten-away) is never released by T1, so the late run cannot take it either.
 
+Revision 10 note (R9-3): the identity-based unlink described here is withdrawn; M1 creates `index.lock` with `O_EXCL`, journals the intent, and never
+removes a stranded lock (rule N, choice R).
 Answer to the M1 rows of R8-8 (revision 9). The earlier crash text promised that exit handling removes the lock; a process killed
 by SIGKILL or power loss runs no exit handling, so that promise is withdrawn. The lock is now created by `linkat` of a complete unnamed
 file whose inode was journaled first, so a stranded `index.lock` is either provably ours (same inode, unlinked by L4) or foreign (never
