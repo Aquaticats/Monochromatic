@@ -326,13 +326,17 @@ impl FixtureService {
         children.insert(key.clone(), child);
         let began: std::time::Instant = std::time::Instant::now();
         while std::os::unix::net::UnixStream::connect(&socket).is_err() {
-            // A control whose fault may keep the service from starting (a disk that is full from its first write) goes on once
-            //  the service has ended or a short wait has passed: what the client then says is the control's to check.
+            // A service that has ended will never listen, so waiting out the patience for it only hides how it ended. A
+            //  control whose fault may keep the service from starting (a disk that is full from its first write) goes on
+            //  once the service has ended or a short wait has passed: what the client then says is the control's to check.
+            let ended: Option<std::process::ExitStatus> = children.get_mut(&key).and_then(|started| { return started.try_wait().ok().flatten(); });
             if launch.may_fail_to_start {
-                let ended: bool = children.get_mut(&key).is_some_and(|started| { return started.try_wait().is_ok_and(|status| { return status.is_some(); }); });
-                if ended || began.elapsed() > std::time::Duration::from_secs(20) {
+                if ended.is_some() || began.elapsed() > std::time::Duration::from_secs(20) {
                     return;
                 }
+            } else if let Some(status) = ended {
+                children.remove(&key);
+                panic!("the fixture's commit service ended ({status}) before it listened at {}; what it wrote to its log is in this test's output", socket.display());
             }
             assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
             std::thread::sleep(std::time::Duration::from_millis(5));

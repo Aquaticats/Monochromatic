@@ -178,43 +178,80 @@ fn service_memory(value: u64) -> (Vec<Limit>, Vec<Limit>) {
     return (vec![soft(LimitKind::AddressSpace, value * MEBIBYTE)], Vec::new());
 }
 
-/// The smallest value of `kind` (mebibytes for the address space) under which the commit service starts and listens: the sweep of the service's limits begins
-///  here, because a service that cannot listen has no commit to fail (the manager reports it as a failed unit).
-fn smallest_service_limit(kind: LimitKind, high: u64) -> u64 {
+/// How long a service started under a limit may take to greet a client before it counts as not starting.
+const START_PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// How long one read of a service's greeting waits before the service is polled again.
+const GREETING_READ: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// What one start of the commit service under a limit showed.
+struct StartOutcome {
+    /// Whether a client was greeted: the service bound its socket, started its acceptor and answered.
+    greeted: bool,
+    /// What the service wrote to its log before it ended or was stopped.
+    log: String,
+}
+
+/// What:
+///  Starts the commit service under `limit` of `kind` (bytes for the address space), and reports whether it greeted a client.
+/// Why:
+///   A service that cannot start its acceptor thread still binds its socket first, and then exits within a millisecond, so
+///  its socket accepts a connection only in that moment. A probe that counted any connection as starting gave an answer
+///  that depended on whether the poll landed in that moment, which a loaded host changes: the sweep then began below the
+///  limits at which a service can run, and the fixture waited for services that had ended. Only a greeting proves the
+///  service runs, and a service that ended without one does not start at this limit.
+fn start_service_under(kind: LimitKind, limit: u64, directory: &Path) -> StartOutcome {
     let service: &str = env!("CARGO_BIN_EXE_cli-git-service");
-    let probes: Fixture = fixture("limit-probe");
-    let directory: PathBuf = probes.root.clone();
-    let name: String = format!("cli-git-limit-probe-{}", std::process::id());
-    let starts = |limit: u64| -> bool {
-        let journal: PathBuf = directory.join(format!("{name}-{limit}"));
-        let mut command: Command = Command::new(service);
-        command.args(["--journal"]).arg(&journal).args(["--abstract", format!("{name}-{limit}").as_str()]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-        let hard: u64 = kind.current_hard();
-        let applied: u64 = if kind == LimitKind::AddressSpace { limit * MEBIBYTE } else { limit };
-        // SAFETY: between fork and exec only `setrlimit`, an async-signal-safe call, runs.
-        unsafe {
-            command.pre_exec(move || { return kind.apply(applied, hard); });
+    let name: String = format!("cli-git-limit-probe-{}-{limit}-{}", std::process::id(), START_COUNTER.fetch_add(1, Ordering::SeqCst));
+    let journal: PathBuf = directory.join(name.as_str());
+    let mut command: Command = Command::new(service);
+    command.args(["--journal"]).arg(&journal).args(["--abstract", name.as_str()]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
+    let hard: u64 = kind.current_hard();
+    // SAFETY: between fork and exec only `setrlimit`, an async-signal-safe call, runs.
+    unsafe {
+        command.pre_exec(move || { return kind.apply(limit, hard); });
+    }
+    let mut child = command.spawn().expect("the service program starts");
+    let began = std::time::Instant::now();
+    let greeted: bool = loop {
+        if child.try_wait().expect("the service's state").is_some() {
+            break false;
         }
-        let mut child = command.spawn().expect("the service program starts");
-        let began = std::time::Instant::now();
-        let listening: bool = loop {
-            if child.try_wait().expect("the service's state").is_some() {
-                break false;
-            }
-            let reached = std::os::unix::net::SocketAddr::from_abstract_name(format!("{name}-{limit}").as_bytes())
-                .and_then(|address| { return std::os::unix::net::UnixStream::connect_addr(&address); });
-            if reached.is_ok() {
+        let reached = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes())
+            .and_then(|address| { return std::os::unix::net::UnixStream::connect_addr(&address); });
+        if let Ok(stream) = reached {
+            let _timeout = stream.set_read_timeout(Some(GREETING_READ));
+            let mut line: String = String::new();
+            // An empty read is a connection that ended without a greeting: the service went away as it was starting.
+            if std::io::BufRead::read_line(&mut std::io::BufReader::new(stream), &mut line).is_ok_and(|read| { return read > 0; }) {
                 break true;
             }
-            if began.elapsed() > std::time::Duration::from_secs(10) {
-                break false;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        };
-        let _killed = child.kill();
-        let _waited = child.wait();
-        let _removed = std::fs::remove_dir_all(&journal);
-        return listening;
+        }
+        if began.elapsed() > START_PATIENCE {
+            break false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    };
+    let _killed = child.kill();
+    let _waited = child.wait();
+    let mut log: String = String::new();
+    if let Some(mut stream) = child.stderr.take() {
+        let _read = std::io::Read::read_to_string(&mut stream, &mut log);
+    }
+    let _removed = std::fs::remove_dir_all(&journal);
+    return StartOutcome { greeted, log };
+}
+
+/// Numbers the starts of one test process, so that no two services share an abstract socket name.
+static START_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+/// The smallest value of `kind` (mebibytes for the address space) under which the commit service starts and greets a client: the sweep of the service's limits begins
+///  here, because a service that cannot greet has no commit to fail (the manager reports it as a failed unit).
+fn smallest_service_limit(kind: LimitKind, high: u64) -> u64 {
+    let probes: Fixture = fixture("limit-probe");
+    let starts = |limit: u64| -> bool {
+        let applied: u64 = if kind == LimitKind::AddressSpace { limit * MEBIBYTE } else { limit };
+        return start_service_under(kind, applied, probes.root.as_path()).greeted;
     };
     let smallest: u64 = smallest_working(3, high, &starts);
     remove_settled(&probes);
@@ -330,6 +367,38 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
     let (landed, refused): (usize, usize) = sweep("as-service", values.as_slice(), service_memory, true);
     assert!(refused > 0, "no address-space limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})");
     assert!(landed > 0, "no address-space limit let the commit land, so none was close to exhaustion");
+}
+
+/// How many times the service is started under a limit it cannot run under, for the test that it is never counted as starting.
+const BAND_STARTS: usize = 100;
+
+/// What:
+///  A limit under which the service binds its socket but cannot start its acceptor is never counted as one under which it
+///  starts, even when the poll and the service share one processor.
+/// Why:
+///   The service listens for about a millisecond before it exits there. On one processor the poll lands in that moment
+///  often (a few starts in a hundred on the measured host, none on an idle many-processor host), so a probe that counted a
+///  connection as starting began the sweep below the working limits on a loaded host, and the fixture then waited a minute
+///  for each service that had already ended.
+#[test]
+fn a_limit_that_lets_the_service_bind_but_not_run_is_never_counted_as_starting() {
+    let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
+    let below: u64 = (starts_at - 1) * MEBIBYTE;
+    let probes: Fixture = fixture("limit-band");
+    let outcomes: Vec<StartOutcome> = std::thread::scope(|scope| {
+        return scope
+            .spawn(|| {
+                super::support::restrict_to_one_cpu().expect("the poll and the services share one processor");
+                return (0..BAND_STARTS).map(|_| { return start_service_under(LimitKind::AddressSpace, below, probes.root.as_path()); }).collect::<Vec<StartOutcome>>();
+            })
+            .join()
+            .expect("the pinned thread ends");
+    });
+    remove_settled(&probes);
+    for outcome in &outcomes {
+        assert!(outcome.log.contains("ready"), "the service must bind before this limit stops it, or the limit tests nothing: {}", outcome.log);
+        assert!(!outcome.greeted, "a service that ended without running was counted as starting at {below} bytes: {}", outcome.log);
+    }
 }
 
 /// The wrapper, the service and every Git they start share one processor, as on a host with no other free capacity: the commit
