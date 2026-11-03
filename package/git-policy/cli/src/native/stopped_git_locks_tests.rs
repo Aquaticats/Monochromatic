@@ -307,3 +307,82 @@ fn an_empty_lock_that_a_live_writer_fills_stays() {
     assert!(lock.exists());
     remove(repo.root.as_path());
 }
+
+//region Locks of a live foreign writer, which the sweep must never remove
+// Cross-vendor review of 2026-11-03T11:33:50-05:00, finding S-1: every schedule below ended with a live writer's lock deleted.
+
+/// The reviewer's schedule: a foreign writer without `core.lockfilePid` creates the lock while the child lives, its lock
+///  descriptor is closed, and it keeps the lock empty past the settle time while the child's tree has ended.
+#[test]
+fn a_live_foreign_writers_empty_lock_kept_past_the_settle_time_stays() {
+    let repo: Repo = repo("stopped-locks-foreign-writer");
+    let ledger: LockLedger = ledger_of(&repo);
+    let member: TreeMember = ended_member();
+    // The foreign writer takes the lock after the child started, and never writes a pid file.
+    std::fs::write(lock_of(&repo, "main"), "").expect("the foreign writer's empty lock");
+    let removed: Vec<PathBuf> = ledger.sweep(std::slice::from_ref(&member));
+    assert_eq!(removed, Vec::<PathBuf>::new(), "a lock nothing ties to the stopped child was removed");
+    assert!(lock_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// The path is taken again while the sweep waits out its settle time: the new, empty lock is another writer's.
+#[test]
+fn a_lock_replaced_while_the_sweep_waits_is_left_alone() {
+    let repo: Repo = repo("stopped-locks-replaced");
+    let ledger: LockLedger = ledger_of(&repo).with_settle(Duration::from_millis(600));
+    let member: TreeMember = ended_member();
+    let lock: PathBuf = lock_of(&repo, "main");
+    std::fs::write(lock.as_path(), "").expect("the first empty lock");
+    let replaced: PathBuf = lock.clone();
+    let writer = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(150));
+        std::fs::remove_file(replaced.as_path()).expect("the first lock is released");
+        std::fs::write(replaced.as_path(), "").expect("a new writer takes the path");
+    });
+    let removed: Vec<PathBuf> = ledger.sweep(std::slice::from_ref(&member));
+    writer.join().expect("the writer ends");
+    assert_eq!(removed, Vec::<PathBuf>::new());
+    assert!(lock.exists());
+    remove(repo.root.as_path());
+}
+
+/// A pid file that is older than the lock names an earlier holder; the lock beside it is another writer's, whose own pid
+///  file Git could not create because this one was in the way.
+#[test]
+fn a_lock_made_after_a_pid_file_that_names_an_ended_member_stays() {
+    let repo: Repo = repo("stopped-locks-older-pid-file");
+    let ledger: LockLedger = ledger_of(&repo);
+    let member: TreeMember = ended_member();
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    std::thread::sleep(Duration::from_millis(50));
+    std::fs::write(lock_of(&repo, "main"), "").expect("the foreign writer's lock, made after the pid file");
+    let removed: Vec<PathBuf> = ledger.sweep(std::slice::from_ref(&member));
+    assert_eq!(removed, Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists() && pid_file_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// Locks of other protocols are never the sweep's to remove, whatever the child did.
+#[test]
+fn locks_that_are_not_reference_locks_stay() {
+    let repo: Repo = repo("stopped-locks-not-references");
+    let ledger: LockLedger = ledger_of(&repo);
+    let member: TreeMember = ended_member();
+    let others: Vec<PathBuf> = vec![
+        repo.git_dir.join("index.lock"),
+        repo.git_dir.join("shallow.lock"),
+        repo.git_dir.join("objects").join("pack").join("pack.lock"),
+    ];
+    for path in &others {
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
+        std::fs::write(path, "").expect("empty lock");
+    }
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
+    for path in &others {
+        assert!(path.exists(), "{path:?}");
+    }
+    remove(repo.root.as_path());
+}
+
+//endregion

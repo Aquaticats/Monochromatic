@@ -526,3 +526,112 @@ fn a_staging_file_that_a_process_holds_open_stays() {
     drop(holder);
     stage.finish();
 }
+
+//region Evidence that is not proof (cross-vendor review of 2026-11-03T11:33:50-05:00, finding S-2)
+
+/// A day, far over the hour a clock correction is usually made of.
+const A_DAY: Duration = Duration::from_secs(86_400);
+
+/// A forward correction of the wall clock during the boot moves `btime`, so a lock a live Git made before it looks older
+///  than the boot. The time of the file is then no evidence, and with nothing else the lock stays and is reported.
+#[test]
+fn a_lock_that_a_clock_step_puts_before_the_boot_is_not_judged_stale() {
+    let stage: Stage = killed::stage("stale-refs-clock-step", false);
+    plant_lock(&stage, PLANTED_REF, None);
+    let stepped: Judge = Judge { boot: Some(SystemTime::now() + A_DAY), ..judge() };
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &stepped);
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(stage.lock_of(PLANTED_REF).exists());
+    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    stage.finish();
+}
+
+/// A process table with one process of a nested PID namespace: the table numbers it `outer`, and it numbers itself `inner`.
+fn table_with_nested_process(stage: &Stage, outer: i64, inner: i64) -> PathBuf {
+    let table: PathBuf = stage.root.join("proc-nested");
+    let process: PathBuf = table.join(outer.to_string());
+    std::fs::create_dir_all(process.join("fd")).expect("fake process");
+    std::fs::write(process.join("comm"), "sh\n").expect("comm");
+    std::fs::write(process.join("status"), format!("Name:\tsh\nNSpid:\t{outer}\t{inner}\n")).expect("status");
+    return table;
+}
+
+/// A pid file written inside a nested PID namespace holds the number that namespace gave the writer. No process of the
+///  initial namespace has that number, yet the writer runs, so the number being absent proves nothing.
+#[test]
+fn a_pid_number_that_a_nested_namespace_gave_its_writer_is_not_judged_gone() {
+    let stage: Stage = killed::stage("stale-refs-nested-number", true);
+    let inner: i64 = ended_pid();
+    plant_lock(&stage, PLANTED_REF, Some(inner));
+    let table: PathBuf = table_with_nested_process(&stage, inner + 1, inner);
+    let nested: Judge = Judge { proc_root: table, ..judge() };
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &nested);
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(stage.lock_of(PLANTED_REF).exists());
+    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    stage.finish();
+}
+
+/// The same, with a real nested namespace: a process whose number in its namespace was set high enough to be free on this host.
+#[test]
+#[cfg(target_os = "linux")]
+fn a_writer_in_a_real_nested_namespace_is_not_judged_gone() {
+    let stage: Stage = killed::stage("stale-refs-real-namespace", true);
+    let Some(inside) = NestedProcess::start(FREE_LOCAL_NUMBER) else {
+        eprintln!("skipped: this host does not let an unprivileged process make a PID namespace");
+        stage.finish();
+        return;
+    };
+    assert!(!Path::new("/proc").join(inside.local.to_string()).exists(), "the number {} is free on this host", inside.local);
+    plant_lock(&stage, PLANTED_REF, Some(inside.local));
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(stage.lock_of(PLANTED_REF).exists());
+    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
+    drop(inside);
+    stage.finish();
+}
+
+/// The number the next process of the nested namespace gets, set high so that this host has no process with it.
+const FREE_LOCAL_NUMBER: i64 = 3_000_000;
+
+/// A process in a PID namespace of its own, and the number that namespace gave it.
+#[cfg(target_os = "linux")]
+struct NestedProcess {
+    /// The `unshare` process; its standard input is what keeps the namespace's init waiting.
+    child: Child,
+    /// The number the namespace gave the sleeping process.
+    local: i64,
+}
+
+#[cfg(target_os = "linux")]
+impl NestedProcess {
+    /// Start `sleep` as process number `first + 1` of a new PID namespace; nothing when the host refuses the namespace.
+    fn start(first: i64) -> Option<Self> {
+        use std::io::BufRead as _;
+        let script: String = format!("echo {first} > /proc/sys/kernel/ns_last_pid; sleep 120 & echo $!; read _; kill $!");
+        let mut child: Child = Command::new("unshare")
+            .args(["--user", "--map-root-user", "--pid", "--fork", "--mount-proc", "sh", "-c", script.as_str()])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
+        let output = child.stdout.take()?;
+        let mut line: String = String::new();
+        std::io::BufReader::new(output).read_line(&mut line).ok()?;
+        let local: i64 = line.trim().parse::<i64>().ok()?;
+        return Some(Self { child, local });
+    }
+}
+
+/// Whatever the control did, closing the input ends the namespace's init, which ends the sleeper with it.
+#[cfg(target_os = "linux")]
+impl Drop for NestedProcess {
+    fn drop(&mut self) {
+        drop(self.child.stdin.take());
+        let _waited = self.child.wait();
+    }
+}
+
+//endregion
