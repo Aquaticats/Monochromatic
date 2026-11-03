@@ -311,6 +311,11 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   the agent merges the base into `feat/git-policy-cli-word-level-second-merge-pass`,
   verifies the `--autostash` and `branch.<name>.mergeOptions` follow-ups,
   and builds `git pull` through the isolated merge if it is missing.
+- Running:
+  a second early gate of the 0.5.28 base at `afc9a8621d` (after the waits,
+  citations follow-ups and fallback merges),
+  unit `gpc-gate-candidate-0-5-28-fallback-citations-20261103T114530-0500.service`,
+  log beside it in `~/temp/agent/gate/`.
 - Passed:
   an early gate of the 0.5.28 base at its tip after the index writer's second round
   (unit `gpc-gate-candidate-0-5-28-early-20261103T111639-0500.service`,
