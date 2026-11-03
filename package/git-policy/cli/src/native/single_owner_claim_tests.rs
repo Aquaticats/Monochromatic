@@ -111,10 +111,10 @@ fn only_one_of_many_simultaneous_claimants_holds_the_item() {
     let barrier: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(claimants));
     let handles: Vec<std::thread::JoinHandle<Option<OwnerClaim>>> = (0..claimants)
         .map(|_index: usize| {
-            let (directory, barrier) = (directory.clone(), std::sync::Arc::clone(&barrier));
+            let (claimant_directory, claimant_barrier) = (directory.clone(), std::sync::Arc::clone(&barrier));
             return std::thread::spawn(move || {
-                barrier.wait();
-                return match take_claim(directory.as_path(), prefix()).expect("no failure") {
+                claimant_barrier.wait();
+                return match take_claim(claimant_directory.as_path(), prefix()).expect("no failure") {
                     ClaimOutcome::Held(claim) => Some(claim),
                     ClaimOutcome::Busy(_owner) => None,
                 };
