@@ -337,6 +337,10 @@ mod service_scratch;
 #[path = "binary_service_native_tests.rs"]
 mod service_native;
 
+/// A commit with named paths during a revert, a cherry-pick or a merge, compared with real Git.
+#[path = "binary_service_sequencer_tests.rs"]
+mod service_sequencer;
+
 /// The route of a commit and the wrapper's own provisioning of socket activation, against a stand-in session bus.
 #[path = "binary_service_provision_tests.rs"]
 mod service_provision;
