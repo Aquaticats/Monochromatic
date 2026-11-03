@@ -388,6 +388,48 @@ fn a_landing_waits_for_a_foreign_index_lock_and_builds_on_what_the_holder_left()
     remove(world.root.as_path());
 }
 
+/// The index lock is not held while the batch's objects are made: it is asked for only once everything that needs no index is
+/// done, so a program that wants the index meanwhile (a `git add`) is not made to wait for the import.
+#[test]
+fn the_index_lock_is_not_held_while_the_objects_are_made() {
+    let mut world: World = world("service-land-lock-after-objects");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let lock: PathBuf = world.repo.join(".git/index.lock");
+    let seen_held: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let seen_free: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let (held, free, watched) = (seen_held.clone(), seen_free.clone(), lock.clone());
+    world.context.on_objects_written = Some(Box::new(move || {
+        let counter: &Arc<AtomicUsize> = if watched.exists() { &held } else { &free };
+        counter.fetch_add(1, Ordering::SeqCst);
+    }));
+    let outcomes = land_batch(&world.context, 1, &[request]).expect("landed");
+    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
+    assert_eq!(seen_held.load(Ordering::SeqCst), 0, "the lock stood while the objects were being made");
+    assert_eq!(seen_free.load(Ordering::SeqCst), 1, "the seam ran once, with no lock in the Git directory");
+    assert!(!lock.exists(), "the landing gave the lock up");
+    remove(world.root.as_path());
+}
+
+/// A foreign holder that is still there when the landing asks for the lock does not keep the landing from making its
+/// objects: they are made first, and the lock is waited for after, so a holder that lets go while they are made costs no wait.
+#[test]
+fn a_foreign_holder_is_waited_for_after_the_objects_are_made_not_before() {
+    let mut world: World = world("service-land-wait-after-objects");
+    world.context.index_wait = std::time::Duration::from_millis(400);
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let lock: PathBuf = world.repo.join(".git/index.lock");
+    std::fs::write(&lock, "foreign").expect("foreign lock");
+    let watched: PathBuf = lock.clone();
+    world.context.on_objects_written = Some(Box::new(move || {
+        std::fs::remove_file(&watched).expect("the holder lets go while the objects are made");
+    }));
+    let waited: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    let outcomes = land_batch_announcing(&world.context, 1, &[request], &|_: Announce| { waited.set(true); }).expect("landed");
+    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
+    assert!(!waited.get(), "the holder was gone before the lock was asked for, so nothing was waited for");
+    remove(world.root.as_path());
+}
+
 /// A holder that outlives the limit: the landing fails before anything moves, the holder's lock stands, and no intent is left.
 #[test]
 fn a_foreign_index_lock_that_outlives_the_limit_changes_nothing() {
