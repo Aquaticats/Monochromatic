@@ -4,9 +4,13 @@
 
 The user requested:
 "Set all my disks to use zstd level 3 and make it permanent."
-They extended this to all future disks, volumes, subvolumes, and future subvolumes,
+They extended this to all future disks,
+volumes,
+subvolumes,
+and future subvolumes,
 then instructed:
-"For fs s that lack this setting, ignore them."
+"For fs s that lack this setting,
+ignore them."
 
 ## Host changes at 2026-11-03T01:11:03-05:00
 
@@ -20,7 +24,10 @@ then instructed:
 - Remounted `/var` with `compress=zstd:3`.
   `findmnt --types btrfs --output TARGET,SOURCE,OPTIONS` subsequently reported level 3
   on every Btrfs mount,
-  including `/etc`, `/var/home`, `/sysroot`, and `/var/mnt/encrypted`.
+  including `/etc`,
+  `/var/home`,
+  `/sysroot`,
+  and `/var/mnt/encrypted`.
   `/sysroot` remains read-only.
 - Original configuration copies are in `${HOME}/temp/agent/zstd-level3.5DYHCrEG/`.
 - `findmnt --verify --verbose` reports no parse errors,
@@ -36,13 +43,17 @@ then instructed:
 - Verify an event-driven systemd policy for Btrfs mounts outside those automounters,
   using disposable disk images and checking subvolume inheritance.
 - Replace level 1 in the persistent `rootflags` boot argument.
-  An existing `rpm-ostree update check`, PID `1403954`, holds an Upgrade transaction.
+  An existing `rpm-ostree update check`,
+  PID `1403954`,
+  holds an Upgrade transaction.
   A question asks whether the user authorizes cancelling that check.
   Do not cancel without their answer.
   The bounded wait is command session `48868`,
   scope `run-p1778395-i35317046.scope`,
   with a 600-second deadline.
-- Verify final runtime settings, persisted configuration, and generated units.
+- Verify final runtime settings,
+  persisted configuration,
+  and generated units.
 
 ## Scope and evidence limits
 
@@ -51,7 +62,9 @@ shared by subvolume mounts,
 and the default zstd level of 3.
 This changes the policy for eligible future writes.
 Existing extents are not recompressed.
-Swapfiles, inode exceptions, unsupported filesystem types,
+Swapfiles,
+inode exceptions,
+unsupported filesystem types,
 and read-only data must not be rewritten or reformatted.
 No reboot or disk-wide defragmentation is authorized by this work.
 
@@ -76,7 +89,10 @@ the configured default supplies `compress=zstd:3`;
 direct policy selection excludes read-only mounts;
 new manual mounts and later remounts are corrected;
 and newly created/mounted subvolumes inherit the filesystem setting.
-The `rw`, `nodev`, `nosuid`, and `noexec` options were preserved.
+The `rw`,
+`nodev`,
+`nosuid`,
+and `noexec` options were preserved.
 All fixture mounts and loop devices were removed.
 Test harnesses are retained in the private backup directory as `verify-policy.ts` and `verify-udisks.ts`.
 
@@ -117,7 +133,10 @@ the running system service,
 UDisks defaults with the reconciliation service stopped,
 and an F2FS image without compression support.
 The unsupported image mounted successfully and remained uncompressed.
-The test preserved `rw`, `nodev`, `nosuid`, and `noexec`;
+The test preserved `rw`,
+`nodev`,
+`nosuid`,
+and `noexec`;
 its new file had the compression attribute.
 The service was restarted after the UDisks-only check.
 
@@ -155,3 +174,26 @@ Existing extents and explicit per-inode compression exceptions are not rewritten
 No unsupported filesystem is reformatted or given a new on-disk feature.
 Filesystems installed in the future with different compression APIs
 are outside the verified Btrfs/F2FS coverage.
+
+## Persistence checks at 2026-11-03T06:31:28+00:00
+
+`ostree admin config-diff` recognizes the local `fstab`,
+UDisks defaults,
+SteamOS defaults,
+both policy units,
+both enablement symlinks,
+and the SATA mount service.
+The installed `ostree-finalize-staged.service` is active with `RemainAfterExit=yes`
+and invokes `ostree admin finalize-staged` through `ExecStop` at shutdown.
+
+The repository's [OSTree configuration persistence record](../troubleshooting/rpm-ostree-inotify-persistence.md)
+documents the administrator `/etc` merge and the distinction between upgrades and rollback deployments.
+The packaged build's reported Git identifier is not available from upstream;
+that existing source-version limitation remains.
+Persistence is configured and supported by the merge contract,
+not by a reboot performed during this task.
+
+The current upstream finalization path merges administrator configuration when finalizing a staged deployment.
+The staged tree before finalization is therefore not the completed next-boot configuration.
+No direct edits were made to the staged deployment.
+The KernelArgs transaction remains in progress.
