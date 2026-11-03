@@ -100,15 +100,86 @@ Successful installation and runtime checks remain pending.
 - Disabling compilation does not install `below 0.9.0` on this machine.
 - The stopped stable build proves no remedy for the nightly failure.
 
+## Clang compatibility at 2026-11-03T01:45:58-05:00
+
+The GitHub release's Rust dependencies compiled,
+but its eBPF build failed with host clang `23.1.4`:
+
+```text
+# below v0.11.0 build-script diagnostic
+exitstat.bpf.c:140:39: error: incompatible pointer types initializing 'const struct mm_struct___pre62 *'
+exitstat.bpf.c:145:40: error: incompatible pointer types initializing 'const struct mm_struct___post62 *'
+```
+
+The complete diagnostics identify `-Wincompatible-pointer-types`.
+Upstream issue `facebookincubator/below#8275` reports the same statements and diagnostic with clang `22`.
+The issue comments point to pull request `8280`;
+the repository's commit history contains the explicit-cast fix as
+`1fa6d036eb8fb9acd3a79c2eb393f1e2f5bd9448`.
+That fix is absent from release commit `6d62fc1f705385dfa71474e7c984b34c868ad089`.
+No upstream source was edited locally.
+
+A direct compilation of the release's existing `exitstat.bpf.c`,
+using the installed libbpf headers and the build script's BPF arguments,
+still failed with `CCC_OVERRIDE_OPTIONS=+-std=gnu17`.
+The same compilation passed with
+`CCC_OVERRIDE_OPTIONS=+-Wno-error=incompatible-pointer-types`.
+The pointer diagnostics remained visible as warnings.
+This is a compiler compatibility option scoped to the installation command;
+the tradeoff is accepting these implicit conversions in the tagged release.
+
+The resumed install uses:
+
+```sh
+# From the repository root, after preparing a private scratch directory under ${HOME}/temp/agent.
+systemd-run --user --scope \
+  --property=CPUQuota=200% --property=MemoryMax=8G \
+  --property=TasksMax=256 --property=IOWeight=10 \
+  env TMPDIR="${HOME}/temp/agent/below-install-jJBQNI" \
+  CARGO_BUILD_JOBS=2 RUSTUP_TOOLCHAIN=stable \
+  CCC_OVERRIDE_OPTIONS=+-Wno-error=incompatible-pointer-types \
+  mise run toolchain:install:global -- --frozen-lockfile
+```
+
+## Failed-install directory at 2026-11-03T01:45:58-05:00
+
+The first GitHub build left its destination with empty `.crates.toml` and `.crates2.json` files,
+and no executable.
+An immediate retry returned success with `62 unchanged`,
+but also printed `toolchain install: unresolved bins: below`.
+`command -v below` returned failure.
+
+`package/mpm-shadow/cli/src/toolchain/observe.rs:220` sends the `CargoGit` route to directory observation.
+The observation at lines `185` and `190` accepts a matching directory without checking the executable:
+
+```rust
+// package/mpm-shadow/cli/src/toolchain/observe.rs:185
+if entry.path().is_dir() && !name.starts_with('.') {
+    names.push(name);
+}
+```
+
+```rust
+// package/mpm-shadow/cli/src/toolchain/observe.rs:190
+if names.contains(&tool.version) {
+    return Some(tool.version.clone());
+}
+```
+
+After listing the destination,
+the incomplete directory was moved into the private scratch directory as `failed-git-root`.
+The next installation launched Cargo again.
+This recovery preserves the failed records;
+it does not repair the toolchain's general incomplete-install detection.
+
 ## Upstream filing decision
 
-- Upstream fault is not established:
-  the observed publication inventories differ,
-  and the dependency diagnostic belongs to the abandoned registry installation.
-- No upstream fix is proposed.
+- The clang incompatibility is already tracked and fixed in upstream source.
+  The registry publication difference and the abandoned nightly build remain separate observations.
+- No additional upstream fix is proposed.
 - Source installation is the path documented by below's fetched README.
 - Contribution-policy review is not needed for this local installation record.
 - No claim about maintainer willingness is made.
-- No upstream patch was prototyped because no upstream defect is being proposed.
+- No upstream patch was prototyped because the matching explicit-cast fix already exists.
 
 There is no upstream filing artifact or external message.
