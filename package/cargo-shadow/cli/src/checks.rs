@@ -11,25 +11,82 @@
 //! export async function trustRefusals({ versions, settings, registry, now }): Promise<TrustRefusal[]>
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
+/// What:
+/// `use std::collections::BTreeSet;` imports `BTreeSet` from the standard library so this file can name it unqualified.
+/// Why:
+/// `BTreeSet` is used by `crate_trust_refusals`,
+/// `trust_refusals`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BTreeSet } from 'std/collections';
+/// ```
 use std::collections::BTreeSet;
 
-// Imports `monochromatic_dependency_catalog::{Settings...`.
+/// What:
+/// `use monochromatic_dependency_catalog::{Settings, TrustPolicy};` imports `Settings`,
+/// `TrustPolicy` from the external crate `monochromatic_dependency_catalog` so this file can name them unqualified.
+/// Why:
+/// `Settings` is used by `check_release_age`,
+/// `crate_trust_refusals`,
+/// `trust_refusals`,
+/// `check_trust`;
+/// `TrustPolicy` is used by `trust_refusals`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Settings, TrustPolicy } from 'monochromatic_dependency_catalog';
+/// ```
 use monochromatic_dependency_catalog::{Settings, TrustPolicy};
 
-// Imports `crate::http::RegistryError`.
+/// What:
+/// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `RegistryError` is used by `check_release_age`,
+/// `trust_refusals`,
+/// `check_trust`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { RegistryError } from 'crate/http';
+/// ```
 use crate::http::RegistryError;
-// Imports `crate::lockfile::LockedVersion`.
+/// What:
+/// `use crate::lockfile::LockedVersion;` imports `LockedVersion` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `LockedVersion` is used by `group_by_name`,
+/// `check_release_age`,
+/// `trust_refusals`,
+/// `check_trust`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockedVersion } from 'crate/lockfile';
+/// ```
 use crate::lockfile::LockedVersion;
-// Imports `crate::policy::{release_age_problems, trust...`.
+/// What:
+/// `use crate::policy::{release_age_problems, trust_problems};` imports `release_age_problems`,
+/// `trust_problems` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `release_age_problems` is used by `check_release_age`;
+/// `trust_problems` is used by `crate_trust_refusals`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { release_age_problems, trust_problems } from 'crate/policy';
+/// ```
 use crate::policy::{release_age_problems, trust_problems};
-// Imports `crate::registry::Registry`.
+/// What:
+/// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `Registry` is used by `check_release_age`,
+/// `trust_refusals`,
+/// `check_trust`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Registry } from 'crate/registry';
+/// ```
 use crate::registry::Registry;
 
 /// The findings of a check pass.

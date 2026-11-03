@@ -12,12 +12,63 @@
 //! export function pruneExcludes({ source, settings, locked }): { source: string; removed: string[] }
 //! ```
 
+/// What:
+/// `use std::collections::BTreeSet;` imports `BTreeSet` from the standard library so this file can name it unqualified.
+/// Why:
+/// `BTreeSet` is used by `prune_excludes`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BTreeSet } from 'std/collections';
+/// ```
 use std::collections::BTreeSet;
 
+/// What:
+/// `use monochromatic_dependency_catalog::Settings;` imports `Settings` from the external crate `monochromatic_dependency_catalog` so this file can name it unqualified.
+/// Why:
+/// `Settings` is used by `prune_excludes`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Settings } from 'monochromatic_dependency_catalog';
+/// ```
 use monochromatic_dependency_catalog::Settings;
+/// What:
+/// `use toml_edit::{Array, DocumentMut, Item, Value};` imports `Array`,
+/// `DocumentMut`,
+/// `Item`,
+/// `Value` from the external crate `toml_edit` so this file can name them unqualified.
+/// Why:
+/// `Array` is used by `prune_excludes`;
+/// `DocumentMut` is used by `prune_excludes`;
+/// `Item` is used by `prune_excludes`;
+/// `Value` is used by `prune_excludes`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Array, DocumentMut, Item, Value } from 'toml_edit';
+/// ```
 use toml_edit::{Array, DocumentMut, Item, Value};
 
+/// What:
+/// `use crate::lockfile::LockedVersion;` imports `LockedVersion` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `LockedVersion` is used by `prune_excludes`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockedVersion } from 'crate/lockfile';
+/// ```
 use crate::lockfile::LockedVersion;
+/// What:
+/// `use crate::selectors::prune_selectors;` imports `prune_selectors` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `prune_selectors` is used by `prune_excludes`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { prune_selectors } from 'crate/selectors';
+/// ```
 use crate::selectors::prune_selectors;
 
 /// The result of pruning.

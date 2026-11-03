@@ -13,6 +13,17 @@
 //! export function treatmentOf(args: string[]): Treatment { ... }
 //! ```
 
+/// What:
+/// `use std::ffi::OsString;` imports `OsString` from the standard library so this file can name it unqualified.
+/// Why:
+/// `OsString` is used by `words_before_double_dash`,
+/// `find_verb`,
+/// `treatment_of`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { OsString } from 'std/ffi';
+/// ```
 use std::ffi::OsString;
 
 /// What the shadow does before it runs cargo.

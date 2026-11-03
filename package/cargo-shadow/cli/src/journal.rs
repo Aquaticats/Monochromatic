@@ -33,11 +33,80 @@
 //! export function begin / finish / recover
 //! ```
 
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `atomic_write`,
+/// `restore_if_unchanged`,
+/// `begin`,
+/// `finish`,
+/// and others.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
+/// What:
+/// `use std::io;` imports `io` from the standard library so this file can name it unqualified.
+/// Why:
+/// `io` is used by `atomic_write`,
+/// `restore_if_unchanged`,
+/// `begin`,
+/// `read_journal`,
+/// and others.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { io } from 'std';
+/// ```
 use std::io;
+/// What:
+/// `use std::path::{Path, PathBuf};` imports `Path`,
+/// `PathBuf` from the standard library so this file can name them unqualified.
+/// Why:
+/// `Path` is used by `sibling_temp`,
+/// `atomic_write`,
+/// `restore_if_unchanged`,
+/// `journal_path`,
+/// and others;
+/// `PathBuf` is used by `sibling_temp`,
+/// `atomic_write`,
+/// `restore_if_unchanged`,
+/// `journal_path`,
+/// and others.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path, PathBuf } from 'std/path';
+/// ```
 use std::path::{Path, PathBuf};
 
+/// What:
+/// `use crate::constants::LOCKFILE_NAME;` imports `LOCKFILE_NAME` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `LOCKFILE_NAME` is used by `restore_if_unchanged`,
+/// `recover`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LOCKFILE_NAME } from 'crate/constants';
+/// ```
 use crate::constants::LOCKFILE_NAME;
+/// What:
+/// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
+/// `read_locks` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `LockSnapshot` is used by `restore_if_unchanged`,
+/// `begin`,
+/// `read_journal`,
+/// `recover`;
+/// `read_locks` is used by `recover`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockSnapshot, read_locks } from 'crate/crates';
+/// ```
 use crate::crates::{LockSnapshot, read_locks};
 
 /// Where journals live,

@@ -71,13 +71,6 @@
 //! export function planUpdate(args: string[]): UpdatePlan
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
 // What:     `OsString` is operating-system text that need not be valid UTF-8 (sibling: `String`, always valid UTF-8).
 // Why:      Command-line arguments pass through byte for byte, so they are kept as the OS gave them.
 //
@@ -85,9 +78,28 @@
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::ffi::OsString;` imports `OsString` from the standard library so this file can name it unqualified.
+/// Why:
+/// `OsString` is used by `plan_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { OsString } from 'std/ffi';
+/// ```
 use std::ffi::OsString;
 
-// Imports `crate::verb::{find_verb, words_before_doubl...`.
+/// What:
+/// `use crate::verb::{find_verb, words_before_double_dash};` imports `find_verb`,
+/// `words_before_double_dash` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `find_verb` is used by `plan_update`;
+/// `words_before_double_dash` is used by `plan_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { find_verb, words_before_double_dash } from 'crate/verb';
+/// ```
 use crate::verb::{find_verb, words_before_double_dash};
 
 /// What the command line stands for.

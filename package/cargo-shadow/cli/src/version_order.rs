@@ -13,8 +13,30 @@
 //! export function caretCompatible({ version, candidate }): boolean
 //! ```
 
+/// What:
+/// `use std::cmp::Ordering;` imports `Ordering` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Ordering` is used by `compare_texts`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Ordering } from 'std/cmp';
+/// ```
 use std::cmp::Ordering;
 
+/// What:
+/// `use monochromatic_dependency_catalog::version::{ParsedVersion, compare_versions, parse_version};` imports `ParsedVersion`,
+/// `compare_versions`,
+/// `parse_version` from the external crate `monochromatic_dependency_catalog` so this file can name them unqualified.
+/// Why:
+/// `ParsedVersion` is used by `parsed`;
+/// `compare_versions` is used by `compare_texts`;
+/// `parse_version` is used by `parsed`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ParsedVersion, compare_versions, parse_version } from 'monochromatic_dependency_catalog/version';
+/// ```
 use monochromatic_dependency_catalog::version::{ParsedVersion, compare_versions, parse_version};
 
 /// Parses a full version;

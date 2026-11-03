@@ -23,13 +23,17 @@
 //! export function record(args: { stampFile: string; files: string[] }): void
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `fingerprint`,
+/// `is_fresh`,
+/// `record`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
 // Imports `std::path::{Path, PathBuf}`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
@@ -39,11 +43,46 @@ use std::fs;
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::path::{Path, PathBuf};` imports `Path`,
+/// `PathBuf` from the standard library so this file can name them unqualified.
+/// Why:
+/// `Path` is used by `stamp_file`,
+/// `fingerprint`,
+/// `is_fresh`,
+/// `record`,
+/// and others;
+/// `PathBuf` is used by `stamp_file`,
+/// `record`,
+/// `manifests_from_metadata`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path, PathBuf } from 'std/path';
+/// ```
 use std::path::{Path, PathBuf};
-// Imports `std::time::UNIX_EPOCH`.
+/// What:
+/// `use std::time::UNIX_EPOCH;` imports `UNIX_EPOCH` from the standard library so this file can name it unqualified.
+/// Why:
+/// `UNIX_EPOCH` is used by `fingerprint`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { UNIX_EPOCH } from 'std/time';
+/// ```
 use std::time::UNIX_EPOCH;
 
-// Imports `serde_json::Value`.
+/// What:
+/// `use serde_json::Value;` imports `Value` from the external crate `serde_json` so this file can name it unqualified.
+/// Why:
+/// `Value` is used by `is_fresh`,
+/// `record`,
+/// `manifests_from_metadata`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Value } from 'serde_json';
+/// ```
 use serde_json::Value;
 
 /// Where stamps live,

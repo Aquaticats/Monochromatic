@@ -14,13 +14,15 @@
 //! export function findCargoRoot(start: string): string | undefined
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `find_cargo_root`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
 // Imports `std::path::{Path, PathBuf}`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
@@ -30,12 +32,43 @@ use std::fs;
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::path::{Path, PathBuf};` imports `Path`,
+/// `PathBuf` from the standard library so this file can name them unqualified.
+/// Why:
+/// `Path` is used by `find_catalog_root`,
+/// `find_cargo_root`;
+/// `PathBuf` is used by `find_catalog_root`,
+/// `find_cargo_root`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path, PathBuf } from 'std/path';
+/// ```
 use std::path::{Path, PathBuf};
 
-// Imports `toml_edit::DocumentMut`.
+/// What:
+/// `use toml_edit::DocumentMut;` imports `DocumentMut` from the external crate `toml_edit` so this file can name it unqualified.
+/// Why:
+/// `DocumentMut` is used by `declares_workspace`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DocumentMut } from 'toml_edit';
+/// ```
 use toml_edit::DocumentMut;
 
-// Imports `crate::constants::{CATALOG_MARKER, MANIFEST...`.
+/// What:
+/// `use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};` imports `CATALOG_MARKER`,
+/// `MANIFEST_NAME` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `CATALOG_MARKER` is used by `find_catalog_root`;
+/// `MANIFEST_NAME` is used by `find_cargo_root`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CATALOG_MARKER, MANIFEST_NAME } from 'crate/constants';
+/// ```
 use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};
 
 /// The nearest ancestor (the directory itself included) that holds `rust-catalog.toml`.

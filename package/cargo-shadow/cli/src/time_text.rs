@@ -78,9 +78,27 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
 
 /// A reader over the timestamp text that moves forward as it takes pieces.
 struct Cursor<'a> {
+    /// What:
+    /// Field `remaining` is the part of the timestamp text not yet read (`&'a str` is a borrowed slice that must live as long as the text it points into).
+    /// Why:
+    /// Each reading step consumes a piece from the front without copying the text.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// remaining: string
+    /// ```
     remaining: &'a str,
 }
 
+/// What:
+/// `impl<'a> Cursor<'a> { ... }` attaches the reading steps to the cursor (`'a` ties the cursor to the text it reads).
+/// Why:
+/// The timestamp parser is a straight line of named steps instead of repeated slicing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Cursor { digits(n) {} expect(c) {} accept(c) {} }
+/// ```
 impl<'a> Cursor<'a> {
     /// Takes exactly `length` ASCII digits and returns their number.
     fn digits(&mut self, length: usize) -> Option<i64> {

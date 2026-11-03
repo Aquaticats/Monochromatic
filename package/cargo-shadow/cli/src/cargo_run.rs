@@ -18,10 +18,56 @@
 //! export type RunCargo = (request: { cwd: string; args: string[] }) => Promise<{ ok: boolean; output: string }>;
 //! ```
 
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `run`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
+/// What:
+/// `use std::path::{Path, PathBuf};` imports `Path`,
+/// `PathBuf` from the standard library so this file can name them unqualified.
+/// Why:
+/// `Path` is used by `run`,
+/// the `impl` of `F`;
+/// `PathBuf` is used by `RealCargo`,
+/// `run`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path, PathBuf } from 'std/path';
+/// ```
 use std::path::{Path, PathBuf};
+/// What:
+/// `use std::process::Command;` imports `Command` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Command` is used by `run`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Command } from 'std/process';
+/// ```
 use std::process::Command;
 
+/// What:
+/// `use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, format_guard};` imports `GUARD_VARIABLE`,
+/// `Guard`,
+/// `GuardKind`,
+/// `format_guard` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `GUARD_VARIABLE` is used by `run`;
+/// `Guard` is used by `run`;
+/// `GuardKind` is used by `run`;
+/// `format_guard` is used by `run`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { GUARD_VARIABLE, Guard, GuardKind, format_guard } from 'crate/guard';
+/// ```
 use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, format_guard};
 
 /// The outcome of one cargo run.
@@ -63,7 +109,29 @@ pub struct RealCargo {
     pub toolchain: String,
 }
 
+/// What:
+/// `impl CargoRunner for RealCargo { ... }` makes the real cargo usable wherever a `CargoRunner` is asked for (a trait is a TS interface,
+/// an `impl` block the class that implements it).
+/// Why:
+/// The install and update steps take any runner,
+/// so the same code runs the real cargo in production and a fake in the tests.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RealCargo implements CargoRunner { run(cwd, args) { ... } }
+/// ```
 impl CargoRunner for RealCargo {
+    /// What:
+    /// `fn run(&self, cwd, args)` starts the real cargo in `cwd` with `args` and returns whether it exited 0 and what it printed;
+    /// `&self` borrows the runner read-only.
+    /// Why:
+    /// Every cargo call of the install and the update goes through it,
+    /// so the pinned toolchain and the loop guard are set in one place.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// run(cwd: string, args: string[]): CargoOutcome  // throws if cargo cannot start
+    /// ```
     fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
         let mut command: Command = Command::new(&self.program);
         command.args(args).current_dir(cwd);
@@ -90,6 +158,16 @@ impl<F> CargoRunner for F
 where
     F: Fn(&Path, &[String]) -> Result<CargoOutcome, String>,
 {
+    /// What:
+    /// `fn run(&self, cwd, args)` of the closure runner calls the closure itself with the same arguments.
+    /// Why:
+    /// A test passes `|cwd, args| ...` as the cargo to use,
+    /// which is shorter than defining a struct per fake.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// run(cwd: string, args: string[]) { return fn(cwd, args); }
+    /// ```
     fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
         return self(cwd, args);
     }

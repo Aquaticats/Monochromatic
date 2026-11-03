@@ -21,17 +21,44 @@
 //! export function createRegistry({ root, fetchText }): Registry
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
+/// What:
+/// `use std::cell::Cell;` imports `Cell` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Cell` is used by `CratesIo`,
+/// `new`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Cell } from 'std/cell';
+/// ```
 use std::cell::Cell;
-// Imports `std::collections::{BTreeMap, BTreeSet}`.
+/// What:
+/// `use std::collections::{BTreeMap, BTreeSet};` imports `BTreeMap`,
+/// `BTreeSet` from the standard library so this file can name them unqualified.
+/// Why:
+/// `BTreeMap` is used by `pubtimes`,
+/// `parse_index_pubtimes`;
+/// `BTreeSet` is used by `yanked`,
+/// `owners`,
+/// `prefetch`,
+/// `parse_index_yanked`,
+/// and others.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BTreeMap, BTreeSet } from 'std/collections';
+/// ```
 use std::collections::{BTreeMap, BTreeSet};
-// Imports `std::fs`.
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `read_cached_history`,
+/// `history`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
 // Imports `std::path::{Path, PathBuf}`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
@@ -41,8 +68,30 @@ use std::fs;
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::path::{Path, PathBuf};` imports `Path`,
+/// `PathBuf` from the standard library so this file can name them unqualified.
+/// Why:
+/// `Path` is used by `read_cached_history`,
+/// `with_defaults`,
+/// `new`;
+/// `PathBuf` is used by `CratesIo`,
+/// `history`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path, PathBuf } from 'std/path';
+/// ```
 use std::path::{Path, PathBuf};
-// Imports `std::thread::sleep`.
+/// What:
+/// `use std::thread::sleep;` imports `sleep` from the standard library so this file can name it unqualified.
+/// Why:
+/// `sleep` is used by `spaced_api_get`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { sleep } from 'std/thread';
+/// ```
 use std::thread::sleep;
 // Imports `std::time::{Duration, Instant}`.
 // What:     `Duration` is a length of time and `Instant` a point on the monotonic clock (siblings: the wall-clock `SystemTime`).
@@ -52,16 +101,84 @@ use std::thread::sleep;
 // ```ts
 // // TS has one type for this: T[] / Set / Map / number
 // ```
+/// What:
+/// `use std::time::{Duration, Instant};` imports `Duration`,
+/// `Instant` from the standard library so this file can name them unqualified.
+/// Why:
+/// `Duration` is used by `API_MIN_INTERVAL`,
+/// `RATE_LIMIT_BACKOFF`,
+/// `CratesIo`,
+/// `new`,
+/// and others;
+/// `Instant` is used by `CratesIo`,
+/// `spaced_api_get`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Duration, Instant } from 'std/time';
+/// ```
 use std::time::{Duration, Instant};
 
-// Imports `serde_json::Value`.
+/// What:
+/// `use serde_json::Value;` imports `Value` from the external crate `serde_json` so this file can name it unqualified.
+/// Why:
+/// `Value` is used by `string_field`,
+/// `id_field`,
+/// `index_lines`,
+/// `parse_version_history`,
+/// and others.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Value } from 'serde_json';
+/// ```
 use serde_json::Value;
 
-// Imports `crate::dump::fill_histories_from_dump`.
+/// What:
+/// `use crate::dump::fill_histories_from_dump;` imports `fill_histories_from_dump` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `fill_histories_from_dump` is used by `prefetch`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fill_histories_from_dump } from 'crate/dump';
+/// ```
 use crate::dump::fill_histories_from_dump;
-// Imports `crate::http::{DumpSource, RegistryError, Te...`.
+/// What:
+/// `use crate::http::{DumpSource, RegistryError, TextFetcher};` imports `DumpSource`,
+/// `RegistryError`,
+/// `TextFetcher` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `DumpSource` is used by `CratesIo`,
+/// `with_defaults`,
+/// `with_dump`,
+/// `prefetch`;
+/// `RegistryError` is used by `pubtimes`,
+/// `yanked`,
+/// `history`,
+/// `owners`,
+/// and others;
+/// `TextFetcher` is used by `CratesIo`,
+/// `with_defaults`,
+/// `new`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DumpSource, RegistryError, TextFetcher } from 'crate/http';
+/// ```
 use crate::http::{DumpSource, RegistryError, TextFetcher};
-// Imports `crate::policy::VersionRecord`.
+/// What:
+/// `use crate::policy::VersionRecord;` imports `VersionRecord` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `VersionRecord` is used by `history`,
+/// `parse_version_history`,
+/// `history_to_json`,
+/// `read_cached_history`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { VersionRecord } from 'crate/policy';
+/// ```
 use crate::policy::VersionRecord;
 
 /// The sparse index host.
@@ -529,6 +646,19 @@ fn read_cached_history(path: &Path) -> Vec<VersionRecord> {
 /// crates.io through a fetcher,
 /// with spaced API requests and the on-disk history cache.
 pub struct CratesIo {
+    /// What:
+    /// Field `cache_dir: PathBuf` is the directory of cached version histories (`PathBuf` is an owned path;
+    /// sibling:
+    /// `&Path`,
+    /// borrowed).
+    /// Why:
+    /// A published version never changes,
+    /// so a history that lists every version being checked is read from disk instead of the network.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// cacheDir: string
+    /// ```
     cache_dir: PathBuf,
     // What:     `&dyn Trait` is a borrowed value of any type that implements the trait (a TS interface type); the call goes through a lookup table at run time.
     // Why:      The caller may pass the real implementation or a test fake.
@@ -537,8 +667,28 @@ pub struct CratesIo {
     // ```ts
     // function f(registry: Registry) { ... }  // an interface type
     // ```
+    /// What:
+    /// Field `fetcher: Box<dyn TextFetcher>` is the HTTP source for the index and the API (`Box<dyn Trait>`:
+    /// any implementation behind one owning pointer).
+    /// Why:
+    /// Tests substitute a fetcher that answers from memory or fails on purpose.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// fetcher: TextFetcher
+    /// ```
     fetcher: Box<dyn TextFetcher>,
     // `dyn` trait object `dyn DumpSource`: any type that implements the trait.
+    /// What:
+    /// Field `dump` is the optional source of the database dump (`Option`:
+    /// it may be absent).
+    /// Why:
+    /// A registry built without it never reads the dump and uses the API for every crate.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// dump?: DumpSource
+    /// ```
     dump: Option<Box<dyn DumpSource>>,
     // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
     // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
@@ -547,8 +697,40 @@ pub struct CratesIo {
     // ```ts
     // // TS has one type for this: number
     // ```
+    /// What:
+    /// Field `dump_breakeven: usize` is how many uncached crates make the dump cheaper than the API (`usize`,
+    /// a count).
+    /// Why:
+    /// The dump costs a download of gigabytes,
+    /// the API one request per crate at 1.1 seconds,
+    /// so below this count the API wins.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// dumpBreakeven: number
+    /// ```
     dump_breakeven: usize,
+    /// What:
+    /// Field `min_interval: Duration` is the least time between two API requests.
+    /// Why:
+    /// crates.io allows about one per second;
+    /// sending faster earns HTTP 429.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// minIntervalMs: number
+    /// ```
     min_interval: Duration,
+    /// What:
+    /// Field `backoff: Duration` is the first wait after an HTTP 429 that carries no `Retry-After`;
+    /// it doubles each attempt.
+    /// Why:
+    /// The registry retries instead of failing the whole install on a busy minute.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// backoffMs: number
+    /// ```
     backoff: Duration,
     // What:     `Cell<T>` holds a value that can be replaced through a shared reference (interior mutability; sibling: `RefCell<T>`, for non-copy values).
     // Why:      A method that takes `&self` still has to remember when it last made a request.
@@ -557,9 +739,28 @@ pub struct CratesIo {
     // ```ts
     // // TS has one type for this: T[] / Set / Map / number
     // ```
+    /// What:
+    /// Field `last_request` remembers when the last API request started (`Cell` lets a method that only borrows `&self` still replace the value).
+    /// Why:
+    /// The spacing must hold across calls made through a shared reference to the registry.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// lastRequestAt?: number
+    /// ```
     last_request: Cell<Option<Instant>>,
 }
 
+/// What:
+/// `impl CratesIo { ... }` attaches the constructors and the spaced API call to the registry struct.
+/// Why:
+/// The constructors choose real or test timing,
+/// and one method owns the rate-limit logic.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class CratesIo { constructor(...) {} spacedApiGet(url) {} }
+/// ```
 impl CratesIo {
     /// Builds the registry for a repository root with the real spacing and backoff.
     pub fn with_defaults(root: &Path, fetcher: Box<dyn TextFetcher>, dump: Box<dyn DumpSource>) -> CratesIo {
@@ -652,7 +853,27 @@ impl CratesIo {
     }
 }
 
+/// What:
+/// `impl Registry for CratesIo` makes crates.io usable as the `Registry` the checks ask for.
+/// Why:
+/// The release-age and trust checks only know the trait,
+/// so tests use a fake with canned histories.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class CratesIo implements Registry { ... }
+/// ```
 impl Registry for CratesIo {
+    /// What:
+    /// `fn prefetch(&self, names)` fills the history cache for the crates in `names` from the database dump when enough of them are uncached.
+    /// Why:
+    /// A frozen install of every lockfile asks about a thousand crates;
+    /// one streaming pass replaces a thousand rate-limited requests.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// prefetch(names: Set<string>): void  // throws RegistryError
+    /// ```
     fn prefetch(&self, names: &BTreeSet<String>) -> Result<(), RegistryError> {
         // `match`: picks the arm whose pattern fits the value.
         // Borrow `&dyn`: lends the value without copying or giving it away.
@@ -706,6 +927,15 @@ impl Registry for CratesIo {
         return Ok(());
     }
 
+    /// What:
+    /// `fn pubtimes(&self, name)` returns the publish time of each version of a crate from the sparse index.
+    /// Why:
+    /// The release-age rule compares those times with the cutoff.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// pubtimes(name: string): Map<string, string>  // throws RegistryError
+    /// ```
     fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&self.fetcher.get`: lends the value without copying or giving it away.
@@ -713,6 +943,15 @@ impl Registry for CratesIo {
         return parse_index_pubtimes(&self.fetcher.get(&format!("{SPARSE_INDEX_URL}/{}", sparse_index_path(name)))?);
     }
 
+    /// What:
+    /// `fn yanked(&self, name)` returns the yanked versions of a crate from the sparse index.
+    /// Why:
+    /// A set-aside candidate that was yanked must not be locked in place of a refused version.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// yanked(name: string): Set<string>  // throws RegistryError
+    /// ```
     fn yanked(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&self.fetcher.get`: lends the value without copying or giving it away.
@@ -720,6 +959,16 @@ impl Registry for CratesIo {
         return parse_index_yanked(&self.fetcher.get(&format!("{SPARSE_INDEX_URL}/{}", sparse_index_path(name)))?);
     }
 
+    /// What:
+    /// `fn owners(&self, name)` returns the account ids of the crate's listed individual owners from the API.
+    /// Why:
+    /// A first release by a listed owner counts as a known publisher,
+    /// so the trust rule asks for owners only for a release it would otherwise refuse.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// owners(name: string): Set<string>  // throws RegistryError
+    /// ```
     fn owners(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&self.spaced_api_get`: lends the value without copying or giving it away.
@@ -727,6 +976,19 @@ impl Registry for CratesIo {
         return parse_owner_ids(&self.spaced_api_get(&format!("{API_URL}/crates/{name}/owners"))?);
     }
 
+    /// What:
+    /// `fn history(&self, name, versions)` returns every release of a crate,
+    /// from the cache when it lists all of `versions`,
+    /// otherwise from the API (and writes the cache).
+    /// Why:
+    /// The trust rule compares a version with all earlier releases,
+    /// so it needs the whole list,
+    /// and published history never changes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// history(name: string, versions: string[]): VersionRecord[]  // throws RegistryError
+    /// ```
     fn history(&self, name: &str, versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
         // Typed binding: `path: PathBuf`.
         // Macro `format!`: builds or prints text (or a list) from a template.

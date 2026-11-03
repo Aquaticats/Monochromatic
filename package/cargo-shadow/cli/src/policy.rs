@@ -20,11 +20,58 @@
 //! export function trustProblems(args): string[]
 //! ```
 
+/// What:
+/// `use std::collections::BTreeSet;` imports `BTreeSet` from the standard library so this file can name it unqualified.
+/// Why:
+/// `BTreeSet` is used by `trust_level`,
+/// `trust_problems`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BTreeSet } from 'std/collections';
+/// ```
 use std::collections::BTreeSet;
 
+/// What:
+/// `use monochromatic_dependency_catalog::{Settings, TrustPolicy};` imports `Settings`,
+/// `TrustPolicy` from the external crate `monochromatic_dependency_catalog` so this file can name them unqualified.
+/// Why:
+/// `Settings` is used by `release_age_problems`,
+/// `trust_problems`;
+/// `TrustPolicy` is used by `trust_problems`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Settings, TrustPolicy } from 'monochromatic_dependency_catalog';
+/// ```
 use monochromatic_dependency_catalog::{Settings, TrustPolicy};
 
+/// What:
+/// `use crate::selectors::is_excluded;` imports `is_excluded` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `is_excluded` is used by `release_age_problems`,
+/// `trust_problems`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { is_excluded } from 'crate/selectors';
+/// ```
 use crate::selectors::is_excluded;
+/// What:
+/// `use crate::time_text::{MS_PER_MINUTE, format_iso_millis, parse_rfc3339_millis};` imports `MS_PER_MINUTE`,
+/// `format_iso_millis`,
+/// `parse_rfc3339_millis` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `MS_PER_MINUTE` is used by `release_age_problems`,
+/// `trust_problems`;
+/// `format_iso_millis` is used by `release_age_problems`;
+/// `parse_rfc3339_millis` is used by `release_age_problems`,
+/// `created_millis`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { MS_PER_MINUTE, format_iso_millis, parse_rfc3339_millis } from 'crate/time_text';
+/// ```
 use crate::time_text::{MS_PER_MINUTE, format_iso_millis, parse_rfc3339_millis};
 
 /// One published release of a crate,

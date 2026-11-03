@@ -46,35 +46,154 @@
 //! export async function installRustLockfiles({ root, frozenLockfile, dryRun, now, runCargo, registry }): Promise<InstallReport>
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
+/// What:
+/// `use std::fmt;` imports `fmt` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fmt` is used by the `impl` of `InstallError`,
+/// `fmt`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fmt } from 'std';
+/// ```
 use std::fmt;
-// Imports `std::path::Path`.
+/// What:
+/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Path` is used by `InstallRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
 
-// Imports `monochromatic_dependency_catalog::Settings`.
+/// What:
+/// `use monochromatic_dependency_catalog::Settings;` imports `Settings` from the external crate `monochromatic_dependency_catalog` so this file can name it unqualified.
+/// Why:
+/// `Settings` is used by `InstallRequest`,
+/// `policy_findings`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Settings } from 'monochromatic_dependency_catalog';
+/// ```
 use monochromatic_dependency_catalog::Settings;
 
-// Imports `crate::cargo_run::{CargoOutcome, CargoRunne...`.
+/// What:
+/// `use crate::cargo_run::{CargoOutcome, CargoRunner};` imports `CargoOutcome`,
+/// `CargoRunner` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `CargoOutcome` is used by `run_cargo`,
+/// `run_or_fail`;
+/// `CargoRunner` is used by `InstallRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CargoOutcome, CargoRunner } from 'crate/cargo_run';
+/// ```
 use crate::cargo_run::{CargoOutcome, CargoRunner};
-// Imports `crate::checks::{CheckOutcome, check_release...`.
+/// What:
+/// `use crate::checks::{CheckOutcome, check_release_age, check_trust};` imports `CheckOutcome`,
+/// `check_release_age`,
+/// `check_trust` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `CheckOutcome` is used by `update_stale_roots`;
+/// `check_release_age` is used by `update_stale_roots`,
+/// `policy_findings`;
+/// `check_trust` is used by `update_stale_roots`,
+/// `policy_findings`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CheckOutcome, check_release_age, check_trust } from 'crate/checks';
+/// ```
 use crate::checks::{CheckOutcome, check_release_age, check_trust};
-// Imports `crate::crates::{LockSnapshot, read_locks}`.
+/// What:
+/// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
+/// `read_locks` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `LockSnapshot` is used by `sources_of`,
+/// `update_stale_roots`,
+/// `policy_findings`,
+/// `install_rust_lockfiles`;
+/// `read_locks` is used by `update_stale_roots`,
+/// `install_rust_lockfiles`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockSnapshot, read_locks } from 'crate/crates';
+/// ```
 use crate::crates::{LockSnapshot, read_locks};
-// Imports `crate::journal::{begin, finish, process_exi...`.
+/// What:
+/// `use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged};` imports `begin`,
+/// `finish`,
+/// `process_exists`,
+/// `recover`,
+/// `restore_if_unchanged` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `begin` is used by `install_rust_lockfiles`;
+/// `finish` is used by `install_rust_lockfiles`;
+/// `process_exists` is used by `install_rust_lockfiles`;
+/// `recover` is used by `install_rust_lockfiles`;
+/// `restore_if_unchanged` is used by `install_rust_lockfiles`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { begin, finish, process_exists, recover, restore_if_unchanged } from 'crate/journal';
+/// ```
 use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged};
-// Imports `crate::http::RegistryError`.
+/// What:
+/// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `RegistryError` is used by the `impl` of `InstallError`,
+/// `from`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { RegistryError } from 'crate/http';
+/// ```
 use crate::http::RegistryError;
-// Imports `crate::lockfile::{LockedVersion, added_vers...`.
+/// What:
+/// `use crate::lockfile::{LockedVersion, added_versions};` imports `LockedVersion`,
+/// `added_versions` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `LockedVersion` is used by `InstallReport`,
+/// `update_stale_roots`,
+/// `policy_findings`;
+/// `added_versions` is used by `update_stale_roots`,
+/// `policy_findings`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockedVersion, added_versions } from 'crate/lockfile';
+/// ```
 use crate::lockfile::{LockedVersion, added_versions};
-// Imports `crate::registry::Registry`.
+/// What:
+/// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `Registry` is used by `InstallError`,
+/// `fmt`,
+/// `from`,
+/// `InstallRequest`,
+/// and others.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Registry } from 'crate/registry';
+/// ```
 use crate::registry::Registry;
-// Imports `crate::verify::{verify_added_since_base, ve...`.
+/// What:
+/// `use crate::verify::{verify_added_since_base, verify_locked_entries};` imports `verify_added_since_base`,
+/// `verify_locked_entries` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `verify_added_since_base` is used by `install_rust_lockfiles`;
+/// `verify_locked_entries` is used by `install_rust_lockfiles`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { verify_added_since_base, verify_locked_entries } from 'crate/verify';
+/// ```
 use crate::verify::{verify_added_since_base, verify_locked_entries};
 
 /// Asks whether the lockfile satisfies the manifests:
@@ -207,7 +326,28 @@ pub enum InstallError {
     },
 }
 
+/// What:
+/// `impl fmt::Display for InstallError` lets an install failure be printed with `{}`.
+/// Why:
+/// The shadow and the CLI print the error to the user,
+/// and each variant carries its own remedy text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class InstallError extends Error { toString() { ... } }
+/// ```
 impl fmt::Display for InstallError {
+    /// What:
+    /// `fn fmt(&self, formatter)` writes the message of whichever variant the error is (a `match` over the cases).
+    /// Why:
+    /// A stale-lock failure names every stale root,
+    /// a cargo failure shows cargo's output and the offline hint,
+    /// so the user can act without reading the code.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// toString(): string { switch (this.kind) { case "stale": ...; case "cargo": ...; } }
+    /// ```
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
         // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
@@ -285,7 +425,27 @@ impl fmt::Display for InstallError {
     }
 }
 
+/// What:
+/// `impl From<RegistryError> for InstallError` lets a `RegistryError` convert into an `InstallError` automatically where `?` is used.
+/// Why:
+/// The policy checks fail with a registry error,
+/// and the install step reports everything as an install error without wrapping each call by hand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // TS: catch (e) { throw new InstallError(e) }
+/// ```
 impl From<RegistryError> for InstallError {
+    /// What:
+    /// `fn from(error)` wraps the registry error's message in the `Registry` variant.
+    /// Why:
+    /// The variant tells the user the lockfiles were restored because a lookup failed,
+    /// not because cargo did.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// static from(error: RegistryError): InstallError { return new InstallError("registry", error.message); }
+    /// ```
     fn from(error: RegistryError) -> InstallError {
         return InstallError::Registry { message: error.message };
     }

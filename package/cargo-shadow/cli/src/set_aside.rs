@@ -18,37 +18,157 @@
 //! export async function setAsideUntilClean(args): Promise<string[]>  // warnings
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
+/// What:
+/// `use std::collections::BTreeSet;` imports `BTreeSet` from the standard library so this file can name it unqualified.
+/// Why:
+/// `BTreeSet` is used by `is_candidate`,
+/// `set_aside_candidates`,
+/// `set_aside_until_clean`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BTreeSet } from 'std/collections';
+/// ```
 use std::collections::BTreeSet;
-// Imports `std::path::Path`.
+/// What:
+/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Path` is used by `SetAsideRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
 
-// Imports `monochromatic_dependency_catalog::Settings`.
+/// What:
+/// `use monochromatic_dependency_catalog::Settings;` imports `Settings` from the external crate `monochromatic_dependency_catalog` so this file can name it unqualified.
+/// Why:
+/// `Settings` is used by `SetAsideRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Settings } from 'monochromatic_dependency_catalog';
+/// ```
 use monochromatic_dependency_catalog::Settings;
 
-// Imports `crate::cargo_run::CargoRunner`.
+/// What:
+/// `use crate::cargo_run::CargoRunner;` imports `CargoRunner` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `CargoRunner` is used by `SetAsideRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CargoRunner } from 'crate/cargo_run';
+/// ```
 use crate::cargo_run::CargoRunner;
-// Imports `crate::checks::{TrustRefusal, group_by_name...`.
+/// What:
+/// `use crate::checks::{TrustRefusal, group_by_name, trust_refusals};` imports `TrustRefusal`,
+/// `group_by_name`,
+/// `trust_refusals` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `TrustRefusal` is used by `age_refusals`,
+/// `is_candidate`,
+/// `set_aside_candidates`,
+/// `move_crate`,
+/// and others;
+/// `group_by_name` is used by `age_refusals`;
+/// `trust_refusals` is used by `set_aside_until_clean`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { TrustRefusal, group_by_name, trust_refusals } from 'crate/checks';
+/// ```
 use crate::checks::{TrustRefusal, group_by_name, trust_refusals};
-// Imports `crate::crates::{LockSnapshot, read_locks}`.
+/// What:
+/// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
+/// `read_locks` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `LockSnapshot` is used by `crates_locking`,
+/// `set_aside_until_clean`;
+/// `read_locks` is used by `set_aside_until_clean`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockSnapshot, read_locks } from 'crate/crates';
+/// ```
 use crate::crates::{LockSnapshot, read_locks};
-// Imports `crate::http::RegistryError`.
+/// What:
+/// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `RegistryError` is used by `age_refusals`,
+/// `set_aside_candidates`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { RegistryError } from 'crate/http';
+/// ```
 use crate::http::RegistryError;
-// Imports `crate::lockfile::{LockedVersion, added_vers...`.
+/// What:
+/// `use crate::lockfile::{LockedVersion, added_versions, registry_versions};` imports `LockedVersion`,
+/// `added_versions`,
+/// `registry_versions` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `LockedVersion` is used by `age_refusals`,
+/// `set_aside_until_clean`;
+/// `added_versions` is used by `set_aside_until_clean`;
+/// `registry_versions` is used by `crates_locking`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockedVersion, added_versions, registry_versions } from 'crate/lockfile';
+/// ```
 use crate::lockfile::{LockedVersion, added_versions, registry_versions};
-// Imports `crate::policy::{VersionRecord, release_age_...`.
+/// What:
+/// `use crate::policy::{VersionRecord, release_age_problems, trust_problems};` imports `VersionRecord`,
+/// `release_age_problems`,
+/// `trust_problems` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `VersionRecord` is used by `is_candidate`,
+/// `set_aside_candidates`;
+/// `release_age_problems` is used by `age_refusals`;
+/// `trust_problems` is used by `set_aside_candidates`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { VersionRecord, release_age_problems, trust_problems } from 'crate/policy';
+/// ```
 use crate::policy::{VersionRecord, release_age_problems, trust_problems};
-// Imports `crate::registry::Registry`.
+/// What:
+/// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `Registry` is used by `SetAsideRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Registry } from 'crate/registry';
+/// ```
 use crate::registry::Registry;
-// Imports `crate::time_text::parse_rfc3339_millis`.
+/// What:
+/// `use crate::time_text::parse_rfc3339_millis;` imports `parse_rfc3339_millis` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `parse_rfc3339_millis` is used by `is_candidate`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parse_rfc3339_millis } from 'crate/time_text';
+/// ```
 use crate::time_text::parse_rfc3339_millis;
-// Imports `crate::version_order::{caret_compatible, co...`.
+/// What:
+/// `use crate::version_order::{caret_compatible, compare_texts, is_prerelease_text};` imports `caret_compatible`,
+/// `compare_texts`,
+/// `is_prerelease_text` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `caret_compatible` is used by `is_candidate`;
+/// `compare_texts` is used by `is_candidate`,
+/// `set_aside_candidates`;
+/// `is_prerelease_text` is used by `is_candidate`,
+/// `set_aside_candidates`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { caret_compatible, compare_texts, is_prerelease_text } from 'crate/version_order';
+/// ```
 use crate::version_order::{caret_compatible, compare_texts, is_prerelease_text};
 
 /// How many rounds of moving refused crates are tried.

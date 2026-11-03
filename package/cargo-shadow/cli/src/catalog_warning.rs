@@ -23,9 +23,40 @@
 //! export function literalDependencies(manifestText: string): { table: string; name: string }[]
 //! ```
 
+/// What:
+/// `use std::io::Write;` imports `Write` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Write` is used by `warn_about_manifest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Write } from 'std/io';
+/// ```
 use std::io::Write;
+/// What:
+/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Path` is used by `warn_about_manifest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
 
+/// What:
+/// `use toml_edit::{DocumentMut, Item, Table};` imports `DocumentMut`,
+/// `Item`,
+/// `Table` from the external crate `toml_edit` so this file can name them unqualified.
+/// Why:
+/// `DocumentMut` is used by `literal_dependencies`;
+/// `Item` is used by `is_catalog_or_local`;
+/// `Table` is used by `collect`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DocumentMut, Item, Table } from 'toml_edit';
+/// ```
 use toml_edit::{DocumentMut, Item, Table};
 
 /// The dependency tables of a package manifest.

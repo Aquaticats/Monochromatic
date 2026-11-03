@@ -14,8 +14,29 @@
 //! export function addedVersions({ before, after }): LockedVersion[]
 //! ```
 
+/// What:
+/// `use std::collections::BTreeSet;` imports `BTreeSet` from the standard library so this file can name it unqualified.
+/// Why:
+/// `BTreeSet` is used by `registry_versions`,
+/// `added_versions`,
+/// `direct_dependency_names`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BTreeSet } from 'std/collections';
+/// ```
 use std::collections::BTreeSet;
 
+/// What:
+/// `use toml_edit::DocumentMut;` imports `DocumentMut` from the external crate `toml_edit` so this file can name it unqualified.
+/// Why:
+/// `DocumentMut` is used by `parse_registry_versions`,
+/// `direct_dependency_names`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DocumentMut } from 'toml_edit';
+/// ```
 use toml_edit::DocumentMut;
 
 /// The start of a `source` value for a crates.io-style registry package.
@@ -30,6 +51,15 @@ pub struct LockedVersion {
     pub version: String,
 }
 
+/// What:
+/// `impl LockedVersion { ... }` attaches `key()` to the struct.
+/// Why:
+/// Everything that compares or groups versions uses the same `name@version` text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class LockedVersion { key(): string { return `${this.name}@${this.version}`; } }
+/// ```
 impl LockedVersion {
     /// The joined key such as `anyhow@1.0.104`.
     pub fn key(&self) -> String {

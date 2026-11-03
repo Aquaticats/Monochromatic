@@ -21,10 +21,47 @@
 //! export async function cargoToolchain({ root, explicit }): Promise<string>
 //! ```
 
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `pinned_toolchain`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
+/// What:
+/// `use std::io;` imports `io` from the standard library so this file can name it unqualified.
+/// Why:
+/// `io` is used by `pinned_toolchain`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { io } from 'std';
+/// ```
 use std::io;
+/// What:
+/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Path` is used by `pinned_toolchain`,
+/// `cargo_toolchain`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
 
+/// What:
+/// `use crate::constants::TOOLCHAIN_LOCK_NAME;` imports `TOOLCHAIN_LOCK_NAME` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `TOOLCHAIN_LOCK_NAME` is used by `pinned_toolchain`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { TOOLCHAIN_LOCK_NAME } from 'crate/constants';
+/// ```
 use crate::constants::TOOLCHAIN_LOCK_NAME;
 
 /// What:

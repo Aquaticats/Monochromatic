@@ -85,8 +85,41 @@ use crate::real_binary::{find_in_path, own_real_path};
 use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
 /// Imports the command-word rules.
 use crate::options::asserts_lock;
+/// What:
+/// `use crate::shadow_step::{before_cargo, warn_after_cargo, with_locked};` imports `before_cargo`,
+/// `warn_after_cargo`,
+/// `with_locked` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `before_cargo` is used by `run_shim`;
+/// `warn_after_cargo` is used by `run_shim`;
+/// `with_locked` is used by `run_shim`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { before_cargo, warn_after_cargo, with_locked } from 'crate/shadow_step';
+/// ```
 use crate::shadow_step::{before_cargo, warn_after_cargo, with_locked};
+/// What:
+/// `use crate::shadow_update::run_update_command;` imports `run_update_command` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `run_update_command` is used by `run_shim`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { run_update_command } from 'crate/shadow_update';
+/// ```
 use crate::shadow_update::run_update_command;
+/// What:
+/// `use crate::verb::{Treatment, treatment_of};` imports `Treatment`,
+/// `treatment_of` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `Treatment` is used by `run_shim`;
+/// `treatment_of` is used by `run_shim`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Treatment, treatment_of } from 'crate/verb';
+/// ```
 use crate::verb::{Treatment, treatment_of};
 
 /// What:

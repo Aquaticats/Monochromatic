@@ -14,13 +14,16 @@
 //! export async function main(args: string[]): Promise<void>
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
+/// What:
+/// `use std::io::Write;` imports `Write` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Write` is used by `print_install_report`,
+/// `print_update_report`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Write } from 'std/io';
+/// ```
 use std::io::Write;
 // Imports `std::path::PathBuf`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
@@ -30,38 +33,185 @@ use std::io::Write;
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::path::PathBuf;` imports `PathBuf` from the standard library so this file can name it unqualified.
+/// Why:
+/// `PathBuf` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { PathBuf } from 'std/path';
+/// ```
 use std::path::PathBuf;
-// Imports `std::time::{SystemTime, UNIX_EPOCH}`.
+/// What:
+/// `use std::time::{SystemTime, UNIX_EPOCH};` imports `SystemTime`,
+/// `UNIX_EPOCH` from the standard library so this file can name them unqualified.
+/// Why:
+/// `SystemTime` is used by `now_millis`;
+/// `UNIX_EPOCH` is used by `now_millis`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { SystemTime, UNIX_EPOCH } from 'std/time';
+/// ```
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// Imports `monochromatic_dependency_catalog::{CatalogD...`.
+/// What:
+/// `use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};` imports `CatalogDocument`,
+/// `parse_catalog` from the external crate `monochromatic_dependency_catalog` so this file can name them unqualified.
+/// Why:
+/// `CatalogDocument` is used by `run_command`;
+/// `parse_catalog` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CatalogDocument, parse_catalog } from 'monochromatic_dependency_catalog';
+/// ```
 use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};
 
-// Imports `crate::cargo_run::RealCargo`.
+/// What:
+/// `use crate::cargo_run::RealCargo;` imports `RealCargo` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `RealCargo` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { RealCargo } from 'crate/cargo_run';
+/// ```
 use crate::cargo_run::RealCargo;
-// Imports `crate::cli::Command`.
+/// What:
+/// `use crate::cli::Command;` imports `Command` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `Command` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Command } from 'crate/cli';
+/// ```
 use crate::cli::Command;
-// Imports `crate::constants::{CATALOG_MARKER, INSTALL_...`.
+/// What:
+/// `use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE};` imports `CATALOG_MARKER`,
+/// `INSTALL_FAILED_EXIT_CODE` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `CATALOG_MARKER` is used by `run_command`;
+/// `INSTALL_FAILED_EXIT_CODE` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE } from 'crate/constants';
+/// ```
 use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE};
-// Imports `crate::crates::locked_crate_dirs`.
+/// What:
+/// `use crate::crates::locked_crate_dirs;` imports `locked_crate_dirs` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `locked_crate_dirs` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { locked_crate_dirs } from 'crate/crates';
+/// ```
 use crate::crates::locked_crate_dirs;
-// Imports `crate::http::UreqFetcher`.
+/// What:
+/// `use crate::http::UreqFetcher;` imports `UreqFetcher` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `UreqFetcher` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { UreqFetcher } from 'crate/http';
+/// ```
 use crate::http::UreqFetcher;
-// Imports `crate::install::{InstallReport, InstallRequ...`.
+/// What:
+/// `use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles, is_continuous_integration};` imports `InstallReport`,
+/// `InstallRequest`,
+/// `install_rust_lockfiles`,
+/// `is_continuous_integration` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `InstallReport` is used by `print_install_report`;
+/// `InstallRequest` is used by `run_command`;
+/// `install_rust_lockfiles` is used by `run_command`;
+/// `is_continuous_integration` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { InstallReport, InstallRequest, install_rust_lockfiles, is_continuous_integration } from 'crate/install';
+/// ```
 use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles, is_continuous_integration};
-// Imports `crate::real_binary::find_real_cargo`.
+/// What:
+/// `use crate::real_binary::find_real_cargo;` imports `find_real_cargo` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `find_real_cargo` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { find_real_cargo } from 'crate/real_binary';
+/// ```
 use crate::real_binary::find_real_cargo;
-// Imports `crate::registry::CratesIo`.
+/// What:
+/// `use crate::registry::CratesIo;` imports `CratesIo` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `CratesIo` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CratesIo } from 'crate/registry';
+/// ```
 use crate::registry::CratesIo;
-// Imports `crate::shadow_step::lock_base_reader`.
+/// What:
+/// `use crate::shadow_step::lock_base_reader;` imports `lock_base_reader` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `lock_base_reader` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { lock_base_reader } from 'crate/shadow_step';
+/// ```
 use crate::shadow_step::lock_base_reader;
-// Imports `crate::toolchain::cargo_toolchain`.
+/// What:
+/// `use crate::toolchain::cargo_toolchain;` imports `cargo_toolchain` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `cargo_toolchain` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { cargo_toolchain } from 'crate/toolchain';
+/// ```
 use crate::toolchain::cargo_toolchain;
-// Imports `crate::tighten::FileEnforcer`.
+/// What:
+/// `use crate::tighten::FileEnforcer;` imports `FileEnforcer` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `FileEnforcer` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { FileEnforcer } from 'crate/tighten';
+/// ```
 use crate::tighten::FileEnforcer;
-// Imports `crate::update::{UpdateKind, UpdateReport, U...`.
+/// What:
+/// `use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};` imports `UpdateKind`,
+/// `UpdateReport`,
+/// `UpdateRequest`,
+/// `update_rust_lockfiles` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `UpdateKind` is used by `run_command`;
+/// `UpdateReport` is used by `print_update_report`;
+/// `UpdateRequest` is used by `run_command`;
+/// `update_rust_lockfiles` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles } from 'crate/update';
+/// ```
 use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
-// Imports `crate::workspace::find_catalog_root`.
+/// What:
+/// `use crate::workspace::find_catalog_root;` imports `find_catalog_root` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `find_catalog_root` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { find_catalog_root } from 'crate/workspace';
+/// ```
 use crate::workspace::find_catalog_root;
 
 /// Prints findings under a heading,

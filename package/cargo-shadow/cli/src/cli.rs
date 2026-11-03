@@ -17,8 +17,29 @@
 //! program.name('cargo-shadow').command('install').option('--frozen-lockfile')...
 //! ```
 
+/// What:
+/// `use clap::{Parser, Subcommand};` imports `Parser`,
+/// `Subcommand` from the external crate `clap` so this file can name them unqualified.
+/// Why:
+/// `Parser` must be in scope for its methods:
+/// `try_parse_from` on the derived argument parser;
+/// `Subcommand` is used by `Cli`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Parser, Subcommand } from 'clap';
+/// ```
 use clap::{Parser, Subcommand};
 
+/// What:
+/// `use crate::commands::run_command;` imports `run_command` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `run_command` is used by `run_cli`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { run_command } from 'crate/commands';
+/// ```
 use crate::commands::run_command;
 
 /// What:

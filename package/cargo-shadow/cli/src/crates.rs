@@ -13,20 +13,58 @@
 //! export async function restoreLocks({ root, snapshots }): Promise<void>
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `collect_at_depth`,
+/// `read_locks`,
+/// `restore_locks`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
-// Imports `std::io`.
+/// What:
+/// `use std::io;` imports `io` from the standard library so this file can name it unqualified.
+/// Why:
+/// `io` is used by `collect_at_depth`,
+/// `locked_crate_dirs`,
+/// `read_locks`,
+/// `restore_locks`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { io } from 'std';
+/// ```
 use std::io;
-// Imports `std::path::Path`.
+/// What:
+/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Path` is used by `collect_at_depth`,
+/// `locked_crate_dirs`,
+/// `read_locks`,
+/// `restore_locks`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
 
-// Imports `crate::constants::{LOCKFILE_NAME, SKIPPED_D...`.
+/// What:
+/// `use crate::constants::{LOCKFILE_NAME, SKIPPED_DIRECTORIES};` imports `LOCKFILE_NAME`,
+/// `SKIPPED_DIRECTORIES` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `LOCKFILE_NAME` is used by `collect_at_depth`,
+/// `read_locks`,
+/// `restore_locks`;
+/// `SKIPPED_DIRECTORIES` is used by `collect_at_depth`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LOCKFILE_NAME, SKIPPED_DIRECTORIES } from 'crate/constants';
+/// ```
 use crate::constants::{LOCKFILE_NAME, SKIPPED_DIRECTORIES};
 
 /// How many directory levels under `package/` hold crate roots:

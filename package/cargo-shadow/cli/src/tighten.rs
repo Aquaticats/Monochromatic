@@ -29,13 +29,80 @@
 //! export function raiseFloors({ source, locked, changed }): { source: string; changes: string[] }
 //! ```
 
+/// What:
+/// `use std::collections::{BTreeMap, BTreeSet};` imports `BTreeMap`,
+/// `BTreeSet` from the standard library so this file can name them unqualified.
+/// Why:
+/// `BTreeMap` is used by `highest_by_name`,
+/// `raised_names`,
+/// `raise_floors`;
+/// `BTreeSet` is used by `raised_names`,
+/// `raise_floors`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BTreeMap, BTreeSet } from 'std/collections';
+/// ```
 use std::collections::{BTreeMap, BTreeSet};
+/// What:
+/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Path` is used by `sync`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
+/// What:
+/// `use std::process::Command;` imports `Command` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Command` is used by `sync`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Command } from 'std/process';
+/// ```
 use std::process::Command;
 
+/// What:
+/// `use toml_edit::{DocumentMut, Item, Value};` imports `DocumentMut`,
+/// `Item`,
+/// `Value` from the external crate `toml_edit` so this file can name them unqualified.
+/// Why:
+/// `DocumentMut` is used by `raise_floors`;
+/// `Item` is used by `raise_floors`;
+/// `Value` is used by `raise_floors`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DocumentMut, Item, Value } from 'toml_edit';
+/// ```
 use toml_edit::{DocumentMut, Item, Value};
 
+/// What:
+/// `use crate::lockfile::LockedVersion;` imports `LockedVersion` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `LockedVersion` is used by `highest_by_name`,
+/// `raised_names`,
+/// `raise_floors`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockedVersion } from 'crate/lockfile';
+/// ```
 use crate::lockfile::LockedVersion;
+/// What:
+/// `use crate::version_order::compare_texts;` imports `compare_texts` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `compare_texts` is used by `highest_by_name`,
+/// `raised_names`,
+/// `raise_floors`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { compare_texts } from 'crate/version_order';
+/// ```
 use crate::version_order::compare_texts;
 
 /// What:
@@ -59,7 +126,28 @@ pub trait Syncer {
 /// the task `sync:files` runs.
 pub struct FileEnforcer;
 
+/// What:
+/// `impl Syncer for FileEnforcer` makes the `file-enforcer` program usable as the sync step.
+/// Why:
+/// `cargo update --breaking` raises catalog floors and then renders them into the manifests;
+/// tests use a fake that only records the call.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class FileEnforcer implements Syncer { sync(root) { ... } }
+/// ```
 impl Syncer for FileEnforcer {
+    /// What:
+    /// `fn sync(&self, root)` runs `file-enforcer write` in the repository root and returns a one-line result.
+    /// Why:
+    /// That command is the `sync:files` task,
+    /// the one place manifests are rendered from the catalog;
+    /// a missing program becomes a message that names the manual step.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// sync(root: string): string  // throws with the remedy
+    /// ```
     fn sync(&self, root: &Path) -> Result<String, String> {
         let output = Command::new("file-enforcer")
             .arg("write")

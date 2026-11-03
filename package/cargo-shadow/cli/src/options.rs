@@ -20,13 +20,6 @@
 //! export function assertsLock(args: string[]): boolean
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
 // What:     `OsString` is operating-system text that need not be valid UTF-8 (sibling: `String`, always valid UTF-8).
 // Why:      Command-line arguments pass through byte for byte, so they are kept as the OS gave them.
 //
@@ -34,6 +27,17 @@
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::ffi::OsString;` imports `OsString` from the standard library so this file can name it unqualified.
+/// Why:
+/// `OsString` is used by `manifest_path`,
+/// `change_dir`,
+/// `asserts_lock`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { OsString } from 'std/ffi';
+/// ```
 use std::ffi::OsString;
 // Imports `std::path::PathBuf`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
@@ -43,9 +47,29 @@ use std::ffi::OsString;
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::path::PathBuf;` imports `PathBuf` from the standard library so this file can name it unqualified.
+/// Why:
+/// `PathBuf` is used by `manifest_path`,
+/// `change_dir`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { PathBuf } from 'std/path';
+/// ```
 use std::path::PathBuf;
 
-// Imports `crate::verb::words_before_double_dash`.
+/// What:
+/// `use crate::verb::words_before_double_dash;` imports `words_before_double_dash` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `words_before_double_dash` is used by `manifest_path`,
+/// `change_dir`,
+/// `asserts_lock`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { words_before_double_dash } from 'crate/verb';
+/// ```
 use crate::verb::words_before_double_dash;
 
 /// The value of an option written `--name value` or `--name=value`;

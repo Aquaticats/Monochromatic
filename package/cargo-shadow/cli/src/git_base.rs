@@ -17,9 +17,36 @@
 //! export async function createGitBaseLockReader({ root, base }): Promise<(crateDir: string) => string>
 //! ```
 
+/// What:
+/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Path` is used by `git_base_lock_reader`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
+/// What:
+/// `use std::process::Command;` imports `Command` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Command` is used by `git_base_lock_reader`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Command } from 'std/process';
+/// ```
 use std::process::Command;
 
+/// What:
+/// `use crate::constants::LOCKFILE_NAME;` imports `LOCKFILE_NAME` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `LOCKFILE_NAME` is needed by the derive or macro expansions of this file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LOCKFILE_NAME } from 'crate/constants';
+/// ```
 use crate::constants::LOCKFILE_NAME;
 
 /// The environment variable that names the base revision.

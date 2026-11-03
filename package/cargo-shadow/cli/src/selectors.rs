@@ -16,6 +16,15 @@
 //! export function isExcluded(args: { selectors: string[]; name: string; version: string }): boolean
 //! ```
 
+/// What:
+/// `use std::collections::BTreeSet;` imports `BTreeSet` from the standard library so this file can name it unqualified.
+/// Why:
+/// `BTreeSet` is used by `prune_selectors`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BTreeSet } from 'std/collections';
+/// ```
 use std::collections::BTreeSet;
 
 /// One selector split into its name pattern and the exact versions it names (empty means every version).

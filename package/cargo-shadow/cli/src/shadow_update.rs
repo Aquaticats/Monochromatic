@@ -18,13 +18,6 @@
 //! export function runUpdateCommand(args: string[]): number | undefined  // undefined: run cargo itself
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
 // What:     `OsString` is operating-system text that need not be valid UTF-8 (sibling: `String`, always valid UTF-8).
 // Why:      Command-line arguments pass through byte for byte, so they are kept as the OS gave them.
 //
@@ -32,29 +25,164 @@
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::ffi::OsString;` imports `OsString` from the standard library so this file can name it unqualified.
+/// Why:
+/// `OsString` is used by `run_update_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { OsString } from 'std/ffi';
+/// ```
 use std::ffi::OsString;
-// Imports `std::io::Write`.
+/// What:
+/// `use std::io::Write;` imports `Write` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Write` is used by `report_install`,
+/// `run_full_update`,
+/// `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Write } from 'std/io';
+/// ```
 use std::io::Write;
-// Imports `std::path::Path`.
+/// What:
+/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Path` is used by `run_update_command`,
+/// `check_direct`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
 
-// Imports `crate::commands::{print_findings, print_ins...`.
+/// What:
+/// `use crate::commands::{print_findings, print_install_report, print_update_report};` imports `print_findings`,
+/// `print_install_report`,
+/// `print_update_report` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `print_findings` is used by `report_install`,
+/// `run_update`;
+/// `print_install_report` is used by `report_install`;
+/// `print_update_report` is used by `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { print_findings, print_install_report, print_update_report } from 'crate/commands';
+/// ```
 use crate::commands::{print_findings, print_install_report, print_update_report};
-// Imports `crate::constants::{CATALOG_MARKER, INSTALL_...`.
+/// What:
+/// `use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE, LOCKFILE_NAME};` imports `CATALOG_MARKER`,
+/// `INSTALL_FAILED_EXIT_CODE`,
+/// `LOCKFILE_NAME` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `CATALOG_MARKER` is used by `run_update`;
+/// `INSTALL_FAILED_EXIT_CODE` is used by `run_update_command`,
+/// `report_install`,
+/// `run_update`;
+/// `LOCKFILE_NAME` is used by `run_update_command`,
+/// `run_full_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE, LOCKFILE_NAME } from 'crate/constants';
+/// ```
 use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE, LOCKFILE_NAME};
-// Imports `crate::crates::read_locks`.
+/// What:
+/// `use crate::crates::read_locks;` imports `read_locks` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `read_locks` is used by `check_direct`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { read_locks } from 'crate/crates';
+/// ```
 use crate::crates::read_locks;
-// Imports `crate::install::{InstallReport, InstallRequ...`.
+/// What:
+/// `use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles};` imports `InstallReport`,
+/// `InstallRequest`,
+/// `install_rust_lockfiles` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `InstallReport` is used by `report_install`;
+/// `InstallRequest` is used by `run_update_command`;
+/// `install_rust_lockfiles` is used by `run_update_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { InstallReport, InstallRequest, install_rust_lockfiles } from 'crate/install';
+/// ```
 use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles};
-// Imports `crate::lockfile::direct_dependency_names`.
+/// What:
+/// `use crate::lockfile::direct_dependency_names;` imports `direct_dependency_names` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `direct_dependency_names` is used by `check_direct`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { direct_dependency_names } from 'crate/lockfile';
+/// ```
 use crate::lockfile::direct_dependency_names;
-// Imports `crate::shadow_step::{Prepared, lock_base_re...`.
+/// What:
+/// `use crate::shadow_step::{Prepared, lock_base_reader, now_millis, prepare};` imports `Prepared`,
+/// `lock_base_reader`,
+/// `now_millis`,
+/// `prepare` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `Prepared` is used by `run_update_command`,
+/// `run_full_update`,
+/// `run_update`;
+/// `lock_base_reader` is used by `run_update_command`;
+/// `now_millis` is used by `run_update_command`,
+/// `run_update`;
+/// `prepare` is used by `run_update_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Prepared, lock_base_reader, now_millis, prepare } from 'crate/shadow_step';
+/// ```
 use crate::shadow_step::{Prepared, lock_base_reader, now_millis, prepare};
-// Imports `crate::tighten::FileEnforcer`.
+/// What:
+/// `use crate::tighten::FileEnforcer;` imports `FileEnforcer` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `FileEnforcer` is used by `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { FileEnforcer } from 'crate/tighten';
+/// ```
 use crate::tighten::FileEnforcer;
-// Imports `crate::update::{UpdateKind, UpdateReport, U...`.
+/// What:
+/// `use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};` imports `UpdateKind`,
+/// `UpdateReport`,
+/// `UpdateRequest`,
+/// `update_rust_lockfiles` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `UpdateKind` is used by `run_update_command`,
+/// `run_full_update`,
+/// `run_update`;
+/// `UpdateReport` is used by `run_update`;
+/// `UpdateRequest` is used by `run_update`;
+/// `update_rust_lockfiles` is used by `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles } from 'crate/update';
+/// ```
 use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
-// Imports `crate::update_plan::{UpdatePlan, plan_updat...`.
+/// What:
+/// `use crate::update_plan::{UpdatePlan, plan_update};` imports `UpdatePlan`,
+/// `plan_update` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `UpdatePlan` is used by `run_update_command`;
+/// `plan_update` is used by `run_update_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { UpdatePlan, plan_update } from 'crate/update_plan';
+/// ```
 use crate::update_plan::{UpdatePlan, plan_update};
 
 /// The lockfile text that stands in for a missing lockfile while a full update creates it.

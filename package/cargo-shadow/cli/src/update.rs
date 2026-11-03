@@ -37,45 +37,206 @@
 //! export async function updateRustLockfiles({ root, dryRun, now, runCargo, registry }): Promise<UpdateReport>
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
+/// What:
+/// `use std::fmt;` imports `fmt` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fmt` is used by the `impl` of `UpdateError`,
+/// `fmt`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fmt } from 'std';
+/// ```
 use std::fmt;
-// Imports `std::fs`.
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
-// Imports `std::path::Path`.
+/// What:
+/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Path` is used by `UpdateRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
 
-// Imports `monochromatic_dependency_catalog::Settings`.
+/// What:
+/// `use monochromatic_dependency_catalog::Settings;` imports `Settings` from the external crate `monochromatic_dependency_catalog` so this file can name it unqualified.
+/// Why:
+/// `Settings` is used by `UpdateRequest`,
+/// `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Settings } from 'monochromatic_dependency_catalog';
+/// ```
 use monochromatic_dependency_catalog::Settings;
 
-// Imports `crate::cargo_run::{CargoOutcome, CargoRunne...`.
+/// What:
+/// `use crate::cargo_run::{CargoOutcome, CargoRunner};` imports `CargoOutcome`,
+/// `CargoRunner` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `CargoOutcome` is used by `run_or_fail`,
+/// `resolve_crate`;
+/// `CargoRunner` is used by `UpdateRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CargoOutcome, CargoRunner } from 'crate/cargo_run';
+/// ```
 use crate::cargo_run::{CargoOutcome, CargoRunner};
-// Imports `crate::checks::{CheckOutcome, check_release...`.
+/// What:
+/// `use crate::checks::{CheckOutcome, check_release_age, check_trust};` imports `CheckOutcome`,
+/// `check_release_age`,
+/// `check_trust` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `CheckOutcome` is used by `run_update`;
+/// `check_release_age` is used by `run_update`;
+/// `check_trust` is used by `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CheckOutcome, check_release_age, check_trust } from 'crate/checks';
+/// ```
 use crate::checks::{CheckOutcome, check_release_age, check_trust};
-// Imports `crate::crates::{LockSnapshot, read_locks}`.
+/// What:
+/// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
+/// `read_locks` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `LockSnapshot` is used by `resolve_all`,
+/// `sources_of`,
+/// `run_update`,
+/// `update_rust_lockfiles`;
+/// `read_locks` is used by `resolve_all`,
+/// `run_update`,
+/// `update_rust_lockfiles`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockSnapshot, read_locks } from 'crate/crates';
+/// ```
 use crate::crates::{LockSnapshot, read_locks};
-// Imports `crate::install::policy_findings`.
+/// What:
+/// `use crate::install::policy_findings;` imports `policy_findings` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `policy_findings` is used by `update_rust_lockfiles`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { policy_findings } from 'crate/install';
+/// ```
 use crate::install::policy_findings;
-// Imports `crate::journal::{begin, finish, process_exi...`.
+/// What:
+/// `use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged};` imports `begin`,
+/// `finish`,
+/// `process_exists`,
+/// `recover`,
+/// `restore_if_unchanged` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `begin` is used by `update_rust_lockfiles`;
+/// `finish` is used by `update_rust_lockfiles`;
+/// `process_exists` is used by `update_rust_lockfiles`;
+/// `recover` is used by `update_rust_lockfiles`;
+/// `restore_if_unchanged` is used by `update_rust_lockfiles`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { begin, finish, process_exists, recover, restore_if_unchanged } from 'crate/journal';
+/// ```
 use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged};
-// Imports `crate::lockfile::{LockedVersion, added_vers...`.
+/// What:
+/// `use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};` imports `LockedVersion`,
+/// `added_versions`,
+/// `parse_registry_versions`,
+/// `registry_versions` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `LockedVersion` is used by `UpdateReport`,
+/// `run_update`;
+/// `added_versions` is used by `run_update`;
+/// `parse_registry_versions` is used by `excluded_update_specs`;
+/// `registry_versions` is used by `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockedVersion, added_versions, parse_registry_versions, registry_versions } from 'crate/lockfile';
+/// ```
 use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};
-// Imports `crate::prune::prune_excludes`.
+/// What:
+/// `use crate::prune::prune_excludes;` imports `prune_excludes` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `prune_excludes` is used by `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { prune_excludes } from 'crate/prune';
+/// ```
 use crate::prune::prune_excludes;
-// Imports `crate::registry::Registry`.
+/// What:
+/// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `Registry` is used by `UpdateRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Registry } from 'crate/registry';
+/// ```
 use crate::registry::Registry;
-// Imports `crate::selectors::{matches_pattern, parse_s...`.
+/// What:
+/// `use crate::selectors::{matches_pattern, parse_selector};` imports `matches_pattern`,
+/// `parse_selector` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `matches_pattern` is used by `excluded_update_specs`;
+/// `parse_selector` is used by `excluded_update_specs`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { matches_pattern, parse_selector } from 'crate/selectors';
+/// ```
 use crate::selectors::{matches_pattern, parse_selector};
-// Imports `crate::set_aside::{SetAsideRequest, set_asi...`.
+/// What:
+/// `use crate::set_aside::{SetAsideRequest, set_aside_until_clean};` imports `SetAsideRequest`,
+/// `set_aside_until_clean` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `SetAsideRequest` is used by `run_update`;
+/// `set_aside_until_clean` is used by `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { SetAsideRequest, set_aside_until_clean } from 'crate/set_aside';
+/// ```
 use crate::set_aside::{SetAsideRequest, set_aside_until_clean};
-// Imports `crate::tighten::{Syncer, raise_floors, rais...`.
+/// What:
+/// `use crate::tighten::{Syncer, raise_floors, raised_names};` imports `Syncer`,
+/// `raise_floors`,
+/// `raised_names` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `Syncer` is used by `UpdateRequest`;
+/// `raise_floors` is used by `run_update`;
+/// `raised_names` is used by `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Syncer, raise_floors, raised_names } from 'crate/tighten';
+/// ```
 use crate::tighten::{Syncer, raise_floors, raised_names};
-// Imports `crate::time_text::publish_time_cutoff`.
+/// What:
+/// `use crate::time_text::publish_time_cutoff;` imports `publish_time_cutoff` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `publish_time_cutoff` is used by `run_update`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { publish_time_cutoff } from 'crate/time_text';
+/// ```
 use crate::time_text::publish_time_cutoff;
 
 /// Which procedure the update runs.
@@ -167,7 +328,27 @@ pub enum UpdateError {
     },
 }
 
+/// What:
+/// `impl fmt::Display for UpdateError` lets an update failure be printed with `{}`.
+/// Why:
+/// The shadow and the CLI print the error,
+/// and a cargo failure carries the remedies for a release-age or toolchain problem.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class UpdateError extends Error { toString() { ... } }
+/// ```
 impl fmt::Display for UpdateError {
+    /// What:
+    /// `fn fmt(&self, formatter)` writes the message of whichever variant the error is (a `match` over the cases).
+    /// Why:
+    /// A cargo failure shows cargo's output plus the release-age and toolchain remedies,
+    /// so the user can act without reading the code.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// toString(): string { return this.kind === "cargo" ? this.cargoMessage() : this.message; }
+    /// ```
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
         // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.

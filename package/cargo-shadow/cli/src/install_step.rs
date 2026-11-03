@@ -21,13 +21,15 @@
 //! export function runInstallStep(request: StepRequest): StepOutcome
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `read_catalog`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
 // Imports `std::path::{Path, PathBuf}`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
@@ -37,24 +39,129 @@ use std::fs;
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::path::{Path, PathBuf};` imports `Path`,
+/// `PathBuf` from the standard library so this file can name them unqualified.
+/// Why:
+/// `Path` is used by `StepRequest`,
+/// `relative_crate_dir`,
+/// `read_catalog`,
+/// `write_stamp`;
+/// `PathBuf` is used by `read_catalog`,
+/// `write_stamp`,
+/// `run_install_step`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path, PathBuf } from 'std/path';
+/// ```
 use std::path::{Path, PathBuf};
 
-// Imports `monochromatic_dependency_catalog::{CatalogD...`.
+/// What:
+/// `use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};` imports `CatalogDocument`,
+/// `parse_catalog` from the external crate `monochromatic_dependency_catalog` so this file can name them unqualified.
+/// Why:
+/// `CatalogDocument` is used by `read_catalog`,
+/// `run_install_step`;
+/// `parse_catalog` is used by `read_catalog`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CatalogDocument, parse_catalog } from 'monochromatic_dependency_catalog';
+/// ```
 use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};
 
-// Imports `crate::cargo_run::CargoRunner`.
+/// What:
+/// `use crate::cargo_run::CargoRunner;` imports `CargoRunner` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `CargoRunner` is used by `StepRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CargoRunner } from 'crate/cargo_run';
+/// ```
 use crate::cargo_run::CargoRunner;
-// Imports `crate::constants::{CATALOG_MARKER, LOCKFILE...`.
+/// What:
+/// `use crate::constants::{CATALOG_MARKER, LOCKFILE_NAME};` imports `CATALOG_MARKER`,
+/// `LOCKFILE_NAME` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `CATALOG_MARKER` is used by `read_catalog`;
+/// `LOCKFILE_NAME` is used by `write_stamp`,
+/// `run_install_step`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CATALOG_MARKER, LOCKFILE_NAME } from 'crate/constants';
+/// ```
 use crate::constants::{CATALOG_MARKER, LOCKFILE_NAME};
-// Imports `crate::install::{InstallError, InstallRepor...`.
+/// What:
+/// `use crate::install::{InstallError, InstallReport, InstallRequest, VERIFY_ARGS, arguments_for, install_rust_lockfiles};` imports `InstallError`,
+/// `InstallReport`,
+/// `InstallRequest`,
+/// `VERIFY_ARGS`,
+/// `arguments_for`,
+/// `install_rust_lockfiles` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `InstallError` is used by `run_install_step`;
+/// `InstallReport` is used by `run_install_step`;
+/// `InstallRequest` is used by `run_install_step`;
+/// `VERIFY_ARGS` is used by `write_stamp`;
+/// `arguments_for` is used by `write_stamp`;
+/// `install_rust_lockfiles` is used by `run_install_step`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { InstallError, InstallReport, InstallRequest, VERIFY_ARGS, arguments_for, install_rust_lockfiles } from 'crate/install';
+/// ```
 use crate::install::{InstallError, InstallReport, InstallRequest, VERIFY_ARGS, arguments_for, install_rust_lockfiles};
-// Imports `crate::lockfile::LockedVersion`.
+/// What:
+/// `use crate::lockfile::LockedVersion;` imports `LockedVersion` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `LockedVersion` is used by `StepOutcome`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockedVersion } from 'crate/lockfile';
+/// ```
 use crate::lockfile::LockedVersion;
-// Imports `crate::registry::Registry`.
+/// What:
+/// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `Registry` is used by `StepRequest`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Registry } from 'crate/registry';
+/// ```
 use crate::registry::Registry;
-// Imports `crate::stamp::{is_fresh, manifests_from_met...`.
+/// What:
+/// `use crate::stamp::{is_fresh, manifests_from_metadata, record, stamp_file};` imports `is_fresh`,
+/// `manifests_from_metadata`,
+/// `record`,
+/// `stamp_file` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `is_fresh` is used by `run_install_step`;
+/// `manifests_from_metadata` is used by `write_stamp`;
+/// `record` is used by `write_stamp`;
+/// `stamp_file` is used by `write_stamp`,
+/// `run_install_step`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { is_fresh, manifests_from_metadata, record, stamp_file } from 'crate/stamp';
+/// ```
 use crate::stamp::{is_fresh, manifests_from_metadata, record, stamp_file};
-// Imports `crate::workspace::{find_cargo_root, find_ca...`.
+/// What:
+/// `use crate::workspace::{find_cargo_root, find_catalog_root};` imports `find_cargo_root`,
+/// `find_catalog_root` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `find_cargo_root` is used by `run_install_step`;
+/// `find_catalog_root` is used by `run_install_step`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { find_cargo_root, find_catalog_root } from 'crate/workspace';
+/// ```
 use crate::workspace::{find_cargo_root, find_catalog_root};
 
 /// What the install step did.
@@ -62,7 +169,24 @@ use crate::workspace::{find_cargo_root, find_catalog_root};
 pub enum StepOutcome {
     /// Nothing to do here,
     /// with the reason.
-    Skipped(String),
+    Skipped(
+        /// What:
+        /// The reason the step did nothing,
+        /// as text (`String`,
+        /// owned;
+        /// sibling:
+        /// `&str`,
+        /// borrowed).
+        /// Why:
+        /// The shadow ignores a skip silently,
+        /// but tests and logs can say why no install check ran.
+        ///
+        /// In TS you'd write (pseudocode):
+        /// ```ts
+        /// { kind: 'skipped', reason: string }
+        /// ```
+        String,
+    ),
     /// The recorded fingerprints still match:
     /// no cargo was started.
     FastPath,
@@ -77,7 +201,20 @@ pub enum StepOutcome {
     },
     /// The step refused or failed,
     /// with the message to show.
-    Failed(String),
+    Failed(
+        /// What:
+        /// The message to show the user,
+        /// as text (`String`,
+        /// owned).
+        /// Why:
+        /// The shadow prints it as the warning that explains why `--locked` was added to the user's command.
+        ///
+        /// In TS you'd write (pseudocode):
+        /// ```ts
+        /// { kind: 'failed', message: string }
+        /// ```
+        String,
+    ),
 }
 
 /// What the step needs.

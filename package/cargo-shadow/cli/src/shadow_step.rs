@@ -16,13 +16,6 @@
 //! export function beforeCargo(args: string[]): string | undefined  // a failure message
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
 // What:     `OsString` is operating-system text that need not be valid UTF-8 (sibling: `String`, always valid UTF-8).
 // Why:      Command-line arguments pass through byte for byte, so they are kept as the OS gave them.
 //
@@ -30,8 +23,29 @@
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::ffi::OsString;` imports `OsString` from the standard library so this file can name it unqualified.
+/// Why:
+/// `OsString` is used by `start_dir`,
+/// `prepare`,
+/// `before_cargo`,
+/// `warn_after_cargo`,
+/// and others.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { OsString } from 'std/ffi';
+/// ```
 use std::ffi::OsString;
-// Imports `std::io::Write`.
+/// What:
+/// `use std::io::Write;` imports `Write` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Write` is used by `warn_after_cargo`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Write } from 'std/io';
+/// ```
 use std::io::Write;
 // Imports `std::path::{Path, PathBuf}`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
@@ -41,36 +55,187 @@ use std::io::Write;
 // ```ts
 // // TS has one type for this: string
 // ```
+/// What:
+/// `use std::path::{Path, PathBuf};` imports `Path`,
+/// `PathBuf` from the standard library so this file can name them unqualified.
+/// Why:
+/// `Path` is used by `start_dir`,
+/// `lock_base_reader`;
+/// `PathBuf` is used by `start_dir`,
+/// `Prepared`,
+/// `prepare`,
+/// `warn_after_cargo`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path, PathBuf } from 'std/path';
+/// ```
 use std::path::{Path, PathBuf};
-// Imports `std::time::{SystemTime, UNIX_EPOCH}`.
+/// What:
+/// `use std::time::{SystemTime, UNIX_EPOCH};` imports `SystemTime`,
+/// `UNIX_EPOCH` from the standard library so this file can name them unqualified.
+/// Why:
+/// `SystemTime` is used by `now_millis`;
+/// `UNIX_EPOCH` is used by `now_millis`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { SystemTime, UNIX_EPOCH } from 'std/time';
+/// ```
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// Imports `monochromatic_dependency_catalog::{CatalogD...`.
+/// What:
+/// `use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};` imports `CatalogDocument`,
+/// `parse_catalog` from the external crate `monochromatic_dependency_catalog` so this file can name them unqualified.
+/// Why:
+/// `CatalogDocument` is used by `Prepared`,
+/// `prepare`,
+/// `lock_base_reader`;
+/// `parse_catalog` is used by `prepare`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CatalogDocument, parse_catalog } from 'monochromatic_dependency_catalog';
+/// ```
 use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};
 
-// Imports `crate::cargo_run::RealCargo`.
+/// What:
+/// `use crate::cargo_run::RealCargo;` imports `RealCargo` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `RealCargo` is used by `Prepared`,
+/// `prepare`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { RealCargo } from 'crate/cargo_run';
+/// ```
 use crate::cargo_run::RealCargo;
-// Imports `crate::catalog_warning::warn_about_manifest`.
+/// What:
+/// `use crate::catalog_warning::warn_about_manifest;` imports `warn_about_manifest` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `warn_about_manifest` is used by `warn_after_cargo`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { warn_about_manifest } from 'crate/catalog_warning';
+/// ```
 use crate::catalog_warning::warn_about_manifest;
-// Imports `crate::constants::{CATALOG_MARKER, MANIFEST...`.
+/// What:
+/// `use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};` imports `CATALOG_MARKER`,
+/// `MANIFEST_NAME` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `CATALOG_MARKER` is used by `prepare`;
+/// `MANIFEST_NAME` is used by `warn_after_cargo`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CATALOG_MARKER, MANIFEST_NAME } from 'crate/constants';
+/// ```
 use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};
-// Imports `crate::git_base::{base_from_environment, gi...`.
+/// What:
+/// `use crate::git_base::{base_from_environment, git_base_lock_reader};` imports `base_from_environment`,
+/// `git_base_lock_reader` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `base_from_environment` is used by `lock_base_reader`;
+/// `git_base_lock_reader` is used by `lock_base_reader`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { base_from_environment, git_base_lock_reader } from 'crate/git_base';
+/// ```
 use crate::git_base::{base_from_environment, git_base_lock_reader};
-// Imports `crate::http::UreqFetcher`.
+/// What:
+/// `use crate::http::UreqFetcher;` imports `UreqFetcher` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `UreqFetcher` is used by `prepare`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { UreqFetcher } from 'crate/http';
+/// ```
 use crate::http::UreqFetcher;
-// Imports `crate::install::is_continuous_integration`.
+/// What:
+/// `use crate::install::is_continuous_integration;` imports `is_continuous_integration` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `is_continuous_integration` is used by `prepare`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { is_continuous_integration } from 'crate/install';
+/// ```
 use crate::install::is_continuous_integration;
-// Imports `crate::install_step::{StepOutcome, StepRequ...`.
+/// What:
+/// `use crate::install_step::{StepOutcome, StepRequest, run_install_step};` imports `StepOutcome`,
+/// `StepRequest`,
+/// `run_install_step` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `StepOutcome` is used by `before_cargo`;
+/// `StepRequest` is used by `before_cargo`;
+/// `run_install_step` is used by `before_cargo`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { StepOutcome, StepRequest, run_install_step } from 'crate/install_step';
+/// ```
 use crate::install_step::{StepOutcome, StepRequest, run_install_step};
-// Imports `crate::options::{asserts_lock, change_dir, ...`.
+/// What:
+/// `use crate::options::{asserts_lock, change_dir, manifest_path};` imports `asserts_lock`,
+/// `change_dir`,
+/// `manifest_path` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `asserts_lock` is used by `prepare`,
+/// `with_locked`;
+/// `change_dir` is used by `start_dir`;
+/// `manifest_path` is used by `start_dir`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { asserts_lock, change_dir, manifest_path } from 'crate/options';
+/// ```
 use crate::options::{asserts_lock, change_dir, manifest_path};
-// Imports `crate::real_binary::find_real_cargo`.
+/// What:
+/// `use crate::real_binary::find_real_cargo;` imports `find_real_cargo` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `find_real_cargo` is used by `prepare`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { find_real_cargo } from 'crate/real_binary';
+/// ```
 use crate::real_binary::find_real_cargo;
-// Imports `crate::registry::CratesIo`.
+/// What:
+/// `use crate::registry::CratesIo;` imports `CratesIo` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `CratesIo` is used by `Prepared`,
+/// `prepare`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { CratesIo } from 'crate/registry';
+/// ```
 use crate::registry::CratesIo;
-// Imports `crate::toolchain::cargo_toolchain`.
+/// What:
+/// `use crate::toolchain::cargo_toolchain;` imports `cargo_toolchain` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `cargo_toolchain` is used by `prepare`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { cargo_toolchain } from 'crate/toolchain';
+/// ```
 use crate::toolchain::cargo_toolchain;
-// Imports `crate::workspace::{find_cargo_root, find_ca...`.
+/// What:
+/// `use crate::workspace::{find_cargo_root, find_catalog_root};` imports `find_cargo_root`,
+/// `find_catalog_root` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `find_cargo_root` is used by `prepare`;
+/// `find_catalog_root` is used by `prepare`,
+/// `warn_after_cargo`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { find_cargo_root, find_catalog_root } from 'crate/workspace';
+/// ```
 use crate::workspace::{find_cargo_root, find_catalog_root};
 
 /// What:

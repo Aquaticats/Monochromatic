@@ -42,15 +42,109 @@
 //! export async function verifyLockedEntries({ root, snapshots, settings, registry, now }): Promise<string[]>
 //! ```
 
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `verify_locked_entries`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
+/// What:
+/// `use std::path::{Path, PathBuf};` imports `Path`,
+/// `PathBuf` from the standard library so this file can name them unqualified.
+/// Why:
+/// `Path` is used by `cache_file`,
+/// `verify_locked_entries`;
+/// `PathBuf` is used by `cache_file`,
+/// `verify_locked_entries`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path, PathBuf } from 'std/path';
+/// ```
 use std::path::{Path, PathBuf};
 
+/// What:
+/// `use monochromatic_dependency_catalog::Settings;` imports `Settings` from the external crate `monochromatic_dependency_catalog` so this file can name it unqualified.
+/// Why:
+/// `Settings` is used by `cache_key`,
+/// `cache_file`,
+/// `verify_locked_entries`,
+/// `verify_added_since_base`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Settings } from 'monochromatic_dependency_catalog';
+/// ```
 use monochromatic_dependency_catalog::Settings;
+/// What:
+/// `use sha2::{Digest, Sha256};` imports `Digest`,
+/// `Sha256` from the external crate `sha2` so this file can name them unqualified.
+/// Why:
+/// `Digest` must be in scope for its methods:
+/// `update` and `finalize` on the hasher;
+/// `Sha256` is used by `cache_key`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Digest, Sha256 } from 'sha2';
+/// ```
 use sha2::{Digest, Sha256};
 
+/// What:
+/// `use crate::checks::{check_release_age, check_trust};` imports `check_release_age`,
+/// `check_trust` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `check_release_age` is used by `verify_locked_entries`;
+/// `check_trust` is used by `verify_locked_entries`,
+/// `verify_added_since_base`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { check_release_age, check_trust } from 'crate/checks';
+/// ```
 use crate::checks::{check_release_age, check_trust};
+/// What:
+/// `use crate::crates::LockSnapshot;` imports `LockSnapshot` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `LockSnapshot` is used by `cache_key`,
+/// `cache_file`,
+/// `verify_locked_entries`,
+/// `verify_added_since_base`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockSnapshot } from 'crate/crates';
+/// ```
 use crate::crates::LockSnapshot;
+/// What:
+/// `use crate::lockfile::{LockedVersion, added_versions, registry_versions};` imports `LockedVersion`,
+/// `added_versions`,
+/// `registry_versions` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `LockedVersion` is used by `verify_locked_entries`,
+/// `verify_added_since_base`;
+/// `added_versions` is used by `verify_added_since_base`;
+/// `registry_versions` is used by `verify_locked_entries`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockedVersion, added_versions, registry_versions } from 'crate/lockfile';
+/// ```
 use crate::lockfile::{LockedVersion, added_versions, registry_versions};
+/// What:
+/// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `Registry` is used by `verify_locked_entries`,
+/// `verify_added_since_base`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Registry } from 'crate/registry';
+/// ```
 use crate::registry::Registry;
 
 /// Where passing digests are remembered,
@@ -76,6 +170,16 @@ pub fn cache_key(snapshot: &LockSnapshot, settings: &Settings) -> String {
     return hex(hasher.finalize().as_slice());
 }
 
+/// What:
+/// `fn cache_file(root, snapshot, settings) -> PathBuf` is the marker file for one lockfile under one policy.
+/// Why:
+/// The lookup before a check and the write after a pass must agree on the name,
+/// which holds the crate directory and the digest of the lockfile text and settings.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// cacheFile(root: string, snapshot: LockSnapshot, settings: Settings): string
+/// ```
 fn cache_file(root: &Path, snapshot: &LockSnapshot, settings: &Settings) -> PathBuf {
     return root.join(VERIFIED_DIR).join(format!("{}.{}.ok", snapshot.crate_dir.replace('/', "__"), cache_key(snapshot, settings)));
 }

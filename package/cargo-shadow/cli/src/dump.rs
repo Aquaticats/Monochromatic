@@ -20,17 +20,119 @@
 //! export async function fillHistoriesFromDump({ tarChunks, names, cacheDir }): Promise<DumpFillResult>
 //! ```
 
+/// What:
+/// `use std::collections::{BTreeMap, BTreeSet};` imports `BTreeMap`,
+/// `BTreeSet` from the standard library so this file can name them unqualified.
+/// Why:
+/// `BTreeMap` is used by `fill_histories_from_dump`;
+/// `BTreeSet` is used by `fill_histories_from_dump`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BTreeMap, BTreeSet } from 'std/collections';
+/// ```
 use std::collections::{BTreeMap, BTreeSet};
+/// What:
+/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// Why:
+/// `fs` is used by `fill_histories_from_dump`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
+/// What:
+/// `use std::io::Read;` imports `Read` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Read` is used by `read_table`,
+/// `fill_histories_from_dump`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Read } from 'std/io';
+/// ```
 use std::io::Read;
+/// What:
+/// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
+/// Why:
+/// `Path` is used by `fill_histories_from_dump`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path } from 'std/path';
+/// ```
 use std::path::Path;
 
+/// What:
+/// `use flate2::read::GzDecoder;` imports `GzDecoder` from the external crate `flate2` so this file can name it unqualified.
+/// Why:
+/// `GzDecoder` is used by `fill_histories_from_dump`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { GzDecoder } from 'flate2/read';
+/// ```
 use flate2::read::GzDecoder;
+/// What:
+/// `use serde_json::Value;` imports `Value` from the external crate `serde_json` so this file can name it unqualified.
+/// Why:
+/// `Value` is used by `history_json`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Value } from 'serde_json';
+/// ```
 use serde_json::Value;
+/// What:
+/// `use tar::Archive;` imports `Archive` from the external crate `tar` so this file can name it unqualified.
+/// Why:
+/// `Archive` is used by `fill_histories_from_dump`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Archive } from 'tar';
+/// ```
 use tar::Archive;
 
+/// What:
+/// `use crate::csv::{DumpFormatError, column_indexes, read_csv};` imports `DumpFormatError`,
+/// `column_indexes`,
+/// `read_csv` from another module of this crate so this file can name them unqualified.
+/// Why:
+/// `DumpFormatError` is used by `dump_timestamp`,
+/// `read_table`,
+/// `fill_histories_from_dump`;
+/// `column_indexes` is used by `read_table`;
+/// `read_csv` is used by `read_table`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DumpFormatError, column_indexes, read_csv } from 'crate/csv';
+/// ```
 use crate::csv::{DumpFormatError, column_indexes, read_csv};
+/// What:
+/// `use crate::policy::VersionRecord;` imports `VersionRecord` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `VersionRecord` is used by `needs_api`,
+/// `history_json`,
+/// `fill_histories_from_dump`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { VersionRecord } from 'crate/policy';
+/// ```
 use crate::policy::VersionRecord;
+/// What:
+/// `use crate::time_text::parse_rfc3339_millis;` imports `parse_rfc3339_millis` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `parse_rfc3339_millis` is used by `dump_timestamp`,
+/// `needs_api`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parse_rfc3339_millis } from 'crate/time_text';
+/// ```
 use crate::time_text::parse_rfc3339_millis;
 
 /// The first moment Trusted Publishing existed on crates.io;
