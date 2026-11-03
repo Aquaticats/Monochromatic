@@ -357,16 +357,16 @@ fn git_that_cannot_start_or_say_why_or_be_read_has_its_own_cause() {
     let arguments = post(&["origin", "main"]);
     let mut absent = git_for(&repo);
     absent.real_git = repo.parent().expect("root").join("no-such-git");
-    let error = probe_manual_push_updates(&absent, &[], &arguments).expect_err("Git cannot start");
-    assert_eq!(error.cause, ManualPushCause::GitNotStarted, "{error}");
+    let not_started = probe_manual_push_updates(&absent, &[], &arguments).expect_err("Git cannot start");
+    assert_eq!(not_started.cause, ManualPushCause::GitNotStarted, "{not_started}");
     let mut silent = git_for(&repo);
     silent.real_git = PathBuf::from("/usr/bin/false");
-    let error = probe_manual_push_updates(&silent, &[], &arguments).expect_err("Git says nothing");
-    assert_eq!(error.cause, ManualPushCause::GitSilent, "{error}");
+    let not_said = probe_manual_push_updates(&silent, &[], &arguments).expect_err("Git says nothing");
+    assert_eq!(not_said.cause, ManualPushCause::GitSilent, "{not_said}");
     let mut garbled = git_for(&repo);
     garbled.real_git = PathBuf::from("/usr/bin/echo");
-    let error = probe_manual_push_updates(&garbled, &[], &arguments).expect_err("an unreadable report");
-    assert_eq!(error.cause, ManualPushCause::UnexpectedOutput, "{error}");
+    let unreadable = probe_manual_push_updates(&garbled, &[], &arguments).expect_err("an unreadable report");
+    assert_eq!(unreadable.cause, ManualPushCause::UnexpectedOutput, "{unreadable}");
     remove(repo.parent().expect("root"));
 }
 

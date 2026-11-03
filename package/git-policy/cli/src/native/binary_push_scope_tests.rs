@@ -68,9 +68,6 @@ fn a_commit_whose_parent_object_is_gone_keeps_the_hint_about_missing_content() {
     commit_directly(&fixture, world.repo.as_path(), "two.txt", "two\n");
     let object: std::path::PathBuf = world.repo.join(".git/objects").join(&parent[..2]).join(&parent[2..]);
     assert!(object.exists(), "the parent is a loose object: {}", object.display());
-    let mut permissions = std::fs::metadata(&object).expect("object metadata").permissions();
-    permissions.set_readonly(false);
-    std::fs::set_permissions(&object, permissions).expect("writable object");
     std::fs::remove_file(&object).expect("remove the parent object");
     let pushed: Observed = wrapped_with_hints(&fixture, world.repo.as_path(), &["push", "origin", "HEAD:refs/heads/unpublished"]);
     assert_failure_of(&pushed, ManualPushCause::ContentMissing, "failed");
