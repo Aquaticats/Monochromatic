@@ -3523,12 +3523,17 @@ the commit takes the bytes the worktree holds, conflict markers included,
 and once it has landed standard error says in plain words that the path still has conflict markers,
 that they were committed, and how to fix them in a follow-up commit.
 That claim is made only for a path whose committed blob holds a marker line as Git writes it
-(`conflict_markers.rs`: the size of `conflict-marker-size` from the attributes, seven by default, equal `<` or `>` characters
-followed by white space, as Git's `is_conflict_marker` reads a line); a path the person resolved by editing, with no marker line
+(`conflict_markers.rs`: the size of `conflict-marker-size` from the attributes, seven by default, equal `<`
+ or `>` characters
+followed by white space, as Git's `is_conflict_marker` reads a line); a path the person resolved by editing,
+ with no marker line
 left, is counted as resolved and nothing is said about markers for it.
-Whenever a commit of named paths leaves a merge or a cherry-pick in progress, with markers committed or not, standard error
-carries one more line that says so and names how to finish it: stage any file still unmerged, then `git commit` with no paths,
-or `git merge --continue` (`git cherry-pick --continue`); a follow-up commit of the path alone never finishes the operation.
+Whenever a commit of named paths leaves a merge or a cherry-pick in progress, with markers committed or not,
+ standard error
+carries one more line that says so and names how to finish it: stage any file still unmerged,
+ then `git commit` with no paths,
+or `git merge --continue` (`git cherry-pick --continue`);
+ a follow-up commit of the path alone never finishes the operation.
 The merge stays unfinished, and the index entry of that path is the committed one.
 A plain `git commit` that names no paths while files are still unmerged finishes the merge (owner, 2026-11-03, question tool:
 "Warn and finish the merge (Recommended)"):
@@ -3926,11 +3931,15 @@ What Git does after a clean run, from the Git 2.56.0 source:
   or cannot be tried, so the merge
   stays stopped with the work in `MERGE_AUTOSTASH`.
   A stash whose apply conflicts when the person concludes the merge with their own `git commit` is stored by Git in the
-  scratch repository's private `refs/stash`, with its conflict stages in the commit's private index. The landing carries both back
-  (`autostash_carry.rs`): the stash is stored in the repository with `git stash store -m autostash` (once; the objects are
-  already in the repository's store, because the scratch repository writes there), by `remove_conclusion_state` before it removes
+  scratch repository's private `refs/stash`, with its conflict stages in the commit's private index.
+  The landing carries both back
+  (`autostash_carry.rs`): the stash is stored in the repository with `git stash store -m autostash` (once;
+  the objects are
+  already in the repository's store, because the scratch repository writes there),
+  by `remove_conclusion_state` before it removes
   the pseudoref, and the stages are put into the index the landing installs, under the lock it holds (`follow_up` in
-  `service_land.rs`). The control `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` compares the stash
+  `service_land.rs`).
+  The control `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` compares the stash
   list, the status and the file with Git's own result. A
   `branch.<name>.mergeoptions` value of the checked-out branch is split as Git splits it (`alias.c` lines 126 to 180) and read
   before the command line (`merge.c` lines 1407 to 1409), so `--no-commit`, `--squash`, `--edit` or `-m` set there is honoured.
