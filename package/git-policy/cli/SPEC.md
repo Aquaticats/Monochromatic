@@ -2720,6 +2720,13 @@ itself (a branch to delete that the remote lacks, a refspec naming nothing, an u
 published, so the wrapper ends with Git's exit status and Git's standard error as Git wrote it, with no event and no hint.
 A failure of the probe's own reading (Git cannot run, a failure without a message, a report outside the format, a remote that
 changed during discovery) stays a `content-unavailable` engine failure and exits `2`.
+That one code covers causes the person answers differently, so the failure carries its cause and the event's hint is the
+cause's, not the code's: a remote that moved says to run the push again; a remote whose refs could not be read says to check
+the network, the address and the credentials, and its message masks the userinfo of the address; Git that cannot start or
+ends without a message says to run Git's own `--dry-run`; output the wrapper cannot read is reported as a defect with the
+output of `git --version`; a pushed object that is not a commit says to push a commit; and only content missing from the
+clone keeps the code's hint about fetching history. A message that already says what to do (a deadline with its setting, a
+repository that cannot be located) carries no hint.
 Do not infer destination ref values from cached tracking refs,
 push output,
 or hand-written refspec interpretation;
