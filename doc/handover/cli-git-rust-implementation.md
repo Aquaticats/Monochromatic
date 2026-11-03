@@ -517,10 +517,23 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   the stopped child's lock and its pid file stay,
   read as the general judge declining inside the container's own PID namespace,
   so inside any container every Git child the wrapper ends would leave a lock.
-  Its agent is resumed on `fix/git-policy-cli-sweeps-its-own-reaped-childs-locks`:
-  the wrapper's own reaped child's pid file,
-  born at or after the lock,
-  is proof without namespace inference.
+  Fixed and merged into the base (`3c7aaa1122`):
+  `fix/git-policy-cli-sweeps-its-own-reaped-childs-locks` `9176f9302c`.
+  The reading was confirmed (the judge reports a PID namespace of its own and returns Unproven).
+  The sweep passes the judge the ended members of the tree it reaped (`Judge.own_ended`);
+  a pid file born at or after the lock,
+  a lock born after the child started (`COARSE_CLOCK_SLACK` 50 ms back),
+  and no process with that number again prove it gone in any process view,
+  without the 4 s margin.
+  Container run 2 red then 93 of 93;
+  host 104 of 104;
+  six negative controls for the container view.
+  It adds occasions for the move-aside residue (R9-S) without changing the step;
+  SPEC now states that residue beside the removal step.
+- Running:
+  a fourth early gate at `3c7aaa1122` (after the waits follow-ups and the regression fix),
+  unit `gpc-gate-candidate-0-5-28-waits-own-child-locks-20261103T122526-0500.service`;
+  the ACL test is expected to fail until the index round 4 adds `setfacl` to the image.
 - Done and merged into the 0.5.28 base (fast-forward to `d300bb806d`):
   `fix/git-policy-cli-conflict-warning-reads-the-content`.
   The marker claim reads the committed blob (`conflict_markers.rs`,
