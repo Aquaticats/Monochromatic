@@ -18,9 +18,10 @@ use std::path::{Path, PathBuf};
 use super::commit_identity::{create_dir_all_durable, fault_point, sync_chain, temporary_name};
 use super::commit_integrity::{hex, is_identity, is_object_name, sha256_hex, unhex};
 
-/// The record format version this module reads and writes. These components are unreleased and no version-1 request was ever
-/// accepted anywhere, so version 1 is rejected rather than migrated; a later format change would need a reader of the older one.
-pub const REQUEST_VERSION: u32 = 2;
+/// The record format version this module reads and writes. These components are unreleased and no request of version 1 or 2 was ever
+/// accepted anywhere, so earlier versions are rejected rather than migrated (version 3 adds the mandatory `operation` line and the
+/// amend parents); a later format change would need a reader of the older one.
+pub const REQUEST_VERSION: u32 = 3;
 
 /// What:
 ///  `struct Change { ... }`: one path of a request: its mode (`000000` for a deletion), and the SHA-256 of its captured
@@ -64,7 +65,12 @@ pub enum Operation {
     /// `git commit --allow-empty`: no change, a new commit on the base.
     EmptyCommit,
     /// An amendment of the commit with this object name (possibly message-only).
-    Amend(String),
+    Amend {
+        /// The object name of the commit being amended.
+        target: String,
+        /// The target's parents, so the amendment can be rebuilt after the target is pruned (retention by spooling).
+        parents: Vec<String>,
+    },
 }
 
 /// What:
@@ -188,7 +194,9 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
     match &request.operation {
         Operation::Commit if request.changes.is_empty() => return Err(RequestError::Invalid("changes")),
         Operation::EmptyCommit if !request.changes.is_empty() => return Err(RequestError::Invalid("changes")),
-        Operation::Amend(target) if !is_object_name(target) => return Err(RequestError::Invalid("amend target")),
+        Operation::Amend { target, parents } if !is_object_name(target) || !parents.iter().all(|parent| { return is_object_name(parent); }) => {
+            return Err(RequestError::Invalid("amend target"));
+        }
         _ => {}
     }
     // What:     `None` is the absent case of `Option` (TS: `undefined`).
@@ -215,7 +223,9 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
         // ```
         previous = Some(change.path.as_slice());
         let deletion: bool = change.mode == "000000";
-        let mode_ok: bool = deletion || ["100644", "100755", "120000", "160000"].contains(&change.mode.as_str());
+        // Gitlinks (mode 160000) are unsupported: the spool has no representation of a submodule commit, and the replay cannot decide
+        // its ancestry; such a request is refused before acceptance and goes the way of Git itself.
+        let mode_ok: bool = deletion || ["100644", "100755", "120000"].contains(&change.mode.as_str());
         if !mode_ok {
             return Err(RequestError::Invalid("mode"));
         }
@@ -224,7 +234,7 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
             return Err(RequestError::Invalid("sha256"));
         }
         let absent: bool = change.old_mode == "000000";
-        let old_mode_ok: bool = absent || ["100644", "100755", "120000", "160000"].contains(&change.old_mode.as_str());
+        let old_mode_ok: bool = absent || ["100644", "100755", "120000"].contains(&change.old_mode.as_str());
         let old_hash_ok: bool = if absent { change.old_sha256 == "-" } else { change.old_sha256.len() == 64 && unhex(&change.old_sha256).is_some() };
         if !old_mode_ok || !old_hash_ok {
             return Err(RequestError::Invalid("old entry"));
@@ -257,7 +267,10 @@ pub fn encode(request: &Request) -> Result<Vec<u8>, RequestError> {
     match &request.operation {
         Operation::Commit => body.push_str("operation commit\n"),
         Operation::EmptyCommit => body.push_str("operation empty-commit\n"),
-        Operation::Amend(target) => body.push_str(&format!("operation amend {}\n", target)),
+        Operation::Amend { target, parents } => {
+            let listed: String = if parents.is_empty() { "-".to_string() } else { parents.join(",") };
+            body.push_str(&format!("operation amend {} {}\n", target, listed));
+        }
     }
     for change in &request.changes {
         body.push_str(&format!("change {} {} {} {} {}\n", change.mode, change.sha256, change.old_mode, change.old_sha256, hex(&change.path)));
@@ -320,7 +333,12 @@ pub fn decode(bytes: &[u8]) -> Result<Request, RequestError> {
     let operation: Operation = match operation_text {
         "commit" => Operation::Commit,
         "empty-commit" => Operation::EmptyCommit,
-        other => Operation::Amend(other.strip_prefix("amend ").ok_or(RequestError::Damaged("operation"))?.to_string()),
+        other => {
+            let rest: &str = other.strip_prefix("amend ").ok_or(RequestError::Damaged("operation"))?;
+            let (target, listed) = rest.split_once(' ').ok_or(RequestError::Damaged("operation"))?;
+            let parents: Vec<String> = if listed == "-" { Vec::new() } else { listed.split(',').map(|parent| { return parent.to_string(); }).collect() };
+            Operation::Amend { target: target.to_string(), parents }
+        }
     };
     // What:     `Vec::new()` makes an empty growable list (TS: `[]`); the type on the left says what it will hold. Siblings: `[T; N]`, a fixed-size array, and `&[T]`, a borrowed view.
     // Why:      Collect results whose number is not known beforehand.

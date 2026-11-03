@@ -24,7 +24,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, sync_chain, sync_directory};
+use super::commit_identity::{create_dir_all_durable, fault_point, record_event, sync_chain, sync_directory};
 use super::commit_integrity::{crc32, is_identity, is_object_name};
 
 /// What:
@@ -244,9 +244,12 @@ pub fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
         let mut saved: File = OpenOptions::new().create(true).append(true).open(torn_path(ledger))?;
         saved.write_all(&bytes[valid_end..])?;
         saved.sync_all()?;
+        record_event(&format!("file-sync:{}", torn_path(ledger).display()));
         sync_parent(&torn_path(ledger))?;
+        fault_point("ledger:before-truncate");
         let file: File = OpenOptions::new().write(true).open(ledger)?;
         file.set_len(valid_end as u64)?;
+        record_event(&format!("truncate:{}", ledger.display()));
         file.sync_all()?;
     }
     return Ok(Repair { kept: valid_end as u64, cut: cut as u64 });
@@ -254,8 +257,12 @@ pub fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
 
 /// Syncs the directory that holds `path`, so a newly created name survives power loss.
 fn sync_parent(path: &Path) -> io::Result<()> {
-    let parent: &Path = path.parent().unwrap_or_else(|| { return Path::new("."); });
-    return sync_directory(parent);
+    // A bare relative name has the empty parent, which is the current directory.
+    let parent: PathBuf = match path.parent() {
+        Some(directory) if !directory.as_os_str().is_empty() => directory.to_path_buf(),
+        _ => PathBuf::from("."),
+    };
+    return sync_directory(&parent);
 }
 
 /// What:
@@ -287,18 +294,20 @@ pub fn lane_ledger_path(common_dir: &Path, instance: &str) -> Result<PathBuf, Le
 /// ```
 pub fn append(anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
     let line: Vec<u8> = encode_line(entry)?;
+    // The parent chain through the anchor is made durable before a repair can destroy anything: the saved tail must not sit under a
+    // directory name that a power loss could remove. A bare relative file name has the current directory as its parent.
+    let parent: PathBuf = match ledger.parent() {
+        Some(directory) if !directory.as_os_str().is_empty() => directory.to_path_buf(),
+        _ => PathBuf::from("."),
+    };
+    create_dir_all_durable(anchor, &parent)?;
     repair_tail(ledger)?;
-    if let Some(parent) = ledger.parent() {
-        create_dir_all_durable(anchor, parent)?;
-    }
     let mut file: File = OpenOptions::new().create(true).append(true).open(ledger)?;
     file.write_all(&line)?;
     file.sync_all()?;
     // Always, through the caller's durable anchor: the file or a directory above it may exist because a writer that died created
     // it before syncing.
-    if let Some(parent) = ledger.parent() {
-        sync_chain(parent, anchor)?;
-    }
+    sync_chain(&parent, anchor)?;
     return Ok(());
 }
 

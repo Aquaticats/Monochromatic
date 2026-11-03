@@ -143,3 +143,8 @@ mod model_observe;
 /// The controls of the observation vocabulary.
 #[path = "model_observe_tests.rs"]
 mod model_observe_tests;
+
+/// Ordering and race controls that need the test seams (compiled only with the feature `test-seams`).
+#[cfg(feature = "test-seams")]
+#[path = "commit_seam_tests.rs"]
+mod commit_seam_tests;

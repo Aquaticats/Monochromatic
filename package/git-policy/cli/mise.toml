@@ -58,6 +58,10 @@ run = "cargo check --locked --offline --all-targets"
 description = "Lint the native wrapper on the host with the gate's Clippy flags; the container gate stays the authority"
 run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 
+[tasks."native:clippy:seams"]
+description = "Lint the native wrapper with the test-seams feature on, as native:test:model builds it"
+run = "cargo clippy --locked --offline --all-targets --features test-seams -- -D warnings"
+
 [tasks."native:clippy:windows"]
 description = "Type-check and lint the native wrapper library for x86_64-pc-windows-gnu with warnings denied; nothing is run"
 # Needs the Windows GNU standard library on the host: `rustup target add x86_64-pc-windows-gnu`.
@@ -76,7 +80,7 @@ run = "cargo nextest run --locked --offline --test native_binary"
 
 [tasks."native:test:model"]
 description = "Run the commits-never-fail protocol models matching `-- <filter>...` on the host: exhaustive schedule exploration (bounded by each test's state and depth caps) and disposable-directory fixtures, two test threads at most"
-run = "cargo nextest run --locked --offline --test native_models --test-threads 2 --no-fail-fast"
+run = "cargo nextest run --locked --offline --features test-seams --test native_models --test-threads 2 --no-fail-fast"
 
 [tasks."test:git-image"]
 description = "Build the audited Git 2.56.0 release in the bounded Rust test image; `-- <git checkout> [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 512 PIDs; the make job count follows the whole CPUs)"

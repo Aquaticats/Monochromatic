@@ -12,7 +12,7 @@
 //! ```
 
 use crate::model_fixture::scratch;
-use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path, create_dir_all_durable, start_sync_trace, take_sync_trace};
+use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path, create_dir_all_durable};
 use git_policy_cli::commit_integrity::{crc32, sha256_hex};
 use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, append, encode_line, lane_ledger_path, lookup, parse_line, repair_tail};
 use git_policy_cli::commit_request::{Change, Operation, Published, Request, RequestError, content_hash, decode, encode, publish};
@@ -253,7 +253,7 @@ fn request_validation_refuses_bad_fields() {
 #[test]
 fn request_of_an_unknown_version_is_left_alone() {
     let bytes: Vec<u8> = encode(&request('b', "m")).expect("encode");
-    let text: String = String::from_utf8(bytes).expect("utf-8").replacen("cli-git-request 2", "cli-git-request 3", 1);
+    let text: String = String::from_utf8(bytes).expect("utf-8").replacen("cli-git-request 3", "cli-git-request 4", 1);
     let inbox: PathBuf = scratch("request-version").join("inbox");
     std::fs::create_dir_all(&inbox).expect("inbox");
     let file: PathBuf = inbox.join(identity('b'));
@@ -341,34 +341,6 @@ fn scratch_directories_are_new_and_inside_the_build_tree() {
     assert!(!first.starts_with("/tmp"));
 }
 
-/// Review P1 3 and A: every created directory is reported, and the chain through the anchor is synced on every call, the
-/// second included, which creates nothing.
-#[test]
-fn durable_directory_creation_syncs_the_chain_through_the_anchor_every_time() {
-    let root: PathBuf = scratch("durable-dirs");
-    start_sync_trace();
-    let created: Vec<PathBuf> = create_dir_all_durable(&root, &root.join("a/b/c")).expect("create");
-    let first: Vec<PathBuf> = take_sync_trace();
-    assert_eq!(created, vec![root.join("a"), root.join("a/b"), root.join("a/b/c")]);
-    assert_eq!(first, vec![root.join("a/b/c"), root.join("a/b"), root.join("a"), root.clone()]);
-    start_sync_trace();
-    assert!(create_dir_all_durable(&root, &root.join("a/b/c")).expect("again").is_empty());
-    assert_eq!(take_sync_trace(), first, "a chain that merely exists is synced again");
-}
-
-/// Re-review A: an ancestor another creator made and never synced is synced by the next successful bind, through the anchor.
-#[test]
-fn a_bind_syncs_an_ancestor_that_only_exists() {
-    let root: PathBuf = scratch("anchor-sync");
-    std::fs::create_dir_all(root.join("ids")).expect("an ancestor made by a creator that died before syncing the root");
-    let id: String = identity('d');
-    start_sync_trace();
-    assert_eq!(bind(&root, &id, &sha256_hex(b"x")).expect("bind"), Bound::Created);
-    let synced: Vec<PathBuf> = take_sync_trace();
-    assert!(synced.contains(&root.join("ids")), "{:?}", synced);
-    assert_eq!(synced.last(), Some(&root), "the chain ends at the anchor, the last directory synced");
-}
-
 /// Re-review D: a relative path works: the empty parent of a bare name is the current directory, never `create_dir("")`.
 #[test]
 fn durable_directory_creation_accepts_a_relative_path() {
@@ -379,34 +351,6 @@ fn durable_directory_creation_accepts_a_relative_path() {
     std::env::set_current_dir(previous).expect("chdir back");
     assert_eq!(created.expect("create").len(), 2);
     assert!(root.join("new/a").is_dir());
-}
-
-/// Review P1 4: a same-content resend, which finds the name already linked, syncs the namespace itself, in order, through the
-/// anchor: the directory of the name, then each directory above it.
-#[test]
-fn a_resend_that_finds_the_name_syncs_the_directory_chain_itself() {
-    let root: PathBuf = scratch("resend-sync");
-    let id: String = identity('1');
-    let hash: String = sha256_hex(b"x");
-    assert_eq!(bind(&root, &id, &hash).expect("bind"), Bound::Created);
-    let fan_out: PathBuf = binding_path(&root, &id).expect("path").parent().expect("parent").to_path_buf();
-    start_sync_trace();
-    assert_eq!(bind(&root, &id, &hash).expect("resend"), Bound::SameContent);
-    let synced: Vec<PathBuf> = take_sync_trace();
-    assert_eq!(synced.first(), Some(&fan_out));
-    assert_eq!(synced.last(), Some(&root));
-    let inbox: PathBuf = root.join("inbox");
-    let one: Request = request('2', "m");
-    publish(&root, &inbox, &one).expect("publish");
-    start_sync_trace();
-    assert_eq!(publish(&root, &inbox, &one).expect("resend"), Published::AlreadyPresent);
-    let synced_record: Vec<PathBuf> = take_sync_trace();
-    assert_eq!(synced_record[synced_record.len() - 2..], [inbox.clone(), root.clone()], "the inbox, then the anchor, last");
-    let ledger: PathBuf = root.join("ledger");
-    append(&root, &ledger, &entry('3', "published")).expect("append");
-    start_sync_trace();
-    append(&root, &ledger, &entry('4', "published")).expect("append");
-    assert_eq!(take_sync_trace().last(), Some(&root));
 }
 
 /// Review P1 2 (revision 9, R8-2): each lane has its own ledger path, and a reader of a ledger never repairs it: a torn tail
@@ -424,21 +368,6 @@ fn a_reader_never_repairs_another_lanes_ledger() {
     assert!(lookup(&ledger, &identity('1')).expect("lookup").is_some());
     assert_eq!(lookup(&ledger, &identity('2')).expect("lookup"), None);
     assert_eq!(std::fs::read(&ledger).expect("read"), bytes, "a reader changes nothing");
-}
-
-/// Review P2: the bytes cut from a torn tail are saved, and their directory is synced before the ledger is truncated.
-#[test]
-fn a_repair_saves_the_cut_bytes_before_it_truncates() {
-    let directory: PathBuf = scratch("torn-first");
-    let ledger: PathBuf = directory.join("ledger");
-    append(&directory, &ledger, &entry('1', "published")).expect("append");
-    let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
-    bytes.extend_from_slice(b"abc");
-    std::fs::write(&ledger, &bytes).expect("torn");
-    start_sync_trace();
-    repair_tail(&ledger).expect("repair");
-    assert_eq!(take_sync_trace(), vec![directory.clone()], "the .torn entry's directory is synced");
-    assert_eq!(std::fs::read(directory.join("ledger.torn")).expect("saved"), b"abc".to_vec());
 }
 
 /// Review P1 5: the spool alone carries both sides of every change. A repository is built, the base objects are captured into
@@ -488,7 +417,7 @@ fn the_operation_kind_and_amend_target_are_part_of_the_request() {
     empty.changes = Vec::new();
     empty.operation = Operation::EmptyCommit;
     let mut amend: Request = empty.clone();
-    amend.operation = Operation::Amend("c".repeat(40));
+    amend.operation = Operation::Amend { target: "c".repeat(40), parents: vec!["d".repeat(40)] };
     assert_ne!(content_hash(&empty).expect("hash"), content_hash(&amend).expect("hash"));
     assert_eq!(decode(&encode(&amend).expect("encode")).expect("decode"), amend);
     let mut bare: Request = empty.clone();
@@ -497,7 +426,7 @@ fn the_operation_kind_and_amend_target_are_part_of_the_request() {
     let mut full: Request = request('7', "m");
     full.operation = Operation::EmptyCommit;
     assert!(matches!(encode(&full), Err(RequestError::Invalid("changes"))));
-    amend.operation = Operation::Amend("zz".to_string());
+    amend.operation = Operation::Amend { target: "zz".to_string(), parents: Vec::new() };
     assert!(matches!(encode(&amend), Err(RequestError::Invalid("amend target"))));
 }
 
@@ -543,63 +472,38 @@ fn spool_refuses_a_manifest_that_swaps_the_new_and_old_records() {
     assert!(matches!(verify_spool(&root, &original.id), Err(SpoolError::Mismatch(_))));
 }
 
-/// The barriers of the fault-point tests. Each test has its own pair, because the statics are shared by the whole test process.
-static BIND_ARRIVED: std::sync::Barrier = std::sync::Barrier::new(2);
-/// Releases the writer paused at the bind fault point.
-static BIND_RELEASE: std::sync::Barrier = std::sync::Barrier::new(2);
-/// Marks that the writer paused at the publish fault point.
-static PUBLISH_ARRIVED: std::sync::Barrier = std::sync::Barrier::new(2);
-/// Releases the writer paused at the publish fault point.
-static PUBLISH_RELEASE: std::sync::Barrier = std::sync::Barrier::new(2);
 
-/// Pauses the calling writer at the bind decision point until the test releases it.
-fn pause_at_bind(point: &str) {
-    if point == "bind:before-link" {
-        BIND_ARRIVED.wait();
-        BIND_RELEASE.wait();
+/// Review 3: a correctly checksummed manifest with CRLF endings, or whose last body record lacks its newline, is not the manifest
+/// the writer emits and is refused.
+#[test]
+fn spool_refuses_a_manifest_that_is_not_byte_canonical() {
+    let root: PathBuf = scratch("spool-bytes");
+    let original: Request = request('4', "m");
+    write_spool(&root, &original.id, &[Vec::new(), b"new bytes".to_vec()], &[b"old gone".to_vec(), Vec::new()]).expect("write");
+    let manifest: PathBuf = root.join("spool").join(&original.id).join("manifest");
+    let good: String = std::fs::read_to_string(&manifest).expect("manifest");
+    let body: String = good[..good.rfind("end ").expect("end")].to_string();
+    let crlf: String = body.replace('\n', "\r\n");
+    let no_final_newline: String = body.trim_end_matches('\n').to_string();
+    for forged in [crlf, no_final_newline] {
+        std::fs::remove_file(&manifest).expect("remove");
+        std::fs::write(&manifest, format!("{}end {}\n", forged, sha256_hex(forged.as_bytes()))).expect("forge");
+        assert!(matches!(verify_spool(&root, &original.id), Err(SpoolError::Mismatch(_))));
     }
 }
 
-/// Pauses the calling writer at the publish decision point until the test releases it.
-fn pause_at_publish(point: &str) {
-    if point == "publish:before-link" {
-        PUBLISH_ARRIVED.wait();
-        PUBLISH_RELEASE.wait();
-    }
-}
-
-/// Re-review P3, deterministic: writer A has written and synced its temporary binding and stops just before the link; writer B
-/// binds the same identity to other content and finishes; A then resumes. The unsafe schedule always runs, and A is refused.
+/// Review 3: a gitlink change is refused before acceptance (the spool has no representation of a submodule commit), and an
+/// amendment carries its target's parents so it can be rebuilt after the target is pruned.
 #[test]
-fn a_writer_paused_before_the_link_loses_to_one_that_finished_first() {
-    let root: PathBuf = scratch("fault-bind");
-    let id: String = identity('7');
-    let (a_root, a_id) = (root.clone(), id.clone());
-    let paused = std::thread::spawn(move || {
-        git_policy_cli::commit_identity::set_fault_point(Some(pause_at_bind));
-        return bind(&a_root, &a_id, &sha256_hex(b"first")).expect("bind");
-    });
-    BIND_ARRIVED.wait();
-    assert_eq!(bind(&root, &id, &sha256_hex(b"second")).expect("bind"), Bound::Created);
-    BIND_RELEASE.wait();
-    assert_eq!(paused.join().expect("join"), Bound::DifferentContent(sha256_hex(b"second")));
-    assert_eq!(std::fs::read_to_string(binding_path(&root, &id).expect("path")).expect("read"), format!("{}\n", sha256_hex(b"second")));
-}
-
-/// The same for the record: writer A stops before linking `inbox/<id>`, writer B publishes other content and finishes, A resumes
-/// and finds a conflict; the acknowledged record is B's and unchanged.
-#[test]
-fn a_publisher_paused_before_the_link_finds_the_other_record_in_place() {
-    let root: PathBuf = scratch("fault-publish");
-    let inbox: PathBuf = root.join("inbox");
-    let (a_root, a_inbox) = (root.clone(), inbox.clone());
-    let paused = std::thread::spawn(move || {
-        git_policy_cli::commit_identity::set_fault_point(Some(pause_at_publish));
-        return publish(&a_root, &a_inbox, &request('c', "first"));
-    });
-    PUBLISH_ARRIVED.wait();
-    assert_eq!(publish(&root, &inbox, &request('c', "second")).expect("publish"), Published::Created);
-    PUBLISH_RELEASE.wait();
-    assert!(matches!(paused.join().expect("join"), Err(RequestError::Conflict)));
-    assert_eq!(decode(&std::fs::read(inbox.join(identity('c'))).expect("read")).expect("decode"), request('c', "second"));
+fn gitlinks_are_refused_and_an_amendment_carries_its_targets_parents() {
+    let mut gitlink: Request = request('3', "m");
+    gitlink.changes[1].mode = "160000".to_string();
+    assert!(matches!(encode(&gitlink), Err(RequestError::Invalid("mode"))));
+    let mut amend: Request = request('3', "m");
+    amend.changes = Vec::new();
+    amend.operation = Operation::Amend { target: "c".repeat(40), parents: vec!["d".repeat(40), "e".repeat(40)] };
+    assert_eq!(decode(&encode(&amend).expect("encode")).expect("decode"), amend);
+    let mut other: Request = amend.clone();
+    other.operation = Operation::Amend { target: "c".repeat(40), parents: vec!["d".repeat(40)] };
+    assert_ne!(content_hash(&amend).expect("hash"), content_hash(&other).expect("hash"));
 }

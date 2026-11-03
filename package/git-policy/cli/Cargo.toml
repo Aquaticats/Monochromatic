@@ -61,6 +61,11 @@ path = "src/native/candidate_consumer_tests.rs"
 name = "native_models"
 path = "src/native/model_tests.rs"
 
+# Test seams of the durable-record components (`src/native/commit_identity.rs`): an event log and fault-point callbacks that the
+# step-1 fixtures use; absent from every other build, so production code carries no thread-local cell for them.
+[features]
+test-seams = []
+
 [dependencies]
 # Both native tools use the already adopted comment-preserving JSONC foundation.
 monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }

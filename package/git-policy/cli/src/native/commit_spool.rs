@@ -202,6 +202,10 @@ pub fn verify_spool(root: &Path, id: &str) -> Result<Vec<String>, SpoolError> {
     }
     // The manifest is canonical: `file 0` to `file n-1` in order, then `old 0` to `old n-1` in order, numeric indices only, so a
     // name read from it can never leave the spool directory and no record can be missing, duplicated or reordered.
+    // Exact bytes: LF endings only, `end` at a line boundary, and the whole manifest equal to what the writer emits.
+    if body.contains('\r') || !body.is_empty() && !body.ends_with('\n') {
+        return Err(SpoolError::Mismatch("manifest line endings".to_string()));
+    }
     let lines: Vec<&str> = body.lines().collect();
     if lines.len() % 2 != 0 {
         return Err(SpoolError::Mismatch("manifest record count".to_string()));

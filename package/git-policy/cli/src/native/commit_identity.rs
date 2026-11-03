@@ -104,85 +104,77 @@ pub fn temporary_name(directory: &Path) -> io::Result<PathBuf> {
     return Ok(directory.join(format!(".tmp-{}", super::commit_integrity::hex(&random))));
 }
 
-// What:     `thread_local!` declares a variable with one copy per thread (a macro); `RefCell<Option<Vec<PathBuf>>>` is a
-//           list that can be changed through a shared reference, present only while a trace is on.
-//           Siblings: a `static Mutex`, shared by all threads.
-// Why:      A test must see which directories an operation synced and in what order. The trace is off by default, per thread,
-//           so a test running beside others is not disturbed and production calls pay one cell check.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// let trace: string[] | undefined; // per worker thread
-// ```
-thread_local! {
-    static TRACE: std::cell::RefCell<Option<Vec<PathBuf>>> = const { std::cell::RefCell::new(None) };
-}
+/// What:
+///  The test seams of the durable-record components: a per-thread event log (every directory sync, and the file syncs and
+///  truncations the ledger records) and a per-thread fault-point callback. They exist only with the Cargo feature `test-seams`;
+///  without it `fault_point` and `record_event` are empty functions and nothing else is compiled.
+/// Why:
+///  A race or ordering test must stop a writer at a named decision point and read the order of the destructive and syncing
+///  steps. Production builds carry no thread-local cell, no allocation and no callback, so the seam cannot change behavior or
+///  panic there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // if (process.env.TEST_SEAMS) { events.push(name); faultPoint?.(name); }
+/// ```
+#[cfg(feature = "test-seams")]
+mod seams {
+    use std::cell::{Cell, RefCell};
 
-// What:     a second per-thread cell holding an optional plain function (`fn(&str)`), the fault point callback. `fn(&str)` is a
-//           function pointer (TS: a function value); it carries no captured variable, so a test shares state with it through
-//           statics (a `Barrier`), not through a closure.
-// Why:      A race test must stop one writer exactly at the existence or link decision so the unsafe schedule always runs; the
-//           callback is called by name at those decisions and is `None`, doing nothing, in production.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// let faultPoint: ((name: string) => void) | undefined; // per worker thread
-// ```
-thread_local! {
-    static FAULT: std::cell::Cell<Option<fn(&str)>> = const { std::cell::Cell::new(None) };
-}
-
-/// Sets, on this thread, the function called at each named fault point of the durable-record components (`None` clears it).
-pub fn set_fault_point(callback: Option<fn(&str)>) {
-    FAULT.with(|cell| { cell.set(callback); });
-}
-
-/// Calls this thread's fault point callback, if any, with the name of the decision point reached; a no-op otherwise.
-pub fn fault_point(name: &str) {
-    // What:     `if let Some(x) = value { ... }` runs the block only when the `Option` (or `Result`) holds a value, naming it `x` inside; otherwise it is skipped.
-    // Why:      Handle the present case without a full `match`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (value !== undefined) { const x = value; ... }
-    // ```
-    if let Some(callback) = FAULT.with(|cell| { return cell.get(); }) {
-        callback(name);
+    thread_local! {
+        /// The event log of this thread while recording; `None` when off.
+        pub static EVENTS: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
+        /// The fault point callback of this thread.
+        pub static FAULT: Cell<Option<fn(&str)>> = const { Cell::new(None) };
     }
 }
 
-/// Starts recording, on this thread, the directories that `sync_directory` syncs, in order.
-pub fn start_sync_trace() {
-    // What:     `Vec::new()` makes an empty growable list (TS: `[]`); the type on the left says what it will hold. Siblings: `[T; N]`, a fixed-size array, and `&[T]`, a borrowed view.
-    // Why:      Collect results whose number is not known beforehand.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const found: T[] = [];
-    // ```
-    TRACE.with(|trace| { *trace.borrow_mut() = Some(Vec::new()); });
+/// Starts recording this thread's events: directory syncs, file syncs and truncations, in the order they are attempted and
+/// completed (an event is recorded after its operation succeeded).
+#[cfg(feature = "test-seams")]
+pub fn start_events() {
+    seams::EVENTS.with(|events| { *events.borrow_mut() = Some(Vec::new()); });
 }
 
-/// Stops recording and returns the directories synced since `start_sync_trace`, in order.
-pub fn take_sync_trace() -> Vec<PathBuf> {
-    return TRACE.with(|trace| { return trace.borrow_mut().take().unwrap_or_default(); });
+/// Stops recording and returns the events recorded since `start_events`.
+#[cfg(feature = "test-seams")]
+pub fn take_events() -> Vec<String> {
+    return seams::EVENTS.with(|events| { return events.borrow_mut().take().unwrap_or_default(); });
 }
 
-/// Syncs a directory so entries made in it survive power loss.
-pub fn sync_directory(directory: &Path) -> io::Result<()> {
-    TRACE.with(|trace| {
-        // What:     `Some(x)` is the present case of `Option` (TS: the value itself, as opposed to `undefined`); `None` is the absent case.
-        // Why:      Return or store a value that may be missing without using a sentinel.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return x; // or undefined
-        // ```
-        if let Some(list) = trace.borrow_mut().as_mut() {
-            list.push(directory.to_path_buf());
+/// Sets, on this thread, the function called at each named fault point (`None` clears it).
+#[cfg(feature = "test-seams")]
+pub fn set_fault_point(callback: Option<fn(&str)>) {
+    seams::FAULT.with(|cell| { cell.set(callback); });
+}
+
+/// Records one event on this thread when a test is recording; an empty function in a production build.
+pub fn record_event(name: &str) {
+    #[cfg(feature = "test-seams")]
+    seams::EVENTS.with(|events| {
+        if let Some(list) = events.borrow_mut().as_mut() {
+            list.push(name.to_string());
         }
     });
-    return File::open(directory)?.sync_all();
+    #[cfg(not(feature = "test-seams"))]
+    let _ = name;
+}
+
+/// Calls this thread's fault point callback with the name of the decision point reached; an empty function in a production build.
+pub fn fault_point(name: &str) {
+    #[cfg(feature = "test-seams")]
+    if let Some(callback) = seams::FAULT.with(|cell| { return cell.get(); }) {
+        callback(name);
+    }
+    #[cfg(not(feature = "test-seams"))]
+    let _ = name;
+}
+
+/// Syncs a directory so entries made in it survive power loss. The event `dir:<path>` is recorded after the sync succeeded.
+pub fn sync_directory(directory: &Path) -> io::Result<()> {
+    File::open(directory)?.sync_all()?;
+    record_event(&format!("dir:{}", directory.display()));
+    return Ok(());
 }
 
 /// The parent of `path`, with the empty parent of a bare relative name read as the current directory.
@@ -244,7 +236,17 @@ pub fn sync_chain(from: &Path, anchor: &Path) -> io::Result<()> {
 /// function createDirAllDurable(anchor: string, path: string): string[];
 /// ```
 pub fn create_dir_all_durable(anchor: &Path, path: &Path) -> io::Result<Vec<PathBuf>> {
+    let absolute_anchor: PathBuf = std::path::absolute(anchor)?;
     let absolute_path: PathBuf = std::path::absolute(path)?;
+    // Containment is checked before anything is created: the path must lie below the anchor with no `..` component, and the
+    // anchor must already exist (it is made by `init_root`, never silently here). Lexical only: symlinks below are the caller's.
+    let escapes: bool = absolute_path.components().any(|part| { return part == std::path::Component::ParentDir; });
+    if escapes || !absolute_path.starts_with(&absolute_anchor) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the path is not below its durable anchor"));
+    }
+    if !absolute_anchor.is_dir() {
+        return Err(io::Error::new(io::ErrorKind::NotFound, "the durable anchor does not exist; initialize the root first"));
+    }
     let mut missing: Vec<PathBuf> = Vec::new();
     let mut current: PathBuf = absolute_path.clone();
     while !current.exists() {
@@ -262,8 +264,36 @@ pub fn create_dir_all_durable(anchor: &Path, path: &Path) -> io::Result<Vec<Path
             Err(error) => return Err(error),
         }
     }
-    sync_chain(&absolute_path, anchor)?;
+    sync_chain(&absolute_path, &absolute_anchor)?;
     return Ok(missing);
+}
+
+/// What:
+///  The initialized-root constructor: makes `root` a directory (creating it if missing, accepting it if an interrupted creator
+///  left it) and makes its name durable by syncing `root` and then `known_durable_parent`, which the caller knows to be durable
+///  by other means. Returns the absolute root to hand to `bind`, `write_spool`, `publish` and `append` as their anchor.
+/// Why:
+///  Syncing a directory does not make its own name durable, and an existence check cannot show that an earlier creator ever
+///  synced; the root is the one place where that has to be established through a parent that is durable independently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function initRoot(knownDurableParent: string, root: string): string;
+/// ```
+pub fn init_root(known_durable_parent: &Path, root: &Path) -> io::Result<PathBuf> {
+    let absolute_parent: PathBuf = std::path::absolute(known_durable_parent)?;
+    let absolute_root: PathBuf = std::path::absolute(root)?;
+    if parent_of(&absolute_root).as_deref() != Some(absolute_parent.as_path()) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the root must be a direct child of the known-durable parent"));
+    }
+    match fs::create_dir(&absolute_root) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists && absolute_root.is_dir() => {}
+        Err(error) => return Err(error),
+    }
+    sync_directory(&absolute_root)?;
+    sync_directory(&absolute_parent)?;
+    return Ok(absolute_root);
 }
 
 /// What:
