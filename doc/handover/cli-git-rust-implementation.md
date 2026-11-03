@@ -335,10 +335,35 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   so copies a killed run left can pile up (no cleanup yet).
   720 library and 70 binary tests,
   clippy clean.
-  Running,
-  not an agent:
-  the fourth cross-vendor re-review (`~/temp/agent/reviews/follow-up-index-sol-4.txt`,
-  with the round's diff and eight whole files).
+  The fourth cross-vendor re-review (`~/temp/agent/reviews/follow-up-index-sol-4.txt`,
+  2026-11-03T12:08:52-05:00):
+  "Safe after named fixes,
+  not safe to ship as shown".
+  P1s:
+  recovery can still overwrite later staging (a build or install error unlocks with a replayable intent;
+  recovery unlinks a stale lock before taking its own;
+  a panic in `record` unlocks),
+  and an unreadable `.indexed` record is taken as absent.
+  P2s:
+  durability ordering of the install,
+  record and done mark;
+  the second HEAD check is still apart from the ref update;
+  the private copy is filled at default permissions;
+  the private name is not owned for the whole operation;
+  branch-change recovery drops an alternate index's update and pending cleanup;
+  HEAD read from the wrong worktree;
+  sixteen abandoned copies exhaust the names for good.
+  P3:
+  a long alternate index name overflows `NAME_MAX`.
+- Fourth round on the index writer,
+  its agent resumed with those findings on `perf/git-policy-cli-follow-up-index-in-process`,
+  merging the base `9e0b06ad83` first,
+  and asked which findings are also in 0.5.27.
+  Picked under the delegation (veto open):
+  recovery resets a path only while its index entry still equals the one the landing started from,
+  so a later `git add` survives however the lock handoff goes ("never discard user data");
+  the HEAD expectation moves into the ref transaction (`update-ref --stdin` `symref-verify`,
+  to be checked against the installed Git).
 - Done:
   design revision 9 of `doc/planning/cli-git-commits-never-fail.md`,
   `a7b917e47e` to `5ff9706edc` (2026-11-03T11:44:10-05:00 to 11:54:15),
@@ -585,9 +610,7 @@ in this order:
     the reclamation check-then-unlink in `service_index_lock.rs` 285-289 needs a per-physical-index single-reclaimer
     guarantee or a test;
     the non-Linux test imports stay paused.
-- Clean up private index copies a killed run left (`<index>.cli-git-<seq>`),
-  only those this tool made,
-  once the fourth index re-review has judged the round.
+- The fifth index re-review once the fourth round writes `follow-up-index-fixes-4.diff` and its `index-r5-` files.
 - The models (about 5800 lines) are reviewed after the step-1 agent's revision 9 round,
   together with the eighth review's section-4 controls,
   then the components' re-review from `commit-components-2.diff`.
