@@ -183,7 +183,6 @@ impl Drop for OwnedGroups {
     fn drop(&mut self) {
         for group in self.groups.borrow().iter() {
             // SAFETY: `killpg` takes a group number and a signal and touches no memory; a group with no member is `ESRCH`.
-            // SAFETY: `killpg` takes a group number and a signal and touches no memory; a group with no member is `ESRCH`.
             unsafe { libc::killpg(*group, libc::SIGKILL) };
         }
     }
