@@ -10511,3 +10511,9 @@ by the coordinator at merge.
   comments); CI runs tasks through `task-run` (package/monorepo-task/cli, mise-free, reads task.ts). The cargo-shadow
   agent moves `advisory-core.yml:170` (`task-run rust:verify`) to the shadow's own command and drops the task.ts
   rust:* entries with the mise tasks.
+- 2026-11-03T05:50:00-05:00: owner: "Fix this. https://github.com/Aquaticats/Monochromatic/issues/6259" (mpm-shadow:
+  `mpm i -g` printed "could not start <repo>/.cache/mpm-shadow-bin/mpm: Resource temporarily unavailable (os error
+  11)" then 18 stale-cache lines; no stage, no reason for the exit status, cleanup indistinguishable). Assigned to the
+  mpm-shadow agent on `fix/mpm-shadow-cli-export-tool-env-to-mise` (task 129): EAGAIN starts retried within a bound,
+  start failures name outer command, nested command, stage, exit status and what completed, cleanup summarised in one
+  line, `Closes #6259`. Ships in mpm-shadow 0.2.3 with the repository-only tool environment.
