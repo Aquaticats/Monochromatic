@@ -175,7 +175,7 @@ use crate::manifest_edit::{ManifestEdit, restore_manifests, run_recording_manife
 /// Imports the manifest list of a `cargo metadata` answer.
 use crate::stamp::manifests_from_metadata;
 /// Imports the keep rule of a rollback and the quarantine directory, where the files a rollback displaces are kept.
-use crate::journal::{KeepAs, QUARANTINE_DIR};
+use crate::journal::{KeepAs, QUARANTINE_DIR, ReplaceOutcome, replace_keeping};
 /// What:
 /// `use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};` imports `LockedVersion`,
 /// `added_versions`,
@@ -701,6 +701,26 @@ fn is_breaking_option(argument: &str) -> bool {
 }
 
 /// What:
+/// `fn sync_recording(request, edits) -> io::Result<Result<String, String>>` runs the manifest sync with every crate root's manifests
+/// recorded, so what a sync that fails halfway wrote goes back with the transaction.
+/// Why:
+/// Review finding (2c 11): the sync rewrites manifests, and a partial rewrite was not part of the restore.
+/// The outer `io::Result` is a failure to record; the inner `Result` is the sync's own answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function syncRecording(request: UpdateRequest, edits: ManifestEdit[]): Result<string, string>  // throws if recording fails
+/// ```
+fn sync_recording(request: &UpdateRequest, edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<Result<String, String>> {
+    let mut run: Box<dyn FnOnce() -> io::Result<Result<String, String>> + '_> = Box::new(|| { return Ok(request.syncer.sync(request.root)); });
+    for crate_dir in request.crate_dirs {
+        let inner = run;
+        run = Box::new(move || { return run_recording_manifests(crate_dir, edits, inner).and_then(|answer| { return answer; }); });
+    }
+    return run();
+}
+
+/// What:
 /// `fn raised_floor_warning(change: &str) -> String` words one raised floor as a warning line.
 /// Why:
 /// The user sees which catalog floors the `--breaking` update raised.
@@ -959,14 +979,22 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             // Borrow `&raised_source`: lends the value without copying or giving it away.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            fs::write(request.catalog_path, &raised_source).map_err(other_text)?;
+            let catalog_keep: KeepAs = KeepAs::in_directory(&request.root.join(QUARANTINE_DIR), ".catalog.displaced");
+            // Review finding (2c 6): the catalog is replaced only while it still holds the text that was read, never over another
+            // writer's edit.
+            let raised: ReplaceOutcome = replace_keeping(request.catalog_path, &source, &raised_source, &catalog_keep).map_err(other_text)?;
+            if !matches!(raised, ReplaceOutcome::Replaced(_)) {
+                problems.push(format!("the catalog changed while the update ran, so its floors were not raised and the update was not kept ({raised:?})"));
+                keep = false;
+            }
             // Closure `|change|`: an anonymous function, like a TS arrow function.
             // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
             // Adapter `.map(`: transforms or selects items with a closure.
             // Macro `format!`: builds or prints text (or a list) from a template.
             warnings.extend(changes.iter().map(String::as_str).map(raised_floor_warning));
             // `match`: picks the arm whose pattern fits the value.
-            match request.syncer.sync(request.root) {
+            let synced: Result<String, String> = if keep { sync_recording(request, edits).map_err(other_text)? } else { Err("the catalog was not raised".to_string()) };
+            match synced {
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 Ok(done) => warnings.push(done),
                 // `Err(...)`: builds the success or the failure variant of a `Result`.
@@ -977,9 +1005,14 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                     // Borrow `&source`: lends the value without copying or giving it away.
                     // `.map_err(...)`: converts the callee's error into this function's error type.
-                    fs::write(request.catalog_path, &source).map_err(other_text)?;
-                    // Macro `format!`: builds or prints text (or a list) from a template.
-                    problems.push(format!("the catalog floors were not rendered into the manifests, so the update was not kept: {message}"));
+                    // The catalog goes back only while it still holds the raised text this run wrote; an edit made meanwhile is kept.
+                    if keep {
+                        let back: ReplaceOutcome = replace_keeping(request.catalog_path, &raised_source, &source, &catalog_keep).map_err(other_text)?;
+                        if !matches!(back, ReplaceOutcome::Replaced(_)) {
+                            warnings.push(format!("the catalog was edited while the sync ran and keeps that edit ({back:?})"));
+                        }
+                        problems.push(format!("the catalog floors were not rendered into the manifests, so the update was not kept: {message}"));
+                    }
                     keep = false;
                 }
             }
