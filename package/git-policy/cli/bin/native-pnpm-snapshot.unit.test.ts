@@ -89,7 +89,7 @@ await describe({
   name: pnpmCopyLines.name,
   children: [
     it({
-      name: 'puts a pnpm that is checked at build time into the test stage before the dependency compile',
+      name: 'ends the test stage with a pnpm that is checked at build time, after the last compile',
       fn: async () => {
         const lines = testContainerfile({
           base: 'sha256:0',
@@ -101,12 +101,9 @@ await describe({
         expect(installed.some(function checksStart(line) {
           return line.startsWith('RUN ') && line.includes('pnpm') && line.includes('--version');
         })).toBe(true);
-        for (const line of installed)
-          expect(lines).toContain(line);
-        const compile = lines.findIndex(function compilesDependencies(line) {
-          return line.startsWith('RUN ') && line.includes('--no-run') && !line.includes('touch');
-        });
-        expect(lines.indexOf(installed[0] ?? '')).toBeLessThan(compile);
+        // The file ends in a newline, so the last element is empty; the install lines come right before it.
+        expect(lines.slice(-1 - installed.length, -1)).toEqual(installed);
+        expect(lines.at(-2 - installed.length)).toContain('--no-run');
       },
     }),
   ],

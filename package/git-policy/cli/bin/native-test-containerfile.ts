@@ -14,6 +14,7 @@ import {
   builderPreludeLines,
 } from './native-layered-build.ts';
 import { nextestCopyLines, } from './native-nextest-snapshot.ts';
+import { pnpmCopyLines, } from './native-pnpm-snapshot.ts';
 import {
   straceCopyLines,
   straceStageLines,
@@ -142,6 +143,9 @@ export function testContainerfile({
       ],
       cargoArguments: compileArguments,
     }),
+    // The controls that run a real pnpm (the relink of a copied `node_modules`) need it in an image that has no network.
+    // These are the last layers so the expensive compile layers before them stay cached.
+    ...pnpmCopyLines(),
     '',
   ].join('\n');
 }
