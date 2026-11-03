@@ -9926,3 +9926,14 @@ by the coordinator at merge.
   the stage, falling back to the slow route on any doubt. Assigned to the slow-route agent on a new branch
   (`feat/git-policy-cli-snapshot-dirty-main`), together with structured clean-check reasons; settling racily clean
   entries by content waits for the content-check re-review.
+- Conversion re-review returned (`~/temp/agent/review-convert-2/sol-review.txt`, on the merged code): first-round 1, 4,
+  6 (layout), 7, 8 complete; 2, 3, 5 partial. New: P0 a write after the rescue pass is deleted with the old tree; P0
+  the rescue copies newer old-tree files over the installed tree and can overwrite the only copy of an edit; P0
+  identity checks and the operations they authorize resolve names separately (creation-to-recording, check-to-sync,
+  check-to-destroy, installed root); P0 `--abandon` can destroy the stage while the recorded original is no longer at
+  the worktree path, and `Journal.path` is never checked; P0 `Journal::save` renames over whatever is at the journal
+  name; P1 final root unlink can remove a foreign empty directory; P1 old-root identity lacks birth time; P1 nested
+  registration examination fails open; P1 `Removal::Kept` recorded as removed; P2 a FIFO journal hangs under the
+  lock; P2 dry run misreads the exchange-before-journal crash point. Reviewer: "Do not automatically delete the
+  displaced tree unless writers are genuinely excluded through the final verification and deletion interval." The real
+  conversion stays held; design question put to the owner (whether conversion deletes the old tree at all).
