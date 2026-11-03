@@ -72,6 +72,11 @@ mod resolution;
 #[path = "binary_never_self_start_tests.rs"]
 mod never_self_start;
 
+/// With no real Git after the wrapper on `PATH`, the wrapper falls back to the Git its commit service was set up with
+///  when that record passes the `PATH` candidate checks, and otherwise keeps its stop.
+#[path = "binary_installed_git_fallback_tests.rs"]
+mod installed_git_fallback;
+
 /// Configuration loading and the read-only fast path.
 #[path = "binary_policy_tests.rs"]
 mod policy;
