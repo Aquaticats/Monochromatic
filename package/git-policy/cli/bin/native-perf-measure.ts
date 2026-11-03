@@ -1,6 +1,8 @@
 /**
  Paired direct-versus-wrapped sampling for one scenario of the latency benchmark in `native-perf.ts`.
  */
+import { join } from 'node:path';
+
 import { timed } from './native-perf-git.ts';
 import {
   median,
@@ -75,6 +77,11 @@ export type ScenarioSetting = {
    Runtime directory of the commit service the wrapped side is pointed at; absent for a forwarded command, which needs none.
    */
   readonly runtime?: string;
+  /**
+   Directory that receives one `strace` record per sample, named after the scenario, the round and the side; absent runs
+   every sample untraced. A traced sample is slower, so its counts and per-call sums are evidence, never its elapsed time.
+   */
+  readonly traceDirectory?: string;
 };
 
 /**
@@ -112,9 +119,14 @@ async function runSample({
   directRepository,
   wrappedRepository,
   runtime,
+  traceDirectory,
+  name,
   wrapped,
   sample,
-}: Pick<ScenarioSetting, 'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository' | 'runtime'> & {
+}: Pick<
+  ScenarioSetting,
+  'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository' | 'runtime' | 'traceDirectory' | 'name'
+> & {
   readonly wrapped: boolean;
   readonly sample: number;
 }): Promise<TimedSample> {
@@ -135,6 +147,14 @@ async function runSample({
     ...(runtime === undefined ? {} : { runtime, }),
     directory,
     arguments_: command({ sample }),
+    ...(traceDirectory === undefined
+      ? {}
+      : {
+        trace: join(
+          traceDirectory,
+          `${name}-${String(sample)}-${wrapped ? 'wrapped' : 'direct'}.strace`,
+        ),
+      }),
   });
   return {
     wrapped,

@@ -22,6 +22,7 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises';
+import { basename } from 'node:path';
 import { homedir } from 'node:os';
 import {
   dirname,
@@ -33,6 +34,7 @@ import { parseArgs } from 'node:util';
 import {
   enableSshSigning,
   repository,
+  shapedRepository,
 } from './native-perf-git.ts';
 import {
   assertServiceAnswers,
@@ -48,6 +50,7 @@ import {
   reportLine,
   violationLine,
 } from './native-perf-lines.ts';
+import { collectEvidence } from './native-perf-evidence.ts';
 import { removeScratchRoot } from './native-perf-scratch.ts';
 import { forwarded } from './native-perf-scenarios.ts';
 import {
@@ -83,8 +86,50 @@ const { values } = parseArgs({
       default: '30',
     },
     output: { type: 'string' },
+    // A prepared repository the fixtures are reflink copies of, so the commits run at the shape of the person's own main
+    // worktree (tens of thousands of tracked files, a multi-megabyte index) instead of thirty files.
+    shape: { type: 'string' },
+    // Git directory whose policy hooks the shaped fixtures get.
+    'hooks-from': { type: 'string' },
+    // Executables the hooks need on PATH (for example `git-lfs`), linked into the scratch `tools` directory.
+    tool: {
+      type: 'string',
+      multiple: true,
+    },
+    // Comma-separated scenario names; absent measures every scenario.
+    only: { type: 'string' },
+    // Directory that receives an `strace` record of every sample and of each commit service.
+    'trace-directory': { type: 'string' },
   },
 });
+/**
+ Names of the scenarios to measure, or absent for all of them.
+ */
+const only = values.only === undefined
+  ? undefined
+  : new Set(values.only.split(','));
+/**
+ Whether a scenario is measured in this run.
+
+ @param name - scenario name
+
+ @returns true when no `--only` was given or it names the scenario
+ */
+function wanted(name: string): boolean {
+  return only === undefined || only.has(name);
+}
+/**
+ Directory that receives the traces, made before the first sample.
+ */
+const traceDirectory = values['trace-directory'] === undefined
+  ? undefined
+  : resolve(values['trace-directory']);
+if (traceDirectory !== undefined) {
+  await mkdir(
+    traceDirectory,
+    { recursive: true, },
+  );
+}
 if (values.binary === undefined) {
   throw new Error('--binary <path to the release cli-git-native> is required');
 }
@@ -142,6 +187,20 @@ await mkdir(join(
   root,
   'home',
 ));
+await mkdir(join(
+  root,
+  'tools',
+));
+await Promise.all((values.tool ?? []).map(function linkTool(tool) {
+  return symlink(
+    resolve(tool),
+    join(
+      root,
+      'tools',
+      basename(tool),
+    ),
+  );
+}));
 /**
  Copy of the release wrapper, so the measurement never races a rebuild of the original.
  */
@@ -168,19 +227,40 @@ await symlink(
 );
 
 /**
+ Makes one fixture repository: a thirty-file one, or a reflink copy of the prepared shape repository when `--shape` is given.
+
+ @param name - directory name inside the scratch root
+
+ @returns the repository directory
+ */
+function fixture(name: string): Promise<string> {
+  return values.shape === undefined
+    ? repository({
+      root,
+      name,
+    })
+    : shapedRepository({
+      root,
+      name,
+      shape: resolve(values.shape),
+      ...(values['hooks-from'] === undefined ? {} : { hooksFrom: resolve(values['hooks-from']), }),
+    });
+}
+
+/**
+ The tracked file every commit sample edits: one of the thirty generated files, or the root `README.md` that the shaped
+ fixtures track (`DPL` keeps one at the root of this repository).
+ */
+const editedFile = values.shape === undefined ? 'file-0.txt' : 'README.md';
+
+/**
  Fixture repository that the direct samples run in.
  */
-const directRepository = await repository({
-  root,
-  name: 'direct-repo',
-});
+const directRepository = await fixture('direct-repo');
 /**
  Fixture repository that the wrapped samples run in.
  */
-const wrappedRepository = await repository({
-  root,
-  name: 'wrapped-repo',
-});
+const wrappedRepository = await fixture('wrapped-repo');
 
 /**
  Throwaway SSH signing key of this run, made in the scratch root; never the person's key.
@@ -190,17 +270,11 @@ const signing = await makeSigningKey({ root, });
  Fixture repository that the direct signed samples run in; the signed repositories sign their commits over SSH, as the
  person's commits are, so the signed scenarios measure what the person runs.
  */
-const directSignedRepository = await repository({
-  root,
-  name: 'direct-signed-repo',
-});
+const directSignedRepository = await fixture('direct-signed-repo');
 /**
  Fixture repository that the wrapped signed samples run in.
  */
-const wrappedSignedRepository = await repository({
-  root,
-  name: 'wrapped-signed-repo',
-});
+const wrappedSignedRepository = await fixture('wrapped-signed-repo');
 // The two repositories are independent setup, so signing is enabled in both at once; no sample is timed yet.
 await Promise.all([
   directSignedRepository,
@@ -224,6 +298,7 @@ const service = await makeService({
   ),
   root,
   scratchParent,
+  ...(traceDirectory === undefined ? {} : { traceDirectory, }),
 });
 
 /**
@@ -236,6 +311,12 @@ const scratch: AsyncDisposable = {
     await removeScratchRoot({ root, });
   },
 };
+
+/**
+ Commit timing records of each wrapped repository and the commit services' journal lines, read before the scratch tree is
+ removed.
+ */
+let evidence: Awaited<ReturnType<typeof collectEvidence>> | undefined;
 
 /**
  Failed samples of every scenario, in the order they ran.
@@ -265,7 +346,9 @@ function record(measurement: ScenarioMeasurement): void {
    in the order the scenarios ran
  */
 async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
-  for (const scenario of forwarded) {
+  for (const scenario of forwarded.filter(function isWanted(entry) {
+    return wanted(entry.name);
+  })) {
     yield measure({
       name: scenario.name,
       command() {
@@ -276,6 +359,7 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
       root,
       directRepository,
       wrappedRepository,
+      ...(traceDirectory === undefined ? {} : { traceDirectory, }),
     });
   }
   // A commit is held to the bound on its slowest paired delta, not to the forwarded-command bound. Every commit lands through
@@ -291,7 +375,13 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
       direct: directSignedRepository,
       wrapped: wrappedSignedRepository,
     },
-  ] as const) {
+  ].filter(function isWanted(arm) {
+    return wanted(arm.name);
+  }) as readonly {
+    readonly name: string;
+    readonly direct: string;
+    readonly wrapped: string;
+  }[]) {
     yield measure({
       name: arm.name,
       async prepare({
@@ -301,7 +391,7 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
         await writeFile(
           join(
             directory,
-            'file-0.txt',
+            editedFile,
           ),
           `edit ${String(sample)} ${String(Math.random())}\n`,
         );
@@ -312,7 +402,7 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
           '--quiet',
           `--message=perf ${String(sample)}`,
           '--',
-          'file-0.txt',
+          editedFile,
         ];
       },
       kind: 'commit',
@@ -321,6 +411,7 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
       directRepository: arm.direct,
       wrappedRepository: arm.wrapped,
       runtime: service.runtime,
+      ...(traceDirectory === undefined ? {} : { traceDirectory, }),
     });
   }
 }
@@ -333,22 +424,44 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
   // One service per worktree: each wrapped repository a commit scenario lands in gets its own, and a wrapped command that
   // cannot reach it fails here, once, instead of failing every commit sample.
   await Promise.all([
-    wrappedRepository,
-    wrappedSignedRepository,
-  ].map(async function serveAndCheck(directory) {
-    await service.serve(join(
+    [
+      'commit-service',
+      wrappedRepository,
+    ],
+    [
+      'commit-signed-service',
+      wrappedSignedRepository,
+    ],
+  ]
+    .filter(function isWanted([name]) {
+      return wanted(name);
+    })
+    .map(async function serveAndCheck([
+      ,
       directory,
-      '.git',
-    ));
-    await assertServiceAnswers({
-      root,
-      runtime: service.runtime,
-      directory,
-    });
-  }));
+    ]) {
+      await service.serve(join(
+        directory,
+        '.git',
+      ));
+      await assertServiceAnswers({
+        root,
+        runtime: service.runtime,
+        directory,
+      });
+    }));
   for await (const measurement of measureScenarios()) {
     record(measurement);
   }
+  // The phases of each wrapped commit and the commit service's own lines are the evidence that says which phase a slow
+  // sample spent its time in, and they live in the scratch tree that is removed when this block ends.
+  evidence = await collectEvidence({
+    root,
+    repositories: {
+      'commit-service': wrappedRepository,
+      'commit-signed-service': wrappedSignedRepository,
+    },
+  });
 }
 
 /**
@@ -369,6 +482,7 @@ const document = {
   platform: process.platform,
   failures,
   report,
+  ...(evidence === undefined ? {} : { evidence, }),
 };
 if (values.output !== undefined) {
   await writeFile(
