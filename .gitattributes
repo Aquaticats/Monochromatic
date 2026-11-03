@@ -8,3 +8,9 @@
 *.heif filter=lfs diff=lfs merge=lfs -text
 *.avif filter=lfs diff=lfs merge=lfs -text
 *.jxl filter=lfs diff=lfs merge=lfs -text
+
+# Handover logs only grow by entries appended at the end, so two branches that both append should merge without a
+# conflict: Git's built-in union driver keeps both sides' lines. It never reports a conflict, even when both sides
+# change one line, so it is limited to these append-only logs (owner decision, 2026-11-03; reasoning in
+# doc/planning/cli-git-merge-auto-resolution.md).
+doc/handover/*.md merge=union
