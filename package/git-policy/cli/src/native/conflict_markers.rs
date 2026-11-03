@@ -102,13 +102,17 @@ fn marker_sizes(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Vec<usi
 ///  The paths among `paths` whose blob in `commit` still holds marker lines.
 /// Why:
 ///   A path whose committed content has none is resolved, and no marker is claimed for it; a path the commit deleted has no blob
-///  and is resolved too.
+///  and is resolved too. With no path to look at, no Git starts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function pathsWithMarkers(context, root, commit, paths): Promise<Uint8Array[]>;
 /// ```
 pub fn paths_with_markers(context: &GitContext, root: &Path, commit: &str, paths: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    // An ordinary commit committed no path that was unmerged: nothing is read and no Git starts, which the start budgets pin.
+    if paths.is_empty() {
+        return Vec::new();
+    }
     let sizes: Vec<usize> = marker_sizes(context, root, paths);
     let mut marked: Vec<Vec<u8>> = Vec::new();
     for (path, size) in paths.iter().zip(sizes) {
