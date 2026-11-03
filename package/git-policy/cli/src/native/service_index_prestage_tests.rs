@@ -65,7 +65,7 @@ fn until_staged(index: &Path) {
 }
 
 /// A marker made ahead and finished while the service was idle is placed without a flush on the commit's path:
-/// the lock is taken in a small part of the time one flush takes,
+/// the commit asked for no flush (the count of flushes, not a clock, says so),
 /// the notes say the file came from the idle time,
 /// and its text is the batch's.
 #[test]
@@ -86,27 +86,60 @@ fn a_marker_made_ahead_is_placed_without_a_flush_at_the_commit() {
     let lock = acquire_noting_wait(&index, 7, Duration::from_secs(5), &|_| {}, &mut notes).expect("taken");
     assert_eq!(FLUSHES.load(Ordering::SeqCst), 0, "the commit flushed nothing: the flush was the idle time's");
     assert_eq!(notes.stage_kind, "pre");
-    assert!(notes.staging < SLOW / 2, "{notes:?}");
     assert_eq!(std::fs::read_to_string(crate::service_index_lock::lock_path_of(&index)).expect("marker"), marker_text(7, &own_identity).expect("text"));
     assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
     drop(lock);
     remove(root.as_path());
 }
 
+/// Set when the gated flush has finished.
+static GATED_FLUSH_DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Holds the flush until a commit is waiting for the marker, so the commit comes during the flush on any host.
+fn until_a_commit_waits() {
+    let began: Instant = Instant::now();
+    while !COMMIT_WAITING.load(Ordering::SeqCst) {
+        // The bound only ends a failing run: the commit that waits is what opens the gate.
+        assert!(began.elapsed() < Duration::from_secs(60), "no commit came to wait for the flush");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+/// A flush that starts when a commit is waiting for the marker.
+fn gated_flush(file: &std::fs::File) -> std::io::Result<()> {
+    FLUSHES.fetch_add(1, Ordering::SeqCst);
+    until_a_commit_waits();
+    let flushed = file.sync_all();
+    GATED_FLUSH_DONE.store(true, Ordering::SeqCst);
+    return flushed;
+}
+
+/// A flush that, once a commit is waiting for the marker, takes as long as a loaded disk makes it take.
+fn gated_slow_flush(file: &std::fs::File) -> std::io::Result<()> {
+    FLUSHES.fetch_add(1, Ordering::SeqCst);
+    until_a_commit_waits();
+    std::thread::sleep(SLOW);
+    return file.sync_all();
+}
+
 /// A commit that comes while the marker is still being flushed waits for that flush and starts no second one:
-/// the staging time it reports is most of the flush,
+/// the flush is held until the commit is waiting for it, so the commit provably came during the flush,
+/// it returns only after the flush has finished,
 /// and the flush ran once.
 #[test]
 fn a_commit_that_comes_during_the_flush_waits_for_it_and_starts_no_second() {
     let _serial = ONE_AT_A_TIME.lock().expect("serial");
     let (root, index) = index_in("prestage-flushing");
     FLUSHES.store(0, Ordering::SeqCst);
-    start_with(slow_flush, &index, 8);
+    COMMIT_WAITING.store(false, Ordering::SeqCst);
+    GATED_FLUSH_DONE.store(false, Ordering::SeqCst);
+    start_with(gated_flush, &index, 8);
     until_staged(&index);
+    assert!(!GATED_FLUSH_DONE.load(Ordering::SeqCst), "the premise: the flush is still held when the commit comes");
     let mut notes = crate::service_index_lock::WaitNotes::default();
     let lock = acquire_noting_wait(&index, 8, Duration::from_secs(5), &|_| {}, &mut notes).expect("taken");
     assert_eq!(notes.stage_kind, "pre");
-    assert!(notes.staging >= SLOW / 2, "the commit reports what it waited for: {notes:?}");
+    assert!(GATED_FLUSH_DONE.load(Ordering::SeqCst), "the commit took the marker only after its flush ended");
     assert_eq!(FLUSHES.load(Ordering::SeqCst), 1, "one flush, not two");
     assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
     drop(lock);
@@ -172,9 +205,8 @@ fn a_marker_whose_file_is_gone_is_staged_again_cold() {
     let _serial = ONE_AT_A_TIME.lock().expect("serial");
     let (root, index) = index_in("prestage-vanished");
     start_with(sync_file, &index, 13);
-    until_staged(&index);
-    // The flush is quick; the thread has the file open, and the file goes while it is held.
-    std::thread::sleep(Duration::from_millis(100));
+    until_made();
+    // The flush is over; the service holds the file open, and the file goes while it is held.
     for name in leftovers(&index) {
         std::fs::remove_file(index.parent().expect("directory").join(name)).expect("the file goes");
     }
@@ -217,9 +249,10 @@ fn the_marker_made_ahead_names_this_process_and_the_batch() {
     remove(root.as_path());
 }
 
-/// A flush that takes as long as a loaded disk makes it take and then fails.
+/// A flush that, once a commit is waiting for the marker, takes as long as a loaded disk makes it take and then fails.
 fn failing_flush(_: &std::fs::File) -> std::io::Result<()> {
     FLUSHES.fetch_add(1, Ordering::SeqCst);
+    until_a_commit_waits();
     std::thread::sleep(SLOW);
     return Err(std::io::Error::from_raw_os_error(libc::EIO));
 }
@@ -308,12 +341,14 @@ fn a_commit_that_joins_a_failing_flush_reports_the_wait_and_the_cold_staging() {
     let _serial = ONE_AT_A_TIME.lock().expect("serial");
     let (root, index) = index_in("prestage-failing");
     FLUSHES.store(0, Ordering::SeqCst);
+    COMMIT_WAITING.store(false, Ordering::SeqCst);
     start_with(failing_flush, &index, 24);
     until_staged(&index);
     let mut notes = crate::service_index_lock::WaitNotes::default();
     let lock = acquire_noting_wait(&index, 24, Duration::from_secs(5), &|_| {}, &mut notes).expect("taken cold after the failure");
     assert_eq!(notes.stage_kind, "cold");
-    assert!(notes.staging >= SLOW / 2, "the wait for the flush that failed is in the staging time: {notes:?}");
+    // The flush takes SLOW from the moment the commit waits for it, so the wait is at least that.
+    assert!(notes.staging >= SLOW, "the wait for the flush that failed is in the staging time: {notes:?}");
     assert_eq!(FLUSHES.load(Ordering::SeqCst), 1);
     assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
     drop(lock);
@@ -326,12 +361,14 @@ fn a_commit_that_joins_a_failing_flush_reports_the_wait_and_the_cold_staging() {
 fn waiting_for_a_marker_of_another_batch_is_in_the_staging_time() {
     let _serial = ONE_AT_A_TIME.lock().expect("serial");
     let (root, index) = index_in("prestage-mismatch-wait");
-    start_with(slow_flush, &index, 25);
+    COMMIT_WAITING.store(false, Ordering::SeqCst);
+    start_with(gated_slow_flush, &index, 25);
     until_staged(&index);
     let mut notes = crate::service_index_lock::WaitNotes::default();
     let lock = acquire_noting_wait(&index, 26, Duration::from_secs(5), &|_| {}, &mut notes).expect("taken cold");
     assert_eq!(notes.stage_kind, "cold");
-    assert!(notes.staging >= SLOW / 2, "{notes:?}");
+    // The flush takes SLOW from the moment the commit waits for it, so the wait is at least that.
+    assert!(notes.staging >= SLOW, "{notes:?}");
     assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
     drop(lock);
     remove(root.as_path());

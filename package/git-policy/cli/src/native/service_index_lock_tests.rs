@@ -142,12 +142,16 @@ fn a_lock_that_is_not_released_leaves_the_index_as_it_was() {
 
 /// A foreign holder that lets go while the service waits is followed at once by the service's own lock, long before the
 ///  repetition of the notice; the wait makes a handful of attempts, not one per event it causes itself.
+/// The holder lets go a while after the wait's first notice, so the wait idles on the watch for that while however long
+///  the marker's flush took before it.
 #[test]
 fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     let (root, index) = index_in("index-lock-wait");
     std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
     let foreign: PathBuf = lock_path_of(&index);
+    let (looked, looking) = std::sync::mpsc::channel::<()>();
     let release = std::thread::spawn(move || {
+        looking.recv_timeout(Duration::from_secs(60)).expect("the wait looked at the lock");
         std::thread::sleep(Duration::from_millis(400));
         std::fs::remove_file(foreign).expect("the foreign holder lets go");
     });
@@ -159,11 +163,16 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     };
     let platform: Platform = Platform { rename: &counting, ..SYSTEM };
     let began: Instant = Instant::now();
-    let lock = acquire_on(&platform, &index, 2, Duration::from_secs(30), &|note| { heard.lock().expect("lock").push(note); }).expect("taken after the wait");
+    let lock = acquire_on(&platform, &index, 2, Duration::from_secs(30), &|note| {
+        let _sent = looked.send(());
+        heard.lock().expect("lock").push(note);
+    }).expect("taken after the wait");
     let waited: Duration = began.elapsed();
     let attempts: usize = attempts_made.get();
     release.join().expect("thread");
+    // The holder let go 400 ms after the wait's first look, and the wait followed it by the event, not by the notice's timer.
     assert!(waited >= Duration::from_millis(300) && waited < NOTICE_EVERY, "{waited:?}");
+    assert!(!heard.lock().expect("lock").is_empty(), "the wait said that it waits");
     // A wait woken by its own files tries thousands of times in 400 ms; one woken only by the lock tries a few times.
     assert!(attempts < 20, "{attempts} attempts in {waited:?}");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(2));

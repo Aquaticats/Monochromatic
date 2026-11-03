@@ -371,15 +371,16 @@ fn a_landing_waits_for_a_foreign_index_lock_and_builds_on_what_the_holder_left()
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
-    let repo: PathBuf = world.repo.clone();
-    let holder_lock: PathBuf = lock.clone();
-    let holder = std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(1_700));
-        move_branch(repo.as_path(), "foreign commit");
-        std::fs::remove_file(holder_lock).expect("the holder lets go");
-    });
-    let outcomes = land_batch(&world.context, 1, &[request]).expect("landed after the holder let go");
-    holder.join().expect("thread");
+    // The holder moves the branch and lets go when the landing first says that it waits: the landing has then found the lock
+    //  held and has not read the branch, whatever the host's speed, with no clock deciding it.
+    let held: std::cell::Cell<bool> = std::cell::Cell::new(true);
+    let holder = |_: Announce| {
+        if held.replace(false) {
+            move_branch(world.repo.as_path(), "foreign commit");
+            std::fs::remove_file(&lock).expect("the holder lets go");
+        }
+    };
+    let outcomes = land_batch_announcing(&world.context, 1, &[request], &holder).expect("landed after the holder let go");
     assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
     assert_eq!(subjects(&world, base.as_str()), vec!["foreign commit", "message of mine"]);
     assert!(!lock.exists(), "the landing gave the lock up");
