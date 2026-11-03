@@ -141,3 +141,28 @@ fn candidate_without_the_empty_wait_is_red() {
     let violation = report.violation.expect("a violation without the wait");
     assert_eq!(violation.message, "the new owner mutates while a descendant of the previous incarnation lives");
 }
+
+/// Revision 8 draft: per-incarnation cgroups mean a replacement service owner reaps without targeting itself, a closed-
+/// descriptor daemon is reaped before the new owner mutates, and the one wait left is the draft's own stated narrowing.
+#[test]
+fn eight_reaps_by_incarnation_and_states_its_one_wait() {
+    let report: Report = check(Rules::Eight);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F2 eight: {} states, deepest {}", report.states, report.deepest);
+    // The narrowing is reachable (positive control): a child stopped between fork and exec blocks L1.
+    let blocked = replay(
+        initial(Rules::Eight, false),
+        steps,
+        &[
+            "owner: writes lane/incarnation and fsyncs it",
+            "owner: forks the hook child, which holds the lock description",
+            "environment: the child is stopped and never runs again",
+            "owner: dies",
+        ],
+    );
+    assert!(!new_owner_can_step(&blocked));
+    assert_eq!(end_state(&blocked), None);
+}

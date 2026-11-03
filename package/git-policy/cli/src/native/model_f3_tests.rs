@@ -144,3 +144,52 @@ fn candidate_without_the_gate_is_red() {
     let violation = report.violation.expect("a violation without the gate");
     assert_eq!(violation.message, "a running person's program was ended by a restart");
 }
+
+/// Revision 8 draft: the restart-intent closes the restarter-death schedule, the pid-namespace precondition closes the
+/// misread pid, and an owner wedged while holding the gate is the draft's stated narrowing (reachable, not a violation).
+#[test]
+fn eight_closes_restarter_death_and_namespaces_and_states_the_wedged_holder() {
+    let dying = replay(
+        initial(Rules::Eight, false),
+        steps,
+        &[
+            "restarter: reads lane/incarnation and opens a pidfd",
+            "restarter: takes the gate exclusively without waiting",
+            "restarter: re-reads lane/incarnation and finds it unchanged",
+            "L7 (4): the restarter creates the restart-intent and fsyncs it",
+            "restarter: sends the terminate signal through the pidfd",
+            "environment: the restarter dies",
+            "owner: handles the terminate signal and exits",
+        ],
+    );
+    assert_eq!(invariant(&dying), None);
+    let foreign = replay(initial(Rules::Eight, true), steps, &["L7 precondition: the pid namespaces differ, no restart"]);
+    assert_eq!(invariant(&foreign), None);
+    let holder = replay(initial(Rules::Eight, false), steps, &["owner: takes the shared gate", "environment: the owner wedges and takes no further step"]);
+    assert_eq!(end_state(&holder), None);
+}
+
+/// Revision 8 draft, a finding: an owner wedged in its own code while it holds no gate is "ended through the pidfd" only if
+/// the end is an uncatchable signal; read as a terminate signal (which the intent file suggests), a wedged owner never
+/// handles it and the restarter waits for ever.
+#[test]
+fn eight_cannot_end_a_wedged_owner_with_a_catchable_signal() {
+    let reached = replay(
+        initial(Rules::Eight, false),
+        steps,
+        &[
+            "environment: the owner wedges and takes no further step",
+            "restarter: reads lane/incarnation and opens a pidfd",
+            "restarter: takes the gate exclusively without waiting",
+            "restarter: re-reads lane/incarnation and finds it unchanged",
+            "L7 (4): the restarter creates the restart-intent and fsyncs it",
+            "restarter: sends the terminate signal through the pidfd",
+        ],
+    );
+    assert!(end_state(&reached).is_some());
+    let report: Report = check(Rules::Eight);
+    assert_eq!(
+        report.violation.expect("the wedge is found").message,
+        "a wedged owner with no running program of the person's can never be restarted"
+    );
+}

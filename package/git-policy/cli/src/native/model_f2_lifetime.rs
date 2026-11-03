@@ -31,7 +31,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'candidate-no-wait';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'candidate-no-wait';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -43,6 +43,10 @@ pub enum Rules {
     /// A candidate: the new owner reads the incarnation record without the lock, confirms the old owner dead through
     /// a pidfd, kills the old invocation's own scope (never a scope it is in), waits for it to be empty, then acquires.
     Candidate,
+    /// Revision 8 draft, L1 to L5: acquire first, reap the cgroup whose name contains the previous incarnation's identifier
+    /// (each incarnation has its own, so a replacement never targets itself), then incarnate and mutate. The draft states that
+    /// L1 waits for a child between fork and exec.
+    Eight,
     /// The candidate without the wait for the scope to report empty (a mutation that must stay red).
     CandidateNoWait,
 }
@@ -188,7 +192,7 @@ fn child_alive(state: &State) -> bool {
 fn new_owner_in_killed_scope(state: &State) -> bool {
     // The replacement service owner runs in the unit's cgroup path, which the recorded name still names; the
     // candidate kills the old invocation's own scope instead.
-    return state.service && state.rules != Rules::Candidate && state.rules != Rules::CandidateNoWait;
+    return state.service && state.rules != Rules::Candidate && state.rules != Rules::CandidateNoWait && state.rules != Rules::Eight;
 }
 
 /// What:
@@ -324,7 +328,8 @@ fn new_owner_steps(state: &State) -> Vec<(String, State)> {
     }
     let may_mutate_early: bool = state.rules == Rules::Six
         && (phase == NewOwner::Acquired || phase == NewOwner::Read || phase == NewOwner::Killing || phase == NewOwner::Empty);
-    let may_mutate: bool = (state.rules == Rules::Seven && phase == NewOwner::Empty) || (candidate && phase == NewOwner::Acquired);
+    let may_mutate: bool = ((state.rules == Rules::Seven || state.rules == Rules::Eight) && phase == NewOwner::Empty)
+        || (candidate && phase == NewOwner::Acquired);
     if may_mutate_early || may_mutate {
         let mut after: State = state.clone();
         after.new_owner = NewOwner::Mutating;
@@ -358,6 +363,11 @@ pub fn invariant(state: &State) -> Option<String> {
 
 /// The liveness check: a state with no enabled step must have a new owner that is mutating.
 pub fn end_state(state: &State) -> Option<String> {
+    // Revision 8, L1: the wait for a child between fork and exec is a stated narrowing, bounded only by that child's progress.
+    let before_exec: bool = state.child == ChildPhase::Forked || state.child == ChildPhase::Armed;
+    if state.rules == Rules::Eight && state.new_owner == NewOwner::Waiting && before_exec {
+        return None;
+    }
     if state.new_owner != NewOwner::Mutating {
         return Some("the new owner can never proceed: the lane lock or the cleanup is unreachable".to_string());
     }

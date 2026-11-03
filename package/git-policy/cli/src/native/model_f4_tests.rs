@@ -157,3 +157,26 @@ fn candidate_that_removes_any_lock_is_red() {
     let violation = report.violation.expect("a violation when any lock is removed");
     assert_eq!(violation.message, "a lock the wrapper did not create was removed");
 }
+
+/// Revision 8 draft, X1: the wrapper signals and waits, never kills and never removes a lock. No schedule removes a foreign
+/// lock or leaves an own lock behind; the stated wait (a child that ignores the signal keeps the request pending) is reachable.
+#[test]
+fn eight_signals_and_waits_and_never_removes_a_lock() {
+    let report: Report = check(Rules::Eight);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F4 eight: {} states, deepest {}", report.states, report.deepest);
+    let waiting = replay(
+        initial(Rules::Eight, true),
+        steps,
+        &[
+            "owner: observes branch.lock absent and launches update-ref",
+            "git: creates branch.lock",
+            "owner: sends the terminate signal to the stalled child",
+        ],
+    );
+    assert!(waiting.lock.present);
+    assert_eq!(invariant(&waiting), None);
+}

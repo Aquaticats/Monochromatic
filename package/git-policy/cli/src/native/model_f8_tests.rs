@@ -160,3 +160,47 @@ fn candidate_that_observes_an_empty_scope_is_red() {
     let violation = report.violation.expect("a violation when an empty scope is counted as finished");
     assert_eq!(violation.message, POSSIBLE);
 }
+
+/// Revision 8 draft, G1 to G4: the launcher inside the scope is the launch authority and its death with the scope empty is the
+/// proof; no schedule releases while a run can still delete, a finished run does release, and an uncontained run (no manager)
+/// is retained for good, which is the draft's stated cost.
+#[test]
+fn eight_closes_a_run_only_on_an_empty_scope_and_a_dead_launcher() {
+    let report: Report = check(Rules::Eight);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F8 eight: {} states, deepest {}", report.states, report.deepest);
+    let finished = replay(
+        initial(Rules::Eight, true),
+        steps,
+        &[
+            "G1 reserve: the launcher creates the scope and places itself in it",
+            "G1 reserve: the launcher writes the entry reserved by link",
+            "G2 run: the launcher starts the destructive process from inside the scope",
+            "prune: the main process ends",
+            "G3 terminal: the launcher waits for the process and records end",
+            "G3 terminal: lane B finds the scope empty and the launcher dead and records terminal",
+            "lane B: accepts the request and imports its objects",
+            "lane B: publishes the request",
+            "lane B: the connectivity check passes",
+            "T1 retire: lane B releases the spool",
+        ],
+    );
+    assert_eq!(finished.lane_b, 4);
+    assert_eq!(invariant(&finished), None);
+    let kept = replay(
+        initial(Rules::Eight, false),
+        steps,
+        &[
+            "G4 no manager: the launcher starts the run and registers it as uncontained",
+            "prune: the main process ends",
+            "lane B: accepts the request and imports its objects",
+            "lane B: publishes the request",
+        ],
+    );
+    // The final connectivity check waits for the entry to close, and nothing closes an uncontained run.
+    assert!(!steps(&kept).iter().any(|entry| { return entry.0.contains("connectivity check passes"); }));
+    assert!(!steps(&kept).iter().any(|entry| { return entry.0.contains("releases the spool"); }));
+}

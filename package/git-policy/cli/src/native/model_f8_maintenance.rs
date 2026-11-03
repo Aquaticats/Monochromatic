@@ -29,7 +29,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'candidate-observes-empty';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'candidate-observes-empty';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -42,6 +42,10 @@ pub enum Rules {
     /// before it treats the launch as impossible; a scope is populated by the trampoline before the entry is
     /// running; without a manager the launcher is a subreaper and writes terminal only when it has no descendant left.
     Candidate,
+    /// Revision 8 draft, G1 to G4: the launcher creates the scope and sits in it before the entry is written; a lane records
+    /// terminal only when the scope reports no processes and the launcher is dead (or recorded its end); without a manager
+    /// the run is retained for good.
+    Eight,
     /// The candidate where a lane also closes a reserved entry whose scope is empty, without revoking (a mutation that
     /// must stay red).
     CandidateObservesEmpty,
@@ -127,6 +131,9 @@ fn launcher_steps(state: &State) -> Vec<(String, State)> {
     let mut found: Vec<(String, State)> = Vec::new();
     let candidate: bool = state.rules == Rules::Candidate || state.rules == Rules::CandidateObservesEmpty;
     let mut after: State = state.clone();
+    if state.rules == Rules::Eight {
+        return eight_launcher_steps(state);
+    }
     if state.rules == Rules::Six && state.launcher == 0 {
         after.launcher = 4;
         after.running = true;
@@ -181,6 +188,85 @@ fn launcher_steps(state: &State) -> Vec<(String, State)> {
         let mut died: State = state.clone();
         died.launcher = 6;
         push_step(&mut found, "environment: the launcher dies", died);
+    }
+    return found;
+}
+
+/// What:
+///  The launcher's steps under the revision 8 draft: G1 reserve (scope first with the launcher in it, then the entry), G2 run,
+///  G4 without a manager, the end record, and the launcher's death.
+/// Why:
+///  The launcher inside the scope is the launch authority, so an empty scope with a live launcher never means finished.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function eightLauncherSteps(s: State): [string, State][];
+/// ```
+fn eight_launcher_steps(state: &State) -> Vec<(String, State)> {
+    let mut found: Vec<(String, State)> = Vec::new();
+    let mut after: State = state.clone();
+    if state.launcher == 0 && state.manager {
+        after.launcher = 1;
+        after.scope = 2;
+        push_step(&mut found, "G1 reserve: the launcher creates the scope and places itself in it", after);
+    } else if state.launcher == 0 {
+        // G4: no manager, the run starts and is registered as one that cannot be contained.
+        after.launcher = 4;
+        after.running = true;
+        after.entry = 2;
+        push_step(&mut found, "G4 no manager: the launcher starts the run and registers it as uncontained", after);
+    } else if state.launcher == 1 {
+        after.launcher = 2;
+        after.entry = 1;
+        push_step(&mut found, "G1 reserve: the launcher writes the entry reserved by link", after);
+    } else if state.launcher == 2 {
+        after.launcher = 4;
+        after.running = true;
+        after.entry = 2;
+        push_step(&mut found, "G2 run: the launcher starts the destructive process from inside the scope", after);
+    }
+    if state.launcher == 4 && !state.running && state.manager {
+        let mut done: State = state.clone();
+        done.launcher = 5;
+        done.scope = 3;
+        push_step(&mut found, "G3 terminal: the launcher waits for the process and records end", done);
+    }
+    if state.launcher >= 1 && state.launcher <= 4 {
+        let mut died: State = state.clone();
+        died.launcher = 6;
+        if !state.running {
+            died.scope = 3;
+        }
+        push_step(&mut found, "environment: the launcher dies", died);
+    }
+    return found;
+}
+
+/// What:
+///  The second lane's closing and release steps under the revision 8 draft.
+/// Why:
+///  G3: terminal needs the scope empty and the launcher dead (or its end recorded); G4: nothing closes an uncontained run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function eightReleaseSteps(s: State): [string, State][];
+/// ```
+fn eight_release_steps(state: &State) -> Vec<(String, State)> {
+    let mut found: Vec<(String, State)> = Vec::new();
+    let open: bool = state.entry == 1 || state.entry == 2;
+    let scope_empty: bool = state.scope == 3 && !state.running;
+    let ended: bool = state.launcher == 6 || state.launcher == 5;
+    if open && state.manager && scope_empty && ended {
+        let mut after: State = state.clone();
+        after.entry = 4;
+        push_step(&mut found, "G3 terminal: lane B finds the scope empty and the launcher dead and records terminal", after);
+    }
+    if state.lane_b == 3 && !open {
+        let mut after: State = state.clone();
+        after.lane_b = 4;
+        let launch_possible: bool = state.launcher >= 1 && state.launcher <= 3 && state.entry >= 1;
+        after.lost = destructive_alive(state) || launch_possible;
+        push_step(&mut found, "T1 retire: lane B releases the spool", after);
     }
     return found;
 }
@@ -263,6 +349,9 @@ fn work_steps(state: &State) -> Vec<(String, State)> {
 fn release_steps(state: &State) -> Vec<(String, State)> {
     let mut found: Vec<(String, State)> = Vec::new();
     let candidate: bool = state.rules == Rules::Candidate || state.rules == Rules::CandidateObservesEmpty;
+    if state.rules == Rules::Eight {
+        return eight_release_steps(state);
+    }
     let scope_empty: bool = state.scope == 0 || state.scope == 1 || state.scope == 3;
     let group_empty: bool = !state.running;
     if state.rules == Rules::Seven || state.rules == Rules::CandidateObservesEmpty {
@@ -291,7 +380,7 @@ fn release_steps(state: &State) -> Vec<(String, State)> {
             let mut after: State = state.clone();
             after.lane_b = 4;
             // A launch is still possible when the launcher lives, has registered and nobody revoked its entry.
-            let launch_possible: bool = state.launcher >= 1 && state.launcher <= 3 && state.entry != 5;
+            let launch_possible: bool = state.launcher >= 1 && state.launcher <= 3 && state.entry >= 1 && state.entry != 5;
             after.lost = destructive_alive(state) || launch_possible;
             push_step(&mut found, "lane B: releases the spool", after);
         }

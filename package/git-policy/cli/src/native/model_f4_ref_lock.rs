@@ -30,7 +30,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'candidate-no-journal' | 'candidate-removes-any';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'candidate-no-journal' | 'candidate-removes-any';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -42,6 +42,8 @@ pub enum Rules {
     /// A candidate: no Git child; the owner opens an `O_TMPFILE`, journals its inode, links it as `branch.lock`
     /// without replacing, and a recovering owner removes the lock only when it is the journaled inode.
     Candidate,
+    /// Revision 8 draft, X1: a terminate signal, a wait for the grace, and nothing further; the wrapper never removes a ref lock.
+    Eight,
     /// The candidate without the journal write before the link (a mutation that must stay red).
     CandidateNoJournal,
     /// The candidate whose recovery removes whatever lock is present (a mutation that must stay red).
@@ -282,13 +284,13 @@ fn git_steps(state: &State) -> Vec<(String, State)> {
         after.term_sent = false;
         push_step(&mut found, "git: handles the terminate signal, removes its own lock and exits", after);
     }
-    if state.owner == OwnerPhase::Running && child_alive(state) && !state.term_sent && seven {
+    if state.owner == OwnerPhase::Running && child_alive(state) && !state.term_sent && (seven || state.rules == Rules::Eight) {
         let mut after: State = state.clone();
         after.owner = OwnerPhase::Term;
         after.term_sent = true;
         push_step(&mut found, "owner: sends the terminate signal to the stalled child", after);
     }
-    let can_kill: bool = child_alive(state) && ((seven && state.owner == OwnerPhase::Term) || (!seven && state.owner == OwnerPhase::Running));
+    let can_kill: bool = child_alive(state) && ((seven && state.owner == OwnerPhase::Term) || (state.rules == Rules::Six && state.owner == OwnerPhase::Running));
     if can_kill {
         let mut after: State = state.clone();
         after.owner = OwnerPhase::Killed;

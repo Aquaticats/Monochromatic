@@ -29,7 +29,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'candidate-no-gate';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'candidate-no-gate';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -43,6 +43,11 @@ pub enum Rules {
     /// runs; the restarter sends an uncatchable kill through a pidfd obtained from the manager, so the cancellation
     /// cannot be revoked by the restarter's own death and the pid is never interpreted in another namespace.
     Candidate,
+    /// Revision 8 draft, L6 and L7: the gate is held shared around every program; the restarter, in the owner's pid
+    /// namespace only, takes it exclusively, re-reads the incarnation, creates a restart-intent, then ends the owner through
+    /// the pidfd (read here as a terminate signal, since the intent exists for the owner that is still running); an owner that
+    /// finds the intent at an admission point admits nothing and exits.
+    Eight,
     /// The candidate without the exclusive gate (a mutation that must stay red).
     CandidateNoGate,
 }
@@ -66,6 +71,8 @@ pub enum RPhase {
     Gate,
     /// Re-read the incarnation under the gate and found it unchanged.
     Verified,
+    /// Created the restart-intent (revision 8).
+    Intent,
     /// Sent the signal; waiting for the owner's death.
     Signalled,
     /// Finished or aborted.
@@ -113,6 +120,8 @@ pub struct State {
     pub observed: u8,
     /// The restarter's pidfd names an unrelated process (the pid was read in the wrong namespace).
     pub target_unrelated: bool,
+    /// Revision 8: the incarnation named by the restart-intent file (0 for none).
+    pub intent: u8,
     /// Revision 6: a restart request is outstanding at the manager, addressed to the unit by name.
     pub stop_outstanding: bool,
     /// Harm: a running person's program was ended.
@@ -148,6 +157,7 @@ pub fn initial(rules: Rules, foreign_namespace: bool) -> State {
         restarter: RPhase::Idle,
         observed: 0,
         target_unrelated: false,
+        intent: 0,
         stop_outstanding: false,
         program_ended: false,
         wrong_owner_ended: false,
@@ -234,7 +244,11 @@ fn owner_steps(state: &State) -> Vec<(String, State)> {
     let stub: bool = state.rules == Rules::Candidate || state.rules == Rules::CandidateNoGate;
     let gated: bool = state.rules != Rules::Six;
     let free: bool = state.owner_alive && !state.owner_wedged && !state.kill_pending;
-    if free && !state.dispatched && gated && !stub && state.gate_shared == 0 && !state.gate_exclusive {
+    let intent_set: bool = state.rules == Rules::Eight && state.intent == state.incarnation;
+    if free && intent_set && !state.hook_running {
+        push_step(&mut found, "L7 intent: the owner finds the restart-intent at an admission point, admits nothing and exits", owner_gone(state, false));
+    }
+    if free && !intent_set && !state.dispatched && gated && !stub && state.gate_shared == 0 && !state.gate_exclusive {
         let mut after: State = state.clone();
         after.gate_shared = 1;
         push_step(&mut found, "owner: takes the shared gate", after);
@@ -312,7 +326,11 @@ fn restarter_steps(state: &State) -> Vec<(String, State)> {
         after.stop_outstanding = true;
         push_step(&mut found, "restarter: asks the manager to restart the unit", after);
     }
-    if phase == RPhase::Idle && !six && state.owner_alive {
+    if phase == RPhase::Idle && state.rules == Rules::Eight && state.foreign_namespace {
+        let mut after: State = state.clone();
+        after.restarter = RPhase::Done;
+        push_step(&mut found, "L7 precondition: the pid namespaces differ, no restart", after);
+    } else if phase == RPhase::Idle && !six && state.owner_alive {
         let mut after: State = state.clone();
         after.restarter = RPhase::Observed;
         after.observed = state.incarnation;
@@ -344,7 +362,13 @@ fn restarter_steps(state: &State) -> Vec<(String, State)> {
             push_step(&mut found, "restarter: re-reads lane/incarnation, finds it changed and aborts", after);
         }
     }
-    if phase == RPhase::Verified && !candidate {
+    if phase == RPhase::Verified && state.rules == Rules::Eight {
+        let mut after: State = state.clone();
+        after.restarter = RPhase::Intent;
+        after.intent = state.observed;
+        push_step(&mut found, "L7 (4): the restarter creates the restart-intent and fsyncs it", after);
+    }
+    if (phase == RPhase::Verified && !candidate && state.rules != Rules::Eight) || phase == RPhase::Intent {
         let mut after: State = state.clone();
         after.restarter = RPhase::Signalled;
         if state.target_unrelated {
@@ -368,7 +392,11 @@ fn restarter_steps(state: &State) -> Vec<(String, State)> {
         after.gate_exclusive = false;
         push_step(&mut found, "restarter: sees the owner dead and releases the gate", after);
     }
-    let alive: bool = phase == RPhase::Observed || phase == RPhase::Gate || phase == RPhase::Verified || phase == RPhase::Signalled;
+    let alive: bool = phase == RPhase::Observed
+        || phase == RPhase::Gate
+        || phase == RPhase::Verified
+        || phase == RPhase::Intent
+        || phase == RPhase::Signalled;
     if (phase == RPhase::Dead || phase == RPhase::Done) && !six {
         // A client that finds the owner still quiet starts a new restarter.
         let mut after: State = state.clone();
@@ -411,6 +439,10 @@ pub fn invariant(state: &State) -> Option<String> {
 
 /// The liveness check: a wedged owner that no restarter can act on, with no program of the person's running.
 pub fn end_state(state: &State) -> Option<String> {
+    // Revision 8, owner question B: an owner wedged while it holds the gate is not restarted automatically.
+    if state.rules == Rules::Eight && state.owner_wedged && state.gate_shared != 0 {
+        return None;
+    }
     if state.owner_alive && state.owner_wedged && !state.hook_running {
         return Some("a wedged owner with no running program of the person's can never be restarted".to_string());
     }
