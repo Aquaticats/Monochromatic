@@ -10254,3 +10254,15 @@ by the coordinator at merge.
   removal. Deadline-stop gate `gpc-gate-deadline-stop-with-main-20261103T030559-0500` running; plan: on its pass,
   merge it and release 0.5.21 with all of these, then install and verify (a new worktree's `node_modules` resolve,
   commit timing, service landing log).
+- 2026-11-03T03:14:40-05:00: conversion fix done (branch `fix/git-policy-cli-conversion-knows-real-git`, host suites 3381 and 563
+  passed, clippy clean): `plan_convert` resolves the real Git and `LinuxPlatform::forwarding_to` builds the
+  conversion's environment through `with_real_git`; red binary control `binary_convert_tests.rs` printed the exact
+  refusal before the fix. `subvolume_journal.rs::mark` now writes `<journal>.tmp.<pid>.<nanos>` with `O_EXCL`
+  and mode 0600, renames, syncs the directory, and sweeps only plain-file leftovers of its own names. Its note on
+  the service's empty overlay (`service_main.rs:56`) is already fixed on the deadline-stop branch. QUEUED,
+  pre-existing in this package: sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers, and
+  read the migration journal without following a link (`Journal::load` uses `read_to_string`).
+  Release candidate: `integrate/git-policy-cli-deadline-stop-and-conversion-real-git` = deadline-stop + conversion
+  fix + main (package repair, subvolume claims, service locks); gate `release-0.5.21-candidate` launched; on a pass,
+  merge and release 0.5.21, install, verify, then convert the 18 skipped worktrees. The deadline agent was resumed
+  for the no-progress push limit on `feat/git-policy-cli-push-stops-on-no-progress`.
