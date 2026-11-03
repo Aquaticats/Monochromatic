@@ -21,7 +21,8 @@ use super::fs_btrfs_ioctl::snapshot_create_at;
 use super::subvolume_index_files::install_index_in;
 use super::subvolume_remove::remove_tree;
 use super::worktree_add_plan::AddPlan;
-use super::worktree_clean::{StatEntry, stat_fields_beneath, stored_stats, tree_differs_from_index_beneath};
+use super::subvolume_index::StatFields;
+use super::worktree_clean::{CleanRefusal, StatCursor, StatEntry, stored_stats, tree_fields_beneath};
 use super::worktree_snapshot_source::SnapshotSource;
 use super::worktree_trash::{Pruned, TrashManifest, prune_snapshot};
 use std::ffi::{OsStr, OsString};
@@ -123,13 +124,15 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index:
     // A clean source proved its index equal to its files, so it is compared with the snapshot. A source with changes has no such
     //  proof: the snapshot's own index, one instant with its files, is installed as it is and the restore settles the rest.
     let bytes: &[u8] = own_index.unwrap_or(source.clean.index_bytes.as_slice());
-    if own_index.is_none() {
-        let entries: Vec<StatEntry> = stored_stats(bytes, source.clean.hash_length).ok_or_else(|| { return String::from("the source's index changed shape"); })?;
-        if let Some(reason) = timed("compareWalk", || { return tree_differs_from_index_beneath(&root, entries.as_slice(), source.clean.index_seconds); }) {
-            return Err(format!("the source changed while it was copied ({reason})"));
-        }
-    }
-    let report: String = timed("refreshIndexStats", || { return install_index_in(admin, bytes, &mut |path: &[u8]| { return stat_fields_beneath(&root, path); }, source.clean.hash_length); })?;
+    let entries: Vec<StatEntry> = if own_index.is_none() { stored_stats(bytes, source.clean.hash_length).ok_or_else(|| { return String::from("the source's index changed shape"); })? } else { Vec::new() };
+    // One walk of the snapshot proves it equal to the source's index and returns the stat fields the new index takes: every
+    //  file is looked at once, and the fields are the ones the verdict was given on.
+    let walked: Vec<StatFields> = timed("walkSnapshot", || { return tree_fields_beneath(&root, entries.as_slice(), source.clean.index_seconds); })
+        .map_err(|refusal: CleanRefusal| { return format!("the source changed while it was copied ({})", refusal.reason); })?;
+    let known: std::collections::HashMap<&[u8], StatFields> = entries.iter().map(|entry: &StatEntry| { return entry.path.as_slice(); }).zip(walked).collect();
+    // An entry the walk did not cover (a source with changes has no walk) is looked at through a cursor that keeps its directory.
+    let mut cursor: StatCursor<'_> = StatCursor::new(&root);
+    let report: String = timed("installIndexFile", || { return install_index_in(admin, bytes, &mut |path: &[u8]| { return known.get(path).copied().or_else(|| { return cursor.fields(path); }); }, source.clean.hash_length); })?;
     super::diagnostic_log::debug("takeSnapshot", report.as_str());
     return Ok(());
 }

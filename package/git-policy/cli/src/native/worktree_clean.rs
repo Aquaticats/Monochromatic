@@ -465,6 +465,77 @@ fn tree_refusal_beneath(root: &std::fs::File, entries: &[StatEntry], index_secon
 }
 
 /// What:
+///  A walk below a held directory that keeps the last directory it opened.
+/// Why:
+///   The paths of an index come in order, so most of them share their parent with the one before; one `openat2` chain per
+///  directory instead of per file is what the walk costs, and each file is still reached through handles that follow no link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cursor = new StatCursor(root); cursor.fields(path); // StatFields | undefined
+/// ```
+pub struct StatCursor<'a> {
+    /// The directory every path is found below.
+    root: &'a std::fs::File,
+    /// The components and the handle of the last directory opened.
+    held: Option<(Vec<std::ffi::OsString>, std::fs::File)>,
+}
+
+impl<'a> StatCursor<'a> {
+    /// A cursor below `root` that has opened nothing.
+    pub fn new(root: &'a std::fs::File) -> Self {
+        return Self { root, held: None };
+    }
+
+    /// The metadata of the file `path` names below the root, or the reason it cannot be found through plain directories.
+    fn metadata(&mut self, path: &[u8]) -> Result<std::fs::Metadata, String> {
+        let shown: String = String::from_utf8_lossy(path).into_owned();
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(path))) else { return Err(format!("{shown} is not a plain path")) };
+        let Some((name, parents)) = names.split_last() else { return Err(format!("{shown} is not a plain path")) };
+        if self.held.as_ref().is_none_or(|(known, _directory): &(Vec<std::ffi::OsString>, std::fs::File)| { return known.as_slice() != parents; }) {
+            let Ok(directory) = open_directory_beneath(self.root, parents) else { return Err(format!("{shown} is missing from the worktree or reached through a link")) };
+            self.held = Some((parents.to_vec(), directory));
+        }
+        let Some((_known, directory)) = self.held.as_ref() else { return Err(format!("{shown} is missing from the worktree")) };
+        return entry_metadata_at(directory, name.as_os_str()).map_err(|_error| { return format!("{shown} is missing from the worktree"); });
+    }
+
+    /// The stat fields of the tracked file `path` below the root, or nothing when it cannot be found through plain directories.
+    pub fn fields(&mut self, path: &[u8]) -> Option<StatFields> {
+        return self.metadata(path).ok().map(|found: std::fs::Metadata| { return fields_of(&found); });
+    }
+}
+
+/// What:
+///  Judge every tracked file below the held directory `root` against its index entry and return the stat fields of each, in
+///  entry order, in one walk.
+/// Why:
+///   The snapshot's index takes the stat fields of the snapshot's own files, and the snapshot is proven equal to the source's
+///  index by the same stat data; the same `statx` serves both, so the files are looked at once, and the fields are the ones the
+///  verdict was given on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fields = treeFieldsBeneath(root, entries, indexSeconds); // throws a CleanRefusal
+/// ```
+pub fn tree_fields_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Result<Vec<StatFields>, CleanRefusal> {
+    let mut cursor: StatCursor<'_> = StatCursor::new(root);
+    let mut fields: Vec<StatFields> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let metadata: std::fs::Metadata = match cursor.metadata(entry.path.as_slice()) {
+            Ok(found) => found,
+            Err(reason) if reason.ends_with("is not a plain path") => return Err(CleanRefusal::unreadable(reason)),
+            Err(reason) => return Err(CleanRefusal::new(CleanRefusalKind::FileChanged, reason)),
+        };
+        if let Some(refusal) = stat_finding(entry, &metadata, index_seconds) {
+            return Err(refusal);
+        }
+        fields.push(fields_of(&metadata));
+    }
+    return Ok(fields);
+}
+
+/// What:
 ///  The stat fields of the tracked file `path` below the held directory `root`, found through handles, or nothing.
 /// Why:
 ///   The index of a snapshot takes the stat fields of the snapshot's own files; reading them by a path with several
@@ -475,10 +546,7 @@ fn tree_refusal_beneath(root: &std::fs::File, entries: &[StatEntry], index_secon
 /// function statFieldsBeneath(root: Dir, path: Uint8Array): StatFields | undefined;
 /// ```
 pub fn stat_fields_beneath(root: &std::fs::File, path: &[u8]) -> Option<StatFields> {
-    let names = plain_components(Path::new(OsStr::from_bytes(path))).ok()?;
-    let (name, parents) = names.split_last()?;
-    let directory = open_directory_beneath(root, parents).ok()?;
-    return Some(fields_of(&entry_metadata_at(&directory, name.as_os_str()).ok()?));
+    return StatCursor::new(root).fields(path);
 }
 
 /// What:
@@ -668,8 +736,16 @@ fn entry_a_reset_cannot_undo(state: &State) -> Option<CleanRefusal> {
 /// async function checkClean(args: { context: GitContext; root: string; gitDir: string; commonDir: string }): Promise<CleanSource>; // throws a reason
 /// ```
 pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
-    let clean: CleanSource = check_tracked(root, git_dir, common_dir, None, false)?;
-    if let Some(name) = untracked_file(context, root)? {
+    // The tracked files (the index, the tree of `HEAD`, a stat of every file) and the untracked scan (one Git run over the
+    //  directory tree) read different things and write nothing, so they run side by side; the tracked refusal still comes first.
+    let (tracked, untracked): (Result<CleanSource, CleanRefusal>, Result<Option<String>, CleanRefusal>) = std::thread::scope(|scope| {
+        let scan = scope.spawn(|| { return super::add_timing::work("untrackedScan", || { return untracked_file(context, root); }); });
+        let tracked = check_tracked(root, git_dir, common_dir, None, false);
+        let scanned = scan.join().unwrap_or_else(|_panic| { return Err(CleanRefusal::unreadable("the scan for untracked files stopped unexpectedly")); });
+        return (tracked, scanned);
+    });
+    let clean: CleanSource = tracked?;
+    if let Some(name) = untracked? {
         return Err(CleanRefusal::new(CleanRefusalKind::Untracked, format!("{name} is untracked and not ignored")));
     }
     return Ok(clean);
