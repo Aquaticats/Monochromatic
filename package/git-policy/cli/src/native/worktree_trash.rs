@@ -24,7 +24,7 @@ use super::transaction_git::{GitContext, GitRequest, run_git};
 use super::worktree_clean::stored_stats;
 use super::worktree_copy_prune::Prune;
 use super::worktree_snapshot_source::SnapshotSource;
-pub use super::worktree_trash_dispose::{Router, TRASH_REFERENCE, delete_trash, dispose_pending_trash, dispose_pending_trash_with, empty_trash};
+pub use super::worktree_trash_dispose::{Reach, Router, TRASH_REFERENCE, delete_trash, dispose_pending_trash, dispose_pending_trash_with, empty_trash};
 pub use super::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
 use super::worktree_trash_remove::remove_tree_beneath;
 use std::collections::HashSet;

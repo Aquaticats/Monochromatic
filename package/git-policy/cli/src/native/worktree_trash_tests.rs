@@ -7,6 +7,7 @@ use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::iso_time::now_iso;
 use crate::service_client::START_WAIT;
+use crate::service_provision::ProvisionHost;
 use crate::service_route::Route;
 use crate::service_work::{Verdict, WorkHandlers, drain, work_directory};
 use crate::work_item::{WorkItem, WorkKind, enqueue};
@@ -156,7 +157,7 @@ fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
     let name: String = "a".repeat(40);
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 2);
     let mut notices: Vec<u8> = Vec::new();
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &|_git: &Path, _dir: &Path| { return None; }, START_WAIT).expect("emptied here");
+    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return None; }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT }).expect("emptied here");
     assert!(!worktree.join(TRASH_PARENT).join(&name).exists(), "emptied in the foreground");
     assert!(!worktree.join(TRASH_PARENT).exists(), "and its parent goes with the last one");
     let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
@@ -314,7 +315,7 @@ fn a_service_of_an_earlier_release_that_will_not_retire_is_never_handed_trash() 
     let service: FixtureService = serve_earlier_release(address.as_str(), false);
     let mut notices: Vec<u8> = Vec::new();
     let route: Route = Route { address: Bind::Abstract(address), provision: None };
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, std::time::Duration::from_millis(400)).expect("emptied here");
+    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: std::time::Duration::from_millis(400) }).expect("emptied here");
     service.finished.store(true, std::sync::atomic::Ordering::SeqCst);
     let heard: Vec<String> = service.thread.join().expect("service thread");
     assert!(!heard.is_empty() && heard.iter().all(|line: &String| { return *line == encode_client(&ClientMessage::Retire); }), "only retires were sent: {heard:?}");
@@ -336,7 +337,7 @@ fn a_service_of_an_earlier_release_is_replaced_before_trash_is_handed_over() {
     let service: FixtureService = serve_earlier_release(address.as_str(), true);
     let mut notices: Vec<u8> = Vec::new();
     let route: Route = Route { address: Bind::Abstract(address), provision: None };
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, START_WAIT).expect("handed over");
+    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT }).expect("handed over");
     service.finished.store(true, std::sync::atomic::Ordering::SeqCst);
     let heard: Vec<String> = service.thread.join().expect("service thread");
     let retire: String = encode_client(&ClientMessage::Retire);

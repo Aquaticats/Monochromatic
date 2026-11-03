@@ -17,6 +17,8 @@ use super::diagnostic_log::debug;
 use super::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
 use super::iso_time::now_iso;
 use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, wake};
+use super::service_messages::{ClientFailure, render};
+use super::service_provision::{ProvisionHost, provision};
 use super::service_route::{Route, route_from_environment};
 use super::service_work::{Verdict, work_directory};
 use super::transaction_git::GitContext;
@@ -40,14 +42,31 @@ const POINTER_LIMIT: u64 = 64 * 1024;
 /// How the service's address is found for a Git directory; injected so a control never reaches the real service.
 pub type Router<'a> = &'a dyn Fn(&Path, &Path) -> Option<Route>;
 
+/// Sets up what the service needs before it can be reached, as a commit does for its first message; injected so a control
+///  never reaches the session bus.
+pub type Provisioner<'a> = &'a dyn Fn(&ProvisionHost) -> Result<(), ClientFailure>;
+
+/// How the service is reached: where its address is found, how it is set up, and how long its start is waited for.
+pub struct Reach<'a> {
+    /// Finds the service's address for a Git directory.
+    pub router: Router<'a>,
+    /// Sets up the worktree's socket activation, which a new worktree does not have yet.
+    pub provisioner: Provisioner<'a>,
+    /// The longest wait for the service to start.
+    pub start_wait: std::time::Duration,
+}
+
 /// Where the trash went.
 enum Handed {
     /// The service was reached with a record that names the trash, and owns the emptying now.
     Service,
-    /// The service was not reached; the trash is emptied here. `record` is the work item that was written for it, if any.
+    /// The service was not reached; the trash is emptied here. `record` is the work item that was written for it, if any, and
+    ///  `why` says in words why the service was not reached.
     Here {
         /// The pending work item, which stays until the trash is gone.
         record: Option<PathBuf>,
+        /// Why the service was not reached.
+        why: String,
     },
 }
 
@@ -64,17 +83,19 @@ enum Handed {
 /// ```
 pub fn dispose_pending_trash(context: &GitContext, destination: &Path, git_dir: &Path, trash: Option<&TrashManifest>, notices: &mut dyn Write) -> Result<(), String> {
     let Some(manifest) = trash else { return Ok(()) };
-    return dispose_pending_trash_with(context.real_git.as_path(), destination, git_dir, manifest, notices, &route_from_environment, START_WAIT);
+    return dispose_pending_trash_with(context.real_git.as_path(), destination, git_dir, manifest, notices, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: START_WAIT });
 }
 
 /// `dispose_pending_trash` for a known trash, with the route finder and the wait for a current service injected, so a control
 ///  can use a fixture service and a short wait.
-pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write, router: Router<'_>, start_wait: std::time::Duration) -> Result<(), String> {
-    let record: Option<PathBuf> = match hand_over(real_git, destination, git_dir, manifest, notices, router, start_wait) {
+pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write, reach: &Reach<'_>) -> Result<(), String> {
+    let (record, why): (Option<PathBuf>, String) = match hand_over(real_git, destination, git_dir, manifest, notices, reach) {
         Handed::Service => return Ok(()),
-        Handed::Here { record } => record,
+        Handed::Here { record, why } => (record, why),
     };
-    debug(TAG, format!("the trash {} could not be handed to the service; emptying it here", manifest.name).as_str());
+    debug(TAG, format!("the trash {} could not be handed to the service ({why}); emptying it here", manifest.name).as_str());
+    // The person waits for this, so they are told what is being done and why, once.
+    let _told = writeln!(notices, "cli-git: emptying the directories left out of the new worktree {} now, because the commit service could not take them over ({why}); this can take a while.", destination.display());
     if let Err(reason) = delete_trash(destination, git_dir, manifest) {
         let stays: String = match record {
             Some(path) => format!("the work item {} stays, so the commit service empties it when it next runs for this worktree", path.display()),
@@ -92,12 +113,16 @@ pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: 
     return Ok(());
 }
 
-/// Write the work item and connect to the service.
-fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write, router: Router<'_>, start_wait: std::time::Duration) -> Handed {
+/// Write the work item, set up the worktree's socket activation, and connect to the service.
+///
+/// Why: a new worktree has a commit service instance of its own whose socket does not exist until something sets it up; a
+/// commit does that before its first message, so the hand-over does it too, instead of waiting out the start for a socket
+/// that nothing will ever create.
+fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write, reach: &Reach<'_>) -> Handed {
     // A record spells a path as text. A path that is not text cannot be spelled, and a lossy spelling would name another place.
     let (Some(repository), Some(git_dir_text)) = (destination.to_str(), git_dir.to_str()) else {
         debug(TAG, format!("{} or its administrative directory is not valid UTF-8, so no work item can name it", destination.display()).as_str());
-        return Handed::Here { record: None };
+        return Handed::Here { record: None, why: String::from("the path of the worktree is not valid UTF-8, so a work item cannot name it") };
     };
     let item: WorkItem = WorkItem {
         kind: WorkKind::Trash,
@@ -111,17 +136,22 @@ fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &Tra
     };
     if let Err(reason) = enqueue(work_directory(git_dir).as_path(), &item) {
         debug(TAG, format!("the work item could not be written: {reason}").as_str());
-        return Handed::Here { record: None };
+        return Handed::Here { record: None, why: format!("the work item could not be written: {reason}") };
     }
     let record: PathBuf = state_directory(work_directory(git_dir).as_path(), PENDING).join(item.id());
-    let reached: bool = router(real_git, git_dir).is_some_and(|Route { address, .. }| {
-        let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait, commit_wait: COMMIT_WAIT };
-        return wake(&config, git_dir, None, notices).is_ok();
-    });
-    if reached {
-        return Handed::Service;
+    let Some(Route { address, provision: host }) = (reach.router)(real_git, git_dir) else {
+        return Handed::Here { record: Some(record), why: String::from("no commit service can be started from this session") };
+    };
+    if let Some(setup) = host.as_ref()
+        && let Err(failure) = (reach.provisioner)(setup)
+    {
+        return Handed::Here { record: Some(record), why: render(&failure) };
     }
-    return Handed::Here { record: Some(record) };
+    let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: reach.start_wait, commit_wait: COMMIT_WAIT };
+    return match wake(&config, git_dir, None, notices) {
+        Ok(()) => Handed::Service,
+        Err(failure) => Handed::Here { record: Some(record), why: render(&failure) },
+    };
 }
 
 /// Whether an error says a directory is not empty.
