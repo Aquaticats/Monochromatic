@@ -9800,3 +9800,15 @@ by the coordinator at merge.
   minutes) instead of the main snapshot route, and printed no reason. Likely cause (unverified): the main checkout had
   an uncommitted `pnpm-lock.yaml`. Follow-ups to propose: say why the snapshot route was not taken; consider
   snapshotting a dirty main and restoring its modified tracked paths from the index in the new worktree.
+- Conversion and trash review returned (`~/temp/agent/review-main-snapshot/sol-review.txt`, on the conversion
+  branch's files). `worktree_convert.rs` findings 1 to 8 (P1: temporary journal file truncation; journal does not
+  record the created subvolume's identity; a `Synced` resume skips re-proving; concurrent runs not serialized; removal
+  re-resolves the path; nested check skipped for bare layouts; substring filtering hides refusals; P2: failed refresh
+  recorded as done) went to the conversion author, same branch. `worktree_trash.rs` findings 9 to 15 (P1: registered
+  nested worktrees bypass tracked protection; gitlinks unprotected; trash ownership by name only; ancestor symlinks;
+  lossy names; P2: lossy hand-over path; cleanup errors returned as success) affect every main-snapshot add since
+  0.5.18; assigned to a new agent on `fix/git-policy-cli-snapshot-trash-review-findings`.
+- Agents now running: conversion author (content and conversion findings), conflict-side fixes, remove-path fixes,
+  add-explains-slow-route (`fix/git-policy-cli-add-explains-slow-route`: measure why the two adds fell back, print the
+  reason, and a `doc/planning` proposal on snapshotting a dirty main for the owner), and the trash fixes. Each comes
+  back for a container gate, merge, and one combined release.
