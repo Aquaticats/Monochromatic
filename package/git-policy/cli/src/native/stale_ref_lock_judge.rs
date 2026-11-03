@@ -60,6 +60,14 @@ const HIDEPID_OFF: [&str; 2] = ["0", "off"];
 ///  written by a Git on another machine, whose process numbers mean nothing here.
 const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
 
+/// How far a file's birth may precede the clock reading taken before a child started, for the file to count as born after
+///  the child started. The kernel stamps files from a coarse clock that lags the one `SystemTime` reads by up to one tick.
+///  Measured on this host (`CONFIG_HZ=1000`, so a tick is 1 ms): a new file's birth time lagged a clock read taken just before
+///  the create by at most 1.684 ms and 1.729 ms in two runs of 10,000 creates each, so 50 ms is about thirty times the
+///  longest lag. Kept; recorded in `doc/planning/cli-git-shipped-limits-audit.md`, "Margins for removing left-behind locks"
+///  (the coordinator's pick under the owner's delegation, open to the owner's veto).
+pub const COARSE_CLOCK_SLACK: Duration = Duration::from_millis(50);
+
 /// How far after the lock's birth a process must have started to count as a later user of the same number, beyond the
 ///  clock's resolution. Measured: the start time derived from `/proc/<pid>/stat`, `/proc/uptime` and the clock read together
 ///  exceeded the clock read just before the process was spawned by at most 2.331 ms and 2.329 ms in two runs of 1,000 spawns, so
@@ -99,6 +107,25 @@ pub enum Verdict {
     Stale(Proof),
 }
 
+/// What:
+///  The processes the wrapper itself started, stopped and saw end, and when the first of them started.
+/// Why:
+///   A pid file that such a process wrote holds a number of the wrapper's own PID namespace, whatever view of the machine the
+///  judge has (a container has a view of its own), and the wrapper knows the process is gone. This is the one proof that
+///  needs no inference about namespaces, and it covers only locks born after the child started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OwnEnded = { pids: number[]; since: Date };
+/// ```
+#[derive(Clone, Debug)]
+pub struct OwnEnded {
+    /// The numbers of the processes of the stopped tree that have ended.
+    pub pids: Vec<i64>,
+    /// The wall-clock time read before the stopped child started.
+    pub since: SystemTime,
+}
+
 /// The evidence a judgement may use, and the limits of what it can see.
 #[derive(Clone, Debug)]
 pub struct Judge {
@@ -113,6 +140,8 @@ pub struct Judge {
     pub boot: Option<SystemTime>,
     /// The file system types a lock may sit on.
     pub local_file_systems: Vec<String>,
+    /// The ended processes of a child this wrapper stopped, where the judgement follows a stop.
+    pub own_ended: Option<OwnEnded>,
 }
 
 /// Everything one judgement found out.
@@ -138,6 +167,7 @@ impl Judge {
             pid_view_complete: current_pid_namespace().as_deref() == Some(INITIAL_PID_NAMESPACE) && proc_hides_no_process(),
             boot: boot_time(),
             local_file_systems: LOCAL_FILE_SYSTEMS.iter().map(|name| { return String::from(*name); }).collect(),
+            own_ended: None,
         };
     }
 
@@ -172,6 +202,9 @@ impl Judge {
     ///  inside a PID namespace of its own, because the pid file holds the number its writer had in the writer's namespace.
     fn judge_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
         if !self.pid_view_complete {
+            if self.names_ended_own_child(pid, lock_born) {
+                return self.judge_own_ended_pid(pid);
+            }
             return Verdict::Unproven(format!(
                 "the pid file beside it names process {pid}, but this process runs in a PID namespace of its own, or cannot see every process of the machine, so it cannot tell whether {pid} is gone"
             ));
@@ -189,6 +222,25 @@ impl Judge {
             Err(reason) => Verdict::Unproven(format!(
                 "the pid file beside it names process {pid}, and the processes could not be searched for one that is process {pid} of a PID namespace of its own: {reason}"
             )),
+        };
+    }
+
+    /// Whether the pid file names a process of the tree this wrapper stopped and saw end, and the lock was born after that
+    ///  child started: then the number is the wrapper's own namespace's, and it was the child's.
+    fn names_ended_own_child(&self, pid: i64, lock_born: Option<SystemTime>) -> bool {
+        let Some(own) = self.own_ended.as_ref() else {
+            return false;
+        };
+        return own.pids.contains(&pid) && lock_born.is_some_and(|born| { return born + COARSE_CLOCK_SLACK >= own.since; });
+    }
+
+    /// The verdict for a number of a process this wrapper saw end, when the table is not known to be the machine's: it is
+    ///  gone if the table shows nothing with that number now, and anything running with it is left alone.
+    fn judge_own_ended_pid(&self, pid: i64) -> Verdict {
+        return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
+            ProcessStart::Missing => Verdict::Stale(Proof::PidGone(pid)),
+            ProcessStart::Unknown(reason) => Verdict::Unproven(format!("the pid file beside it names process {pid}, which could not be looked at: {reason}")),
+            ProcessStart::Running { .. } => Verdict::Held(format!("process {pid}, which the pid file beside it names, ended with the child this wrapper stopped, and a process has the number again")),
         };
     }
 
@@ -272,7 +324,9 @@ impl Judge {
             return finish(Verdict::TooNew);
         }
         let newest: SystemTime = born.map_or(nanoseconds_to_time(identity.modified_ns), |at| { return at.max(nanoseconds_to_time(identity.modified_ns)); });
-        if SystemTime::now().duration_since(newest).unwrap_or_default() < self.margin {
+        // A lock whose pid file names a process this wrapper stopped and saw end needs no margin: its holder is known to be gone.
+        let own: bool = matches!(&pid_file, PidFile::Names(pid) if self.names_ended_own_child(*pid, born));
+        if !own && SystemTime::now().duration_since(newest).unwrap_or_default() < self.margin {
             return finish(Verdict::TooNew);
         }
         if let Err(reason) = self.local_check(lock) {

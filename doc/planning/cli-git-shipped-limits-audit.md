@@ -1693,6 +1693,8 @@ by content" and the path is not judged clean; an over-large index makes the guar
   time, however long, tells it from a left one (cross-vendor review finding S-1).
   The sweep after a stop now removes a lock only on the proofs of `SPEC.md`, "Reference locks left by a Git that was
   killed".
+  `COARSE_CLOCK_SLACK` (50 ms, measurement unchanged above) returned in `stale_ref_lock_judge.rs` for one use: telling a lock
+  born in a stopped child's life from an older one, in the wrapper's own proof for a child it stopped and saw end.
 
 ## In-process readers, parsers and chunking
 
