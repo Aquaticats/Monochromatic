@@ -94,6 +94,9 @@ Tighten existing `AGENTS.md` rule `OCG` to prevent inferring option-order restri
 This is a proposed edit,
 not an applied rule change:
 
-> CLI options follow host grammar; never restrict order unasked.
+> CLI options follow host grammar;
+> never restrict order unasked.
 > Output cardinality never decides occurrence grammar;
-> sketch token encoding before repeated, delimited, or variadic forms.
+> sketch token encoding before repeated,
+> delimited,
+> or variadic forms.
