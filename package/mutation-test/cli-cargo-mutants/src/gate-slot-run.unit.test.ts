@@ -73,7 +73,12 @@ const stillWaitingMs = 400;
  gateOptions({ lockDirectory: '/d' });
  ```
  */
-function gateOptions(overrides: Partial<GateSlotOptions> & { readonly lockDirectory: string }): GateSlotOptions {
+function gateOptions(overrides: {
+  readonly lockDirectory: string;
+  readonly slotCount?: number;
+  readonly pollIntervalMs?: number;
+  readonly noticeIntervalMs?: number;
+}): GateSlotOptions {
   return {
     slotCount,
     pollIntervalMs: 600_000,
@@ -379,11 +384,13 @@ await describe({
             await held.claim.release();
             await waiting;
             expect(notices.length).toBeGreaterThanOrEqual(5);
-            expect(notices.length).toBeLessThanOrEqual(12);
+            // About ten per second at this interval; a tight poll would write hundreds.
+            expect(notices.length).toBeLessThanOrEqual(20);
             expect(notices[0]).toContain('waiting for a free slot');
             expect(notices.slice(1).every((notice) => notice.includes('still waiting'))).toBe(true);
-            // One attempt per notice at most, plus the first and the last: the waits end at the next notice or a change.
-            expect(watches).toBeLessThanOrEqual(notices.length + 3);
+            // One look per notice, plus a few at the release, which writes a private file, renames it and flushes the directory
+            // (each an event): the waits end at the next notice or a change, so the count stays near the notice count.
+            expect(watches).toBeLessThanOrEqual(notices.length + 8);
           },
         }),
         it({
@@ -448,13 +455,13 @@ await describe({
                 write: () => {},
               });
             }));
-            expect(statuses.toSorted()).toEqual([1, 2, 3, 4, 5]);
+            expect(statuses.toSorted((left, right) => left - right)).toEqual([1, 2, 3, 4, 5]);
             expect(peak).toBeLessThanOrEqual(slotCount);
             expect(finished).toHaveLength(5);
           },
         }),
         it({
-          name: 'does not wait for a slot file of an earlier release that nothing holds: it removes the file and runs',
+          name: 'does not wait for a slot file of an earlier release that nothing holds: it removes the file of the slot it takes and runs',
           fn: async () => {
             await using directory = await gateDirectory('gate-legacy-free-');
             await mkdir(directory.path, { recursive: true });
@@ -473,7 +480,8 @@ await describe({
               write: () => {},
             });
             expect(status).toBe(0);
-            expect((await readdir(directory.path)).filter((name) => name.endsWith('.lock'))).toEqual([]);
+            // The gate took slot one, so only that slot's leftover was probed and retired; slot two's is probed when tried.
+            expect((await readdir(directory.path)).filter((name) => name.endsWith('.lock'))).toEqual(['slot-2.lock']);
           },
         }),
       ],

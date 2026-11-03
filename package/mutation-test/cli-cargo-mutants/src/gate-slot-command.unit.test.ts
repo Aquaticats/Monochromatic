@@ -67,7 +67,7 @@ process.exitCode = await runNicedCommand({ command: ${JSON.stringify(command)} }
   /**
    How the child ended: its exit code.
    */
-  const ended = once(
+  const ended: Promise<readonly unknown[]> = once(
     child,
     'close',
   );
@@ -77,6 +77,31 @@ process.exitCode = await runNicedCommand({ command: ${JSON.stringify(command)} }
       .trim(),
     ended,
   };
+}
+
+/**
+ Tell whether a process with this id exists.
+
+ @param pid - the process id
+
+ @returns false when the kernel reports no such process
+
+ @example
+ ```ts
+ isAlive(process.pid);
+ ```
+ */
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(
+      pid,
+      0,
+    );
+    return true;
+  }
+  catch (error) {
+    return !(Error.isError(error) && ('code' in error) && (error.code === 'ESRCH'));
+  }
 }
 
 await describe({
@@ -124,17 +149,7 @@ await describe({
         run.child.kill('SIGTERM');
         const [code] = await run.ended;
         expect(code).toBe(signalStatusBase + terminationSignal);
-        let alive = true;
-        try {
-          process.kill(
-            commandPid,
-            0,
-          );
-        }
-        catch {
-          alive = false;
-        }
-        expect(alive).toBe(false);
+        expect(isAlive(commandPid)).toBe(false);
       },
     }),
   ],
