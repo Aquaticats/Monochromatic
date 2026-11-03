@@ -1,6 +1,8 @@
+import { spawnSync } from 'node:child_process';
 import {
   readdir,
   readFile,
+  rm,
   utimes,
   writeFile,
 } from 'node:fs/promises';
@@ -344,6 +346,69 @@ await describe({
               path,
               'utf8',
             )).toBe('somebody else\'s text');
+          },
+        }),
+        it({
+          name: 'stops with the file named, never hanging, when the newest generation is a named pipe with no writer',
+          fn: async () => {
+            await using directory = await scratchDirectory('claim-fifo-');
+            const path = claimPath({
+              directory: directory.path,
+              prefix,
+              generation: 1,
+            });
+            const made = spawnSync(
+              'mkfifo',
+              [path],
+            );
+            expect(made.status).toBe(0);
+            let caught: unknown;
+            try {
+              await takeClaim({
+                directory: directory.path,
+                prefix,
+              });
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught).toBeInstanceOf(CargoMutantsToolingError);
+            expect(String(caught)).toContain('is not a claim file');
+          },
+          timeout: 15_000,
+        }),
+        it({
+          name: 'retries instead of failing when another claimant removed the generation it published before it could withdraw it',
+          fn: async () => {
+            await using directory = await scratchDirectory('claim-withdraw-gone-');
+            const own = await currentProcessIdentity();
+            const newer = 3;
+            const published = claimPath({
+              directory: directory.path,
+              prefix,
+              generation: 1,
+            });
+            const outcome = await takeClaim({
+              directory: directory.path,
+              prefix,
+              afterPublishing: async () => {
+                // A later claimant removes the stale lower generation (older than its own) and holds a newer one.
+                await rm(published);
+                await plantClaim({
+                  directory: directory.path,
+                  prefix,
+                  generation: newer,
+                  pid: own.pid,
+                  birth: own.birth,
+                  ...(own.namespace === undefined ? {} : { namespace: own.namespace }),
+                });
+              },
+            });
+            expect(busy(outcome).pid).toBe(own.pid);
+            expect(await listGenerations({
+              directory: directory.path,
+              prefix,
+            })).toEqual([newer]);
           },
         }),
         it({

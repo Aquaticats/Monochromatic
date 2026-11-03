@@ -2,6 +2,7 @@ import {
   chmod,
   lstat,
   mkdir,
+  rm,
   symlink,
   writeFile,
 } from 'node:fs/promises';
@@ -14,6 +15,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  type OldHolder,
   scratchDirectory,
   startOldHolder,
 } from './claim-test-support.ts';
@@ -136,6 +138,34 @@ await describe({
               retireWhenFree: true,
             })).toBe('retired');
           },
+        }),
+        it({
+          name: 'does not remove a file an older command created in place of the one it locked, and respects that command instead',
+          fn: async () => {
+            await using directory = await scratchDirectory('legacy-swapped-');
+            const path = join(
+              directory.path,
+              'slot-1.lock',
+            );
+            await writeFile(
+              path,
+              '',
+            );
+            let replacement: OldHolder | undefined;
+            const standing = await probeLegacyLock({
+              path,
+              retireWhenFree: true,
+              afterLocking: async () => {
+                // Another probe retired the file, and a waiting gate of the earlier release created and locked a new one.
+                await rm(path);
+                replacement = replacement ?? await startOldHolder(path);
+              },
+            });
+            expect(standing).toBe('held');
+            expect((await lstat(path)).isFile()).toBe(true);
+            await replacement?.kill();
+          },
+          timeout: 30_000,
         }),
         it({
           name: 'keeps a file nothing holds when asked only to probe',
