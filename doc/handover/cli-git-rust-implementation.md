@@ -103,9 +103,29 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
 - Shipped-limits picks 4 and 9,
   branch `feat/git-policy-cli-steps-end-only-on-no-progress` from the 0.5.28 base `f58510c538`,
   worktree `.claude/worktrees/steps-end-only-on-no-progress`.
-- The wrapper never runs itself as Git,
-  branch `fix/git-policy-cli-never-runs-itself-as-git` from main `7ea0414e80`,
-  worktree `.claude/worktrees/never-runs-itself-as-git`.
+- The second round on the in-process index writer,
+  its original agent on `perf/git-policy-cli-follow-up-index-in-process`.
+- Done and merged into the 0.5.28 base:
+  the wrapper never runs itself as Git,
+  `fix/git-policy-cli-never-runs-itself-as-git` `7ed8e9abe5`.
+  Cause:
+  `classify_candidate` (`real_git_candidate.rs`) compared a `PATH` candidate with the running file by inode,
+  path and bytes,
+  so the toolchain launcher counted as real Git,
+  and the `forwarded_to_self` guard (`entry.rs`) named the launcher,
+  not the binary behind it.
+  Fix:
+  candidates with a `<name>.launch` record of this tool are skipped,
+  and every real-Git start sets `CLI_GIT_STARTED_AS_GIT` (starter pid,
+  birth,
+  mode),
+  so a wrapper that arrives as its own starter's Git stops with exit 2 and a message naming every candidate.
+  Coordinator's picks under the delegation,
+  veto open:
+  a user script named `git` that runs the wrapper without `exec` stays a documented limit
+  (a depth cap would need an uncited number;
+  a script that uses `exec` is caught);
+  falling back to the real Git the wrapper was installed over when `PATH` holds none is queued after 0.5.28.
   Found by the cargo-shadow agent's bench on 0.5.26:
   `PATH` held `cli-git-bin/git` (a symlink to the toolchain launcher `.cache/toolchain-launchers/cli-git-native`)
   and no real Git;
@@ -152,7 +172,7 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   the intent-to-add finding does not reproduce on Git 2.56.0 (a byte-for-byte differential pins it).
 Queued,
 in this order:
-- Second round on the in-process index writer,
+- (Running now.) Second round on the in-process index writer,
   from its re-review (2026-11-03T10:51:00-05:00,
   `~/temp/agent/reviews/follow-up-index-sol-2.txt`:
   "safe after fixing the remaining NTFS alias,
@@ -174,9 +194,11 @@ in this order:
   The non-Linux test imports stay paused ("Ignore Win and mac until I say so.").
   Then a third re-review with `service_land.rs`,
   `service_index_hold.rs` and the lock-marker code attached whole.
-- Gate the 0.5.28 base once that,
-  the self-spawn fix and the remaining shipped-limits branches are merged into it,
+- Gate the 0.5.28 base once that and the remaining shipped-limits branches are merged into it,
   then release 0.5.28.
+- After 0.5.28:
+  fall back to the real Git the wrapper was installed over when `PATH` holds none after it,
+  with a one-line notice (task 150).
 
 0.5.27 ships without the in-process index work
 (coordinator's pick under the delegation,
