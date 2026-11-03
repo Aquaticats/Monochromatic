@@ -166,7 +166,7 @@ pub fn read_untracked(data: &[u8], hash_length: usize) -> Option<Untracked> {
     }
     let mut bitmaps: Vec<Ewah> = Vec::new();
     for _ in 0..3 {
-        let (bitmap, used) = Ewah::read(rest)?;
+        let (bitmap, used) = Ewah::read(rest, count)?;
         bitmaps.push(bitmap);
         rest = &rest[used..];
     }

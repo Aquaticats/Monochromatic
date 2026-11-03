@@ -40,20 +40,42 @@ fn index_mode(mode: u32) -> u32 {
     return if mode & 0o100 != 0 { MODE_EXECUTABLE } else { MODE_FILE };
 }
 
-/// Whether Git could refuse the path (`verify_path_internal`) or treat it specially on a file system that folds names; those
-/// paths are left to Git.
+/// Whether `rest` is only the spaces and dots NTFS drops from the end of a name.
+fn only_spaces_and_dots(rest: &[u8]) -> bool {
+    return rest.iter().all(|byte| { return *byte == b' ' || *byte == b'.'; });
+}
+
+/// What:
+///  Whether one path component is one Git's name checks (`verify_path_internal` in `read-cache.c` with `core.protectNTFS`,
+///  which is on by default, and `core.protectHFS`) cannot refuse or alias to a refused name.
+/// Why:
+///   Git refuses `.`, `..` and `.git` in any case; with the protections on it also refuses the spellings a file system folds
+///  to `.git` (trailing spaces and dots, the `::$INDEX_ALLOCATION` stream, `git~1`, the ignorable characters of a case-folding
+///  disk) and, for a link, the same spellings of `.gitmodules` (`is_ntfs_dotgit`, `is_ntfs_dotgitmodules`, `is_hfs_dotgit`,
+///  `is_hfs_dotgitmodules` in `path.c` and `utf8.c`). A backslash and a colon separate or open a stream on those disks. This
+///  declines every such spelling whatever the settings say, which is a superset of what Git refuses with them on, so the
+///  update never writes a name Git would not and Git answers the rest.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plain = (component, isLink) => !/[\\:]/.test(component) && !aliasesDotGit(component) && !(isLink && aliasesDotGitmodules(component));
+/// ```
+fn component_is_plain(component: &[u8], is_link: bool) -> bool {
+    let lowered: Vec<u8> = component.to_ascii_lowercase();
+    let dot_git_like: bool = lowered.strip_prefix(b".git").is_some_and(only_spaces_and_dots);
+    let dot_gitmodules_like: bool = is_link && (lowered.strip_prefix(b".gitmodules").is_some_and(only_spaces_and_dots) || lowered.starts_with(b"gitmod~"));
+    // The ignorable characters of a case-folding disk: U+2000 to U+206F begin with E2 80 or E2 81, and U+FEFF is EF BB BF.
+    let ignorable: bool = component.windows(2).any(|pair| { return pair == [0xe2, 0x80] || pair == [0xe2, 0x81]; }) || component.windows(3).any(|triple| { return triple == [0xef, 0xbb, 0xbf]; });
+    let separators: bool = component.contains(&b'\\') || component.contains(&b':');
+    return !component.is_empty() && component != b"." && component != b".." && !separators && !dot_git_like && !dot_gitmodules_like && !lowered.starts_with(b"git~") && !ignorable;
+}
+
+/// Whether Git could refuse the path or treat it specially on a file system that folds names; those paths are left to Git.
 fn path_is_plain(path: &[u8], mode: u32) -> bool {
     if path.is_empty() {
         return false;
     }
-    return path.split(|byte| { return *byte == b'/'; }).all(|component| {
-        let lowered: Vec<u8> = component.to_ascii_lowercase();
-        let after_git: Option<&[u8]> = lowered.strip_prefix(b".git");
-        let dot_git_like: bool = after_git.is_some_and(|rest| { return rest.iter().all(|byte| { return *byte == b' ' || *byte == b'.'; }) || rest.starts_with(b":"); });
-        let ignorable: bool = component.windows(2).any(|pair| { return pair == [0xe2, 0x80]; }) || component.windows(3).any(|triple| { return triple == [0xef, 0xbb, 0xbf]; });
-        let link_to_modules: bool = mode & 0o170_000 == MODE_LINK && lowered == b".gitmodules";
-        return !component.is_empty() && component != b"." && component != b".." && !dot_git_like && !lowered.starts_with(b"git~") && !ignorable && !link_to_modules;
-    });
+    return path.split(|byte| { return *byte == b'/'; }).all(|component| { return component_is_plain(component, mode & 0o170_000 == MODE_LINK); });
 }
 
 /// Whether the path is one a literal pathspec `name` selects: the name itself or anything below it.

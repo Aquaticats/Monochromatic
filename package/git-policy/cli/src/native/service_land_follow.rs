@@ -178,22 +178,23 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
         std::fs::copy(index, &built).map_err(|error| { return storage_failure(&error); })?;
     }
     let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
-    if !empty && !reset_in_process(git, repository, new, paths, built.as_path()) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
+    if !empty && !reset_in_process(git, repository, new, paths, (index, built.as_path(), seq)) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
         let _removed = std::fs::remove_file(&built);
         return Err(code);
     }
     return Ok(built);
 }
 
-/// Whether the index file `built` was reset to the commit without starting Git; Git's own command follows when it was not.
+/// Whether the private index `built` (the copy of the live `index` made under the landing's lock for batch `seq`) was reset to
+///  the commit without starting Git; Git's own command follows when it was not.
 #[cfg(target_os = "linux")]
-fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path) -> bool {
-    return super::index_reset_file::reset_index_file(git, repository, new, paths, built);
+fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (live, built, seq): (&Path, &Path, u64)) -> bool {
+    return super::index_reset_file::reset_index_file(git, repository, new, paths, &super::index_reset_publish::Landing { live, built, seq });
 }
 
 /// Without the in-process update on this platform, Git's own command always runs.
 #[cfg(not(target_os = "linux"))]
-fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _built: &Path) -> bool {
+fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&Path, &Path, u64)) -> bool {
     return false;
 }
 

@@ -1149,6 +1149,10 @@ pub mod index_reset;
 #[cfg(unix)]
 pub mod index_reset_tree;
 
+/// In-process index update: the lock proof, the temporary file and the file mode of the landing's private index.
+#[cfg(target_os = "linux")]
+pub mod index_reset_publish;
+
 /// In-process index update: the landing's follow-up on an index file.
 #[cfg(target_os = "linux")]
 pub mod index_reset_file;

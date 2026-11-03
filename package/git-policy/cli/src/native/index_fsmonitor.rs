@@ -29,8 +29,9 @@ pub struct Fsmonitor {
     pub dirty: Vec<usize>,
 }
 
-/// The extension from its bytes, or `None` for a form Git would reject.
-pub fn read_fsmonitor(data: &[u8]) -> Option<Fsmonitor> {
+/// The extension from its bytes, or `None` for a form Git would reject; its bitmap may name at most `entries` entries (Git
+///  stops with an error on a longer one, `assert_index_minimum`).
+pub fn read_fsmonitor(data: &[u8], entries: usize) -> Option<Fsmonitor> {
     let version: u32 = be32(data, 0)?;
     let (token, after): (Vec<u8>, usize) = if version == VERSION_TIMESTAMP {
         let stamp: u64 = u64::from_be_bytes(data.get(4..12)?.try_into().ok()?);
@@ -43,7 +44,7 @@ pub fn read_fsmonitor(data: &[u8]) -> Option<Fsmonitor> {
     };
     let size: usize = be32(data, after)? as usize;
     let bitmap_bytes: &[u8] = data.get(after + 4..after + 4 + size)?;
-    let (bitmap, used) = Ewah::read(bitmap_bytes)?;
+    let (bitmap, used) = Ewah::read(bitmap_bytes, entries)?;
     // Git requires the bitmap to use exactly the size the extension states, and nothing after it is read.
     if used != size || after + 4 + size != data.len() {
         return None;

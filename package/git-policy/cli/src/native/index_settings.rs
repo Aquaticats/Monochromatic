@@ -33,6 +33,9 @@ pub struct IndexSettings {
     pub monitor: bool,
     /// What happens to the untracked cache.
     pub untracked: UntrackedMode,
+    /// `core.sharedRepository` as Git reads it (`git_config_perm`): zero for the umask alone, a positive permission bit set that
+    ///  is added to the file's mode, a negative one whose absolute value replaces the permission bits.
+    pub shared_repository: i32,
 }
 
 /// The keys whose mere presence makes the update decline.
@@ -49,6 +52,48 @@ const DECLINED: [&str; 8] = [
 
 /// The keys that decline when their value is true (or not a recognised boolean).
 const DECLINED_WHEN_TRUE: [&str; 3] = ["core.sparsecheckout", "core.ignorecase", "feature.manyfiles"];
+
+/// The mode bits `core.sharedRepository = group` adds.
+const SHARED_GROUP: i32 = 0o660;
+
+/// The mode bits `core.sharedRepository = all` adds.
+const SHARED_EVERYBODY: i32 = 0o664;
+
+/// What:
+///  The value Git makes of `core.sharedRepository` (`git_config_perm` in `setup.c`), or `None` for a value Git dies on or this
+///  reader cannot classify.
+/// Why:
+///   The index Git writes goes through a lock file whose mode `adjust_shared_perm` widens by this value; the in-process update
+///  must publish a file with the same mode.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shared: number | undefined = sharedPermission(value); // undefined: ask Git
+/// ```
+pub fn shared_permission(value: Option<&[u8]>) -> Option<i32> {
+    let Some(text) = value else {
+        return Some(SHARED_GROUP);
+    };
+    match text {
+        b"" | b"umask" => return Some(0),
+        b"group" => return Some(SHARED_GROUP),
+        b"all" | b"world" | b"everybody" => return Some(SHARED_EVERYBODY),
+        _ => {}
+    }
+    let digits: &str = std::str::from_utf8(text).ok()?;
+    // `strtol` with base 8 reads an optional sign and octal digits; anything left over makes the value a boolean.
+    if let Ok(number) = i32::from_str_radix(digits, 8) {
+        return match number {
+            0 => Some(0),
+            1 => Some(SHARED_GROUP),
+            2 => Some(SHARED_EVERYBODY),
+            // The owner must keep read and write access, or Git dies.
+            other if (other & 0o600) != 0o600 || other < 0 => None,
+            other => Some(-(other & 0o666)),
+        };
+    }
+    return parse_bool(Some(text)).map(|truth| { return if truth { SHARED_GROUP } else { 0 }; });
+}
 
 /// The settings of a configuration, or `None` when a key or value is outside what this update reproduces.
 pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
@@ -87,7 +132,11 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
             },
         },
     };
-    return Some(IndexSettings { monitor, untracked });
+    let shared_repository: i32 = match last("core.sharedrepository") {
+        None => 0,
+        Some(entry) => shared_permission(entry.value.as_deref())?,
+    };
+    return Some(IndexSettings { monitor, untracked, shared_repository });
 }
 
 #[cfg(test)]

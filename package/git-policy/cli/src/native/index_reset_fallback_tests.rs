@@ -1,11 +1,11 @@
 //! Controls for the forms the in-process reset leaves to Git: it returns `false`, leaves the index file as it was, and the
 //! landing's follow-up then runs `git reset --no-refresh` on the same file.
 
-use super::support::{Edit, Plan, Scene, finish, git_with, index_bytes, named, scene};
+use super::support::{Edit, Plan, Scene, finish, git_with, index_bytes, landing_reset, landing_reset_copy, named, scene};
 use super::*;
 use crate::recording_git::{recorded_starts, recording_context};
 use crate::repo_read_hook::SWITCH_VARIABLE;
-use crate::test_support::{age, git, git_context, git_output};
+use crate::test_support::{git, git_context, git_output};
 use std::path::PathBuf;
 
 /// The files of the first commit.
@@ -19,8 +19,7 @@ fn changed_a(name: &str) -> Scene {
 
 /// Run the in-process update on the scene's repository for the path `a`.
 fn try_reset(scene: &Scene) -> bool {
-    let index: PathBuf = scene.repo.join(".git").join("index");
-    return reset_index_file(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"])), index.as_path());
+    return landing_reset(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"])));
 }
 
 /// The in-process update declines and changes neither the index file nor the directory around it.
@@ -96,8 +95,10 @@ fn a_post_index_change_hook_is_left_to_git() {
 fn a_racily_clean_entry_is_left_to_git() {
     let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
     let scene: Scene = scene("index-fallback-racy", &Plan { files: &FILES, edits: edits.as_slice(), fresh: true, ..Plan::default() });
-    age(scene.repo.join(".git").join("index").as_path());
-    declines(&scene, "racy");
+    // The update compares the entries' times with the private copy's, so the copy is the old file here.
+    let before: Vec<u8> = index_bytes(scene.repo.as_path());
+    assert!(!landing_reset_copy(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"])), true), "racy");
+    assert!(before == index_bytes(scene.repo.as_path()));
     follow_up_falls_back(&scene, "racy");
     finish(scene);
 }
@@ -119,8 +120,7 @@ fn a_file_where_the_index_has_a_directory_is_left_to_git() {
     let edits: Vec<Edit<'_>> = vec![Edit::Delete("d/x"), Edit::Put { path: "d", mode: "100644", content: b"now a file\n" }];
     let scene: Scene = scene("index-fallback-dir-file", &Plan { files: &FILES, edits: edits.as_slice(), ..Plan::default() });
     let before: Vec<u8> = index_bytes(scene.repo.as_path());
-    let index: PathBuf = scene.repo.join(".git").join("index");
-    assert!(!reset_index_file(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["d"])), index.as_path()));
+    assert!(!landing_reset(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["d"]))));
     assert!(before == index_bytes(scene.repo.as_path()));
     finish(scene);
 }
@@ -133,7 +133,7 @@ fn a_damaged_or_missing_index_and_the_off_switch_are_left_to_git() {
     let good: Vec<u8> = index_bytes(scene.repo.as_path());
     let mut off = git_context();
     off.overlay.push((std::ffi::OsString::from(SWITCH_VARIABLE), std::ffi::OsString::from("off")));
-    assert!(!reset_index_file(&off, scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"])), index.as_path()), "the off switch");
+    assert!(!landing_reset(&off, scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"]))), "the off switch");
     let mut damaged: Vec<u8> = good.clone();
     damaged[20] ^= 0xff;
     std::fs::write(&index, damaged).expect("write");
@@ -141,5 +141,31 @@ fn a_damaged_or_missing_index_and_the_off_switch_are_left_to_git() {
     std::fs::remove_file(&index).expect("remove");
     assert!(!try_reset(&scene), "missing index");
     assert!(git_with(scene.repo.as_path(), &[], &["status", "--short"], None).status.success());
+    finish(scene);
+}
+
+/// Another run's temporary file is not this run's to remove or publish: a file already at the name an earlier version used for
+/// every run stays untouched, and the target still gets the complete result.
+#[test]
+fn another_runs_temporary_file_is_left_alone() {
+    let scene: Scene = changed_a("index-fallback-decoy");
+    let decoy: PathBuf = scene.repo.join(".git").join("index.cli-git-reset");
+    std::fs::write(&decoy, b"another run's partial file").expect("decoy");
+    assert!(try_reset(&scene));
+    assert_eq!(std::fs::read(&decoy).expect("the decoy stays"), b"another run's partial file".to_vec());
+    assert!(crate::index_full::parse_full_index(index_bytes(scene.repo.as_path()).as_slice(), 20).is_some());
+    finish(scene);
+}
+
+/// The names the update declines for the protection settings are names real Git 2.56.0 refuses to put in an index with those
+/// settings on (the default for NTFS), so declining them leaves Git to say so.
+#[test]
+fn git_refuses_the_protected_names_the_update_declines() {
+    let scene: Scene = changed_a("index-fallback-protected-names");
+    let blob: String = String::from_utf8(git_with(scene.repo.as_path(), &[], &["hash-object", "-w", "--stdin"], Some(b"target")).stdout).expect("UTF-8").trim().to_string();
+    for (name, mode) in [(".gitmodules::$DATA", "120000"), (".gitmodules ", "120000"), ("GITMOD~1", "120000"), (".git::$INDEX_ALLOCATION", "100644"), ("dir/.git ", "100644"), ("dir\\.git\\config", "100644"), ("GIT~1", "100644")] {
+        let output = git_with(scene.repo.as_path(), &[], &["-c", "core.protectNTFS=true", "update-index", "--add", "--cacheinfo", format!("{mode},{blob},{name}").as_str()], None);
+        assert!(!output.status.success(), "Git accepted {name:?}");
+    }
     finish(scene);
 }
