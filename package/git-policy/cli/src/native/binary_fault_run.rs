@@ -14,7 +14,7 @@
 //! process.kill(wrapper.pid, 'SIGTERM'); // the wrapper alone
 //! ```
 
-use super::support::{Fixture, ServiceLaunch, hermetic, service_runtime, wrapper_first_path};
+use super::support::{Fixture, ServiceLaunch, hermetic, restart_ended_services, service_runtime, wrapper_first_path};
 use std::io::{Read, Seek};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
@@ -182,6 +182,34 @@ pub(super) fn is_running(pid: i32) -> bool {
 pub(super) fn run_unsettled(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> super::support::Observed {
     let output: Output = run_watched(fixture, &mut unbounded_wrapper(fixture, directory, arguments));
     return super::support::Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
+}
+
+/// Sets a flag when dropped, so a thread that polls it ends however its owner ends.
+struct EndsOnDrop<'flag>(&'flag AtomicBool);
+
+impl Drop for EndsOnDrop<'_> {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+/// How often the stand-in for the user manager looks for an ended service.
+const MANAGER_POLL: Duration = Duration::from_millis(5);
+
+/// Runs `body` while a stand-in for the user manager starts again any service of the fixture that ends, as production does at the
+///  next connection to the manager's socket.
+pub(super) fn with_manager<T>(fixture: &Fixture, body: impl FnOnce() -> T) -> T {
+    let finished: AtomicBool = AtomicBool::new(false);
+    return std::thread::scope(|scope| {
+        scope.spawn(|| {
+            while !finished.load(Ordering::SeqCst) {
+                restart_ended_services(fixture);
+                std::thread::sleep(MANAGER_POLL);
+            }
+        });
+        let _ends = EndsOnDrop(&finished);
+        return body();
+    });
 }
 
 /// How many cases of a sweep run at once: enough to finish a sweep in seconds, few enough to leave the host its other work.

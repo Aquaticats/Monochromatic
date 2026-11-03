@@ -388,6 +388,22 @@ impl FixtureService {
         children.clear();
     }
 
+    /// What:
+    ///  Forgets the services that ended on their own, so that the next start of their worktree's service runs again.
+    /// Why:
+    ///   The fixture has no manager, and a service that is recorded as running is never started again, ended or not.
+    ///
+    /// Returns whether any service had ended.
+    pub fn forget_ended(&self) -> bool {
+        let mut children = self.children.lock().expect("the fixture's services");
+        let ended: Vec<PathBuf> =
+            children.iter_mut().filter_map(|(key, child)| { return child.try_wait().ok().flatten().map(|_| { return key.clone(); }); }).collect();
+        for key in &ended {
+            children.remove(key);
+        }
+        return !ended.is_empty();
+    }
+
     /// Starts the service of every worktree under the fixture root that has none yet: the repositories and the linked
     ///  worktrees a control made, found as Git finds them.
     pub fn serve_worktrees(&self, fixture: &Fixture) {
@@ -418,6 +434,21 @@ pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
         }
     }
     return found;
+}
+
+/// What:
+///  Does what the user manager does when a service has ended: starts the worktree's service again, as production runs it,
+///  with no tracer and no fault.
+/// Why:
+///   The manager owns the socket and starts the service at the next connection. A control that kills the service during a
+///  commit relies on that start for the client's resend, so it calls this while the commit runs.
+pub fn restart_ended_services(fixture: &Fixture) {
+    let service = fixture.service.lock().expect("the fixture's service lock");
+    let Some(services) = service.as_ref() else { return };
+    if services.forget_ended() {
+        *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch::default();
+        services.serve_worktrees(fixture);
+    }
 }
 
 /// The runtime directory of the fixture's services, with a service running for every worktree of the fixture, so a wrapped
