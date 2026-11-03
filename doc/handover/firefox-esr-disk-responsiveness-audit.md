@@ -16,7 +16,7 @@ Sources:
 - <https://product-details.mozilla.org/1.0/firefox_versions.json>
 - <https://api.github.com/repos/mozilla-firefox/firefox/git/ref/tags/FIREFOX_153_6_0esr_RELEASE>
 
-The full shallow clone is acquiring at `${HOME}/temp/agent/firefox-esr-disk-audit-20261103`.
+The full shallow clone was acquired at `${HOME}/temp/agent/firefox-esr-disk-audit-20261103`.
 Its systemd scope is `firefox-esr-audit-clone.scope`,
 bounded to two CPUs,
 `6 GiB` memory,
@@ -88,6 +88,7 @@ Retained evidence sits beside the report:
 - `firefox-esr-disk-responsiveness.candidates.jsonl.gz`
 - `firefox-esr-disk-responsiveness.sources.json.gz`
 - `firefox-esr-disk-responsiveness.browser.json.gz`
+- `firefox-esr-disk-responsiveness.external.json`
 - `firefox-esr-disk-responsiveness.render.json`
 
 The browser check matched `205` Firefox source selections to the pinned local source.
@@ -107,13 +108,20 @@ with installed package versions recorded separately from actual running-library 
 
 Commits already recorded:
 
-- `4fcc005374`: scope and work areas.
-- `21f33ad9a3`: full-tree inventory and candidate scan.
-- `4615353fcb`: detailed findings.
-- `5f393a21be`: evidence links and automation recovery record.
+- `4fcc005374`:
+  scope and work areas.
+- `21f33ad9a3`:
+  full-tree inventory and candidate scan.
+- `4615353fcb`:
+  detailed findings.
+- `5f393a21be`:
+  evidence links and automation recovery record.
 - `c640aa2508`,
   `8f3b371f9f`,
-  and `1803939da8`: precise source references and download guards.
+  and `1803939da8`:
+  precise source references and download guards.
+- `3e4440eaa0`:
+  native-library citation mirrors and completed-audit record.
 
 The incidental browser-session recovery is documented in
 [`agent-browser-eagain.md`](../troubleshooting/agent-browser-eagain.md).
@@ -127,8 +135,27 @@ An asynchronous disk call is not automatically a UI blocker.
 Content-main-thread stalls and parent UI stalls must be identified separately.
 No Firefox build or runtime disk-stress experiment was performed.
 
-Next action:
-finish external-library source-link verification,
-refresh the final render receipt,
-close the owned browser session,
-and commit the remaining evidence.
+Completion at `2026-11-03T03:42:34-05:00`:
+the native-library source selections matched in the browser,
+and `agent-browser --session firefox-esr-source-audit close` returned `Browser closed`.
+The browser-visible fontconfig GitLab page presented an `Oh noes!` page;
+the citations use the project's GitHub mirror at the identical verified Git commit.
+GNOME's GitHub mirror also contains the exact pinned GTK commit.
+
+The scoped command
+`mise run format:monochromatic-lint -- doc/audit/firefox-esr-disk-responsiveness.md doc/handover/firefox-esr-disk-responsiveness-audit.md doc/troubleshooting/agent-browser-eagain.md`
+passed.
+The final rendering receipt records Pandoc's version,
+document hashes,
+heading counts,
+and link counts.
+All source-tracing agents completed their work and reported their search scopes inactive.
+The source checkout is retained as evidence;
+there is no source build,
+test fixture,
+poll loop,
+or browser session left running for this audit.
+
+The requested static source audit is complete.
+Runtime measurements are explicitly unperformed follow-up work,
+not a queued continuation.

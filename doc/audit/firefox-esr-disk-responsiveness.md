@@ -1,6 +1,6 @@
 # Firefox ESR disk operations that can affect UI responsiveness
 
-## Result and baseline at 2026-11-03T03:29:00-05:00
+## Result and baseline at 2026-11-03T03:42:34-05:00
 
 Firefox ESR retains direct filesystem work on the browser main thread,
 main-thread waits for background disk work,
@@ -93,6 +93,9 @@ Evidence artifacts:
 - [Tracked paths and Git object identities](firefox-esr-disk-responsiveness.inventory.json.gz).
 - [Complete matching lines and ripgrep events](firefox-esr-disk-responsiveness.candidates.jsonl.gz).
 - [Pinned source selections supporting the citations](firefox-esr-disk-responsiveness.sources.json.gz).
+- [Browser checks of Firefox source selections](firefox-esr-disk-responsiveness.browser.json.gz).
+- [Native-library source selections and browser checks](firefox-esr-disk-responsiveness.external.json).
+- [Markdown rendering receipts](firefox-esr-disk-responsiveness.render.json).
 
 The scan searched every tracked file;
 the reachability audit followed the candidate families described in this report.
@@ -1429,7 +1432,10 @@ it is not evidence that this release retains that deadlock.
 
 Release identity and complete-tree inventory were verified against the pinned checkout.
 Cited source selections are retained in the accompanying source evidence artifact.
-Documentation rendering and browser source-link checks are recorded in the handover.
+Browser checks matched `205` Firefox source selections and the cited GTK/fontconfig selections.
+Pandoc rendered the report and accompanying documentation;
+the scoped Markdown formatting task passed.
+The handover and evidence artifacts record these checks.
 
 Runtime stall duration,
 frequency,
