@@ -14,11 +14,11 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, executable, fixture, git, remove, repository, run_wrapped, stderr_of};
+use super::support::{Fixture, Observed, executable, fixture, git, remove, repository, run_wrapped, stderr_of, wrapped};
 use super::worktree_snapshot::{commit_all, on_btrfs_or_acknowledged, subvolume_repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// The environment variable that acknowledges a real tool is absent on this machine, so its controls may be skipped.
 const ABSENT_ACKNOWLEDGED: &str = "CLI_GIT_REAL_TOOLS_ABSENT_ACKNOWLEDGED";
@@ -172,6 +172,49 @@ fn a_missing_pnpm_never_fails_the_add() {
     let created: Observed = add(&fixture, repo.as_path(), &[], "one", "../one");
     let printed: String = stderr_of(&created);
     assert!(printed.contains("pnpm was not found") && printed.contains("--frozen-lockfile"), "{printed}");
+    remove(&fixture);
+}
+
+/// The most the fixture pnpm waits for its release, in tenths of a second; a bound so that a failing control cannot hang.
+const HOLD_TENTHS: u32 = 150;
+
+/// How long the control waits for the held repair to start, in tenths of a second.
+const START_WAIT_TENTHS: u32 = 300;
+
+/// While one add's repair runs, another add in the same repository is not held by it: the repairs touch only their own new
+///  worktree, so the settlement lock is released before they start.
+#[test]
+fn a_running_repair_does_not_hold_another_add() {
+    let fixture: Fixture = fixture("repair-lock-free");
+    let repo: PathBuf = repository_with_node_modules(&fixture);
+    let record: PathBuf = fixture.root.join("pnpm-record");
+    let started: PathBuf = fixture.root.join("held-started");
+    let release: PathBuf = fixture.root.join("held-release");
+    executable(
+        bin(&fixture).join("pnpm").as_path(),
+        format!(
+            "#!/bin/sh\necho \"$* | $(pwd -P)\" >> '{record}'\ncase \"$(pwd -P)\" in\n  */one) : > '{started}'; waited=0; while [ ! -e '{release}' ] && [ $waited -lt {HOLD_TENTHS} ]; do sleep 0.1; waited=$((waited + 1)); done;;\nesac\nexit 0\n",
+            record = record.display(),
+            started = started.display(),
+            release = release.display(),
+        )
+        .as_bytes(),
+    );
+    let mut first = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "one", "../one"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().expect("start the first add");
+    let mut waited: u32 = 0;
+    while !started.exists() && waited < START_WAIT_TENTHS {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        waited += 1;
+    }
+    assert!(started.exists(), "the first add's repair never started");
+    let second: Observed = add(&fixture, repo.as_path(), &["--quiet"], "two", "../two");
+    assert!(first.try_wait().expect("poll the first add").is_none(), "the first add ended before the second returned, so the second waited for it: {}", stderr_of(&second));
+    assert!(!release.exists());
+    assert!(fixture.root.join("two/node_modules/dep/index.js").exists(), "the second worktree is whole");
+    std::fs::write(&release, b"go").expect("release the first repair");
+    let finished = first.wait_with_output().expect("wait for the first add");
+    assert_eq!(finished.status.code(), Some(0), "{}", String::from_utf8_lossy(&finished.stderr));
+    assert_eq!(recorded(record.as_path()).len(), 2, "each add repaired its own worktree: {:?}", recorded(record.as_path()));
     remove(&fixture);
 }
 
