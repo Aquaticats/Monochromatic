@@ -215,11 +215,14 @@ pub fn plan_invocation(
 }
 
 /// What:
-///  Plan an invocation that is not a management command, once the real Git is known.
-///       `&GlobalLayout` borrows where the subcommand starts in the cleaned arguments.
+///  Plan an invocation that is not a management command,
+///  once the real Git is known.
+///  `&GlobalLayout` borrows where the subcommand starts in the cleaned arguments.
 /// Why:
-///   `plan_invocation` adds the notice of a recorded fallback to whatever action this returns,
-///  so every ending of the planning (a forward, a stop, a refusal) carries it without repeating it.
+///  `plan_invocation` adds the notice of a recorded fallback to whatever action this returns,
+///  so every ending of the planning (a forward,
+///  a stop,
+///  a refusal) carries it without repeating it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

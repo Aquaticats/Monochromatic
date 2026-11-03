@@ -456,7 +456,9 @@ fn plan_service(global_arguments: &[OsString], environment: &[(OsString, OsStrin
 
 /// What:
 ///  Resolve the real Git for a command that can run without one.
-///       The pair is the path, if any, and the notice owed when it came from the commit service's record.
+///  The pair is the path,
+///  if any,
+///  and the notice owed when it came from the commit service's record.
 /// Why:
 ///   The status and conversion commands answer from what they can read when Git is missing,
 ///  but a recorded fallback is the same resolution every other start uses,

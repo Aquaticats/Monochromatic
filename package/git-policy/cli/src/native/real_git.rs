@@ -465,7 +465,8 @@ pub fn candidate_sequence(inputs: &ResolutionInputs) -> Vec<PathBuf> {
 ///  and the
 ///       first remaining candidate in priority order is forwarded to.
 ///  This is the search of `PATH` alone;
-///  every start of Git goes through `resolve_real_git`, which adds the recorded fallback.
+///  every start of Git goes through `resolve_real_git`,
+///  which adds the recorded fallback.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

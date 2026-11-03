@@ -1,9 +1,13 @@
 //! What:
 //!  Plans of invocations whose real Git comes from the commit service's record because `PATH` offers none.
 //! Why:
-//!  The coordinator picked this fallback under the owner's delegation, open to the owner's veto
-//!  (`doc/planning/cli-git-no-self-invocation.md`). Its notice must lead the standard error of every plan that starts
-//!  Git, once per command, and a stop must stay a stop when the record is unusable.
+//!  The coordinator picked this fallback under the owner's delegation,
+//! open to the owner's veto
+//!  (`doc/planning/cli-git-no-self-invocation.md`).
+//! Its notice must lead the standard error of every plan that starts
+//!  Git,
+//! once per command,
+//! and a stop must stay a stop when the record is unusable.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,7 +35,9 @@ const NOTICE_LEAD: &str = "cli-git: no real Git follows this wrapper on PATH";
 /// What:
 ///  Inputs whose `PATH` holds no Git and whose unit file `root/unit` names `git`.
 /// Why:
-///  The image's real Git is outside `PATH`, as in the reported case, and only the record leads to it.
+///  The image's real Git is outside `PATH`,
+/// as in the reported case,
+/// and only the record leads to it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,7 +76,8 @@ fn stderr_of(action: &Action) -> &str {
     };
 }
 
-/// A version query, a plain forward and an announced help each start the recorded Git and lead with the notice.
+/// A version query,
+/// a plain forward and an announced help each start the recorded Git and lead with the notice.
 #[test]
 fn a_recorded_real_git_is_planned_with_the_notice_leading_standard_error() {
     let root: PathBuf = fixture("entry-fallback");

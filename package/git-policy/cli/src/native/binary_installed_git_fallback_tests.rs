@@ -1,12 +1,19 @@
 //! What:
 //!  Controls that the built executable falls back to the real Git its commit service was set up with when no real Git
-//!  follows it on `PATH`, and keeps its stop when that record cannot be used.
+//!  follows it on `PATH`,
+//! and keeps its stop when that record cannot be used.
 //! Why:
 //!  A `PATH` that holds the wrapper's `git` but no real Git (the incident of release 0.5.26 had no `/usr/bin`) used to
-//!  end in a stop with exit status 2. The coordinator picked, under the owner's delegation and open to the owner's veto
-//!  (`doc/planning/cli-git-no-self-invocation.md`, section "Falling back to the Git the commit service was set up
-//!  with"), that the wrapper then uses the Git recorded in the unit file of its commit service, with a notice on
-//!  standard error. A record is used only when it passes the checks that every `PATH` candidate passes.
+//!  end in a stop with exit status 2.
+//! The coordinator picked,
+//! under the owner's delegation and open to the owner's veto
+//!  (`doc/planning/cli-git-no-self-invocation.md`,
+//! section "Falling back to the Git the commit service was set up
+//!  with"),
+//! that the wrapper then uses the Git recorded in the unit file of its commit service,
+//! with a notice on
+//!  standard error.
+//! A record is used only when it passes the checks that every `PATH` candidate passes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -53,7 +60,8 @@ fn directory(fixture: &Fixture, name: &str) -> PathBuf {
 ///  a script that counts its start in `counter` and prints a version line.
 /// Why:
 ///  The control must show how many times the wrapper started the recorded file;
-///  shell built-ins only, because the hermetic `PATH` of a run holds no `echo` or `wc` program.
+///  shell built-ins only,
+/// because the hermetic `PATH` of a run holds no `echo` or `wc` program.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -81,9 +89,11 @@ fn starts(counter: &Path) -> usize {
 ///  naming `git` as the Git the service starts,
 ///  below the runtime directory.
 /// Why:
-///  The control uses the product's own `unit_texts`, so the record has the exact form the product writes and a change of
+///  The control uses the product's own `unit_texts`,
+/// so the record has the exact form the product writes and a change of
 ///  that form breaks this control and not the person's fallback.
-///  The runtime directory is the fixture's own: no control touches the real systemd user directory.
+///  The runtime directory is the fixture's own:
+/// no control touches the real systemd user directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -119,7 +129,8 @@ fn write_record(runtime: &Path, git: &Path) {
 ///  naming this wrapper's tool.
 /// Why:
 ///  The wrapper recognises a launcher of itself by this record
-///  (`package/mpm-shadow/cli/src/toolchain/launcher.rs`, `render_record`).
+///  (`package/mpm-shadow/cli/src/toolchain/launcher.rs`,
+/// `render_record`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -186,8 +197,10 @@ fn output(observed: &Observed) -> String {
 ///  and the commit service's unit names a real Git elsewhere.
 /// Why:
 ///  The command must run once through the recorded Git,
-///  and the person must be told, in one line on standard error,
-///  that `PATH` had no real Git, which file was used and how to silence the notice.
+///  and the person must be told,
+/// in one line on standard error,
+///  that `PATH` had no real Git,
+/// which file was used and how to silence the notice.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -256,7 +269,8 @@ fn the_recorded_real_git_answers_a_command_that_reads_the_repository_and_the_not
 ///  A `PATH` that holds a real Git while the record names another file.
 /// Why:
 ///  The record is a fallback and never an override:
-///  the Git `PATH` offers is used, the recorded file is not started and no notice is printed.
+///  the Git `PATH` offers is used,
+/// the recorded file is not started and no notice is printed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -349,7 +363,8 @@ fn no_record_keeps_the_stop() {
 ///  once through a byte copy of it.
 /// Why:
 ///  A recorded path is checked like a `PATH` candidate:
-///  the wrapper never starts itself as Git, so both are refused and the stop remains,
+///  the wrapper never starts itself as Git,
+/// so both are refused and the stop remains,
 ///  with the record named so the person can see why.
 ///
 /// In TS you'd write (pseudocode):
@@ -381,7 +396,8 @@ fn a_record_naming_the_wrapper_or_a_copy_of_it_is_refused_and_keeps_the_stop() {
 ///  behind a counting stand-in.
 /// Why:
 ///  A unit written while the 0.5.26 flaw stood can hold such a path.
-///  Starting it would start the wrapper again, so it is refused without a start and the stop remains.
+///  Starting it would start the wrapper again,
+/// so it is refused without a start and the stop remains.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -410,7 +426,8 @@ fn a_record_naming_a_launcher_of_the_wrapper_is_refused_without_a_start_and_keep
 ///  and one that names a file which is not executable.
 /// Why:
 ///  A recorded path survives an uninstall of the Git it named;
-///  the wrapper must not start what is not there, so the stop remains.
+///  the wrapper must not start what is not there,
+/// so the stop remains.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

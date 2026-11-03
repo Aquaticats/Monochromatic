@@ -2,7 +2,9 @@
 //!  Controls for reading the real Git that the commit service's unit file records.
 //! Why:
 //!  The fallback of `real_git.rs` is only as sound as this reading:
-//!  a path taken from the wrong word, a relative path, or a file past the bound would start the wrong program.
+//!  a path taken from the wrong word,
+//! a relative path,
+//! or a file past the bound would start the wrong program.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -78,7 +80,9 @@ fn the_unit_file_is_the_service_template_below_the_runtime_directory() {
 }
 
 /// A readable unit gives its path;
-///  a missing file, a directory, a file that is not text and a file past the bound give nothing.
+///  a missing file,
+/// a directory,
+/// a file that is not text and a file past the bound give nothing.
 #[test]
 fn a_unit_file_is_read_with_a_bound_and_an_unreadable_one_names_nothing() {
     let root: PathBuf = fixture("record-read");

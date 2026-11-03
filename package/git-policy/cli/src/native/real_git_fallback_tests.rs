@@ -1,11 +1,16 @@
 //! What:
 //!  Controls for the recorded fallback of `resolve_real_git`:
-//!  when `PATH` offers no real Git, the Git the commit service's unit records is used after the `PATH` candidate checks,
-//!  with a notice, and otherwise the stop stays and names the record.
+//!  when `PATH` offers no real Git,
+//! the Git the commit service's unit records is used after the `PATH` candidate checks,
+//!  with a notice,
+//! and otherwise the stop stays and names the record.
 //! Why:
-//!  The coordinator picked this fallback under the owner's delegation, open to the owner's veto
-//!  (`doc/planning/cli-git-no-self-invocation.md`). It must never become a way back to the wrapper,
-//!  to a launcher of it, or to a file that is not there.
+//!  The coordinator picked this fallback under the owner's delegation,
+//! open to the owner's veto
+//!  (`doc/planning/cli-git-no-self-invocation.md`).
+//! It must never become a way back to the wrapper,
+//!  to a launcher of it,
+//! or to a file that is not there.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,7 +34,8 @@ use std::path::{Path, PathBuf};
 ///  Inputs for a `PATH` that holds only this wrapper,
 ///  and the unit file `root/unit` as the record.
 /// Why:
-///  The fixture file `root/wrapper/git` stands in for the running wrapper, so every control can name it as a record.
+///  The fixture file `root/wrapper/git` stands in for the running wrapper,
+/// so every control can name it as a record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -49,7 +55,8 @@ fn only_the_wrapper(root: &Path) -> ResolutionInputs {
     };
 }
 
-/// Write the unit file `root/unit` the way the wrapper renders it, naming `git`.
+/// Write the unit file `root/unit` the way the wrapper renders it,
+/// naming `git`.
 fn write_unit(root: &Path, git: &Path) {
     let host: ProvisionHost = ProvisionHost {
         runtime_dir: root.to_path_buf(),

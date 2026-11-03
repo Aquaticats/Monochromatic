@@ -174,9 +174,11 @@ pub enum Action {
 ///  Put a notice in front of the standard-error text an action already carries.
 ///       `Option<&str>` is the notice or nothing (`string | undefined`).
 /// Why:
-///   The notice that the real Git came from the unit's record and not from `PATH` is owed to the person before anything
-///  else the invocation says, whichever way the invocation ends;
-///  every variant carries its standard-error text, so the one prefix covers them all
+///   The notice that the real Git came from the unit's record and not from `PATH` is owed to the person
+///  before anything else the invocation says,
+///  whichever way the invocation ends;
+///  every variant carries its standard-error text,
+///  so the one prefix covers them all
 ///  and no start of Git has to know about it.
 ///
 /// In TS you'd write (pseudocode):
