@@ -1126,8 +1126,27 @@ Owner correction (2026-11-03, verbatim): "never fail doesn't primarily mean retr
 A failure that can happen is a design defect to remove by construction (one owner, durable hand-over, nothing to wait for).
 A retry is at most the last resort for a cause outside the system, and then the cause is named and why it cannot be
 designed out is said (`doc/planning/cli-git-commits-never-fail.md`).
-Policy errors at error severity, a named path in conflict, an empty message and a failing signer are the person's input
-refused by Git or the policy, as native Git refuses it, and are outside this rule.
+
+What is outside our control (owner, question tool, 2026-11-03; binding): the wrapper may stop with a clear message, or retry
+where the cause can clear by itself, and work already handed over stays on disk and the next run finishes it.
+- network down (no route, DNS, reset, refused);
+- the remote refusing (login or auth, a server hook, GitHub's GH009, branch protection);
+- disk full or quota;
+- disk I/O errors or a read-only remount;
+- a memory or process-count cap set by someone else;
+- a kill (the OOM killer, a person), power loss or a reboot;
+- a corrupt repository (missing objects, a broken index) caused by a disk fault or another tool;
+- the person's signer failing (gpg or ssh-agent).
+
+Not outside, so designed out: a slow remote; other programs' locks (an IDE or `/usr/bin/git` holding `index.lock` or a ref
+lock); Git's own crashes or bugs; everything not listed above.
+
+Refusals that may still end a commit or merge with an error: policy errors at error severity, an empty message, and a content
+conflict no resolver settles (the merge stops with the conflict recorded).
+A commit that names a conflicted path is not a refusal: owner, verbatim, "Committing a conflicted path is fine. Warn and commit
+anyway, even if conflict markers will be committed."
+When the owner decides how an amend, a conclusion or a revert behaves on a head that other commits moved, the result is stacked
+on the new head (owner, 2026-11-03: "Stack on the new head (Recommended)").
 
 The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
 for a `git merge` the person types, and for a `git commit`:
