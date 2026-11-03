@@ -27,7 +27,8 @@ it does not benchmark latency or inject filesystem stalls.
 
 ## native-test.ts
 
-Source SHA-256: `81af9290dddbe28c92367d5a3f42153a3ef27a11fbc10166e3a2206f704f8b19`.
+Source SHA-256:
+`81af9290dddbe28c92367d5a3f42153a3ef27a11fbc10166e3a2206f704f8b19`.
 
 ```typescript
 // /work/native-test.ts
@@ -144,7 +145,8 @@ await withDisplay({ directory, run: async display => {
 
 ## browser-check.ts
 
-Source SHA-256: `ea5cac195b7caa3607f9ebb24f80795ffd474ff092294f4059de2063cc0ec252`.
+Source SHA-256:
+`ea5cac195b7caa3607f9ebb24f80795ffd474ff092294f4059de2063cc0ec252`.
 
 ```typescript
 // /work/browser-check.ts
@@ -340,7 +342,8 @@ console.log(JSON.stringify({ artifact: join(directory, 'verified.json'), modes: 
 
 ## display.ts
 
-Source SHA-256: `133e59a77e6dbcea94d206a4ded36ff1a11c1d309a695cae6eea51cbef31918a`.
+Source SHA-256:
+`133e59a77e6dbcea94d206a4ded36ff1a11c1d309a695cae6eea51cbef31918a`.
 
 ```typescript
 // /work/display.ts
@@ -393,7 +396,8 @@ export async function withDisplay({ directory, run }: {
 
 ## guard-control.ts
 
-Source SHA-256: `ffd8201f8bbac6c218657134d34acc57166890d56704b929c921d39bf51a8dde`.
+Source SHA-256:
+`ffd8201f8bbac6c218657134d34acc57166890d56704b929c921d39bf51a8dde`.
 
 ```typescript
 // /work/guard-control.ts
