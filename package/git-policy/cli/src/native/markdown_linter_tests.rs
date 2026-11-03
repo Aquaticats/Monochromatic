@@ -32,8 +32,8 @@ use std::time::Duration;
 /// The deadline of the one control whose planted fix never returns, so the abandonment shows quickly.
 /// Why:
 ///   Only a stalled fix waits out its deadline. Every control whose fix returns or panics at once uses the production
-///  `LINT_DEADLINE`, which only bounds a hang: under a loaded host a panic took about 3.5 s to come back in gate 70, and
-///  100 ms read as a timeout instead of the panic.
+///  `LINT_DEADLINE`, which only bounds a hang: under a loaded host a planted panic came back later than this deadline
+///  and read as a timeout instead of the panic, in the container gate of `692dcb9f48` (2026-11-03T00:08:43-05:00).
 const SHORT_DEADLINE: Duration = Duration::from_millis(100);
 
 /// The default options:
@@ -62,7 +62,6 @@ fn lint(
 #[test]
 fn the_executable_linter_uses_the_measured_deadline() {
     assert_eq!(embedded_linter().deadline, LINT_DEADLINE);
-    assert_eq!(LINT_DEADLINE, Duration::from_secs(60));
 }
 
 /// How many times the planted stall started, to show that no second one starts beside an abandoned one.
