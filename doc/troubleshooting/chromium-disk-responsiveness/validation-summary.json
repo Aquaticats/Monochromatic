@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-11-03T08:43:41.457Z",
+  "sourceSelections": {
+    "core": 30,
+    "desktop": 24,
+    "mobile": 56,
+    "dependencies": 21,
+    "unique": 131,
+    "cited": 131,
+    "missing": []
+  },
+  "coreFiles": 505073,
+  "dependencyFiles": 144427,
+  "totalFiles": 649500,
+  "primaryCandidateLines": 84855,
+  "dependencyCandidateLinesAfterDeduplication": 17943,
+  "limit": "Lexical scans and selected call-chain tracing; unpopulated gitlinks, nested dependencies, platform internals, binary assets and generated outputs remain unverified."
+}

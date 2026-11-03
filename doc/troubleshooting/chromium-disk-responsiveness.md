@@ -1,6 +1,6 @@
 # Chromium 156.0.8078.73 synchronous disk dependencies can delay UI and rendering
 
-## Audit status at 2026-11-03T03:19:35-05:00
+## Audit status at 2026-11-03T03:43:41-05:00
 
 The audit found direct browser-UI file operations,
 renderer waits for storage services,
@@ -433,6 +433,14 @@ and matched text.
 The committed compressed inventory adds categories and a filename-based triage label.
 Rendering is reproducible with `mise run verify:markdown`
 from `doc/troubleshooting/chromium-disk-responsiveness`.
+
+All `131` external source-selection URLs in the overview and evidence documents
+were opened in disposable browser sessions.
+The selected anchors and source excerpts were compared with the pinned checkouts.
+The [validation summary](chromium-disk-responsiveness/validation-summary.json)
+checks that every cited URL has a successful verification record.
+Full records retain failed attempts separately;
+browser DOM blank-line and trailing-whitespace differences were normalized for comparison.
 
 ## What does not establish a UI disk stall
 

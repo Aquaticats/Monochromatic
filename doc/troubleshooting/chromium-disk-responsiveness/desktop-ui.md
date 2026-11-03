@@ -452,7 +452,8 @@ Prioritize Linux file-picker metadata,
 profile creation/loading,
 theme loading,
 and conditional enterprise scan cancellation for additional runtime tracing.
-Keep metrics mappings from the parent audit as a separate mechanism from beacon writes.
+Keep the [metrics mapping](mapped-files.md#browsermetrics-writes-can-fault-on-the-browser-ui-thread)
+as a separate mechanism from beacon writes.
 Startup and shutdown findings should be tested with startup/exit timing,
 not presented as explanations of arbitrary steady-state freezes.
 Platform-driver calls remain candidates until the actual wait is attributed.
