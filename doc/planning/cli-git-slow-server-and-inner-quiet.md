@@ -152,44 +152,71 @@ dead peer, so a server check longer than the window ends in a stop and a retry.
 ### Definitions from observable state
 
 - The connection is open: some process of the push's tree holds a TCP socket whose `idiag_state` is `TCP_ESTABLISHED`.
-- The pack is sent: the connection is open and no process of the tree is a pack producer (`/proc/<pid>/comm` is
-  `pack-objects`) at the moment the stall window runs out. While `pack-objects` runs the push is still sending, and a
-  stall there is stopped as before.
+- The pack is sent: the connection is open, no process of the tree runs `git pack-objects`, and either a `git pack-objects`
+  was seen at an earlier look, or `git send-pack` is below the push. Over HTTP `git-remote-http` starts
+  `git send-pack --stateless-rpc` once the remote's refs are known and keeps it until the response is read, so its presence
+  separates "the server never answered the first request" (a stall, as the existing control with a listener that never
+  answers shows) from "the server is checking a sent pack". A push over `git://` or `ssh` runs `send-pack` inside `git push`,
+  so only the first sign exists there. The subcommand is read from `/proc/<pid>/cmdline`, because Git runs its subcommands as
+  `git <name>` and the process name says only `git`. While `pack-objects` runs, the push is still sending, and a stall there is
+  stopped as before.
 - Progress: any growth of `tcpi_bytes_acked` plus `tcpi_bytes_received` of a tree socket since the previous sample is a
   sign of work, like bytes moved. A server that sends Git's keepalive (`receive.keepAlive`, default 5 seconds, "set to
   0 to disable keepalives entirely", installed `git help config`) therefore keeps the push alive by progress alone.
   Whether GitHub sends keepalives is unknown.
-- The wait: when the stall window runs out and the pack is sent, the clock does not stop the push. It reports the wait
-  once, with one line on standard error naming the wait, the open connection and how long the tree has shown no work,
-  and it keeps checking. When the connection is no longer open (no tree process holds an established socket), the stall
-  clock applies again from that moment. The ceiling (30 minutes by default) still bounds the push.
+- Scope: only `git push` waits (`Patience::Push`); the auto-push's fetch and the LFS upload keep the stall rule, because a
+  silent open connection is a normal state for them and nothing in the owner's answer is about them.
+- The wait: when the stall window runs out and the pack is sent, the clock does not stop the push. It says the wait once, in a
+  line that starts with `cli-git: git push is waiting for the server`, in the diagnostic log as it begins and in the push's
+  output, and it keeps checking. The silence of a wait does not count against the window, so when the connection is no longer
+  open (no tree process holds an established socket) the stall window runs again from that moment. The ceiling (30 minutes
+  by default) still bounds the push.
+
+### What Git 2.56.0 does after the pack is sent
+
+Read in the source (tag `v2.56.0`), not inferred:
+
+- `send-pack.c` starts a sideband demultiplexer, runs `pack_objects` (the `git pack-objects` child), then blocks in
+  `receive_status` reading the server's report; nothing in the client times that read.
+- `builtin/receive-pack.c` `copy_to_sideband` writes `0005\1` (a band-1 packet with no payload) when it has sent nothing for
+  `receive.keepAlive` seconds (default 5) once the hook phase begins (`use_keepalive = KEEPALIVE_ALWAYS` before
+  `execute_commands`); with the setting at 0 it sends none.
+- `http.c` always sets `CURLOPT_TCP_KEEPALIVE`, with the kernel's idle time unless `GIT_TCP_KEEPIDLE` is set, which is when TCP
+  gives up on a dead peer (the owner's accepted con).
+- `http.c` sets `CURLOPT_LOW_SPEED_LIMIT` and `CURLOPT_LOW_SPEED_TIME` from `http.lowSpeedLimit` and `http.lowSpeedTime` or
+  `GIT_HTTP_LOW_SPEED_LIMIT` and `GIT_HTTP_LOW_SPEED_TIME`, and libcurl `lib/speedcheck.c` (`Curl_speedcheck`) fails the
+  transfer with "Operation too slow" when the speed stays under the limit for the time. Five bytes every five seconds is under
+  1000 bytes per second, so with the wrapper's defaults (`bounded_push.rs`, `apply_low_speed_defaults`) an HTTP push whose check
+  is silent for more than 60 seconds is ended by Git itself, whatever the meter does. This change leaves the defaults as
+  they are; whether they should go is the owner's to decide, and the report says so.
 
 ### Limits stated up front
 
-- A stall before any pack began (a server silent after the connection opened) shows the same state as a server
-  checking a sent pack when `pack-objects` is not alive, so it waits too. Nothing observable separates them.
+- A stall before any pack began, with `send-pack` not yet started and `pack-objects` never seen, is a stall as before. A tiny
+  pack made and gone between two samples (500 ms) over `git://` or `ssh` is not seen, so such a push waits only if its
+  `send-pack` is visible; it is stopped as it is today.
 - A connection that dies without a reset is noticed when TCP gives up (the owner's accepted con).
-- Over HTTP, the wrapper sets `GIT_HTTP_LOW_SPEED_LIMIT=1000` and `GIT_HTTP_LOW_SPEED_TIME=60` unless the person set them
-  (`bounded_push.rs`, `apply_low_speed_defaults`), and Git aborts "a transfer slower than the limit for longer than the
-  time" (`git help config`, `http.lowSpeedLimit`). A silent HTTP wait longer than 60 seconds is therefore ended by Git
-  itself, not by the meter; this change does not alter those defaults. Reported to the coordinator.
 - A remote reached through a local path or `file://` has no socket: its hook is a child of the push, and the stall rule
-  stays as it was. This is the control of the tests.
+  stays as it was. This is a control of the tests.
 - Non-Linux systems measure nothing today and stay so (`UNTESTED ON WINDOWS`).
+- IPv6 sockets are asked for in the same dump; no control binds to `::1`, so that family is unexercised.
 
 ### Fixtures
 
 - Counters: a loopback `TcpListener` bound to port 0 and a client in the same test, a known number of bytes each way;
-  the dump must report the byte counts of exactly the test's two sockets, matched by inode.
-- Meter: a helper process (started under a guard that kills it with the test) that connects to a test-owned listener
-  and calls `send` and `recv` only; `rchar` and `wchar` stay flat, the socket counters move.
-- Landing: the test binds a `TcpListener` on `127.0.0.1:0`, and for each accepted connection runs the installed Git as
-  `git daemon --inetd --export-all --enable=receive-pack --base-path=<fixture>` with the accepted stream as its
-  standard input and output; the push goes to `git://127.0.0.1:<port>/<repo>.git`. The bare repository sets
-  `receive.keepAlive` to 0 so the server is silent, and its `pre-receive` hook sleeps past the stall window
-  (`CLI_GIT_PUSH_DEADLINE_SECONDS` at its smallest, a whole second). Red today: stopped at the window with exit 124.
-  Green: lands on the first try, with the wait line.
-- Control: the same hook behind a `file://` remote, which has no socket, is still stopped at the window.
-- Helpers are killed with their test. `test_support::spawn_owned` is on the unmerged branch
-  `fix/git-policy-cli-test-helpers-die-and-prune-audit-read` and not in this checkout, so the tests use a small guard of
-  their own (kill and wait on drop) until that branch lands.
+  the report must grow by exactly those bytes, matched by inode (`tcp_sockets_tests.rs`). The kernel counts the opening
+  side's `SYN` as an acknowledged byte, so growth is compared, not totals.
+- Clock: a probe process (this test binary run as a test of its own, killed with its test, dying with its parent through
+  `PR_SET_PDEATHSIG`) connects to a test-owned listener with `std::net`, which sends and receives with `send` and `recv`, and
+  holds the connection or trickles bytes; children named `git send-pack` and `git pack-objects` stand in for the push's
+  processes (`push_wait_tests.rs`).
+- Landing: `git daemon` is not installed here, so a loopback HTTP server written for the test runs Git's own `git http-backend`
+  as a CGI for every request (`smart_http_support.rs`). The bare repository sets `http.receivepack` to true and
+  `receive.keepAlive` to 0 so the server is silent, and its `pre-receive` hook sleeps four stall windows (the stall window is a
+  whole second). Red before the change: stopped at the window with exit 124 and `bytes_moved=75699`. Green: lands on the first
+  try, the remote holds the commit, and the output carries the wait line (`push_slow_server_tests.rs`).
+- Controls: the same hook behind a local path is stopped as before; a listener that takes the connection and never answers is
+  stopped as before; a probe with the connection closed, with no `send-pack`, with `pack-objects` alive, or with no connection
+  at all, is stopped on the window.
+- `test_support::spawn_owned` is on the unmerged branch `fix/git-policy-cli-test-helpers-die-and-prune-audit-read` and not in
+  this checkout, so the tests use a small guard of their own (kill and wait on drop) until that branch lands.
