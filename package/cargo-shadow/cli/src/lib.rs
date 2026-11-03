@@ -47,6 +47,9 @@ pub mod policy;
 /// The install step, the counterpart of `pnpm install`.
 pub mod install;
 
+/// Replaces refused new versions with the newest older release that passes.
+pub mod set_aside;
+
 /// The shadow's install step: fingerprint fast path, then the install over one workspace.
 pub mod install_step;
 
@@ -58,6 +61,9 @@ pub mod notice_marker;
 
 /// The crates.io lookups.
 pub mod registry;
+
+/// Removes stale exclude selectors from the catalog.
+pub mod prune;
 
 /// The PATH lookup that finds the real `cargo` while skipping the shadow itself.
 pub mod real_binary;
@@ -85,6 +91,12 @@ pub mod workspace;
 
 /// The fingerprint stamp that lets a cargo call skip the install check.
 pub mod stamp;
+
+/// Version ordering and caret compatibility.
+pub mod version_order;
+
+/// The catalog update, the counterpart of `pnpm update`.
+pub mod update;
 
 /// The command-word rules: what the shadow does for a cargo command line.
 pub mod verb;
@@ -133,7 +145,13 @@ mod time_text_tests;
 mod toolchain_tests;
 
 #[cfg(test)]
+mod update_tests;
+
+#[cfg(test)]
 mod verb_tests;
+
+#[cfg(test)]
+mod version_order_tests;
 
 #[cfg(test)]
 mod workspace_tests;
