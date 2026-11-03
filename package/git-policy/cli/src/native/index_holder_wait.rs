@@ -22,7 +22,7 @@
 
 /// Evidence about the holder of a lock.
 use super::index_lock_evidence::{
-    Evidence, Verdict, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
+    Evidence, Verdict, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
 };
 /// The bounded scan of open descriptors.
 use super::index_lock_holders::scan_platform_holders_bounded;
@@ -30,6 +30,8 @@ use super::index_lock_holders::scan_platform_holders_bounded;
 use super::process_start::resolve_process_start;
 /// The place of the lock and the watch on its directory.
 use super::service_index_lock::{Watch, lock_path_of};
+/// The longest a wait lasts.
+use super::wait_ceilings::LOCK_CEILING;
 /// How long a wait without a watch sleeps between looks.
 use super::service_index_watch::POLL_PAUSE;
 use super::wait_progress::{Cadence, Ticker};
@@ -53,6 +55,12 @@ pub enum IndexWait {
     /// The lock's PID file names a process that no longer runs, so nothing will release it; the diagnostic was written,
     ///  nothing was changed and the lock was left in place.
     OwnerGone(
+        /// How long the wait lasted.
+        Duration,
+    ),
+    /// The lock was still held at the ceiling; the line naming the blocker was written, nothing was changed and the lock was left
+    ///  in place.
+    GaveUp(
         /// How long the wait lasted.
         Duration,
     ),
@@ -117,11 +125,16 @@ fn notice(command: &str, real_index: &Path, waited: Duration, proof: &Proof, fir
 /// await waitForIndexRelease(realIndex, 'merge', cadence, stderr)
 /// ```
 pub fn wait_for_index_release(real_index: &Path, command: &str, cadence: Cadence, out: &mut dyn Write) -> IndexWait {
-    return wait_with_watches(real_index, command, cadence, out, &Watch::on);
+    return wait_for_index_release_within(real_index, command, LOCK_CEILING, cadence, out);
+}
+
+/// `wait_for_index_release` that gives up after `ceiling`.
+pub fn wait_for_index_release_within(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write) -> IndexWait {
+    return wait_with_watches(real_index, command, ceiling, cadence, out, &Watch::on);
 }
 
 /// `wait_for_index_release` with the function that sets a watch on the lock's directory, so a control can hand it none.
-fn wait_with_watches(real_index: &Path, command: &str, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
+fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
     let mut watch: Option<Watch> = lock.parent().and_then(set_watch);
@@ -141,7 +154,7 @@ fn wait_with_watches(real_index: &Path, command: &str, cadence: Cadence, out: &m
         // The evidence is read when the first line is due and when a repeat is due, so a scan of the open descriptors is not made
         //  for every wake of the watch.
         let due: bool = !announced || ticker.due(elapsed);
-        if due {
+        if due || elapsed >= ceiling {
             proof = look_at(real_index, &gather_here);
         }
         if let Proof::Dead(pid) = &proof {
@@ -153,7 +166,19 @@ fn wait_with_watches(real_index: &Path, command: &str, cadence: Cadence, out: &m
             let _noted = out.write_all(notice(command, real_index, elapsed, &proof, !announced).as_bytes()).and_then(|()| { return out.flush(); });
             announced = true;
         }
-        let pause: Duration = ticker.next_in(elapsed).max(Duration::from_millis(1));
+        // The owner, 2026-11-03: "nothing should ever wait forever or indefinitely". At the ceiling the wait names the blocker and ends;
+        //  the merge then runs into Git's own refusal and exits non-zero, with nothing changed.
+        if elapsed >= ceiling {
+            let blocker: String = match &proof {
+                Proof::Alive(evidence, ..) => blocker_words(evidence),
+                Proof::Nothing(Some(evidence)) => blocker_words(evidence),
+                Proof::Nothing(None) | Proof::Dead(_) => String::from("an owner whose evidence could not be read"),
+            };
+            let line: String = ceiling_line(lock.as_path(), blocker.as_str(), elapsed.as_secs(), consequence.as_str());
+            let _noted = out.write_all(line.as_bytes()).and_then(|()| { return out.flush(); });
+            return IndexWait::GaveUp(elapsed);
+        }
+        let pause: Duration = ticker.next_in(elapsed).min(ceiling.saturating_sub(elapsed)).max(Duration::from_millis(1));
         match watch.as_ref() {
             Some(active) => {
                 if !active.wait(pause, lock_name.as_os_str()) {
