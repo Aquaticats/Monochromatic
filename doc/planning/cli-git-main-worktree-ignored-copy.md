@@ -850,3 +850,261 @@ Read at `0e432cd0b3` on `btrfs-worktree-ladder` (code in flux, not edited).
   builds
   them any more; they stay because their tests and the binary tests use them.
 - Whether the linked-worktree copy should adopt the cache rule as well; the owner's words named only the main checkout.
+
+## Package-manager state of a new worktree, written 2026-11-03T00:57:25-05:00
+
+Scope: crate `monochromatic-git-policy-cli`, Linux, btrfs.
+Branch: `feat/git-policy-cli-package-manager-aware-worktree-copy`.
+Fixtures were throwaway btrfs subvolumes under `${HOME}/temp/agent/pm-survey/` (scripts and logs kept there) and
+throwaway worktrees of this repository; all were removed.
+Every command ran in its own `systemd-run --user --scope` with `CPUQuota`, `MemoryMax`, `TasksMax` and `IOWeight` of
+at most 50.
+Another process changing files while a worktree is copied or repaired is the person's risk, by the owner's decision, and
+nothing here defends against it.
+
+### Owner decisions that bound it
+
+- "Our wrapper must work with pnpm w/o a storeDir set, enableGlobalVirtualStore on or off. Try not to degrade the end user
+  experience in any situation."
+- "Compatibility with all pnpm configurations is required."
+- "Must be compatible with all configurations of all pkg managers we currently use. If at any point you feel we're doing
+  something in the wrong way, ask me."
+- "The wrapper may launch pnpm itself for worktree copying", widened to "all pkg managers".
+- Cargo: "Reuse deps, rebuild own", done by "Run cargo clean -p".
+- "But we're not using Mise as a pkg manager." and "Mise isn't even a tool manager.", so mise is not surveyed.
+- The repository's own toolchain wrapper `mpm-shadow` (`package/mpm-shadow/cli`) is a package manager of the repository.
+- "That is not an our problem. By using this command or this program, make the user understand and accept the risk."
+  (races with other processes are out of scope).
+
+### What each manager keeps in a worktree
+
+Each result is a verbatim copy (links kept as they are, reflinked) into a new subvolume, nested under the source and outside it
+at another depth, then the tool's own command.
+
+- pnpm 12.16.1: `node_modules` per package and the root, `.pnpm` inside it or, with `virtualStoreType: global`, links into
+  `<storeDir>/v11/links` reached by a relative path that climbs to `/`.
+  The coordinator's matrix found every configuration fine except the global virtual store with the store outside the tree.
+  On a copy of this repository's worktree one level deeper the entry `node_modules/execa` was dead and
+  `require.resolve` still succeeded, through the source's `node_modules`, so the failure is silent.
+  After the repair the entry resolves inside the copy.
+- Cargo 1.101.0-nightly: `target/` and, where `build-dir` is set, a build directory outside the tree.
+  The person's `~/.cargo/config.toml` keys it by `{workspace-path-hash}`, so a new worktree has none.
+  Every one of the tracked `Cargo.toml` files of this repository belongs to a workspace of its own with a `Cargo.lock`.
+- mpm-shadow: `.cache/toolchain-bin` (links), `.cache/toolchain-launchers` (hard-linked launchers and `.launch` records),
+  `.cache/cli-git-bin`, `.cache/mpm-shadow-bin`, `.cache/pnpm-shadow-bin`, `.cache/search-shadow-bin`,
+  `.cache/toolchain.env.json` and `.cache/toolchain.guard`.
+  Its links to tools are absolute and outside the tree (`~/.local/share/monochromatic-dev/toolchain`, `~/.cargo/bin`) and
+  resolve from any copy.
+  The links and records of repository-published tools name the source: `.cache/toolchain-bin/cli-git-native` is an absolute
+  link into the source's launchers, and seven `.launch` records name the source's `toolchain.lock.json`, so a branch that
+  changes the lock would run the source's tool versions and guard.
+  The other `.cache` entries are plain caches or inputs: `forbidden-strings*.txt` (generated rule files read by tasks),
+  `rust-catalog-update` (crates.io metadata), `typescript` (a `tsbuildinfo`) and `test-scratch`.
+- uv 0.13.6: a project `.venv` (`pyvenv.cfg` names only the interpreter, which lies outside the tree) whose console scripts hold
+  the venv interpreter's absolute path as their shebang.
+  No `pyproject.toml` or `uv.lock` is tracked in this repository and no `.venv` is ignored state, so uv has no state here.
+  Fixture: the copy runs, but its scripts start the source's interpreter (so `sys.prefix` is the source's venv, and the copy
+  breaks if the source is removed).
+  `uv sync --offline --frozen` changes nothing (20 ms); `uv sync --offline --frozen --reinstall` rewrites the shebangs (60 ms).
+- Bun 1.3.14: `node_modules/.bun` with relative links; the copy resolves its own entries, and `bun install --frozen-lockfile`
+  reports no change.
+  `bunfig.toml` only disables auto-install; no `bun.lock` is tracked.
+- npm 11.20.0: relative workspace links; the copy resolves its own entries; `npm ci --offline` took 1.0 s and 4.0 s.
+  No `package-lock.json` is tracked.
+- Gradle (the committed `gradlew`, 9.8.1; two projects): `.gradle`, `.kotlin` and `build`.
+  Fixture `package/linter/kotlin`: in a copy with all three, and in one without `.gradle` and `.kotlin`, the first build
+  re-ran the compile tasks (Gradle keys its history by absolute path) and a second build was up to date, so no stale result is
+  reused.
+  `.gradle` and `.kotlin` are already left out of a main-checkout copy.
+- Zig 0.15.2: `.zig-cache`, `zig-out`, and the global cache, which this repository points at `target/zig-global-cache` (left
+  out already).
+  No `build.zig` is tracked.
+  Fixture: a copied `.zig-cache` made `zig build` report up to date although every file time was fresh, and the binary kept
+  the source's path (debug information and `@src`); with `.zig-cache` removed the rebuild took 1.5 s and the binary names the
+  copy.
+  So `.zig-cache` is now left out of a copy as a cache.
+- Node: no state of its own.
+- mise: dropped by the owner's decision.
+
+### The Cargo hazard and the options
+
+Evidence (this branch's probe `cargo-clean.ts`, four combinations of layout and place):
+a cloned build directory with nothing cleaned gave zero recompiles and `env!("CARGO_MANIFEST_DIR")` and build script output kept
+the source's paths (the coordinator's measurement, repeated by the guard that skips the clean: the binary control reports no
+crate rebuilt).
+`cargo clean --offline --package app --package lib` in the copy took 20 to 30 ms, and the next build compiled the build script,
+`lib` and `app` only, with the registry crate reused, the paths of the copy, a second build compiling nothing, an edit in the
+copy rebuilding `lib` and `app`, and the source's build still fresh with its own paths.
+This holds with an external `build-dir` (cloned first) and with the default layout (`target/` already copied), nested and
+outside, so `cargo clean -p` does what is needed and nothing else had to be chosen.
+`cargo metadata --locked --offline --no-deps` wrote no `Cargo.lock` in a directory that had none.
+Options the owner did not choose, for the record: fresh file times on the worktree's own files (rejected by the owner in favour
+of the clean), and leaving external build state out (every new worktree then builds everything, including registry crates).
+
+### The symlink rule
+
+The question was whether a copied symlink whose target lies outside the source tree must be rewritten to keep resolving to the
+same place, once pnpm runs.
+A census of the main checkout (3205 symbolic links, nested worktrees and `.git` excluded) found:
+
+- Relative links that stay inside the tree: all of the pnpm `node_modules` links today (the isolated layout), which any copy keeps
+  valid.
+- Absolute links outside the tree: the `.cache/toolchain-bin` links into `~/.local/share` and `~/.cargo/bin`, which resolve
+  from any copy.
+- Absolute links into the tree: five (the launchers in `.cache` and one orphan `node_modules/@monochromatic-dev/pnpm-override-stub-silent`
+  from a dependency that is no longer declared).
+  pnpm leaves the orphan alone, so it keeps pointing at the main checkout in a copy; the launchers are rebuilt by mpm-shadow.
+- Relative links that leave the tree: none today.
+  They appear when main's `node_modules` is reinstalled with `virtualStoreType: global`, and then they are pnpm's own.
+
+So once pnpm runs the rule has no consumer left among the tools of this repository, and it was not implemented.
+What it would still protect is a worktree whose pnpm repair could not run (no pnpm, no lockfile match): its links would stay dead
+instead of resolving to the shared store, and in a nested worktree they would silently resolve through the source's
+`node_modules`.
+That residual case is reported to the owner as a doubt, not decided here.
+
+### What was built
+
+`src/native/package_repair*.rs`, called from `settle_under_lock` in `src/native/worktree_copy.rs` for every worktree the
+command created, a snapshot-served one included; see `SPEC.md`, section "Package-manager repair of a new worktree".
+
+- `package_repair_command.rs`: find a program on the search path; run it in a directory with its own process group, a time
+  limit, captured output and a verdict (succeeded, failed with a reason, timed out).
+- `package_repair_pnpm.rs`: `pnpm install --offline --frozen-lockfile`.
+- `package_repair_cargo.rs` and `package_repair_tree_clone.rs`: metadata, the plan (clone and clean, clean only, or nothing),
+  the clone (per-file `FICLONE`, modes, times and links kept, parallel) and `cargo clean --locked --offline --package <member>`.
+- `package_repair_toolchain.rs`: stale launcher records, `mpm-shadow list`, then `mpm-shadow install --frozen-lockfile`.
+- `package_repair_report.rs`: one success line (not under `--quiet`) and one line per failure (always).
+- `worktree_copy_prune.rs`: `.zig-cache` joins the cache names.
+
+pnpm is started with the `pnpm` the person's `PATH` resolves, which here is the pnpm-shadow.
+Started from the wrapper it scans the workspace's manifests and writes its advice to standard error, then runs the real pnpm; the
+wrapper captures that text and shows it only inside a failure line.
+
+### Measurements
+
+Load: the one-minute load average was between 27 and 39 on 28 threads for all of these; no spread was measured on unchanged input
+(a quiet host is never available), so a difference of a few seconds between two runs is not a claim.
+The wrapper was this branch's debug build (`target/debug/cli-git-native`); the repairs are dominated by the tools they start.
+
+The real add: `git worktree add` from this branch's worktree (a linked worktree on a subvolume, 140251 ignored entries) into a
+worktree one directory deeper, with `MONOCHROMATIC_VERBOSE=true`, logged in `pm-add-1.log` under `${HOME}/temp/agent/`.
+
+- Whole command: 354.97 s, of which about 228 s was waiting for another session's add to release the settlement lock
+  (the lock holder's own slow add from `main`).
+  Work after the lock: about 127 s.
+- Rung: Git's own checkout followed by the ignored-file copy, not a snapshot, because the source worktree held an uncommitted
+  edit of `README.md` (the ladder reported "README.md differs from its index entry").
+  Git's checkout took about 29 s and the copy of 140251 entries 69.6 s.
+  The rung is independent of the repair.
+- The repair: 28.2 s wall for all tools side by side (it began when the copy settled and ended when the findings were
+  printed).
+  pnpm took 27.5 s, which set the wall time.
+  Cargo handled 34 workspaces in parallel on 8 threads: 32 had a plan line (23 clean-only because `target/` had been copied, one
+  clone-then-clean, the rest nothing to do), one build directory of 7117 entries was cloned in under a second.
+  The toolchain repair took 5.1 s for `mpm-shadow list` and 0.8 s for `install --frozen-lockfile`.
+- That run used the locked clean, which failed in ten workspaces (committed locks that disagree with their manifests) and printed
+  ten long failure lines; the unlocked clean with the lock put back replaced it (see the doubts and the commit that
+  introduced `restore_lock`).
+  A second add with the fixed binary waited more than 20 minutes behind another session's add for the settlement lock and was
+  stopped before it did any work, so the fixed repair has no whole-repository timing; the stale-lock case is covered by a binary
+  control and was checked by hand in one workspace (`cargo clean --offline --package ide` rewrote its committed lock, bumping
+  `tokio` from 1.53.2 to 1.54.1).
+
+pnpm on its own:
+
+- Converting a tree from the isolated layout to the global virtual store (what a copy of today's main needs): 57 s, 42 s of it
+  system time.
+- An already converted worktree: 3.4 s when nothing changed, 0.4 s to 0.7 s on later runs.
+- A copy of that worktree one level deeper (links dead before): 1.9 s with scripts allowed, 8.5 s with `--ignore-scripts`
+  (one run each, no spread; the difference is not a claim).
+  After either, `node_modules/execa` resolved inside the copy.
+- The pnpm-shadow: the first run in a tree took 20.5 s, then 0.70 s and 0.63 s through the shadow against 0.58 s, 0.53 s and
+  0.65 s directly through `.cache/toolchain-bin/pnpm`.
+  So the shadow works from the wrapper (it scans the manifests, prints its advice to standard error and runs the real pnpm) and
+  can add tens of seconds the first time; the later runs show no difference beyond noise.
+  The cold 20.5 s was the run right after a run with other switches, so it may also be pnpm's own re-verification; the two causes
+  were not separated.
+
+Cargo on fixtures (`cargo-clean.ts`; two crates, one with a build script, one registry crate):
+
+- `cargo clean --offline --package app --package lib`: 20 to 30 ms.
+- The build after it: about 0.2 s to 0.4 s, compiling the build script, `lib` and `app`; the registry crate was reused; a
+  second build compiled nothing; an edit rebuilt `lib` and `app` in about 0.1 s; the source stayed fresh with its own paths.
+- Scale of a clone from the real machine (the full clone from main of all 34 workspaces was not run): the build directory of
+  `package/git-policy/cli` in main holds 63964 entries and 35 GB apparent size; `cp --archive --reflink=always` of it
+  took 6.6 s (a serial proxy for the repair's parallel clone).
+  The machine keeps 1155 such directories under `/var/mnt/encrypted/cargo-build`.
+
+mpm-shadow in a new worktree: `list` 1.9 s then 1.3 s, `install --frozen-lockfile` 1.2 s both times ("0 installed, 65
+unchanged"); 634 entries of main's `.cache`, `~/.local/bin` and the toolchain root were identical before and after.
+
+Other managers (fixtures): `uv sync --offline --frozen --reinstall` 62 ms; `npm ci --offline` 1.0 s and 4.0 s;
+`bun install --frozen-lockfile` 10 ms and 20 ms; Gradle `jar` in a copy 1.5 s and 1.1 s, then 1.2 s and 0.5 s up to date;
+`zig build` after removing `.zig-cache` 1.5 s.
+
+
+### Doubts for the owner
+
+These are questions for the owner, not decisions.
+Each is phrased to be answered on its own.
+
+- Main's `node_modules` still has the isolated layout (`.modules.yaml` says `virtualStoreDir: .pnpm`, 625 entries under
+  `.pnpm`) while `pnpm-workspace.yaml` says `virtualStoreType: global`.
+  Every new worktree copied from main therefore starts in the old layout, and the first repair converts it: 57 s measured in a
+  worktree (42 s of it system time, unlinking `.pnpm`), against about a second once a tree is already in the new layout.
+  Will you run `pnpm install` in the main checkout once, so that copies of it start in the new layout?
+  (The wrapper never runs it there, and this work did not.)
+- Should the pnpm repair pass `--ignore-scripts`?
+  It runs as `pnpm install --offline --frozen-lockfile`, the words you gave, so the repository's `allowBuilds` decides which
+  dependency builds run (only `sharp` is allowed, and it works either way).
+  No tracked manifest has an install-time script of its own.
+  Measured with and without: no difference beyond the noise of a loaded host.
+- A repair that cannot finish prints one line even under `--quiet`, because the worktree then needs a command.
+  Success is silent under `--quiet`.
+  Is that the behaviour you want, or should `--quiet` silence failures too?
+- The toolchain repair runs `mpm-shadow install --frozen-lockfile` only when `mpm-shadow list` finds every tool in sync, so an
+  add never downloads.
+  When a branch's lock differs from what is installed it prints `mise run toolchain:install` instead.
+  Should an add be allowed to install online in that case?
+  Also: `install` retires older copies of this repository's own tools in every checkout; with an unchanged lock it changed
+  nothing outside the new worktree (634 entries of main's `.cache`, `~/.local/bin` and the toolchain root compared before and
+  after), but a branch that moves a pinned version would retire a copy another checkout still links.
+- The repairs run inside the settlement lock, so another add waits for them (about a minute here).
+  Running them after the lock is released is possible, because they touch only the new worktree.
+  Which do you want?
+- uv: a copied project `.venv` keeps working but its console scripts start the source's interpreter, and
+  `uv sync --offline --frozen` does not change that; only `--reinstall` does (60 ms on a fixture).
+  No uv project exists in this repository, so nothing was implemented.
+  Options: (a) implement `uv sync --offline --frozen --reinstall` now, untested against any real project; (b) implement it when
+  the first project appears; (c) leave `.venv` out of a copy.
+  Ranking: b > a > c, because b buys a real test, a adds code with no consumer, and c makes every new worktree reinstall
+  instead of cloning.
+- The symlink rule (a copied link whose target lies outside the source tree keeps resolving to the same place) was not
+  implemented, for the evidence in the section on the symlink rule.
+  Do you want it anyway as the fallback for a worktree whose pnpm repair could not run?
+- The pnpm hook substitutes blocked dependencies with workspace stubs (`.pnpmfile.mjs`), and one such link in main,
+  `package/rolldown-plugin/import-attributes/node_modules/@monochromatic-dev/pnpm-override-stub-silent`, is an absolute path into
+  the main checkout.
+  After the repair it still points at main in the new worktree: pnpm relinks what its lockfile and layout name and leaves this one
+  alone, so a hook-substituted dependency leaks across worktrees (the `throw` stub is likely the same).
+  Is that acceptable (the stubs hold no state), or should the substitution be written as a relative link?
+- The pnpm used is the one `PATH` resolves, which is the pnpm-shadow here.
+  It works from the wrapper but its first run in a tree took 20.5 s against 0.6 s for the real binary behind
+  `.cache/toolchain-bin/pnpm` (the cause was not separated from pnpm's own re-verification).
+  Keep resolving `pnpm` through `PATH`, or start the real binary directly?
+- A snapshot-served or copied worktree whose lock for a Cargo workspace disagrees with its manifest (ten here) is cleaned
+  with the lock put back byte for byte, which also means the clean's own resolution result is thrown away.
+  The disagreement is a defect of the committed locks, not of the wrapper; should those locks be regenerated?
+  Putting a lock back also gives it a new change time, so the ladder (which wants every tracked file to match its index entry
+  and be older than the index file) refuses a snapshot from that worktree until a `git status` refreshes the index.
+  Options: (a) leave it, (b) run `git update-index --refresh` in the new worktree after a lock was put back, (c) regenerate the
+  committed locks so nothing is rewritten.
+  Ranking: c > b > a, because c removes the cause for every tool, b hides it at the cost of one more Git run per add, and a leaves
+  the next snapshot from that worktree falling to the slow route.
+- The full clone of main's Cargo build state for every workspace was not run (that would read main); the scale measured on one
+  workspace is in the measurements.
+- `native:clippy:windows` was not run (the Windows target is not installed here); the new modules are Linux only and gated
+  `cfg(target_os = "linux")`.
+- Timing figures come from a host whose load average was in the thirties; no spread was measured on unchanged input, so
+  differences of a few seconds between runs are not claims.
