@@ -13,7 +13,7 @@ description: >
 inputs:
   tools:
     description: >
-      Space-separated list of the programs to install: `file-enforcer`, `mpm-shadow`, or both.
+      Space-separated list of the programs to install: `file-enforcer`, `mpm-shadow`, `cargo-shadow`, or any of them.
     required: false
     default: 'file-enforcer'
 
@@ -55,6 +55,21 @@ runs:
               ;;
             file-enforcer)
               crate=monochromatic-file-enforcer-cli
+              version=$(jq --raw-output --arg id "cargo:$crate" '.tools[$id].version // empty' toolchain.lock.json)
+              if [ -z "$version" ]; then
+                echo "::error::repo-tools-setup: toolchain.lock.json has no cargo:$crate row; run 'mpm-shadow update'" >&2
+                exit 1
+              fi
+              name="$crate-$version-$target.tar.gz"
+              sums="$crate-$version-sha256sums.txt"
+              base="https://github.com/${GITHUB_REPOSITORY}/releases/download/$crate-v$version"
+              archive="$work/$name"
+              curl --fail --silent --show-error --location --output "$archive" "$base/$name"
+              curl --fail --silent --show-error --location --output "$work/$sums" "$base/$sums"
+              (cd "$work" && grep " $name\$" "$sums" | sha256sum --check)
+              ;;
+            cargo-shadow)
+              crate=monochromatic-cargo-shadow
               version=$(jq --raw-output --arg id "cargo:$crate" '.tools[$id].version // empty' toolchain.lock.json)
               if [ -z "$version" ]; then
                 echo "::error::repo-tools-setup: toolchain.lock.json has no cargo:$crate row; run 'mpm-shadow update'" >&2
