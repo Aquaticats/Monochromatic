@@ -442,7 +442,8 @@ fn a_stream_socket_with_room_for_part_returns_what_it_took_without_waiting() {
     while writer.write(filler.as_slice()).is_ok() {}
     reader_end.set_nonblocking(true).expect("non-blocking reader");
     let mut drain: Vec<u8> = vec![0; 8192];
-    reader_end.read(drain.as_mut_slice()).expect("room made for a little");
+    let drained: usize = reader_end.read(drain.as_mut_slice()).expect("room made for a little");
+    assert!(drained > 0);
     let big: Vec<u8> = vec![b'y'; 1 << 20];
     let took: usize = writer.write(big.as_slice()).expect("part of it went");
     assert!(took > 0 && took < big.len(), "took {took}");
