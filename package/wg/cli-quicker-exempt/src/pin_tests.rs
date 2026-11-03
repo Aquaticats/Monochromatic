@@ -363,11 +363,14 @@ fn application_watcher_covers_named_targets_and_future_ghostty() -> io::Result<(
     let service = app_slice.join("app-com.mitchellh.ghostty@fixture.service");
     let surface = app_slice.join("app-ghostty-surface-transient-123.scope");
     let firefox_nightly = app_slice.join("app-firefox\\x2dnightly@fixture.service");
+    let firefox_release = app_slice.join("app-firefox@fixture.service");
     let firefox_esr = app_slice.join("app-firefox\\x2desr@fixture.service");
     let unrelated = app_slice.join("app-org.example.Other.scope");
     std::fs::create_dir(&app_slice)?;
     std::fs::create_dir(&service)?;
     std::fs::create_dir(&firefox_nightly)?;
+    // Borrow the disposable release service path and propagate a filesystem failure.
+    std::fs::create_dir(&firefox_release)?;
     std::fs::create_dir(&firefox_esr)?;
     std::fs::create_dir(&unrelated)?;
     let mut watcher = Command::new(cli_binary()?)
@@ -390,6 +393,8 @@ fn application_watcher_covers_named_targets_and_future_ghostty() -> io::Result<(
     assert_eq!(committed.trim_end(), "COMMITTED");
     assert_marks_from_child(&service, FIRST_MARK)?;
     assert_marks_from_child(&firefox_nightly, FIRST_MARK)?;
+    // Real TCP and UDP sockets in both address families must inherit the release exemption.
+    assert_marks_from_child(&firefox_release, FIRST_MARK)?;
     assert_marks_from_child(&firefox_esr, 0)?;
     assert_marks_from_child(&unrelated, 0)?;
     std::fs::create_dir(&surface)?;
@@ -404,10 +409,14 @@ fn application_watcher_covers_named_targets_and_future_ghostty() -> io::Result<(
     assert!(status.success());
     assert_marks_from_child(&service, 0)?;
     assert_marks_from_child(&firefox_nightly, 0)?;
+    // Stopping the watcher removes the release service's socket marks too.
+    assert_marks_from_child(&firefox_release, 0)?;
     std::fs::remove_dir(&surface)?;
     std::fs::remove_dir(&unrelated)?;
     std::fs::remove_dir(&firefox_esr)?;
     std::fs::remove_dir(&firefox_nightly)?;
+    // Remove only the empty disposable release cgroup created by this test.
+    std::fs::remove_dir(&firefox_release)?;
     std::fs::remove_dir(&service)?;
     std::fs::remove_dir(&app_slice)?;
     return Ok(());

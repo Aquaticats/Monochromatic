@@ -1,6 +1,7 @@
 //! Discovers named Ghostty,
 //!  Steam,
 //!  Helium,
+//!  Firefox release,
 //!  and Firefox Nightly cgroups plus executable-owned application cgroups.
 
 /// Filesystem and process-race failures.
@@ -29,6 +30,8 @@ const HELIUM_SERVICE_PREFIX: &str =
     "app-chrome\\x2dcadlkienfkclaiaibeoongdcgmdikeeg\\x2dDefault@";
 /// Firefox Nightly service prefix produced by its configured remoting name.
 const FIREFOX_NIGHTLY_SERVICE_PREFIX: &str = "app-firefox\\x2dnightly@";
+/// Firefox release service prefix produced by the `firefox.desktop` launcher.
+const FIREFOX_RELEASE_SERVICE_PREFIX: &str = "app-firefox@";
 /// ChatGPT desktop install tree whose every executable belongs to that application.
 const CHATGPT_INSTALL_DIRECTORY: &str = "/usr/lib/chatgpt";
 /// ChatGPT desktop service prefix observed from its desktop-entry identifier.
@@ -101,6 +104,20 @@ pub fn is_firefox_nightly_service_name(name: &str) -> bool {
         && name.ends_with(".service");
 }
 
+/// What: Borrows candidate service text without allocating an owned `String`.
+/// Why: Select the release launcher while keeping ESR and similarly named scopes on the tunnel.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isFirefoxReleaseServiceName(name: string): boolean {
+///   return name.startsWith('app-firefox@') && name.endsWith('.service');
+/// }
+/// ```
+pub fn is_firefox_release_service_name(name: &str) -> bool {
+    return name.starts_with(FIREFOX_RELEASE_SERVICE_PREFIX)
+        && name.ends_with(".service");
+}
+
 /// Reports ChatGPT desktop-integration service name.
 pub fn is_chatgpt_service_name(name: &str) -> bool {
     return name.starts_with(CHATGPT_SERVICE_PREFIX) && name.ends_with(".service");
@@ -152,6 +169,7 @@ fn is_ascii_digit_byte(byte: u8) -> bool {
 /// Why:
 ///       Process scan must recognize Helium,
 ///  Pale Moon,
+///  Firefox release,
 ///  Firefox Nightly,
 ///  ChatGPT,
 ///  Interpreter,
@@ -164,11 +182,14 @@ fn is_ascii_digit_byte(byte: u8) -> bool {
 ///   const name = basename(path);
 ///   const isFirefoxNightly = path.endsWith('/firefox-nightly/firefox')
 ///     || path.endsWith('/firefox-nightly/firefox-bin');
+///   const isFirefoxRelease = path.endsWith('/firefox/firefox')
+///     || path.endsWith('/firefox/firefox-bin');
 ///   const isChatGpt = path.startsWith('/usr/lib/chatgpt/');
 ///   return name.toLowerCase().startsWith('helium')
 ///     || name === 'palemoon'
 ///     || name === 'palemoon-bin'
 ///     || isFirefoxNightly
+///     || isFirefoxRelease
 ///     || isChatGpt
 ///     || name.startsWith('interpreter')
 ///     || name.startsWith('qure')
@@ -206,7 +227,7 @@ fn is_exempt_application_executable(path: &Path) -> bool {
     let normalized_helium_name = name_text.to_ascii_lowercase();
     // What:     `Path::ends_with` compares complete path components rather than a text suffix.
     // Why:      Exact install-directory and binary names distinguish Firefox Nightly
-    //           from Firefox ESR and stable Firefox.
+    //           from Firefox ESR and release Firefox.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -215,6 +236,9 @@ fn is_exempt_application_executable(path: &Path) -> bool {
     // ```
     let is_firefox_nightly = path.ends_with("firefox-nightly/firefox")
         || path.ends_with("firefox-nightly/firefox-bin");
+    // Compare complete release-directory components, leaving ESR and backup directories unmatched.
+    let is_firefox_release = path.ends_with("firefox/firefox")
+        || path.ends_with("firefox/firefox-bin");
     // What:     `Path::starts_with` compares complete leading path components instead of a text prefix.
     // Why:      ChatGPT spawns every bundled agent from its own root-owned package tree,
     //           so that whole tree identifies the application even when a subprocess
@@ -243,6 +267,7 @@ fn is_exempt_application_executable(path: &Path) -> bool {
         || name_text == "palemoon"
         || name_text == "palemoon-bin"
         || is_firefox_nightly
+        || is_firefox_release
         || is_chatgpt
         || is_interpreter
         || is_qure
@@ -269,6 +294,7 @@ fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
 /// Scans direct app slice entries identifying Ghostty,
 ///  Steam,
 ///  Helium,
+///  Firefox release,
 ///  Firefox Nightly,
 /// ChatGPT,
 ///  Interpreter,
@@ -289,6 +315,7 @@ fn scan_named_cgroups(roots: &ScanRoots<'_>, targets: &mut Vec<PathBuf>) -> io::
             || is_steam_service_name(name_text)
             || is_helium_service_name(name_text)
             || is_firefox_nightly_service_name(name_text)
+            || is_firefox_release_service_name(name_text)
             || is_chatgpt_service_name(name_text)
             || is_interpreter_service_name(name_text)
             || is_qure_service_name(name_text)
@@ -336,6 +363,7 @@ fn read_process_executable(path: &Path) -> io::Result<Option<PathBuf>> {
 /// Why:
 ///       Live executables identify Helium,
 ///  Pale Moon,
+///  Firefox release,
 ///  Firefox Nightly,
 ///  ChatGPT,
 ///           Interpreter,
@@ -345,7 +373,7 @@ fn read_process_executable(path: &Path) -> io::Result<Option<PathBuf>> {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function scanExemptApplicationProcesses(roots: ScanRoots, targets: string[]): void {
-///   // Add live Helium, Pale Moon, and Firefox Nightly cgroups or throw an I/O error.
+///   // Add live Helium, Pale Moon, Firefox release, and Nightly cgroups or throw an I/O error.
 /// }
 /// ```
 fn scan_exempt_application_processes(

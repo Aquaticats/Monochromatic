@@ -4,6 +4,7 @@
 use crate::application_targets::{
     is_chatgpt_service_name,
     is_firefox_nightly_service_name,
+    is_firefox_release_service_name,
     is_ghostty_cgroup_name,
     is_helium_service_name,
     is_interpreter_service_name,
@@ -59,6 +60,29 @@ fn firefox_nightly_service_name_stays_channel_specific() {
     assert!(!is_firefox_nightly_service_name(
         "app-firefox\\x2dnightly@abc.scope"
     ));
+}
+
+/// What: Registers a unit test of release desktop-service identity.
+/// Why: A release exception must leave ESR, Nightly, and lookalike service names unchanged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('release service identity', () => {
+///   expect(isFirefoxReleaseServiceName('app-firefox@fixture.service')).toBe(true);
+/// });
+/// ```
+#[test]
+fn firefox_release_service_name_stays_channel_specific() {
+    // Assert the release desktop service is accepted.
+    assert!(is_firefox_release_service_name("app-firefox@fixture.service"));
+    // Assert the ESR desktop service remains tunnel-routed.
+    assert!(!is_firefox_release_service_name("app-firefox\\x2desr@fixture.service"));
+    // Nightly has its own matcher and must not become a release-service match.
+    assert!(!is_firefox_release_service_name("app-firefox\\x2dnightly@fixture.service"));
+    // A similarly named scope is selected only by executable discovery.
+    assert!(!is_firefox_release_service_name("app-firefox@fixture.scope"));
+    // A wrapper service does not identify the release browser.
+    assert!(!is_firefox_release_service_name("app-firefox-wrapper@fixture.service"));
 }
 
 /// Accepts exact ChatGPT,
@@ -136,6 +160,9 @@ fn scan_combines_named_and_process_targets() -> io::Result<()> {
     let firefox_nightly_bin_scope = app_slice.join("app-firefox-nightly-bin-49.scope");
     let firefox_nightly_launcher_scope =
         app_slice.join("app-firefox-nightly-launcher-50.scope");
+    let firefox_release_service = app_slice.join("app-firefox@fixture.service");
+    let firefox_release_bin_scope = app_slice.join("app-release-bin.scope");
+    let firefox_release_launcher_scope = app_slice.join("app-release-launcher.scope");
     let unrelated = app_slice.join("app-org.example.Other.scope");
     for path in [
         &ghostty_service,
@@ -150,6 +177,10 @@ fn scan_combines_named_and_process_targets() -> io::Result<()> {
         &firefox_nightly_service,
         &firefox_nightly_bin_scope,
         &firefox_nightly_launcher_scope,
+        // Borrow the release fixtures so the expected-result assertion can reuse them.
+        &firefox_release_service,
+        &firefox_release_bin_scope,
+        &firefox_release_launcher_scope,
         &unrelated,
     ] {
         std::fs::create_dir(path)?;
@@ -236,6 +267,34 @@ fn scan_combines_named_and_process_targets() -> io::Result<()> {
         "/home/user/.local/opt/firefox-nightly-backup/firefox-bin",
         "0::/users/app.slice/app-org.example.Other.scope\n",
     )?;
+    // Borrow the fixture procfs and propagate setup errors for both release executable names.
+    create_process(
+        &proc_root,
+        "54",
+        "/fixture/opt/firefox/firefox-bin",
+        "0::/users/app.slice/app-release-bin.scope\n",
+    )?;
+    // Borrow the fixture root for the release launcher before it execs firefox-bin.
+    create_process(
+        &proc_root,
+        "55",
+        "/fixture/opt/firefox/firefox",
+        "0::/users/app.slice/app-release-launcher.scope\n",
+    )?;
+    // A backup directory must not acquire the release browser's exemption.
+    create_process(
+        &proc_root,
+        "56",
+        "/fixture/opt/firefox-backup/firefox-bin",
+        "0::/users/app.slice/app-org.example.Other.scope\n",
+    )?;
+    // Other programs in the release directory are not browser executable identities.
+    create_process(
+        &proc_root,
+        "57",
+        "/fixture/opt/firefox/updater",
+        "0::/users/app.slice/app-org.example.Other.scope\n",
+    )?;
     let targets = scan_application_targets(&ScanRoots {
         app_slice: &app_slice,
         proc_root: &proc_root,
@@ -252,6 +311,9 @@ fn scan_combines_named_and_process_targets() -> io::Result<()> {
         firefox_nightly_service,
         firefox_nightly_bin_scope,
         firefox_nightly_launcher_scope,
+        firefox_release_service,
+        firefox_release_bin_scope,
+        firefox_release_launcher_scope,
     ];
     expected.sort();
     assert_eq!(targets, expected);
