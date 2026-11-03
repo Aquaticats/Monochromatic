@@ -562,8 +562,9 @@ accepted.
 - Each line is self-framing with a checksum; recovery truncates a torn last line to the last valid line before any append.
 - The lane is the only writer, so there is no allocator to go obsolete.
 
-Capture consistency: C1 and the seqlock rule of the state machine. The writer journals the intent, writes the generation odd, mutates, and
-writes it even, and only for lane state updates; an interrupted writer is completed or rolled back by L4. Foreign writers of refs and the
+Capture consistency: C1 and rule S of the state machine (revision 9 replaces the seqlock). All capture-visible lane state is one document
+replaced atomically; the generation is odd only while a marker is set around an effect outside the document (the index replacement of M1, the
+recovery of L4); an interrupted writer is completed or rolled back by L4, and C0 routes a client out of a dead odd generation. Foreign writers of refs and the
 index do not take part, so C1 re-reads the tip and the index entries it used; a foreign change that leaves them as read is undetectable and
 is not claimed.
 
@@ -611,9 +612,10 @@ between steps: target unpublished, the amendment replaces it (the old version is
 published and still the tip, an amend of the tip; target published but no longer the tip, the amendment is stacked as a new commit on
 the tip, its change being the amend's tree relative to `D1`, and it never amends an unrelated successor.
 
-A request held by a person's hook (owner decision 1; B1 and B2 of the state machine). A held request has no commit and is not part of the
-logical tail. Its consumption entries are keyed by request and version and are released by one rule: when the request that set them is
-materialized, voided or refused, never at publication (a published request whose follow-up is deferred keeps them, so a plain commit
+A request held by a person's hook (owner decision 1; transitions B1, B2 and B3 of the state machine, not the owner-question options B-hand and B-restart). A held request has no commit and is not part of the
+logical tail. Its consumption entries are keyed by request and version and end by one rule set (revision 9): installed, already at the target or preserved by M1, or dropped by M3 when the head agrees or a later request
+consumes the path; voiding turns them into suppressions and never releases them (M2); a refusal drops them; a superseded version re-keys them to the
+active version (B3); never at publication (a published request whose follow-up is deferred keeps them, so a plain commit
 staging only `y` does not capture a reversal of it). An amendment of a held request is a new version that names the held version, not a
 commit: its immutable base is the held version's captured logical base and its delta replaces the held delta. The new version's build is
 queued behind the old version's hook, since a running hook is never ended; when the old hook completes, its completion carries
@@ -712,7 +714,8 @@ outlive the retained recovery copy.
   before the entry is observable and starts the destructive process from inside it, so while the launcher lives the scope is non-empty and
   an empty or absent scope is never read as finished; a run is terminal only when its scope reports no processes and the launcher is dead
   or has recorded its end after waiting; the launcher's death with an empty scope proves launch can no longer happen. A lane releases a
-  request's spool only if no entry overlapping the request's lifetime is open and a connectivity check after the run passes. Git's own
+  request's spool only if every entry overlapping the request's lifetime is `terminal` by G3 (T1; an entry with an empty scope and a live launcher is not
+  terminal), after a release intent, and a connectivity check passes. Git's own
   `gc.pid` in the common directory is read as a second source and also holds release. Where no manager exists (G4) containment is not possible
   (a descendant can leave a process group), so the wrapper treats the run as another tool's maintenance, prints that it cannot contain it, and
   keeps the recovery copy of every overlapping request until the person disposes of it explicitly: disk is spent, nothing is claimed.
@@ -1462,7 +1465,7 @@ the outside list.
 
 ## Answers to the sixth review
 
-History. Revision 8's normative state machine governs; where this section describes the seqlock across publication, the birth-time lock
+History. The normative state machine of revision 9 governs; where this section describes the seqlock (any form), across publication, the birth-time lock
 removal, scope reaping by a recorded path, an `O_EXCL` binding before the request exists or an empty scope as finished, it is superseded.
 
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol-6.txt` (summarized on main in `doc/handover/cli-git-rust-implementation.md`
