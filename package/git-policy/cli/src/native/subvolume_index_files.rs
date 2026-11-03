@@ -169,6 +169,12 @@ pub(crate) fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
 /// function refreshIndexFileWith(indexPath: string, tree: string, options: RefreshOptions): string;
 /// ```
 pub fn refresh_index_file_with(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>) -> String {
+    return refresh_index_file_seamed(index_path, tree, options, &mut || {});
+}
+
+/// `refresh_index_file_with` with a call at the moment right after the rewrite, before the lock is looked at again, where a
+///  control may let another command take the lock name.
+pub fn refresh_index_file_seamed(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, after_rewrite: &mut dyn FnMut()) -> String {
     let mut lock_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
     lock_name.push(".lock");
     let lock_path: PathBuf = PathBuf::from(lock_name);
@@ -187,31 +193,46 @@ pub fn refresh_index_file_with(index_path: &Path, tree: &Path, options: &Refresh
             }
         }
     }
-    let outcome: String = rewrite_under_lock(index_path, tree, options, created.as_mut(), &lock_path);
-    if created.is_some() {
-        let _removed = std::fs::remove_file(&lock_path);
+    let (outcome, published): (String, bool) = rewrite_under_lock(index_path, tree, options, created.as_mut(), &lock_path);
+    after_rewrite();
+    // Once the lock was renamed over the index the name is any Git command's to take; it is never touched again. Before that,
+    // the lock is removed only if the name still holds the file this call made.
+    if let (Some(file), false) = (created.as_ref(), published) {
+        remove_if_same_file(lock_path.as_path(), file);
     }
     return outcome;
 }
 
-/// The read, rewrite and install of one index while its lock is held; `lock_file` is the lock when this call made it.
-fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>, lock_path: &Path) -> String {
+/// Remove the file at `path` if it is the very file `held` is open on (same device and inode).
+fn remove_if_same_file(path: &Path, held: &std::fs::File) {
+    let same: bool = match (std::fs::symlink_metadata(path), held.metadata()) {
+        (Ok(named), Ok(own)) => named.dev() == own.dev() && named.ino() == own.ino() && named.file_type().is_file(),
+        _ => false,
+    };
+    if same {
+        let _removed = std::fs::remove_file(path);
+    }
+}
+
+/// The read, rewrite and install of one index while its lock is held; `lock_file` is the lock when this call made it. The flag
+///  says whether the new index was published, after which the lock name is not this call's any more.
+fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>, lock_path: &Path) -> (String, bool) {
     let index_mtime: Option<(u32, u32)> = match std::fs::metadata(index_path) {
         Ok(metadata) => Some((metadata.mtime() as u32, metadata.mtime_nsec() as u32)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return String::from("no index file"),
-        Err(error) => return format!("skipped (cannot examine it: {error})"),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (String::from("no index file"), false),
+        Err(error) => return (format!("skipped (cannot examine it: {error})"), false),
     };
     let bytes: Vec<u8> = match std::fs::read(index_path) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return String::from("no index file"),
-        Err(error) => return format!("skipped (cannot read it: {error})"),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (String::from("no index file"), false),
+        Err(error) => return (format!("skipped (cannot read it: {error})"), false),
     };
     return rewrite_and_install(bytes.as_slice(), index_mtime, [index_path, tree, lock_path], options, lock_file);
 }
 
 /// The rewrite of the stat fields of `bytes` and the install of the result over `index_path`, with `paths` naming the index, the tree it
 ///  describes and the lock file.
-fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&Path; 3], options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>) -> String {
+fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&Path; 3], options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>) -> (String, bool) {
     let [index_path, tree, lock_path]: [&Path; 3] = paths;
     let context: RewriteContext = RewriteContext { hash_length: options.hash_length, index_mtime };
     let outcome: IndexOutcome = rewrite_index_stat_with(
@@ -229,30 +250,49 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
     );
     let (rewritten, updated, total): (Vec<u8>, usize, usize) = match outcome {
         IndexOutcome::Rewritten { bytes: new_bytes, updated, total } => (new_bytes, updated, total),
-        IndexOutcome::Skipped(reason) => return format!("skipped ({reason})"),
+        IndexOutcome::Skipped(reason) => return (format!("skipped ({reason})"), false),
     };
     // With its own lock the new index is written into the lock file and the lock is renamed over the index, as Git does.
     // Under a held lock the lock stays, and a sibling file is renamed over the index instead.
     let installed: std::io::Result<()> = match lock_file {
         Some(file) => file.write_all(rewritten.as_slice()).and_then(|()| { return file.sync_all(); }).and_then(|()| { return std::fs::rename(lock_path, index_path); }),
-        None => {
-            let mut sibling_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
-            sibling_name.push(".cli-git-new");
-            let sibling: PathBuf = PathBuf::from(sibling_name);
-            let written: std::io::Result<()> = std::fs::write(&sibling, rewritten.as_slice())
-                .and_then(|()| { return std::fs::File::open(&sibling); })
-                .and_then(|file: std::fs::File| { return file.sync_all(); })
-                .and_then(|()| { return std::fs::rename(&sibling, index_path); });
-            if written.is_err() {
-                let _removed = std::fs::remove_file(&sibling);
-            }
-            written
-        }
+        None => stage_and_replace(index_path, rewritten.as_slice()),
     };
     if let Err(error) = installed {
-        return format!("skipped (cannot install the new index: {error})");
+        return (format!("skipped (cannot install the new index: {error})"), false);
     }
-    return format!("{updated} of {total} entries refreshed");
+    return (format!("{updated} of {total} entries refreshed"), true);
+}
+
+/// What:
+///  Write `bytes` to a staging file beside `index_path`, created exclusively, and rename it over the index.
+/// Why:
+///   Under a held lock no Git command writes the index, but the staging name is still checked: it is created with
+///  `O_EXCL`, which fails on an existing file or link instead of following or truncating it, written and synced through its
+///  own descriptor, and renamed only while the name still holds that file. A staging file that cannot be proven the call's
+///  is left where it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await stageAndReplace(indexPath, bytes);
+/// ```
+fn stage_and_replace(index_path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut sibling_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
+    sibling_name.push(".cli-git-new");
+    let sibling: PathBuf = PathBuf::from(sibling_name);
+    let mut staged: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).open(&sibling)?;
+    let written: std::io::Result<()> = staged.write_all(bytes).and_then(|()| { return staged.sync_all(); }).and_then(|()| {
+        let named = std::fs::symlink_metadata(&sibling)?;
+        let own = staged.metadata()?;
+        if named.dev() != own.dev() || named.ino() != own.ino() {
+            return Err(std::io::Error::other("the staging file was replaced while the index was written"));
+        }
+        return std::fs::rename(&sibling, index_path);
+    });
+    if written.is_err() {
+        remove_if_same_file(sibling.as_path(), &staged);
+    }
+    return written;
 }
 
 /// What:
@@ -260,9 +300,9 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
 ///  fields of `stats` for the entries it knows, and nothing for the others.
 /// Why:
 ///   The index of a new worktree must never be written in place and never replace one that exists: `index.lock` is created
-///  first (exclusively), the absence of an index is checked under it, the finished index is written into the lock and
-///  renamed over the name without replacing, and the lock is not touched after the rename because the name is then
-///  another Git process's to take. The stat fields come from the objects the caller made, so an entry whose file was
+///  first (exclusively), the absence of an index is checked under it, the finished index is written into the lock, and
+///  that open file is linked under the name of the index without replacing anything; the lock name is released afterwards
+///  only if it still holds that file, because once it is released it is another Git process's to take. The stat fields come from the objects the caller made, so an entry whose file was
 ///  replaced afterwards no longer matches its inode and Git hashes it. Everything is done through the handle.
 ///
 /// In TS you'd write (pseudocode):
@@ -275,15 +315,15 @@ pub fn install_index_in(admin: &std::fs::File, seed: &[u8], stats: &mut dyn FnMu
 
 /// The moments of an index install at which the controls move the tree.
 pub struct InstallSeams<'a> {
-    /// Called after the index was written into the lock and before it is renamed into place.
+    /// Called after the index was written into the lock and before it is linked under its name.
     pub before_publish: &'a mut dyn FnMut(),
-    /// Called right after the rename that published the index.
+    /// Called right after the index got its name and before the lock is released.
     pub after_publish: &'a mut dyn FnMut(),
 }
 
 /// `install_index_in` with the moments at which a control may move the tree.
 pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn FnMut(&[u8]) -> Option<StatFields>, hash_length: usize, seams: &mut InstallSeams<'_>) -> Result<String, String> {
-    use super::fs_beneath::{create_file_at, entry_metadata_at, identity_at, identity_of, rename_at};
+    use super::fs_beneath::{create_file_at, entry_metadata_at, identity_of, link_open_file_at};
     let lock: &OsStr = OsStr::new("index.lock");
     let index: &OsStr = OsStr::new("index");
     let mut created: std::fs::File = match create_file_at(admin, lock, 0o600) {
@@ -292,9 +332,9 @@ pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn
         Err(error) => return Err(format!("the lock cannot be created ({error})")),
     };
     let ours = identity_of(&created).map_err(|error| { return format!("the lock cannot be examined ({error})"); })?;
-    // Before the rename, the lock is ours to remove, but only if the name still holds the file made here.
+    // Before the publication the lock is ours to remove, but only if the name still holds the file made here.
     let give_up = |reason: String| -> Result<String, String> {
-        let _kept = super::fs_beneath::remove_owned_at(admin, lock, ours);
+        let _kept = super::fs_beneath::remove_if_identical(admin, lock, ours);
         return Err(reason);
     };
     match entry_metadata_at(admin, index) {
@@ -312,14 +352,15 @@ pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn
         return give_up(format!("the new index cannot be written ({error})"));
     }
     (seams.before_publish)();
-    if identity_at(admin, lock).ok() != Some(ours) {
-        return Err(String::from("index.lock was replaced while the index was written"));
-    }
-    // `RENAME_NOREPLACE`: an index that appeared since the check stays.
-    if let Err(error) = rename_at(admin, lock, admin, index, false) {
+    // The open file is linked under the name of the index, which fails if the name exists: what is published is the file
+    // written here, whatever the lock name refers to by now. The lock stays until the index has its name.
+    if let Err(error) = link_open_file_at(&created, admin, index) {
         return give_up(format!("the new index cannot be put in place ({error})"));
     }
     (seams.after_publish)();
+    // The lock name and the index are the same file now; the lock is released only if the name still holds it, so the lock
+    // of the next Git command is never removed.
+    let _released = super::fs_beneath::remove_if_identical(admin, lock, ours);
     return Ok(format!("{updated} of {total} entries refreshed"));
 }
 
