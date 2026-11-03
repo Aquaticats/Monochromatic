@@ -108,9 +108,9 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   Against "We should never invoke ourselves recursively."
   (`doc/planning/cli-git-no-self-invocation.md`);
   without a cap it can exhaust the host's process limit.
-- Shipped-limits picks 5 and 12,
-  branch `feat/git-policy-cli-pushes-wait-while-connected-lfs-5xx`,
-  worktree `.claude/worktrees/pushes-wait-lfs-5xx`.
+- Shipped-limits picks 2 and 6,
+  branch `feat/git-policy-cli-index-lock-and-service-waits` from the 0.5.28 base `5299b6d102`,
+  worktree `.claude/worktrees/index-lock-and-service-waits`.
 - Not agents:
   the second cross-vendor review of cargo-shadow (`pi`,
   output `~/temp/agent/reviews/cargo-shadow-sol-2.txt`,
@@ -128,8 +128,10 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   the gate of 0.5.27 (named under its branch below).
 Queued,
 in this order:
-shipped-limits picks 2 and 6 from the 0.5.28 base,
-as a slot frees.
+nothing;
+next after these:
+gate the 0.5.28 base with each finished branch,
+then the design build in the reviewer's order once the sixth review allows it.
 
 0.5.27 ships without the in-process index work
 (coordinator's pick under the delegation,
@@ -562,8 +564,9 @@ with a line naming the wait).
 Built and finished by its agent at tip `e38a7dea6a` (2026-11-03T08:24:13-05:00),
 main merged in as `0fec1a97e6`.
 The wrapper's own `git push` no longer sets `GIT_HTTP_LOW_SPEED_LIMIT` and `GIT_HTTP_LOW_SPEED_TIME`
-(`lfs_bounded_push.rs`);
-the auto-push fetch still does.
+(`lfs_bounded_push.rs`),
+and since `feat/git-policy-cli-pushes-wait-while-connected-lfs-5xx` (in the 0.5.28 base) the auto-push reconcile fetch
+sets none either.
 A value the person set reaches Git unchanged,
 and Git reads `http.lowSpeedLimit` and `http.lowSpeedTime` itself
 (Git 2.56.0 `http.c` lines 453-460,
@@ -1030,6 +1033,24 @@ each stays open to the owner's veto and is listed for the owner on return.
    no stall window for a connected push,
    no ceiling,
    no low-speed abort.
+   Built:
+   `feat/git-policy-cli-pushes-wait-while-connected-lfs-5xx` `3ae733155f`,
+   merged into the 0.5.28 base (`5299b6d102`);
+   connected means a process of the push holds an `ESTABLISHED` TCP socket (read through sock_diag).
+   Its three questions,
+   picked:
+   the 30 s window of a push with no open connection stays and is measured once logging records quiet time
+   (its option C over A,
+   because A leaves the value uncited);
+   its own extension of the connected wait to the reconcile fetch and the LFS upload stays
+   (both are part of the push,
+   and a clock there brings back the failure the owner's answer removed);
+   `QUERY_CEILING` (a wall-clock stop on read-only queries such as `git status`) moves to picks 4 and 9,
+   and the stop grace and the 4 MiB output cap are measured once logged.
+   Cost of the rule,
+   from its agent:
+   a live remote that holds the connection without answering holds that repository's pushes until the remote or TCP
+   ends it.
 6. Waits on the service:
    A,
    heartbeats and no client wall-clock bound;
@@ -1077,6 +1098,9 @@ each stays open to the owner's veto and is listed for the owner on return.
     HTTP 5xx classed as outside our control (a server fault,
     like "Network down"),
     retried by the service's push retry plan alone (option B's single mechanism).
+    Built on the same branch as pick 5;
+    a typed `git push` has no plan,
+    so it now ends at the first 5xx with the explanation.
 13. Service housekeeping:
     A,
     measured from its journal and timing logs.
