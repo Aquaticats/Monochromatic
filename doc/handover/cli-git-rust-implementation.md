@@ -48,9 +48,9 @@ Tips were read from `git for-each-ref` at 2026-11-03T08:16:08-05:00 and keep mov
 
 - `fix/git-policy-cli-commits-never-fail` `f160209787`,
   worktree `.claude/worktrees/commits-never-fail`.
-- `fix/git-policy-cli-plain-commit-finishes-conflicted-merge` `34ddfb4064`,
+- `fix/git-policy-cli-plain-commit-finishes-conflicted-merge` `a06af6102c` (finished),
   worktree `.claude/worktrees/plain-commit-conflicted`.
-- `fix/git-policy-cli-no-inner-quiet-and-slow-server-waits` `c797cc3bdc`,
+- `fix/git-policy-cli-no-inner-quiet-and-slow-server-waits` `e38a7dea6a` (finished),
   worktree `.claude/worktrees/no-inner-quiet-slow-server`.
 - `feat/git-policy-cli-word-level-second-merge-pass` `8cc36cd4b6`,
   fifteen commits ahead of the merge base,
@@ -202,10 +202,11 @@ Owner answer:
 "Warn and finish the merge (Recommended)":
 a plain `git commit` with unmerged files lands as the merge commit with
 the markers and warns per file.
+Finished at `a06af6102c` (2026-11-03T08:16:26-05:00),
+host suite 3606 and binary suite 605 passed on its agent's run.
 Remaining:
-finish,
+merge into the 0.5.27 candidate,
 gate,
-merge,
 release.
 
 ### No wrapper `--quiet` anywhere, and pushes that wait while connected
@@ -223,13 +224,38 @@ progress through TCP counters,
 because `push_progress.rs` notes `rchar` and `wchar` miss `send` and `recv`;
 once the pack is sent keep waiting while the connection is open,
 with a line naming the wait).
+Built and finished by its agent at tip `e38a7dea6a` (2026-11-03T08:24:13-05:00),
+main merged in as `0fec1a97e6`.
+The wrapper's own `git push` no longer sets `GIT_HTTP_LOW_SPEED_LIMIT` and `GIT_HTTP_LOW_SPEED_TIME`
+(`lfs_bounded_push.rs`);
+the auto-push fetch still does.
+A value the person set reaches Git unchanged,
+and Git reads `http.lowSpeedLimit` and `http.lowSpeedTime` itself
+(Git 2.56.0 `http.c` lines 453-460,
+1477-1478 and 1218-1223).
+Red `f0c0ad7112`:
+a push whose hook sleeps past the old 60 s cutoff failed with curl's "Operation too slow";
+fix `fb1e093809` makes it land;
+re-adding the call made it fail again.
+Control:
+a person's 2-second setting still ends a 12-second silent wait with Git's error.
+Checks on the tip:
+clippy clean,
+host suite 3634 of 3634;
+the binary suite had 3 failures at host load average 57,
+two passed alone,
+and `a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait` failed twice alone at load 38-44
+and passed at load 11
+(see "Known flakes and failures not yet fixed").
 Unknown:
 whether GitHub sends keepalives (Git's `receive.keepAlive` default is 5 s).
+Not exercised:
+IPv6 sockets,
+real GitHub keepalives,
+real `ssh://` or `git://` pushes.
 Remaining:
-red tests first,
-with a fixture remote whose hook sleeps silently,
-then gate,
-merge,
+merge into the 0.5.27 candidate,
+gate,
 release.
 
 ### Word-level second merge pass
