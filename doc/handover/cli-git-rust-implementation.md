@@ -215,7 +215,75 @@ Done since the last list:
   P1,
   `explore_bounded_by` (`model_explore.rs:494-523`) can report a wait bounded when another process's retry loop is its only successor,
   so current green reports do not approve revision 11.
-  Part two is running (`commit-models-sol-2b.txt`).
+  Part one's verdict:
+  "Sound after named fixes"
+  (also P1:
+  F4's green candidate disables the pathname replacement schedule and makes recovery atomic).
+  Part two (`commit-models-sol-2b.txt`,
+  2026-11-03T18:35:14Z):
+  "Not sound as verification of revision 11's owner contract";
+  P1s:
+  the W1/P2 model's invariant approves the rejected outcome (a success return before a later publication),
+  and P2c and recovery are infallible atomic publications;
+  P2s on the register (every action completes by assignment;
+  R11-9's missing waits),
+  F7,
+  maintenance,
+  M1 compare-and-unlink,
+  a merge edit-loss invariant that cannot fail,
+  F9,
+  terminal races,
+  and the disposable Git runner,
+  which can itself wait indefinitely.
+- Every wait gets a bound:
+  done on `fix/git-policy-cli-every-wait-has-a-bound` tip `9e553376db`
+  (from `14c26dbcc9`,
+  `e7e304ffd6` merged as `0e20b70ecf`),
+  inventory `doc/planning/cli-git-no-unbounded-waits.md` (35 waits).
+  Bounds in `src/native/wait_ceilings.rs`:
+  `ANSWER_CEILING` 20 min (longest answer wait 308 s,
+  longest commit 751 s),
+  `WITHDRAW_CEILING` 10 min,
+  `START_CEILING` 60 s,
+  `SERVICE_HOLD_CEILING` 10 min,
+  `LOCK_CEILING` 10 min (unmeasured),
+  `CONNECTED_PUSH_QUIET_WINDOW` 150 s (unmeasured),
+  `PHASE_PATIENCE` 5 min.
+  At `LOCK_CEILING` the batch is withdrawn before the branch moves and kept on `refs/cli-git/kept/<batch>`;
+  at `ANSWER_CEILING` the client sends a protocol-7 `withdraw`,
+  so the commit either landed or never will.
+  Limit:
+  a withdrawal is handled between landings,
+  so one sent during a long landing step waits for that step.
+  1055 unit and 209 binary tests passed,
+  clippy clean;
+  one control (`a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_side_ref`) failed once at its 10 s patience.
+  `1052716538` carries a merge subject on a one-parent commit (a path-limited commit during the merge,
+  as SPEC's "Named paths during a merge" designs);
+  corrective comment:
+  <https://github.com/Aquaticats/Monochromatic/commit/1052716538c78c6c2bb45ebbf8937d6f5ba6c79c#commitcomment-207979251>.
+  Coordinator's picks on its option sets,
+  under the delegation,
+  veto open:
+  A,
+  not the agent's B:
+  every step class gets a service-side ceiling below `ANSWER_CEILING`,
+  `never_stop` steps included,
+  and after ending one the branch is read (moved:
+  landed;
+  not moved:
+  withdrawn as at `LOCK_CEILING`),
+  because under B one step that never returns holds the landing thread for good and every later commit fails at `ANSWER_CEILING`,
+  while ending a reference update cannot half-write it (lock file and rename) and its lock is cleared by the shipped stale-lock removal;
+  B exempt (the person's own command);
+  C 150 s;
+  D withdraw;
+  E exempt.
+  The agent was resumed to build pick A and the push's "queued" line
+  (the owner's push answer says the command says it is queued;
+  not built yet),
+  then to merge the base tip.
+  The 150 s `UNASKABLE_HOLD_AGE` still waits for the owner.
 - Queued for the next free agent slot:
   the components fixes from the fourth review;
   the explorer fix and the rest of the models review's findings (independent of revision 12),
