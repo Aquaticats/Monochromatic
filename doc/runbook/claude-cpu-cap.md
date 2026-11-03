@@ -46,8 +46,16 @@ cd /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/claude-
 Terminal scopes get the same weight from
 `~/.config/systemd/user/app-ghostty-surface-transient-.scope.d/10-io-weight.conf` (`IOWeight=10`), which covers other
 agent harnesses, builds and commits run from a terminal.
+Since the interim OdyTTY switch on 2026-11-02,
+the host also has `app-odytty@.service.d/10-io-weight.conf` and `app-odytty-.scope.d/10-io-weight.conf`
+under `~/.config/systemd/user/`.
+The former sets `IOWeight=10` in `[Service]` for desktop-entry launches;
+the latter sets it in `[Scope]` for AppImage scope launches.
+Disposable service and scope launches inherited `10`,
+and the running OdyTTY service's `io.weight` and `io.bfq.weight` both read `default 10` after the live update.
+The Ghostty drop-in remains available for explicit Ghostty launches.
 Evidence and measurements: `doc/planning/agent-search-io-throttle.md`.
-To undo: delete the drop-in and run `systemctl --user daemon-reload`, and set `DEFAULT_IO_WEIGHT` in
+To undo: delete the applicable terminal drop-ins and run `systemctl --user daemon-reload`, and set `DEFAULT_IO_WEIGHT` in
 `package/claude-cpu-cap/daemon/src/constants.ts` to 100.
 
 ## Tone the cap down or up

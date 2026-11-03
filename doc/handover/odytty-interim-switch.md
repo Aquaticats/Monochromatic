@@ -27,9 +27,33 @@ No new ranking or complete technology audit is claimed.
   Validate the release package and image integration without replacing an existing VM.
 - [x] Check current agent input compatibility,
   especially the historical Claude Code Shift+Enter limitation.
+- [x] Carry the existing terminal I/O priority to OdyTTY desktop services and AppImage scopes.
 - [ ] Commit scoped changes and record verification results and remaining limits.
 
 ## Completed verification
+
+The VM image build completed with exit status `0`:
+`localhost/monochromatic-dev:latest`,
+image `545a8c81c868ed6d5495357552bb618b3d0d21dd53004af288d292016ac3b326`.
+`mise run //package/vm-builder/cli:image:check` passed in disposable containers with networking disabled.
+As the image's regular `user`,
+OdyTTY reports `0.17.5`,
+loads the seeded JetBrains Mono font preference at size `20`,
+and resolves the custom theme.
+The KDE and XDG defaults both point to `io.unfinished_works.odytty.desktop`.
+Graphical launch from the image remains to be checked.
+
+The active host OdyTTY service initially had no `IOWeight` setting;
+its kernel `io.weight` and `io.bfq.weight` were both `default 100`.
+The existing Ghostty policy used `IOWeight=10`.
+The new host drop-ins are
+`~/.config/systemd/user/app-odytty@.service.d/10-io-weight.conf`
+and `~/.config/systemd/user/app-odytty-.scope.d/10-io-weight.conf`.
+Disposable service and scope fixtures inherited `IOWeight=10` and were stopped.
+The running OdyTTY service was updated without restarting it;
+both kernel weight files now read `default 10`.
+This is a configuration check,
+not a new performance measurement.
 
 Claude Code `2.1.317` passed the live OdyTTY input check without patching:
 Shift+Enter inserted a newline,
@@ -73,9 +97,10 @@ A separate fetch of Fedora's `15,678,154`-byte primary metadata file from the di
 completed in `3.460687` seconds.
 These are different requests,
 not a controlled bandwidth benchmark or a build completion forecast.
-The next build uses the optional `FEDORA_DIRECT_MIRROR=true` argument,
+The successful build used the optional `FEDORA_DIRECT_MIRROR=true` argument,
 preserving package signature verification.
 The stopped build log is `${HOME}/temp/agent/odytty-switch-20261102/image-build.log`.
+The successful build and inspection logs are `image-build-direct.log` and `image-check.log` in the same directory.
 
 ## Initial inventory
 
