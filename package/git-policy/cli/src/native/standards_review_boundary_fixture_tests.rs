@@ -127,6 +127,7 @@ fn a_tree_without_source_files_is_an_error() {
 }
 
 /// A link in the tree may point outside it or nowhere, so the walk is an error and not a pass.
+#[cfg(unix)]
 #[test]
 fn a_link_in_the_tree_is_an_error() {
     let root = fixture("boundary-scan-link");

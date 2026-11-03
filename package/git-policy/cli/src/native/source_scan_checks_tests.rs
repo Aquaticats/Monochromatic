@@ -143,7 +143,7 @@ fn an_untrustworthy_tree_is_an_error() {
     assert!(module_tree(&rootless, &[release_root("lib.rs")]).is_err(), "a root that is not there");
 }
 
-/// The walk lists nested files by relative name, and an empty tree, an absent root and a link are errors.
+/// The walk lists nested files by relative name, and an empty tree and an absent root are errors.
 #[test]
 fn the_walk_lists_everything_or_fails() {
     let nested = fixture("scan-walk-nested");
@@ -153,6 +153,12 @@ fn the_walk_lists_everything_or_fails() {
     write_tree(&empty, &[("notes.md", "no source here")]);
     assert!(discover(&empty).is_err(), "an empty listing proves nothing");
     assert!(discover(&nested.join("absent")).is_err(), "a root that is not there");
+}
+
+/// A link in the tree may point outside it or nowhere, so the walk is an error and not a listing.
+#[cfg(unix)]
+#[test]
+fn the_walk_refuses_a_link() {
     let linked = fixture("scan-walk-link");
     write_tree(&linked, &[("real.rs", "")]);
     std::os::unix::fs::symlink(linked.join("nowhere.rs"), linked.join("dangling.rs")).expect("a dangling link");
