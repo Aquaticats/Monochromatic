@@ -51,6 +51,15 @@ Ctrl+C,
 and Escape.
 The hold option retained the window after child exit;
 the next key closed it with exit status `0`.
+The same checks passed through the installed system `xdg-terminal-exec` in `xdg-verified`.
+Its read-only `--print-id --print-cmd` probe against the real host configuration selects `odytty.desktop`.
+
+The scoped Markdown lint task passed for every changed Markdown file.
+The installed `marked` renderer produced the expected headings,
+code spans,
+links,
+and lists for those files;
+rendered output was inspected.
 
 The VM image definition and dotfiles were committed in `39113fdeba`.
 The build-context allowlist referenced obsolete `packages/config/dotfiles/`;
