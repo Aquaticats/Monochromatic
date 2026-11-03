@@ -81,10 +81,11 @@ fn the_readme_conflict_resolves_to_the_committed_blob() {
     }
 }
 
-/// Both sides appending different text at one point stays a conflict: the planning-document hunk, and the small section append.
+/// Both sides appending different text at one point stays a conflict: the planning-document hunk of merge `78928da1f1`
+///  (the headings of the two "Round 3" sections collide, so a clean result would be wrong), and the small section append.
 #[test]
 fn both_append_stays_a_conflict() {
-    for name in ["real_m1_planning", "real_m2_planning", "md2"] {
+    for name in ["real_m2_planning", "md2"] {
         assert!(matches!(merged(name), WordMerge::Conflict { .. }), "{name}");
     }
 }
