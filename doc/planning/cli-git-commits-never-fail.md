@@ -412,25 +412,34 @@ Build and publication (lane)
   `attempt`, discard the old `ready` record, and re-enter B1 (with `hook-ok` kept for the version, so no hook is re-run); P1 follows from
   `ready`. The durable version update is that replacement. Crash: the old `ready` or `pending` record stays valid until the replacement
   is renamed, so a crash leaves either the old state or the new one.
-- E1 classify a P2 exit. Pre: P2's child ended, or was ended by the outside (a kill, OOM or reboot). Do: classify in this order, using the exit
-  status, the diagnostic read with `LC_ALL=C`, and the state read after the exit (never the diagnostic alone):
-  (a) the tip equals `new` or the recovery classes R1 to R3 hold: published (P3);
-  (b) the diagnostic names a held ref lock (`Unable to create '...lock'`, `lockfile.c:266`, the lock exists) or an old-value mismatch, and the tip still equals
-      `old` or moved: P4;
-  (c) the diagnostic is the reference-transaction hook abort text (`in '<phase>' phase, update aborted by the reference-transaction hook`,
-      `refs.c:65-66`, die at `refs.c:2716,2726`) and the tip equals `old` and the lock file is absent: the hook refused; record `refused` with the hook's
-      own stderr; nothing was changed; no retry of the hook. The classification text is verified against the installed Git in step 1;
-  (d) any other exit, a signal, or an exit whose evidence matches none of the above (the outside ended it; Git's own failure; a lock
-      left by a killed process): treated exactly as a crash at P2, by the recovery classes R1 to R5, and a lock that remains is the
-      A-kill narrowing (the wrapper does not remove it, and the request stays pending with the message naming the lock).
-  X1 never cancels P2's child (update-ref is exempt). Crash: as P2.
-- Recovery classes for an attempt, in this order. R1 a durable `published`: published. R2 the new commit is the tip or an ancestor of
-  it: published. R3 a reflog entry after the anchor whose own recorded old value is the new commit: `rewritten-away` (saved, not
-  republished); this is checked before any `swap-failed`, because a failed invocation does not say the request was never satisfied.
-  R4 a recorded `swap-failed` and no R1 to R3 evidence, and the reflog after the anchor is intact (its line count and last line match the journal's
-  record of the anchor): replay on the tip; if the post-anchor reflog lines are missing or were rewritten, R4 does not apply, because the missing lines
-  could be the evidence of R3, and the attempt is class R5. R5 anything else: `landing`, owner decision 3: replay and
-  land with a message naming the commit and the command to drop it.
+- E1 classify a P2 exit (R9-8). Pre: P2's child ended while this incarnation was alive to observe it. Do: classify from the child's own result only,
+  its exit status and the last line of its diagnostic read with `LC_ALL=C`, before reading any ref, lock or reflog state, and record the class in
+  the next S1 replacement before anything else is done: a ref, lock or reflog state read after the exit can be changed by a foreign program
+  after the transaction finished, so it never decides between these classes.
+  (a) exit 0: `update-ref` reported success; published (P3).
+  (b) the diagnostic names a held ref lock (`Unable to create '...lock'`, `lockfile.c:266`) and exits nonzero: the invocation never reached a ref
+      write; P4 with class `lock-held`.
+  (c) the diagnostic names an old-value mismatch: P4 with class `old-mismatch`.
+  (d) exit status 128 and the last line is the hook-abort text (`in '<phase>' phase, update aborted by the reference-transaction hook`,
+      `refs.c:65-66`, die at `refs.c:2716,2726`, both in `ref_transaction_prepare` before any ref is written): the hook refused; record `refused`
+      with the hook's own stderr; nothing was changed; no retry of the hook. No predicate on the tip or on a lock file is part of this class: a
+      foreign advance after the refusal does not change it. The text is verified against the installed Git in step 1 and the classifier is
+      versioned with it; a hook that prints that text itself and exits nonzero for another reason is a classifier risk stated in the model.
+  (e) any other exit, a signal, or a result the owner could not record (the outside ended it; Git's own failure; the owner died before
+      recording): treated as a crash at P2, by the recovery classes below.
+  The positive evidence classes keep their own outcomes and are never collapsed: R1 and R2 give `published`; R3 gives `rewritten-away` (saved,
+  not republished, notice naming the commit); only R4 and R5 can make another attempt. X1 never cancels P2's child (update-ref is exempt).
+  Crash: as P2. Residue stated: a refusal not yet recorded when the owner dies is later judged by the recovery classes, so the hook may run again
+  at the next attempt.
+- Recovery classes for an attempt, in this order. R1 a durable `published`: published. R2 the new commit is the tip or an ancestor of it:
+  published. R3 a reflog entry after the anchor whose own recorded old value is the new commit: `rewritten-away` (saved, not republished); this
+  is checked before any `swap-failed`, because a failed invocation does not say the request was never satisfied. R4 a recorded `swap-failed` of
+  class `lock-held` recorded by the owner that observed it (E1 (b)) and no R1 to R3 evidence: the invocation never reached a ref write, so the
+  next attempt is a new commit built by Q1 (a different object, with a new committer date), silently. R5 anything else, including every
+  `swap-failed` of class `old-mismatch`, every attempt found after an owner's death, and an erased or missing reflog suffix (the log restored to
+  its anchor is also the observable state of an attempt that appended nothing, and the design has no oracle that separates them): `landing`,
+  owner decision 3: replay and land with a message naming the commit and the command to drop it. The F1 closure claim of revision 9, that R4
+  could require an intact suffix, is withdrawn: no `reflog_intact` observation exists to test.
 
 Materialization and retirement
 - M1 materialize (one path for every follow-up, whether the lock is free now or later). Pre: `published`, the attachment guard,
@@ -621,7 +630,8 @@ to F9 of the verification plan; "new" is a model to add. Each schedule goes red 
   hook refuses after the checkout while an editor saves a merged file (red under 8: no restoration; green under 9: MG6); a lost swap after a
   checkout (green under 9: MG5); a held hook that succeeds and the tip moves (red under 8: held, success, replay, held; green: `hook-ok`).
 - R4 (model finding on F1). Schedule: the post-anchor reflog lines erased after a `swap-failed`. Red under 8 (silent replay); green under 9
-  (R4 requires an intact reflog, otherwise class R5, which lands with a notice).
+  (R4 requires an intact reflog, otherwise class R5, which lands with a notice). Revision 10 note (R9-7): this closure is withdrawn; there is no
+  observable intact-reflog predicate, and absence of evidence is class R5.
 
 ### Rationale for the lane transitions L1 to L7 (explains; the state machine governs)
 
@@ -1006,8 +1016,8 @@ Hooks and owner death.
 When a `reference-transaction` hook is configured the lane writes `hook-dispatch <id> <attempt>` (fsync) before it invokes
 `update-ref`. It is conservative evidence that a hook may have run; it is not an admission interlock (the gate is) and it does not give
 exactly-once effects. After an owner death with no durable `published`, recovery runs the evidence rules first and invokes `update-ref`
-again only if the recovery classes say to publish (R4 a recorded `swap-failed` with no positive evidence, or R5 unclear, which owner
-decision 3 lands). Git's contract allows the
+again only if the recovery classes say to publish (R4 a recorded `swap-failed` of class `lock-held` that the live owner observed, or R5 unclear, which owner
+decision 3 lands, and which includes every attempt found after an owner's death without positive evidence). Git's contract allows the
 repetition: the hook "executes whenever a reference transaction is preparing, prepared, committed or aborted and may thus get called
 multiple times" (`Documentation/githooks.adoc:486-488`). The concession is stated directly (question 3, picked A): an external effect of
 a hook on "prepared" may happen again after an interrupted attempt, and neither the journal nor the transaction state proves
