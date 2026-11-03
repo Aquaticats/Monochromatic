@@ -75,6 +75,12 @@ pub enum Waited {
 
 /// Who holds the lock at `lock` now.
 fn holder_of(lock: &Path) -> Holder {
+    return holder_after_pauses(lock, &|| { std::thread::sleep(EMPTY_PAUSE); });
+}
+
+/// `holder_of` with the pause between the reads of an empty lock given,
+/// so a control can write the mark inside a pause instead of racing a timer against it.
+fn holder_after_pauses(lock: &Path, pause: &dyn Fn()) -> Holder {
     for look in 0..EMPTY_LOOKS {
         let mut file = match std::fs::File::open(lock) {
             Ok(file) => file,
@@ -97,7 +103,7 @@ fn holder_of(lock: &Path) -> Holder {
             return Holder::Foreign;
         }
         if look + 1 < EMPTY_LOOKS {
-            std::thread::sleep(EMPTY_PAUSE);
+            pause();
         }
     }
     return Holder::Foreign;

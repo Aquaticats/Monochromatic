@@ -18,6 +18,72 @@ fn marked(seq: u64) -> String {
     return format!("{LOCK_MARKER}{seq}\n");
 }
 
+/// A notice sink that makes the holder let go when the first notice is written, and keeps what was written.
+/// Why:
+///   The notice is the wait's own report that it has looked at the held lock and is waiting,
+///   so a release made there happens after the look at the point the control means, with no clock deciding it.
+struct ReleaseOnNotice {
+    lock: PathBuf,
+    text: Vec<u8>,
+    released: bool,
+}
+
+impl ReleaseOnNotice {
+    fn holding(lock: &Path) -> ReleaseOnNotice {
+        return ReleaseOnNotice { lock: lock.to_path_buf(), text: Vec::new(), released: false };
+    }
+
+    fn written(&self) -> String {
+        return String::from_utf8_lossy(&self.text).into_owned();
+    }
+}
+
+impl Write for ReleaseOnNotice {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.text.extend_from_slice(bytes);
+        if !self.released {
+            self.released = true;
+            std::fs::remove_file(&self.lock).expect("release");
+        }
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// Starts a thread that removes `lock` as soon as anything opens it, which the wait does at its first look.
+/// Why:
+///   The release follows the look because the look is what triggers it, so no clock decides whether the wait finds the lock
+///   held. The watch is set before this returns, so an open that follows is not missed.
+fn release_when_opened(lock: &Path) -> std::thread::JoinHandle<()> {
+    use std::os::unix::ffi::OsStrExt;
+    let directory = std::ffi::CString::new(lock.parent().expect("a directory").as_os_str().as_bytes()).expect("a path");
+    // SAFETY: plain system calls with valid arguments; the descriptor is closed by the thread.
+    let descriptor: i32 = unsafe { libc::inotify_init1(libc::IN_CLOEXEC) };
+    assert!(descriptor >= 0, "inotify is available");
+    // SAFETY: `directory` is a valid NUL-terminated string for the call.
+    let added: i32 = unsafe { libc::inotify_add_watch(descriptor, directory.as_ptr(), libc::IN_OPEN) };
+    assert!(added >= 0, "the directory is watched");
+    let target: PathBuf = lock.to_path_buf();
+    return std::thread::spawn(move || {
+        let name: Vec<u8> = target.file_name().expect("a name").as_bytes().to_vec();
+        loop {
+            let mut buffer: [u8; 4096] = [0; 4096];
+            // SAFETY: the buffer is valid for its length.
+            let read: isize = unsafe { libc::read(descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
+            let count: usize = usize::try_from(read).expect("events were read");
+            if buffer[..count].windows(name.len()).any(|window| { return window == name.as_slice(); }) {
+                break;
+            }
+        }
+        // SAFETY: the descriptor belongs to this thread and is closed once.
+        unsafe { libc::close(descriptor) };
+        std::fs::remove_file(&target).expect("release");
+    });
+}
+
 /// Nobody, the service by its mark, and anything else are told apart; an empty lock is a foreign program's.
 #[test]
 fn the_holder_is_told_by_the_mark() {
@@ -36,18 +102,33 @@ fn the_holder_is_told_by_the_mark() {
 }
 
 /// A lock written in two steps, the mark arriving a moment after the file exists, is still the service's.
+/// The mark is written inside the first pause between two reads, so the read that follows it is the one that finds it,
+/// whatever the host's speed.
 #[test]
 fn a_mark_that_arrives_a_moment_late_is_still_the_services() {
     let root: PathBuf = fixture("index-wait-late");
     let lock: PathBuf = lock_path_of(index_in(root.as_path()).as_path());
     std::fs::write(&lock, "").expect("lock");
-    let writer: PathBuf = lock.clone();
-    let late = std::thread::spawn(move || {
-        std::thread::sleep(EMPTY_PAUSE);
-        std::fs::write(writer, marked(1)).expect("mark");
-    });
-    assert_eq!(holder_of(lock.as_path()), Holder::Service);
-    late.join().expect("writer");
+    let pauses: std::cell::Cell<u32> = std::cell::Cell::new(0);
+    let writing = || {
+        pauses.set(pauses.get() + 1);
+        std::fs::write(&lock, marked(1)).expect("mark");
+    };
+    assert_eq!(holder_after_pauses(lock.as_path(), &writing), Holder::Service);
+    assert_eq!(pauses.get(), 1, "the mark was found by the read that followed the first pause");
+    remove(root.as_path());
+}
+
+/// A lock that stays empty through every read is a foreign program's, after the reads are used up.
+#[test]
+fn a_lock_that_stays_empty_is_foreign_after_the_reads_are_used_up() {
+    let root: PathBuf = fixture("index-wait-empty");
+    let lock: PathBuf = lock_path_of(index_in(root.as_path()).as_path());
+    std::fs::write(&lock, "").expect("lock");
+    let pauses: std::cell::Cell<u32> = std::cell::Cell::new(0);
+    let counting = || { pauses.set(pauses.get() + 1); };
+    assert_eq!(holder_after_pauses(lock.as_path(), &counting), Holder::Foreign);
+    assert_eq!(pauses.get(), EMPTY_LOOKS - 1, "one pause between each two reads");
     remove(root.as_path());
 }
 
@@ -66,22 +147,17 @@ fn nothing_is_waited_for_when_nobody_or_a_foreign_program_holds_the_index() {
 
 /// The service's hold is waited for until it is released, the release is seen as an event, and the notice names the command
 ///  and the service.
+/// The holder lets go when the first notice is written, so the release follows the wait's look at the held lock.
 #[test]
 fn the_services_hold_is_waited_for_until_it_is_released() {
     let root: PathBuf = fixture("index-wait-release");
     let index: PathBuf = index_in(root.as_path());
     let lock: PathBuf = lock_path_of(index.as_path());
     std::fs::write(&lock, marked(3)).expect("lock");
-    let released: PathBuf = lock.clone();
-    let releaser = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(150));
-        std::fs::remove_file(released).expect("release");
-    });
-    let mut out: Vec<u8> = Vec::new();
+    let mut out: ReleaseOnNotice = ReleaseOnNotice::holding(lock.as_path());
     let outcome: Waited = wait_for_service_hold(index.as_path(), "rebase", Duration::from_secs(30), QUICK, &mut out);
-    releaser.join().expect("releaser");
     assert_eq!(outcome, Waited::Released);
-    let text: String = String::from_utf8_lossy(&out).into_owned();
+    let text: String = out.written();
     assert!(text.contains("git rebase") && text.contains("commit service"), "{text}");
     assert!(!text.contains("index.lock") && !text.contains("lock"), "no internal name reaches the person: {text}");
     remove(root.as_path());
@@ -119,17 +195,14 @@ fn a_hold_older_than_any_landing_is_not_waited_for() {
 }
 
 /// A landing that ends within the grace prints nothing.
+/// The holder lets go when the wait first opens the lock, so the release always follows the look.
 #[test]
 fn a_hold_released_within_the_grace_prints_nothing() {
     let root: PathBuf = fixture("index-wait-grace");
     let index: PathBuf = index_in(root.as_path());
     let lock: PathBuf = lock_path_of(index.as_path());
     std::fs::write(&lock, marked(4)).expect("lock");
-    let released: PathBuf = lock.clone();
-    let releaser = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(20));
-        std::fs::remove_file(released).expect("release");
-    });
+    let releaser = release_when_opened(lock.as_path());
     let mut out: Vec<u8> = Vec::new();
     let slow: Cadence = Cadence { grace: Duration::from_secs(30), interval: Duration::from_secs(30) };
     assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(60), slow, &mut out), Waited::Released);
@@ -157,22 +230,18 @@ fn a_watch_that_ended_is_set_again_and_the_release_that_follows_is_seen() {
     let set_watch = |directory: &Path| -> Option<Watch> {
         set.set(set.get() + 1);
         if set.get() > 1 {
+            // The holder lets go as the new watch is set, after the wait found the lock held and the first watch over.
+            std::fs::remove_file(&lock).expect("release");
             return Watch::on(directory);
         }
         let ending: Option<Watch> = Watch::on(decoy.as_path());
         std::fs::remove_dir(&decoy).expect("the watched directory goes");
         return ending;
     };
-    let released: PathBuf = lock.clone();
-    let releaser = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(300));
-        std::fs::remove_file(released).expect("release");
-    });
     let began: Instant = Instant::now();
     let mut out: Vec<u8> = Vec::new();
     let slow: Cadence = Cadence { grace: Duration::from_secs(30), interval: Duration::from_secs(30) };
     let outcome: Waited = wait_with_watches(index.as_path(), "add", Duration::from_secs(60), slow, &mut out, &set_watch);
-    releaser.join().expect("releaser");
     assert_eq!(outcome, Waited::Released);
     assert_eq!(set.get(), 2, "a new watch was set once the first had ended");
     // The poll is 30 seconds apart: a release seen long before the next poll was seen as an event, and the wall time against
@@ -196,15 +265,12 @@ fn a_hold_whose_process_runs_is_not_stale_by_age() {
     std::fs::write(&lock, format!("{LOCK_MARKER}8 {} {identity}\n", std::process::id())).expect("lock");
     let long_ago: std::time::SystemTime = std::time::SystemTime::now() - HOLD_LIMIT - Duration::from_secs(60);
     std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
-    let released: PathBuf = lock.clone();
-    let releaser = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(200));
-        std::fs::remove_file(released).expect("release");
-    });
+    // The holder lets go when the first notice is written: the checks of age and of the holder have found the hold current.
+    let mut waiting: ReleaseOnNotice = ReleaseOnNotice::holding(lock.as_path());
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut waiting), Waited::Released);
+    assert!(!waiting.written().contains("does not wait for it"), "{}", waiting.written());
+    assert!(waiting.written().contains("waiting for the commit service"), "the hold was waited for: {}", waiting.written());
     let mut out: Vec<u8> = Vec::new();
-    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut out), Waited::Released);
-    releaser.join().expect("releaser");
-    assert!(!String::from_utf8_lossy(&out).contains("does not wait for it"), "{}", String::from_utf8_lossy(&out));
     let parts: Vec<&str> = identity.split('#').collect();
     std::fs::write(&lock, format!("{LOCK_MARKER}8 {} {}#{}#{}\n", std::process::id(), parts[0], "0".repeat(32), parts[2])).expect("lock of another boot");
     std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
