@@ -232,3 +232,55 @@ fn writers_paused_before_the_link_find_the_other_writers_result() {
     assert!(matches!(publisher.join().expect("join"), Err(RequestError::Conflict)));
     assert_eq!(decode(&std::fs::read(inbox.join(identity('c'))).expect("read")).expect("decode"), request('c', "second"));
 }
+
+/// Review 4 P1: a root that is a symlink is refused; its target's ancestry is not what the known-durable parent makes durable.
+#[test]
+fn a_symlinked_root_is_refused() {
+    let parent: PathBuf = scratch("seam-symlink-root");
+    let elsewhere: PathBuf = scratch("seam-symlink-target");
+    std::os::unix::fs::symlink(&elsewhere, parent.join("state")).expect("symlink");
+    assert!(init_root(&parent, &parent.join("state")).is_err());
+}
+
+/// Review 4 P2: a resend that finds the final binding already in place creates no temporary file (a full disk must not fail it).
+#[test]
+fn a_resend_creates_no_temporary_file() {
+    static TEMPORARY_WANTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    fn note(point: &str) {
+        if point == "bind:before-temporary" {
+            TEMPORARY_WANTED.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    let root: PathBuf = scratch("seam-no-temporary");
+    let id: String = identity('5');
+    let hash: String = sha256_hex(b"x");
+    set_fault_point(Some(note));
+    assert_eq!(bind(&root, &id, &hash).expect("bind"), Bound::Created);
+    // Positive control: the first bind does want a temporary file, so the fault point is live.
+    assert!(TEMPORARY_WANTED.load(std::sync::atomic::Ordering::SeqCst), "the fault point never fired");
+    TEMPORARY_WANTED.store(false, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(bind(&root, &id, &hash).expect("resend"), Bound::SameContent);
+    assert_eq!(bind(&root, &id, &sha256_hex(b"y")).expect("other"), Bound::DifferentContent(hash));
+    set_fault_point(None);
+    assert!(!TEMPORARY_WANTED.load(std::sync::atomic::Ordering::SeqCst));
+}
+
+/// Review 4 P2: an append to a clean ledger reads only its tail, not the whole ledger.
+#[test]
+fn an_append_to_a_clean_ledger_reads_only_the_tail() {
+    let directory: PathBuf = scratch("seam-tail-read");
+    let ledger: PathBuf = directory.join("ledger");
+    for number in 0..200 {
+        let digit: char = char::from_digit(number % 10, 10).expect("digit");
+        append(&directory, &ledger, &entry(digit)).expect("append");
+    }
+    let size: usize = std::fs::metadata(&ledger).expect("size").len() as usize;
+    start_events();
+    append(&directory, &ledger, &entry('9')).expect("append");
+    let events: Vec<String> = take_events();
+    let reads: Vec<usize> =
+        events.iter().filter_map(|event| { return event.strip_prefix("read-bytes:").and_then(|n| { return n.parse::<usize>().ok(); }); }).collect();
+    assert!(!reads.is_empty(), "positive control: the repair records what it read");
+    let read: usize = reads.iter().sum();
+    assert!(read <= 1024, "read {} of {} bytes", read, size);
+}

@@ -422,3 +422,46 @@ fn a_populated_submodule_fast_forward_is_an_explicit_ancestry_fallback() {
     let link: &FlatEntry = merged.iter().find(|entry| { return entry.path == b"sub".to_vec(); }).expect("the gitlink");
     assert_eq!(link.id, oids[2].as_bytes().to_vec());
 }
+
+/// Review 4 section 8, item 6: a request is built from a real repository, its spool carries both sides, every object of the
+/// repository is then removed, and the replay runs from the reconstructed closure alone: clean against a tip that did not touch the
+/// path, a conflict against a tip that changed it differently.
+#[test]
+fn a_replay_from_a_closure_reconstructed_after_the_objects_were_pruned_is_clean_and_conflicting() {
+    use git_policy_cli::commit_integrity::sha256_hex;
+    use git_policy_cli::commit_request::{Change, Operation, Request};
+    use git_policy_cli::commit_spool::{read_closure, write_spool};
+    let repository: PathBuf = repository("replay-closure");
+    let root: String = git_text(&repository, &["rev-parse", "HEAD"]);
+    let base: String = commit_on(&repository, &root, &[Edit::Write("kept.txt", "base bytes\n"), Edit::Write("other.txt", "o\n")]);
+    let base_bytes: Vec<u8> = git(&repository, &["show", &format!("{}:kept.txt", base)]);
+    let request = Request {
+        id: "6".repeat(32),
+        branch: b"main".to_vec(),
+        base: base.clone(),
+        message: b"m".to_vec(),
+        operation: Operation::Commit,
+        changes: vec![Change {
+            path: b"kept.txt".to_vec(),
+            mode: "100644".to_string(),
+            sha256: sha256_hex(b"result bytes\n"),
+            old_mode: "100644".to_string(),
+            old_sha256: sha256_hex(&base_bytes),
+        }],
+    };
+    write_spool(&repository, &request.id, &[b"result bytes\n".to_vec()], &[base_bytes.clone()]).expect("spool");
+    for entry in std::fs::read_dir(repository.join(".git/objects")).expect("objects") {
+        std::fs::remove_dir_all(entry.expect("entry").path()).expect("prune");
+    }
+    let closure = read_closure(&repository, &request).expect("closure without any object");
+    let side = |bytes: &[u8]| -> FlatEntry { return FlatEntry { path: b"kept.txt".to_vec(), mode: 0o100_644, id: sha256_hex(bytes).into_bytes() }; };
+    let old: FlatEntry = side(&closure[0].old.as_ref().expect("old").1);
+    let new: FlatEntry = side(&closure[0].new.as_ref().expect("new").1);
+    let untouched: Vec<FlatEntry> = vec![old.clone()];
+    let clean: Replayed = replay_delta(&[old.clone()], &[new.clone()], &untouched);
+    assert!(clean.conflicts.is_empty());
+    assert_eq!(clean.entries, vec![new.clone()]);
+    let competing: Vec<FlatEntry> = vec![side(b"someone else's bytes\n")];
+    let conflict: Replayed = replay_delta(&[old], &[new], &competing);
+    assert_eq!(conflict.conflicts[0].kind, ConflictKind::BothChanged);
+}

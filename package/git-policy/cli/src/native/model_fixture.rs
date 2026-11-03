@@ -38,9 +38,51 @@ pub fn scratch(label: &str) -> PathBuf {
     return directory;
 }
 
-/// Runs real Git in `directory` with a hermetic environment and returns its raw output.
+/// The longest any process a fixture starts may run before it is killed ("nothing should ever wait forever or indefinitely").
+pub const PROCESS_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// What:
+///  Runs `command` with its output captured and kills it if it outlives `limit`; returns its output or a message that names the
+///  timeout. The standard output and error are read on their own threads so a full pipe cannot stall the child.
+/// Why:
+///  A fixture that waits on a hung child waits for ever; every process a test starts goes through this function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runBounded(command: Command, limitMs: number): Output; // throws on timeout
+/// ```
+pub fn run_bounded(command: &mut Command, limit: std::time::Duration) -> Result<Output, String> {
+    use std::io::Read;
+    use std::process::Stdio;
+    let mut child = command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|error| { return error.to_string(); })?;
+    let mut stdout = child.stdout.take().ok_or("no stdout".to_string())?;
+    let mut stderr = child.stderr.take().ok_or("no stderr".to_string())?;
+    let out_reader = std::thread::spawn(move || { let mut bytes: Vec<u8> = Vec::new(); let _ = stdout.read_to_end(&mut bytes); return bytes; });
+    let err_reader = std::thread::spawn(move || { let mut bytes: Vec<u8> = Vec::new(); let _ = stderr.read_to_end(&mut bytes); return bytes; });
+    let deadline = std::time::Instant::now() + limit;
+    let status = loop {
+        match child.try_wait().map_err(|error| { return error.to_string(); })? {
+            Some(status) => break status,
+            None => {
+                if std::time::Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("the process timed out after {:?} and was killed", limit));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
+    };
+    let stdout_bytes: Vec<u8> = out_reader.join().map_err(|_| { return "stdout reader".to_string(); })?;
+    let stderr_bytes: Vec<u8> = err_reader.join().map_err(|_| { return "stderr reader".to_string(); })?;
+    return Ok(Output { status, stdout: stdout_bytes, stderr: stderr_bytes });
+}
+
+/// Runs real Git in `directory` with a hermetic environment and returns its raw output; a Git that outlives `PROCESS_LIMIT` is killed
+/// and the test fails with the timeout.
 pub fn git_output(directory: &Path, arguments: &[&str]) -> Output {
-    return Command::new(REAL_GIT)
+    let mut command: Command = Command::new(REAL_GIT);
+    command
         .current_dir(directory)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
@@ -50,9 +92,8 @@ pub fn git_output(directory: &Path, arguments: &[&str]) -> Output {
         .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
         .env("GIT_COMMITTER_NAME", "Fixture")
         .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
-        .args(arguments)
-        .output()
-        .expect("start Git");
+        .args(arguments);
+    return run_bounded(&mut command, PROCESS_LIMIT).expect("bounded Git");
 }
 
 /// Runs Git, requires success and returns its standard output as bytes.

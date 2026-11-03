@@ -164,3 +164,7 @@ mod model_register;
 /// The controls of the register.
 #[path = "model_register_tests.rs"]
 mod model_register_tests;
+
+/// The bounded process runner of the fixtures.
+#[path = "model_fixture_tests.rs"]
+mod model_fixture_tests;
