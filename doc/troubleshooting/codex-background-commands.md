@@ -134,6 +134,15 @@ reported membership in `piwork3285273.slice/codex`,
 and returned its output successfully.
 Both upstream source selections were opened and their quoted text confirmed with `agent-browser`.
 
+The configuration record and its rendering task were committed as `8da30c2753`.
+The scoped `lint:monochromatic-lint` task passed.
+The `docs:render:background` task passed,
+and its rendered headings,
+paragraphs,
+links,
+and code blocks were inspected.
+The browser verification session was closed.
+
 ## Verified workaround and limits
 
 The installed configuration gives newly initialized code-mode sessions a zero-wait default.
