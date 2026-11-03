@@ -285,7 +285,10 @@ they narrow the window and do not close it.
    such as a commit,
   and refuses older Git.
   The wrapper finds the real Git by walking `PATH`,
-   skipping itself and any shim that leads back to it.
+   skipping itself and anything that leads back to it:
+   a link or a copy of the wrapper,
+   its toolchain launcher (recognised by the `.launch` record beside it),
+   and a script that starts the TypeScript wrapper.
 - `git-lfs` on `PATH`, only in a repository whose own Git configuration has `filter.lfs.*` or `lfs.*` keys.
 - The scanner and the Markdown linter are linked into the executable and need no separate installation.
 
@@ -318,6 +321,17 @@ ln --symbolic --force "$(mise which cli-git-native)" .cache/cli-git-bin/git
 Never name a file `git` inside the tool's own `bin/` directory.
 `mise` would then create a `git` shim for the whole account,
  and every Git command would run through the wrapper.
+
+The wrapper never starts itself as Git.
+If every `git` after the wrapper on `PATH` leads back to cli-git (the link directory comes alone, or the real Git's
+directory is missing), it starts nothing and stops with exit status 2.
+The message lists the `PATH` it read and every candidate with the reason it was skipped,
+and says how to fix it: install Git, or put the real Git's directory (for example `/usr/bin`) on the `PATH` of the
+program that ran the command.
+Every start of the real Git sets `CLI_GIT_STARTED_AS_GIT`, so a cli-git executable that a wrapper started as Git
+(another release, or a launcher without a record) stops on arrival with a message saying so;
+a hook, alias or editor that the real Git runs may still run an installed wrapper.
+The rule and the incident behind it are in `doc/planning/cli-git-no-self-invocation.md`.
 
 `PATH` shadowing covers only processes that find `git` through `PATH`.
 An absolute path to the real Git,

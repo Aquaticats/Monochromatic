@@ -733,7 +733,8 @@ The attribute sources are the tracked `.gitattributes` files from the root down 
 (`git var GIT_ATTR_SYSTEM`, learned once per executable and cached) and is off under `GIT_ATTR_NOSYSTEM`; it is never derived from
 the system configuration path, and when its place cannot be established the worktree is refused.
 The same holds for the system configuration file: both are learned from the real Git the wrapper forwards to, which the command
-resolves itself (the forward-target variable is in the environment of the Git processes the wrapper starts, never in its own),
+resolves itself (the forward-target variable is in the environment of the Git processes the wrapper starts, never in its own;
+see "The wrapper never starts itself as Git"),
 and the configuration listing reads its environment entries from the same variables the facts were read from. With no real Git
 found the worktree is refused, never guessed.
 Attribute lines, patterns and paths are read as bytes: only space, tab, carriage return and line feed separate tokens, a NUL ends
@@ -1950,6 +1951,43 @@ The wrapper injects no hook of its own, so no event is an exception.
 - Measured with Git 2.56.0 only; Git 2.39 was not available on the host.
   A missing `core.hooksPath` directory is the case the shadow commands already rely on (`<shadow>/no-hooks`),
   and the container end-to-end suite runs that on Git 2.39.5.
+
+### The wrapper never starts itself as Git
+
+The wrapper looks for the real Git on `PATH` and starts it; nothing it starts as Git may be a cli-git wrapper.
+The owner's rule: "We should never invoke ourselves recursively." (`doc/planning/cli-git-no-self-invocation.md`, which
+holds the incident of release 0.5.26, 2026-11-03, the cause, the options weighed and the controls.)
+
+- Selection skips a candidate that leads back to cli-git: the running executable through any link, spelling or
+  byte-identical copy, a script that starts the TypeScript wrapper, and a toolchain launcher of the wrapper.
+  A launcher is recognised by the record `<name>.launch` that sits beside it (or beside the file its links reach):
+  the record's `toolId` ends in `monochromatic-git-policy-cli`, or its `real` is this executable.
+  The record is read as JSON, up to 64 KiB, with no process started.
+- Every start of the real Git sets `CLI_GIT_STARTED_AS_GIT` in the environment of the start:
+  the starter's process number, its birth identity and the mode, `replace` when the starter replaces itself with the
+  program (a forwarded command) and `child` for every other start (queries, commit steps, pushes, maintenance, the
+  service's Git work).
+  The builders that set it are `git_command` in `forwarding.rs`, `replace_process_with_real_git`, `git_command` in
+  `auto_push_single_flight.rs`, and the two starts with a cleared environment, `ask_git_var` and `status_git_dir`.
+- A cli-git executable stops before it plans anything when the marker says it is the process of a `replace` starter
+  (same process number, same birth), or the child of a `child` starter (the marker names its parent, same birth).
+  A hook, an alias or an editor that the real Git starts has another process in between, so running an installed
+  wrapper there is not stopped. An identity that cannot be read decides by the numbers.
+- The stop is exit status 2 with one message that names this executable, the starter and how it started this process,
+  the file the starter chose as Git (`CLI_GIT_NATIVE_FORWARD_TARGET`), the `PATH` it saw, why it stops, and what to do:
+  put the directory of the real Git (for example `/usr/bin`) on the `PATH` of the program that started the first
+  cli-git, or remove the entry that leads back to cli-git from that `PATH`.
+- No real Git on `PATH` is a stop with exit status 2 as well. The message gives the counts, the `PATH` value, every
+  candidate with its verdict (skipped because it leads back to cli-git, or missing, not executable or unreadable),
+  and the ways out: install Git, add the real Git's directory to the `PATH` of the program that ran the command, or
+  remove an entry that should not be used. The wrapper does not search outside `PATH` except for the promotion of a
+  conventional location that `PATH` already exposes.
+- `cli-git-service` is never started by the wrapper and refuses a `--git` that is a launcher of the wrapper (a unit
+  written by a release that had the flaw holds such a path); the unit text includes `--git`, so the next wrapper that
+  provisions the unit writes it again. Its Git starts go through the marked builders.
+- Not covered: a user script named `git` that starts the wrapper as a child, with no launch record and no marker
+  string. The parent of the arriving wrapper is the script, not the starter; the message of a wrapper that cannot find
+  Git lists every candidate, which shows the script as the entry to remove.
 
 ### Git LFS upload before a push
 
