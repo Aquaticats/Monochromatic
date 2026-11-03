@@ -463,7 +463,7 @@ pub fn parse_index_yanked(text: &str) -> Result<BTreeSet<String>, RegistryError>
         // `Some`: the present or the absent value of an `Option`.
         // Closure `|value|`: an anonymous function, like a TS arrow function.
         // Adapter `.and_then(`: transforms or selects items with a closure.
-        if record.get("yanked").and_then(|value| { return value.as_bool(); }) == Some(true) {
+        if record.get("yanked").and_then(Value::as_bool) == Some(true) {
             // Borrow `&record`: lends the value without copying or giving it away.
             yanked.insert(string_field(&record, "vers"));
         }

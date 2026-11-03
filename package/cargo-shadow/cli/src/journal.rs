@@ -123,7 +123,7 @@ const INDEX_FILE: &str = "index.txt";
 
 /// The path of a sibling file used for the write half of an atomic replace.
 fn sibling_temp(target: &Path) -> PathBuf {
-    let mut name: std::ffi::OsString = target.file_name().map(|found| { return found.to_os_string(); }).unwrap_or_default();
+    let mut name: std::ffi::OsString = target.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
     name.push(format!(".cargo-shadow-{}.tmp", std::process::id()));
     return target.with_file_name(name);
 }

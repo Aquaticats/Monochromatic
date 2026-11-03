@@ -258,7 +258,7 @@ pub fn arguments_for(args: &[&str], offline: bool) -> Vec<String> {
     // ```ts
     // list.map(f).filter(g)
     // ```
-    return args.iter().filter(|argument| { return offline || **argument != "--offline"; }).map(|argument| { return argument.to_string(); }).collect();
+    return args.iter().filter(|argument| { return offline || **argument != "--offline"; }).map(ToString::to_string).collect();
 }
 
 /// The values of the `CI` variable that mean this is not a continuous integration run.

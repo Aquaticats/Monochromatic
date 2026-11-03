@@ -93,7 +93,7 @@ pub struct Pruned {
 /// Prunes the two exclude lists whose flags are on;
 /// the text is returned unchanged when nothing is stale.
 pub fn prune_excludes(source: &str, settings: &Settings, locked: &[LockedVersion]) -> Result<Pruned, String> {
-    let keys: BTreeSet<String> = locked.iter().map(|version| { return version.key(); }).collect();
+    let keys: BTreeSet<String> = locked.iter().map(LockedVersion::key).collect();
     let lists: [(&str, bool, &Vec<String>); 2] = [
         ("minimumReleaseAgeExclude", settings.minimum_release_age_exclude_prune, &settings.minimum_release_age_exclude),
         ("trustPolicyExclude", settings.trust_policy_exclude_prune, &settings.trust_policy_exclude),

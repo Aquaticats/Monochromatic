@@ -132,7 +132,7 @@ pub fn registry_versions(sources: &[String]) -> Result<Vec<LockedVersion>, Strin
         }
     }
     let mut sorted: Vec<LockedVersion> = unique.into_iter().collect();
-    sorted.sort_by_key(|version| { return version.key(); });
+    sorted.sort_by_key(LockedVersion::key);
     return Ok(sorted);
 }
 

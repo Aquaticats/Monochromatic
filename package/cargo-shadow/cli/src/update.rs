@@ -719,7 +719,7 @@ fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
     // ```
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     // Adapter `.map(`: transforms or selects items with a closure.
-    return snapshots.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
+    return snapshots.iter().map(LockSnapshot::source_text).collect();
 }
 
 /// What:

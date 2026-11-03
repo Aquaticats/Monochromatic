@@ -294,7 +294,7 @@ pub fn check_release_age(
             // list.map(f).filter(g)
             // ```
             // Typed binding: `pubtime: &str`.
-            let pubtime: &str = times.get(&version).map(|text| { return text.as_str(); }).unwrap_or("");
+            let pubtime: &str = times.get(&version).map(String::as_str).unwrap_or("");
             // Borrow `&name`: lends the value without copying or giving it away.
             findings.extend(release_age_problems(&name, &version, pubtime, settings, now));
         }

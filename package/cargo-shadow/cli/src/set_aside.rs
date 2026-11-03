@@ -329,7 +329,7 @@ fn age_refusals(added: &[LockedVersion], request: &SetAsideRequest) -> Result<Ve
             // ```ts
             // // TS has one type for this: string
             // ```
-            let pubtime: &str = times.get(&version).map(|text| { return text.as_str(); }).unwrap_or("");
+            let pubtime: &str = times.get(&version).map(String::as_str).unwrap_or("");
             // Borrow `&name`: lends the value without copying or giving it away.
             // Typed binding: `problems: Vec<String>`.
             let problems: Vec<String> = release_age_problems(&name, &version, pubtime, request.settings, request.now);
@@ -607,7 +607,7 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         // Adapter `.map(`: transforms or selects items with a closure.
         // Typed binding: `sources: Vec<String>`.
-        let sources: Vec<String> = current.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
+        let sources: Vec<String> = current.iter().map(LockSnapshot::source_text).collect();
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&sources`: lends the value without copying or giving it away.
         // Typed binding: `added: Vec<LockedVersion>`.

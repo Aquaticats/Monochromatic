@@ -237,7 +237,7 @@ pub fn is_fresh(stamp: &Path, lock: &Path) -> bool {
     // ```ts
     // // TS has one type for this: T[] / Set / Map / number
     // ```
-    let files: &Vec<Value> = match parsed.get("files").and_then(|value| { return value.as_array(); }) {
+    let files: &Vec<Value> = match parsed.get("files").and_then(Value::as_array) {
         // `Some`: the present or the absent value of an `Option`.
         Some(found) => found,
         // `None`: the present or the absent value of an `Option`.
@@ -268,19 +268,19 @@ pub fn is_fresh(stamp: &Path, lock: &Path) -> bool {
         // ```
         // Adapter `.and_then(`: transforms or selects items with a closure.
         // Typed binding: `path: &str`.
-        let path: &str = entry.get("path").and_then(|value| { return value.as_str(); }).unwrap_or("");
+        let path: &str = entry.get("path").and_then(Value::as_str).unwrap_or("");
         // Closure `|value|`: an anonymous function, like a TS arrow function.
         // Borrow `&str`: lends the value without copying or giving it away.
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         // Adapter `.and_then(`: transforms or selects items with a closure.
         // Typed binding: `nanos: &str`.
-        let nanos: &str = entry.get("mtimeNanos").and_then(|value| { return value.as_str(); }).unwrap_or("");
+        let nanos: &str = entry.get("mtimeNanos").and_then(Value::as_str).unwrap_or("");
         // Closure `|value|`: an anonymous function, like a TS arrow function.
         // Borrow `&str`: lends the value without copying or giving it away.
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         // Adapter `.and_then(`: transforms or selects items with a closure.
         // Typed binding: `length: &str`.
-        let length: &str = entry.get("length").and_then(|value| { return value.as_str(); }).unwrap_or("");
+        let length: &str = entry.get("length").and_then(Value::as_str).unwrap_or("");
         if path == lock_text {
             lists_the_lock = true;
         }
@@ -394,7 +394,7 @@ pub fn manifests_from_metadata(metadata_json: &str) -> Vec<PathBuf> {
     // Borrow `&empty`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Adapter `.and_then(`: transforms or selects items with a closure.
-    for package in parsed.get("packages").and_then(|value| { return value.as_array(); }).unwrap_or(&empty) {
+    for package in parsed.get("packages").and_then(Value::as_array).unwrap_or(&empty) {
         // Closure `|value|`: an anonymous function, like a TS arrow function.
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         // Adapter `.map(`: transforms or selects items with a closure.
