@@ -2001,7 +2001,8 @@ M. Merge order (new in revision 9, restated in revision 10; for the coordinator 
    - Ranking: M-A > M-B. M-A beats M-B because M-A's open residues are bounded and recoverable (saved files, a restoration report), while
      M-B's native-git window can silently lose the merge's content, which "never discard user data" excludes, and it adds a waiting state.
    - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): M-A, the machine's default. Revision 10 keeps it, repaired for
-     the ninth review (delta install, attachment authority, atomic capture representation, restore from pins).
+     the ninth review (delta install, attachment authority, atomic capture representation, restore from pins). Confirmed after revision 10
+     (coordinator, same delegation): M-A stays, because M-B's window lets a native commit record the merge's reversal.
 R. A stranded `index.lock` made by the lane's own dead incarnation (new in revision 10; for the coordinator to pick).
    Case: the service is killed by an outside kill between creating `index.lock` and renaming it; the next commit's follow-up finds the lock.
    - Option R-never, the lane never removes `index.lock` (rule N); it reports which incarnation made it and defers M1 and merges.
@@ -2013,6 +2014,8 @@ R. A stranded `index.lock` made by the lane's own dead incarnation (new in revis
    - Ranking: R-never > R-pin-and-unlink. R-never beats R-pin-and-unlink because the pin leaves the pathname race standing, and that race
      can break a mutual exclusion that the owner's "never discard user data" and Git's own protocol depend on, while R-never costs one manual
      step in a rare window.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): R-never, for the ranking's reason; it matches the shipped
+     wait on an unproven `index.lock` owner, which names the file and waits.
 P. A merge that touches a path the person has staged (new in revision 10; for the coordinator to pick).
    Case: `x` and `y` are staged, the merge changes `x`; Git itself would refuse (local changes would be overwritten).
    - Option P-wait, the merge changes nothing and stays `pending` (exit 0, the notice names `x`) until `x` is committed or unstaged or the tip
@@ -2023,6 +2026,8 @@ P. A merge that touches a path the person has staged (new in revision 10; for th
      three-way merge is run on an index entry, which needs its own differential controls.
    - Ranking: P-wait > P-carry. P-wait beats P-carry because the owner decided to carry unsaved edits (a decision about the worktree) and said
      nothing about reshaping staging, and a pause cannot lose content while a reshaped index can surprise.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): P-wait, because of "never discard user data"; the wait is
+     on a decision only the person can make, and Git itself refuses this merge.
 W. The attachment concession for merge file writes (a residue to confirm; for the coordinator to pick).
    Case: `git switch topic` finishes its index write and has not yet updated `HEAD` (builtin/checkout.c:927 commits the index, :1261 updates the refs
    after); the lane's merge for `main` takes `index.lock` in that instant, reads `HEAD` as `main` and installs files.
@@ -2033,6 +2038,7 @@ W. The attachment concession for merge file writes (a residue to confirm; for th
      finishing command). Pros: no concurrent-switch residue. Cons: "Auto merging should never fail" is met by saving, but the merge does not complete by itself.
    - Ranking: W-detect > W-stop. W-detect beats W-stop because it completes the merge as the owner asked and loses nothing, while W-stop moves
      the work back to the person.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): W-detect, because of "Auto merging should never fail."
 G. Retention against late maintenance (new in revision 10; for the coordinator to pick).
    Case: T1 sees no open maintenance run; a run is admitted and takes its reachability view while the branch is temporarily elsewhere; the
    branch moves back; T1 releases the recovery copy; the run deletes by its earlier view.
@@ -2044,6 +2050,8 @@ G. Retention against late maintenance (new in revision 10; for the coordinator t
      live owner blocks maintenance, and the dead-lane exemption needs its own model.
    - Ranking: G-root > G-handshake. G-root beats G-handshake because it adds no wait to maintenance and no lane-to-lane dependence, at the
      price of one verified Git behaviour; the handshake's wedged-owner case makes a person's `git gc` wait on an internal fault.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): G-root, the machine's default, because of "You should
+     (almost) never be waiting."; the prune view including `refs/cli-git/*` is a step-1 backend experiment that must pass first.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
