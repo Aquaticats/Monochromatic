@@ -60,17 +60,19 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 /// What:
-/// `use crate::verb::words_before_double_dash;` imports `words_before_double_dash` from another module of this crate so this file can name it unqualified.
+/// `use crate::verb::{find_verb, words_before_double_dash};` imports `find_verb`,
+/// `words_before_double_dash` from another module of this crate so this file can name them unqualified.
 /// Why:
+/// `find_verb` is used by `manifest_path`;
 /// `words_before_double_dash` is used by `manifest_path`,
 /// `change_dir`,
 /// `asserts_lock`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { words_before_double_dash } from 'crate/verb';
+/// import { find_verb, words_before_double_dash } from 'crate/verb';
 /// ```
-use crate::verb::words_before_double_dash;
+use crate::verb::{find_verb, words_before_double_dash};
 
 /// The value of an option written `--name value` or `--name=value`;
 /// the last one wins,
@@ -175,17 +177,43 @@ fn long_option_value(words: &[String], name: &str) -> Option<String> {
 }
 
 /// The `--manifest-path` value,
-/// when given.
+/// when given;
+/// for `cargo update` its short spelling `-m <path>` (shown by `cargo update --help`) counts too,
+/// and the short spelling wins when both are given.
 pub fn manifest_path(arguments: &[OsString]) -> Option<PathBuf> {
-    // Borrow `&words_before_double_dash`: lends the value without copying or giving it away.
-    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-    // Why:      They express one step of a pipeline without an index loop.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // list.map(f).filter(g)
-    // ```
-    return long_option_value(&words_before_double_dash(arguments), "--manifest-path").map(PathBuf::from);
+    let words: Vec<String> = words_before_double_dash(arguments);
+    let long: Option<String> = long_option_value(&words, "--manifest-path");
+    // Review finding (supported spellings): `-m` is read only for `cargo update`, where it means the manifest path; for
+    // other commands it is not a cargo option the shadow knows.
+    if find_verb(arguments).as_deref() == Some("update")
+        && let Some(short) = short_option_value(&words, "-m")
+    {
+        return Some(PathBuf::from(short));
+    }
+    return long.map(PathBuf::from);
+}
+
+/// What:
+/// `fn short_option_value(words, name) -> Option<String>` is the value after the last separate `-m <value>` style option.
+/// Why:
+/// The value-taking short options of `cargo update` are written with a space.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shortOptionValue = (words: string[], name: string) => words[words.lastIndexOf(name) + 1];
+/// ```
+fn short_option_value(words: &[String], name: &str) -> Option<String> {
+    let mut found: Option<String> = None;
+    let mut index: usize = 0;
+    while index + 1 < words.len() {
+        if words[index] == name {
+            found = Some(words[index + 1].clone());
+            index += 2;
+            continue;
+        }
+        index += 1;
+    }
+    return found;
 }
 
 /// The `-C <directory>` value,
