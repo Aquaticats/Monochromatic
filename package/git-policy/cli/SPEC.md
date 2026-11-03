@@ -2715,6 +2715,11 @@ The probe adds `--no-quiet` to its copy of the options, because `-q` empties the
 A single destination's printed location is used as it is, which saves the query for the push URLs.
 The probe starts no program of the wrapper's, writes no hook or script, and every Git child of it is bounded by the
 query deadline.
+When the probe's Git ends with a failure status and a message before it reports any destination, Git has refused the push
+itself (a branch to delete that the remote lacks, a refspec naming nothing, an unknown remote or option): nothing could be
+published, so the wrapper ends with Git's exit status and Git's standard error as Git wrote it, with no event and no hint.
+A failure of the probe's own reading (Git cannot run, a failure without a message, a report outside the format, a remote that
+changed during discovery) stays a `content-unavailable` engine failure and exits `2`.
 Do not infer destination ref values from cached tracking refs,
 push output,
 or hand-written refspec interpretation;
