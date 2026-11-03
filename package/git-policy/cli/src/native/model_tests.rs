@@ -35,3 +35,11 @@ mod model_f2_lifetime;
 /// The controls of finding F2.
 #[path = "model_f2_tests.rs"]
 mod model_f2_tests;
+
+/// Finding F3: restarting a quiet owner against hook admission, restarter death, a wedged gate holder, PID namespaces.
+#[path = "model_f3_restart.rs"]
+mod model_f3_restart;
+
+/// The controls of finding F3.
+#[path = "model_f3_tests.rs"]
+mod model_f3_tests;

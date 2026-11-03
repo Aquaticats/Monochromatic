@@ -222,10 +222,27 @@ fn trace_to<S>(nodes: &[Node<S>], at: usize) -> Vec<String> {
 }
 
 /// What:
+///  Whether a step label names a step of the environment: a death, a stall or a start that nobody in the protocol
+///  causes. Such a label begins with `outside:` or `environment:`.
+///  `label: &str` borrows the text; `.starts_with("...")` asks whether it begins with the given text.
+/// Why:
+///  A state is stuck for liveness when only the environment can move it. If a wedged owner could always be "rescued"
+///  by an outside death, no wedge would ever look stuck, which assumes away the problem.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isEnvironment = (label: string) => label.startsWith('outside:') || label.startsWith('environment:');
+/// ```
+fn is_environment(label: &str) -> bool {
+    return label.starts_with("outside:") || label.starts_with("environment:");
+}
+
+/// What:
 ///  Explores every state reachable from `initials`, breadth first.
 ///  `successors` lists `(label, next state)` for every step enabled in a state;
 ///  `invariant` returns `Some(message)` for a state that must never occur;
-///  `terminal` returns `Some(message)` for a state with no enabled step that is not an acceptable end.
+///  `terminal` returns `Some(message)` for a quiescent state that is not an acceptable end: no step is enabled except
+///  steps of the environment (see `is_environment`), which are still taken.
 ///  `fn(&S) -> ...` is a function pointer (TS: a plain function value).
 /// Why:
 ///  One generic type parameter is enough for every model, and function pointers keep each model a few plain
@@ -301,7 +318,16 @@ pub fn explore<S: Clone + Eq + Hash>(
             };
         }
         let steps: Vec<(String, S)> = successors(&state);
-        if steps.is_empty() {
+        // What:     `steps.iter().any(|step| ...)` asks whether some step satisfies the test; `|step| expr` is a
+        //           closure (TS: `(step) => expr`); `step.0` is the first field of the pair, the label; `!` is `not`.
+        // Why:      A state where only the environment can move is quiescent: the protocol itself cannot progress.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const acting = steps.some(([label]) => !isEnvironment(label));
+        // ```
+        let acting: bool = steps.iter().any(|step| { return !is_environment(step.0.as_str()); });
+        if !acting {
             if let Some(message) = terminal(&state) {
                 let trace: Vec<String> = trace_to(&nodes, at);
                 return Report {
@@ -311,6 +337,8 @@ pub fn explore<S: Clone + Eq + Hash>(
                     violation: Some(Violation { message, trace }),
                 };
             }
+        }
+        if steps.is_empty() {
             continue;
         }
         if depth >= limits.max_depth {
@@ -378,4 +406,20 @@ pub fn replay<S: Clone>(start: S, successors: fn(&S) -> Vec<(String, S)>, labels
         }
     }
     return state;
+}
+
+/// What:
+///  Appends one enabled step, `(label, after)`, to the list a model is building.
+///  `found: &mut Vec<...>` is a mutable borrow: the caller lends the list for this call and may see it changed
+///  (TS passes arrays by reference, so a TS function can already `found.push(...)` on its argument).
+///  `label: &str` borrows the text; `.to_string()` inside makes the owned copy the list keeps.
+/// Why:
+///  Every model writes dozens of steps; one helper keeps each to a line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pushStep<S>(found: [string, S][], label: string, after: S): void { found.push([label, after]); }
+/// ```
+pub fn push_step<S>(found: &mut Vec<(String, S)>, label: &str, after: S) {
+    found.push((label.to_string(), after));
 }
