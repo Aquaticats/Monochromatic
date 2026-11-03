@@ -166,12 +166,8 @@ fn candidate_that_observes_an_empty_scope_is_red() {
 /// is retained for good, which is the draft's stated cost.
 #[test]
 fn eight_closes_a_run_only_on_an_empty_scope_and_a_dead_launcher() {
-    let report: Report = check(Rules::Eight);
-    if let Some(violation) = &report.violation {
-        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
-    }
-    assert!(report.exhausted);
-    println!("F8 eight: {} states, deepest {}", report.states, report.deepest);
+    // Since T1 is observation then release, revision 8 is red on the race (see the next tests); the G3 closing rule itself holds.
+    assert_eq!(check(Rules::Eight).violation.expect("the T1 race").message, POSSIBLE);
     let finished = replay(
         initial(Rules::Eight, true),
         steps,
@@ -185,6 +181,7 @@ fn eight_closes_a_run_only_on_an_empty_scope_and_a_dead_launcher() {
             "lane B: accepts the request and imports its objects",
             "lane B: publishes the request",
             "lane B: the connectivity check passes",
+            "T1 pre: lane B observes no open run and no uncompleted entry",
             "T1 retire: lane B releases the spool",
         ],
     );
@@ -203,4 +200,65 @@ fn eight_closes_a_run_only_on_an_empty_scope_and_a_dead_launcher() {
     // The final connectivity check waits for the entry to close, and nothing closes an uncontained run.
     assert!(!steps(&kept).iter().any(|entry| { return entry.0.contains("connectivity check passes"); }));
     assert!(!steps(&kept).iter().any(|entry| { return entry.0.contains("releases the spool"); }));
+}
+
+/// The race of the changelog's T1 and G1 row: T1 observes no open run, G1 publishes a reservation, G2 starts the destructive
+/// process, and T1 releases. The steps before the release are shared by both tests.
+const RACE: [&str; 7] = [
+    "lane B: accepts the request and imports its objects",
+    "lane B: publishes the request",
+    "lane B: the connectivity check passes",
+    "G1 reserve: the launcher creates the scope and places itself in it",
+    "G1 reserve: the launcher writes the entry reserved by link",
+    "G2 run: the launcher starts the destructive process from inside the scope",
+    "prune: takes its reachability view",
+];
+
+/// Revision 8 (red): the observation and the release are two steps with nothing between them to notice the run.
+#[test]
+fn eight_releases_after_a_run_was_admitted_between_the_observation_and_the_release() {
+    let mut schedule: Vec<&str> = vec![
+        "lane B: accepts the request and imports its objects",
+        "lane B: publishes the request",
+        "lane B: the connectivity check passes",
+        "T1 pre: lane B observes no open run and no uncompleted entry",
+    ];
+    schedule.extend_from_slice(&RACE[3..]);
+    schedule.push("T1 retire: lane B releases the spool");
+    let reached = replay(initial(Rules::Eight, true), steps, &schedule);
+    assert_eq!(invariant(&reached), Some(POSSIBLE.to_string()));
+}
+
+/// Revision 9 (green): the release intent and the re-read withdraw the release when the reservation appeared first; when it
+/// appears after the re-read the released closure is reachable from the tip and the late prune cannot take it. Exhaustive.
+#[test]
+fn nine_withdraws_a_release_when_a_run_appears_and_loses_nothing_otherwise() {
+    let mut schedule: Vec<&str> = RACE[..3].to_vec();
+    schedule.push("T1 (1): lane B writes the release intent");
+    schedule.extend_from_slice(&RACE[3..6]);
+    schedule.push("T1 (2): lane B re-reads the registry, finds a run that is not terminal and withdraws the intent");
+    let withdrawn = replay(initial(Rules::Nine, true), steps, &schedule);
+    assert_eq!(withdrawn.lane_b, 3);
+    let late = replay(
+        initial(Rules::Nine, true),
+        steps,
+        &[
+            "lane B: accepts the request and imports its objects",
+            "lane B: publishes the request",
+            "lane B: the connectivity check passes",
+            "T1 (1): lane B writes the release intent",
+            "T1 (3) to (5): lane B re-runs the check, appends the ledger line and releases the spool",
+            "G1 reserve: the launcher creates the scope and places itself in it",
+            "G1 reserve: the launcher writes the entry reserved by link",
+            "G2 run: the launcher starts the destructive process from inside the scope",
+            "prune: takes its reachability view",
+        ],
+    );
+    assert_eq!(invariant(&late), None);
+    let report: Report = check(Rules::Nine);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F8 nine: {} states, deepest {}", report.states, report.deepest);
 }

@@ -29,7 +29,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'candidate-observes-empty';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'nine' | 'candidate-observes-empty';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -46,6 +46,9 @@ pub enum Rules {
     /// terminal only when the scope reports no processes and the launcher is dead (or recorded its end); without a manager
     /// the run is retained for good.
     Eight,
+    /// Revision 9, G1 to G4 as revision 8, and T1 as a release intent: observe, write the intent, re-read the registry and
+    /// withdraw if a run that is not terminal appeared, then re-check and release. The harm is an actual deletion after release.
+    Nine,
     /// The candidate where a lane also closes a reserved entry whose scope is empty, without revoking (a mutation that
     /// must stay red).
     CandidateObservesEmpty,
@@ -131,7 +134,7 @@ fn launcher_steps(state: &State) -> Vec<(String, State)> {
     let mut found: Vec<(String, State)> = Vec::new();
     let candidate: bool = state.rules == Rules::Candidate || state.rules == Rules::CandidateObservesEmpty;
     let mut after: State = state.clone();
-    if state.rules == Rules::Eight {
+    if state.rules == Rules::Eight || state.rules == Rules::Nine {
         return eight_launcher_steps(state);
     }
     if state.rules == Rules::Six && state.launcher == 0 {
@@ -261,12 +264,38 @@ fn eight_release_steps(state: &State) -> Vec<(String, State)> {
         after.entry = 4;
         push_step(&mut found, "G3 terminal: lane B finds the scope empty and the launcher dead and records terminal", after);
     }
-    if state.lane_b == 3 && !open {
+    if state.rules == Rules::Eight && state.lane_b == 3 && !open {
+        let mut after: State = state.clone();
+        after.lane_b = 6;
+        push_step(&mut found, "T1 pre: lane B observes no open run and no uncompleted entry", after);
+    }
+    if state.rules == Rules::Eight && state.lane_b == 6 {
         let mut after: State = state.clone();
         after.lane_b = 4;
         let launch_possible: bool = state.launcher >= 1 && state.launcher <= 3 && state.entry >= 1;
         after.lost = destructive_alive(state) || launch_possible;
         push_step(&mut found, "T1 retire: lane B releases the spool", after);
+    }
+    if state.rules == Rules::Nine && state.lane_b == 3 && !open {
+        let mut after: State = state.clone();
+        after.lane_b = 5;
+        push_step(&mut found, "T1 (1): lane B writes the release intent", after);
+    }
+    if state.rules == Rules::Nine && state.lane_b == 5 && open {
+        let mut after: State = state.clone();
+        after.lane_b = 3;
+        push_step(&mut found, "T1 (2): lane B re-reads the registry, finds a run that is not terminal and withdraws the intent", after);
+    }
+    if state.rules == Rules::Nine && state.lane_b == 5 && !open {
+        let mut after: State = state.clone();
+        if state.deleted {
+            after.lane_b = 1;
+            after.deleted = false;
+            push_step(&mut found, "T1 (3): the connectivity check finds an object missing, the intent is withdrawn and the object imported again", after);
+        } else {
+            after.lane_b = 4;
+            push_step(&mut found, "T1 (3) to (5): lane B re-runs the check, appends the ledger line and releases the spool", after);
+        }
     }
     return found;
 }
@@ -349,7 +378,7 @@ fn work_steps(state: &State) -> Vec<(String, State)> {
 fn release_steps(state: &State) -> Vec<(String, State)> {
     let mut found: Vec<(String, State)> = Vec::new();
     let candidate: bool = state.rules == Rules::Candidate || state.rules == Rules::CandidateObservesEmpty;
-    if state.rules == Rules::Eight {
+    if state.rules == Rules::Eight || state.rules == Rules::Nine {
         return eight_release_steps(state);
     }
     let scope_empty: bool = state.scope == 0 || state.scope == 1 || state.scope == 3;
