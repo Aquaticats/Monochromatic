@@ -26,11 +26,11 @@ use super::repo_read_layout::ObjectFormat;
 use super::subvolume_sha::{sha1, sha256};
 use super::worktree_attributes::{AttributeLine, CONVERTING_ATTRIBUTES, attribute_name, may_apply, parse_attribute_lines};
 use super::worktree_clean::{StatEntry, StatVerdict, metadata_verdict};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::{OsStr, OsString};
 use std::io::Read;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 /// The largest file read into memory to be hashed; a larger one is refused with that reason.
@@ -57,7 +57,7 @@ pub enum SystemAttributes {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ConversionEnvironment = { scope: ScopeEnvironment; systemAttributes: 'disabled' | { file: string } | 'unknown' };
+/// type ConversionEnvironment = { scope: ScopeEnvironment; systemAttributes: 'disabled' | { file: string } | 'unknown'; alternateAttributeSource?: string };
 /// ```
 #[derive(Clone, Debug)]
 pub struct ConversionEnvironment {
@@ -65,13 +65,22 @@ pub struct ConversionEnvironment {
     pub scope: ScopeEnvironment,
     /// Where the system attributes file is.
     pub system_attributes: SystemAttributes,
+    /// Why Git would take its attributes from a tree instead of the worktree files read here (`GIT_ATTR_SOURCE`, `--attr-source`,
+    ///  `attr.tree`), when it would; the content shortcut is then refused.
+    pub alternate_attribute_source: Option<String>,
 }
 
 impl ConversionEnvironment {
     /// The facts of this process.
     pub fn from_process() -> ConversionEnvironment {
         let variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-        return ConversionEnvironment { scope: ScopeEnvironment::from_variables(variables.as_slice()), system_attributes: system_attributes_from(variables.as_slice()) };
+        return ConversionEnvironment::from_variables(variables.as_slice());
+    }
+
+    /// The facts of an environment given as variables.
+    pub fn from_variables(variables: &[(OsString, OsString)]) -> ConversionEnvironment {
+        let selected: Option<String> = variables.iter().any(|(name, _value): &(OsString, OsString)| { return name == "GIT_ATTR_SOURCE"; }).then(|| { return String::from("GIT_ATTR_SOURCE is set"); });
+        return ConversionEnvironment { scope: ScopeEnvironment::from_variables(variables), system_attributes: system_attributes_from(variables), alternate_attribute_source: selected };
     }
 }
 
@@ -116,7 +125,7 @@ struct FixedSources {
     /// The files, in no particular order: any of them may apply.
     files: Vec<AttributeFile>,
     /// Macro names that set a converting attribute, directly or through another macro.
-    macros: Vec<Vec<u8>>,
+    macros: HashSet<Vec<u8>>,
 }
 
 /// The object name of `data` stored as a blob.
@@ -158,9 +167,38 @@ fn same_state(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
 }
 
 /// Whether a token or a macro name can change a file's bytes on the way into the index.
-fn converts(token: &[u8], macros: &[Vec<u8>]) -> bool {
+fn converts(token: &[u8], macros: &HashSet<Vec<u8>>) -> bool {
     let name: &[u8] = attribute_name(token);
-    return CONVERTING_ATTRIBUTES.contains(&name) || macros.iter().any(|known: &Vec<u8>| { return known.as_slice() == name; });
+    return CONVERTING_ATTRIBUTES.contains(&name) || macros.contains(name);
+}
+
+/// What:
+///  The names of the macros that set a converting attribute, directly or through other macros.
+/// Why:
+///   Reverse edges (attribute name to the macros that mention it) and a queue visit every definition once, whatever the order of
+///  the lines, so a long chain costs work in proportion to its length.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function convertingMacros(files: AttributeFile[]): Set<string>;
+/// ```
+fn converting_macros(files: &[AttributeFile]) -> HashSet<Vec<u8>> {
+    let mut mentioned_by: HashMap<Vec<u8>, Vec<Vec<u8>>> = HashMap::new();
+    for line in files.iter().flat_map(|file: &AttributeFile| { return file.lines.iter(); }).filter(|line: &&AttributeLine| { return line.is_macro; }) {
+        for token in &line.tokens {
+            mentioned_by.entry(attribute_name(token.as_slice()).to_vec()).or_default().push(line.subject.clone());
+        }
+    }
+    let mut known: HashSet<Vec<u8>> = HashSet::new();
+    let mut queue: VecDeque<Vec<u8>> = CONVERTING_ATTRIBUTES.iter().map(|name: &&[u8]| { return name.to_vec(); }).collect();
+    while let Some(name) = queue.pop_front() {
+        for macro_name in mentioned_by.get(&name).into_iter().flatten() {
+            if known.insert(macro_name.clone()) {
+                queue.push_back(macro_name.clone());
+            }
+        }
+    }
+    return known;
 }
 
 /// What:
@@ -217,7 +255,8 @@ impl<'a> ContentJudge<'a> {
 
     /// Read an attributes file at an absolute path the way Git does, following a link; absent is `None`.
     fn read_outside(path: &Path, label: String) -> Result<Option<AttributeFile>, String> {
-        let file = match std::fs::File::open(path) {
+        // Without blocking, so a named pipe is found out by its type instead of waiting for a writer.
+        let file = match std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC).open(path) {
             Ok(opened) => opened,
             Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => return Ok(None),
             Err(error) => return Err(format!("the attributes file {} cannot be read ({error})", path.display())),
@@ -239,7 +278,7 @@ impl<'a> ContentJudge<'a> {
     fn parse_open(file: std::fs::File, label: String, base: Vec<u8>) -> Result<Option<AttributeFile>, String> {
         let metadata: std::fs::Metadata = file.metadata().map_err(|error: std::io::Error| { return format!("{label} cannot be examined ({error})"); })?;
         if !metadata.file_type().is_file() {
-            return Err(format!("{label} is not a plain file, so the attributes it sets cannot be ruled out"));
+            return Err(format!("{label} is not a plain file (a named pipe, a device or a directory), so the attributes it sets cannot be ruled out"));
         }
         let bytes: Vec<u8> = read_at_most(&file, ATTRIBUTES_LIMIT)
             .map_err(|error: std::io::Error| { return format!("{label} cannot be read ({error})"); })?
@@ -247,13 +286,17 @@ impl<'a> ContentJudge<'a> {
         return Ok(Some(AttributeFile { label, base, lines: parse_attribute_lines(bytes.as_slice()) }));
     }
 
-    /// The attributes file `core.attributesFile` names, or the default one, from the configuration read in process.
-    fn global_attributes_path(&self) -> Result<Option<PathBuf>, String> {
+    /// The configuration Git would list, read in process.
+    fn config_entries(&self) -> Result<Vec<ConfigEntry>, String> {
         let variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
         let listed = list_config(self.common_dir, self.git_dir, &self.environment.scope, variables.as_slice())
             .ok_or_else(|| { return String::from("the Git configuration cannot be read without running Git, so a global attributes file cannot be ruled out"); })?;
-        let entries: Vec<ConfigEntry> = listed.into_iter().map(|item| { return item.entry; }).collect();
-        if let Some(entry) = last_entry(entries.as_slice(), "core.attributesfile") {
+        return Ok(listed.into_iter().map(|item| { return item.entry; }).collect());
+    }
+
+    /// The attributes file `core.attributesFile` names, or the default one, from the configuration entries.
+    fn global_attributes_path(&self, entries: &[ConfigEntry]) -> Result<Option<PathBuf>, String> {
+        if let Some(entry) = last_entry(entries, "core.attributesfile") {
             let value: &[u8] = entry.value.as_deref().ok_or_else(|| { return String::from("core.attributesFile has no value"); })?;
             if let Some(rest) = value.strip_prefix(b"~/") {
                 let home: &Path = self.environment.scope.home.as_deref().ok_or_else(|| { return String::from("core.attributesFile starts with ~/ but HOME is not set"); })?;
@@ -274,6 +317,14 @@ impl<'a> ContentJudge<'a> {
 
     /// The attributes files that apply whatever the path is, with the macros among them that set a converting attribute.
     fn load_fixed(&self) -> Result<FixedSources, String> {
+        let unmodelled = |reason: &str| -> String { return format!("{reason}, so Git takes its attributes from a tree and not from the files read here, and what it sets cannot be ruled out"); };
+        if let Some(reason) = self.environment.alternate_attribute_source.as_deref() {
+            return Err(unmodelled(reason));
+        }
+        let entries: Vec<ConfigEntry> = self.config_entries()?;
+        if last_entry(entries.as_slice(), "attr.tree").is_some() {
+            return Err(unmodelled("attr.tree is set"));
+        }
         let mut files: Vec<AttributeFile> = Vec::new();
         if let Some(root_file) = Self::read_in(self.root, String::from(".gitattributes"), Vec::new())? {
             files.push(root_file);
@@ -284,7 +335,7 @@ impl<'a> ContentJudge<'a> {
             SystemAttributes::File(path) => outside.push((path.clone(), path.display().to_string())),
             SystemAttributes::Unknown => return Err(String::from("the location of the system attributes file cannot be established without running Git, so what it sets cannot be ruled out")),
         }
-        if let Some(path) = self.global_attributes_path()? {
+        if let Some(path) = self.global_attributes_path(entries.as_slice())? {
             outside.push((path.clone(), path.display().to_string()));
         }
         for (path, label) in outside {
@@ -292,21 +343,7 @@ impl<'a> ContentJudge<'a> {
                 files.push(file);
             }
         }
-        if let Some(line) = files.iter().flat_map(|file: &AttributeFile| { return file.lines.iter().map(move |line: &AttributeLine| { return (file, line); }); }).find(|(_file, line): &(&AttributeFile, &AttributeLine)| { return line.quoted && line.is_macro; }) {
-            return Err(format!("{} has a quoted line that may define a macro, which is not modelled, so what it sets cannot be ruled out", line.0.label));
-        }
-        let mut macros: Vec<Vec<u8>> = Vec::new();
-        loop {
-            let before: usize = macros.len();
-            for line in files.iter().flat_map(|file: &AttributeFile| { return file.lines.iter(); }) {
-                if line.is_macro && line.tokens.iter().any(|token: &Vec<u8>| { return converts(token.as_slice(), macros.as_slice()); }) && !macros.contains(&line.subject) {
-                    macros.push(line.subject.clone());
-                }
-            }
-            if macros.len() == before {
-                break;
-            }
-        }
+        let macros: HashSet<Vec<u8>> = converting_macros(files.as_slice());
         return Ok(FixedSources { files, macros });
     }
 
@@ -335,9 +372,13 @@ impl<'a> ContentJudge<'a> {
             }
         }
         for file in &files {
+            let below: bool = file.base.is_empty() || path.strip_prefix(file.base.as_slice()).is_some_and(|rest: &[u8]| { return rest.starts_with(b"/"); });
+            if below && file.lines.iter().any(|line: &AttributeLine| { return line.quoted; }) {
+                return Ok(Some((String::from("a quoted line"), file.label.clone())));
+            }
             for line in file.lines.iter().filter(|line: &&AttributeLine| { return !line.is_macro; }) {
-                let Some(token) = line.tokens.iter().find(|token: &&Vec<u8>| { return converts(token.as_slice(), fixed.macros.as_slice()); }) else { continue };
-                if line.quoted || may_apply(line.subject.as_slice(), file.base.as_slice(), path) {
+                let Some(token) = line.tokens.iter().find(|token: &&Vec<u8>| { return converts(token.as_slice(), &fixed.macros); }) else { continue };
+                if may_apply(line.subject.as_slice(), file.base.as_slice(), path) {
                     return Ok(Some((String::from_utf8_lossy(token.as_slice()).into_owned(), file.label.clone())));
                 }
             }
@@ -411,7 +452,11 @@ impl<'a> ContentJudge<'a> {
     pub fn agrees_seamed(&mut self, place: &Place<'_>, entry: &StatEntry, id: &[u8], index_seconds: u32, seams: &mut ReadSeams<'_>) -> Result<(), String> {
         let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
         if let Some((token, label)) = self.converting_attribute(entry.path.as_slice(), place.parents)? {
-            return Err(format!("{shown} cannot be compared by content: the attribute {token} from {label} may change its bytes on the way into the index"));
+            return Err(if token == "a quoted line" {
+                format!("{shown} cannot be compared by content: {label} has a quoted line, whose pattern and attributes are not modelled, so what it sets cannot be ruled out")
+            } else {
+                format!("{shown} cannot be compared by content: the attribute {token} from {label} may change its bytes on the way into the index")
+            });
         }
         let data: Vec<u8> = Self::read_stable(place, entry, index_seconds, shown.as_str(), seams)?;
         if blob_name(data.as_slice(), self.format) != id {

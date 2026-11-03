@@ -87,12 +87,12 @@ fn a_byte_order_mark_is_not_part_of_the_first_pattern() {
     assert_eq!(lines[1].subject, b"*.rs");
 }
 
-/// A quoted line keeps every token of the line and is flagged, because its pattern is not modelled.
+/// A quoted line is flagged and is never a macro definition, whatever its text holds: the caller refuses on the quote.
 #[test]
-fn a_quoted_line_keeps_all_its_tokens() {
-    let lines: Vec<AttributeLine> = parse_attribute_lines(b"\"a b.dat\" ident\n");
-    assert!(lines[0].quoted);
-    assert!(lines[0].tokens.iter().any(|token: &Vec<u8>| { return token.as_slice() == b"ident"; }));
+fn a_quoted_line_is_flagged_and_never_a_macro() {
+    let lines: Vec<AttributeLine> = parse_attribute_lines(b"\"target\" ident note=[attr]x\n\"[attr]m\" ident\n\"target\"ident\n");
+    assert_eq!(lines.len(), 3);
+    assert!(lines.iter().all(|line: &AttributeLine| { return line.quoted && !line.is_macro; }));
 }
 
 /// How many bytes the pattern of the work-budget control has.

@@ -173,23 +173,6 @@ fn index_differs_from_tree(index: &[IndexEntry], tree: &[FlatEntry]) -> Option<S
 }
 
 /// What:
-///  The reason a tracked file differs from its index entry, or nothing when `lstat` agrees with the entry.
-/// Why:
-///   This is Git's fast path: equal size, times, inode, owner and mode mean Git would not look at the content.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function fileDiffersFromEntry(root: string, entry: StatEntry, indexSeconds: number): string | undefined;
-/// ```
-fn file_differs_from_entry(root: &Path, entry: &StatEntry, index_seconds: u32) -> Option<String> {
-    let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
-    let Ok(metadata) = std::fs::symlink_metadata(root.join(OsStr::from_bytes(entry.path.as_slice()))) else {
-        return Some(format!("{shown} is missing from the worktree"));
-    };
-    return metadata_differs_from_entry(entry, &metadata, index_seconds);
-}
-
-/// What:
 ///  What the stat data of an index entry says about a file.
 /// Why:
 ///   A file the data cannot vouch for (a racily clean entry, a stale stat) is not the same as a file that certainly changed:
@@ -264,14 +247,18 @@ pub fn metadata_differs_from_entry(entry: &StatEntry, metadata: &std::fs::Metada
 ///  The first reason a tracked file of `root` differs from its index entry, or nothing when every file agrees.
 /// Why:
 ///   After a snapshot the same comparison runs against the snapshot's own files, so a source that changed while the
-///  snapshot was taken is caught on the copy.
+///  snapshot was taken is caught on the copy. The files are reached below a held root with no link followed, so a directory
+///  replaced by a link is not read through.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function treeDiffersFromIndex(root: string, entries: StatEntry[], indexSeconds: number): string | undefined;
 /// ```
 pub fn tree_differs_from_index(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
-    return entries.iter().find_map(|entry: &StatEntry| { return file_differs_from_entry(root, entry, index_seconds); });
+    return match open_root(root) {
+        Ok(held) => tree_differs_from_index_beneath(&held, entries, index_seconds),
+        Err(error) => Some(format!("{} cannot be opened without following a link ({error})", root.display())),
+    };
 }
 
 /// What the content decision needs besides the entries: the worktree, its Git directories, the environment and the format.

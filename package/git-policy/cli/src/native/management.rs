@@ -502,9 +502,9 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
 /// ```ts
 /// function planConvert(parsed: ConvertArguments | string): Action;
 /// ```
-fn plan_convert(parsed: Result<ConvertArguments, String>) -> Action {
+fn plan_convert(parsed: Result<ConvertArguments, String>, global_arguments: &[OsString]) -> Action {
     let arguments: ConvertArguments = match parsed {
-        Ok(found) => found,
+        Ok(found) => ConvertArguments { command_line_attributes: super::worktree_convert_arguments::selects_attribute_source(global_arguments), ..found },
         Err(reason) => {
             return Action::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
@@ -669,7 +669,7 @@ pub fn plan_management_with_section(
         ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
         ManagementAction::ServiceStatus => return plan_service(git_global_arguments, environment, inputs),
         ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
-        ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse),
+        ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse, git_global_arguments),
         ManagementAction::Direct {
             fix,
             all,

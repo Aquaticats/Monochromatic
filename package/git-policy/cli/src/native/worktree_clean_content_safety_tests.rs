@@ -40,7 +40,7 @@ fn make_pipe(path: &Path) {
 
 /// An environment that names no system or global file and the given system attributes.
 fn environment(system_attributes: SystemAttributes) -> ConversionEnvironment {
-    return ConversionEnvironment { scope: ScopeEnvironment { no_system: true, ..ScopeEnvironment::default() }, system_attributes };
+    return ConversionEnvironment { scope: ScopeEnvironment { no_system: true, ..ScopeEnvironment::default() }, system_attributes, alternate_attribute_source: None };
 }
 
 /// Run the content check on a worktree.
@@ -79,7 +79,7 @@ fn the_system_attributes_file_is_not_derived_from_the_system_config_path() {
     let elsewhere: PathBuf = parent.join("custom.gitconfig");
     std::fs::write(&elsewhere, "").expect("system config");
     make_stale(worktree.join("target").as_path());
-    let moved: ConversionEnvironment = ConversionEnvironment { scope: ScopeEnvironment { system: Some(elsewhere), ..ScopeEnvironment::default() }, system_attributes: SystemAttributes::File(etc.join("gitattributes")) };
+    let moved: ConversionEnvironment = ConversionEnvironment { scope: ScopeEnvironment { system: Some(elsewhere), ..ScopeEnvironment::default() }, system_attributes: SystemAttributes::File(etc.join("gitattributes")), alternate_attribute_source: None };
     let reason: String = check(worktree.as_path(), &moved).expect_err("the attribute applies");
     assert!(reason.contains("target") && reason.contains("ident") && reason.contains("etc/gitattributes"), "{reason}");
     check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect("the switch turns the file off");
@@ -349,4 +349,30 @@ fn the_stat_only_proof_does_not_follow_a_link_in_a_parent() {
     let reason: String = check_clean_tracked(worktree.as_path(), found.admin.as_path(), found.common.as_path()).expect_err("a link");
     assert!(reason.contains("src/") && reason.contains("link"), "{reason}");
     remove(parent.as_path());
+}
+
+/// A tree chosen as the source of attributes (`GIT_ATTR_SOURCE`, `attr.tree`, the command line) is not the worktree files the
+///  judge reads, so the content shortcut is refused; an entry the stat data vouches for is unaffected.
+#[test]
+fn an_alternate_attribute_source_refuses_the_content_shortcut() {
+    let (parent, root, worktree) = settled("content-source", &|root: &Path| { std::fs::write(root.join("target"), b"$Id: old $\n").expect("target"); });
+    let selected: ConversionEnvironment = ConversionEnvironment { alternate_attribute_source: Some(String::from("GIT_ATTR_SOURCE is set")), ..environment(SystemAttributes::Disabled) };
+    check(worktree.as_path(), &selected).expect("every entry is vouched for by its stat data, so no content is read");
+    make_stale(worktree.join("target").as_path());
+    let reason: String = check(worktree.as_path(), &selected).expect_err("selected by the environment");
+    assert!(reason.contains("GIT_ATTR_SOURCE") && reason.contains("cannot be ruled out"), "{reason}");
+    check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect("positive control: without a source the content is decided");
+    git(root.as_path(), &["config", "attr.tree", "HEAD"]);
+    let configured: String = check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect_err("selected by the configuration");
+    assert!(configured.contains("attr.tree"), "{configured}");
+    remove(parent.as_path());
+}
+
+/// The environment of a process names an attribute source when `GIT_ATTR_SOURCE` is there, whatever its value.
+#[test]
+fn the_process_environment_names_an_attribute_source() {
+    let with = |value: &str| -> Vec<(OsString, OsString)> { return vec![(OsString::from("GIT_ATTR_SOURCE"), OsString::from(value))]; };
+    assert!(ConversionEnvironment::from_variables(with("HEAD").as_slice()).alternate_attribute_source.is_some());
+    assert!(ConversionEnvironment::from_variables(with("").as_slice()).alternate_attribute_source.is_some());
+    assert!(ConversionEnvironment::from_variables(&[]).alternate_attribute_source.is_none());
 }

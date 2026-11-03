@@ -25,7 +25,14 @@ after the swap is verified. The registration and the bytes of the .git file do n
   --abandon    undo an unfinished conversion that has not reached its swap (destroys only the subvolume it created)
 
 An interrupted run is finished by running the same command again.
+
+Risk, accepted by running the command: it deletes the old directory once the copy is verified, and it cannot stop
+another process from changing the worktree while it works. A process that writes through an open file or a mapping, or
+renames or replaces a path, between a check and the step that relies on it can lose its data; stop such processes first.
 ";
+
+/// The one line printed on standard error when a conversion runs, before anything is removed.
+pub const RISK_NOTICE: &str = "cli-git: this deletes the old directory of each worktree after the copy is verified. A process that changes a worktree while it is converted can lose data, and that risk is yours; stop such processes first.";
 
 /// What:
 ///  The parsed options.
@@ -34,7 +41,7 @@ An interrupted run is finished by running the same command again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ConvertArguments = { dryRun: boolean; abandon: boolean; all: boolean; paths: string[]; help: boolean };
+/// type ConvertArguments = { dryRun: boolean; abandon: boolean; all: boolean; paths: string[]; help: boolean; commandLineAttributes: boolean };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ConvertArguments {
@@ -48,6 +55,8 @@ pub struct ConvertArguments {
     pub paths: Vec<std::ffi::OsString>,
     /// Print the help.
     pub help: bool,
+    /// The invocation chose an attribute source before the command (`--attr-source`, `-c attr.tree`).
+    pub command_line_attributes: bool,
 }
 
 /// What:
@@ -85,6 +94,31 @@ pub fn parse_convert_arguments(rest: &[std::ffi::OsString]) -> Result<ConvertArg
         return Err(String::from("--all and named worktrees cannot be combined"));
     }
     return Ok(parsed);
+}
+
+/// What:
+///  Whether the global options before `cli-git` choose an attribute source: `--attr-source`, `-c attr.tree=...` or
+///  `--config-env=attr.tree=...`.
+/// Why:
+///   Git would then take its attributes from a tree, which the conversion's content check does not read, so the check refuses
+///  to decide by content.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function selectsAttributeSource(globals: string[]): boolean;
+/// ```
+pub fn selects_attribute_source(globals: &[std::ffi::OsString]) -> bool {
+    let mut words = globals.iter();
+    while let Some(word) = words.next() {
+        let text: String = word.to_string_lossy().to_lowercase();
+        if text.starts_with("--attr-source") || text.starts_with("--config-env=attr.tree") {
+            return true;
+        }
+        if text == "-c" && words.next().is_some_and(|value: &std::ffi::OsString| { return value.to_string_lossy().to_lowercase().starts_with("attr.tree"); }) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// Argument grammar controls stay out of the release executable.

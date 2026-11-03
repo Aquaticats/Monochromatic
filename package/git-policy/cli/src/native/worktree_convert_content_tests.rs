@@ -8,7 +8,7 @@ use crate::test_support::{git, remove};
 use std::path::{Path, PathBuf};
 
 /// A dry run, which judges the worktree and changes nothing.
-const DRY: ConvertOptions = ConvertOptions { dry_run: true, abandon: false };
+const DRY: ConvertOptions = ConvertOptions { dry_run: true, abandon: false, command_line_attributes: false };
 
 /// The verdict of a dry run of the conversion of `worktree`.
 fn dry_run(worktree: &Path) -> Verdict {
