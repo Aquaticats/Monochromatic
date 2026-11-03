@@ -3,7 +3,8 @@
 The owner's rules, verbatim: "commits vs native git should not take 5s longer."
 "You should (almost) never be waiting."
 "Disk pressure being high is not an excuse."
-And on how to fix it: "remove it or move it off the waiting path", and "sometimes the work itself can be optimized. And we
+And on how to fix it: "remove it or move it off the waiting path", and "sometimes the work itself can be optimized.
+And we
 control every part of the wrapper, including everything it embeds."
 Host pressure is the condition to test under, never the cause to report; the cause is work the wrapper does on the
 commit's foreground path that native Git does not do, or does much less of.
@@ -16,13 +17,17 @@ Branch: `fix/git-policy-cli-commits-fast-under-disk-pressure`.
 
 The 0.5.28 base is worse than the installed 0.5.27, in two ways.
 Warm, its commits take longer (below).
-And under a stalled disk it is more exposed: it waits for twelve syncs per landing where 0.5.27 waits for about four and
+And under a stalled disk it is more exposed: it waits for twelve syncs per landing where 0.5.27 waits for about four
+and
 native Git for none (60 against 21 over five traced landings).
-The extra syncs come with what 0.5.28 adds on the landing path (the in-process index writer with its directory syncs, the
-start record and the sync before the completion record); only the totals were traced for 0.5.27, so which of the twelve
+The extra syncs come with what 0.5.28 adds on the landing path (the in-process index writer with its directory
+syncs, the
+start record and the sync before the completion record); only the totals were traced for 0.5.27, so which of the
+twelve
 are new was not itemized.
 This branch removes one of those syncs and the other work below; it does not remove the rest.
-The tip still waits for eleven syncs per landing (56 over five), which is 2.75 times the exposure of 0.5.27 under a stall,
+The tip still waits for eleven syncs per landing (56 over five), which is 2.75 times the exposure of 0.5.27 under a
+stall,
 and its landing is still longer than 0.5.27's in `sync_ms` (47 against 25 ms, signed).
 Removing those syncs from the waiting path is the owner's decision (options B to E, below), so the base is a 0.5.28
 blocker for stall exposure until the owner decides.
@@ -155,15 +160,20 @@ system calls, 8 `pread64`, no sync call and 16 process starts (including the `po
 6. The client still starts nine Git processes (unsigned route) and the service three or four per landing; `add`,
    `cat-file`, `ls-tree`, `diff-index`, `rev-list` and `var` (twice) in the client, and for a signed commit the
    scratch repository's `commit`, `update-ref` and `symbolic-ref` remain (see the options).
-7. The first landing of a fresh fixture is slow in some runs, on every build: `sync_ms` of the first landing was 98 to 361 ms on
-   the base (five signed runs) and 117 to 1,537 ms on the tip (eight signed runs, three of them above one second), 23 to 48 ms
+7. The first landing of a fresh fixture is slow in some runs, on every build: `sync_ms` of the first landing was 98
+   to 361 ms on
+   the base (five signed runs) and 117 to 1,537 ms on the tip (eight signed runs, three of them above one second),
+   23 to 48 ms
    on 0.5.27 and the tip's unsigned runs, and one base run had a second-round sample at 3.2 s.
-   A trace of the tip's first landing (`NATIVE_PERF_TRACE_CALLS=execve,fsync,rename`) shows the in-process update, no Git
+   A trace of the tip's first landing (`NATIVE_PERF_TRACE_CALLS=execve,fsync,rename`) shows the in-process update,
+   no Git
    `reset`, and two syncs that took 178 ms (the replacement file of the index) and 298 ms (the Git directory after the
    index rename), where the same syncs take 6 ms later in the run.
-   The fixture's own setup has just written a lot (the reflink copies, the refresh of four indexes), and a sync waits for
+   The fixture's own setup has just written a lot (the reflink copies, the refresh of four indexes), and a sync
+   waits for
    the writeback that is pending on the file system: the production stall in miniature, on a quiet host.
-   Whether the tip's tail is longer than the base's is not established; the base pays the same backlog in the sync it makes
+   Whether the tip's tail is longer than the base's is not established; the base pays the same backlog in the sync
+   it makes
    on the private copy, which the tip no longer makes.
 
 ## What was changed
@@ -225,11 +235,14 @@ All of them matter only for a power loss or a kernel crash; a killed process lea
   `sync_ms` up to 119 s).
 - Option B, make the done mark durable after the answer: the rename that marks the batch done and its directory sync
   (`sync-journal-dir`) come after the reply, still before the next request on that journal.
-  Pro: one sync leaves the wait with no change to what is protected, because the intent stays durable before the branch
+  Pro: one sync leaves the wait with no change to what is protected, because the intent stays durable before the
+  branch
   moves, the completion record stays durable before the index lock is given up, and a restart finishes an open batch.
-  Con: only one sync of ten; a kill between the reply and the sync leaves a batch the restart finishes again, which is the
+  Con: only one sync of ten; a kill between the reply and the sync leaves a batch the restart finishes again, which
+  is the
   case it already handles, and the window needs a control.
-- Option C, overlap independent syncs on threads (the intent write with the lock placement, whose marker is flushed too).
+- Option C, overlap independent syncs on threads (the intent write with the lock placement, whose marker is flushed
+  too).
   Pro: waits overlap, so a stall is paid once and not twice or three times.
   Con: the order the landing documents must be reproduced, and every kill point control has to be extended.
 - Option D, drop the directory syncs where the file system makes the file's sync cover its directory entry (btrfs
@@ -398,3 +411,20 @@ median delta, the build 269 and 264 ms, with native at 274 to 295 ms in all four
   cache-tree comparison: options above.
 - The first-landing outlier (item 7): not isolated.
 - The reproduction of an actual stall: banned as synthetic load; the production record is the only evidence of it.
+
+## Controls that failed intermittently, not by this work
+
+- `service_index_lock::tests::a_live_service_holders_lock_is_never_taken_over` aborts after the 120 s of the test
+  runner
+  (`SIGABRT`) in about one run of four or five, on the branch tip and on the base sources alike: the module run alone
+  aborted in 1 of 4 runs on the tip and in 1 of 5 runs after the base sources (`e7e304ffd6`) were checked out over it.
+  It passes in 0.6 s when it does not abort, and its module does not touch what this work changed; the cause was not
+  found.
+- `service_sequencer::a_pathspec_commit_after_a_conflicted_cherry_pick_lands_and_carries_the_pick` failed once in a
+  container gate run and passed alone and in a whole host run of the binary controls.
+  Its count of finished batches reads `.done` files in a journal that sixteen services share, and the services' batch
+  numbers come from the clock at their start: two of the services in the failing run answered with the same number
+  (`batch=1793737952894759`), so one `.done` file stood for two batches and the count was one short.
+- The change in `push_progress.rs` is 23 lines in `Meter` and `Clock`; the branch
+  `fix/git-policy-cli-every-wait-has-a-bound`
+  edits the same module, so the merge needs a look at `Clock::check`.
