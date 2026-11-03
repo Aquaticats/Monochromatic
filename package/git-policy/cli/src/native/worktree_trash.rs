@@ -217,20 +217,21 @@ fn unlink_pointer(directory: &Path) -> Result<(), String> {
 /// await disposePendingTrash({ context, destination, gitDir, notices });
 /// ```
 pub fn dispose_pending_trash(context: &GitContext, destination: &Path, git_dir: &Path, notices: &mut dyn Write) {
-    dispose_pending_trash_with(context.real_git.as_path(), destination, git_dir, notices, &route_from_environment);
+    dispose_pending_trash_with(context.real_git.as_path(), destination, git_dir, notices, &route_from_environment, START_WAIT);
 }
 
 /// How the service's address is found for a Git directory; injected so a control never reaches the real service.
 pub type Router<'a> = &'a dyn Fn(&Path, &Path) -> Option<Route>;
 
-/// `dispose_pending_trash` with the route finder injected.
-pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: &Path, notices: &mut dyn Write, router: Router<'_>) {
+/// `dispose_pending_trash` with the route finder and the wait for a current service injected, so a control can use a fixture
+///  service and a short wait.
+pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: &Path, notices: &mut dyn Write, router: Router<'_>, start_wait: std::time::Duration) {
     let parent: PathBuf = destination.join(TRASH_PARENT);
     let Ok(listing) = std::fs::read_dir(&parent) else { return };
     let mut names: Vec<String> = listing.flatten().map(|entry: std::fs::DirEntry| { return entry.file_name().to_string_lossy().into_owned(); }).filter(|name: &String| { return is_trash_name(name.as_str()); }).collect();
     names.sort();
     for name in names {
-        let handed: bool = hand_over(real_git, destination, git_dir, name.as_str(), notices, router);
+        let handed: bool = hand_over(real_git, destination, git_dir, name.as_str(), notices, router, start_wait);
         if !handed {
             debug(TAG, format!("the trash {name} could not be handed to the service; emptying it here").as_str());
             if let Err(error) = remove_tree(parent.join(&name).as_path()) {
@@ -243,7 +244,7 @@ pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: 
 }
 
 /// Write the work item and connect to the service; whether both succeeded.
-fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, name: &str, notices: &mut dyn Write, router: Router<'_>) -> bool {
+fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, name: &str, notices: &mut dyn Write, router: Router<'_>, start_wait: std::time::Duration) -> bool {
     let item: WorkItem = WorkItem {
         kind: WorkKind::Trash,
         repository: destination.display().to_string(),
@@ -259,7 +260,7 @@ fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, name: &str, no
         return false;
     }
     let reached: bool = router(real_git, git_dir).is_some_and(|Route { address, .. }| {
-        let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
+        let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait, commit_wait: COMMIT_WAIT };
         return wake(&config, git_dir, None, notices).is_ok();
     });
     if !reached {
