@@ -584,6 +584,8 @@ A path that is not conflicted keeps the rejection,
 Write each conflicted file by its own name after `--`;
  a directory, a wildcard, pathspec magic, a missing `--`, `--force`, `--patch`, `--pathspec-from-file` and
  `restore --staged` are not covered and stay rejected.
+ A token that is the value of `--source`, `-s` or `--conflict` is never read as `--worktree` or `--staged`,
+ so `git restore --source -W --staged -- f` (a tag can be named `-W`) is an index-only restore and stays rejected.
 A conflicted path that is deleted in your worktree has nothing to copy, and the command runs.
 When a copy cannot be written (no space, no permission), the command is rejected and says why.
 The folder is bounded, because it would otherwise grow for as long as the repository lives,
