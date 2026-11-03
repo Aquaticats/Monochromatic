@@ -259,7 +259,7 @@ pub mod command_config;
 /// Pure decision of the require-root policy.
 pub mod rule_require_root;
 
-/// Whether a `git worktree` invocation creates or moves a worktree.
+/// Whether a `git worktree` invocation changes worktree registrations (an add or a move).
 pub mod command_worktree;
 
 /// Wrapper-only control spellings,
@@ -595,9 +595,6 @@ pub mod pid_namespace;
 
 /// Process-birth identities in the incumbent's exact spelling.
 pub mod process_identity;
-
-/// The owner record inside every owner-lock directory.
-pub mod owner_lock_record;
 
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
@@ -971,9 +968,9 @@ pub mod worktree_copy_install_log;
 #[cfg(unix)]
 pub mod worktree_copy_transaction;
 
-/// The settlement lock that serializes copy installation and recovery, its owner record, and inherited leases.
+/// The process that owns one item of a copy transaction, written into the item's name, and the proof that it still runs.
 #[cfg(unix)]
-pub mod worktree_copy_lock;
+pub mod worktree_copy_owner;
 
 /// Recovery of interrupted copies: registration checks, discards with notices, resumption, and the pending check.
 #[cfg(unix)]
@@ -983,7 +980,7 @@ pub mod worktree_copy_recovery;
 #[cfg(unix)]
 pub mod worktree_copy;
 
-/// Which forwarded invocations the copy applies to, and the child run that carries its settlement lease.
+/// Which forwarded invocations the copy applies to, and the child run that performs it.
 pub mod worktree_copy_forward;
 
 /// The system configuration file a real Git executable reads, learned once per executable identity.

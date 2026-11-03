@@ -247,7 +247,9 @@ go straight to rung 3.
 - Rung 2, reflink: needs a filesystem with `FICLONE` (btrfs, XFS with reflink, overlayfs over either) and a clean
   source worktree on the same filesystem. The measurement says it saves disk, not time, so it is optional.
 - Rung 3, real Git: today's behavior, plus the existing ignored copy.
-- Every rung runs inside the existing per-repository settlement lock and journal. A failure before the point of
+- (Changed 2026-11-03T02:57:19-05:00: the settlement lock no longer exists; no rung takes a lock, and each add's stage, claim and journal belong
+  to that add alone. See `package/git-policy/cli/SPEC.md`.) Every rung runs inside the existing per-repository settlement
+  lock and journal. A failure before the point of
   no return (the destination path exists with content) rolls the rung back and tries the next; a failure after it is
   reported as today's copy failures are. No rung changes the exit status of the command the person ran when a lower rung
   can complete it.
@@ -274,7 +276,8 @@ go straight to rung 3.
 This is the proposal as written on 2026-11-01. It is kept as the reasoning the measurements rest on; where the
 implementation differs, "Implemented flow and what superseded the proposal" is the description to trust.
 
-- Real Git runs once with `--no-checkout`, `--lock` and the person's arguments, inside the settlement lock.
+- Real Git runs once with `--no-checkout`, `--lock` and the person's arguments, inside the settlement lock (changed 2026-11-03T02:57:19-05:00:
+  there is no settlement lock any more; Git runs with no lock around it).
   This keeps branch
   name validation, `post-checkout`-less admin creation, worktree config copying and every Git message; it spawns
   `git worktree add` and its child `git branch` (two processes).
