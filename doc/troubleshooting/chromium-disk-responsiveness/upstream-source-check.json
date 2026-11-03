@@ -1,0 +1,57 @@
+{
+  "purpose": "Compare the untouched patch-base source files with the same paths at the observed upstream main revision.",
+  "checkedAt": "2026-11-03T18:58:11.278Z",
+  "baseRevision": "360d943d418b3d6645fea86766f5dcc4a7cc3b2e",
+  "observedMain": "4bc632656c7b95bc4c1c8c6a891e63396bdd0d52",
+  "positiveControl": {
+    "path": "DEPS",
+    "base": "66a8762e0972928c49aac35f200f58d546fddaed",
+    "current": "416c52be7a054e6688affa33c4a78d7cd2d9e099",
+    "detectedChange": true,
+    "head": "4bc632656c7b95bc4c1c8c6a891e63396bdd0d52"
+  },
+  "files": [
+    {
+      "path": "chrome/app/chrome_main_delegate.cc",
+      "original": "4d1c21302c8ac8e05ce5dadc8f4089b974a45712",
+      "current": "4d1c21302c8ac8e05ce5dadc8f4089b974a45712",
+      "matches": true
+    },
+    {
+      "path": "chrome/browser/metrics/chrome_metrics_service_accessor.cc",
+      "original": "c0baf5982fcb671d78cc4a64b02e96c81b38625a",
+      "current": "c0baf5982fcb671d78cc4a64b02e96c81b38625a",
+      "matches": true
+    },
+    {
+      "path": "chrome/browser/metrics/chrome_metrics_service_accessor.h",
+      "original": "8efd14233b7c60a69d6f1b995d31cbc5be32f3d7",
+      "current": "8efd14233b7c60a69d6f1b995d31cbc5be32f3d7",
+      "matches": true
+    },
+    {
+      "path": "chrome/browser/metrics/chrome_metrics_service_accessor_unittest.cc",
+      "original": "4f4d3a583b35bb9eafd7093b31eea44b5c8361a1",
+      "current": "4f4d3a583b35bb9eafd7093b31eea44b5c8361a1",
+      "matches": true
+    },
+    {
+      "path": "chrome/browser/metrics/metrics_service_browsertest.cc",
+      "original": "8b19f394e4202fc3f66ba2b7d2a39078374ed2a9",
+      "current": "8b19f394e4202fc3f66ba2b7d2a39078374ed2a9",
+      "matches": true
+    },
+    {
+      "path": "components/metrics/metrics_service_accessor.cc",
+      "original": "83e963b074036a761297b3778f3cc6a9bc5c1f46",
+      "current": "83e963b074036a761297b3778f3cc6a9bc5c1f46",
+      "matches": true
+    },
+    {
+      "path": "components/metrics/metrics_service_accessor.h",
+      "original": "e427f5e46a95776cc8d7b933b1cfa27157d81683",
+      "current": "e427f5e46a95776cc8d7b933b1cfa27157d81683",
+      "matches": true
+    }
+  ]
+}
