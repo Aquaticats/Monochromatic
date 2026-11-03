@@ -147,7 +147,7 @@ fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
 fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock) -> bool {
     let cleaned: bool = intent.cleanup.as_ref().is_none_or(|cleanup| { return remove_conclusion_state(git, repository, cleanup); });
     // The new index is built beside the real one and installed by the release of the lock the landing holds.
-    let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), intent.index.as_path(), intent.seq) else {
+    let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), &lock, intent.seq) else {
         return false;
     };
     return lock.release_with(built.as_path()).is_ok() && cleaned;

@@ -206,7 +206,7 @@ pub(crate) fn landing_reset(context: &crate::transaction_git::GitContext, repo: 
 pub(crate) fn landing_reset_copy(context: &crate::transaction_git::GitContext, repo: &Path, new: &str, paths: crate::service_land_follow::IndexPaths<'_>, old_copy: bool) -> bool {
     let live: PathBuf = repo.join(".git").join("index");
     let seq: u64 = NEXT_BATCH.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let built: PathBuf = live.with_file_name(format!("index.cli-git-{seq}"));
+    let built: PathBuf = crate::service_land_follow::private_index_path(live.as_path(), seq);
     let Some(held) = crate::service_index_lock::try_acquire(live.as_path(), seq) else {
         return false;
     };
@@ -216,7 +216,7 @@ pub(crate) fn landing_reset_copy(context: &crate::transaction_git::GitContext, r
             age(built.as_path());
         }
     }
-    let done: bool = crate::index_reset_file::reset_index_file(context, repo, new, paths, &crate::index_reset_publish::Landing { live: live.as_path(), built: built.as_path(), seq });
+    let done: bool = crate::index_reset_file::reset_index_file(context, repo, new, paths, &held, seq);
     if done {
         held.release_with(built.as_path()).expect("installed");
     } else {

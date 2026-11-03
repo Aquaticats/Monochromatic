@@ -1,66 +1,29 @@
 //! What:
-//!  How the in-process index update gets its result onto the landing's private index: proof that the landing holds the live
-//!  index lock, a temporary file no other run can share, Git's file mode for an index, and the rename.
+//!  How the in-process index update gets its result onto the landing's private index: the name of that index, a temporary file
+//!  no other run can share, Git's file mode for an index, and the rename.
 //! Why:
 //!  The update replaces `index.cli-git-<batch>`, the copy of the live index the landing made under its `index.lock`; the
-//!  lock's release then renames that copy over the live index (`service_index_hold.rs`, `IndexLock::release_with`). A run
-//!  that is not that landing could replace an index a foreign `git add` is staging into, so the update refuses to run unless
-//!  the live lock names this process and this batch. Two runs on one target must not share a temporary name: each creates its
+//!  lock's release then renames that copy over the live index (`service_index_hold.rs`, `IndexLock::release_with`). The update
+//!  takes a borrow of the held `IndexLock`, so only the holder can call it, and it works on the one name `private_index_path`
+//!  gives for that lock's index and batch. Two runs on one target must not share a temporary name: each creates its
 //!  own file exclusively and removes only that one. Git creates an index through a lock file whose mode `adjust_shared_perm`
 //!  widens by `core.sharedRepository` (`tempfile.c`, `path.c`), so the file gets the same mode before it is published.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (!holdsLock(landing)) return false; await publish(landing.built, bytes, sharedRepository);
+//! await publish(privateIndexPath(lock.index(), seq), bytes, sharedRepository); // takes the held lock as a witness
 //! ```
 
-use super::service_index_lock::lock_path_of;
-use super::service_index_marker::{marker_of, own_identity};
 use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-
-/// The private index of one landing and the live index it was copied from.
-#[derive(Clone, Copy, Debug)]
-pub struct Landing<'a> {
-    /// The live index, whose `.lock` the landing holds.
-    pub live: &'a Path,
-    /// The landing's private copy, in the live index's directory.
-    pub built: &'a Path,
-    /// The batch number the lock's marker names.
-    pub seq: u64,
-}
 
 /// How many times a temporary name is tried before the update gives up.
 const NAME_TRIES: usize = 16;
 
 /// A count that makes the temporary names of one process differ.
 static NEXT_NAME: AtomicU64 = AtomicU64::new(0);
-
-/// What:
-///  Whether the live index lock is held by this process for this batch and the private index is a different file in the
-///  live index's directory.
-/// Why:
-///   The marker is written by the landing when it takes the lock (`service_index_prestage.rs`) and names the batch, the process
-///  and its birth identity, so a lock of another program, of another batch, or of a dead service does not match.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ours: boolean = landing.built !== landing.live && sameDirectory && lockMarker(landing.live) === ourMarker(landing.seq);
-/// ```
-pub fn holds_the_lock(landing: &Landing<'_>) -> bool {
-    if landing.built == landing.live || landing.built.parent() != landing.live.parent() {
-        return false;
-    }
-    let Some(marked) = marker_of(lock_path_of(landing.live).as_path()) else {
-        return false;
-    };
-    let Ok(birth) = own_identity() else {
-        return false;
-    };
-    return marked.seq == landing.seq && marked.holder == Some((i64::from(std::process::id()), birth));
-}
 
 /// The mode `calc_shared_perm` makes of `mode` for the `core.sharedRepository` value `shared` (`path.c`).
 pub fn shared_mode(shared: i32, mode: u32) -> u32 {

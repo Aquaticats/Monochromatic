@@ -15,6 +15,7 @@
 
 use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 use super::diagnostic_log::warn;
+use super::service_index_lock::IndexLock;
 use super::service_protocol::{Cleanup, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use super::transaction_journal::RefFormat;
@@ -167,31 +168,46 @@ pub fn update_index(git: &GitContext, repository: &Path, new: &str, paths: Index
 /// ```ts
 /// const built = await buildIndex(git, repository, newCommit, paths, indexPath, seq)
 /// ```
-pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: &Path, seq: u64) -> Result<std::path::PathBuf, FailureCode> {
-    let built: std::path::PathBuf = index.with_file_name(format!("index.cli-git-{seq}"));
+pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, seq: u64) -> Result<std::path::PathBuf, FailureCode> {
+    let index: &Path = lock.index();
+    let built: std::path::PathBuf = private_index_path(index, seq);
     let _stale = std::fs::remove_file(&built);
     if index.exists() {
         std::fs::copy(index, &built).map_err(|error| { return storage_failure(&error); })?;
     }
     let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
-    if !empty && !reset_in_process(git, repository, new, paths, (index, built.as_path(), seq)) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
+    if !empty && !reset_in_process(git, repository, new, paths, (lock, seq)) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
         let _removed = std::fs::remove_file(&built);
         return Err(code);
     }
     return Ok(built);
 }
 
-/// Whether the private index `built` (the copy of the live `index` made under the landing's lock for batch `seq`) was reset to
+/// Whether the private index of batch `seq` (the copy of the live index made while `lock` is held) was reset to
 ///  the commit without starting Git; Git's own command follows when it was not.
 #[cfg(target_os = "linux")]
-fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (live, built, seq): (&Path, &Path, u64)) -> bool {
-    return super::index_reset_file::reset_index_file(git, repository, new, paths, &super::index_reset_publish::Landing { live, built, seq });
+fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (lock, seq): (&IndexLock, u64)) -> bool {
+    return super::index_reset_file::reset_index_file(git, repository, new, paths, lock, seq);
 }
 
 /// Without the in-process update on this platform, Git's own command always runs.
 #[cfg(not(target_os = "linux"))]
-fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&Path, &Path, u64)) -> bool {
+fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&IndexLock, u64)) -> bool {
     return false;
+}
+
+/// What:
+///  The only name a landing gives its private copy of the live index `live` for batch `seq`.
+/// Why:
+///   `build_index` makes the copy under this name and the in-process update works on this name alone, so no other file beside
+///  the live index (another client's index chosen by `GIT_INDEX_FILE`, another batch's copy) can be replaced by it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const built = join(dirname(live), `index.cli-git-${seq}`);
+/// ```
+pub fn private_index_path(live: &Path, seq: u64) -> std::path::PathBuf {
+    return live.with_file_name(format!("index.cli-git-{seq}"));
 }
 
 /// The failure a storage error stands for.

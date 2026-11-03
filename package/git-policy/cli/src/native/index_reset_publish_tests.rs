@@ -1,7 +1,6 @@
 //! Controls for the lock proof, the temporary file and the file mode of the landing's private index.
 
 use super::*;
-use crate::service_index_lock::try_acquire;
 use crate::test_support::{fixture, remove};
 
 /// A directory with a live index file and the name of a private copy beside it.
@@ -14,24 +13,14 @@ fn directory(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     return (root, live, built);
 }
 
-/// The lock counts only when it is this process's, for this batch, and the private index is another file beside the live one.
+/// The private copy has one name, built from the live index and the batch, in the live index's directory.
 #[test]
-fn only_this_batchs_lock_counts() {
-    let (root, live, built) = directory("publish-lock");
-    let landing: Landing<'_> = Landing { live: live.as_path(), built: built.as_path(), seq: 7 };
-    assert!(!holds_the_lock(&landing), "no lock");
-    std::fs::write(lock_path_of(live.as_path()), b"someone else's lock").expect("foreign lock");
-    assert!(!holds_the_lock(&landing), "a foreign lock");
-    std::fs::remove_file(lock_path_of(live.as_path())).expect("removed");
-    let held = try_acquire(live.as_path(), 7).expect("free");
-    assert!(holds_the_lock(&landing), "our lock for this batch");
-    assert!(!holds_the_lock(&Landing { seq: 8, ..landing }), "another batch");
-    assert!(!holds_the_lock(&Landing { built: live.as_path(), ..landing }), "the live index itself");
-    let elsewhere: PathBuf = root.join("sub").join("index.cli-git-7");
-    assert!(!holds_the_lock(&Landing { built: elsewhere.as_path(), ..landing }), "a file in another directory");
-    drop(held);
-    assert!(!holds_the_lock(&landing), "the lock is gone once released");
-    remove(root.as_path());
+fn the_private_name_is_built_from_the_live_index_and_the_batch() {
+    let live: PathBuf = PathBuf::from("/repository/.git/index");
+    assert_eq!(crate::service_land_follow::private_index_path(live.as_path(), 7), PathBuf::from("/repository/.git/index.cli-git-7"));
+    assert_ne!(crate::service_land_follow::private_index_path(live.as_path(), 7), crate::service_land_follow::private_index_path(live.as_path(), 8));
+    let other: PathBuf = PathBuf::from("/repository/.git/index2");
+    assert_eq!(crate::service_land_follow::private_index_path(other.as_path(), 7).parent(), other.parent());
 }
 
 /// Git's `calc_shared_perm`: positive values add bits, negative values replace them, a read-only file gets no write bit, and an
@@ -102,19 +91,5 @@ fn the_published_mode_is_gits() {
     assert_eq!(std::fs::metadata(&built).expect("metadata").permissions().mode() & 0o7777, 0o660);
     publish(built.as_path(), b"x", -0o640).expect("published");
     assert_eq!(std::fs::metadata(&built).expect("metadata").permissions().mode() & 0o7777, 0o640);
-    remove(root.as_path());
-}
-
-/// A legitimate lock on the live index does not make any other file beside it the batch's private index: only the name the
-/// landing gives its copy (`index.cli-git-<batch>`) counts, so another client's index in the same directory is never replaced.
-#[test]
-fn only_the_batchs_own_private_name_counts() {
-    let (root, live, _built) = directory("publish-name");
-    let other: PathBuf = root.join("other-index");
-    std::fs::write(&other, b"another client's index").expect("other");
-    let held = try_acquire(live.as_path(), 7).expect("free");
-    assert!(!holds_the_lock(&Landing { live: live.as_path(), built: other.as_path(), seq: 7 }), "another file in the directory");
-    assert!(!holds_the_lock(&Landing { live: live.as_path(), built: root.join("index.cli-git-8").as_path(), seq: 7 }), "another batch's name");
-    drop(held);
     remove(root.as_path());
 }

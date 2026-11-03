@@ -16,7 +16,8 @@ use super::diagnostic_log::debug;
 use super::index_full::{FullIndex, parse_full_index};
 use super::index_full_write::write_full_index;
 use super::index_reset::reset_paths;
-use super::index_reset_publish::{Landing, holds_the_lock, publish};
+use super::index_reset_publish::publish;
+use super::service_index_lock::IndexLock;
 use super::index_reset_tree::{changed_paths, root_tree, tree_entries_at};
 use super::index_settings::{IndexSettings, read_settings};
 use super::repo_read_config_list::list_config;
@@ -26,12 +27,12 @@ use super::repo_read_layout::{ObjectFormat, RepoLayout, read_layout_with};
 use super::repo_read_object::name_length;
 use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_tree::FlatEntry;
-use super::service_land_follow::IndexPaths;
+use super::service_land_follow::{IndexPaths, private_index_path};
 use super::service_protocol::is_zero_object;
 use super::subvolume_sha::{sha1, sha256};
 use super::transaction_git::GitContext;
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The most bytes of index file this reads: the bound the in-process query layer already puts on the same file (`repo_read_query.rs`, `Context::index`), not a new measurement.
 const INDEX_LIMIT: u64 = 1 << 30;
@@ -105,12 +106,9 @@ fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, u32)> {
 }
 
 /// The update, with every decline as `None`.
-fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, landing: &Landing<'_>) -> Option<()> {
-    if !holds_the_lock(landing) {
-        return None;
-    }
+fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path) -> Option<()> {
     let around: Surroundings = surroundings(git, repository)?;
-    let (mut index, timestamp) = read_index(landing.built, around.layout.object_format)?;
+    let (mut index, timestamp) = read_index(built, around.layout.object_format)?;
     let new_tree: Vec<u8> = root_tree(&around.database, new, around.layout.object_format)?;
     let names: Vec<Vec<u8>> = names_of(&around.database, &around.layout, new_tree.as_slice(), paths)?;
     // An empty list resets nothing; `reset` with no path would reset the whole index, so the caller never asks it.
@@ -121,23 +119,25 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     reset_paths(&mut index, names.as_slice(), tree.as_slice(), around.settings, timestamp)?;
     let format: ObjectFormat = around.layout.object_format;
     let bytes: Vec<u8> = write_full_index(&index, &|data: &[u8]| { return checksum(format, data); })?;
-    return publish(landing.built, bytes.as_slice(), around.settings.shared_repository).ok();
+    return publish(built, bytes.as_slice(), around.settings.shared_repository).ok();
 }
 
 /// What:
-///  Reset the index entries of `paths` in the landing's private index to the commit `new` without starting Git; whether it did.
+///  Reset the index entries of `paths` in the landing's private index for batch `seq` to the commit `new` without starting Git;
+///  whether it did.
 /// Why:
-///   The private index is the copy the landing made while it holds the live index lock; a call for any other file, or without
-///  that lock, returns `false` and changes nothing. A `false` leaves the file as it was (the new file replaces it only by rename
+///   The private index is the copy the landing made while it holds the live index lock: the function takes a borrow of that
+///  lock, so only the holder can call it, and it works on `index.cli-git-<seq>` beside the lock's index and nothing else. A `false` leaves the file as it was (the new file replaces it only by rename
 ///  after it is complete), so the caller can run `git reset --no-refresh` on the same file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// resetIndexFile({ git, repository, commit, paths, indexFile }): boolean
 /// ```
-pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, landing: &Landing<'_>) -> bool {
-    let done: bool = guarded(|| { return reset_file(git, repository, new, paths, landing); }).is_some();
-    debug("indexResetFile", format!("in-process reset of {}: {}", landing.built.display(), if done { "done" } else { "declined, Git answers" }).as_str());
+pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, seq: u64) -> bool {
+    let built: PathBuf = private_index_path(lock.index(), seq);
+    let done: bool = guarded(|| { return reset_file(git, repository, new, paths, built.as_path()); }).is_some();
+    debug("indexResetFile", format!("in-process reset of {}: {}", built.display(), if done { "done" } else { "declined, Git answers" }).as_str());
     return done;
 }
 
