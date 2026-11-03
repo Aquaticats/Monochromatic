@@ -106,3 +106,38 @@ fn during_a_conflicted_merge_an_unrelated_path_lands_and_the_conflicted_path_is_
     let _waited = service.wait();
     remove_settled(&fixture);
 }
+
+/// The owner (2026-11-03): "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be
+///  committed." A commit that names the path a merge left in conflict lands, the committed blob holds the markers, the merge is
+///  carried on, and standard error says in plain words that the path still has conflict markers, that they were committed, and
+///  how to fix them in a follow-up commit.
+#[test]
+fn a_commit_naming_a_conflicted_path_lands_with_its_markers_and_warns() {
+    let fixture: Fixture = fixture("commit-conflicted-path");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    std::fs::write(repo.join("y.txt"), "base\n").expect("file");
+    git(&fixture, &repo, &["add", "--", "y.txt"]);
+    git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
+    git(&fixture, &repo, &["switch", "--quiet", "--create", "other"]);
+    std::fs::write(repo.join("y.txt"), "other\n").expect("file");
+    git(&fixture, &repo, &["commit", "--quiet", "--all", "--message=other"]);
+    git(&fixture, &repo, &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("y.txt"), "main\n").expect("file");
+    git(&fixture, &repo, &["commit", "--quiet", "--all", "--message=main"]);
+    let merged = super::support::direct(&fixture).current_dir(&repo).args(["merge", "--no-edit", "other"]).output().expect("git runs");
+    assert_eq!(merged.status.code(), Some(1), "the merge conflicts");
+    let name: String = format!("ccp-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let landed: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=conflicted on purpose", "--", "y.txt"]);
+    let stderr: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert_eq!(landed.status.code(), Some(0), "a conflicted path is committed: {stderr}");
+    assert_ne!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), before, "a commit landed");
+    assert!(git_text(&fixture, &repo, &["show", "HEAD:y.txt"]).contains("<<<<<<<"), "the committed blob holds the markers");
+    assert!(stderr.contains("y.txt") && stderr.contains("conflict markers") && stderr.contains("committed"), "the warning names the path: {stderr}");
+    assert!(stderr.contains("follow-up commit"), "the warning says how to fix it: {stderr}");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
