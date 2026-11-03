@@ -105,6 +105,22 @@ pub(crate) fn arm_watchdog() {
     });
 }
 
+/// What:
+///  Forbid core dumps for this test process and everything it starts, once.
+/// Why:
+///   Tests make services abort or kill them on purpose, and each dump costs the system's core-dump handler processor time and
+///  disk writes on a disk other sessions share (several hundred dumps of `cli-git-service` from test runs on 2026-11-03). A
+///  process limit is inherited across `fork` and `exec` and the hard limit stops a child from raising it; this is the
+///  harness's, and the product sets none.
+pub(crate) fn forbid_core_dumps() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let none: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        // SAFETY: `setrlimit` reads the one `rlimit` it is given and touches no memory of ours.
+        let _set = unsafe { libc::setrlimit(libc::RLIMIT_CORE, &none) };
+    });
+}
+
 /// Environment variable that keeps every fixture on disk after its test ends, for looking at a failure.
 pub(crate) const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
 
@@ -153,11 +169,18 @@ pub(crate) fn settle_fixture(root: &Path, keep: bool) {
 struct ThreadFixtures {
     /// Roots to remove.
     roots: std::cell::RefCell<Vec<PathBuf>>,
+    /// Process groups of the helper processes the thread started with `spawn_owned`, killed when the thread ends.
+    groups: std::cell::RefCell<Vec<libc::pid_t>>,
 }
 
 /// A panic unwinds the test thread, which runs this.
 impl Drop for ThreadFixtures {
     fn drop(&mut self) {
+        // The helpers die first, so no process is left in a directory that is about to be removed.
+        for group in self.groups.borrow().iter() {
+            // SAFETY: `killpg` takes a group number and a signal and touches no memory; a group with no member is `ESRCH`.
+            unsafe { libc::killpg(*group, libc::SIGKILL) };
+        }
         let keep: bool = std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some();
         for root in self.roots.borrow().iter() {
             settle_fixture(root.as_path(), keep);
@@ -167,7 +190,22 @@ impl Drop for ThreadFixtures {
 
 thread_local! {
     /// The fixtures of the running test thread.
-    static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()) } };
+    static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()), groups: std::cell::RefCell::new(Vec::new()) } };
+}
+
+/// What:
+///  Start a helper process that dies with the test thread that started it, whether the test passes, fails or panics.
+/// Why:
+///   A shell loop that a failing push-progress test never reached the end of ran for 87 minutes in a deleted fixture. The
+///  helper leads a process group of its own, so what it starts (a `sleep` of the loop) is killed with it, and the group is
+///  killed when the thread's fixtures are dropped, the same moment the fixture directories go.
+pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<std::process::Child> {
+    use std::os::unix::process::CommandExt as _;
+    command.process_group(0);
+    let child: std::process::Child = command.spawn()?;
+    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
+    THREAD_FIXTURES.with(|fixtures| { fixtures.groups.borrow_mut().push(group); });
+    return Ok(child);
 }
 
 /// This test process's own executable, for the helper processes a control starts from the test binary.
@@ -182,6 +220,7 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
 ///  under a prefix that keeps the fixtures of different support modules apart.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     arm_watchdog();
+    forbid_core_dumps();
     let root: PathBuf = fixture_root().join(format!("{prefix}-{}-{name}", std::process::id()));
     if root.exists() {
         std::fs::remove_dir_all(&root).expect("remove stale fixture");

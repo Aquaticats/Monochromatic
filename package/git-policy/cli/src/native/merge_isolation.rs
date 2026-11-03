@@ -53,8 +53,12 @@ use super::iso_time::now_iso;
 use super::random_id::random_uuid;
 /// The repository shape.
 use super::worktree_identity::WorktreeIdentity;
+/// Waiting for any program's hold on the index lock before the checkout changes.
+use super::index_holder_wait::wait_for_index_release_here;
 /// Owned operating-system text.
 use std::ffi::OsString;
+/// The notices of a round that is made again.
+use std::io::Write;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -121,7 +125,15 @@ enum Bail {
     Forward(Option<String>),
     /// Done, with this result.
     Done(IsolatedMerge),
+    /// The checkout is as it was before the round and the merge is computed again, for this reason (the branch moved, or
+    ///  another program took the index lock in the instant before Git did).
+    Again(String),
 }
+
+/// How many times one merge is computed again on a branch that moved underneath it before the wrapper stops. Each round
+/// is a whole merge on the newest head; a branch that moves faster than that for this many rounds in a row is not a
+/// race but a loop, and the merge is refused with the cause named, changing nothing.
+const MAX_ROUNDS: usize = 20;
 
 /// A failed query is a reason to forward, with the cause in the diagnostic log.
 impl From<String> for Bail {
@@ -349,6 +361,11 @@ pub fn run_isolated_merge(input: &IsolatedMergeInput<'_>) -> IsolatedMerge {
     match attempt(input) {
         Ok(done) | Err(Bail::Done(done)) => return done,
         Err(Bail::Forward(notice)) => return IsolatedMerge::Forward { notice },
+        // `attempt` makes the rounds itself and never lets one escape; native Git is the safe answer to a bug here.
+        Err(Bail::Again(reason)) => {
+            debug(TAG, format!("a round escaped the attempt ({reason}); native Git runs the merge").as_str());
+            return IsolatedMerge::Forward { notice: None };
+        }
     }
 }
 
@@ -367,6 +384,35 @@ fn refused(code: i32, stderr: String) -> Bail {
 /// async function attempt(input): Promise<IsolatedMerge>; // throws Bail
 /// ```
 fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
+    for round in 1..=MAX_ROUNDS {
+        match attempt_round(input) {
+            Err(Bail::Again(reason)) => {
+                debug(TAG, format!("round {round} of {MAX_ROUNDS}: {reason}").as_str());
+                let _noted = std::io::stderr().write_all(format!("cli-git: git merge: {reason}; merging again on the current branch.\n").as_bytes());
+            }
+            finished => return finished,
+        }
+    }
+    return Err(refused(
+        2,
+        format!(
+            "cli-git: git merge: the branch moved or the index lock was taken in {MAX_ROUNDS} merges in a row, so the wrapper \
+             stopped; nothing was changed. Run the merge again.\n"
+        ),
+    ));
+}
+
+/// What:
+///  One round of the attempt: everything from the recovery of dead merges to the application, on the branch as it is now.
+/// Why:
+///   A round that finds the branch moved by the time it applies ends with the checkout as it was, and the next round
+///  starts from the new head.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function attemptRound(input): Promise<IsolatedMerge>; // throws Bail
+/// ```
+fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
     if !input.command.is_builtin() || input.command.word() != b"merge" {
         return Err(Bail::Forward(None));
     }
@@ -400,15 +446,23 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
     let Some(reference) = shape.reference.to_str().map(String::from) else {
         return Err(Bail::Forward(None));
     };
-    // The one process a merge into a clean index costs: native Git runs unchanged when nothing is staged.
+    // Exit 1 means another session has staged work, 0 means the index equals `HEAD`; the merge is completed here in both
+    //  cases, because native Git's merge stashes first (`git stash create`), dies when `index.lock` is held, and moves the
+    //  branch only after it changed the checkout. What native Git does better stays its own: a conflict that the person
+    //  resolves in the worktree, and an overlap with unsaved work, which it words itself.
     let staged: GitOutput = session.run(&["diff-index", "--cached", "--quiet", "HEAD", "--"])?;
-    if staged.code != Some(1) {
-        return Err(Bail::Forward(None));
-    }
+    let staged_work: bool = match staged.code {
+        Some(1) => true,
+        Some(0) => false,
+        _ => return Err(Bail::Forward(None)),
+    };
     let auto_edit: Option<String> = environment_value(input.environment, "GIT_MERGE_AUTOEDIT")
         .map(|value| { return value.to_string_lossy().into_owned(); });
     let opens_editor: bool = !shape.no_edit
         && editor_would_open(auto_edit.as_deref(), stdin_and_stdout_are_one_terminal()).unwrap_or(true);
+    if opens_editor && !staged_work {
+        return Err(Bail::Forward(None));
+    }
     if opens_editor {
         return Err(Bail::Forward(Some(String::from(
             "cli-git: this merge would open an editor, so the wrapper does not complete it in isolation while the \
@@ -451,7 +505,7 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
         let full_name: String = session.text(&["rev-parse", "--symbolic-full-name", reference.as_str()])?;
         Some(describe_merge_source(reference.as_str(), full_name.as_str(), target).ok_or(Bail::Forward(None))?)
     };
-    let tree: String = merge_tree(&session, &shape, head, target, reference.as_str())?;
+    let tree: String = merge_tree(&session, &shape, (head, target, reference.as_str()), staged_work)?;
     let incoming: Vec<Vec<u8>> = diff_paths(
         session
             .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, tree.as_str()])?
@@ -459,6 +513,10 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
             .as_slice(),
     );
     let overlap: Vec<Vec<u8>> = overlapping_paths(unsaved_paths(&session)?.as_slice(), incoming.as_slice());
+    if !overlap.is_empty() && !staged_work {
+        // Native Git words a refusal over unsaved work in the worktree itself.
+        return Err(Bail::Forward(None));
+    }
     if !overlap.is_empty() {
         return Err(refused(2, overlap_finding(reference.as_str(), overlap.as_slice())));
     }
@@ -538,7 +596,8 @@ fn recover_dead_merges(input: &IsolatedMergeInput<'_>, git_dir: &Path, root: &Pa
 /// ```ts
 /// async function mergeTree({ session, shape, head, target }): Promise<string>;
 /// ```
-fn merge_tree(session: &Session, shape: &MergeShape, head: &str, target: &str, reference: &str) -> Result<String, Bail> {
+fn merge_tree(session: &Session, shape: &MergeShape, ends: (&str, &str, &str), staged_work: bool) -> Result<String, Bail> {
+    let (head, target, reference): (&str, &str, &str) = ends;
     let mut arguments: Vec<&str> = vec!["merge-tree", "--write-tree", "--name-only", "--no-messages"];
     if shape.allow_unrelated_histories {
         arguments.push("--allow-unrelated-histories");
@@ -549,6 +608,8 @@ fn merge_tree(session: &Session, shape: &MergeShape, head: &str, target: &str, r
     let lines: Vec<String> = String::from_utf8_lossy(&merged.stdout).lines().map(String::from).collect();
     match merged.code {
         Some(0) => return lines.first().cloned().ok_or_else(|| { return Bail::from(String::from("merge-tree printed no tree")); }),
+        // A conflict with a clean index is left to native Git, which writes the markers for the person to resolve.
+        Some(1) if !staged_work => return Err(Bail::Forward(None)),
         Some(1) => {
             let paths: Vec<String> = lines.iter().skip(1).take_while(|line| { return !line.is_empty(); }).cloned().collect();
             return Err(refused(2, conflict_finding(reference, paths.as_slice())));
@@ -611,6 +672,9 @@ fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>) -> 
         let named: GitOutput = session.run(&["symbolic-ref", "--quiet", "HEAD"])?;
         if named.succeeded() { Some(String::from_utf8_lossy(&named.stdout).trim().to_owned()) } else { None }
     };
+    // Git's fast-forward takes `index.lock` before it changes anything and dies when another program holds it. The merge waits
+    //  for the holder here, bounded and naming it; a lock taken in the instant between is met by the round made again.
+    wait_for_index_release_here(git_dir.join("index").as_path(), "merge");
     let transaction_id: String = random_uuid().map_err(|error| { return Bail::from(error.0); })?;
     let owner = current_transaction_owner(transaction_id.as_str(), now_iso().as_str())
         .map_err(|error| { return Bail::from(error.to_string()); })?;
@@ -640,7 +704,10 @@ fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>) -> 
     };
     if !moved.succeeded() {
         let detail: String = moved.error_text();
+        let lock_taken: bool = detail.contains("index.lock");
         return Err(match settle_failed_merge(&place, record.as_path(), &intent) {
+            Ok(MergeRecoveryAction::BranchMoved) => Bail::Again(format!("{reference} was merged on a branch that moved meanwhile")),
+            Ok(MergeRecoveryAction::Discarded) if lock_taken => Bail::Again(String::from("another program took the index lock first")),
             Ok(MergeRecoveryAction::Completed) => Bail::Done(IsolatedMerge::Finished {
                 code: 0,
                 stdout: String::new(),

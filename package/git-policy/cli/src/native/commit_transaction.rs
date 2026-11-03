@@ -176,9 +176,28 @@ pub struct Selection {
 /// const mode = region.hasNoOnlyFlag || concludesSequencer || readOnlySelection || region.hasAllFlag || (!selectsPaths) ? 'index' : 'explicit-path';
 /// ```
 pub fn decide_selection(region: &CommitRegion, conclusion: Conclusion) -> Selection {
-    let concludes_sequencer: bool = conclusion != Conclusion::None && conclusion != Conclusion::Amend;
+    return decide_selection_naming(region, conclusion, false);
+}
+
+/// What:
+///  `decide_selection`, told whether the paths the commit names include one with an unmerged index entry.
+/// Why:
+///   A path in conflict cannot be committed: such a command keeps concluding the sequencer, so real Git's own refusal reaches
+///  the person, in its words, and nothing is committed with conflict markers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// decideSelectionNaming(region, conclusion, namesUnmerged)
+/// ```
+pub fn decide_selection_naming(region: &CommitRegion, conclusion: Conclusion, names_unmerged: bool) -> Selection {
     let read_only: bool = region.include || region.interactive || region.patch;
     let selects_paths: bool = !region.pathspecs.is_empty() || region.pathspec_from_file.is_some();
+    // Named paths never conclude another session's unfinished merge or stopped cherry-pick: real Git refuses them there as a
+    //  partial commit, and the commit lands as an ordinary commit of those paths while the state is carried on (`SPEC.md`,
+    //  "Merges and commits never fail"). Real Git takes named paths during a revert and concludes it with them, which stays.
+    let paths_only: bool = selects_paths && !read_only && !region.all && region.only != Some(false);
+    let refused_by_git: bool = matches!(conclusion, Conclusion::Merge | Conclusion::CherryPick) && !names_unmerged;
+    let concludes_sequencer: bool = conclusion != Conclusion::None && conclusion != Conclusion::Amend && !(paths_only && refused_by_git);
     let staged_all: bool = region.all && !selects_paths && !read_only && region.only != Some(true);
     let index_mode: bool = region.only == Some(false)
         || concludes_sequencer
@@ -285,6 +304,39 @@ pub fn base_object(capture: &InvocationCapture) -> Result<Option<ObjectId>, Tran
             None => Err(failed(format!("the preparation base {oid} is not an object name"))),
         },
     };
+}
+
+/// What:
+///  Whether any pathspec of a commit could name one of the unmerged paths, judged without expanding any pathspec.
+/// Why:
+///   An unmerged path must never be committed by a commit that lands beside an unfinished merge. A pathspec that names a path
+///  or a directory above it says yes; a pathspec the check cannot read exactly (a glob, a magic prefix, a path outside the
+///  current directory, a pathspec file) says yes whenever anything is unmerged, which keeps Git's refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesAnUnmergedPath(unmerged, pathspecs, fromFile)
+/// ```
+pub fn names_an_unmerged_path(unmerged: &[Vec<u8>], pathspecs: &[Vec<u8>], from_file: bool) -> bool {
+    if unmerged.is_empty() {
+        return false;
+    }
+    if from_file || pathspecs.is_empty() {
+        return true;
+    }
+    return pathspecs.iter().any(|spec| {
+        let inexact: bool = spec.is_empty()
+            || spec.iter().any(|byte| { return matches!(*byte, b'*' | b'?' | b'[' | b'\\' | b':'); })
+            || spec.starts_with(b"/")
+            || spec.starts_with(b"..")
+            || spec.as_slice() == b".";
+        if inexact {
+            return true;
+        }
+        let directory: &[u8] = spec.strip_suffix(b"/").unwrap_or(spec.as_slice());
+        let above: Vec<u8> = [directory, b"/".as_slice()].concat();
+        return unmerged.iter().any(|path| { return path.as_slice() == directory || path.starts_with(above.as_slice()); });
+    });
 }
 
 /// Controls for this module stay out of the release executable.

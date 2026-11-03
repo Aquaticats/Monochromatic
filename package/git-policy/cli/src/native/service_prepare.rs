@@ -26,7 +26,7 @@ use super::commit_index::{
 use super::commit_no_change::{NO_CHANGE_CODE, NO_CHANGE_CORE_ID, no_change_message};
 use super::commit_staged_deletions::{STAGED_DELETION_CODE, STAGED_DELETION_CORE_ID, staged_deletion_message, staged_deletions_present_on_disk};
 use super::commit_transaction::{
-    CommitInvocation, Selection, TransactionResult, TransactionStop, base_object, decide_selection, failed, private_checks, settled_passes, staged_at_base,
+    CommitInvocation, Selection, TransactionResult, TransactionStop, base_object, decide_selection_naming, failed, names_an_unmerged_path, private_checks, settled_passes, staged_at_base,
 };
 use super::commit_worktree_records::selected_worktree_records;
 use super::conclusion_cleanup::{CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY};
@@ -47,7 +47,7 @@ use super::service_replay::{MergeSite, Merged, ReplayConflict, Retry, already_co
 use super::external_hooks::warn_external_hooks;
 use super::traditional_hook_warning::warn_traditional_hooks;
 use super::transaction_git::{GitContext, run_git_checked};
-use super::transaction_journal::{AddedPath, Base, RefFormat, SymbolicHead, TransactionMode};
+use super::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
 use super::worktree_completion::install_added_worktree_files;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -225,7 +225,17 @@ pub fn prepare<F: RepositoryFacts>(
         warn_traditional_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
         warn_external_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
     }
-    let selection: Selection = decide_selection(region, layout.conclusion);
+    // Named paths beside another session's unfinished merge or stopped cherry-pick land as an ordinary commit, unless one of them is
+    //  in conflict: that one keeps concluding the state, and Git's own refusal reaches the person.
+    let names_unmerged: bool = if matches!(layout.conclusion, Conclusion::Merge | Conclusion::CherryPick) && (!region.pathspecs.is_empty() || region.pathspec_from_file.is_some()) {
+        let unmerged: Vec<Vec<u8>> = list_unmerged_index_paths(context, cwd, layout.real_index_path.as_path())?;
+        let region_arguments: &[OsString] = &invocation.arguments[invocation.subcommand_index + 1..];
+        let named: Vec<Vec<u8>> = region.pathspecs.iter().map(|at| { return region_arguments[*at].as_encoded_bytes().to_vec(); }).collect();
+        names_an_unmerged_path(unmerged.as_slice(), named.as_slice(), region.pathspec_from_file.is_some())
+    } else {
+        false
+    };
+    let selection: Selection = decide_selection_naming(region, layout.conclusion, names_unmerged);
     let reference: String = match &layout.symbolic_head {
         SymbolicHead::Branch(name) => name.clone(),
         SymbolicHead::Detached => String::from("HEAD"),

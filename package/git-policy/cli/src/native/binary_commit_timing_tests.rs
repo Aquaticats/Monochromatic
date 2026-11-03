@@ -247,6 +247,40 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     remove_settled(&fixture);
 }
 
+/// Whole milliseconds each term of a sum may fall short by, because every phase is cut to whole milliseconds on its own.
+const ROUNDING_MS: u64 = 12;
+
+/// Whether the wait for a foreign holder accounts for the rest of the hold.
+/// The hold had lasted `age_ms` when the service first looked at the lock (it measures that itself, from the lock's own
+///  age) and ended when the wait ended, so on any host the wait is at least what was left of the hold.
+fn wait_covers_the_hold(wait_ms: u64, age_ms: u64, hold_ms: u64) -> bool {
+    return wait_ms + age_ms + ROUNDING_MS >= hold_ms;
+}
+
+/// Whether a phase lies beside the wait and not inside it: the phase and the wait fit in the whole they are both part of.
+fn phase_lies_beside_the_wait(phase_ms: u64, wait_ms: u64, whole_ms: u64) -> bool {
+    return phase_ms + wait_ms <= whole_ms + ROUNDING_MS;
+}
+
+/// A host that is slow for one phase (an object write of 2.7 s) and that delays the wait's start (a long preparation) breaks
+///  neither bound: the wait still covers what is left of the hold, and the slow phase still lies beside it.
+#[test]
+fn a_slow_phase_and_a_late_wait_do_not_break_the_attribution() {
+    let hold: u64 = 4_000;
+    let wait: u64 = 2_100;
+    let age: u64 = 1_900;
+    assert!(wait_covers_the_hold(wait, age, hold), "the wait began {age} ms into a hold of {hold} ms");
+    assert!(phase_lies_beside_the_wait(2_681, wait, 2_681 + wait + 50), "a slow phase is not the wait");
+}
+
+/// A wait that is shorter than what was left of the hold means the time went to another phase; a phase that overlaps the wait
+///  is counted twice.
+#[test]
+fn a_wait_that_lost_time_or_a_phase_that_overlaps_it_is_caught() {
+    assert!(!wait_covers_the_hold(500, 300, 4_000), "3.2 s of the hold went to no wait");
+    assert!(!phase_lies_beside_the_wait(3_000, 2_000, 4_000), "3 s and 2 s do not fit in 4 s");
+}
+
 /// A foreign commit holds the index lock while the wrapped commit lands:
 /// the service's line puts the time in the wait for the
 ///  lock and names the holder,
@@ -272,17 +306,25 @@ fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
     println!("SERVICE ANSWER (held index): {line}");
     let lock_wait: u64 = ms_of(line, "lock_wait_ms");
     let hold_ms: u64 = u64::from(HOLD_SECONDS) * 1_000;
-    assert!(lock_wait >= hold_ms / 2, "the wait for the lock is most of the hold: {line}");
     assert!(line.contains("lock_holder=\"Process "), "the holder is named: {line}");
-    for other in ["read_ms", "queued_ms", "settle_ms", "reads_ms", "objects_ms", "journal_ms", "ref_ms", "sync_ms", "answer_ms"] {
-        assert!(ms_of(line, other) < lock_wait, "{other} is not what the time went to: {line}");
-    }
     let found: Vec<serde_json::Value> = records(&repo);
     let record: &serde_json::Value = found.last().expect("the wrapped commit's record");
     println!("TIMING RECORD (held index): {record}");
+    // The hold began before the commit did, so on a slow host the wait begins late: the lock was already `age_ms` old at the
+    //  first look, and the wait is what was left of the hold.
+    let age_at_first_look: u64 = ms_of(line, "age_ms");
+    assert!(wait_covers_the_hold(lock_wait, age_at_first_look, hold_ms), "the wait for the lock is what was left of the hold ({hold_ms} ms) after {age_at_first_look} ms: {line}");
+    // A phase that is slow on a slow host still lies beside the wait: the two fit in the whole they are parts of.
+    let landing_total: u64 = ms_of(line, "landing_ms");
+    for other in ["reads_ms", "objects_ms", "journal_ms", "ref_ms", "sync_ms"] {
+        assert!(phase_lies_beside_the_wait(ms_of(line, other), lock_wait, landing_total), "{other} is not what the time went to: {line}");
+    }
+    for other in ["read_ms", "queued_ms", "settle_ms", "answer_ms"] {
+        assert!(phase_lies_beside_the_wait(ms_of(line, other), lock_wait, ms_of(line, "total_ms")), "{other} is not what the time went to: {line}");
+    }
     assert!(number(record, "answerWaitMs") >= lock_wait, "the wrapper waited at least as long as the service did for the lock: {record}");
     for other in ["prepareMs", "buildMs", "provisionMs", "afterLandingMs", "gateMs", "handoffMs", "reachMs"] {
-        assert!(number(record, other) < number(record, "answerWaitMs"), "{other} is not what the time went to: {record}");
+        assert!(phase_lies_beside_the_wait(number(record, other), number(record, "answerWaitMs"), number(record, "totalMs")), "{other} is not what the time went to: {record}");
     }
     assert!(number(record, "waitingNotices") >= 1, "the service told the wrapper it was waiting: {record}");
     assert_eq!(record["lockHolderKind"], "proven-alive", "the record says what kind of holder the wait was for: {record}");
@@ -294,7 +336,7 @@ fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
     // Native `git commit` keeps its lock without a descriptor through its hooks, so the holder is proven by its PID file and
     //  the lock is described as one with no service marker.
     assert!(waited[0].contains("lock_found=\"foreign no-marker"), "the holder is described: {}", waited[0]);
-    assert!(ms_of(waited[0].as_str(), "lock_place_ms") >= hold_ms / 2, "the wait for the holder is timed apart from the flush: {}", waited[0]);
+    assert!(wait_covers_the_hold(ms_of(waited[0].as_str(), "lock_place_ms"), ms_of(waited[0].as_str(), "age_ms"), hold_ms), "the wait for the holder is timed apart from the flush: {}", waited[0]);
     assert!(line.contains("lock_found=") && line.contains(" lock_stage_ms="), "the answer carries it too: {line}");
     remove_settled(&fixture);
 }

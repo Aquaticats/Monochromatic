@@ -28,7 +28,13 @@ fn the_mode_follows_the_selection() {
     assert_eq!(selection(&["-a", "-m", "x", "a.txt"]).mode, TransactionMode::Index);
     assert_eq!(selection(&["-i", "-m", "x", "a.txt"]).mode, TransactionMode::Index);
     assert_eq!(selection(&["--pathspec-from-file=list", "-m", "x"]).mode, TransactionMode::ExplicitPath);
-    assert_eq!(decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::Merge).mode, TransactionMode::Index);
+    // Named paths during another session's merge or stopped cherry-pick are an ordinary commit of those paths; during a revert,
+    //  which real Git takes with paths, they conclude it.
+    assert_eq!(decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::Merge).mode, TransactionMode::ExplicitPath);
+    assert!(!decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::Merge).concludes_sequencer);
+    assert_eq!(decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::CherryPick).mode, TransactionMode::ExplicitPath);
+    assert_eq!(decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::Revert).mode, TransactionMode::Index);
+    assert_eq!(decide_selection(&region(&["-m", "x", "--no-only", "a.txt"]), Conclusion::Merge).mode, TransactionMode::Index);
     assert_eq!(decide_selection(&region(&["-m", "x", "a.txt"]), Conclusion::Amend).mode, TransactionMode::ExplicitPath);
 }
 
@@ -149,4 +155,23 @@ fn the_candidate_request_keeps_the_bytes_of_a_name_that_is_not_utf8() {
     };
     assert_eq!(pathspecs.len(), 1);
     assert_eq!(pathspecs[0].as_bytes(), b":(top,literal)caf\xe9.txt");
+}
+
+/// A pathspec names an unmerged path when it is the path or a directory above it; one the check cannot read exactly says yes
+///  whenever anything is unmerged, and nothing unmerged says no to every pathspec.
+#[test]
+fn only_a_pathspec_that_could_name_an_unmerged_path_says_so() {
+    let unmerged: Vec<Vec<u8>> = vec![b"dir/b.txt".to_vec()];
+    let spec = |text: &str| -> Vec<Vec<u8>> { return vec![text.as_bytes().to_vec()]; };
+    assert!(names_an_unmerged_path(unmerged.as_slice(), spec("dir/b.txt").as_slice(), false));
+    assert!(names_an_unmerged_path(unmerged.as_slice(), spec("dir").as_slice(), false));
+    assert!(names_an_unmerged_path(unmerged.as_slice(), spec("dir/").as_slice(), false));
+    for exact in ["a.txt", "dir/c.txt", "dir2/b.txt", "-dash.txt", "--quiet"] {
+        assert!(!names_an_unmerged_path(unmerged.as_slice(), spec(exact).as_slice(), false), "{exact}");
+    }
+    for unreadable in ["*.txt", "dir/?.txt", ":(top)a.txt", "../a.txt", "/abs/a.txt", ".", ""] {
+        assert!(names_an_unmerged_path(unmerged.as_slice(), spec(unreadable).as_slice(), false), "{unreadable}");
+    }
+    assert!(names_an_unmerged_path(unmerged.as_slice(), &[], true), "a pathspec file is not read here");
+    assert!(!names_an_unmerged_path(&[], spec("*").as_slice(), true), "nothing unmerged, nothing to name");
 }

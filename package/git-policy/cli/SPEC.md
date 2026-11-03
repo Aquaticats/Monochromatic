@@ -1155,6 +1155,35 @@ so the push takes no lock.
 A failed push never fails the commit:
 the service leaves a notice that the next command in the repository shows.
 
+#### Merges and commits never fail
+
+Owner rules (2026-11-03, verbatim):
+
+- "Auto merging should never fail."
+- "Manual merge should never fail too."
+- "Commits should never fail."
+
+The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
+for a `git merge` the person types, and for a `git commit`:
+nothing the machine or other processes do ends them with a nonzero status.
+That covers a held `index.lock`, a branch that moved underneath the command (the auto-push's own reconcile merge included),
+a slow disk, a stopped child and a deadline.
+Such a command waits, bounded and naming what it waits for, retries on the new head,
+or lands as a merge on the moved head.
+It never leaves a half-applied result: the index and the worktree hold either what they held before the command
+or the whole result, and no `MERGE_HEAD` is left behind by a merge that did not finish.
+A content conflict goes through the wrapper's conflict resolution and stops, as Git stops on a conflict
+with the conflicting paths named, only where no resolution exists.
+The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
+
+A merge, the person's or the auto-push's, never runs native Git's stash and never trusts the late ref update:
+the merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, the checkout moves with
+`git merge --ff-only`, and the whole is preceded by a bounded wait for `index.lock`.
+A fast-forward that finds the branch moved leaves the checkout as it was or puts the merge's paths back to the moved head's
+content, and the merge is computed again on the moved head (`src/native/merge_isolation_moved.rs`).
+A push the service stopped or that failed is tried again by the service on its own, with doubling pauses from
+`CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds, until it lands or a conflict needs the person (`src/native/push_retry.rs`).
+
 #### Commands that add commits
 
 A command other than `git commit` hands the push over too (owner decision, 2026-11-02):
@@ -2631,9 +2660,15 @@ Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
 A `--` that is the value of an option (`git commit -m --`) is a value and not the separator.
 A pathspec commit during a revert or a cherry-pick, which Git accepts,
-and during a merge or a conflicted cherry-pick, which Git refuses with `cannot do a partial commit`,
 behaves as real Git does,
 including paths named like options (`--quiet`, `-o`, `-dash.txt`) and `--pathspec-from-file`.
+During a merge or a stopped cherry-pick, which Git refuses with `cannot do a partial commit`,
+the owner's rule "Commits should never fail." (2026-11-03) applies instead:
+the commit of the named paths is built in a scratch repository that holds none of the conclusion state,
+so it is an ordinary commit of those paths on `HEAD`;
+the worktree's `MERGE_HEAD` (or `CHERRY_PICK_HEAD`), message and staged result stay,
+and the commit without paths that concludes the merge sits on the new head.
+Options that select the whole index (`--all`, `--no-only`, `--include`, `--interactive`, `--patch`) keep concluding it.
 
 #### Scratch repository layout
 

@@ -131,6 +131,10 @@ mod dependent_version;
 #[path = "binary_merge_isolation_tests.rs"]
 mod merge_isolation;
 
+/// A merge that waits for a held `index.lock` and lands on a branch that moved underneath it.
+#[path = "binary_merge_never_fails_tests.rs"]
+mod merge_never_fails;
+
 /// Real commits through the transaction: landing, policies, replay and conflict.
 #[path = "binary_commit_tests.rs"]
 mod commit;
@@ -344,6 +348,10 @@ mod service_native;
 /// A commit with named paths during a revert, a cherry-pick or a merge, compared with real Git.
 #[path = "binary_service_sequencer_tests.rs"]
 mod service_sequencer;
+
+/// A commit of named paths while another session's merge is unfinished lands, and the merge is carried forward.
+#[path = "binary_commit_during_merge_tests.rs"]
+mod commit_during_merge;
 
 /// Guard: no option of the wrapper's follows the person's `--` in any Git start, and no `--quiet` is added.
 #[path = "binary_option_order_guard_tests.rs"]
