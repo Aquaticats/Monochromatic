@@ -210,9 +210,15 @@ fn a_push_that_lands_cancels_the_plan_of_its_branch() {
 /// How often the restart control looks at what the services have done.
 const LOOK_EVERY: Duration = Duration::from_millis(50);
 
-/// How long the restart control gives a restarted service to deliver: its first pause, the slack the schedule adds, and a margin
-/// far longer than a healthy local push.
-const RESTART_PATIENCE: Duration = Duration::from_secs(10).saturating_add(PAUSE).saturating_add(RETRY_SLACK);
+/// The margin the restart control adds for a loaded host: many times the stall window of the controls, which is itself longer than
+/// a healthy local push, so a slow start is waited for and a plan that was lost is still found out within a fixed time.
+const RESTART_MARGIN: Duration = Duration::from_secs(STALL_SECONDS_NUMBER * 5);
+
+/// The stall window of the controls as a number.
+const STALL_SECONDS_NUMBER: u64 = 2;
+
+/// How long the restart control gives a restarted service to deliver: its first pause, the slack the schedule adds, and the margin.
+const RESTART_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturating_add(RETRY_SLACK);
 
 /// Run `work_loop` on a thread, as the service does, and give the way to wake it; dropping the sender stops it.
 fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
@@ -238,6 +244,7 @@ fn wait_until(done: &dyn Fn() -> bool) -> bool {
 ///  record, which the next wrapper command shows and removes.
 #[test]
 fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
+    assert_eq!(STALL_SECONDS, STALL_SECONDS_NUMBER.to_string(), "the two spellings of the stall window agree");
     let stage: Stage = stage("push-retry-restart");
     let git_dir: PathBuf = stage.repo.join(".git");
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
