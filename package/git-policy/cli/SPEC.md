@@ -639,16 +639,36 @@ directory replaced by a link is refused); the type and mode of a file are judged
 before and after the read, and the read is bounded at the limit plus one byte, so the bytes that were hashed are the bytes of
 the one file that was judged.
 The rungs of the add keep the stat-only check.
-A real run holds an exclusive kernel lock (`cli-git-convert.lock` in the administrative directory, left in place) from before it
-reads the journal until it ends, so two commands never read, write or resume one journal; a command that finds the lock held
-skips the worktree and says so.
-It creates the journal `cli-git-convert` exclusively, through a temporary file created exclusively under a unique name, takes
-`index.lock` with a token, creates `<path>.cli-git-converting` as a subvolume and records its identity (device, inode and birth
-time) in the journal right after.
+A real run takes no lock. It owns the conversion through a numbered claim file in the administrative directory
+(`cli-git-convert.owner.<generation>`, `src/native/single_owner_claim.rs`) that it takes before it reads the journal and gives
+back when it ends, so two commands never read, write or resume one journal. The file is written whole in a private temporary
+file and published with one exclusive `link` under the next generation number, so the kernel lets exactly one command create a
+generation; the newest generation is the claim and records the owner's process id, process birth identity and PID namespace.
+A newer generation replaces an older one only when the older records a released claim or an owner that no longer runs with
+that birth (a reused PID does not count as alive); an owner in another PID namespace counts as alive until its file is older
+than `FOREIGN_OWNER_PATIENCE`. The newest generation is never removed (a released one is rewritten by a rename), older ones are
+removed by the command that took the newer, and a generation published by a command whose listing went stale is withdrawn
+when a newer one exists. A command that finds a live owner skips the worktree, names the process and the file, waits for
+nothing and writes nothing. A killed command leaves a claim file that needs no cleanup.
+A conversion is refused while a migration of the main checkout that holds the worktree is running, and a migration is refused
+while a conversion of any linked worktree registered in it is running, each naming the other command's process; the claims
+are read without being taken, so the pair stays exclusive although the conversion holds `index.lock` only for its last phases.
+Release 0.5.20 and older serialized conversions with an advisory kernel lock on `cli-git-convert.lock`, left in place. This
+release never takes that lock for its own work. Where the file exists it probes it once without waiting, skips the worktree
+when an older command holds it (two commands must never convert one worktree at once, whichever release they are), and removes
+the file when nothing holds it, so the leftover retires itself after the upgrade. A conversion an older release left
+unfinished (its journal in the same format, and `index.lock` with the journal's token from the start) is finished by this
+release by running the command again.
+It creates the journal `cli-git-convert` exclusively, through a temporary file created exclusively under a unique name, creates
+`<path>.cli-git-converting` as a subvolume and records its identity (device, inode and birth time) in the journal right after.
+Git's `index.lock`, which is Git's own protocol for writing an index and so cannot be dropped, is taken with a token only for
+the proving pass: the long first copy runs without it. It stays through the exchange and the index rewrite and is given back
+as soon as the rewrite is journaled, before the old tree is removed; a proof that fails gives it back at once, and a run that
+resumes after the exchange takes it again before the rewrite.
 A directory at the converting name that the journal has no identity for is foreign: it is refused, never synced into,
 exchanged or destroyed, and the abandon leaves it.
-It copies the worktree into the stage with cloned data and runs a second pass that must find nothing to copy; `Synced` only
-records that this once held, so every resume before the swap copies and proves again.
+It copies the worktree into the stage with cloned data and, holding `index.lock`, runs a second pass that must find nothing to
+copy; `Synced` only records that this once held, so every resume before the swap copies and proves again.
 It exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root, is the subvolume whose identity
 the journal recorded and holds the same `.git` bytes, and rewrites the index stat fields; a refresh that did not install the new
 index stops the conversion with the old tree kept.
@@ -661,7 +681,7 @@ run says which entry or process it is.
 It removes the old tree only when the directory at the name is the one whose identity (device, inode and birth time) the journal
 recorded, pinned by a descriptor opened below its parent, deleting beneath that descriptor and removing the name last only while
 it still names that object; a name that holds anything else keeps the journal and ends the run as incomplete.
-Then it drops the journal and the lock.
+Then it drops the journal (and `index.lock` if a run that stopped left it).
 Nested registrations are read from the common directory whatever it is called (a bare repository included), and the refusals have
 kinds: only the `index.lock` that holds this command's token and the stage whose identity the journal recorded are exempt, never a
 refusal because of its words.
@@ -671,7 +691,7 @@ its journal line; `--abandon` destroys only the subvolume whose identity the jou
 Other processes: nothing in the command or the program excludes another process from changing the worktree while a command
 works on it. A rename or replacement mid-operation, a write through an open file or a shared mapping, and an edit between a
 check and the step that relies on it are accepted risk, stated in the help text, in one notice on standard error before the
-conversion runs, and in the README. The guards that cost little stay: the lock, the identity checks, the process table read
+conversion runs, and in the README. The guards that cost little stay: the claim, the identity checks, the process table read
 before the swap and before the removal, and the read-only comparison before the removal.
 
 The journal names the path the conversion began at: a worktree moved while a conversion is unfinished is refused with both paths.
@@ -679,6 +699,20 @@ A journal, a registration file or a `.git` that is a named pipe or any other fil
 instead of blocking while the lock is held.
 A dry run reconciles an exchange the journal has not recorded in memory, as a real run does, and writes nothing.
 The registrations are listed from the common directory; a listing or a registration that cannot be read is a refusal.
+
+Migrating the main checkout (`git cli-git migrate-to-subvolume`) is owned the same way, in every mode (migrate, `--rollback`,
+`--remove-old`): the command takes a numbered claim file `.cli-git-migrate-<name>.owner.<generation>` in the checkout's parent
+directory before it reads the journal and gives it back when it returns, so a second command on the checkout is refused with
+exit status 1, the owner's process id and the file named, and nothing changed; a preview takes no claim. Before this release
+the migration had no such guard: a second run resumed the first one's journal with the first one's token. The migration
+still holds Git's own `index.lock` for the main index and for each linked worktree's index (one `O_EXCL` file per index,
+never waited for, a foreign one stops the migration with the file named), from before its last delta pass to the end of the
+index rewrite, because only Git's lock excludes a Git writer from the exchange; that reason is written beside the code in
+`subvolume_lock.rs`, `subvolume_index_files.rs` and `subvolume_migrate.rs`. The rewrite of the index stat fields that runs by
+itself (the worktree add's index, a rollback) takes `index.lock` for one index from the read to the rename.
+The mutation campaign's two kernel locks stay (`package/mutation-test/cli-cargo-mutants`): the per-campaign evidence-directory
+lock is taken without waiting and a second run is refused, and the host-wide slot limiter is a counting limit on CPU that one
+owner per item cannot express; each says why beside its code.
 
 Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the destination in one clone domain.
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links

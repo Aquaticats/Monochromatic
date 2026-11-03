@@ -8,6 +8,13 @@
  stale, no judgement about whether a holder is still alive, no takeover to race, and no helper whose death could release the
  lock while the campaign goes on: a run killed by `systemctl stop`, a reboot or `SIGKILL` simply no longer holds it.
 
+ Why a lock stays here (the repository rule is lock-free first; a lock that must stay covers the smallest unit and says why):
+ the unit is one campaign's evidence directory, the lock is taken without waiting and a second run is refused with the
+ holder named, so nothing ever waits on it. A lock-free single owner exists in principle (a numbered claim file naming its
+ owner by process birth, as the Rust wrapper's conversion and migration use in `single_owner_claim.rs`), but it must judge
+ whether a recorded process still lives, and this package has no process-birth reader; the kernel's judgement is exact
+ for a run that was killed, stopped or lost to a reboot. Whether to port the claim file here is the owner's decision.
+
  It is needed even though the parallel launcher runs each campaign as a uniquely named systemd unit: a run started by hand,
  or by a second launcher under another label for the same file, names the same evidence directory, and the runner removes
  an orphaned container of the campaign's name before it creates its own, which would kill a live run's container.
