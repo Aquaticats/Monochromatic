@@ -378,3 +378,29 @@ fn later_status_and_diff_are_right_after_a_reset_without_a_refresh() {
     assert_eq!((status, diff), status_and_diff(copy.as_path()));
     finish(scene);
 }
+
+/// With a default ACL on the Git directory that takes the group's and the world's bits away, Linux gives the file Git creates
+/// the mode 0600 whatever the mask says, and `core.sharedRepository = group` makes it 0660. The published file has the same mode
+/// (a mask-only calculation would give 0664 and let the world read it).
+#[test]
+fn the_file_mode_under_a_default_acl_equals_git() {
+    if crate::umask_child_test_support::ran_in_child(module_path!(), "the_file_mode_under_a_default_acl_equals_git", 0o022) {
+        return;
+    }
+    use std::os::unix::fs::PermissionsExt as _;
+    let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
+    let scene: Scene = scene("index-reset-acl", &Plan { files: &BASE, edits: edits.as_slice(), ..Plan::default() });
+    git(scene.repo.as_path(), &["config", "core.sharedRepository", "group"]);
+    let copy: PathBuf = copy_of(&scene);
+    for repo in [scene.repo.as_path(), copy.as_path()] {
+        let applied = std::process::Command::new("setfacl").args(["--default", "--modify", "u::rwx,g::---,o::---"]).arg(repo.join(".git")).output().expect("setfacl");
+        assert!(applied.status.success(), "the fixture file system takes a default ACL: {}", String::from_utf8_lossy(&applied.stderr));
+    }
+    git_reset(scene.repo.as_path(), scene.new.as_str(), &named(&["a"]));
+    assert!(landing_reset(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"]))));
+    let mode = |repo: &Path| -> u32 { return std::fs::metadata(repo.join(".git").join("index")).expect("index").permissions().mode() & 0o7777; };
+    assert_eq!(mode(scene.repo.as_path()), 0o660, "Git's mode");
+    assert_eq!(mode(copy.as_path()), 0o660, "the published file's mode");
+    assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()));
+    finish(scene);
+}
