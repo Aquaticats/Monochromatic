@@ -107,6 +107,61 @@ the count of processes that can stall. The stall itself needs the real checkout 
 touch. The bound is met on this host by a wide margin when nothing stalls (376 ms against 5000 ms) and is not shown to be met
 when the processes that read the index wait for the monitor, which is the decision below.
 
+## The landing's index update and the index check in process
+
+The follow-up `git reset <commit> --pathspec-from-file=- --pathspec-file-nul` that the service ran under Git's index lock took
+59 to 60 s on main on 2026-11-03 (request `54490c0c`: `lock_hold_ms=59122 sync_ms=59118`), and the wrapper's own
+`git diff-index --cached --quiet HEAD --` took more than 40 s before a merge. Native Git ran the same commands in 12 ms on the
+same checkout, so no change to what the commands do could explain it, and none is attempted: the Git children are removed.
+
+What is ported, from the Git 2.56.0 source:
+
+- `builtin/reset.c` `read_from_tree` and `update_index_from_diff`, with the comparison of `diff-lib.c` (`diff_cache`,
+  `oneway_diff`, `do_oneway_diff`): a path-limited mixed reset (`src/native/index_reset.rs`). An entry that differs is removed
+  (`remove_file_from_index`) or replaced by an entry made from the tree's mode and object name with all-zero stat data
+  (`make_cache_entry` with no refresh, `add_index_entry` with the add and replace options), so the next status hashes the file.
+  The skip-worktree bit of a replaced entry is kept; the assume-valid bit and the stage are not.
+- The extensions Git keeps (`read-cache.c` `do_write_index`): the cache-tree is invalidated along each path
+  (`cache-tree.c` `do_invalidate_path`) and read in Git's order, shorter subtree name first (`subtree_name_cmp`); an unmerged
+  entry that leaves the index is recorded in resolve-undo (`resolve-undo.c`); the untracked cache is cleared for each added or
+  removed path, and, only when fsmonitor is on, for each replaced one (`dir.c` `invalidate_one_component`, `fsmonitor.h`
+  `mark_fsmonitor_invalid`); the fsmonitor extension is kept with its token and a bitmap rebuilt from the entries, the new ones
+  dirty, when fsmonitor is on, and dropped otherwise (`fsmonitor.c` `tweak_fsmonitor`, `fill_fsmonitor_bitmap`). The two
+  bitmaps use Git's EWAH encoding, ported with its `ewah_set` corner cases (`src/native/index_ewah.rs`).
+- The file: the version rule (a version 3 file without an extended flag is written as version 2), version 4 name compression,
+  the entry padding and the checksum (`src/native/index_full.rs`, `index_full_write.rs`).
+- `diff-index --cached --quiet <commit or HEAD> [-- <paths>]` (`src/native/repo_read_query_quiet.rs`), reached by the existing
+  `run_git` and `run_metadata_git` entry points, so the wrapper's checks in `rule_commit_index.rs`, `merge_isolation.rs` and
+  `worktree_dirty_restore.rs` start no Git. An unmerged entry is always a difference; an intent-to-add entry is an ordinary
+  entry, because `diff-index` never sets `ita_invisible_in_index`; a submodule difference is answered unless a `.gitmodules`
+  exists anywhere, because it could say `ignore = all` (`diff.c` `is_submodule_ignored`).
+
+The entries come from the commit's tree, not from stat data the capture took: the capture holds none, the journaled intent holds
+only the paths (so a restarted service finishes the same update), and zero stat data is what the old command wrote and what
+makes Git compare the file's bytes. The paths of other sessions' commits need no update here: each landing updates its own, and
+a commit built elsewhere lands only while the branch is still at its base, so the derived list is that commit's own paths.
+
+Where the port stops and Git's own command runs (now `git reset --no-refresh`, which skips the whole-index refresh of
+`builtin/reset.c` that the earlier `-q` form kept): a split index, a sparse index or sparse checkout, a required extension it
+does not know, a file whose checksum or layout is off, `index.skipHash`, `feature.manyFiles`, the offset-table settings, a case
+folding worktree, `core.hooksPath` or a `post-index-change` hook, an untracked cache Git would add, a monitor setting without
+the extension (or the reverse), a file where the index has a directory, a path Git's name checks could refuse, an entry recorded
+in the second the index file was written (Git would hash it from the worktree while writing), and the in-process switch off.
+The index update that is not part of a landing (`update_index`, used when corrections remove every change) still starts the
+`--no-refresh` command.
+
+Measured on 2026-11-03 on throwaway copies of main's shape (20 672 tracked files, 53 000 ignored, a signed explicit-path commit,
+`core.untrackedCache = true`, no fsmonitor, release builds, 20 rounds after 2 warm-up rounds, native Git and both wrappers in
+turn, host not quiet): native 38 and 39 ms (37 to 41); the base wrapper (the branch point) 137 ms (132 to 213, median absolute
+deviation 2); the changed wrapper 139 ms (134 to 146, deviation 2). With nothing stalling the two are the same within their
+spread, as expected: in release the in-process update takes about 20 ms (read and parse 6, serialize 3.5, write and flush 10),
+where the process it replaces takes about as long. The measured services ran in a transient scope capped at 16 GiB of memory,
+with none of the unit's limits of that day; the scope's memory-limit events did not rise (none) and its major faults rose by
+81 over the run. The effect is in what can stall: strace of the commit service over six
+commits shows the base starting 6 `reset` processes of 54 Git starts, the change none of 48. The slow case needs the real
+checkout and its monitor, which no measurement here may touch (`README.md`, "Git's own fsmonitor"), so the fsmonitor-on branch
+of the port is checked against the source, not against a running Git; the fixtures cannot turn it on.
+
 ## Left to the owner
 
 - Git's monitor and the three-to-one gap: a wrapped commit still starts three Git processes that read the index (`add`, the

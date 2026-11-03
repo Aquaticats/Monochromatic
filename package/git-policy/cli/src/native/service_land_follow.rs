@@ -103,7 +103,7 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     let output: GitOutput = match paths {
         IndexPaths::Listed(listed) => {
             let specs: Vec<String> = listed.iter().map(|path| { return format!(":(top,literal){path}"); }).collect();
-            let mut arguments: Vec<&str> = vec!["reset", new, "--"];
+            let mut arguments: Vec<&str> = vec!["reset", "--no-refresh", new, "--"];
             arguments.extend(specs.iter().map(String::as_str));
             run(git, repository, &arguments, None, index)?
         }
@@ -113,14 +113,14 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &["reset", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
+            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
         IndexPaths::Derived { old } => {
             let input: Vec<u8> = pathspec_input(derived_names(git, repository, old, new)?.as_slice());
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &["reset", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
+            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
     };
     if !output.succeeded() {
@@ -178,11 +178,23 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
         std::fs::copy(index, &built).map_err(|error| { return storage_failure(&error); })?;
     }
     let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
-    if !empty && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
+    if !empty && !reset_in_process(git, repository, new, paths, built.as_path()) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
         let _removed = std::fs::remove_file(&built);
         return Err(code);
     }
     return Ok(built);
+}
+
+/// Whether the index file `built` was reset to the commit without starting Git; Git's own command follows when it was not.
+#[cfg(target_os = "linux")]
+fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path) -> bool {
+    return super::index_reset_file::reset_index_file(git, repository, new, paths, built);
+}
+
+/// Without the in-process update on this platform, Git's own command always runs.
+#[cfg(not(target_os = "linux"))]
+fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _built: &Path) -> bool {
+    return false;
 }
 
 /// The failure a storage error stands for.

@@ -2,6 +2,8 @@
 //!  however many, and the conclusion state removal.
 
 use super::*;
+use crate::recording_git::{recorded_starts, recording_context};
+use crate::repo_read_hook::SWITCH_VARIABLE;
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
@@ -119,4 +121,30 @@ fn what_reset_says_is_kept_in_the_journal() {
     assert_eq!(entries.len(), 1, "{entries:?}");
     assert!(entries[0].message.contains(words), "{:?}", entries[0]);
     remove(root.as_path());
+}
+
+/// The landing's index update starts no Git `reset` and no Git `diff-tree`, whichever way the paths are given, and the index it
+/// builds equals the commit for those paths.
+#[test]
+fn the_follow_up_starts_no_git_reset_and_no_git_diff_tree() {
+    let files: Vec<Vec<u8>> = vec![b"top.txt".to_vec(), b"dir/inner.txt".to_vec()];
+    let listed: Vec<String> = vec![String::from("top.txt"), String::from("dir/inner.txt")];
+    for form in ["listed", "named", "derived"] {
+        let (root, repo, first, second) = index_behind(format!("service-follow-starts-{form}").as_str(), files.as_slice());
+        let (mut context, log) = recording_context(root.as_path());
+        // The recorder switches the in-process readers off; the update under test must run with them on.
+        context.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
+        let paths: IndexPaths<'_> = match form {
+            "listed" => IndexPaths::Listed(listed.as_slice()),
+            "named" => IndexPaths::Named(files.as_slice()),
+            _ => IndexPaths::Derived { old: first.as_str() },
+        };
+        let index: PathBuf = repo.join(".git").join("index");
+        let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), paths, index.as_path(), 1).expect("built");
+        let words: Vec<String> = recorded_starts(log.as_path()).iter().map(|start| { return start.split(' ').next().unwrap_or_default().to_string(); }).collect();
+        assert!(!words.iter().any(|word| { return word == "reset" || word == "diff-tree"; }), "{form} started {words:?}");
+        std::fs::rename(built, index).expect("installed");
+        assert!(!differs(repo.as_path(), second.as_str()), "{form} left the index behind the commit");
+        remove(root.as_path());
+    }
 }
