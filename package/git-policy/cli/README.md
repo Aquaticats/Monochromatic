@@ -34,7 +34,8 @@ Read-only commands,
   When another commit lands first,
    the wrapper prepares its own commit again on top of the new state.
   Concurrent commits from several worktrees or sessions therefore never overwrite each other.
-  The wrapper takes no lock of its own: a commit meets only Git's `index.lock`.
+  The wrapper takes no lock of its own: a commit meets only Git's `index.lock`,
+   which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).
   A commit the service was landing when it died is settled by the service from its journal when it starts again.
 - Merges beside other sessions' staged work.
   Native Git refuses every `git merge` that creates a commit while the index holds any staged change,
@@ -1059,7 +1060,7 @@ fractional or non-numeric value is ignored.
 - `CLI_GIT_LOCK_WAIT_SECONDS`,
    default `1800`.
   How long a command waits for a lock that a live process holds:
-   the commit service waits for a foreign `index.lock` before it lands a commit,
+   the commit service waits for a foreign `index.lock` before it moves the branch,
    a forwarded index writer waits for the service's own hold on the index,
    and the worktree-copy settlement.
   At the limit it stops with a message that names the holder and every way forward:
@@ -1975,6 +1976,8 @@ each prefixed `cli-git-service:` on standard error and identified as `cli-git-se
   `journal_ms`,
   `ref_ms`
   (moving the branch) and `sync_ms` (the index);
+  `lock_hold_ms` is how long the index lock was held, from its placement to its release (the branch move and the index
+  build), and is no phase of that sum;
   `attempts` is more than one when the branch moved under the batch.
   Each figure is cut to whole milliseconds on its own,
   so a sum can fall short of its total by less than one per term.

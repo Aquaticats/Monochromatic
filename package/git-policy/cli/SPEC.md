@@ -1863,6 +1863,39 @@ and the only wait is the service's bounded wait for a foreign holder
 and a forwarded index writer's event-driven wait for the service's own hold on the index.
 A forwarded index writer that finds a foreign `index.lock` ends as native Git ends it.
 
+### Locks and waits of the service, by item
+
+Concurrency in the service is lock-free first: atomic rename, exclusive creation, one owner per item.
+Every lock that remains covers the smallest unit and has its reason written beside it in the code.
+`src/native/service_lock_inventory_tests.rs` fails when a lock primitive (a mutex, a read-write lock, a condition variable,
+an `flock`) appears in the service and support sources outside its inventory, or without the reason above its declaration.
+
+Removed:
+
+- The `flock` on the discarded copies' folder (`discarded_store.rs`):
+  each file is owned by the pass whose `unlinkat` of it succeeded (see "Discarded copies").
+- The mutex-guarded table of landed captures (`service_captures.rs`):
+  the serve loop that lands commits and answers clients owns it, and passes it down.
+- The mutex on the review credentials (`service_work.rs`):
+  the work thread that remembers, reads and forgets them owns the map.
+- The mutexes and the condition variable of the claim renewal (`service_claim_renewal.rs`):
+  see "Leases of claimed work".
+- The long hold of Git's `index.lock`:
+  the service asks for it after the objects and the intent exist, and holds it for the branch move and the index build only.
+
+Kept, each with its reason in the code and here:
+
+- Git's own `index.lock`:
+  Git's protocol for writing the index, which the service writes.
+  It is held for the branch move and the index build (a median of 5 ms), and waited for on an event watch.
+- The mutex on the pending bytes of the journal's stream (`journald_native.rs`):
+  a stream may take a line in parts and two lines must never run together, so the unfinished rest of a line and the write that
+  finishes it are one critical section of one non-blocking write; the waiter waits for one system call, never for the journal.
+- The claim and its lease on work items (`work_item.rs`, `service_claim_renewal.rs`):
+  rename-based, no lock file; a lease is how a later instance learns that a killed holder abandoned a claim (see "Leases of claimed work").
+
+Init-once cells (`OnceLock`) hold values read at first use (a boot ID, the machine ID, the Git release, the process identity) and wait for nothing after.
+
 ### The service's hold on the index lock
 
 `src/native/service_index_lock.rs` places `index.lock` with the service's marker in the file from the first instant.
@@ -2678,6 +2711,21 @@ The boot ID alone cannot say the holder is dead,
 because boot IDs are random per kernel boot and two hosts that drain one work directory on a shared filesystem
 have unrelated ones:
 each would otherwise take the other's live claims at once.
+
+Why the lease and its renewal stay:
+a service that is killed leaves its claims in `claimed`, and the file name is the only record of who held them and since when,
+so a lease is how a later instance knows a claim was abandoned without a process identity or a lock file.
+Several instances drain one directory in two cases:
+the common directory of a bare repository, whose linked worktrees each run an instance (`drain_common_records`),
+and a service started by hand or by a downgrade beside the unit's own, which the manager's one main process per unit does not allow.
+The renewal that keeps a live holder's claim from looking abandoned is in-process state shared by two threads,
+and it takes no lock:
+the renewal thread alone knows the names claims have now and renames them,
+the drain thread tells it of each claim over a channel and settles by finding the claim's file by its id and generation
+(a renewal changes the reading in the name and nothing else),
+asking again when a renewal renamed the file between the look and the rename,
+and the two share only a flag per claim for taken over and settled.
+Neither side waits for the other.
 
 A reading with no machine ID leaves the fourth part out,
 which is the file-name form of releases up to 0.5.9.

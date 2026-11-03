@@ -8,6 +8,8 @@
 //!  involved: the claim's file name is the whole protocol. A renewal renames the claim from the name the renewal last wrote, so
 //!  it can only reach its own claim, and a claim that was taken over is found gone instead of being renewed or settled on
 //!  another instance's behalf.
+//!  Claim kept: the lease stays because a killed holder's claims are recognised as abandoned only by their reading (no process
+//!  identity or lock file is involved), and because the linked worktrees of a bare repository drain one common directory.
 //!  No lock is held in the process either. The renewal thread is the one owner of the claims' current names (the drain never
 //!  renames a claim except to settle it); the drain tells the thread of a claim it takes over a channel, and the two share only
 //!  atomic flags per claim. A settlement finds the claim's file by its id and generation, which a renewal never changes, and
