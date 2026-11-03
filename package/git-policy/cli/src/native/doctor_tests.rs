@@ -134,14 +134,14 @@ fn a_linked_worktree_reports_the_shared_common_directory() {
     remove(root.as_path());
 }
 
-/// A directory with no hooks ends with status 0 and prints nothing.
+/// A directory with no hooks ends with status 0 and prints only the line that says Git's fsmonitor is off.
 #[test]
 fn a_repository_without_traditional_hooks_exits_zero_silently() {
     let root: PathBuf = fixture("doctor-clean");
     let repo: PathBuf = repository(root.as_path(), "repo");
     executable(repo.join(".git/hooks/pre-commit.sample").as_path(), b"#!/bin/sh\n");
     let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
-    assert_eq!((code, stdout.as_str(), stderr.as_str()), (0, "", ""));
+    assert_eq!((code, stdout.as_str(), stderr.as_str()), (0, "", crate::doctor_fsmonitor::render_fsmonitor(&[]).as_str()));
     remove(root.as_path());
 }
 

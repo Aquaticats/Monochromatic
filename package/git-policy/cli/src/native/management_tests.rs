@@ -631,7 +631,7 @@ fn doctor_lists_traditional_hooks_without_loading_the_configuration() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join(CONFIG_FILE_NAME), b"{ not valid").expect("a broken configuration");
     let inputs: ResolutionInputs = with_git(root.as_path());
-    assert_eq!(plan(&["doctor"], repo.as_path(), &inputs), exit(0, "", ""));
+    assert_eq!(plan(&["doctor"], repo.as_path(), &inputs), exit(0, "", crate::doctor_fsmonitor::render_fsmonitor(&[]).as_str()));
     executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
     let (code, stdout, stderr) = exit_parts(plan(&["doctor"], repo.as_path(), &inputs));
     assert_eq!(code, 1);
@@ -665,7 +665,8 @@ fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_
         return String::from("section text\n");
     };
     let doctor: Action = plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), &[], &inputs, &supplier);
-    assert_eq!(doctor, exit(0, "", "section text\n"));
+    let off: String = crate::doctor_fsmonitor::render_fsmonitor(&[]);
+    assert_eq!(doctor, exit(0, "", format!("{off}section text\n").as_str()));
     assert_eq!(*asked.borrow(), vec![repo.join(".git")]);
     let help: Action = plan_management_with_section(&[OsString::from("--help")], global.as_slice(), &no_controls(), &[], &inputs, &supplier);
     assert!(matches!(help, Action::Exit { code: 0, .. }));
