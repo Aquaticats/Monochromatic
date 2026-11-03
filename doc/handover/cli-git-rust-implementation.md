@@ -10490,3 +10490,17 @@ by the coordinator at merge.
   the owner's four statements; every git-policy brief quotes that section. The 43 running `git fsmonitor--daemon`
   processes serve scratch repositories, a cargo-shadow worktree and Homebrew: Git's own behavior under the global
   `true`; left alone.
+- 2026-11-03T05:40:00-05:00: owner answers (question tool). `cargo update` under the cargo shadow: "What the fuck is
+  this question? I said follow pnpm semantics." (my error: a settled point relayed as a question); so `cargo update`
+  = `pnpm update`: the catalog's own update with the release-age and trust policy applied while choosing versions,
+  flags mapped to `pnpm update` counterparts; the agent adopts pnpm's documented behavior without asking from now on.
+  "I also said to remove the Mise tasks that would then be handled via the wrapper.": `rust:install`, `rust:update`,
+  `rust:verify` go away; callers move to plain `cargo` through the shadow; workflow lines that call them are listed
+  for the owner (workflows are not ours to edit). Global tool env: "Repository only (Recommended)" (rustup ranks
+  RUSTUP_TOOLCHAIN above rust-toolchain.toml, so a global export would override other projects' pins); sent to the
+  mpm env agent with route 1 (mpm-shadow 0.2.3; I merge, push and dispatch) and the pre-existing shim test failure.
+  Rebuilt commit: "Add a wrapper note (Recommended)"; agent on `feat/git-policy-cli-note-after-rebuilt-commit`.
+  Gate slots after the claim-file port: "Accept (Recommended)" (a SIGKILL of only the gate frees its slot while its
+  command runs; `systemctl --user stop` of the unit remains the normal stop). Still QUEUED for the owner: internal
+  `--quiet` on wrapper-run plumbing (maintenance, auto-push fetch, ff-only merges, reset, clean, init), and stopping a
+  push whose server-side check outlasts the stall window.
