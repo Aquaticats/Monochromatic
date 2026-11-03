@@ -11,6 +11,16 @@
 //!  The linked worktrees' administrative directories live inside `.git`, so their locks and indexes travel with the
 //!  main checkout whether or not the worktree directory is inside it.
 //!
+//! Why these locks stay:
+//!  They are Git's own protocol for writing an index, not a lock of this wrapper's invention: Git creates `index.lock`
+//!  exclusively and treats its presence as "an index writer is active", so no design that leaves the name alone can keep
+//!  Git out of an index while the checkout directory is exchanged. Each lock covers one index (never the repository), is
+//!  created with `O_EXCL` and never waited for (a foreign lock stops the migration with the file named), and is held from
+//!  before the last copy to the end of the index rewrite, which is the span in which a Git writer could be lost in the
+//!  exchange. Which command may migrate a checkout at all is not decided here: `single_owner_claim.rs` decides that
+//!  without a lock. Owner rule: concurrency is lock-free first; a lock that must stay covers the smallest unit, with its
+//!  reason beside it.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! for (const lock of lockPaths(tree)) await acquire(lock, token); ... for (const lock of lockPaths(tree)) await release(lock, token);

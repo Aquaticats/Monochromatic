@@ -25,6 +25,7 @@ import {
   writeDependencyStubs,
 } from './native-layered-build.ts';
 import { copyNextest, } from './native-nextest-snapshot.ts';
+import { copyPnpm, } from './native-pnpm-snapshot.ts';
 import { vendorLockedDependencies, } from './native-scanner-snapshot.ts';
 import { copyStraceSource, } from './native-strace-snapshot.ts';
 import { testContainerfile, } from './native-test-containerfile.ts';
@@ -118,6 +119,7 @@ await vendorLockedDependencies({
   configName: `${imageRootDirectory}/.cargo`,
 });
 await copyNextest({ context: context.path });
+await copyPnpm({ context: context.path });
 await copyStraceSource({ context: context.path });
 await writeFile(
   join(

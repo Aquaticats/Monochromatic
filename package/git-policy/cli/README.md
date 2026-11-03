@@ -48,6 +48,14 @@ Read-only commands,
    is refused with the paths named and the ways forward, and changes nothing.
   Shapes the wrapper cannot make exact (`--squash`, `--no-commit`, `-s`, `-X`, several branches, an editor) run in
    native Git unchanged; see "Merging with staged changes" for the full list.
+- Package-manager state in a new worktree.
+  After `git worktree add` has filled a worktree and copied its ignored files,
+   the wrapper starts each tool's own offline repair there:
+   `pnpm install --offline --frozen-lockfile` for the copied `node_modules`,
+   a clone of the source's external Cargo build directory followed by `cargo clean --package <member>` for each workspace member,
+   and `mpm-shadow install --frozen-lockfile` for toolchain launchers that still name another checkout's lock.
+  A repair never fails the add: when a tool is missing, offline data is incomplete or a lock disagrees,
+   one line names the command to run (see "Repairing package-manager state in a new worktree").
 - Hooks.
   cli-git supports no external hook program: not a traditional hook (an executable script in `.git/hooks` or in a
    `core.hooksPath` directory) and not a hook configured with `hook.<name>.event` and `hook.<name>.command`.
@@ -415,6 +423,9 @@ It runs inside the wrapper: it calls the btrfs ioctls, `FICLONE`, `renameat2` wi
 Run it inside the repository, from the main checkout or from any linked worktree: it finds the main checkout by reading
  `.git` itself.
 It takes minutes on a large checkout and there is no time limit on it.
+One command at a time works on a checkout: it owns the checkout through a claim file beside the journal
+ (`.cli-git-migrate-<name>.owner.<generation>`), a second command is refused with the owner's process id, and a claim a
+ killed command left needs no cleanup.
 
 ```sh
 git cli-git migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
@@ -430,8 +441,8 @@ The steps, each recorded in a journal beside the checkout (`.cli-git-migrate-<na
  copy the tree, cloning file data so that the new tree shares every data block with the old one (only metadata is
  copied);
  repeat the copy as a delta that also deletes what the checkout lost meanwhile;
- hold a marked `index.lock` for the main index and for every linked worktree's index, in the original before the last
- delta and in the new tree before the swap, run the last delta and swap the two directories in one atomic call;
+ hold a marked `index.lock` (Git's own lock for writing an index, the one lock that cannot be dropped) for the main
+ index and for every linked worktree's index, in the original before the last delta and in the new tree before the swap, run the last delta and swap the two directories in one atomic call;
  rename the original to `<root>.before-subvolume`;
  carry over files that are newer in the original (writes that landed there after the swap), while the new checkout
  holds the locks;
@@ -506,11 +517,17 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   progress, a modified tracked file, a process with its working directory or an open file inside it, a worktree registered
   inside it, or a converting directory that no journal owns.
   Run it first; it changes nothing.
-- Without `--dry-run` the command takes an exclusive lock for the worktree, takes the administrative directory's `index.lock`
-  with its own token, creates `<path>.cli-git-converting` as a subvolume and records its identity, copies the worktree into
-  it with cloned data, proves the copy equal with a second pass, swaps the two directories with one exchange, checks that the
-  path is the subvolume it created and has the same `.git` bytes, rewrites the index stat fields so the first `git status`
-  stays fast, and removes the old tree only when it is the directory it recorded and the installed worktree holds all of it.
+- Without `--dry-run` the command takes no lock. It owns the worktree through a numbered claim file in the administrative
+  directory (`cli-git-convert.owner.<generation>`) that names its process; a second command that finds a live owner skips the
+  worktree and names that process, and a claim a killed command left needs no cleanup. A conversion is also refused while a
+  `migrate-to-subvolume` of the main checkout runs, and that command is refused while a conversion runs. Then it creates
+  `<path>.cli-git-converting` as a subvolume and records its identity, copies the worktree into it with cloned data, takes the
+  administrative directory's `index.lock` with its own token only for the rest (the long copy runs without it), proves the
+  copy equal with a second pass, swaps the two directories with one exchange, checks that the path is the subvolume it created
+  and has the same `.git` bytes, rewrites the index stat fields so the first `git status` stays fast, gives the `index.lock`
+  back, and removes the old tree only when it is the directory it recorded and the installed worktree holds all of it.
+  A `cli-git-convert.lock` file that release 0.5.20 or older left is removed when no command holds it, and a conversion
+  that release left unfinished is completed by running the command again.
   The registration never changes: the path and the bytes of the `.git` file are the same.
 - The old tree is kept, and the run says why, when a process still holds it, when anything in it differs from the installed
   worktree (size, modification time, kind, link target) or is missing there, or when it contains a subvolume or a mount point,
@@ -527,6 +544,39 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
 - Measured on a fixture of four ordinary worktrees of 22.3 thousand entries each: 4.2 s per worktree under a scope of
   `CPUQuota=400%`, load average 6 to 10.
 - Stop sessions that have a working directory in the worktree first; the command refuses while one does.
+
+### Repairing package-manager state in a new worktree
+
+A copy keeps symbolic links and build state exactly as they were,
+ which is wrong for tools that record where they were installed or built.
+pnpm's links climb out of the tree by a fixed number of levels to reach the shared store,
+ so in a worktree at another depth they are dead,
+ and Node then resolves the name through a parent `node_modules` to the source's packages without any error.
+Cargo bakes the source's paths into what it built (`CARGO_MANIFEST_DIR`, build script output).
+The toolchain launchers copied into `.cache/toolchain-launchers` name the source's `toolchain.lock.json`.
+After the ladder (or Git's checkout) and the ignored-file copy,
+ the wrapper starts each tool's own repair in the new worktree:
+
+- pnpm: `pnpm install --offline --frozen-lockfile`, when `pnpm-lock.yaml` and `node_modules` are both there.
+  The `pnpm` is the first one on your `PATH` (in this repository the pnpm-shadow, whose warnings are shown only if the run fails).
+- Cargo: for each Cargo workspace,
+   the source's external build directory is cloned to the worktree's when the worktree has none,
+   then `cargo clean --offline --package <member>` runs for every member
+   (a `Cargo.lock` the clean would rewrite is put back as checked out, so the worktree is not dirty).
+  Registry and git dependencies stay reused; the worktree's own crates rebuild with their own paths.
+- Toolchain: `mpm-shadow install --frozen-lockfile`.
+  It also downloads the tools the worktree's lock names that are not installed yet,
+   and can retire tool copies another checkout still links (both accepted by the owner),
+   and its summary of what was installed is part of the success line.
+
+Nothing runs for `--no-worktree-copy` or `--no-checkout`.
+`--quiet` silences the one line that reports success; a failure is always printed.
+When a tool is missing, its offline data is incomplete, a lock does not match or the run exceeds its limit,
+ the add still succeeds and prints one line that names the reason and the command to run,
+ such as `pnpm --dir <worktree> install --offline --frozen-lockfile`.
+Another process changing files while a worktree is copied or repaired is your risk and is not defended against.
+Times measured on this repository are in `doc/planning/cli-git-main-worktree-ignored-copy.md`,
+ section "Package-manager state of a new worktree".
 
 ### Version and help
 
