@@ -168,6 +168,9 @@ pub fn lock_notes_fields(notes: &WaitNotes) -> String {
 
 /// The wait for the index lock that is written down even when no holder was met:
 /// a flush of the marker or a wait that long is a slow landing's first suspect.
+///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
+///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
 
 /// What:

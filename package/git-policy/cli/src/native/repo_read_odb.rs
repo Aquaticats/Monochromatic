@@ -19,12 +19,24 @@ use super::repo_read_pack::Pack;
 use std::path::{Path, PathBuf};
 
 /// How many alternate object directories deep the reader follows `info/alternates`.
+///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
+///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
 const ALTERNATE_DEPTH_LIMIT: usize = 5;
 
 /// The largest `info/alternates` file the reader looks at.
+///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
+///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
 const ALTERNATES_LIMIT: u64 = 1 << 20;
 
 /// The largest `packed-refs` file the reader scans for replace refs.
+///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
+///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
 const PACKED_REFS_LIMIT: u64 = 256 << 20;
 
 /// The loose directories and packs of a repository and its alternates.

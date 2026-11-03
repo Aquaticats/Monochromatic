@@ -27,6 +27,9 @@ pub const ROUTE: &str = "openai/gpt-6-luna-decisions via the Decisions API";
 pub const QUESTION_NAME: &str = "cost_verdict";
 
 /// Characters of a failing response body kept in a failure message.
+///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
+///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 pub const FAILURE_EXCERPT_UNITS: usize = 200;
 
 /// The question's instruction text.

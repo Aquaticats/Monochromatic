@@ -12,6 +12,10 @@
 //! ```
 
 /// The largest configuration file this reader looks at.
+///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
+///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
 pub const CONFIG_TEXT_LIMIT: usize = 1 << 20;
 
 /// What:
