@@ -307,9 +307,16 @@ fn summary_name(line: &str) -> String {
     return line.split_whitespace().nth(1).expect("a name after the branch").trim_end_matches(']').to_string();
 }
 
+/// The note the wrapper adds, on standard error, after a commit Git built was built again because the branch moved: it names the
+///  builds that did not land and the one that did, by the names Git's own summary lines carry.
+fn rebuilt_note(unlanded: &[String], landed: &str) -> String {
+    return format!("cli-git: the branch moved during the commit, so it was built again; {} did not land, {landed} did.", unlanded.join(" and "));
+}
+
 /// A commit Git builds again because the branch moved prints Git's summary for each build, as Git prints them (the owner's
 ///  decision: the wrapper adds no `--quiet`, "Letting native git emit whatever it wants to is expected."), and the last one
-///  names the commit that landed. The first names a build that never landed; the wrapper adds no line of its own.
+///  names the commit that landed. The first names a build that never landed, and the wrapper adds one note on standard error that
+///  names both (owner decision: "Add a wrapper note (Recommended)"); Git's own output is not touched.
 #[test]
 fn a_commit_built_again_prints_gits_summary_for_each_build_and_the_last_names_the_landed_commit() {
     let fixture: Fixture = fixture("service-native-one-summary");
@@ -328,6 +335,10 @@ fn a_commit_built_again_prints_gits_summary_for_each_build_and_the_last_names_th
     assert!(landed.starts_with(summary_name(summaries[1]).as_str()), "the last line names the landed commit {landed}: {stdout}");
     assert!(!landed.starts_with(summary_name(summaries[0]).as_str()), "the first line names the build that never landed: {stdout}");
     assert!(summaries.iter().all(|line| { return line.contains("signed and moved"); }), "{stdout}");
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    let note: String = rebuilt_note(&[summary_name(summaries[0])], summary_name(summaries[1]).as_str());
+    assert_eq!(stderr.lines().filter(|line| { return line.contains("so it was built again"); }).collect::<Vec<&str>>(), vec![note.as_str()], "{stderr}");
+    assert!(!stdout.contains("so it was built again"), "Git's output is not touched: {stdout}");
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);
@@ -434,6 +445,11 @@ fn a_branch_that_moves_while_the_editor_is_open_is_built_again_from_the_typed_me
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(0), "{stderr}");
     assert_eq!(finished(&fixture), before + 1, "it landed once");
+    let stdout: String = String::from_utf8_lossy(&output.stdout).into_owned();
+    let names: Vec<String> = stdout.lines().filter(|line| { return line.starts_with('['); }).map(summary_name).collect();
+    assert_eq!(names.len(), 2, "Git's summary of each build: {stdout}");
+    let note: String = rebuilt_note(&names[..1], names[1].as_str());
+    assert_eq!(stderr.lines().filter(|line| { return line.contains("so it was built again"); }).collect::<Vec<&str>>(), vec![note.as_str()], "{stderr}");
     assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "typed:", "the typed message is the commit's");
     assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s", "HEAD^"]), "moved by someone", "it sits on the other commit");
     assert_eq!(query(&fixture, &repo, &["show", "HEAD:a.txt"]), "base\nedited");
