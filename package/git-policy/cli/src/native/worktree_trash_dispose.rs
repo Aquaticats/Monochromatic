@@ -225,8 +225,7 @@ pub fn remove_entries(request: &EntryRemoval<'_>) -> Vec<String> {
     let EntryRemoval { inside, trash, manifest, host, remove } = *request;
     let indices: Vec<usize> = (0..manifest.entries.len()).collect();
     let lanes: Vec<Vec<usize>> = indices.iter().map(|index: &usize| { return vec![*index]; }).collect();
-    let _budget: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host });
-    let workers: usize = 1;
+    let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host });
     let mut left: Vec<String> = Vec::new();
     run_ordered(OrderedRun {
         items: indices.as_slice(),

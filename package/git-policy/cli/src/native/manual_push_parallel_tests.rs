@@ -2,9 +2,13 @@
 //!  (timestamps written by a stand-in Git), the answers keep the order Git printed them, and one that fails decides the error.
 
 use super::*;
-use crate::manual_push_probe::probe_manual_push_updates;
+use crate::manual_push_probe::probe_manual_push_updates_on;
+use crate::parallel_budget::HostResources;
 use crate::test_support::{fixture, git, remove};
 use std::path::{Path, PathBuf};
+
+/// A host large enough that the bound of the SPEC, not the threads, limits the overlap.
+const LARGE_HOST: HostResources = HostResources { parallelism: 64, memory_available: None };
 
 /// How long the stand-in Git holds a query it delays, in whole and fractional seconds as `sleep` reads it.
 const HOLD: &str = "0.6";
@@ -86,7 +90,7 @@ fn the_destinations_of_a_push_are_confirmed_side_by_side() {
     let (root, repo) = repository_with("mp-parallel-destinations", 2, 1);
     let log: PathBuf = root.join("ls-remote.log");
     let stand_in: PathBuf = timing_git(&root, "ls-remote", &log);
-    let updates = probe_manual_push_updates(&git_over(&repo, &stand_in), &[], &[OsString::from("origin"), OsString::from("b0")]).expect("probes");
+    let updates = probe_manual_push_updates_on(&LARGE_HOST, &git_over(&repo, &stand_in), &[], &[OsString::from("origin"), OsString::from("b0")]).expect("probes");
     assert_eq!(updates.len(), 2, "one update per destination: {updates:?}");
     let held = intervals(&log);
     assert_eq!(held.len(), 2, "{held:?}");
@@ -103,9 +107,9 @@ fn the_updates_of_a_push_are_scoped_side_by_side() {
     let stand_in: PathBuf = timing_git(&root, "rev-list", &log);
     let names: Vec<OsString> = std::iter::once(OsString::from("origin")).chain((0..branches).map(|index: usize| { return OsString::from(format!("b{index}")); })).collect();
     let git_stand_in: PushGit = git_over(&repo, &stand_in);
-    let updates = probe_manual_push_updates(&git_stand_in, &[], &names).expect("probes");
+    let updates = probe_manual_push_updates_on(&LARGE_HOST, &git_stand_in, &[], &names).expect("probes");
     assert_eq!(updates.len(), branches);
-    let scopes = scopes_of_updates(&git_stand_in, &updates).expect("scopes");
+    let scopes = scopes_of_updates_on(&LARGE_HOST, &git_stand_in, &updates).expect("scopes");
     assert_eq!(scopes.len(), branches);
     for (update, scope) in updates.iter().zip(&scopes) {
         let tip: String = update.local_oid.clone().expect("a local object");
@@ -122,9 +126,9 @@ fn the_updates_of_a_push_are_scoped_side_by_side() {
 fn an_update_that_cannot_be_scoped_fails_the_push_scope() {
     let (root, repo) = repository_with("mp-parallel-failure", 1, 2);
     let git_plain: PushGit = git_over(&repo, Path::new("/usr/bin/git"));
-    let mut updates = probe_manual_push_updates(&git_plain, &[], &[OsString::from("origin"), OsString::from("b0"), OsString::from("b1")]).expect("probes");
+    let mut updates = probe_manual_push_updates_on(&LARGE_HOST, &git_plain, &[], &[OsString::from("origin"), OsString::from("b0"), OsString::from("b1")]).expect("probes");
     updates[0].local_oid = Some(String::from("0000000000000000000000000000000000000001"));
-    let failure = scopes_of_updates(&git_plain, &updates).expect_err("the first update names no object");
+    let failure = scopes_of_updates_on(&LARGE_HOST, &git_plain, &updates).expect_err("the first update names no object");
     assert!(!failure.message.is_empty());
     remove(root.as_path());
 }

@@ -309,6 +309,16 @@ pub fn probe_manual_push_updates(
     global_prefix: &[OsString],
     post_subcommand: &[OsString],
 ) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
+    return probe_manual_push_updates_on(&HostResources::read(), git, global_prefix, post_subcommand);
+}
+
+/// `probe_manual_push_updates` with the host's resources chosen by the caller, so a control states a host of any size.
+pub fn probe_manual_push_updates_on(
+    host: &HostResources,
+    git: &PushGit,
+    global_prefix: &[OsString],
+    post_subcommand: &[OsString],
+) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
     let arguments: Vec<OsString> = probe_arguments(global_prefix, post_subcommand);
     let output = run_query(git, arguments.as_slice()).map_err(|error| {
         return probe_error(cause_of_query(&error), format!("probe push could not run: {error}"));
@@ -377,8 +387,7 @@ pub fn probe_manual_push_updates(
     //  first block that fails decides the error.
     let destinations: Vec<(&PorcelainBlock, &String)> = blocks.iter().zip(locations.iter()).collect();
     let lanes: Vec<Vec<usize>> = (0..destinations.len()).map(|index: usize| { return vec![index]; }).collect();
-    let _budget: usize = worker_budget(&BudgetRequest { items: destinations.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_QUERIES), cap: None, host: &HostResources::read() });
-    let workers: usize = 1;
+    let workers: usize = worker_budget(&BudgetRequest { items: destinations.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_QUERIES), cap: None, host });
     let mut confirmed: Vec<PushUpdate> = Vec::new();
     let mut failure: Option<ManualPushProbeError> = None;
     run_ordered(OrderedRun {

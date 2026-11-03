@@ -539,8 +539,7 @@ pub fn refresh_all_indexes_with(request: &AllIndexes<'_>, say: &mut dyn FnMut(&s
         });
     }
     let largest: u64 = targets.iter().map(|target: &IndexTarget| { return std::fs::metadata(&target.index).map_or(0, |found: std::fs::Metadata| { return found.len(); }); }).max().unwrap_or(0);
-    let _budget: usize = worker_budget(&BudgetRequest { items: targets.len(), per_item_memory: largest.saturating_mul(INDEX_REWRITE_COPIES), ceiling: None, cap: None, host });
-    let workers: usize = 1;
+    let workers: usize = worker_budget(&BudgetRequest { items: targets.len(), per_item_memory: largest.saturating_mul(INDEX_REWRITE_COPIES), ceiling: None, cap: None, host });
     let lanes: Vec<Vec<usize>> = (0..targets.len()).map(|index: usize| { return vec![index]; }).collect();
     run_ordered(OrderedRun {
         items: targets.as_slice(),

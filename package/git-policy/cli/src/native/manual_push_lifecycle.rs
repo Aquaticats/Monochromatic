@@ -98,6 +98,15 @@ pub fn scopes_of_updates(
     git: &PushGit,
     updates: &[PushUpdate],
 ) -> Result<Vec<UpdateScope>, ManualPushFailure> {
+    return scopes_of_updates_on(&HostResources::read(), git, updates);
+}
+
+/// `scopes_of_updates` with the host's resources chosen by the caller, so a control states a host of any size.
+pub fn scopes_of_updates_on(
+    host: &HostResources,
+    git: &PushGit,
+    updates: &[PushUpdate],
+) -> Result<Vec<UpdateScope>, ManualPushFailure> {
     let remote_names: Vec<String> = updates.iter().fold(Vec::new(), |mut names, update| {
         if !names.contains(&update.remote_name) {
             names.push(update.remote_name.clone());
@@ -122,8 +131,7 @@ pub fn scopes_of_updates(
     //  independent reads and run side by side, at most `MOST_CONCURRENT_QUERIES` at once; the scopes come back in the order Git
     //  negotiated the updates, and the first update that fails decides the error.
     let lanes: Vec<Vec<usize>> = (0..updates.len()).map(|index: usize| { return vec![index]; }).collect();
-    let _budget: usize = worker_budget(&BudgetRequest { items: updates.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_QUERIES), cap: None, host: &HostResources::read() });
-    let workers: usize = 1;
+    let workers: usize = worker_budget(&BudgetRequest { items: updates.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_QUERIES), cap: None, host });
     let mut scopes: Vec<UpdateScope> = Vec::new();
     let mut failure: Option<ManualPushRangeError> = None;
     run_ordered(OrderedRun {
