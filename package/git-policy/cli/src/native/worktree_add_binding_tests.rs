@@ -180,3 +180,24 @@ fn verification_resolves_the_pointer_again() {
     assert!(admin.exists());
     remove(root.as_path());
 }
+
+/// A worktree Git registered with relative paths (`--relative-paths`, or `worktree.useRelativePaths`) is bound and stays
+///  verified: the registration's `gitdir` file names the destination relative to the registration, and the pair is the same.
+#[test]
+fn a_registration_written_with_relative_paths_is_bound_and_verified() {
+    let root: PathBuf = fixture("binding-relative-paths");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    tracked(repo.as_path(), "file.txt", b"content\n");
+    commit_all(repo.as_path(), "first");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--relative-paths", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let recorded: String = std::fs::read_to_string(repo.join(".git/worktrees/topic/gitdir")).expect("gitdir file");
+    assert!(recorded.starts_with("../"), "Git recorded the destination relative to the registration: {recorded}");
+    let bound: Bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    assert_eq!(bound.binding.admin, repo.join(".git/worktrees/topic"));
+    verify_association(&bound).expect("verified");
+    // A relative back-link that names another place is still refused.
+    std::fs::write(repo.join(".git/worktrees/topic/gitdir"), "../../../../elsewhere/.git\n").expect("edited back-link");
+    assert!(bind_registration(repo.join(".git").as_path(), destination.as_path()).expect_err("another place").contains("does not name"));
+    remove(root.as_path());
+}

@@ -5244,6 +5244,19 @@ each rounded down,
 with at least one CPU and 2 GiB.
 The process limit is 256 per CPU with a floor of 512,
 and the descriptor limit is 4096.
+Every started container also gets the lowest disk weight,
+`--blkio-weight=10` and `--cgroup-conf=io.weight=10`
+(`lowestDiskWeight` and `diskWeightArguments` in the module;
+repository rule HXR in `AGENTS.md`).
+The first option sets `io.bfq.weight`,
+which the BFQ scheduler reads,
+and the second sets `io.weight`,
+which other schedulers read;
+a rootless container sits outside the launcher's unit,
+so the launcher's `IOWeight` never reaches it.
+No variable raises the weight,
+and `podman build` has neither option,
+so the image build is not covered.
 No CPU count or memory size is written in the repository.
 The owner decided on 2026-10-18 that the containers use 75 percent of the host,
 and on 2026-10-22 raised it to 90 percent ("Use my system (almost) fully");

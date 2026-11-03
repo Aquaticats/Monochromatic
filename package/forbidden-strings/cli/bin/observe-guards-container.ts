@@ -15,7 +15,10 @@ import {
   resolve,
 } from 'node:path';
 
-import { mapInSequence } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+import {
+  diskWeightArguments,
+  mapInSequence,
+} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 import {
   run,
@@ -239,9 +242,19 @@ async function observeVariant({
   if (source?.sha256 !== originalSha256)
     throw new ScannerVerificationError(`Consumer assertions differ in ${selected.directory}.`);
   /**
-   The container limits the control ran under.
+   The container limits the control ran under, plus the lowest disk weight when the recorded control predates it.
+   The weight only slows disk access, so adding it to an older control's limits keeps the observation comparable.
    */
-  const { limits } = selected.manifest;
+  const limits = [
+    ...selected.manifest
+      .limits,
+    ...diskWeightArguments()
+      .filter(function isNotRecorded(argument) {
+        return !selected.manifest
+          .limits
+          .includes(argument);
+      }),
+  ];
   /**
    The disposable build context.
    */

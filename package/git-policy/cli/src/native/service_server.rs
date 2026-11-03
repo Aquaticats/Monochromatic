@@ -15,6 +15,7 @@
 use super::service_journal::{DONE_RETAINED, Recovery, landed_commits, prune_done};
 use super::service_index_lock::{Announce, unsettled_locks};
 use super::service_index_prestage::{PrestageGuard, start as start_prestage};
+use super::service_captures::CaptureMemory;
 use super::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
 use super::journald_native::Priority;
 use super::service_timing::{Answered, Arrival, ExitReason, LandTiming, answered_line, exit_line, log, log_entry, retire_line};
@@ -392,7 +393,7 @@ fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, po
 }
 
 /// Lands one group of jobs that share a branch, and answers each client.
-fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<Queued>, landed: &mut HashMap<String, String>) {
+fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<Queued>, landed: &mut HashMap<String, String>, captures: &mut CaptureMemory) {
     let group_began: Instant = Instant::now();
     let (again, pending): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _, _)| { return landed.contains_key(&request.id); });
     let unlanded: BatchTimes = BatchTimes::not_landed(group_began);
@@ -430,6 +431,12 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
     let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now() };
     match result {
         Ok(outcomes) => {
+            // What this batch landed is remembered before any answer, so a commit sent back in the same batch is told about it.
+            for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
+                if let Outcome::Landed { commit } = outcome {
+                    captures.record_landed(request.common_dir.as_path(), request.repository.as_path(), commit.as_str(), request.captured);
+                }
+            }
             super::service_fault::reach("before-ack");
             for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
                 if let Outcome::Landed { commit } = outcome {
@@ -447,8 +454,8 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
                         "landed"
                     }
                     Outcome::RetryPrepare { base } => {
-                        let captures = super::service_captures::remembered(request.common_dir.as_path(), request.repository.as_path());
-                        send(stream, &ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: captures });
+                        let known = captures.remembered(request.common_dir.as_path(), request.repository.as_path());
+                        send(stream, &ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
                         "retry-prepare"
                     }
                     Outcome::BranchMoved => {
@@ -533,6 +540,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
     }
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
+    // What the landed commits were captured at: owned by this loop, the only thread that lands and answers.
+    let mut captures: CaptureMemory = CaptureMemory::default();
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
     let acceptor_queue: Sender<Job> = sender.clone();
     // After-commit work (push, upkeep) runs on its own thread, so a slow network never delays a landing.
@@ -616,7 +625,7 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         }
         for (_, group) in groups {
             let index: Option<std::path::PathBuf> = group.first().map(|(request, _, _)| { return request.index.clone(); });
-            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed);
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures);
             // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
             //  made and flushed now, while the service is idle, and the next commit only places it.
             if let Some(next_index) = index {

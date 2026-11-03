@@ -1,16 +1,16 @@
 //! What:
 //!  Controls of the folder of saved copies opened through descriptors: which links it refuses, what a walk counts and removes,
-//!  how deep it goes, and that two holders of the lock exclude each other.
+//!  how deep it goes, and that walks which meet the same directory share its files without a lock.
 //! Why:
 //!  The removal is only as safe as the steps under it, so each step is checked on a real directory in a fixture: a link is
 //!  never entered or followed, a name that is another directory now is noticed, and a tree that is too deep is kept.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const store = await Store.open(common, 'cli-git/discarded'); expect(await store.tryLock()).toBe(true);
+//! const store = await Store.open(common, 'cli-git/discarded'); const counted = await Promise.all([walk(store), walk(store)]);
 //! ```
 
-use super::{Identity, MAX_DEPTH, OpenFailure, Store};
+use super::{Identity, MAX_DEPTH, OpenFailure, Store, Tally};
 use crate::command_test_support::{fixture, remove};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -168,16 +168,42 @@ fn a_tree_deeper_than_the_bound_is_stopped_at() {
     remove(root.as_path());
 }
 
-/// Two holders of the folder exclude each other without waiting, and the lock goes with the descriptor.
+/// Two walks of one directory share its files without a lock: each file is counted by the walk whose removal of it succeeded,
+/// so across the walks every file is counted once and neither fails on a file or a directory the other removed.
 #[test]
-fn the_lock_is_exclusive_and_released_with_the_store() {
-    let root: PathBuf = fixture("store-lock");
-    let (common, _) = folder_in(root.as_path());
-    let first: Store = Store::open(common.as_path(), "cli-git/discarded").expect("opens").expect("exists");
-    let second: Store = Store::open(common.as_path(), "cli-git/discarded").expect("opens").expect("exists");
-    assert!(first.try_lock().expect("locked"));
-    assert!(!second.try_lock().expect("asked"), "a second holder got the lock");
-    drop(first);
-    assert!(second.try_lock().expect("locked after release"));
+fn walks_emptying_one_directory_together_count_each_file_once() {
+    let root: PathBuf = fixture("store-shared-empty");
+    let (common, folder) = folder_in(root.as_path());
+    let directory: PathBuf = folder.join("2026-11-02T14-01-07");
+    std::fs::create_dir_all(directory.join("inner")).expect("a directory");
+    for number in 0..SHARED_FILES {
+        std::fs::write(directory.join(format!("file-{number}")), "x").expect("a file");
+        std::fs::write(directory.join("inner").join(format!("deep-{number}")), "y").expect("a deeper file");
+    }
+    let store: Store = Store::open(common.as_path(), "cli-git/discarded").expect("opens").expect("exists");
+    let name = std::ffi::OsString::from("2026-11-02T14-01-07");
+    let starting: std::sync::Barrier = std::sync::Barrier::new(SHARED_WALKS);
+    let tallies: Vec<Tally> = std::thread::scope(|scope| {
+        let walks: Vec<_> = (0..SHARED_WALKS)
+            .map(|_| {
+                return scope.spawn(|| {
+                    let handle = store.open_directory(name.as_os_str()).expect("opens").expect("exists");
+                    starting.wait();
+                    return handle.empty().expect("a walk fails on nothing another walk removed");
+                });
+            })
+            .collect();
+        return walks.into_iter().map(|walk| { return walk.join().expect("a walk finished"); }).collect();
+    });
+    let mut counted: Vec<String> = tallies.into_iter().flat_map(|tally| { return tally.names; }).collect();
+    counted.sort();
+    let before: usize = counted.len();
+    counted.dedup();
+    assert_eq!(counted.len(), before, "a file was counted by more than one walk");
+    assert_eq!(counted.len(), SHARED_FILES * 2, "every file was counted by some walk");
     remove(root.as_path());
 }
+
+/// How many walks empty one directory together, and how many files each of its two levels holds.
+const SHARED_WALKS: usize = 4;
+const SHARED_FILES: usize = 400;

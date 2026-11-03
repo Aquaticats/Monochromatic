@@ -414,3 +414,35 @@ pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, direc
 /// Controls for the fixture helpers above.
 #[path = "test_support_tests.rs"]
 mod tests;
+
+/// What:
+///  The owner of a process that really started, had its birth identity read while it ran, and was then killed and reaped.
+/// Why:
+///   An interrupted copy is a journal or a claim whose owner is gone; a control builds one with this owner instead of
+///  waiting for a real crash.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const dead = await deadCopyOwner(); // { pid, birthIdentity, pidNamespace } of a killed child
+/// ```
+pub(crate) fn dead_copy_owner() -> crate::worktree_copy_owner::CopyOwner {
+    use std::process::Stdio;
+    let mut child: std::process::Child = Command::new("sleep")
+        .arg("60")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("sleep starts");
+    let pid: i64 = i64::from(child.id());
+    let birth: String = crate::process_identity::process_birth_identity(pid)
+        .expect("identity readable")
+        .expect("the child runs");
+    child.kill().expect("child is killed");
+    child.wait().expect("child is reaped");
+    return crate::worktree_copy_owner::CopyOwner {
+        pid,
+        birth_identity: birth,
+        pid_namespace: crate::pid_namespace::current_pid_namespace(),
+    };
+}

@@ -479,7 +479,7 @@ fn commands_in_a_linked_worktree_are_settled_by_the_copy() {
     for (rest, creates) in [
         (vec!["worktree", "add", "--quiet", "-b", "second", "../second"], true),
         (vec!["-c", "alias.wta=worktree add", "wta", "-b", "second", "../second"], true),
-        (vec!["worktree", "move", "../second", "../third"], true),
+        (vec!["worktree", "move", "../second", "../third"], false),
         (vec!["worktree", "list"], false),
         (vec!["log", "--oneline"], false),
     ] {
@@ -488,20 +488,11 @@ fn commands_in_a_linked_worktree_are_settled_by_the_copy() {
             &[],
             &resolution,
         ));
-        assert_eq!(facts.creates_or_moves, creates, "{rest:?}");
+        assert_eq!(facts.creates, creates, "{rest:?}");
+        // The destination is read for a creation, whatever the form of the add, and is absent for every other command.
+        assert_eq!(facts.destination.is_some(), creates, "{rest:?}");
         assert!(matches!(facts.identity, crate::worktree_identity::WorktreeIdentity::LinkedWorktree { .. }));
     }
-    // The inherited environment is handed on, so a nested command can present an outer lease.
-    let environment: Vec<(OsString, OsString)> = vec![(
-        OsString::from("CLI_GIT_WORKTREE_COPY_LEASE"),
-        OsString::from("token"),
-    )];
-    let nested = settled_facts(plan_invocation(
-        in_directory(linked.as_path(), &["status"]).as_slice(),
-        environment.as_slice(),
-        &resolution,
-    ));
-    assert_eq!(nested.environment, environment);
     remove(root.as_path());
 }
 
@@ -549,7 +540,7 @@ fn the_opt_out_and_short_circuit_forms_are_not_settled() {
     remove(root.as_path());
 }
 
-/// From the main checkout, only a worktree creation or move is settled, whatever the configuration names.
+/// From the main checkout, only a worktree creation is settled, whatever the configuration names; a move is forwarded.
 #[test]
 fn the_main_checkout_is_settled_only_for_a_creation() {
     let root: PathBuf = fixture("entry-settled-main");
@@ -558,17 +549,16 @@ fn the_main_checkout_is_settled_only_for_a_creation() {
     for rest in [
         vec!["worktree", "add", "--quiet", "-b", "second", "../second"],
         vec!["-c", "alias.wta=worktree add", "wta", "-b", "second", "../second"],
-        vec!["worktree", "move", "../linked", "../moved"],
     ] {
         let facts = settled_facts(plan_invocation(
             in_directory(repo.as_path(), rest.as_slice()).as_slice(),
             &[],
             &resolution,
         ));
-        assert!(facts.creates_or_moves, "{rest:?}");
+        assert!(facts.creates, "{rest:?}");
     }
     // Commands that create nothing keep their plain forward from the main checkout.
-    for rest in [vec!["worktree", "list"], vec!["status"], vec!["log", "--oneline"]] {
+    for rest in [vec!["worktree", "list"], vec!["worktree", "move", "../linked", "../moved"], vec!["status"], vec!["log", "--oneline"]] {
         assert!(
             matches!(
                 plan_invocation(
@@ -593,11 +583,11 @@ fn a_main_checkout_without_a_rules_file_is_settled_for_a_creation() {
     let resolution: ResolutionInputs = inputs(root.as_path());
     let unserved: Vec<&str> = vec!["worktree", "add", "--force", "--quiet", "-b", "second", "../second"];
     let facts = settled_facts(plan_invocation(in_directory(repo.as_path(), unserved.as_slice()).as_slice(), &[], &resolution));
-    assert!(facts.creates_or_moves);
+    assert!(facts.creates);
     assert!(facts.add_plan.is_none(), "the ladder does not serve a forced add");
     let served: Vec<&str> = vec!["worktree", "add", "--quiet", "-b", "second", "../second"];
     let served_facts = settled_facts(plan_invocation(in_directory(repo.as_path(), served.as_slice()).as_slice(), &[], &resolution));
-    assert!(served_facts.creates_or_moves);
+    assert!(served_facts.creates);
     assert!(matches!(served_facts.identity, crate::worktree_identity::WorktreeIdentity::MainWorktree { .. }));
     let plan = served_facts.add_plan.expect("the ladder serves this form");
     assert_eq!(plan.destination, std::fs::canonicalize(root.as_path()).expect("canonical").join("second"));

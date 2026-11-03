@@ -1,0 +1,153 @@
+{
+  "checkedAt": "2026-11-03T09:22:27.996Z",
+  "method": "Inspect Pandoc HTML renderer output, titles, inline markup, and internal targets; main proposal renderer output also read in full.",
+  "documents": [
+    {
+      "source": "doc/planning/browser-disk-responsiveness.md",
+      "html": "browser-responsiveness-proposal.html",
+      "title": "Improving browser responsiveness under storage stalls",
+      "sourceSha256": "8f6387012c015e5d34112631c9aa0879c5c8bfbb50b9b9d69740d61b45046593",
+      "htmlSha256": "8199ed3f5096f6b05ac5aeea5a057711129e1c8f22c5d13f77569d2f48bd7c11",
+      "headings": [
+        "Improving browser responsiveness under storage stalls",
+        "Proposal at 2026-11-03T04:04:06-05:00",
+        "Recommended order",
+        "Establish a reproducible user-visible failure",
+        "Chromium live metrics",
+        "Firefox locks shared with disk workers",
+        "Graphics caches and other optional disk data",
+        "Prevent the same defects from returning",
+        "Upstream contribution and rollout",
+        "Existing work changes the contribution",
+        "Review and release requirements"
+      ],
+      "ids": [
+        "improving-browser-responsiveness-under-storage-stalls",
+        "proposal-at-2026-11-03t040406-0500",
+        "recommended-order",
+        "establish-a-reproducible-user-visible-failure",
+        "chromium-live-metrics",
+        "firefox-locks-shared-with-disk-workers",
+        "graphics-caches-and-other-optional-disk-data",
+        "prevent-the-same-defects-from-returning",
+        "upstream-contribution-and-rollout",
+        "existing-work-changes-the-contribution",
+        "review-and-release-requirements"
+      ],
+      "links": [
+        "../troubleshooting/chromium-disk-responsiveness.md",
+        "../audit/firefox-esr-disk-responsiveness.md",
+        "../troubleshooting/helium-window-freezes.md",
+        "browser-disk-responsiveness/chromium-upstream.md",
+        "browser-disk-responsiveness/firefox-upstream.md",
+        "../troubleshooting/helium-window-freezes.md#metrics-write-faults-block-the-main-thread",
+        "../audit/firefox-esr-disk-responsiveness.md#main-thread-startup-cache-lock-held-by-disk-writer",
+        "browser-disk-responsiveness/firefox-upstream.md",
+        "../troubleshooting/chromium-disk-responsiveness.md#gpu-persistent-cache-misses-synchronously-read-sqlite-backed-files",
+        "../audit/firefox-esr-disk-responsiveness.md#webrender-shader-cache-reads-block-the-render-thread",
+        "browser-disk-responsiveness/chromium-upstream.md#existing-upstream-work-to-coordinate-with",
+        "browser-disk-responsiveness/firefox-upstream.md#recommended-first-firefox-contribution-help-the-existing-startupcache-fix-land-safely"
+      ]
+    },
+    {
+      "source": "doc/planning/browser-disk-responsiveness/chromium-upstream.md",
+      "html": "browser-responsiveness-chromium.html",
+      "title": "Chromium contribution targets for storage-related UI stalls",
+      "sourceSha256": "cd4cfa341ed07a2dbb4b4a866b719af652f6719e09fb4330d53420125695ff81",
+      "htmlSha256": "f98eff5ca0d86f4b3df0e5395a35a2f0e046efe24a3f36e3d827c72454a8b967",
+      "headings": [
+        "Chromium contribution targets for storage-related UI stalls",
+        "Status checked at 2026-11-03T04:06:28-05:00",
+        "Recommended work order",
+        "Establish an upstream regression case for the observed metrics write fault",
+        "Remove optional GPU-cache waits from latency-critical callbacks",
+        "Redesign metrics persistence after choosing its crash-loss contract",
+        "Existing upstream work to coordinate with",
+        "Tests that would make a contribution reviewable",
+        "Ownership and contribution constraints",
+        "Search scope and uncertainty"
+      ],
+      "ids": [
+        "chromium-contribution-targets-for-storage-related-ui-stalls",
+        "status-checked-at-2026-11-03t040628-0500",
+        "recommended-work-order",
+        "establish-an-upstream-regression-case-for-the-observed-metrics-write-fault",
+        "remove-optional-gpu-cache-waits-from-latency-critical-callbacks",
+        "redesign-metrics-persistence-after-choosing-its-crash-loss-contract",
+        "existing-upstream-work-to-coordinate-with",
+        "tests-that-would-make-a-contribution-reviewable",
+        "ownership-and-contribution-constraints",
+        "search-scope-and-uncertainty"
+      ],
+      "links": [
+        "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/chrome/app/chrome_main_delegate.cc#L1803-L1825",
+        "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/command_buffer/service/gpu_persistent_cache.cc#L281-L326",
+        "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/command_buffer/service/gpu_persistent_cache.cc#L530-L543",
+        "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/command_buffer/service/gpu_persistent_cache.cc#L710-L745",
+        "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/components/persistent_cache/README.md?plain=1#L1-L27",
+        "https://github.com/chromium/chromium/commit/db4fa7da45bbffd5a2fcc2b4eb6ca267e41d0522",
+        "https://github.com/chromium/chromium/commit/f2fc41911596344ad1399b9035f375f1413514e5",
+        "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/config/gpu_finch_features.cc#L473-L490",
+        "https://chromium-review.googlesource.com/c/chromium/src/+/8412185",
+        "https://github.com/chromium/chromium/commit/076b8b99b9729d4266e43df22fc96d06eb34421a",
+        "https://chromium-review.googlesource.com/c/chromium/src/+/8707393",
+        "https://chromium-review.googlesource.com/c/chromium/src/+/8688624",
+        "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/docs/contributing.md?plain=1#L20-L43",
+        "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/agents/ai_policy.md?plain=1#L6-L33",
+        "chromium-links.json"
+      ]
+    },
+    {
+      "source": "doc/planning/browser-disk-responsiveness/firefox-upstream.md",
+      "html": "browser-responsiveness-firefox.html",
+      "title": "Firefox contributions to remove UI waits for storage",
+      "sourceSha256": "e365333ab2eb5d1ecc859b0490e5152acbace8c31c4e070a217a0e7649b38086",
+      "htmlSha256": "ae1f6fc9d8b8a62e412f4ae71ba5bb4dc3162815c9c64efe7a3f6365b96e3094",
+      "headings": [
+        "Firefox contributions to remove UI waits for storage",
+        "Proposal evidence at 2026-11-03T09:07:48+00:00",
+        "Recommended first Firefox contribution: help the existing StartupCache fix land safely",
+        "Certificate storage: remove the UI dependency from bookkeeping before redesigning trust data",
+        "Glean memory reporting: use the asynchronous reporter protocol",
+        "Regression detection: extend existing checks to indirect waits",
+        "Contribution policy and sequence"
+      ],
+      "ids": [
+        "firefox-contributions-to-remove-ui-waits-for-storage",
+        "proposal-evidence-at-2026-11-03t0907480000",
+        "recommended-first-firefox-contribution-help-the-existing-startupcache-fix-land-safely",
+        "certificate-storage-remove-the-ui-dependency-from-bookkeeping-before-redesigning-trust-data",
+        "glean-memory-reporting-use-the-asynchronous-reporter-protocol",
+        "regression-detection-extend-existing-checks-to-indirect-waits",
+        "contribution-policy-and-sequence"
+      ],
+      "links": [
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2048221#c0",
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2037923#c8",
+        "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/startupcache/StartupCache.cpp#L679-L690",
+        "https://github.com/mozilla-firefox/firefox/commit/dc6ef27385dda3a44d7aa3d655663ced75ae565b",
+        "https://github.com/mozilla-firefox/firefox/commit/eec2f8dc61cc9f851fe5303cc05fc015d3128e6f",
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2048221#c5",
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2048221#c11",
+        "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/security/manager/ssl/cert_storage/src/lib.rs#L1193-L1241",
+        "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/toolkit/components/glean/xpcom/FOG.cpp#L870-L878",
+        "https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/xpcom/base/nsIMemoryReporter.idl#L225-L237",
+        "https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/dom/media/MediaRecorder.cpp#L90-L125",
+        "https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/base/content/test/performance/browser_startup_mainthreadio.js#L4-L18",
+        "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/docs/contributing/ai-coding.md?plain=1#L13-L22",
+        "https://github.com/mozilla-firefox/firefox/blob/2b71df5bf2e07525d1129be46e0ee02ec70d34d8/docs/contributing/how_to_submit_a_patch.md?plain=1#L38-L71"
+      ]
+    }
+  ],
+  "internalLinkProblems": [],
+  "liveBrowserAttempt": {
+    "status": "failed; not counted as rendered-browser verification",
+    "diagnostic": "agent-browser close: Failed to read: Resource temporarily unavailable (os error 11)",
+    "laterUrl": "about:blank",
+    "taskLimit": 512,
+    "taskLimitEvents": 0,
+    "oomEvents": 0,
+    "cleanup": "Stopped only the verified owned render-session scope after normal close returned outcome_unknown"
+  },
+  "sourceCitationChecks": "Separate chromium-links.json and firefox-links.json records contain 28 successful live-browser citation checks."
+}

@@ -290,6 +290,13 @@ pub struct Sink {
     /// Whether standard error is the journal's stream, so that a line there may carry a `<priority>` prefix.
     stream: bool,
     /// The rest of a line the stream took only in part, to be written before any other line.
+    ///
+    /// Lock kept: every thread of the service logs, the journal's stream is a byte stream that may take a line in parts, and
+    /// two lines must never run together, so the unfinished rest of a line and the write that finishes it are one critical
+    /// section. The section is one non-blocking write of what fits (the stream is never waited for), so a thread that finds
+    /// the lock held waits for one system call and never for the journal. A design without the lock needs a thread and a
+    /// queue for every entry, or a rule that drops an entry whenever another thread is mid-line; both give up the guarantee
+    /// that an entry is lost only when the stream is full. The lock covers one sink's pending bytes, the smallest unit there is.
     pending: Mutex<Vec<u8>>,
     /// How many entries were dropped since one last said so.
     lost: AtomicU64,

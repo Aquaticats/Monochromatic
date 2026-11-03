@@ -68,13 +68,13 @@ fn renewing_never_brings_back_a_settled_claim() {
 #[test]
 fn the_held_set_follows_what_is_taken_and_settled() {
     let (root, work_dir, claimed) = claimed_item("renewal-held", &clock());
-    let held: HeldClaims = HeldClaims::default();
+    let (held, mut renewer) = held_claims(work_dir.as_path());
     held.hold(&claimed);
     assert_eq!(held.snapshot(), vec![claimed.id.clone()]);
     assert!(held.is_held(claimed.id.as_str()));
-    held.renew(work_dir.as_path(), &clock().advanced(Duration::from_secs(30)));
-    let renamed: String = held.name_of(claimed.id.as_str()).expect("held");
-    assert_ne!(renamed, claimed.name, "the held name follows the renewal");
+    renewer.renew(&clock().advanced(Duration::from_secs(30)));
+    let renamed: String = renewer.names().into_iter().next().expect("held");
+    assert_ne!(renamed, claimed.name, "the renewed name follows the renewal");
     assert_eq!(claimed_names(work_dir.as_path()), vec![renamed], "and so does the file");
     held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect("settled under the renewed name");
     assert!(held.snapshot().is_empty());
@@ -89,13 +89,13 @@ fn the_held_set_follows_what_is_taken_and_settled() {
 fn a_claim_taken_over_is_found_gone_and_settles_nothing_of_the_new_claim() {
     let started: ClaimTime = clock();
     let (root, work_dir, claimed) = claimed_item("renewal-taken-over", &started);
-    let held: HeldClaims = HeldClaims::default();
+    let (held, mut renewer) = held_claims(work_dir.as_path());
     held.hold(&claimed);
     // Another instance finds the lease over, returns the item to pending and claims it.
     let later: ClaimTime = started.advanced(LEASE * 2);
     assert_eq!(requeue_expired(work_dir.as_path(), &later, LEASE, MAX_TRIES), 1);
     let successor: Claimed = claim_next_of(work_dir.as_path(), &later, &[WorkKind::Push]).expect("claim").expect("requeued item");
-    held.renew(work_dir.as_path(), &later);
+    renewer.renew(&later);
     assert!(!held.is_held(claimed.id.as_str()), "the renewal found the claim gone");
     assert_eq!(claimed_names(work_dir.as_path()), vec![successor.name.clone()], "the renewal did not touch the successor's claim");
     let refused: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a taken-over claim settles nothing");
@@ -105,26 +105,43 @@ fn a_claim_taken_over_is_found_gone_and_settles_nothing_of_the_new_claim() {
     remove(root.as_path());
 }
 
+/// A holder whose renewal has not run since another instance took its claim and claimed the item again finds, by the
+/// generation in the file name, that the file in `claimed` is not its own: it is not held, and its settlement moves nothing.
+#[test]
+fn a_claim_claimed_again_by_another_instance_is_not_this_holders_though_its_id_is_in_claimed() {
+    let started: ClaimTime = clock();
+    let (root, work_dir, claimed) = claimed_item("renewal-claimed-again", &started);
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    let later: ClaimTime = started.advanced(LEASE * 2);
+    assert_eq!(requeue_expired(work_dir.as_path(), &later, LEASE, MAX_TRIES), 1);
+    let successor: Claimed = claim_next_of(work_dir.as_path(), &later, &[WorkKind::Push]).expect("claim").expect("requeued item");
+    assert_eq!(successor.id, claimed.id, "the same item, claimed again");
+    assert!(!held.is_held_on_disk(work_dir.as_path(), claimed.id.as_str()), "the file of that id in claimed is the other instance's");
+    held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("nothing of the other instance's claim is settled");
+    assert_eq!(claimed_names(work_dir.as_path()), vec![successor.name], "the successor's claim stays where it is");
+    remove(root.as_path());
+}
+
 /// The renewal thread renames the held claims by itself, and is gone when the renewal is dropped.
 #[test]
 fn a_running_renewal_renews_the_held_claims_until_it_is_dropped() {
     let (root, work_dir, claimed) = claimed_item("renewal-thread", &clock());
-    let held: HeldClaims = HeldClaims::default();
+    let (held, renewer) = held_claims(work_dir.as_path());
     held.hold(&claimed);
-    let renewal: ClaimRenewal = ClaimRenewal::start(work_dir.clone(), held.clone(), Duration::from_millis(5));
+    let renewal: ClaimRenewal = ClaimRenewal::start(renewer, Duration::from_millis(5));
     // The bound only ends a failing run: a passing run leaves the loop as soon as the thread has renewed the claim.
     let bound: std::time::Instant = std::time::Instant::now() + Duration::from_secs(20);
-    while held.name_of(claimed.id.as_str()).as_deref() == Some(claimed.name.as_str()) && std::time::Instant::now() < bound {
+    while claimed_names(work_dir.as_path()) == vec![claimed.name.clone()] && std::time::Instant::now() < bound {
         std::thread::sleep(Duration::from_millis(5));
     }
-    let renewed: String = held.name_of(claimed.id.as_str()).expect("held");
-    assert_ne!(renewed, claimed.name, "the thread renewed the held claim");
+    let renewed: Vec<String> = claimed_names(work_dir.as_path());
+    assert_ne!(renewed, vec![claimed.name.clone()], "the thread renewed the held claim");
     drop(renewal);
     // Dropping joins the thread, so nothing can rename after this line.
-    let after_drop: String = held.name_of(claimed.id.as_str()).expect("held");
+    let after_drop: Vec<String> = claimed_names(work_dir.as_path());
     std::thread::sleep(Duration::from_millis(50));
-    assert_eq!(held.name_of(claimed.id.as_str()), Some(after_drop.clone()), "a dropped renewal renames nothing");
-    assert_eq!(claimed_names(work_dir.as_path()), vec![after_drop]);
+    assert_eq!(claimed_names(work_dir.as_path()), after_drop, "a dropped renewal renames nothing");
     remove(root.as_path());
 }
 
@@ -132,8 +149,8 @@ fn a_running_renewal_renews_the_held_claims_until_it_is_dropped() {
 #[test]
 fn a_claim_that_is_not_held_is_not_renewed() {
     let (root, work_dir, claimed) = claimed_item("renewal-not-held", &clock());
-    let held: HeldClaims = HeldClaims::default();
-    let renewal: ClaimRenewal = ClaimRenewal::start(work_dir.clone(), held.clone(), Duration::from_millis(5));
+    let (held, renewer) = held_claims(work_dir.as_path());
+    let renewal: ClaimRenewal = ClaimRenewal::start(renewer, Duration::from_millis(5));
     // The held set names another claim; the thread runs for many intervals and must leave this one alone.
     let other: Claimed = Claimed { id: String::from("push-another-claim"), name: String::from("push-another-claim~00~x"), item: claimed.item.clone() };
     held.hold(&other);
@@ -143,3 +160,73 @@ fn a_claim_that_is_not_held_is_not_renewed() {
     assert!(!held.is_held("push-another-claim"), "a held claim that is not in the directory is found gone");
     remove(root.as_path());
 }
+
+/// A settlement finds its claim by id and generation, so a renewal that renamed the file since the claim was taken does not
+/// make the settlement miss it, and no lock stands between the two.
+#[test]
+fn a_settlement_after_renewals_finds_the_claim_under_whatever_name_it_has() {
+    let (root, work_dir, claimed) = claimed_item("renewal-settle-after", &clock());
+    let (held, mut renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    for third in 1..=RENEWALS_PER_LEASE {
+        renewer.renew(&clock().advanced(Duration::from_secs(u64::from(third))));
+    }
+    assert_ne!(claimed_names(work_dir.as_path()), vec![claimed.name.clone()], "the file was renamed under the drain");
+    held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect("settled under the renewed name, found by its generation");
+    assert!(state_directory(work_dir.as_path(), DONE).join(claimed.id.as_str()).exists());
+    assert!(claimed_names(work_dir.as_path()).is_empty());
+    remove(root.as_path());
+}
+
+/// A drain and its renewal thread work at once without either waiting: settlements race renewals driven as fast as the thread
+/// answers, and every claim is settled exactly once, none lost and none left in `claimed`.
+#[test]
+fn settlements_racing_renewals_lose_no_claim() {
+    let root: PathBuf = fixture("renewal-race");
+    let work_dir: PathBuf = root.join("work");
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: root.display().to_string(),
+        git_dir: root.display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: OID.to_owned(),
+        parent: String::new(),
+        created: String::from("2026-01-01T00:00:00.000Z"),
+        tries: 0,
+    };
+    let (held, renewer) = held_claims(work_dir.as_path());
+    let driver: DrivenRenewal = DrivenRenewal::default();
+    let renewal: ClaimRenewal = ClaimRenewal::driven(renewer, &driver);
+    let mut ids: Vec<String> = Vec::new();
+    for number in 0..RACED_CLAIMS {
+        let queued: WorkItem = WorkItem { oid: format!("{number:040x}"), ..item.clone() };
+        enqueue(work_dir.as_path(), &queued).expect("enqueue");
+        let claimed: Claimed = claim_next_of(work_dir.as_path(), &clock(), &[WorkKind::Push]).expect("claim").expect("one claim");
+        held.hold(&claimed);
+        ids.push(claimed.id);
+    }
+    let stop: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        let renewing = scope.spawn(|| {
+            let mut round: u64 = 0;
+            while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+                round += 1;
+                let _ = driver.renew(&clock().advanced(Duration::from_secs(round)));
+            }
+        });
+        for id in &ids {
+            held.settle(work_dir.as_path(), id.as_str(), DONE).expect("settled while renewals run");
+        }
+        stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        renewing.join().expect("the renewals finished");
+    });
+    drop(renewal);
+    assert!(claimed_names(work_dir.as_path()).is_empty(), "no claim was left in claimed");
+    for id in &ids {
+        assert!(state_directory(work_dir.as_path(), DONE).join(id.as_str()).exists(), "{id} was settled");
+    }
+    remove(root.as_path());
+}
+
+/// How many claims the race holds at once.
+const RACED_CLAIMS: usize = 40;

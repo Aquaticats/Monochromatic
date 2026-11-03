@@ -68,19 +68,17 @@ pub struct ConversionEnvironment {
     /// Why Git would take its attributes from a tree instead of the worktree files read here (`GIT_ATTR_SOURCE`, `--attr-source`,
     ///  `attr.tree`), when it would; the content shortcut is then refused.
     pub alternate_attribute_source: Option<String>,
+    /// The variables the facts were read from, which the configuration listing reads its `GIT_CONFIG_COUNT` entries from too, so
+    ///  one environment decides every fact; empty for a stand-in that names none.
+    pub variables: Vec<(OsString, OsString)>,
 }
 
 impl ConversionEnvironment {
-    /// The facts of this process.
-    pub fn from_process() -> ConversionEnvironment {
-        let variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-        return ConversionEnvironment::from_variables(variables.as_slice());
-    }
-
-    /// The facts of an environment given as variables.
+    /// The facts of an environment given as variables. The variables name the real Git (the forward-target variable) when the
+    ///  system files are to be learned from it; without it the system files are unknown and the content decision refuses.
     pub fn from_variables(variables: &[(OsString, OsString)]) -> ConversionEnvironment {
         let selected: Option<String> = variables.iter().any(|(name, _value): &(OsString, OsString)| { return name == "GIT_ATTR_SOURCE"; }).then(|| { return String::from("GIT_ATTR_SOURCE is set"); });
-        return ConversionEnvironment { scope: ScopeEnvironment::from_variables(variables), system_attributes: system_attributes_from(variables), alternate_attribute_source: selected };
+        return ConversionEnvironment { scope: ScopeEnvironment::from_variables(variables), system_attributes: system_attributes_from(variables), alternate_attribute_source: selected, variables: variables.to_vec() };
     }
 }
 
@@ -288,8 +286,7 @@ impl<'a> ContentJudge<'a> {
 
     /// The configuration Git would list, read in process.
     fn config_entries(&self) -> Result<Vec<ConfigEntry>, String> {
-        let variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-        let listed = list_config(self.common_dir, self.git_dir, &self.environment.scope, variables.as_slice())
+        let listed = list_config(self.common_dir, self.git_dir, &self.environment.scope, self.environment.variables.as_slice())
             .ok_or_else(|| { return String::from("the Git configuration cannot be read without running Git, so a global attributes file cannot be ruled out"); })?;
         return Ok(listed.into_iter().map(|item| { return item.entry; }).collect());
     }

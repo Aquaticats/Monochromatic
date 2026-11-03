@@ -40,7 +40,7 @@ fn make_pipe(path: &Path) {
 
 /// An environment that names no system or global file and the given system attributes.
 fn environment(system_attributes: SystemAttributes) -> ConversionEnvironment {
-    return ConversionEnvironment { scope: ScopeEnvironment { no_system: true, ..ScopeEnvironment::default() }, system_attributes, alternate_attribute_source: None };
+    return ConversionEnvironment { scope: ScopeEnvironment { no_system: true, ..ScopeEnvironment::default() }, system_attributes, alternate_attribute_source: None, variables: Vec::new() };
 }
 
 /// Run the content check on a worktree.
@@ -79,7 +79,7 @@ fn the_system_attributes_file_is_not_derived_from_the_system_config_path() {
     let elsewhere: PathBuf = parent.join("custom.gitconfig");
     std::fs::write(&elsewhere, "").expect("system config");
     make_stale(worktree.join("target").as_path());
-    let moved: ConversionEnvironment = ConversionEnvironment { scope: ScopeEnvironment { system: Some(elsewhere), ..ScopeEnvironment::default() }, system_attributes: SystemAttributes::File(etc.join("gitattributes")), alternate_attribute_source: None };
+    let moved: ConversionEnvironment = ConversionEnvironment { scope: ScopeEnvironment { system: Some(elsewhere), ..ScopeEnvironment::default() }, system_attributes: SystemAttributes::File(etc.join("gitattributes")), alternate_attribute_source: None, variables: Vec::new() };
     let reason: String = check(worktree.as_path(), &moved).expect_err("the attribute applies");
     assert!(reason.contains("target") && reason.contains("ident") && reason.contains("etc/gitattributes"), "{reason}");
     check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect("the switch turns the file off");

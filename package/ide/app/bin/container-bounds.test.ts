@@ -13,8 +13,10 @@ import {
   cpuPeriod,
   currentHost,
   defaultOpenFiles,
+  diskWeightArguments,
   hostBound,
   hostShare,
+  lowestDiskWeight,
   minimumMemoryGiB,
   minimumPids,
   pidsFor,
@@ -39,6 +41,11 @@ const sharedBound = (host: { cpus: number; memoryBytes: number }) => ({
   cpus: Math.max(1, Math.floor(host.cpus * hostShare)),
   memoryGiB: Math.max(minimumMemoryGiB, Math.floor((host.memoryBytes * hostShare) / gibibyte)),
 });
+// The two disk-weight options a started container gets: `io.bfq.weight` for the BFQ scheduler, `io.weight` for the rest.
+const weightLimits = [
+  `--blkio-weight=${String(lowestDiskWeight)}`,
+  `--cgroup-conf=io.weight=${String(lowestDiskWeight)}`,
+];
 // The `podman run` limits for a memory size, CPU count, and process limit, in the order the tasks pass them.
 const runLimits = (memory: string, cpus: string, pids: string): string[] => [
   `--memory=${memory}`,
@@ -46,6 +53,7 @@ const runLimits = (memory: string, cpus: string, pids: string): string[] => [
   `--pids-limit=${pids}`,
   '--ulimit',
   `nofile=${String(defaultOpenFiles)}:${String(defaultOpenFiles)}`,
+  ...weightLimits,
 ];
 // The `podman build` limits for a memory size and a CPU count, in the order the tasks pass them.
 const buildLimits = (memory: string, cpus: number): string[] => [
@@ -105,6 +113,18 @@ test('setting the CPU count and memory reproduces the earlier fixed bound', () =
   assert.deepEqual(bounds.limitArguments, runLimits(memory, String(cpus), String(pidsFor(cpus))));
   assert.deepEqual(bounds.environmentArguments, followingEnvironment(cpus));
   assert.deepEqual(bounds.imageBuildArguments, buildLimits(memory, cpus));
+});
+
+test('every started container gets the lowest disk weight in both forms, whatever the overrides', () => {
+  assert.deepEqual(diskWeightArguments(), weightLimits);
+  for (const environment of [{}, { IDE_CONTAINER_CPUS: '1', IDE_CONTAINER_MEMORY: '512m', IDE_CONTAINER_PIDS: '900' }]) {
+    const { limitArguments, imageBuildArguments } = containerBounds({ environment, host: ownerHost });
+    for (const argument of weightLimits) {
+      assert.ok(limitArguments.includes(argument), `${argument} is missing from the run limits`);
+      // `podman build` has neither option, so the image build must not carry them.
+      assert.ok(!imageBuildArguments.includes(argument), `${argument} must not reach podman build`);
+    }
+  }
 });
 
 test('the image build uses the same CPU count and memory as the run', () => {

@@ -31,6 +31,8 @@ const OBJECTS_MS: u64 = 13;
 const JOURNAL_MS: u64 = 17;
 const REF_MS: u64 = 19;
 const SYNC_MS: u64 = 23;
+/// How long the index lock was held in the controls' landing: the branch move and the index build, so within their sum.
+const HOLD_MS: u64 = 31;
 /// Time of the landing no named phase covers.
 const READS_MS: u64 = 29;
 const ANSWER_MS: u64 = 31;
@@ -79,6 +81,7 @@ fn landing() -> LandTiming {
         journal: Duration::from_millis(JOURNAL_MS),
         ref_update: Duration::from_millis(REF_MS),
         sync: Duration::from_millis(SYNC_MS),
+        hold: Duration::from_millis(HOLD_MS),
         attempts: 2,
         lock_notes: WaitNotes {
             holder: Some(String::from("Process 4242 (git)")),
@@ -135,6 +138,7 @@ fn the_answered_line_states_each_phase_of_the_wait() {
     assert_eq!(found["journal_ms"], JOURNAL_MS.to_string());
     assert_eq!(found["ref_ms"], REF_MS.to_string());
     assert_eq!(found["sync_ms"], SYNC_MS.to_string());
+    assert_eq!(found["lock_hold_ms"], HOLD_MS.to_string(), "the hold is stated, and is no phase of the landing");
     assert_eq!(found["attempts"], "2");
     assert_eq!(found["answer_ms"], ANSWER_MS.to_string());
 }

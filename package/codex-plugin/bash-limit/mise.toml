@@ -23,3 +23,10 @@ run = [
   "mkdir --parents target/doc-review",
   "pandoc --from=commonmark --to=html --output=target/doc-review/limiter.html README.md ../../../doc/decision/codex-shell-worker-limits.md ../../../doc/troubleshooting/codex-shell-worker-limits.md ../../../doc/handover/pi-auto-mode-current-frontier.md ../../../AGENTS.md ../../../.agents/skills/testing-practices/SKILL.md",
 ]
+
+[tasks."docs:render:background"]
+description = "Render the Codex background-command configuration record"
+run = [
+  "mkdir --parents target/doc-review",
+  "pandoc --from=commonmark --to=html --output=target/doc-review/background.html ../../../doc/troubleshooting/codex-background-commands.md",
+]

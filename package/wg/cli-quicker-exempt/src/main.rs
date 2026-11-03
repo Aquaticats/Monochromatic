@@ -8,6 +8,7 @@
 ///  Steam,
 ///  Helium,
 ///  Pale Moon,
+///  Firefox release,
 ///  Firefox Nightly,
 ///  ChatGPT,
 ///  Interpreter,

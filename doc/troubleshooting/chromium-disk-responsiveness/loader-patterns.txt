@@ -1,0 +1,1 @@
+\b(?:dlopen|android_dlopen_ext|LoadLibrary(?:Ex)?[AW]?|LoadNativeLibrary|OpenNativeLibrary|LoadSystemLibrary|LoadLibraryWithNativeOptions)\s*\(

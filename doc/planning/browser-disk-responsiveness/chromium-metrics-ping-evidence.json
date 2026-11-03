@@ -1,0 +1,60 @@
+{
+  "description": "Sanitized historical observations, not a deterministic reproduction or exact fault-latency measurement.",
+  "sourceSha256": "90fe68a9dc8d905c23338c9ceaa6fcbf2fe26fff74bf7b92fef34c4f4b03a6b4",
+  "sourceRecords": 92,
+  "observer": "Write-only page_fault_user events plus procfs D-state sampling with 100 ms delay between iterations; stack changes logged.",
+  "limitations": "Sampled D-state interval may include additional waits; instruction and mapping correlation proves the recorded boundary only. User-space symbols and input-to-presentation timing were not captured.",
+  "sanitization": "Removed PIDs, absolute virtual addresses, home and mount paths, unique mapping basename, inode/device identifiers, CPU number, tracefs instance, and monotonic uptime. Preserved relative map offset, equality checks, UTC time, kernel symbols, and sampled duration.",
+  "samples": [
+    {
+      "sampledBlockedAt": "2026-11-03T07:05:04.385Z",
+      "sampledRecoveredAt": "2026-11-03T07:05:05.589Z",
+      "observerReportedBlockedMs": 1208,
+      "thread": "Helium browser main thread",
+      "faultInstructionEqualsSampledCurrentInstruction": true,
+      "faultAddressInsideMapping": true,
+      "faultOffsetHex": "0x1b61cc",
+      "mappingSizeBytes": 4194304,
+      "mappingPermissions": "rw-s",
+      "mappingPath": "<profile>/BrowserMetrics/<active-file>.pma (deleted)",
+      "faultErrorCode": "0x7",
+      "kernelStack": [
+        "folio_wait_bit_common+0x15f/0x370",
+        "folio_wait_writeback+0x2e/0x90",
+        "btrfs_page_mkwrite+0x1a6/0x7a0",
+        "do_page_mkwrite+0x53/0xc0",
+        "do_wp_page+0x108/0x590",
+        "__handle_mm_fault+0x47c/0x6c0",
+        "handle_mm_fault+0x114/0x340",
+        "do_user_addr_fault+0x2cd/0x860",
+        "exc_page_fault+0x90/0x1e0",
+        "asm_exc_page_fault+0x26/0x30"
+      ]
+    },
+    {
+      "sampledBlockedAt": "2026-11-03T07:13:58.080Z",
+      "sampledRecoveredAt": "2026-11-03T07:14:04.698Z",
+      "observerReportedBlockedMs": 6622,
+      "thread": "Helium browser main thread",
+      "faultInstructionEqualsSampledCurrentInstruction": true,
+      "faultAddressInsideMapping": true,
+      "faultOffsetHex": "0x1b61cc",
+      "mappingSizeBytes": 4194304,
+      "mappingPermissions": "rw-s",
+      "mappingPath": "<profile>/BrowserMetrics/<active-file>.pma (deleted)",
+      "faultErrorCode": "0x7",
+      "kernelStack": [
+        "folio_wait_bit_common+0x15f/0x370",
+        "folio_wait_writeback+0x2e/0x90",
+        "btrfs_page_mkwrite+0x1a6/0x7a0",
+        "do_page_mkwrite+0x53/0xc0",
+        "do_wp_page+0x108/0x590",
+        "__handle_mm_fault+0x47c/0x6c0",
+        "handle_mm_fault+0x114/0x340",
+        "do_user_addr_fault+0x2cd/0x860",
+        "exc_page_fault+0x90/0x1e0",
+        "asm_exc_page_fault+0x26/0x30"
+      ]
+    }
+  ]
+}

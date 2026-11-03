@@ -150,7 +150,7 @@ fn a_shell_alias_is_never_a_builtin() {
     let resolved: ResolvedCommand = resolve_forwarded_command(&context, &args(&["fixtureshell"]));
     assert_eq!(resolved.route, Route::ShellAlias);
     assert!(!resolved.is_builtin());
-    assert!(!creates_or_moves_worktrees(&resolved));
+    assert!(!creates_worktrees(&resolved));
 }
 
 /// An alias that names itself,
@@ -234,10 +234,9 @@ fn one_expansion_past_the_limit_is_unresolved() {
     assert!(!resolved.is_builtin());
 }
 
-/// `worktree add` and `worktree move` create or move a linked worktree;
-///  other forms do not.
+/// Only `worktree add` creates a linked worktree; a move registers nothing new, and other forms do not create one.
 #[test]
-fn only_worktree_add_and_move_create_or_move_worktrees() {
+fn only_worktree_add_creates_worktrees() {
     let context: GitContext = context_with_aliases(&[]);
     let add: ResolvedCommand = resolve_forwarded_command(&context, &args(&["worktree", "add", "x"]));
     let moved: ResolvedCommand = resolve_forwarded_command(&context, &args(&["worktree", "move", "a", "b"]));
@@ -246,10 +245,10 @@ fn only_worktree_add_and_move_create_or_move_worktrees() {
     let list: ResolvedCommand = resolve_forwarded_command(&context, &args(&["worktree", "list"]));
     let bare: ResolvedCommand = resolve_forwarded_command(&context, &args(&["worktree"]));
     let other: ResolvedCommand = resolve_forwarded_command(&context, &args(&["status", "add"]));
-    assert!(creates_or_moves_worktrees(&add));
-    assert!(creates_or_moves_worktrees(&moved));
-    assert!(creates_or_moves_worktrees(&verbose_add));
-    assert!(!creates_or_moves_worktrees(&list));
-    assert!(!creates_or_moves_worktrees(&bare));
-    assert!(!creates_or_moves_worktrees(&other));
+    assert!(creates_worktrees(&add));
+    assert!(!creates_worktrees(&moved));
+    assert!(creates_worktrees(&verbose_add));
+    assert!(!creates_worktrees(&list));
+    assert!(!creates_worktrees(&bare));
+    assert!(!creates_worktrees(&other));
 }

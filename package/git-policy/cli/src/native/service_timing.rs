@@ -82,6 +82,9 @@ pub struct LandTiming {
     pub ref_update: Duration,
     /// Time to remove the conclusion state and to build and install the new index.
     pub sync: Duration,
+    /// How long the index lock was held, from its placement to its release: the branch move and the index build.
+    /// Not a phase of its own (it overlaps `ref_update` and `sync`), so it is not part of what `reads` subtracts.
+    pub hold: Duration,
     /// Passes over the batch:
     /// one,
     /// and one more each time the branch moved under it.
@@ -215,7 +218,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
     holder.push_str(lock_notes_fields(&answered.landing.lock_notes).as_str());
     return format!(
         "answered request={:?} branch={:?} outcome={} batch={} size={} position={} read_ms={} queued_ms={} settle_ms={} \
-         lock_wait_ms={}{holder} reads_ms={} objects_ms={} journal_ms={} ref_ms={} sync_ms={} attempts={} landing_ms={} \
+         lock_wait_ms={}{holder} lock_hold_ms={} reads_ms={} objects_ms={} journal_ms={} ref_ms={} sync_ms={} attempts={} landing_ms={} \
          answer_ms={} total_ms={}",
         answered.request,
         answered.reference,
@@ -227,6 +230,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
         answered.queued.as_millis(),
         answered.settle.as_millis(),
         answered.landing.lock_wait.as_millis(),
+        answered.landing.hold.as_millis(),
         answered.landing.reads(answered.land_total).as_millis(),
         answered.landing.objects.as_millis(),
         answered.landing.journal.as_millis(),

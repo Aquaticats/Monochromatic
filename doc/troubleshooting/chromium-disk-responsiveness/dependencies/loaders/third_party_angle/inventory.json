@@ -1,0 +1,402 @@
+{
+  "revision": "127e783de33425c27a70a3f48da9d9202d6a0745",
+  "tracked": 4116,
+  "regularFiles": 4037,
+  "omitted": [
+    {
+      "mode": "160000",
+      "sha": "781be4b3982ce059bfd075ec887b44c7ec77b533",
+      "path": "build"
+    },
+    {
+      "mode": "160000",
+      "sha": "64e87f9fbdaf6f53f6cff8f15e4b06f17cead514",
+      "path": "buildtools"
+    },
+    {
+      "mode": "160000",
+      "sha": "50e391ee2d8fac9ae0a7a39d4bf3bbfed0df6312",
+      "path": "testing"
+    },
+    {
+      "mode": "160000",
+      "sha": "7dea2ed79187cd13f76183c4b9100159b9e3e071",
+      "path": "third_party/EGL-Registry/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "9fc0d23b4cfccd84be8927363a77107dc554de30",
+      "path": "third_party/OpenCL-CTS/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "5b4ca15f0e5a5be87b56b99f652f728e05cab587",
+      "path": "third_party/OpenCL-Docs/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "ddf6c70230a79cdb8fcccfd3c775b09e6820f42e",
+      "path": "third_party/OpenCL-ICD-Loader/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "9cb90ca4902d588bef3c830fbb1da484893bd5fb",
+      "path": "third_party/OpenGL-Registry/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "0f4473546172a64636f5d841410c564c0edad625",
+      "path": "third_party/Python-Markdown"
+    },
+    {
+      "mode": "160000",
+      "sha": "1e80438d2b93ef36a7c05f8d2b81233bac0e3d16",
+      "path": "third_party/SwiftShader"
+    },
+    {
+      "mode": "160000",
+      "sha": "93bca01861b0e3ef3c387027a9791e6d065f900c",
+      "path": "third_party/VK-GL-CTS/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "af5aede14a0b4013be6890148d34e0fd7b1fac69",
+      "path": "third_party/abseil-cpp"
+    },
+    {
+      "mode": "160000",
+      "sha": "4474d0e61a92c960ebfbafdc5d059a0d70dfe22a",
+      "path": "third_party/android_build_tools"
+    },
+    {
+      "mode": "160000",
+      "sha": "b1bbf37d7f2d0a0b4b0eb4ba5d47a17198c0396e",
+      "path": "third_party/android_deps"
+    },
+    {
+      "mode": "160000",
+      "sha": "e3919359f2387399042d31401817db4a02d756ec",
+      "path": "third_party/android_platform"
+    },
+    {
+      "mode": "160000",
+      "sha": "d4810b527d0d48e071c6feb018b0468ddc19aa09",
+      "path": "third_party/android_sdk"
+    },
+    {
+      "mode": "160000",
+      "sha": "2319d9c4d4af53a7fc7c52985e264ce6e8a02a9b",
+      "path": "third_party/astc-encoder/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "7cce2c2359d9951315aa25b99f9bda09942d90ad",
+      "path": "third_party/catapult"
+    },
+    {
+      "mode": "160000",
+      "sha": "4f8fb08d33ca5ff05a1c638f04c85bbb8d8b52cc",
+      "path": "third_party/cherry"
+    },
+    {
+      "mode": "160000",
+      "sha": "9f796802e5d633c96dbe97e0b6683d5e62594f9f",
+      "path": "third_party/clang-format/script"
+    },
+    {
+      "mode": "160000",
+      "sha": "8f35aa835ae973e1c802421ba5a873f5e967278c",
+      "path": "third_party/clspv/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "3de9f013df4b470069d03d250224062e8cf15c49",
+      "path": "third_party/colorama/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "81d13c49649f0714dd41fb56bb246398b6584085",
+      "path": "third_party/cpu_features/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "c3d35d65fb2f087c425ba20050c5ff03d32f1114",
+      "path": "third_party/dawn"
+    },
+    {
+      "mode": "160000",
+      "sha": "3da9fbae7a51a34828c5c05a3442ce77429803cc",
+      "path": "third_party/depot_tools"
+    },
+    {
+      "mode": "160000",
+      "sha": "a851869e111c06fbcdc89edf639abf5fc2b6deba",
+      "path": "third_party/expat/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "a86afae9399bbe631d1ea0783f8816e780e236cc",
+      "path": "third_party/flatbuffers/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "dc9f502f709c9cd88d7f8d3974f1c77aa246958e",
+      "path": "third_party/gles1_conform"
+    },
+    {
+      "mode": "160000",
+      "sha": "6edcf02205fd1e8979dc3f3964257a81959b80c8",
+      "path": "third_party/glmark2/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "2ff6f609379ce43c4291c732cf6a19dd2461a680",
+      "path": "third_party/glslang/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "4fe3307fb2d9f86d19777c7eb0e4809e9694dde7",
+      "path": "third_party/googletest/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "94af60a05b33f9acb33477a8d969e48eb1c3029f",
+      "path": "third_party/ijar"
+    },
+    {
+      "mode": "160000",
+      "sha": "c3027d884967773057bf74b957e3fea87e5df4d7",
+      "path": "third_party/jinja2"
+    },
+    {
+      "mode": "160000",
+      "sha": "f62d44704b4da6014aa231cfc116e7fd29617d2a",
+      "path": "third_party/jsoncpp"
+    },
+    {
+      "mode": "160000",
+      "sha": "97b436da4c33663581d394f4ee0a5977fc38c2f4",
+      "path": "third_party/libc++/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "127292c11d332549ba1e0aebcece6d4c91de9239",
+      "path": "third_party/libc++abi/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "e984d448b8b17aab853369e6c203e53719f46de1",
+      "path": "third_party/libdrm/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "640f254ad0fa03f6b1f29f89b7dd9366f2f6e533",
+      "path": "third_party/libjpeg_turbo"
+    },
+    {
+      "mode": "160000",
+      "sha": "8cc222cd3e79fa5190f3aa039a03a4cbea6cfbe7",
+      "path": "third_party/libpng/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "8d41badfccd4bc7dfd17817f65217f2868d69be8",
+      "path": "third_party/libunwind/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "b8b28272d32b75f0ee71acd2fa1144c8b5b95460",
+      "path": "third_party/llvm-libc/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "67790d3fb06b184b7be9c4d3e36ab01f0ac4198e",
+      "path": "third_party/llvm/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "98254945250cdf47d66779d427bed964071d7271",
+      "path": "third_party/lunarg-vulkantools/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "4256084ae14175d38a3ff7d739dca83ae49ccec6",
+      "path": "third_party/markupsafe"
+    },
+    {
+      "mode": "160000",
+      "sha": "0a6aa58acae2a5b27ef783c22e976ec9b0d33ddc",
+      "path": "third_party/mesa/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "9fd5eb605674067ce6f8876dc27e5e116024e8a6",
+      "path": "third_party/meson"
+    },
+    {
+      "mode": "160000",
+      "sha": "525a09a813be0f75b646ee93fc2a31c27b87d722",
+      "path": "third_party/nasm"
+    },
+    {
+      "mode": "160000",
+      "sha": "b5258e200dc8fc3ea0a3c02730258fda7633a9e4",
+      "path": "third_party/partition_alloc"
+    },
+    {
+      "mode": "160000",
+      "sha": "be28dac0fa653fa627e0b1f0e58549d730bfb28d",
+      "path": "third_party/perfetto"
+    },
+    {
+      "mode": "160000",
+      "sha": "e11c3a4c1cd4e51ae6253f66e84ca343819976ad",
+      "path": "third_party/protobuf"
+    },
+    {
+      "mode": "160000",
+      "sha": "24b5e7a8b27f42fa16b96fc70aade9106cf7102f",
+      "path": "third_party/rapidjson/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "972a15cedd008d846f1a39b2e88ce48d7f166cbd",
+      "path": "third_party/re2/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "c2b307dbefe21177af03f9feb37181a89a799fcc",
+      "path": "third_party/requests/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "2c8464d5992f7e7aa9e5825936c5a0cdf3733e35",
+      "path": "third_party/rust"
+    },
+    {
+      "mode": "160000",
+      "sha": "98dedb5909b3e39848c6de5122772f5a89abe61a",
+      "path": "third_party/six"
+    },
+    {
+      "mode": "160000",
+      "sha": "b8fcf307f1f347089e3c46eb4451d27f32ebc8d3",
+      "path": "third_party/spirv-cross/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "cb42dec3830d3ac67fa449ecdc0c0f73d5e74498",
+      "path": "third_party/spirv-headers/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "1d0401cd2b68ae34cda9ff625bedd1be4ed6214a",
+      "path": "third_party/spirv-tools/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "2a23ccd2664e3736dca270e45ea316ca70853ddc",
+      "path": "third_party/vulkan-deps"
+    },
+    {
+      "mode": "160000",
+      "sha": "3c65a01745e4a1134d32b9c2c456472212dba16d",
+      "path": "third_party/vulkan-headers/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "3270cf8a1349306f0ddee1b500ee2b0d552e1c82",
+      "path": "third_party/vulkan-loader/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "69ca4d4b6590ab32e7a398725bfc90f81e6338e6",
+      "path": "third_party/vulkan-tools/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "666fdaa0f87b9d49ae576473227b4b4cf428ba7e",
+      "path": "third_party/vulkan-utility-libraries/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "225b18e80f6eb98f01a20a93506426613cb9562a",
+      "path": "third_party/vulkan-validation-layers/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "7e55b011e16182fc349149abbd3aaf3b1db46421",
+      "path": "third_party/vulkan_memory_allocator"
+    },
+    {
+      "mode": "160000",
+      "sha": "ee78491a237eaff9389a0ccf8680521d074407d3",
+      "path": "third_party/wayland-protocols/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "87cc8a8728a923fc57938faa81ba0e74f34ecdc7",
+      "path": "third_party/wayland/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "456ae730017b9b4bd3371927abc82627fd51feef",
+      "path": "third_party/zlib"
+    },
+    {
+      "mode": "160000",
+      "sha": "d547986270a306897e502f8ee7482953bdeb2521",
+      "path": "tools/android"
+    },
+    {
+      "mode": "160000",
+      "sha": "7e7151ae9b6b61dcb0e74c9b12cf0af01f42a2c7",
+      "path": "tools/clang"
+    },
+    {
+      "mode": "160000",
+      "sha": "785eec432ffed7e6d61b51ca41e28a559be4d193",
+      "path": "tools/mb"
+    },
+    {
+      "mode": "160000",
+      "sha": "6a1971f9adbfa9975f9d6d79dccf43ad248c7bcf",
+      "path": "tools/md_browser"
+    },
+    {
+      "mode": "160000",
+      "sha": "1fd0e28956b24e0261f4272a0e4709da3af6d789",
+      "path": "tools/memory"
+    },
+    {
+      "mode": "160000",
+      "sha": "e7dc7df5c7662597352ea8d4c71a34508095c76c",
+      "path": "tools/perf"
+    },
+    {
+      "mode": "160000",
+      "sha": "e9dbe1bf6a2a5d2d4973725874259eed587cf18d",
+      "path": "tools/protoc_wrapper"
+    },
+    {
+      "mode": "160000",
+      "sha": "fcaead1013582c68e1ea73792a3bdb936e2258c8",
+      "path": "tools/python"
+    },
+    {
+      "mode": "160000",
+      "sha": "e04fff1fe9dd8307934c85dfcb1bb6741ce627f1",
+      "path": "tools/rust"
+    },
+    {
+      "mode": "160000",
+      "sha": "81110bd0de83ed91ed9e998b52e70717f66b69a6",
+      "path": "tools/valgrind"
+    },
+    {
+      "mode": "160000",
+      "sha": "13cb6e5d223dc49eadd082d3aef4c2a5b0e4c0a0",
+      "path": "tools/win"
+    }
+  ]
+}
