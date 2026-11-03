@@ -43,6 +43,16 @@ use std::path::Path;
 /// ```
 use crate::git_config::ParsedConfig;
 /// What:
+/// `use crate::git_objects::confirm_commit;` imports the check that an object name names a commit.
+/// Why:
+/// A reference file alone does not show the object exists or is a commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { confirmCommit } from 'crate/git_objects';
+/// ```
+use crate::git_objects::confirm_commit;
+/// What:
 /// `use crate::git_refs::{GitLayout, Head, NativeBase, NativeEnvironment, find_layout, lookup_ref, lookup_short, read_config, read_head, tracking_ref};` imports the file readers this choice is made from.
 /// Why:
 /// Each step of the choice (layout,
@@ -56,6 +66,22 @@ use crate::git_config::ParsedConfig;
 /// import { GitLayout, Head, NativeBase, NativeEnvironment, findLayout, lookupRef, lookupShort, readConfig, readHead, trackingRef } from 'crate/git_refs';
 /// ```
 use crate::git_refs::{GitLayout, Head, NativeBase, NativeEnvironment, find_layout, lookup_ref, lookup_short, read_config, read_head, tracking_ref};
+
+/// What:
+/// `fn confirmed(layout, object) -> Result<Result<String, String>, String>` accepts an object name from a reference or `HEAD` as a
+/// commit only after the object files show it is one.
+/// Why:
+/// A reference file proves neither that the object exists nor that it is a commit (a tag peels, a blob is refused);
+/// anything the object files cannot show leaves the answer to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function confirmed(layout: GitLayout, object: string): Result<string, string>  // throws: ask Git
+/// ```
+fn confirmed(layout: &GitLayout, object: String) -> Result<Result<String, String>, String> {
+    confirm_commit(&layout.common_dir, &object)?;
+    return Ok(Ok(object));
+}
 
 /// What:
 /// `fn head_base(layout) -> NativeBase` is `HEAD` as a base:
@@ -87,14 +113,14 @@ fn head_base(layout: &GitLayout) -> Result<NativeBase, String> {
     // ```
     let commit: Result<String, String> = match read_head(layout)? {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        Head::Detached(object) => Ok(object),
+        Head::Detached(object) => confirmed(layout, object)?,
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // `match`: picks the arm whose pattern fits the value.
         // Borrow `&name`: lends the value without copying or giving it away.
         Head::Branch(name) => match lookup_ref(layout, &name)? {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `Some`: the present or the absent value of an `Option`.
-            Some(object) => Ok(object),
+            Some(object) => confirmed(layout, object)?,
             // An unborn branch names no commit, which Git reports as an error too.
             None => Err(crate::git_base::not_a_commit_message("HEAD")),
         },
@@ -155,7 +181,7 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
         // `Some`: the present or the absent value of an `Option`.
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&config`: lends the value without copying or giving it away.
-        && let Some(tracking) = tracking_ref(&config, branch)?
+        && let Some(tracking) = tracking_ref(&config, &layout, branch)?
         // `Some`: the present or the absent value of an `Option`.
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&layout`: lends the value without copying or giving it away.
@@ -163,7 +189,7 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
     {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Ok(NativeBase { spelling: "@{upstream}".to_string(), commit: Ok(object) });
+        return Ok(NativeBase { spelling: "@{upstream}".to_string(), commit: confirmed(&layout, object)? });
     }
     for candidate in ["origin/main", "origin/master"] {
         // `Some`: the present or the absent value of an `Option`.
@@ -173,7 +199,7 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
         if let Some(object) = lookup_short(&layout, candidate)? {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            return Ok(NativeBase { spelling: candidate.to_string(), commit: Ok(object) });
+            return Ok(NativeBase { spelling: candidate.to_string(), commit: confirmed(&layout, object)? });
         }
     }
     // Borrow `&layout`: lends the value without copying or giving it away.

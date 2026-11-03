@@ -43,15 +43,25 @@ use std::cell::Cell;
 /// ```
 use std::path::Path;
 /// What:
-/// `use std::process::Command;` imports `Command` from the standard library so this file can name it unqualified.
+/// `use std::io::Write;` imports the trait that adds `write_all` to a pipe.
 /// Why:
-/// `Command` is used by `git_base_lock_reader`.
+/// The revisions to resolve are written to the standard input of the one Git process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Command } from 'std/process';
+/// // child.stdin.write(text)
 /// ```
-use std::process::Command;
+use std::io::Write;
+/// What:
+/// `use std::process::{Command, Stdio};` imports the process builder and the pipe settings.
+/// Why:
+/// `Command` starts Git; `Stdio::piped` connects its input and output to this process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { spawn } from 'node:child_process';
+/// ```
+use std::process::{Command, Stdio};
 
 /// What:
 /// `use crate::constants::LOCKFILE_NAME;` imports `LOCKFILE_NAME` from another module of this crate so this file can name it unqualified.
@@ -220,6 +230,92 @@ pub fn resolve_trust_base(root: &Path, in_ci: bool, explicit: Option<&str>) -> T
 }
 
 /// What:
+/// `fn batch_inputs() -> [String; 4]` lists the revisions the fallback asks Git about, in the order they are written to it:
+/// the default remote branches and `HEAD` first, `@{upstream}` last.
+/// Why:
+/// `git cat-file --batch-check` stops with a fatal error on `@{upstream}` when the branch has none;
+/// everything before that line is already printed, so putting it last loses nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const batchInputs = (): string[] => ['origin/main^{commit}', 'origin/master^{commit}', 'HEAD^{commit}', '@{upstream}^{commit}'];
+/// ```
+fn batch_inputs() -> [String; 4] {
+    return [
+        format!("{}^{{commit}}", DEFAULT_REMOTE_BASES[0]),
+        format!("{}^{{commit}}", DEFAULT_REMOTE_BASES[1]),
+        format!("{DEFAULT_BASE}^{{commit}}"),
+        format!("{UPSTREAM_BASE}^{{commit}}"),
+    ];
+}
+
+/// What:
+/// `fn batch_answers(root: &Path) -> Result<Vec<Option<String>>, String>` starts Git once and returns, for each input of
+/// `batch_inputs` in order, the commit it names or `None`.
+/// Why:
+/// A line is `<oid> commit <size>` for a commit and `<input> missing` (or `ambiguous`) otherwise;
+/// an input whose line is absent (the fatal `@{upstream}` of a branch without one) names nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function batchAnswers(root: string): (string | undefined)[]  // throws when git cannot start
+/// ```
+fn batch_answers(root: &Path) -> Result<Vec<Option<String>>, String> {
+    let inputs: [String; 4] = batch_inputs();
+    let mut child = Command::new("git")
+        .args(["cat-file", "--batch-check"])
+        .current_dir(root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(git_start_failure)?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(inputs.join("\n").as_bytes()).and_then(|()| { return stdin.write_all(b"\n"); }).map_err(git_start_failure)?;
+    }
+    let finished = child.wait_with_output().map_err(git_start_failure)?;
+    let text: String = String::from_utf8_lossy(&finished.stdout).to_string();
+    let mut lines = text.lines();
+    let mut answers: Vec<Option<String>> = Vec::new();
+    for _input in &inputs {
+        let answer: Option<String> = lines.next().and_then(|line| {
+            let mut words = line.split_whitespace();
+            return match (words.next(), words.next()) {
+                (Some(object), Some("commit")) => Some(object.to_string()),
+                _ => None,
+            };
+        });
+        answers.push(answer);
+    }
+    return Ok(answers);
+}
+
+/// What:
+/// `fn resolve_batch(root: &Path, starts: &Cell<u32>) -> TrustBase` chooses the base with one Git start:
+/// `@{upstream}`, else `origin/main`, else `origin/master`, else `HEAD`.
+/// Why:
+/// The reader of the files declined, so Git answers, and it answers all candidates at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveBatch(root: string, starts: { count: number }): TrustBase
+/// ```
+fn resolve_batch(root: &Path, starts: &Cell<u32>) -> TrustBase {
+    starts.set(starts.get() + 1);
+    let answers: Vec<Option<String>> = match batch_answers(root) {
+        Ok(found) => found,
+        Err(message) => return TrustBase { spelling: DEFAULT_BASE.to_string(), commit: Err(message), git_starts: starts.get() },
+    };
+    let order: [(usize, &str); 4] = [(3, UPSTREAM_BASE), (0, DEFAULT_REMOTE_BASES[0]), (1, DEFAULT_REMOTE_BASES[1]), (2, DEFAULT_BASE)];
+    for (position, spelling) in order {
+        if let Some(Some(commit)) = answers.get(position) {
+            return TrustBase { spelling: spelling.to_string(), commit: Ok(commit.clone()), git_starts: starts.get() };
+        }
+    }
+    return TrustBase { spelling: DEFAULT_BASE.to_string(), commit: Err(not_a_commit_message(DEFAULT_BASE)), git_starts: starts.get() };
+}
+
+/// What:
 /// `pub fn resolve_trust_base_with(root, in_ci, explicit, environment) -> TrustBase` chooses the revision whose lockfiles count
 /// as trusted:
 /// an explicit `CARGO_SHADOW_TRUST_BASE` wins;
@@ -297,21 +393,8 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
     }
     // Delegated pick (2026-11-03): a local run compares with what is already on the upstream branch, so a lockfile that arrived
     // with a commit not pushed yet is new since the base; the first candidate that names a commit wins.
-    for candidate in [UPSTREAM_BASE, DEFAULT_REMOTE_BASES[0], DEFAULT_REMOTE_BASES[1]] {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-        // Borrow `&starts`: lends the value without copying or giving it away.
-        if let Ok(commit) = resolve_commit(root, candidate, &starts) {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            return TrustBase { spelling: candidate.to_string(), commit: Ok(commit), git_starts: starts.get() };
-        }
-    }
-    // Borrow `&starts`: lends the value without copying or giving it away.
-    // Typed binding: `commit: Result<String, String>`.
-    let commit: Result<String, String> = resolve_commit(root, DEFAULT_BASE, &starts);
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    return TrustBase { spelling: DEFAULT_BASE.to_string(), commit, git_starts: starts.get() };
+    // One Git start answers every candidate (review finding 2a 13).
+    return resolve_batch(root, &starts);
 }
 
 /// What:

@@ -80,6 +80,12 @@ pub mod git_config;
 /// branch configuration and references that chooses the trust base without Git.
 pub mod git_refs;
 
+/// The check, from the object files, that an object name in a reference names a commit.
+pub mod git_objects;
+
+/// The fetch refspecs of a remote and the mapping of a branch's merge reference through them.
+pub mod git_refspec;
+
 /// The choice of the trust base from the repository's files,
 /// split out of `git_refs.rs`.
 pub mod git_native;

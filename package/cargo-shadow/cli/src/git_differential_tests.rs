@@ -338,3 +338,65 @@ fn a_declined_choice_costs_exactly_one_git_start() {
     assert_eq!(base.spelling, "HEAD");
     assert_eq!(base.commit, Ok(fixture.second.clone()));
 }
+
+/// After `git gc` the objects and references are packed; the reader still answers from the files and agrees with Git.
+#[test]
+fn a_packed_repository_is_answered_from_its_pack_files() {
+    let fixture = fixture("topic");
+    base_branch_at_first(&fixture);
+    write_config(&fixture, TOPIC_TRACKS_BASE);
+    git(fixture.root.path(), &fixture.work, &["gc", "--quiet", "--aggressive"]);
+
+    assert!(!fixture.work.join(".git/refs/heads/base").exists(), "gc packed the references");
+    assert_agrees(&fixture, "packed repository");
+    let answered = native_base(&fixture.work, false, &environment(fixture.root.path())).expect("answered from pack files");
+    assert_eq!(answered.commit, Ok(fixture.first.clone()));
+}
+
+/// A SHA-256 repository has an object format extension and is Git's to read.
+#[test]
+fn a_sha256_repository_is_left_to_git() {
+    let root = scratch();
+    fs::create_dir_all(root.path().join("home")).expect("home");
+    let work: PathBuf = root.path().join("work");
+    fs::create_dir_all(&work).expect("work");
+    git(root.path(), &work, &["init", "--quiet", "--object-format=sha256", "--initial-branch", "topic"]);
+    git(root.path(), &work, &["commit", "--quiet", "--allow-empty", "--message", "one"]);
+    let fixture = Fixture { root, work, first: String::new(), second: String::new() };
+
+    assert_agrees(&fixture, "sha256");
+    assert_declines(&fixture, "sha256");
+}
+
+/// The object check accepts a commit, loose or packed, and refuses a tag, a tree, a blob and an object that does not exist.
+#[test]
+fn only_a_commit_stored_whole_is_confirmed() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    let common: PathBuf = fixture.work.join(".git");
+    git(fixture.root.path(), &fixture.work, &["tag", "-a", "-m", "tag", "v1", &fixture.first]);
+    let tag: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "v1"]);
+    let tree: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "HEAD^{tree}"]);
+    let blob: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "HEAD:file"]);
+
+    for loose_or_packed in ["loose", "packed"] {
+        assert_eq!(confirm_commit(&common, &fixture.first), Ok(()), "{loose_or_packed}: a commit");
+        assert!(confirm_commit(&common, &tag).is_err(), "{loose_or_packed}: a tag");
+        assert!(confirm_commit(&common, &tree).is_err(), "{loose_or_packed}: a tree");
+        assert!(confirm_commit(&common, &blob).is_err(), "{loose_or_packed}: a blob");
+        assert!(confirm_commit(&common, "1234567890123456789012345678901234567890").is_err(), "{loose_or_packed}: a missing object");
+        git(fixture.root.path(), &fixture.work, &["gc", "--quiet"]);
+    }
+}
+
+/// A replace reference changes what Git reads for an object, so the reader leaves the answer to Git.
+#[test]
+fn a_replace_reference_is_left_to_git() {
+    let fixture = fixture("topic");
+    base_branch_at_first(&fixture);
+    write_config(&fixture, TOPIC_TRACKS_BASE);
+    git(fixture.root.path(), &fixture.work, &["replace", &fixture.first, &fixture.second]);
+
+    assert_agrees(&fixture, "replace reference");
+    assert_declines(&fixture, "replace reference");
+}

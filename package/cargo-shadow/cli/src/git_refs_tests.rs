@@ -63,6 +63,7 @@ fn repository(head: &str, config: &str) -> (tempfile::TempDir, PathBuf) {
     // value ?? fallback
     // ```
     fs::create_dir_all(dot_git.join("refs/heads")).expect("refs");
+    fs::create_dir_all(dot_git.join("objects")).expect("objects");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(dot_git.join("HEAD"), head).expect("head");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -70,6 +71,11 @@ fn repository(head: &str, config: &str) -> (tempfile::TempDir, PathBuf) {
     // Typed binding: `path: PathBuf`.
     let path: PathBuf = root.path().to_path_buf();
     return (root, path);
+}
+
+/// A layout over a directory that has no files; the lookups of these tests read only the configuration.
+fn layout_of(_config: &crate::git_config::ParsedConfig) -> GitLayout {
+    return GitLayout { git_dir: PathBuf::from("/nonexistent/git"), common_dir: PathBuf::from("/nonexistent/git") };
 }
 
 fn write_ref(root: &Path, name: &str, object: &str) {
@@ -231,23 +237,23 @@ fn the_upstream_of_a_branch_comes_from_its_remote_merge_and_the_fetch_refspec() 
     // Borrow `&config`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, "main"), Ok(Some("refs/remotes/origin/trunk".to_string())));
+    assert_eq!(tracking_ref(&config, &layout_of(&config), "main"), Ok(Some("refs/remotes/origin/trunk".to_string())));
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `Some`: the present or the absent value of an `Option`.
     // Borrow `&config`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, "local"), Ok(Some("refs/heads/main".to_string())));
+    assert_eq!(tracking_ref(&config, &layout_of(&config), "local"), Ok(Some("refs/heads/main".to_string())));
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&config`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, "lonely"), Ok(None), "a remote without a merge reference is no upstream");
+    assert_eq!(tracking_ref(&config, &layout_of(&config), "lonely"), Ok(None), "a remote without a merge reference is no upstream");
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&config`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, "unknown"), Ok(None));
+    assert_eq!(tracking_ref(&config, &layout_of(&config), "unknown"), Ok(None));
 }
 
 #[test]
@@ -260,12 +266,12 @@ fn an_exact_refspec_maps_one_reference_and_an_uncovered_reference_has_no_trackin
     // Borrow `&config`: lends the value without copying or giving it away.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, "main"), Ok(Some("refs/remotes/origin/primary".to_string())));
+    assert_eq!(tracking_ref(&config, &layout_of(&config), "main"), Ok(Some("refs/remotes/origin/primary".to_string())));
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&config`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(tracking_ref(&config, "side"), Ok(None));
+    assert_eq!(tracking_ref(&config, &layout_of(&config), "side"), Ok(None));
 }
 
 #[test]
@@ -277,10 +283,10 @@ fn a_merge_value_that_is_not_a_full_reference_and_a_one_sided_pattern_are_refuse
 
     // Borrow `&short`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(tracking_ref(&short, "main").is_err());
+    assert!(tracking_ref(&short, &layout_of(&short), "main").is_err());
     // Borrow `&lopsided`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(tracking_ref(&lopsided, "main").is_err());
+    assert!(tracking_ref(&lopsided, &layout_of(&lopsided), "main").is_err());
 }
 
 #[test]
@@ -294,6 +300,7 @@ fn a_linked_worktree_finds_its_head_in_its_own_directory_and_the_rest_in_the_com
     let linked: PathBuf = root.path().join("linked");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(common.join("refs/heads")).expect("common");
+    fs::create_dir_all(common.join("objects")).expect("objects");
     // Borrow `&own`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(&own).expect("own");
@@ -304,6 +311,7 @@ fn a_linked_worktree_finds_its_head_in_its_own_directory_and_the_rest_in_the_com
     fs::write(common.join("config"), "").expect("config");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(own.join("HEAD"), "ref: refs/heads/topic\n").expect("head");
+    fs::write(common.join("HEAD"), "ref: refs/heads/main\n").expect("common head");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(own.join("commondir"), "../..\n").expect("commondir");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -347,7 +355,8 @@ fn a_linked_worktree_finds_its_head_in_its_own_directory_and_the_rest_in_the_com
     // list.map(f).filter(g)
     // ```
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(native_base(&linked, true, &environment(root.path())).map(|base| { return base.commit; }), Ok(Ok(FIRST.to_string())));
+    // The object names here are made up, so the base itself is declined until the object is seen to be a commit.
+    assert!(native_base(&linked, true, &environment(root.path())).is_err());
 }
 
 #[test]
@@ -430,10 +439,10 @@ fn a_repository_that_asks_for_reftable_or_a_worktree_configuration_is_refused() 
     let layout: GitLayout = find_layout(&path, &environment(root.path())).expect("layout");
     // Borrow `&layout`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(read_config(&layout, &environment(root.path())).unwrap_err().contains("reftable"));
+    assert!(read_config(&layout, &environment(root.path())).unwrap_err().contains("extensions.refstorage"));
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(path.join(".git/config"), "[extensions]\n\tworktreeConfig = true\n").expect("worktree config");
     // Borrow `&layout`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(read_config(&layout, &environment(root.path())).unwrap_err().contains("worktree"));
+    assert!(read_config(&layout, &environment(root.path())).unwrap_err().contains("extensions.worktreeconfig"));
 }
