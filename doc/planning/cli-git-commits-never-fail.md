@@ -54,6 +54,24 @@ request" and "an object format this release cannot read" (see "Residues that are
 Refusals that may still end a commit or merge with an error: policy errors at error severity; an empty message; a content
 conflict no resolver settles (the merge stops with the conflict recorded).
 
+Three more points were put to the owner and are decided (question tool, 2026-11-03):
+
+- A live foreign program holding the branch's ref lock: "Save on a side ref (Recommended)". The commit is stored under a wrapper
+  ref (`refs/cli-git/pending/<id>`), the command exits 0 and says the branch will show it once the other program lets go, the
+  service then moves the branch onto it in order, and pending commits are pushed only after they land on the branch.
+- The person's hooks and required filters: "Allowed refusals (Recommended)". A failing hook (`pre-commit`, `commit-msg`) or a failing
+  required clean filter (`filter.<name>.required`) ends the commit with its own message and changes nothing, like a policy error.
+  (Today the service route does not run configured hooks and warns that they never run; this decision covers the hooks and
+  filters that do run, and does not change which hooks run.)
+- A merge that would overwrite unsaved edits: "Carry edits forward (Recommended)". The merge lands, each edited file gets a
+  three-way merge of the person's edit onto the merged result in the worktree, conflict markers hold both sides where they
+  collide, nothing is lost, and a line names those files. `merge-isolation/paths-in-use` stops being a refusal.
+
+The conflicted-file rule covers `commit -a` as well: `-a` stages the worktree copy of every tracked file, an unmerged file
+included, so a `commit -a` over unmerged files commits the markers and prints the same warning for each of those files as the plain
+commit does (owner: "Committing a conflicted path is fine. Warn and commit anyway"). Today `-a` commits them without a warning;
+the fix lists the unmerged paths of the real index before the staging and warns for those it commits.
+
 A commit that names a conflicted path is no longer a refusal.
 Owner, verbatim: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."
 That reverses `d8bcd95218`; it is built on `fix/git-policy-cli-commit-conflicted-path-warns` (tip `7ec22c34da`, for 0.5.26).
@@ -170,6 +188,8 @@ The states, in order:
   lane removes the record and its retention.
 - `handed-over`: the client has marked the record complete; from here the record belongs to the lane and survives the death
   of the client and of the connection (the owner: work already handed over stays on disk and the next run finishes it).
+- `pending`: the commit exists under the side ref `refs/cli-git/pending/<id>` because a live foreign program holds the
+  branch's ref lock (below); the command has already answered success. It becomes `published` when the branch is moved onto it.
 - `published`: the commit exists on the branch. The record names the commit and the ref value it replaced.
 - `materialized`: the index entries (and, for merges, the worktree files) are brought to the new head by the rules below.
 - `closed`: the client acknowledged, or no client waits any more; retention is released.
@@ -215,6 +235,36 @@ the tip or an ancestor of it), so a crash between the swap and the mark loses no
 A commit Git must build (signed, hooked, editor) is built after the person's message is fixed, inside a branch turn: the
 client asks the lane for the turn (an epoch-fenced lease on the branch, held for the build and the swap only), and a build begun
 before the turn is built again in it.
+
+### A branch whose ref lock a live foreign program holds: the pending side ref
+
+Decided by the owner. When the publication's `update-ref` fails because `refs/heads/<name>.lock` exists
+(`refs/files-backend.c:846-860`; Git waits only 100 ms by default, `refs.c:996-997`), the lane does not wait.
+It tells a held lock from a moved head by re-reading the ref: tip equal to the expected one means the lock is the cause.
+Then:
+
+1. The commit object is already built on the tip `h`. The lane stores it with a compare-and-swap on a ref of its own,
+   `refs/cli-git/pending/<id>` (a different lock path, so the foreign holder does not block it), and marks the record `pending`.
+   That ref also serves as the hold of the captured objects.
+2. The command exits 0 and says: the commit is saved, the branch `<name>` does not show it yet because another program holds the
+   branch's ref lock, and the branch will show it when that program lets go.
+3. The lane watches the branch's lock path (files backend; reftable repositories retry with Git's own lock handling) and, when
+   the lock is free, publishes pending commits strictly in request order, one at a time, each by the publication order above.
+   If the tip is still the commit's parent, the pending commit itself becomes the tip; if the tip moved, the lane builds the
+   final commit by replaying the captured change on the tip, exactly as for any moved head. A later request that arrives while
+   an earlier one is pending joins the queue behind it, so the branch never gets a later commit before an earlier one.
+   A second request that changes the same file as a pending one captured the first one's edits too, and replaying it on a tip that
+   already holds the first is a clean three-way merge (both sides made identical changes).
+4. The index and worktree are not materialized for a pending commit: nothing was published, so the person's index and files stay as
+   they were, and the conditional install of the next section runs when the branch has been moved.
+5. Pending commits are never pushed. The auto-push pushes only the branch it was handed, and the wrapper's push refspecs name no
+   `refs/cli-git/` ref; a control must check that a push with an explicit or mirror refspec does not send them.
+   A commit is pushed only after it landed on the branch.
+6. If the holder never lets go, the commit stays on the side ref, intact and recoverable; the record says so, and the wrapper's
+   status notices name the pending commits. Nothing is lost and nothing waits.
+
+This is what the foreign lock costs: the command's answer is "saved", not "on the branch", until the other program is done.
+It replaces the wait that was open before.
 
 ### Materialization with provenance
 
@@ -277,14 +327,13 @@ Guaranteed to complete (no wait on another program, no cap, no retry count):
 - starting without the service: the client can become the lane owner;
 - a request's answer after a crash: asking again returns the state;
 - retention of captured bytes until `closed`;
-- the merge-free path commit's own publication, when no foreign program holds the branch's ref lock and none keeps moving
-  the branch.
+- the answer of a commit: `published` when the ref lock is free, `pending` (saved, exit 0) when a live foreign program holds it;
+  the publication itself is a compare-and-swap that a foreign writer who keeps moving the branch can delay (below).
 
 May wait (with a notice naming what is waited for and the holder):
-- publication while a live foreign program holds the branch's ref lock: `update-ref` waits only 100 ms by default
-  (`refs.c:996-997`) and then fails (`refs/files-backend.c:846-860`); the lane waits for the release. If that program never
-  lets go there is no safe transition: the lane cannot remove a live lock, and cannot publish without it.
-  Open question for the owner (put to the owner by the coordinator).
+- the branch moving onto a pending commit while a live foreign program holds the branch's ref lock: the commit itself does not
+  wait (it is saved on the side ref and the command exits 0); the lane waits for the release, off the commit's path. If that
+  program never lets go, the commit stays on the side ref and the branch never shows it. Decided by the owner.
 - publication of one request against a foreign writer that wins immediately before every swap: lane-routed requests are served
   first in, first out, and the foreign writer's commits are each progress for the repository, but a compare-and-swap is not
   starvation-free for one request. The notice names the foreign tip each round.
@@ -293,8 +342,9 @@ May wait (with a notice naming what is waited for and the holder):
 - the remaining Git children (`fast-import`, `commit-tree`, `update-ref`, `merge-tree`) if one hangs: the idempotent ones are
   stopped and started again after a stall (the retry-based attempt on this branch, kept for exactly this containment of a Git
   bug); `update-ref` is never stopped, so a hung `update-ref` waits.
-- local hooks, required clean filters and a merge that would overwrite unsaved edits (`merge-isolation/paths-in-use`):
-  not classified. Open questions for the owner; this record leaves them open.
+- a merge that has unsaved edits in files it changes: it does not wait or refuse; the edits are carried forward (below).
+- local hooks and required clean filters: when one fails the commit ends with its message and changes nothing; this is an
+  allowed refusal, decided by the owner, not a wait.
 
 ## Item 1: a Git step of the commit crosses its class bound
 
@@ -476,7 +526,8 @@ May wait: the reconciliation of a commit's index, for as long as a foreign progr
 wrapper that need a settled index.
 The commit is on the branch and acknowledged; the index lags for the paths of the commit (a raw `git status` shows them as
 staged changes against the new head) until the lock is released.
-If the holder never releases it the lag is permanent; that is the live-foreign-lock question below.
+If the holder never releases it the lag lasts as long as the holder holds the lock; the owner's decision on a held lock
+covers the branch's ref lock (saved on a side ref) and not `index.lock`, so this wait remains a wait and is listed as one.
 
 ## Item 6: `ContentPruned`
 
@@ -506,12 +557,35 @@ descends from the merge would rewrite someone's work (finding 1, accepted).
 So the order stays Git's: materialize under the index lock with Git's own per-path check, then swap the ref.
 
 - The wait for `index.lock` before the checkout stays, and is a wait that can last as long as a live foreign program holds the
-  lock (open owner question below).
+  lock. The owner's decision on a held lock covers the branch's ref lock only, so this one is still a wait and is not called
+  designed out.
+- A merge whose final swap finds the branch's ref lock held by a live foreign program follows the owner's decision: the merge
+  commit is saved under `refs/cli-git/pending/<id>`, the command exits 0 and says the branch will show it when the other program
+  lets go, and the lane moves the branch onto it in order. The worktree and index already hold the merged result (the checkout came
+  first), so until then `git status` shows the merge's changes as staged against the old head; nothing is lost.
 - The twenty rounds: a lost swap is another writer's commit, so the count is artificial; run the merge as an item of the
   worktree's lane (first in, first out with commits and the push), so the head moves under it only for a foreign real-Git
   writer, and remove the count. Not starvation-free against a foreign writer.
-- `merge-isolation/paths-in-use` (a merge that would overwrite unsaved edits): unclassified; open owner question. It is not data
-  loss: the merge is not applied.
+- `merge-isolation/paths-in-use` stops being a refusal. Decided by the owner ("Carry edits forward"): the merge lands, and each
+  file the person edited and the merge changes gets a three-way merge of the person's edit onto the merged result.
+  The carry-forward, per such path, under the index lock and before the ref swap (the order above), keeps the review's
+  safety condition that a file edited after the check is not overwritten:
+  1. the base is the old head's content `O`, "ours" is the person's file `E`, "theirs" is the merged result `M`; the result `R`
+     is Git's own three-way text merge (`git merge-file`, or an in-process port that matches it, with the repository's conflict
+     style and labels naming the person's edit and the merge);
+  2. the person's file is moved aside by one atomic rename (so the inode that holds the latest bytes is the one examined,
+     whatever an editor wrote a moment ago), its bytes are compared with the `E` that was merged, and, if they differ, the merge
+     is made again from the moved file; a copy of the person's file is also kept in the wrapper's saved-copies store
+     (`discarded_store.rs`) before `R` is installed, so nothing can be lost;
+  3. `R` is installed at the path with a no-replace link; if a new file has appeared at the path meanwhile, it is merged in the
+     same way, and the round repeats until the path is quiet (each round is local and cheap);
+  4. the index receives `M` for that path, so the person's edits show as ordinary unstaged changes on the merged result;
+  5. where `E` and `M` collide, `R` holds conflict markers with both sides, and a line names each such file and says the markers
+     are in the worktree and not committed.
+  A file that cannot be merged as text (binary, a mode or type change, a symlink, a directory in the way, an untracked file that
+  collides with a file the merge adds) keeps the person's version at its path, the merged version is written beside it under a
+  name the line gives, and nothing is overwritten; the exact naming is to be settled with the controls when this is built.
+  The merge itself does not change worktree files it does not change in the merge.
 
 ## Residues, by class
 
@@ -529,10 +603,11 @@ So the order stays Git's: materialize under the index lock with Git's own per-pa
   boundaries, not optimizations: each needs differential controls against Git on attribute precedence, required filters,
   encodings, line endings, index flags and stage handling, and an unsupported case must run Git, never produce different bytes.
 - Local hooks, required clean filters, remaining native Git failures.
-  Each retained Git child's reachable `die` and `error` exits are to be enumerated from the 2.56.0 source and assigned to a
-  class: outside list (clear message), designed out, or a refusal. Any exit not assigned stays nonzero and is reported to the owner.
-  A required filter that fails locally fails in Git too, so falling back to Git does not remove it; it is an open owner question
-  (with local hooks).
+  A failing hook or a failing required clean filter is an allowed refusal (owner): the commit ends with the hook's or filter's own
+  message and changes nothing, the same way a policy error does; falling back to Git runs the same hook or filter and fails the
+  same way, which is the intended result. Each retained Git child's other reachable `die` and `error` exits are to be enumerated
+  from the 2.56.0 source and assigned to a class: outside list (clear message), designed out, or a refusal. Any exit not assigned
+  stays nonzero and is reported to the owner.
 
 ## Answers to the review
 
@@ -558,8 +633,8 @@ Each finding of `~/temp/agent/reviews/commits-never-fail-sol.txt`, with a decisi
   (`service_land.rs`, `recover_selected` calls `try_acquire` and leaves the intent open), which is evidence in the code.
 - High, the native fallback is not end to end: accepted. Every operation has a Git implementation complete for all layouts; ports
   are gated (Residues).
-- High, hooks, required filters and `paths-in-use` unclassified: accepted. Listed as open owner questions; the exit inventory
-  is a design task.
+- High, hooks, required filters and `paths-in-use` unclassified: accepted, and the owner has since decided them: hooks and required
+  filters are allowed refusals; `paths-in-use` becomes a carry-forward of the person's edits; the exit inventory is a design task.
 - Git source qualifications: accepted. "One `lstat` per tracked file" is too categorical (`refresh_index` skips entries by
   flags); a failed `update-ref` must be classified by its error and by re-reading the ref before it is called a moved head;
   the lock watcher is files-backend only; the `core.lockfilePid` claim is limited to what it records; the hold ref's
@@ -575,8 +650,10 @@ Each finding of `~/temp/agent/reviews/commits-never-fail-sol.txt`, with a decisi
   warning (owner).
 - The causes the owner listed as outside our control, with a clear message, and work already handed over finished by the next
   run.
-- Open with the owner: a live foreign program that holds the branch's ref lock (or `index.lock`) indefinitely; local hooks and
-  required filters; a merge that would overwrite unsaved edits.
+- A failing hook or a failing required clean filter (owner): the commit ends with its own message and changes nothing.
+- No longer here: a commit that names a conflicted path, a plain commit with unmerged files and `commit -a` over unmerged files
+  (committed with a warning); a live foreign ref lock (saved on a side ref, exit 0); a merge that would overwrite unsaved edits
+  (the edits are carried forward).
 
 ## Verification plan
 

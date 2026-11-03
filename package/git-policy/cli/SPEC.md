@@ -1145,6 +1145,12 @@ Refusals that may still end a commit or merge with an error: policy errors at er
 conflict no resolver settles (the merge stops with the conflict recorded).
 A commit that names a conflicted path is not a refusal: owner, verbatim, "Committing a conflicted path is fine. Warn and commit
 anyway, even if conflict markers will be committed."
+Decided by the owner (question tool, 2026-11-03): a live foreign program holding the branch's ref lock does not fail the commit ("Save on a
+side ref (Recommended)": the commit is saved under `refs/cli-git/pending/<id>`, the command exits 0, the service moves the branch onto it in
+order, and pending commits push only after they land); a failing hook or required clean filter is an allowed refusal ("Allowed refusals
+(Recommended)", the commit ends with its own message and changes nothing); a merge that would overwrite unsaved edits carries them forward
+("Carry edits forward (Recommended)", a three-way merge of each edit onto the merged result, conflict markers holding both sides, a line
+naming the files, and `merge-isolation/paths-in-use` is no longer a refusal).
 When the owner decides how an amend, a conclusion or a revert behaves on a head that other commits moved, the result is stacked
 on the new head (owner, 2026-11-03: "Stack on the new head (Recommended)").
 
