@@ -356,10 +356,28 @@ deferred staging "Update the index (Recommended)" (a deliberate restage to exact
 lock's window is replaced,
 accepted as undetectable);
 unclear publication "Land it (Recommended)" (landed with a message naming it and how to drop it).
-Sixth revision sent to the design agent.
+Sixth revision `766f623dd0`,
+`851aa5b446` and `d09c58e7d1` (2026-11-03T09:41:10-05:00 to 09:42:05):
+a closure line for every fifth-review finding;
+publication evidence only after a reflog anchor recorded before the swap
+(no anchor:
+owner answer "Land it");
+staging targets the current tip's entry;
+the attachment check brackets reads of `HEAD` and `logs/HEAD` around the index read under `index.lock`;
+inline owners move into a transient scope;
+`hook-dispatch` journaled before `update-ref`;
+wrapper maintenance runs recorded in `lane/maintenance`.
+Still open in it:
+the embedded path for a deterministic Git hang,
+the exit inventory,
+and four owner questions,
+picked under the delegation in `75cf58f345`
+("Picks made under the owner's delegation").
+Sixth cross-vendor review started 2026-11-03T09:50-05:00
+(`~/temp/agent/reviews/commits-never-fail-sol-6.txt`,
+prompt `commits-never-fail-prompt-6.txt` beside it).
 Remaining:
-revise,
-ask the owner the questions it leaves,
+the sixth review and its revision,
 then build in the reviewer's order (models and crash fixtures first),
 with the exit inventory as a gate.
 Interim code in 0.5.26 (index-lock wait and a bounded moved-head loop) stays until the by-construction design replaces
@@ -382,6 +400,16 @@ Unexplained and still open:
 why `diff-tree` and `reset -q --pathspec-from-file` took about 60 s each in the 120 s commit
 (read Git's source and cite file and line,
 per the owner's "git itself being OSS" rule under "Owner decisions in force").
+Candidate cause,
+not confirmed:
+with `core.fsmonitor = true`,
+a Git command that finds no daemon starts one and waits up to `fsmonitor.startTimeout`,
+60 s by default (`builtin/fsmonitor--daemon.c` lines 39-40 in 2.56.0),
+the same length as each step.
+Confirming it needs a trace of such a step waiting on the daemon,
+in a disposable repository with fsmonitor set in its own config;
+fsmonitor is now off globally,
+so main no longer shows it.
 
 ### Plain commit with unmerged files finishes the merge
 
@@ -934,6 +962,29 @@ the measured citations (1,
 13,
 14,
 15).
+
+### Commits never fail, revision 6 (four questions)
+
+The questions,
+the reasons and the coordinator's candidate are in `doc/planning/cli-git-commits-never-fail.md`,
+"Questions for the owner",
+on `fix/git-policy-cli-commits-never-fail`.
+
+1. Staging a path back to its consumed entry while commits are pending:
+   A (the commit lands without that path;
+   a notice says so).
+   The coordinator's candidate goes to the sixth review:
+   record paths the person explicitly restages through the wrapper while requests are pending,
+   so a plain commit gives native Git's result.
+2. A quiet service owner of our own making:
+   A (the waiting command restarts the unit after the measured interval),
+   shipped only once the interval is measured.
+3. A hook with an external effect on "prepared",
+   after an owner death:
+   A (run `update-ref` again;
+   the hook may post twice).
+4. The instant inside Git's `checkout` between the index write and the `HEAD` change:
+   A (accept a rare staged change on the new branch).
 
 ### cargo-shadow (agent's nine questions)
 
