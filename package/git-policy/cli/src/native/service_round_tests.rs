@@ -211,7 +211,7 @@ fn the_directories_of_one_repository_are_drained_one_after_another() {
 ///  they were measured to hold.
 #[test]
 fn the_repository_estimate_covers_the_measured_peak() {
-    assert!(REPOSITORY_MEMORY >= MEASURED_REPOSITORY_PEAK, "{REPOSITORY_MEMORY} must cover {MEASURED_REPOSITORY_PEAK}");
+    const { assert!(REPOSITORY_MEMORY >= MEASURED_REPOSITORY_PEAK, "the repository estimate must cover the measured peak") };
 }
 
 /// The estimate is the measurement rounded up to a power of two and not more, so it stays tied to the figure it cites.

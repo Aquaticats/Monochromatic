@@ -104,7 +104,7 @@ fn the_budget_of_the_host_bounds_the_overlap() {
 /// The estimate covers the measured peak of removing a flat directory of a million names.
 #[test]
 fn the_entry_estimate_covers_the_measured_peak() {
-    assert!(ENTRY_MEMORY >= MEASURED_MILLION_NAME_PEAK, "{ENTRY_MEMORY} must cover {MEASURED_MILLION_NAME_PEAK}");
+    const { assert!(ENTRY_MEMORY >= MEASURED_MILLION_NAME_PEAK, "the entry estimate must cover the measured peak") };
 }
 
 /// The estimate is the measurement rounded up to a power of two and not more.
