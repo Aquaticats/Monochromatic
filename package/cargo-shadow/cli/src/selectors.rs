@@ -1,8 +1,13 @@
 //! What:
-//! The selector syntax of `rust-catalog.toml`'s exclude lists, which is pnpm's: `name`, `name@1.2.3`,
-//! `name@1.2.3 || 1.2.4`, and `*` wildcards inside the name.
+//! The selector syntax of `rust-catalog.toml`'s exclude lists,
+//! which is pnpm's:
+//! `name`,
+//! `name@1.2.3`,
+//! `name@1.2.3 || 1.2.4`,
+//! and `*` wildcards inside the name.
 //! Why:
-//! The release-age and trust checks skip excluded versions, and the update prunes excludes that no locked version needs.
+//! The release-age and trust checks skip excluded versions,
+//! and the update prunes excludes that no locked version needs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +23,8 @@ use std::collections::BTreeSet;
 pub struct ParsedSelector {
     /// The name or the `*` pattern.
     pub pattern: String,
-    /// Exact versions; empty exempts every version of the matching names.
+    /// Exact versions;
+    /// empty exempts every version of the matching names.
     pub versions: Vec<String>,
 }
 
@@ -44,7 +50,8 @@ pub fn parse_selector(selector: &str) -> ParsedSelector {
 /// `pub fn matches_pattern(pattern: &str, name: &str) -> bool` matches a crate name against a pattern whose only
 /// metacharacter is `*` (any run of characters).
 /// Why:
-/// The same wildcard rule pnpm uses; a plain regular expression would need escaping and the `regex` crate for one character.
+/// The same wildcard rule pnpm uses;
+/// a plain regular expression would need escaping and the `regex` crate for one character.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,7 +96,10 @@ pub fn is_excluded(selectors: &[String], name: &str, version: &str) -> bool {
 
 /// What:
 /// `pub fn prune_selectors(selectors: &[String], locked: &BTreeSet<String>) -> Vec<String>` drops what no locked
-/// `name@version` needs: wildcard selectors stay, a bare name stays while any version of it is locked, and a versioned
+/// `name@version` needs:
+/// wildcard selectors stay,
+/// a bare name stays while any version of it is locked,
+/// and a versioned
 /// selector keeps only the versions still locked.
 /// Why:
 /// `minimumReleaseAgeExcludePrune` and `trustPolicyExcludePrune` keep the lists from collecting stale entries.

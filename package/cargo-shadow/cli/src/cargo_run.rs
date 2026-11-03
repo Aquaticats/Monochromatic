@@ -1,8 +1,16 @@
 //! What:
-//! Runs the real cargo for the install and update steps: a directory, arguments, a toolchain, and the combined output.
+//! Runs the real cargo for the install and update steps:
+//! a directory,
+//! arguments,
+//! a toolchain,
+//! and the combined output.
 //! Why:
-//! The steps need to know whether cargo exited 0 and what it said, and the tests need to replace cargo with a fake, so the
-//! runner is a trait. The real runner never runs the shadow: it takes the first `cargo` on PATH that is not this binary.
+//! The steps need to know whether cargo exited 0 and what it said,
+//! and the tests need to replace cargo with a fake,
+//! so the
+//! runner is a trait.
+//! The real runner never runs the shadow:
+//! it takes the first `cargo` on PATH that is not this binary.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,9 +29,11 @@ use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, format_guard};
 pub struct CargoOutcome {
     /// Whether cargo exited 0.
     pub ok: bool,
-    /// Standard output, then standard error.
+    /// Standard output,
+    /// then standard error.
     pub output: String,
-    /// Standard output alone, for the callers that parse it.
+    /// Standard output alone,
+    /// for the callers that parse it.
     pub stdout: String,
 }
 
@@ -38,15 +48,18 @@ pub struct CargoOutcome {
 /// interface CargoRunner { run(cwd: string, args: string[]): CargoOutcome }
 /// ```
 pub trait CargoRunner {
-    /// Runs cargo in `cwd`; `Err` means cargo could not be started at all.
+    /// Runs cargo in `cwd`;
+    /// `Err` means cargo could not be started at all.
     fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String>;
 }
 
 /// The real cargo under one rustup toolchain.
 pub struct RealCargo {
-    /// The cargo to start, as found on PATH (its own name is kept for rustup's sake).
+    /// The cargo to start,
+    /// as found on PATH (its own name is kept for rustup's sake).
     pub program: PathBuf,
-    /// `RUSTUP_TOOLCHAIN` for the child; empty to inherit the caller's.
+    /// `RUSTUP_TOOLCHAIN` for the child;
+    /// empty to inherit the caller's.
     pub toolchain: String,
 }
 
@@ -71,7 +84,8 @@ impl CargoRunner for RealCargo {
     }
 }
 
-/// A closure with the runner's shape is a runner, so a test passes `|cwd, args| ...`.
+/// A closure with the runner's shape is a runner,
+/// so a test passes `|cwd, args| ...`.
 impl<F> CargoRunner for F
 where
     F: Fn(&Path, &[String]) -> Result<CargoOutcome, String>,

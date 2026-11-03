@@ -1,4 +1,5 @@
-//! The unit tests of the command-word rules: which cargo command lines get the install step.
+//! The unit tests of the command-word rules:
+//! which cargo command lines get the install step.
 
 use crate::verb::{CATALOG_WARNING_VERBS, INSTALL_STEP_VERBS, Treatment, VALUE_OPTIONS, find_verb, treatment_of};
 

@@ -1,7 +1,9 @@
 //! What:
-//! Finds the first-party crate roots that carry a `Cargo.lock`, and snapshots and restores their lockfiles.
+//! Finds the first-party crate roots that carry a `Cargo.lock`,
+//! and snapshots and restores their lockfiles.
 //! Why:
-//! The catalog commands treat all lockfiles as one transaction: any failure or refusal puts every lockfile back as it was.
+//! The catalog commands treat all lockfiles as one transaction:
+//! any failure or refusal puts every lockfile back as it was.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,8 +29,10 @@ use std::path::Path;
 // Imports `crate::constants::{LOCKFILE_NAME, SKIPPED_D...`.
 use crate::constants::{LOCKFILE_NAME, SKIPPED_DIRECTORIES};
 
-/// How many directory levels under `package/` hold crate roots: `package/<category>/<name>` and
-/// `package/<category>/<name>/<sub>`, the same two globs file-enforcer's Rust catalog sync uses.
+/// How many directory levels under `package/` hold crate roots:
+/// `package/<category>/<name>` and
+/// `package/<category>/<name>/<sub>`,
+/// the same two globs file-enforcer's Rust catalog sync uses.
 const CRATE_ROOT_DEPTHS: [usize; 2] = [2, 3];
 
 /// The top directory of the first-party packages.
@@ -37,7 +41,8 @@ const PACKAGE_DIRECTORY: &str = "package";
 /// One crate's lockfile text.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LockSnapshot {
-    /// Repo-relative crate directory, forward slashes.
+    /// Repo-relative crate directory,
+    /// forward slashes.
     pub crate_dir: String,
     /// The lockfile's text.
     pub source: String,
@@ -138,9 +143,11 @@ fn collect_at_depth(root: &Path, relative: &str, depth: usize, found: &mut Vec<S
 
 /// What:
 /// `pub fn locked_crate_dirs(root: &Path) -> io::Result<Vec<String>>` lists the repo-relative crate directories with a
-/// `Cargo.lock`, sorted.
+/// `Cargo.lock`,
+/// sorted.
 /// Why:
-/// Same discovery as the update tool's and file-enforcer's globs; `target` and `node_modules` are never entered.
+/// Same discovery as the update tool's and file-enforcer's globs;
+/// `target` and `node_modules` are never entered.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -181,7 +188,8 @@ pub fn locked_crate_dirs(root: &Path) -> io::Result<Vec<String>> {
     return Ok(found);
 }
 
-/// Reads every listed crate's lockfile, in order.
+/// Reads every listed crate's lockfile,
+/// in order.
 pub fn read_locks(root: &Path, crate_dirs: &[String]) -> io::Result<Vec<LockSnapshot>> {
     // `let mut`: a binding that may change.
     // Typed binding: `snapshots: Vec<LockSnapshot>`.
@@ -205,7 +213,8 @@ pub fn read_locks(root: &Path, crate_dirs: &[String]) -> io::Result<Vec<LockSnap
     return Ok(snapshots);
 }
 
-/// Writes the snapshots back, so a refused or dry-run install leaves every lockfile as it was.
+/// Writes the snapshots back,
+/// so a refused or dry-run install leaves every lockfile as it was.
 pub fn restore_locks(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()> {
     for snapshot in snapshots {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.

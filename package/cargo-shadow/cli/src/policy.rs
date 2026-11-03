@@ -1,11 +1,17 @@
 //! What:
-//! The release-age rule and the trust rule of `rust-catalog.toml`, as pure functions over one crate version and the
+//! The release-age rule and the trust rule of `rust-catalog.toml`,
+//! as pure functions over one crate version and the
 //! crate's published history.
 //! Why:
-//! pnpm applies `minimumReleaseAge` and `trustPolicy: no-downgrade` while it resolves; cargo has neither, so the catalog
-//! tools apply them to every registry version a lockfile newly holds. Trust levels are heuristics from crates.io data:
-//! 3 is a Trusted Publishing release, 2 is a publish by an account that published an earlier release or is a listed
-//! individual owner, 1 is any other account.
+//! pnpm applies `minimumReleaseAge` and `trustPolicy: no-downgrade` while it resolves;
+//! cargo has neither,
+//! so the catalog
+//! tools apply them to every registry version a lockfile newly holds.
+//! Trust levels are heuristics from crates.io data:
+//! 3 is a Trusted Publishing release,
+//! 2 is a publish by an account that published an earlier release or is a listed
+//! individual owner,
+//! 1 is any other account.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,18 +27,23 @@ use monochromatic_dependency_catalog::{Settings, TrustPolicy};
 use crate::selectors::is_excluded;
 use crate::time_text::{MS_PER_MINUTE, format_iso_millis, parse_rfc3339_millis};
 
-/// One published release of a crate, as crates.io lists it.
+/// One published release of a crate,
+/// as crates.io lists it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VersionRecord {
     /// The version number.
     pub num: String,
-    /// When it was published, RFC 3339.
+    /// When it was published,
+    /// RFC 3339.
     pub created_at: String,
-    /// The publishing account's id; empty for a Trusted Publishing release.
+    /// The publishing account's id;
+    /// empty for a Trusted Publishing release.
     pub publisher_id: String,
-    /// The repository of the Trusted Publishing workflow; empty for a token publish.
+    /// The repository of the Trusted Publishing workflow;
+    /// empty for a token publish.
     pub trustpub_repository: String,
-    /// The declared `package.repository`; empty when undeclared.
+    /// The declared `package.repository`;
+    /// empty when undeclared.
     pub repository: String,
 }
 
@@ -48,8 +59,10 @@ const FIRST_TIME_PUBLISHER_LEVEL: u8 = 1;
 /// What:
 /// `pub fn release_age_problems(...) -> Vec<String>` returns the findings for one version's publish time.
 /// Why:
-/// A version passes when an exclude selector covers it, or when its publish time plus `minimumReleaseAge` minutes is not in
-/// the future. A missing publish time passes only with `minimumReleaseAgeIgnoreMissingTime`.
+/// A version passes when an exclude selector covers it,
+/// or when its publish time plus `minimumReleaseAge` minutes is not in
+/// the future.
+/// A missing publish time passes only with `minimumReleaseAgeIgnoreMissingTime`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,16 +100,21 @@ fn is_prerelease(version: &str) -> bool {
     return without_build.contains('-');
 }
 
-/// Publish time in milliseconds; an unreadable time sorts first.
+/// Publish time in milliseconds;
+/// an unreadable time sorts first.
 fn created_millis(record: &VersionRecord) -> i64 {
     return parse_rfc3339_millis(&record.created_at).unwrap_or(0);
 }
 
 /// What:
-/// `pub fn trust_level(record, earlier, owner_ids) -> u8` ranks one release: 3 Trusted Publishing, 2 known publisher,
+/// `pub fn trust_level(record, earlier, owner_ids) -> u8` ranks one release:
+/// 3 Trusted Publishing,
+/// 2 known publisher,
 /// 1 first-time publisher.
 /// Why:
-/// A release by an account that published an earlier release, or that is a listed individual owner now, is a known publisher.
+/// A release by an account that published an earlier release,
+/// or that is a listed individual owner now,
+/// is a known publisher.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -121,8 +139,11 @@ pub fn trust_level(record: &VersionRecord, earlier: &[VersionRecord], owner_ids:
 /// `pub fn trust_problems(name, version, history, settings, now, owner_ids) -> Vec<String>` returns the findings against one
 /// version under `trustPolicy = "no-downgrade"`.
 /// Why:
-/// A version fails when an earlier stable release ranked higher, when its Trusted Publishing repository differs from earlier
-/// trusted releases, or when its declared repository differs from the release just before it. `trustPolicyIgnoreAfter`
+/// A version fails when an earlier stable release ranked higher,
+/// when its Trusted Publishing repository differs from earlier
+/// trusted releases,
+/// or when its declared repository differs from the release just before it.
+/// `trustPolicyIgnoreAfter`
 /// skips releases older than that many minutes.
 ///
 /// In TS you'd write (pseudocode):

@@ -1,4 +1,5 @@
-//! The unit tests of the selector syntax, ported from the TypeScript tool's `selectors.unit.test.ts`.
+//! The unit tests of the selector syntax,
+//! ported from the TypeScript tool's `selectors.unit.test.ts`.
 
 use crate::selectors::{ParsedSelector, is_excluded, matches_pattern, parse_selector, prune_selectors};
 

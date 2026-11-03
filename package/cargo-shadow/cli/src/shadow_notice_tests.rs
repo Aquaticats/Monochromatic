@@ -1,4 +1,6 @@
-//! The unit tests of the notice: which command lines get one, and what it says.
+//! The unit tests of the notice:
+//! which command lines get one,
+//! and what it says.
 
 /// Imports the functions and constants under test.
 use crate::shadow_notice::{HELP_WORDS, TopLevelRequest, VERSION_WORDS, help_section, notice_text, top_level_request, version_line};

@@ -1,10 +1,15 @@
 //! What:
-//! The command-line grammar of the binary when it is started under its own name, `cargo-shadow` (or as the cargo
-//! subcommand `cargo shadow`): the whole-repository catalog commands.
+//! The command-line grammar of the binary when it is started under its own name,
+//! `cargo-shadow` (or as the cargo
+//! subcommand `cargo shadow`):
+//! the whole-repository catalog commands.
 //! Why:
-//! The shadow mode passes cargo's arguments through untouched and has no grammar of its own; the catalog commands that act on
-//! every lockfile at once (an install over the repository, an update over the repository) live
-//! here, with pnpm's flag names.
+//! The shadow mode passes cargo's arguments through untouched and has no grammar of its own;
+//! the catalog commands that act on
+//! every lockfile at once (an install over the repository,
+//! an update over the repository) live
+//! here,
+//! with pnpm's flag names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,10 +22,12 @@ use clap::{Parser, Subcommand};
 use crate::commands::run_command;
 
 /// What:
-/// `#[derive(Parser)]` writes the argument parser from the attributes; `#[command(subcommand)]` makes one required word
+/// `#[derive(Parser)]` writes the argument parser from the attributes;
+/// `#[command(subcommand)]` makes one required word
 /// select the command.
 /// Why:
-/// A shadow with no commands of its own would still answer `--help` and `--version` by its own name; these two do the rest.
+/// A shadow with no commands of its own would still answer `--help` and `--version` by its own name;
+/// these two do the rest.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,8 +50,11 @@ pub struct Cli {
 /// The catalog commands.
 #[derive(Subcommand)]
 pub enum Command {
-    /// pnpm install for Cargo.lock files: update the lockfiles that no longer satisfy their manifests, offline and moving
-    /// only what the manifests force. Frozen (fails naming them) in CI or with --frozen-lockfile.
+    /// pnpm install for Cargo.lock files:
+    /// update the lockfiles that no longer satisfy their manifests,
+    /// offline and moving
+    /// only what the manifests force.
+    /// Frozen (fails naming them) in CI or with --frozen-lockfile.
     Install {
         /// Fail naming the stale roots and write nothing (the default in CI).
         #[arg(long, conflicts_with = "no_frozen_lockfile")]
@@ -52,14 +62,18 @@ pub enum Command {
         /// Update stale lockfiles even in CI.
         #[arg(long)]
         no_frozen_lockfile: bool,
-        /// Report which lockfiles are stale, then restore every Cargo.lock.
+        /// Report which lockfiles are stale,
+        /// then restore every Cargo.lock.
         #[arg(long)]
         dry_run: bool,
     },
-    /// pnpm --recursive --no-save update for Cargo.lock files: move every lockfile to the newest releases that fit, under the
+    /// pnpm --recursive --no-save update for Cargo.lock files:
+    /// move every lockfile to the newest releases that fit,
+    /// under the
     /// release-age and trust policy.
     Update {
-        /// Report what would change, then restore every Cargo.lock.
+        /// Report what would change,
+        /// then restore every Cargo.lock.
         #[arg(long)]
         dry_run: bool,
     },
@@ -68,7 +82,8 @@ pub enum Command {
 /// What:
 /// `pub fn run_cli(arguments: Vec<String>) -> i32` parses the arguments and returns the exit code.
 /// Why:
-/// clap prints its own help and error text; the function only maps the outcome to the number the process exits with.
+/// clap prints its own help and error text;
+/// the function only maps the outcome to the number the process exits with.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

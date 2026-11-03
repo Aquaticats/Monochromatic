@@ -1,4 +1,7 @@
-//! The unit tests of the shadow's install step: the fingerprint fast path, the authoritative check, the CI behavior.
+//! The unit tests of the shadow's install step:
+//! the fingerprint fast path,
+//! the authoritative check,
+//! the CI behavior.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -17,7 +20,10 @@ const SATISFIED: &str = "# satisfied\nversion = 4\n";
 const STALE: &str = "# stale\nversion = 4\n";
 const CRATE_DIR: &str = "package/x/y";
 
-/// A fake cargo: `update --locked` passes on a lock starting `# satisfied`; plain `update` writes `after`; `metadata` prints
+/// A fake cargo:
+/// `update --locked` passes on a lock starting `# satisfied`;
+/// plain `update` writes `after`;
+/// `metadata` prints
 /// the manifest list of a one-crate workspace.
 struct FakeCargo {
     commands: RefCell<Vec<String>>,

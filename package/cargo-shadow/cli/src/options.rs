@@ -1,9 +1,15 @@
 //! What:
-//! Reads the few cargo options the shadow cares about from a command line without changing it: where cargo will look
-//! (`-C <dir>`, `--manifest-path <file>`) and whether the user already asked for a frozen lockfile (`--locked`, `--frozen`).
+//! Reads the few cargo options the shadow cares about from a command line without changing it:
+//! where cargo will look
+//! (`-C <dir>`,
+//! `--manifest-path <file>`) and whether the user already asked for a frozen lockfile (`--locked`,
+//! `--frozen`).
 //! Why:
-//! The install step runs for the Cargo workspace that holds the place cargo will work in, and the user's own lock assertion
-//! is this tool's `--frozen-lockfile`: the shadow never adds an option to the user's command, so the user's words are all
+//! The install step runs for the Cargo workspace that holds the place cargo will work in,
+//! and the user's own lock assertion
+//! is this tool's `--frozen-lockfile`:
+//! the shadow never adds an option to the user's command,
+//! so the user's words are all
 //! there is to read.
 //!
 //! In TS you'd write (pseudocode):
@@ -42,7 +48,9 @@ use std::path::PathBuf;
 // Imports `crate::verb::words_before_double_dash`.
 use crate::verb::words_before_double_dash;
 
-/// The value of an option written `--name value` or `--name=value`; the last one wins, as in cargo.
+/// The value of an option written `--name value` or `--name=value`;
+/// the last one wins,
+/// as in cargo.
 fn long_option_value(words: &[String], name: &str) -> Option<String> {
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
@@ -142,7 +150,8 @@ fn long_option_value(words: &[String], name: &str) -> Option<String> {
     return found;
 }
 
-/// The `--manifest-path` value, when given.
+/// The `--manifest-path` value,
+/// when given.
 pub fn manifest_path(arguments: &[OsString]) -> Option<PathBuf> {
     // Borrow `&words_before_double_dash`: lends the value without copying or giving it away.
     // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
@@ -155,7 +164,9 @@ pub fn manifest_path(arguments: &[OsString]) -> Option<PathBuf> {
     return long_option_value(&words_before_double_dash(arguments), "--manifest-path").map(PathBuf::from);
 }
 
-/// The `-C <directory>` value, when given (cargo's own option, nightly only).
+/// The `-C <directory>` value,
+/// when given (cargo's own option,
+/// nightly only).
 pub fn change_dir(arguments: &[OsString]) -> Option<PathBuf> {
     // Typed binding: `words: Vec<String>`.
     // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.

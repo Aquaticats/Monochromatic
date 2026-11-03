@@ -1,8 +1,11 @@
 //! What:
 //! Finds the repository that uses the Rust dependency catalog and the Cargo workspace that holds a directory.
 //! Why:
-//! The install step runs for exactly one Cargo workspace, the one cargo itself would use for the current directory, and only
-//! inside a repository that has a `rust-catalog.toml`; anywhere else the shadow is silent.
+//! The install step runs for exactly one Cargo workspace,
+//! the one cargo itself would use for the current directory,
+//! and only
+//! inside a repository that has a `rust-catalog.toml`;
+//! anywhere else the shadow is silent.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -80,10 +83,15 @@ fn declares_workspace(text: &str) -> bool {
 
 /// What:
 /// `pub fn find_cargo_root(start: &Path) -> Option<PathBuf>` walks up from `start` to the nearest manifest that declares
-/// `[workspace]`; with none, it is the nearest manifest of any kind.
+/// `[workspace]`;
+/// with none,
+/// it is the nearest manifest of any kind.
 /// Why:
-/// Cargo's own rule: a package belongs to the closest ancestor workspace. In this repository every crate is its own
-/// workspace root, so the nearest manifest is nearly always the answer.
+/// Cargo's own rule:
+/// a package belongs to the closest ancestor workspace.
+/// In this repository every crate is its own
+/// workspace root,
+/// so the nearest manifest is nearly always the answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

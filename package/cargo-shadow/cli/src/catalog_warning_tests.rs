@@ -1,4 +1,6 @@
-//! The unit tests of the catalog warning: which dependencies it names, and that a clean manifest says nothing.
+//! The unit tests of the catalog warning:
+//! which dependencies it names,
+//! and that a clean manifest says nothing.
 
 use crate::catalog_warning::{Literal, literal_dependencies, warn_about_manifest};
 use crate::test_scratch::scratch;

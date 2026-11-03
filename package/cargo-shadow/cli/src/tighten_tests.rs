@@ -1,4 +1,5 @@
-//! The unit tests of the catalog floor raise that `cargo update --breaking` performs, as `pnpm update --latest` writes the new
+//! The unit tests of the catalog floor raise that `cargo update --breaking` performs,
+//! as `pnpm update --latest` writes the new
 //! range to the catalog entry.
 
 use std::collections::BTreeSet;

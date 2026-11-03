@@ -1,10 +1,16 @@
 //! What:
 //! Replaces a newly locked version that the release-age or trust policy refuses with the newest older release in the same
-//! caret class that passes, the way pnpm's picker skips a version the policy refuses and takes the next best.
+//! caret class that passes,
+//! the way pnpm's picker skips a version the policy refuses and takes the next best.
 //! Why:
-//! `cargo update` has no release-age cutoff and no trust policy, so cargo picks the newest release; this step moves the
-//! refused crates down with `cargo update --package <name>@<version> --precise <candidate>`, in rounds, because a move can
-//! lock new transitive versions that need checking in turn. A refusal with no workable candidate stays a finding.
+//! `cargo update` has no release-age cutoff and no trust policy,
+//! so cargo picks the newest release;
+//! this step moves the
+//! refused crates down with `cargo update --package <name>@<version> --precise <candidate>`,
+//! in rounds,
+//! because a move can
+//! lock new transitive versions that need checking in turn.
+//! A refusal with no workable candidate stays a finding.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -65,18 +71,28 @@ pub struct SetAsideRequest<'a> {
     pub settings: &'a Settings,
     /// The current time in milliseconds.
     pub now: i64,
-    /// The newest allowed publish time in milliseconds; zero for no cutoff.
+    /// The newest allowed publish time in milliseconds;
+    /// zero for no cutoff.
     pub cutoff_ms: i64,
     /// The cargo to run.
     pub runner: &'a dyn CargoRunner,
-    /// Options forwarded to every cargo call (`--offline`, `--config`, ...).
+    /// Options forwarded to every cargo call (`--offline`,
+    /// `--config`,
+    /// ...).
     pub forward: &'a [String],
 }
 
 /// What:
-/// `fn age_refusals(added, request) -> Result<Vec<TrustRefusal>, RegistryError>` lists the new versions that the release-age rule refuses, as refusals. `Result<T, E>` is Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing); `?` on one returns early with the failure.
+/// `fn age_refusals(added, request) -> Result<Vec<TrustRefusal>, RegistryError>` lists the new versions that the release-age rule refuses,
+/// as refusals.
+/// `Result<T, E>` is Rust's success-or-failure value (siblings:
+/// `Option<T>`,
+/// a value or nothing);
+/// `?` on one returns early with the failure.
 /// Why:
-/// Under a strict `minimumReleaseAge` a too-young version must be set aside like a version the trust rule refuses; without a cutoff in `cargo update` the age rule cannot steer the resolution, so it has to be a refusal here.
+/// Under a strict `minimumReleaseAge` a too-young version must be set aside like a version the trust rule refuses;
+/// without a cutoff in `cargo update` the age rule cannot steer the resolution,
+/// so it has to be a refusal here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,9 +211,18 @@ fn age_refusals(added: &[LockedVersion], request: &SetAsideRequest) -> Result<Ve
 }
 
 /// What:
-/// `fn is_candidate(record, refused, prerelease_allowed, cutoff_ms, yanked, rejected) -> bool` says whether one published release may replace the refused version. `&` marks a borrowed read-only argument; `BTreeSet<String>` is an ordered set of owned text (sibling: `HashSet`, unordered).
+/// `fn is_candidate(record, refused, prerelease_allowed, cutoff_ms, yanked, rejected) -> bool` says whether one published release may replace the refused version.
+/// `&` marks a borrowed read-only argument;
+/// `BTreeSet<String>` is an ordered set of owned text (sibling:
+/// `HashSet`,
+/// unordered).
 /// Why:
-/// A replacement must be older, in the same caret class, not yanked, not already rejected, published before the cutoff, and a prerelease only when the refused version is one.
+/// A replacement must be older,
+/// in the same caret class,
+/// not yanked,
+/// not already rejected,
+/// published before the cutoff,
+/// and a prerelease only when the refused version is one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -233,9 +258,15 @@ fn is_candidate(record: &VersionRecord, refused: &TrustRefusal, prerelease_allow
 
 /// What:
 /// `pub fn set_aside_candidates(...) -> Result<Vec<String>, RegistryError>` lists the releases that may replace a refused
-/// version, newest first.
+/// version,
+/// newest first.
 /// Why:
-/// A candidate must be older, in the same caret class, not yanked, not already rejected, published before the cutoff, and
+/// A candidate must be older,
+/// in the same caret class,
+/// not yanked,
+/// not already rejected,
+/// published before the cutoff,
+/// and
 /// pass the trust policy against the full history.
 ///
 /// In TS you'd write (pseudocode):
@@ -287,7 +318,12 @@ pub fn set_aside_candidates(refused: &TrustRefusal, request: &SetAsideRequest, r
 }
 
 /// What:
-/// `fn crates_locking(snapshots, key) -> Vec<String>` lists the crate roots whose lockfile holds `name@version`. `Vec<String>` is a growable list of owned text (siblings: `&[String]`, a borrowed view; `[String; N]`, fixed size).
+/// `fn crates_locking(snapshots, key) -> Vec<String>` lists the crate roots whose lockfile holds `name@version`.
+/// `Vec<String>` is a growable list of owned text (siblings:
+/// `&[String]`,
+/// a borrowed view;
+/// `[String; N]`,
+/// fixed size).
 /// Why:
 /// Only those roots need the refused version moved.
 ///
@@ -329,9 +365,12 @@ fn crates_locking(snapshots: &[LockSnapshot], key: &str) -> Vec<String> {
 }
 
 /// What:
-/// `fn move_crate(request, crate_dir, refused, candidates) -> Result<String, String>` tries the candidates in order in one crate root with `cargo update --package name@version --precise candidate` and returns the first that cargo accepts, or the empty text.
+/// `fn move_crate(request, crate_dir, refused, candidates) -> Result<String, String>` tries the candidates in order in one crate root with `cargo update --package name@version --precise candidate` and returns the first that cargo accepts,
+/// or the empty text.
 /// Why:
-/// Cargo refuses a candidate the dependency graph cannot hold; the next one is tried, at most ten.
+/// Cargo refuses a candidate the dependency graph cannot hold;
+/// the next one is tried,
+/// at most ten.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -381,9 +420,13 @@ fn move_crate(request: &SetAsideRequest, crate_dir: &str, refused: &TrustRefusal
 
 /// What:
 /// `pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, String>` repeats rounds of finding refused
-/// new versions and moving them down, and returns one warning per move.
+/// new versions and moving them down,
+/// and returns one warning per move.
 /// Why:
-/// The rounds stop when nothing is refused, when nothing could be moved, or after the round limit. What stays refused is
+/// The rounds stop when nothing is refused,
+/// when nothing could be moved,
+/// or after the round limit.
+/// What stays refused is
 /// reported by the caller's final check.
 ///
 /// In TS you'd write (pseudocode):

@@ -1,9 +1,14 @@
 //! What:
-//! The one HTTP GET the registry lookups need: a URL in, the body text out, with the status and `Retry-After` kept on
+//! The one HTTP GET the registry lookups need:
+//! a URL in,
+//! the body text out,
+//! with the status and `Retry-After` kept on
 //! failure.
 //! Why:
-//! crates.io asks API clients to identify themselves and to back off on HTTP 429; the registry layer needs the status number
-//! to decide, and tests replace the network with a fake fetcher.
+//! crates.io asks API clients to identify themselves and to back off on HTTP 429;
+//! the registry layer needs the status number
+//! to decide,
+//! and tests replace the network with a fake fetcher.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,10 +21,13 @@ use std::fmt;
 use std::io::Read;
 use std::time::Duration;
 
-/// The user agent crates.io's data-access policy asks for: it names the tool and where to reach its owner.
+/// The user agent crates.io's data-access policy asks for:
+/// it names the tool and where to reach its owner.
 pub const USER_AGENT: &str = "monochromatic-cargo-shadow (https://github.com/Aquaticats/Monochromatic)";
 
-/// The longest response body read, in bytes. A crate's whole version list is the largest response (a few megabytes).
+/// The longest response body read,
+/// in bytes.
+/// A crate's whole version list is the largest response (a few megabytes).
 const MAX_BODY_BYTES: u64 = 128 * 1024 * 1024;
 
 /// How long one request may take before it counts as failed.
@@ -28,11 +36,14 @@ const REQUEST_TIMEOUT_SECONDS: u64 = 120;
 /// A registry lookup that failed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegistryError {
-    /// What failed, with the URL.
+    /// What failed,
+    /// with the URL.
     pub message: String,
-    /// The HTTP status, when the server answered.
+    /// The HTTP status,
+    /// when the server answered.
     pub status: Option<u16>,
-    /// The `Retry-After` header in seconds; zero when absent.
+    /// The `Retry-After` header in seconds;
+    /// zero when absent.
     pub retry_after_seconds: u64,
 }
 
@@ -61,7 +72,9 @@ pub trait TextFetcher {
 /// `pub trait DumpSource { fn open(&self, url: &str) -> Result<Box<dyn Read>, RegistryError>; }` opens a large download as a
 /// byte stream.
 /// Why:
-/// The database dump is gigabytes and is read once, as it arrives; tests give it an archive built in memory.
+/// The database dump is gigabytes and is read once,
+/// as it arrives;
+/// tests give it an archive built in memory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -72,7 +85,8 @@ pub trait DumpSource {
     fn open(&self, url: &str) -> Result<Box<dyn Read>, RegistryError>;
 }
 
-/// The real network, through `ureq`.
+/// The real network,
+/// through `ureq`.
 pub struct UreqFetcher {
     agent: ureq::Agent,
     stream_agent: ureq::Agent,

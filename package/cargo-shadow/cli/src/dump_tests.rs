@@ -1,4 +1,6 @@
-//! The unit tests of the CSV reader and the dump fill, ported from `dump.unit.test.ts`, `csv` cases and the tar cases against
+//! The unit tests of the CSV reader and the dump fill,
+//! ported from `dump.unit.test.ts`,
+//! `csv` cases and the tar cases against
 //! an archive built in memory.
 
 use std::collections::BTreeSet;
@@ -75,7 +77,8 @@ fn only_a_publisher_less_release_since_trusted_publishing_began_needs_the_api() 
     assert!(needs_api(&[record("2025-07-01T00:00:00Z", "")]));
 }
 
-/// A gzip tar with the given (path, content) entries.
+/// A gzip tar with the given (path,
+/// content) entries.
 fn archive(entries: &[(&str, &str)]) -> Vec<u8> {
     let mut builder = tar::Builder::new(Vec::new());
     for (path, content) in entries {

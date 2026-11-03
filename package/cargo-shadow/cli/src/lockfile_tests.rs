@@ -1,4 +1,5 @@
-//! The unit tests of the lockfile reading, ported from the TypeScript tool's `lockfile-diff` cases.
+//! The unit tests of the lockfile reading,
+//! ported from the TypeScript tool's `lockfile-diff` cases.
 
 use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};
 

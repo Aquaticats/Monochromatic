@@ -1,8 +1,13 @@
 //! What:
-//! The glue between a cargo command line and the steps the shadow runs around it: where cargo will work, the install step
-//! before it, and the catalog warning after it.
+//! The glue between a cargo command line and the steps the shadow runs around it:
+//! where cargo will work,
+//! the install step
+//! before it,
+//! and the catalog warning after it.
 //! Why:
-//! `shim.rs` decides whether to run cargo; this module decides what happens around the run, so each can be tested alone.
+//! `shim.rs` decides whether to run cargo;
+//! this module decides what happens around the run,
+//! so each can be tested alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -69,10 +74,13 @@ use crate::toolchain::cargo_toolchain;
 use crate::workspace::{find_cargo_root, find_catalog_root};
 
 /// What:
-/// `pub fn start_dir(arguments: &[OsString], current: &Path) -> PathBuf` is where cargo will look for its manifest: the
-/// directory of `--manifest-path` when given, else the working directory moved by `-C`.
+/// `pub fn start_dir(arguments: &[OsString], current: &Path) -> PathBuf` is where cargo will look for its manifest:
+/// the
+/// directory of `--manifest-path` when given,
+/// else the working directory moved by `-C`.
 /// Why:
-/// The install step runs for the workspace cargo will use, and `cargo check --manifest-path other/Cargo.toml` uses another.
+/// The install step runs for the workspace cargo will use,
+/// and `cargo check --manifest-path other/Cargo.toml` uses another.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -167,13 +175,15 @@ pub fn now_millis() -> i64 {
     return SystemTime::now().duration_since(UNIX_EPOCH).map(|elapsed| { return elapsed.as_millis() as i64; }).unwrap_or(0);
 }
 
-/// What the steps around a cargo command need, found once per run.
+/// What the steps around a cargo command need,
+/// found once per run.
 pub struct Prepared {
     /// Where cargo will work.
     pub start: PathBuf,
     /// The repository root.
     pub catalog_root: PathBuf,
-    /// The repo-relative crate root of the workspace, when it is below the repository.
+    /// The repo-relative crate root of the workspace,
+    /// when it is below the repository.
     pub crate_dir: Option<String>,
     /// The validated catalog.
     pub document: CatalogDocument,
@@ -181,20 +191,32 @@ pub struct Prepared {
     pub runner: RealCargo,
     /// crates.io.
     pub registry: CratesIo,
-    /// Whether a stale lockfile is a failure: in CI, or the user's own command carries `--locked` or `--frozen`.
+    /// Whether a stale lockfile is a failure:
+    /// in CI,
+    /// or the user's own command carries `--locked` or `--frozen`.
     pub frozen: bool,
-    /// The base-revision lockfile reader, built when a frozen install under `trustLockfile` will need it.
+    /// The base-revision lockfile reader,
+    /// built when a frozen install under `trustLockfile` will need it.
     pub lock_base: Option<Box<dyn Fn(&str) -> String>>,
-    /// Whether the install step keeps cargo offline: always, except in CI, where no registry index is cached yet.
+    /// Whether the install step keeps cargo offline:
+    /// always,
+    /// except in CI,
+    /// where no registry index is cached yet.
     pub offline: bool,
 }
 
 /// What:
-/// `pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String>` finds the repository, the workspace, the
-/// catalog, the real cargo and the toolchain for a command line; `Ok(None)` means the command is not in a catalog repository.
+/// `pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String>` finds the repository,
+/// the workspace,
+/// the
+/// catalog,
+/// the real cargo and the toolchain for a command line;
+/// `Ok(None)` means the command is not in a catalog repository.
 /// Why:
-/// The real cargo for the steps is the first `cargo` on PATH that is not this binary, run under the toolchain the repository
-/// pins, so every lockfile the shadow writes has one format whatever toolchain the user's own command selects.
+/// The real cargo for the steps is the first `cargo` on PATH that is not this binary,
+/// run under the toolchain the repository
+/// pins,
+/// so every lockfile the shadow writes has one format whatever toolchain the user's own command selects.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -358,10 +380,14 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
 
 /// What:
 /// `pub fn lock_base_reader(catalog_root: &Path, document: &CatalogDocument, needed: bool) -> Result<Option<Box<dyn Fn(&str) -> String>>, String>`
-/// builds the base-revision lockfile reader a frozen install needs under `trustLockfile`, and nothing otherwise.
+/// builds the base-revision lockfile reader a frozen install needs under `trustLockfile`,
+/// and nothing otherwise.
 /// Why:
-/// The reader runs `git`, so it is built only when a frozen check will use it. The base comes from the environment
-/// (`git_base.rs`), `HEAD` by default.
+/// The reader runs `git`,
+/// so it is built only when a frozen check will use it.
+/// The base comes from the environment
+/// (`git_base.rs`),
+/// `HEAD` by default.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -382,7 +408,10 @@ pub fn lock_base_reader(catalog_root: &Path, document: &CatalogDocument, needed:
 /// `pub fn before_cargo(arguments: &[OsString]) -> Option<String>` runs the install step for the command line and returns the
 /// message to show when the command must not run.
 /// Why:
-/// `None` means run cargo. In CI, or when the user's own command carries `--locked` or `--frozen`, a stale lock is a failure.
+/// `None` means run cargo.
+/// In CI,
+/// or when the user's own command carries `--locked` or `--frozen`,
+/// a stale lock is a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -435,7 +464,9 @@ pub fn before_cargo(arguments: &[OsString]) -> Option<String> {
     }
 }
 
-/// Writes the catalog warning for the manifest cargo worked on: the one named by `--manifest-path`, else the nearest
+/// Writes the catalog warning for the manifest cargo worked on:
+/// the one named by `--manifest-path`,
+/// else the nearest
 /// `Cargo.toml` above the start directory.
 pub fn warn_after_cargo(arguments: &[OsString], sink: &mut dyn Write) {
     // `match`: picks the arm whose pattern fits the value.
@@ -466,11 +497,18 @@ pub fn warn_after_cargo(arguments: &[OsString], sink: &mut dyn Write) {
 
 /// What:
 /// `pub fn with_locked(arguments: &[OsString]) -> Vec<OsString>` is the user's command line with `--locked` added before any
-/// `--`, unless the user already passed `--locked` or `--frozen`.
+/// `--`,
+/// unless the user already passed `--locked` or `--frozen`.
 /// Why:
-/// This is the one place the shadow adds an option, and only after a failed or refused install step: pnpm runs the command
-/// anyway when its install step fails, because `pnpm run` never rewrites the lockfile; cargo does rewrite a stale lock, so the
-/// faithful form of "run it anyway" is to run it with `--locked`, which makes cargo stop with its own lock error where it would
+/// This is the one place the shadow adds an option,
+/// and only after a failed or refused install step:
+/// pnpm runs the command
+/// anyway when its install step fails,
+/// because `pnpm run` never rewrites the lockfile;
+/// cargo does rewrite a stale lock,
+/// so the
+/// faithful form of "run it anyway" is to run it with `--locked`,
+/// which makes cargo stop with its own lock error where it would
 /// have changed the lock.
 ///
 /// In TS you'd write (pseudocode):

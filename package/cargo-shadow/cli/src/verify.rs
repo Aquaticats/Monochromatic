@@ -1,17 +1,40 @@
 //! What:
-//! The two checks a frozen install makes of the registry versions in the lockfiles: every entry (`trustLockfile = false`, pnpm's
-//! default, below) or only the versions new since a base revision (`trustLockfile = true`, `verify_added_since_base`).
+//! The two checks a frozen install makes of the registry versions in the lockfiles:
+//! every entry (`trustLockfile = false`,
+//! pnpm's
+//! default,
+//! below) or only the versions new since a base revision (`trustLockfile = true`,
+//! `verify_added_since_base`).
 //! Why:
-//! pnpm 12.16.1 re-validates every entry of the lockfile on install, frozen or not, against the policies its resolvers were built
-//! with, unless `trustLockfile` is true (`pnpm11/installing/deps-installer/src/install/mutateModules.ts:314-343`,
-//! `startLockfileVerification`: "Re-validate every entry in the lockfile against the policies the resolver chain was built
-//! with"; skipped when `opts.trustLockfile`). A passing result is cached by a hash of the lockfile
-//! (`pnpm11/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts`). This is that check for `Cargo.lock`: the
-//! default, no separate command. The release-age rule needs the sparse index's publish time per crate; the trust rule needs the
-//! crate's history, which the database dump fills in bulk. A passing lockfile is remembered under
-//! `.cache/cargo-shadow/verified/`, keyed by a SHA-256 of the lockfile text and the policy settings, so an unchanged lockfile costs
-//! nothing the next time; a failing one is never remembered. There is no `trustLockfile` setting here: the catalog's settings
-//! library has no such key, and the owner has not asked for one.
+//! pnpm 12.16.1 re-validates every entry of the lockfile on install,
+//! frozen or not,
+//! against the policies its resolvers were built
+//! with,
+//! unless `trustLockfile` is true (`pnpm11/installing/deps-installer/src/install/mutateModules.ts:314-343`,
+//! `startLockfileVerification`:
+//! "Re-validate every entry in the lockfile against the policies the resolver chain was built
+//! with";
+//! skipped when `opts.trustLockfile`).
+//! A passing result is cached by a hash of the lockfile
+//! (`pnpm11/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts`).
+//! This is that check for `Cargo.lock`:
+//! the
+//! default,
+//! no separate command.
+//! The release-age rule needs the sparse index's publish time per crate;
+//! the trust rule needs the
+//! crate's history,
+//! which the database dump fills in bulk.
+//! A passing lockfile is remembered under
+//! `.cache/cargo-shadow/verified/`,
+//! keyed by a SHA-256 of the lockfile text and the policy settings,
+//! so an unchanged lockfile costs
+//! nothing the next time;
+//! a failing one is never remembered.
+//! There is no `trustLockfile` setting here:
+//! the catalog's settings
+//! library has no such key,
+//! and the owner has not asked for one.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,10 +53,12 @@ use crate::crates::LockSnapshot;
 use crate::lockfile::{LockedVersion, added_versions, registry_versions};
 use crate::registry::Registry;
 
-/// Where passing digests are remembered, relative to the repository root.
+/// Where passing digests are remembered,
+/// relative to the repository root.
 pub const VERIFIED_DIR: &str = ".cache/cargo-shadow/verified";
 
-/// The lowercase hex of a SHA-256 digest, written per byte (the digest type has no `LowerHex` in sha2 0.11).
+/// The lowercase hex of a SHA-256 digest,
+/// written per byte (the digest type has no `LowerHex` in sha2 0.11).
 fn hex(digest: &[u8]) -> String {
     let mut text: String = String::new();
     for byte in digest {
@@ -42,7 +67,8 @@ fn hex(digest: &[u8]) -> String {
     return text;
 }
 
-/// The cache key of one lockfile under one policy: a digest of the text and of every setting.
+/// The cache key of one lockfile under one policy:
+/// a digest of the text and of every setting.
 pub fn cache_key(snapshot: &LockSnapshot, settings: &Settings) -> String {
     let mut hasher: Sha256 = Sha256::new();
     hasher.update(snapshot.source.as_bytes());
@@ -56,9 +82,11 @@ fn cache_file(root: &Path, snapshot: &LockSnapshot, settings: &Settings) -> Path
 
 /// What:
 /// `pub fn verify_locked_entries(...) -> Result<Vec<String>, String>` returns the findings against every registry version the
-/// given lockfiles hold, skipping a lockfile whose digest passed before.
+/// given lockfiles hold,
+/// skipping a lockfile whose digest passed before.
 /// Why:
-/// The findings are the release-age problems (strict) and the trust problems; the lockfiles that pass are remembered.
+/// The findings are the release-age problems (strict) and the trust problems;
+/// the lockfiles that pass are remembered.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -101,11 +129,19 @@ pub fn verify_locked_entries(
 /// `pub fn verify_added_since_base(...) -> Result<Vec<String>, String>` returns the trust findings for the registry versions
 /// that the given lockfiles hold and that the lockfiles at the base revision did not.
 /// Why:
-/// This is the frozen install under `trustLockfile = true`, the owner's decision of 2026-10-29
-/// (`doc/decision/rust-dependency-catalog.md`): committed lockfiles are part of the trusted base because the owner never
-/// accepts pull requests that change a lockfile, so only what changed since the base is checked, and only for trust; release
-/// age is a resolution-time rule, so a version that was locked has already passed it. A lockfile that did not exist at the base
-/// reads as the empty text, so every version in it counts as new.
+/// This is the frozen install under `trustLockfile = true`,
+/// the owner's decision of 2026-10-29
+/// (`doc/decision/rust-dependency-catalog.md`):
+/// committed lockfiles are part of the trusted base because the owner never
+/// accepts pull requests that change a lockfile,
+/// so only what changed since the base is checked,
+/// and only for trust;
+/// release
+/// age is a resolution-time rule,
+/// so a version that was locked has already passed it.
+/// A lockfile that did not exist at the base
+/// reads as the empty text,
+/// so every version in it counts as new.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

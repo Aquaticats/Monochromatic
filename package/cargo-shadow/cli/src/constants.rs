@@ -1,8 +1,13 @@
 //! What:
-//! The fixed values of the shadow: the name it answers to, the file that marks a catalog repository, the directories
-//! it never enters, and the exit codes it uses when it cannot run cargo.
+//! The fixed values of the shadow:
+//! the name it answers to,
+//! the file that marks a catalog repository,
+//! the directories
+//! it never enters,
+//! and the exit codes it uses when it cannot run cargo.
 //! Why:
-//! One place names each value, so the code and the tests read the same constant instead of repeating a literal.
+//! One place names each value,
+//! so the code and the tests read the same constant instead of repeating a literal.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,10 +16,15 @@
 //! ```
 
 /// What:
-/// `pub const SHADOWED_NAME: &str = "cargo";` is a constant text value. `&str` is a borrowed string slice (sibling:
-/// `String`, the owned growable one). Constants live for the whole program, so a borrowed slice is enough.
+/// `pub const SHADOWED_NAME: &str = "cargo";` is a constant text value.
+/// `&str` is a borrowed string slice (sibling:
+/// `String`,
+/// the owned growable one).
+/// Constants live for the whole program,
+/// so a borrowed slice is enough.
 /// Why:
-/// The binary started under this name runs in shadow mode; the PATH search looks for this name.
+/// The binary started under this name runs in shadow mode;
+/// the PATH search looks for this name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -22,7 +32,9 @@
 /// ```
 pub const SHADOWED_NAME: &str = "cargo";
 
-/// The name of the binary itself. Cargo runs any `cargo-<name>` executable on PATH as `cargo <name>`, so this one
+/// The name of the binary itself.
+/// Cargo runs any `cargo-<name>` executable on PATH as `cargo <name>`,
+/// so this one
 /// also answers to `cargo shadow <command>`.
 pub const OWN_NAME: &str = "cargo-shadow";
 
@@ -53,11 +65,14 @@ pub const NOT_FOUND_EXIT_CODE: i32 = 127;
 /// The exit code of a refused or failed install step.
 pub const INSTALL_FAILED_EXIT_CODE: i32 = 1;
 
-/// The environment variable that names the per-user runtime directory, where the notice handshake leaves its marker files.
+/// The environment variable that names the per-user runtime directory,
+/// where the notice handshake leaves its marker files.
 pub const RUNTIME_DIR_VARIABLE: &str = "XDG_RUNTIME_DIR";
 
-/// The start of the name of a notice marker; the process id of the instance the marker is for follows it.
+/// The start of the name of a notice marker;
+/// the process id of the instance the marker is for follows it.
 pub const NOTICE_MARKER_PREFIX: &str = "cargo-shadow-notice-";
 
-/// A child killed by signal `n` exits as `128 + n` in a shell, and the shadow reports it the same way.
+/// A child killed by signal `n` exits as `128 + n` in a shell,
+/// and the shadow reports it the same way.
 pub const SIGNAL_EXIT_CODE_OFFSET: i32 = 128;

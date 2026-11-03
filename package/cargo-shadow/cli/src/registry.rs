@@ -1,10 +1,18 @@
 //! What:
-//! The crates.io lookups the policy needs: the sparse index for publish times and yanked flags, the web API for the full
-//! version history and the owner list, with the history cached on disk.
+//! The crates.io lookups the policy needs:
+//! the sparse index for publish times and yanked flags,
+//! the web API for the full
+//! version history and the owner list,
+//! with the history cached on disk.
 //! Why:
-//! A published version never changes, so a history that already lists every version being checked is read from
-//! `.cache/cargo-shadow/crates-io/<name>.json` with no request. The API allows about one request per second, so requests
-//! are spaced and an HTTP 429 is retried after its `Retry-After`, or a doubling backoff, at most five times.
+//! A published version never changes,
+//! so a history that already lists every version being checked is read from
+//! `.cache/cargo-shadow/crates-io/<name>.json` with no request.
+//! The API allows about one request per second,
+//! so requests
+//! are spaced and an HTTP 429 is retried after its `Retry-After`,
+//! or a doubling backoff,
+//! at most five times.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -62,19 +70,23 @@ const SPARSE_INDEX_URL: &str = "https://index.crates.io";
 /// The web API root.
 const API_URL: &str = "https://crates.io/api/v1";
 
-/// The least time between two API requests: crates.io allows one per second, plus a margin.
+/// The least time between two API requests:
+/// crates.io allows one per second,
+/// plus a margin.
 pub const API_MIN_INTERVAL: Duration = Duration::from_millis(1_100);
 
 /// How many times a rate-limited request is tried.
 const RATE_LIMIT_ATTEMPTS: u32 = 5;
 
-/// The first backoff when a 429 carries no `Retry-After`; it doubles each attempt.
+/// The first backoff when a 429 carries no `Retry-After`;
+/// it doubles each attempt.
 const RATE_LIMIT_BACKOFF: Duration = Duration::from_secs(30);
 
 /// The HTTP status for "too many requests".
 const TOO_MANY_REQUESTS: u16 = 429;
 
-/// Where histories are cached, relative to the repository root.
+/// Where histories are cached,
+/// relative to the repository root.
 pub const HISTORY_CACHE_DIR: &str = ".cache/cargo-shadow/crates-io";
 
 /// What:
@@ -87,15 +99,19 @@ pub const HISTORY_CACHE_DIR: &str = ".cache/cargo-shadow/crates-io";
 /// interface Registry { pubtimes(name): Map<string, string>; yanked(name): Set<string>; history(args): VersionRecord[]; owners(name): Set<string> }
 /// ```
 pub trait Registry {
-    /// Publish time (RFC 3339) of each version of a crate, from the sparse index; empty when the index has none.
+    /// Publish time (RFC 3339) of each version of a crate,
+    /// from the sparse index;
+    /// empty when the index has none.
     fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError>;
     /// The yanked versions of a crate.
     fn yanked(&self, name: &str) -> Result<BTreeSet<String>, RegistryError>;
-    /// Every release of a crate; read from the cache when it lists all of `versions`.
+    /// Every release of a crate;
+    /// read from the cache when it lists all of `versions`.
     fn history(&self, name: &str, versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError>;
     /// The account ids of the crate's listed individual owners.
     fn owners(&self, name: &str) -> Result<BTreeSet<String>, RegistryError>;
-    /// Warms the history cache for these crates before they are asked for one by one; a registry with nothing to warm does nothing.
+    /// Warms the history cache for these crates before they are asked for one by one;
+    /// a registry with nothing to warm does nothing.
     fn prefetch(&self, _names: &BTreeSet<String>) -> Result<(), RegistryError> {
         // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
         // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
@@ -109,13 +125,18 @@ pub trait Registry {
     }
 }
 
-/// The database dump, a gzip stream of a tar archive.
+/// The database dump,
+/// a gzip stream of a tar archive.
 pub const DATABASE_DUMP_URL: &str = "https://static.crates.io/db-dump.tar.gz";
 
 /// How many uncached crates make the dump cheaper than the API (one request per 1.1 seconds each).
 pub const DUMP_BREAKEVEN_CRATES: usize = 100;
 
-/// The sparse index path of a crate: `1/a`, `2/ab`, `3/a/abc`, `ab/cd/abcdef`.
+/// The sparse index path of a crate:
+/// `1/a`,
+/// `2/ab`,
+/// `3/a/abc`,
+/// `ab/cd/abcdef`.
 pub fn sparse_index_path(name: &str) -> String {
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
@@ -161,7 +182,8 @@ pub fn sparse_index_path(name: &str) -> String {
     return format!("{}/{}/{lower}", &lower[..2], &lower[2..4]);
 }
 
-/// Reads a string field, empty when absent or not a string.
+/// Reads a string field,
+/// empty when absent or not a string.
 fn string_field(object: &Value, key: &str) -> String {
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
@@ -236,7 +258,8 @@ fn id_field(object: &Value, key: &str) -> String {
     };
 }
 
-/// The sparse index lines as JSON values; a line that is not JSON is an error naming the crate.
+/// The sparse index lines as JSON values;
+/// a line that is not JSON is an error naming the crate.
 fn index_lines(text: &str) -> Result<Vec<Value>, RegistryError> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
@@ -343,7 +366,11 @@ fn body_error(what: &str, error: impl std::fmt::Display) -> RegistryError {
 /// `pub fn parse_version_history(text: &str) -> Result<Vec<VersionRecord>, RegistryError>` reads the API's
 /// `/crates/<name>/versions` body.
 /// Why:
-/// Only the fields the trust rule reads are kept: number, publish time, publishing account, Trusted Publishing repository
+/// Only the fields the trust rule reads are kept:
+/// number,
+/// publish time,
+/// publishing account,
+/// Trusted Publishing repository
 /// and declared repository.
 ///
 /// In TS you'd write (pseudocode):
@@ -427,7 +454,8 @@ pub fn parse_owner_ids(text: &str) -> Result<BTreeSet<String>, RegistryError> {
     return Ok(ids);
 }
 
-/// The cache file format: the history as a JSON array with camelCase keys.
+/// The cache file format:
+/// the history as a JSON array with camelCase keys.
 fn history_to_json(history: &[VersionRecord]) -> Value {
     // `let mut`: a binding that may change.
     // Typed binding: `entries: Vec<Value>`.
@@ -457,7 +485,8 @@ fn history_to_json(history: &[VersionRecord]) -> Value {
     return Value::Array(entries);
 }
 
-/// Reads a cached history; a missing or unreadable cache file is an empty history (the API then fills it).
+/// Reads a cached history;
+/// a missing or unreadable cache file is an empty history (the API then fills it).
 fn read_cached_history(path: &Path) -> Vec<VersionRecord> {
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `text: String`.
@@ -497,7 +526,8 @@ fn read_cached_history(path: &Path) -> Vec<VersionRecord> {
     return records;
 }
 
-/// crates.io through a fetcher, with spaced API requests and the on-disk history cache.
+/// crates.io through a fetcher,
+/// with spaced API requests and the on-disk history cache.
 pub struct CratesIo {
     cache_dir: PathBuf,
     // What:     `&dyn Trait` is a borrowed value of any type that implements the trait (a TS interface type); the call goes through a lookup table at run time.
@@ -541,7 +571,8 @@ impl CratesIo {
         return registry;
     }
 
-    /// Sets how many uncached crates make the dump worth reading; tests lower it.
+    /// Sets how many uncached crates make the dump worth reading;
+    /// tests lower it.
     pub fn with_dump(mut self, dump: Box<dyn DumpSource>, breakeven: usize) -> CratesIo {
         // `Some`: the present or the absent value of an `Option`.
         self.dump = Some(dump);
@@ -549,7 +580,8 @@ impl CratesIo {
         return self;
     }
 
-    /// Builds the registry for a repository root; `min_interval` and `backoff` are parameters so tests do not wait.
+    /// Builds the registry for a repository root;
+    /// `min_interval` and `backoff` are parameters so tests do not wait.
     pub fn new(root: &Path, fetcher: Box<dyn TextFetcher>, min_interval: Duration, backoff: Duration) -> CratesIo {
         return CratesIo {
             cache_dir: root.join(HISTORY_CACHE_DIR),
@@ -565,7 +597,9 @@ impl CratesIo {
         };
     }
 
-    /// One API GET: waits out the spacing, then retries an HTTP 429 up to the attempt limit.
+    /// One API GET:
+    /// waits out the spacing,
+    /// then retries an HTTP 429 up to the attempt limit.
     fn spaced_api_get(&self, url: &str) -> Result<String, RegistryError> {
         // `let mut`: a binding that may change.
         // Typed binding: `attempt: u32`.

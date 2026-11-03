@@ -1,5 +1,8 @@
 //! What:
-//! The crate root: it lists the submodules of the `cargo-shadow` library. The library holds all the logic; `main.rs`
+//! The crate root:
+//! it lists the submodules of the `cargo-shadow` library.
+//! The library holds all the logic;
+//! `main.rs`
 //! only decides which mode to start.
 //! Why:
 //! Keeping the logic in a library lets the unit tests call it without starting a process.
@@ -17,7 +20,9 @@ compile_error!("cargo-shadow supports Unix only; a cross-platform version is a l
 /// The command-line grammar of the binary when it is started under its own name.
 pub mod cli;
 
-/// The fixed values (shadowed name, file names, exit codes).
+/// The fixed values (shadowed name,
+/// file names,
+/// exit codes).
 pub mod constants;
 
 /// Release-age and trust checks over newly locked versions.
@@ -32,7 +37,8 @@ pub mod csv;
 /// Runs the real cargo for the install and update steps.
 pub mod cargo_run;
 
-/// Finds the crate roots that carry a lockfile, and snapshots and restores them.
+/// Finds the crate roots that carry a lockfile,
+/// and snapshots and restores them.
 pub mod crates;
 
 /// The one HTTP GET the registry lookups need.
@@ -41,7 +47,8 @@ pub mod http;
 /// Runs the repository-wide catalog commands for the CLI.
 pub mod commands;
 
-/// Compare-before-replace for lockfile restores, and the journal that recovers a killed run.
+/// Compare-before-replace for lockfile restores,
+/// and the journal that recovers a killed run.
 pub mod journal;
 
 /// Fills the history cache from the crates.io database dump.
@@ -59,13 +66,16 @@ pub mod lockfile;
 /// The release-age and trust rules.
 pub mod policy;
 
-/// The install step, the counterpart of `pnpm install`.
+/// The install step,
+/// the counterpart of `pnpm install`.
 pub mod install;
 
 /// Replaces refused new versions with the newest older release that passes.
 pub mod set_aside;
 
-/// The shadow's install step: fingerprint fast path, then the install over one workspace.
+/// The shadow's install step:
+/// fingerprint fast path,
+/// then the install over one workspace.
 pub mod install_step;
 
 /// Reads the few cargo options the shadow cares about.
@@ -86,7 +96,8 @@ pub mod real_binary;
 /// The selector syntax of the catalog's exclude lists.
 pub mod selectors;
 
-/// The line and the section the shadow adds after cargo's `--version` and `--help`, the only places it names itself.
+/// The line and the section the shadow adds after cargo's `--version` and `--help`,
+/// the only places it names itself.
 pub mod shadow_notice;
 
 /// The steps the shadow runs around a cargo command.
@@ -95,7 +106,11 @@ pub mod shadow_step;
 /// The shadow's answer to `cargo update` and `cargo generate-lockfile`.
 pub mod shadow_update;
 
-/// The shadow mode: install step, look up, launch, wait.
+/// The shadow mode:
+/// install step,
+/// look up,
+/// launch,
+/// wait.
 pub mod shim;
 
 /// Timestamps from the registry.
@@ -113,22 +128,28 @@ pub mod stamp;
 /// Version ordering and caret compatibility.
 pub mod version_order;
 
-/// The catalog update, the counterpart of `pnpm update`.
+/// The catalog update,
+/// the counterpart of `pnpm update`.
 pub mod update;
 
-/// The check of every locked entry against the policy, the default of a frozen install.
+/// The check of every locked entry against the policy,
+/// the default of a frozen install.
 pub mod verify;
 
 /// Maps a `cargo update` or `cargo generate-lockfile` command line to the pnpm command it stands for.
 pub mod update_plan;
 
-/// The catalog half of `pnpm update --latest`: raise catalog floors, then sync.
+/// The catalog half of `pnpm update --latest`:
+/// raise catalog floors,
+/// then sync.
 pub mod tighten;
 
-/// The command-word rules: what the shadow does for a cargo command line.
+/// The command-word rules:
+/// what the shadow does for a cargo command line.
 pub mod verb;
 
-/// Scratch directories for the unit tests, placed beside the build output.
+/// Scratch directories for the unit tests,
+/// placed beside the build output.
 #[cfg(test)]
 mod test_scratch;
 

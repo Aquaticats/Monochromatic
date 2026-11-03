@@ -1,8 +1,11 @@
 //! What:
 //! Decides from cargo's arguments what the shadow does before cargo runs.
 //! Why:
-//! Only a command that resolves dependencies can rewrite `Cargo.lock` as a side effect, so only those get the install
-//! step; every other command goes straight to cargo, and a help or version request never triggers anything.
+//! Only a command that resolves dependencies can rewrite `Cargo.lock` as a side effect,
+//! so only those get the install
+//! step;
+//! every other command goes straight to cargo,
+//! and a help or version request never triggers anything.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,27 +20,72 @@ use std::ffi::OsString;
 pub enum Treatment {
     /// Make the workspace's lockfile satisfy its manifests first.
     InstallStep,
-    /// Run cargo, then warn about dependencies that do not use the workspace catalog.
+    /// Run cargo,
+    /// then warn about dependencies that do not use the workspace catalog.
     CatalogWarning,
-    /// `update` and `generate-lockfile`: answered as the pnpm commands they stand for (`shadow_update.rs`).
+    /// `update` and `generate-lockfile`:
+    /// answered as the pnpm commands they stand for (`shadow_update.rs`).
     PnpmUpdate,
     /// Run cargo at once.
     PassThrough,
 }
 
 /// What:
-/// `pub const INSTALL_STEP_VERBS: [&str; 32] = [...]` is the fixed list of cargo commands, with their aliases, that resolve
-/// dependencies and so rewrite a stale `Cargo.lock` as a side effect. A fixed-size array (sibling: `Vec<&str>`) because the
+/// `pub const INSTALL_STEP_VERBS: [&str; 32] = [...]` is the fixed list of cargo commands,
+/// with their aliases,
+/// that resolve
+/// dependencies and so rewrite a stale `Cargo.lock` as a side effect.
+/// A fixed-size array (sibling:
+/// `Vec<&str>`) because the
 /// list never grows at run time.
 /// Why:
-/// Measured on 2026-11-03 with cargo 1.101.0-nightly (3960fa69b 2026-10-12): in a workspace whose lock lacked a
-/// dependency its manifest declares, each of `check`, `build`, `metadata`, `tree`, `fetch`, `clippy`, `doc`, `vendor`,
-/// `package`, `rustc`, `rustdoc`, `test`, `bench`, `info`, `nextest`, `dylint` and `ndk` rewrote the lock. `run` and `fix`
-/// stopped on their own errors in that fixture (no binary target, no lint to fix) before a write could be observed; they
-/// run the same build path, so `run` (alias `r`) and `fix` are listed with them, as are `publish` (it builds the package to verify it) and the
-/// installed cargo plugins that compile the workspace: `miri`, `mutants`, `fuzz`, `ndk`, `bloat`. `fmt`, `clean`,
-/// `locate-project`, `pkgid`, `read-manifest`, `verify-project`, `new`, `search`, `config` and `metadata --no-deps` kept
-/// the lock and are not listed. Aliases (`b`, `c`, `d`, `r`, `t`) are read from `cargo --list`.
+/// Measured on 2026-11-03 with cargo 1.101.0-nightly (3960fa69b 2026-10-12):
+/// in a workspace whose lock lacked a
+/// dependency its manifest declares,
+/// each of `check`,
+/// `build`,
+/// `metadata`,
+/// `tree`,
+/// `fetch`,
+/// `clippy`,
+/// `doc`,
+/// `vendor`,
+/// `package`,
+/// `rustc`,
+/// `rustdoc`,
+/// `test`,
+/// `bench`,
+/// `info`,
+/// `nextest`,
+/// `dylint` and `ndk` rewrote the lock.
+/// `run` and `fix`
+/// stopped on their own errors in that fixture (no binary target,
+/// no lint to fix) before a write could be observed;
+/// they
+/// run the same build path,
+/// so `run` (alias `r`) and `fix` are listed with them,
+/// as are `publish` (it builds the package to verify it) and the
+/// installed cargo plugins that compile the workspace:
+/// `miri`,
+/// `mutants`,
+/// `fuzz`,
+/// `ndk`,
+/// `bloat`.
+/// `fmt`,
+/// `clean`,
+/// `locate-project`,
+/// `pkgid`,
+/// `read-manifest`,
+/// `verify-project`,
+/// `new`,
+/// `search`,
+/// `config` and `metadata --no-deps` kept
+/// the lock and are not listed.
+/// Aliases (`b`,
+/// `c`,
+/// `d`,
+/// `r`,
+/// `t`) are read from `cargo --list`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,7 +126,9 @@ pub const INSTALL_STEP_VERBS: [&str; 32] = [
     "mutants-gate-slot",
 ];
 
-/// The commands that add or remove a dependency (`rm` is the alias of `remove` in `cargo --list`): cargo runs first, then
+/// The commands that add or remove a dependency (`rm` is the alias of `remove` in `cargo --list`):
+/// cargo runs first,
+/// then
 /// the shadow warns about a dependency that does not use the workspace catalog.
 pub const CATALOG_WARNING_VERBS: [&str; 3] = ["add", "remove", "rm"];
 
@@ -86,9 +136,15 @@ pub const CATALOG_WARNING_VERBS: [&str; 3] = ["add", "remove", "rm"];
 /// `pub const VALUE_OPTIONS: [&str; 5] = [...]` lists the options before the command that take the next argument as
 /// their value.
 /// Why:
-/// The verb is the first word that is not an option, so the value of `-C dir` must not be mistaken for it. Read from
-/// `cargo --help` of cargo 1.101.0-nightly: `-C <DIRECTORY>`, `--color <WHEN>`, `--config <KEY=VALUE|PATH>` and `-Z <FLAG>`,
-/// plus `--explain <CODE>`. An option written `--name=value` or `-Zflag` is one word and needs no entry.
+/// The verb is the first word that is not an option,
+/// so the value of `-C dir` must not be mistaken for it.
+/// Read from
+/// `cargo --help` of cargo 1.101.0-nightly:
+/// `-C <DIRECTORY>`,
+/// `--color <WHEN>`,
+/// `--config <KEY=VALUE|PATH>` and `-Z <FLAG>`,
+/// plus `--explain <CODE>`.
+/// An option written `--name=value` or `-Zflag` is one word and needs no entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -96,10 +152,12 @@ pub const CATALOG_WARNING_VERBS: [&str; 3] = ["add", "remove", "rm"];
 /// ```
 pub const VALUE_OPTIONS: [&str; 5] = ["-C", "--color", "--config", "-Z", "--explain"];
 
-/// A word anywhere before `--` that makes cargo print help or its version and stop, so nothing resolves.
+/// A word anywhere before `--` that makes cargo print help or its version and stop,
+/// so nothing resolves.
 pub const HELP_OR_VERSION_WORDS: [&str; 4] = ["--help", "-h", "--version", "-V"];
 
-/// The command whose own help lives under a word: `cargo help build` prints help and resolves nothing.
+/// The command whose own help lives under a word:
+/// `cargo help build` prints help and resolves nothing.
 pub const HELP_VERB: &str = "help";
 
 /// The option that makes `cargo metadata` skip dependency resolution.
@@ -109,7 +167,8 @@ pub const NO_DEPS_OPTION: &str = "--no-deps";
 /// `pub fn words_before_double_dash(arguments: &[OsString]) -> Vec<String>` turns the arguments into text and stops at a
 /// literal `--`.
 /// Why:
-/// Everything after `--` belongs to the program cargo runs, never to cargo's own grammar.
+/// Everything after `--` belongs to the program cargo runs,
+/// never to cargo's own grammar.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,11 +188,17 @@ pub fn words_before_double_dash(arguments: &[OsString]) -> Vec<String> {
 }
 
 /// What:
-/// `pub fn find_verb(arguments: &[OsString]) -> Option<String>` returns the command word: the first word that is not the
-/// leading `+toolchain` word, an option or an option's value.
+/// `pub fn find_verb(arguments: &[OsString]) -> Option<String>` returns the command word:
+/// the first word that is not the
+/// leading `+toolchain` word,
+/// an option or an option's value.
 /// Why:
-/// `cargo +nightly --color never check` has the verb after a toolchain word and options; `None` means there is none.
-/// rustup, not cargo, consumes the `+toolchain` word, but only as the very first argument.
+/// `cargo +nightly --color never check` has the verb after a toolchain word and options;
+/// `None` means there is none.
+/// rustup,
+/// not cargo,
+/// consumes the `+toolchain` word,
+/// but only as the very first argument.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,8 +229,12 @@ pub fn find_verb(arguments: &[OsString]) -> Option<String> {
 /// What:
 /// `pub fn treatment_of(arguments: &[OsString]) -> Treatment` says what the shadow does before cargo runs.
 /// Why:
-/// A help or version word before `--` cancels everything, because cargo then resolves nothing. `metadata --no-deps` resolves
-/// nothing either. An unrecognised command line passes through: a missed install step costs less than a stop nobody asked for.
+/// A help or version word before `--` cancels everything,
+/// because cargo then resolves nothing.
+/// `metadata --no-deps` resolves
+/// nothing either.
+/// An unrecognised command line passes through:
+/// a missed install step costs less than a stop nobody asked for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

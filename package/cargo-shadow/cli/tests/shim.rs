@@ -1,26 +1,37 @@
-//! Integration tests: the built binary started as `cargo` and as `cargo-shadow`, against a fake cargo on PATH.
+//! Integration tests:
+//! the built binary started as `cargo` and as `cargo-shadow`,
+//! against a fake cargo on PATH.
 
 use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-/// The built binary, which Cargo builds before running these tests.
+/// The built binary,
+/// which Cargo builds before running these tests.
 const SHADOW_BINARY: &str = env!("CARGO_BIN_EXE_cargo-shadow");
 
-/// Where integration-test scratch goes: the package's build directory, never the system temporary directory.
+/// Where integration-test scratch goes:
+/// the package's build directory,
+/// never the system temporary directory.
 const SCRATCH_ROOT: &str = env!("CARGO_TARGET_TMPDIR");
 
-/// What the fake cargo prints first, so the tests can tell its output from the shadow's.
+/// What the fake cargo prints first,
+/// so the tests can tell its output from the shadow's.
 const FAKE_MARKER: &str = "fake-cargo-ran";
 
-/// An exit code no default maps to, so a pass-through is visible.
+/// An exit code no default maps to,
+/// so a pass-through is visible.
 const DISTINCT_EXIT_CODE: i32 = 9;
 
 /// The crate root inside the catalog repository.
 const CRATE_DIR: &str = "package/x/y";
 
-/// The fake cargo: `update --locked` passes on a lock whose first line says satisfied; a plain `update` fixes it;
-/// `metadata` prints an empty package list; anything else logs its arguments and prints the marker. Every call is logged.
+/// The fake cargo:
+/// `update --locked` passes on a lock whose first line says satisfied;
+/// a plain `update` fixes it;
+/// `metadata` prints an empty package list;
+/// anything else logs its arguments and prints the marker.
+/// Every call is logged.
 const FAKE_CARGO: &str = "#!/bin/sh\n\
 echo \"$@\" >> \"$FAKE_CARGO_LOG\"\n\
 if [ \"$1\" = update ]; then\n\
@@ -40,7 +51,10 @@ esac\n\
 echo \"fake-cargo-ran $@\"\n\
 exit \"${FAKE_CARGO_EXIT:-0}\"\n";
 
-/// One test world: the shadow linked as `cargo`, a fake real cargo, and a catalog repository to run in.
+/// One test world:
+/// the shadow linked as `cargo`,
+/// a fake real cargo,
+/// and a catalog repository to run in.
 struct World {
     _guard: tempfile::TempDir,
     shadow_directory: PathBuf,
@@ -329,9 +343,14 @@ fn outside_a_catalog_repository_cargo_update_goes_to_cargo_untouched() {
     assert_eq!(log_lines(&world), vec!["update -p serde".to_string()]);
 }
 
-/// A launcher: a `cargo` that runs the shadow again, as the toolchain plan's launcher-backed links do. It carries a nesting
-/// counter in the environment and gives up (exit 99) at the fourth nested level, so a regression of the loop guard fails fast
-/// with a small process tree instead of looping; it also counts its runs in a file.
+/// A launcher:
+/// a `cargo` that runs the shadow again,
+/// as the toolchain plan's launcher-backed links do.
+/// It carries a nesting
+/// counter in the environment and gives up (exit 99) at the fourth nested level,
+/// so a regression of the loop guard fails fast
+/// with a small process tree instead of looping;
+/// it also counts its runs in a file.
 fn write_launcher(world: &World) -> (PathBuf, PathBuf) {
     let directory: PathBuf = world.shadow_directory.parent().expect("a parent").join("launcher");
     std::fs::create_dir_all(&directory).expect("make the launcher directory");
@@ -347,7 +366,9 @@ fn write_launcher(world: &World) -> (PathBuf, PathBuf) {
     return (directory, count);
 }
 
-/// Runs a command with a deadline, in its own process group so a runaway tree can be killed whole; `None` on a timeout.
+/// Runs a command with a deadline,
+/// in its own process group so a runaway tree can be killed whole;
+/// `None` on a timeout.
 fn output_within(command: &mut Command, seconds: u64) -> Option<Output> {
     use std::os::unix::process::CommandExt;
     use std::process::Stdio;

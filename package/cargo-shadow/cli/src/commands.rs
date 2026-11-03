@@ -1,7 +1,11 @@
 //! What:
-//! Runs the repository-wide catalog commands for the CLI: install, update.
+//! Runs the repository-wide catalog commands for the CLI:
+//! install,
+//! update.
 //! Why:
-//! They share one setup (repository root, real cargo under the pinned toolchain, crates.io registry) and one way of printing
+//! They share one setup (repository root,
+//! real cargo under the pinned toolchain,
+//! crates.io registry) and one way of printing
 //! a report and turning findings into an exit code.
 //!
 //! In TS you'd write (pseudocode):
@@ -60,7 +64,8 @@ use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfil
 // Imports `crate::workspace::find_catalog_root`.
 use crate::workspace::find_catalog_root;
 
-/// Prints findings under a heading, with the pointer to the settings.
+/// Prints findings under a heading,
+/// with the pointer to the settings.
 pub fn print_findings(heading: &str, problems: &[String]) {
     // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
     // Why:      Text building and printing are written as one call instead of string concatenation.
@@ -220,9 +225,13 @@ fn now_millis() -> i64 {
 
 /// What:
 /// `pub fn run_command(command: Command) -> i32` runs one catalog command from the repository that holds the working
-/// directory and returns the exit code: 0 on success, 1 on a failure or a policy refusal.
+/// directory and returns the exit code:
+/// 0 on success,
+/// 1 on a failure or a policy refusal.
 /// Why:
-/// Errors and findings go to standard error, reports to standard output, so a pipeline can read the report.
+/// Errors and findings go to standard error,
+/// reports to standard output,
+/// so a pipeline can read the report.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

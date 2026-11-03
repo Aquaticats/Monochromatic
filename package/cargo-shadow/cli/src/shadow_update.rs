@@ -1,9 +1,15 @@
 //! What:
-//! The shadow's answer to `cargo update` and `cargo generate-lockfile`: the pnpm command each stands for, run with the
+//! The shadow's answer to `cargo update` and `cargo generate-lockfile`:
+//! the pnpm command each stands for,
+//! run with the
 //! release-age and trust policy applied while versions are chosen.
 //! Why:
-//! The owner's rule (2026-11-03): follow pnpm semantics. `cargo update` is `pnpm update` and `cargo generate-lockfile` is
-//! `pnpm install --lockfile-only`; `update_plan.rs` documents the flag mapping. Outside a catalog repository the command goes to
+//! The owner's rule (2026-11-03):
+//! follow pnpm semantics.
+//! `cargo update` is `pnpm update` and `cargo generate-lockfile` is
+//! `pnpm install --lockfile-only`;
+//! `update_plan.rs` documents the flag mapping.
+//! Outside a catalog repository the command goes to
 //! cargo untouched.
 //!
 //! In TS you'd write (pseudocode):
@@ -55,10 +61,13 @@ use crate::update_plan::{UpdatePlan, plan_update};
 const EMPTY_LOCK: &str = "version = 4\n";
 
 /// What:
-/// `pub fn run_update_command(arguments: &[OsString]) -> Option<i32>` runs the command and returns its exit code, or `None`
+/// `pub fn run_update_command(arguments: &[OsString]) -> Option<i32>` runs the command and returns its exit code,
+/// or `None`
 /// when it is not in a catalog repository (the caller then runs cargo itself).
 /// Why:
-/// Every outcome prints to standard error, as cargo's own `update` does, so a pipeline reading standard output sees nothing
+/// Every outcome prints to standard error,
+/// as cargo's own `update` does,
+/// so a pipeline reading standard output sees nothing
 /// new.
 ///
 /// In TS you'd write (pseudocode):
@@ -267,9 +276,12 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
 }
 
 /// What:
-/// `fn check_direct(root, crate_dir, names) -> Result<(), String>` applies pnpm's rule for `pnpm update <name>@<version>`: the name must be a direct dependency. `Result<(), String>` is success with no value or an error text.
+/// `fn check_direct(root, crate_dir, names) -> Result<(), String>` applies pnpm's rule for `pnpm update <name>@<version>`:
+/// the name must be a direct dependency.
+/// `Result<(), String>` is success with no value or an error text.
 /// Why:
-/// pnpm fails with `ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP` for an indirect one; the shadow refuses `--precise` the same way.
+/// pnpm fails with `ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP` for an indirect one;
+/// the shadow refuses `--precise` the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -332,9 +344,11 @@ fn check_direct(root: &Path, crate_dir: &str, names: &[String]) -> Result<(), St
 }
 
 /// What:
-/// `fn report_install(outcome, dry_run, sink) -> i32` prints an install outcome to the writer and returns the exit code. `&mut dyn Write` is a borrowed writer of any type (a TS `Writable`).
+/// `fn report_install(outcome, dry_run, sink) -> i32` prints an install outcome to the writer and returns the exit code.
+/// `&mut dyn Write` is a borrowed writer of any type (a TS `Writable`).
 /// Why:
-/// Standard error is the sink, so cargo's standard output stays free.
+/// Standard error is the sink,
+/// so cargo's standard output stays free.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -367,7 +381,8 @@ fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, 
 /// What:
 /// `fn run_full_update(prepared, crate_dirs, dry_run, forward, sink) -> i32` runs the full catalog update for one crate root.
 /// Why:
-/// When no lockfile exists a stand-in is written so the transaction has a snapshot, and it is removed again if the update is refused.
+/// When no lockfile exists a stand-in is written so the transaction has a snapshot,
+/// and it is removed again if the update is refused.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

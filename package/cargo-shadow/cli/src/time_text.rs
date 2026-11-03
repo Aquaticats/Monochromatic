@@ -1,9 +1,12 @@
 //! What:
-//! Reads and writes the timestamps the registry gives: RFC 3339 text such as `2026-10-29T12:34:56.123456+00:00` to
+//! Reads and writes the timestamps the registry gives:
+//! RFC 3339 text such as `2026-10-29T12:34:56.123456+00:00` to
 //! milliseconds since 1970 and back.
 //! Why:
-//! The release-age and trust rules compare publish times with "now" and with each other; the catalog has no date
-//! library, and the two shapes crates.io uses are small enough to read directly.
+//! The release-age and trust rules compare publish times with "now" and with each other;
+//! the catalog has no date
+//! library,
+//! and the two shapes crates.io uses are small enough to read directly.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +33,9 @@ const DAYS_PER_CYCLE: i64 = 146_097;
 /// What:
 /// `fn days_from_civil(year: i64, month: i64, day: i64) -> i64` counts the days from 1970-01-01 to a calendar date.
 /// Why:
-/// Howard Hinnant's well-known `days_from_civil` arithmetic: no table of month lengths, exact for every Gregorian date.
+/// Howard Hinnant's well-known `days_from_civil` arithmetic:
+/// no table of month lengths,
+/// exact for every Gregorian date.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -47,7 +52,10 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
 }
 
 /// What:
-/// `fn civil_from_days(days: i64) -> (i64, i64, i64)` is the inverse of `days_from_civil`: a day count to (year, month, day).
+/// `fn civil_from_days(days: i64) -> (i64, i64, i64)` is the inverse of `days_from_civil`:
+/// a day count to (year,
+/// month,
+/// day).
 /// Why:
 /// Formatting a cutoff time needs the calendar date back.
 ///
@@ -94,7 +102,8 @@ impl<'a> Cursor<'a> {
         return Some(());
     }
 
-    /// Takes one expected character if it is next; says whether it was.
+    /// Takes one expected character if it is next;
+    /// says whether it was.
     fn accept(&mut self, expected: char) -> bool {
         return self.expect(expected).is_some();
     }
@@ -104,7 +113,9 @@ impl<'a> Cursor<'a> {
 /// `pub fn parse_rfc3339_millis(text: &str) -> Option<i64>` reads `YYYY-MM-DDTHH:MM:SS[.fraction](Z|+HH:MM|-HH:MM)`.
 /// Why:
 /// Both crates.io shapes (`2026-10-29T12:00:00Z` from the sparse index and `2026-10-29T12:00:00.123456+00:00` from the API)
-/// are covered; anything else is `None`, which callers treat as a missing time.
+/// are covered;
+/// anything else is `None`,
+/// which callers treat as a missing time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -165,7 +176,8 @@ pub fn parse_rfc3339_millis(text: &str) -> Option<i64> {
 }
 
 /// What:
-/// `pub fn format_iso_millis(millis: i64) -> String` writes UTC time as `YYYY-MM-DDTHH:MM:SS.mmmZ`, like JavaScript's
+/// `pub fn format_iso_millis(millis: i64) -> String` writes UTC time as `YYYY-MM-DDTHH:MM:SS.mmmZ`,
+/// like JavaScript's
 /// `toISOString`.
 /// Why:
 /// Messages name the moment a young release matures.
@@ -189,8 +201,10 @@ pub fn format_iso_millis(millis: i64) -> String {
 }
 
 /// What:
-/// `pub fn publish_time_cutoff(now_millis: i64, minutes: u64) -> String` is cargo's `--publish-time` value: now minus the
-/// release age, written `YYYY-MM-DDTHH:MM:SSZ`.
+/// `pub fn publish_time_cutoff(now_millis: i64, minutes: u64) -> String` is cargo's `--publish-time` value:
+/// now minus the
+/// release age,
+/// written `YYYY-MM-DDTHH:MM:SSZ`.
 /// Why:
 /// `cargo -Zunstable-options generate-lockfile --publish-time` takes exactly that shape.
 ///

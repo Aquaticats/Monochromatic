@@ -1,4 +1,5 @@
-//! The unit tests of the catalog update, ported from `update.unit.test.ts` against a fake cargo and a fake registry.
+//! The unit tests of the catalog update,
+//! ported from `update.unit.test.ts` against a fake cargo and a fake registry.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -44,8 +45,12 @@ fn lock_with(version: &str) -> String {
     return format!("version = 4\n\n[[package]]\nname = \"dep\"\nversion = \"{version}\"\nsource = \"{REGISTRY}\"\n");
 }
 
-/// A fake cargo: `generate-lockfile` writes the configured lock; `update --package n@v --precise c` swaps the version; a
-/// bare `update` with names is accepted; a crate named `ghost` fails.
+/// A fake cargo:
+/// `generate-lockfile` writes the configured lock;
+/// `update --package n@v --precise c` swaps the version;
+/// a
+/// bare `update` with names is accepted;
+/// a crate named `ghost` fails.
 struct FakeCargo {
     commands: RefCell<Vec<String>>,
     resolved: String,
@@ -107,7 +112,8 @@ fn record(num: &str, created_at: &str, publisher_id: &str, trustpub_repository: 
     };
 }
 
-/// Trusted `1.0.0`, then a token publish `1.0.1` that the trust policy refuses.
+/// Trusted `1.0.0`,
+/// then a token publish `1.0.1` that the trust policy refuses.
 fn downgrading_history() -> Vec<VersionRecord> {
     return vec![record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")];
 }

@@ -1,4 +1,5 @@
-//! The unit tests of the check of every locked entry: what pnpm's install does to a lockfile unless `trustLockfile` is set.
+//! The unit tests of the check of every locked entry:
+//! what pnpm's install does to a lockfile unless `trustLockfile` is set.
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};

@@ -1,8 +1,10 @@
 //! What:
-//! Removes exclude selectors from `rust-catalog.toml` that no locked version needs, when the matching prune setting is on.
+//! Removes exclude selectors from `rust-catalog.toml` that no locked version needs,
+//! when the matching prune setting is on.
 //! Why:
 //! `minimumReleaseAgeExcludePrune` and `trustPolicyExcludePrune` (pnpm-style) keep the exemption lists from collecting
-//! entries for versions that are gone. The edit keeps the file's comments and layout.
+//! entries for versions that are gone.
+//! The edit keeps the file's comments and layout.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,7 +29,8 @@ pub struct Pruned {
     pub removed: Vec<String>,
 }
 
-/// Prunes the two exclude lists whose flags are on; the text is returned unchanged when nothing is stale.
+/// Prunes the two exclude lists whose flags are on;
+/// the text is returned unchanged when nothing is stale.
 pub fn prune_excludes(source: &str, settings: &Settings, locked: &[LockedVersion]) -> Result<Pruned, String> {
     let keys: BTreeSet<String> = locked.iter().map(|version| { return version.key(); }).collect();
     let lists: [(&str, bool, &Vec<String>); 2] = [

@@ -1,10 +1,17 @@
 //! What:
-//! Fills the on-disk version-history cache from the crates.io database dump, in one streaming pass over the tar.gz.
+//! Fills the on-disk version-history cache from the crates.io database dump,
+//! in one streaming pass over the tar.gz.
 //! Why:
-//! crates.io asks bulk readers to use `https://static.crates.io/db-dump.tar.gz`, which has no rate limit; reading the histories of
-//! a thousand crates from the API at one request per 1.1 seconds takes tens of minutes, the dump about half a minute plus the
-//! download. The reader reads only `crates.csv` and `versions.csv` and stops before the later tables. The dump keeps every
-//! Trusted Publishing column private and a Trusted Publishing release has no publisher, so a crate with a publisher-less release
+//! crates.io asks bulk readers to use `https://static.crates.io/db-dump.tar.gz`,
+//! which has no rate limit;
+//! reading the histories of
+//! a thousand crates from the API at one request per 1.1 seconds takes tens of minutes,
+//! the dump about half a minute plus the
+//! download.
+//! The reader reads only `crates.csv` and `versions.csv` and stops before the later tables.
+//! The dump keeps every
+//! Trusted Publishing column private and a Trusted Publishing release has no publisher,
+//! so a crate with a publisher-less release
 //! since 2025-07-01 is left to the API.
 //!
 //! In TS you'd write (pseudocode):
@@ -26,7 +33,8 @@ use crate::csv::{DumpFormatError, column_indexes, read_csv};
 use crate::policy::VersionRecord;
 use crate::time_text::parse_rfc3339_millis;
 
-/// The first moment Trusted Publishing existed on crates.io; a publisher-less release since then may be a trusted one.
+/// The first moment Trusted Publishing existed on crates.io;
+/// a publisher-less release since then may be a trusted one.
 pub const TRUSTED_PUBLISHING_START: &str = "2025-07-01T00:00:00Z";
 
 /// The tail of the entry path of the crates table.
@@ -48,7 +56,8 @@ pub struct DumpFillResult {
     pub kept: usize,
 }
 
-/// A dump timestamp (`2026-10-29 12:00:00.123456+00`) as RFC 3339, or an error when it is not UTC.
+/// A dump timestamp (`2026-10-29 12:00:00.123456+00`) as RFC 3339,
+/// or an error when it is not UTC.
 pub fn dump_timestamp(value: &str) -> Result<String, DumpFormatError> {
     let mut parts = value.splitn(2, ' ');
     let date: &str = parts.next().unwrap_or("");
@@ -84,7 +93,8 @@ fn history_json(history: &[VersionRecord]) -> String {
     return format!("{}\n", Value::Array(entries));
 }
 
-/// Reads one table of the archive into rows of the wanted columns; the callback gets the row's wanted fields in order.
+/// Reads one table of the archive into rows of the wanted columns;
+/// the callback gets the row's wanted fields in order.
 fn read_table(entry: &mut dyn Read, columns: &[&str], on_row: &mut dyn FnMut(&[String]) -> Result<(), DumpFormatError>) -> Result<(), DumpFormatError> {
     let mut positions: Option<Vec<usize>> = None;
     let mut failure: Option<DumpFormatError> = None;
@@ -117,8 +127,11 @@ fn read_table(entry: &mut dyn Read, columns: &[&str], on_row: &mut dyn FnMut(&[S
 /// `pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>, cache_dir: &Path) -> Result<DumpFillResult, DumpFormatError>`
 /// reads the gzip tar stream and writes a cache file for each wanted crate whose history the dump shows completely.
 /// Why:
-/// `crates.csv` comes first in the dump and maps ids to wanted names; `versions.csv` then yields the histories. A crate with a
-/// possibly trusted release is left to the API, and an existing cache file is never overwritten.
+/// `crates.csv` comes first in the dump and maps ids to wanted names;
+/// `versions.csv` then yields the histories.
+/// A crate with a
+/// possibly trusted release is left to the API,
+/// and an existing cache file is never overwritten.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

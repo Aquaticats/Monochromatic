@@ -1,4 +1,6 @@
-//! The unit tests of the command grammar: pnpm's flag names, and no words pnpm does not have.
+//! The unit tests of the command grammar:
+//! pnpm's flag names,
+//! and no words pnpm does not have.
 
 use clap::Parser;
 

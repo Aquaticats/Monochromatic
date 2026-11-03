@@ -1,7 +1,9 @@
 //! What:
-//! Orders and compares full SemVer versions for the set-aside rule, on top of the catalog library's version parser.
+//! Orders and compares full SemVer versions for the set-aside rule,
+//! on top of the catalog library's version parser.
 //! Why:
-//! A refused version is replaced by the newest older release in the same caret class, so the update needs "newest first"
+//! A refused version is replaced by the newest older release in the same caret class,
+//! so the update needs "newest first"
 //! ordering and the caret-compatibility test.
 //!
 //! In TS you'd write (pseudocode):
@@ -15,12 +17,14 @@ use std::cmp::Ordering;
 
 use monochromatic_dependency_catalog::version::{ParsedVersion, compare_versions, parse_version};
 
-/// Parses a full version; `None` when the text is not a version.
+/// Parses a full version;
+/// `None` when the text is not a version.
 pub fn parsed(version: &str) -> Option<ParsedVersion> {
     return parse_version(version).ok();
 }
 
-/// Orders two version texts; text that is not a version sorts first.
+/// Orders two version texts;
+/// text that is not a version sorts first.
 pub fn compare_texts(left: &str, right: &str) -> Ordering {
     return match (parsed(left), parsed(right)) {
         (Some(a), Some(b)) => compare_versions(&a, &b),
@@ -37,7 +41,10 @@ pub fn is_prerelease_text(version: &str) -> bool {
 
 /// What:
 /// `pub fn caret_compatible(version: &str, candidate: &str) -> bool` says whether `candidate` is in the same caret class as
-/// `version`: the same major when major is above zero, else the same minor when minor is above zero, else the same patch.
+/// `version`:
+/// the same major when major is above zero,
+/// else the same minor when minor is above zero,
+/// else the same patch.
 /// Why:
 /// A replacement for a refused release must satisfy every requirement the refused release satisfied.
 ///

@@ -2,7 +2,9 @@
 
 use crate::time_text::{MS_PER_MINUTE, format_iso_millis, parse_rfc3339_millis, publish_time_cutoff};
 
-/// 2026-10-29T12:00:00Z in milliseconds, derived once from the same calendar the code under test implements, checked
+/// 2026-10-29T12:00:00Z in milliseconds,
+/// derived once from the same calendar the code under test implements,
+/// checked
 /// against JavaScript's `Date.parse('2026-10-29T12:00:00Z')` when the tests were written.
 const NOON_2026_10_29: i64 = 1_793_275_200_000;
 

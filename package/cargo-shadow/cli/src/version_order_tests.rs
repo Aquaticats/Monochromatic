@@ -1,4 +1,5 @@
-//! The unit tests of the version ordering, ported from `version-order.unit.test.ts`.
+//! The unit tests of the version ordering,
+//! ported from `version-order.unit.test.ts`.
 
 use std::cmp::Ordering;
 

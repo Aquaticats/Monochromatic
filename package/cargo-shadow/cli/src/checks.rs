@@ -1,5 +1,6 @@
 //! What:
-//! Release-age and trust checks over a set of newly locked versions, one registry lookup per crate.
+//! Release-age and trust checks over a set of newly locked versions,
+//! one registry lookup per crate.
 //! Why:
 //! Both the install step and the update gate every version that no lockfile held before through these two checks.
 //!
@@ -40,7 +41,8 @@ pub struct CheckOutcome {
     pub warnings: Vec<String>,
 }
 
-/// One version the trust policy refuses, with every finding against it.
+/// One version the trust policy refuses,
+/// with every finding against it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TrustRefusal {
     /// The crate.
@@ -51,7 +53,9 @@ pub struct TrustRefusal {
     pub problems: Vec<String>,
 }
 
-/// Versions grouped by crate name, in first-seen order, so each crate costs one lookup.
+/// Versions grouped by crate name,
+/// in first-seen order,
+/// so each crate costs one lookup.
 pub fn group_by_name(versions: &[LockedVersion]) -> Vec<(String, Vec<String>)> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
@@ -150,7 +154,9 @@ pub fn group_by_name(versions: &[LockedVersion]) -> Vec<(String, Vec<String>)> {
 /// `pub fn check_release_age(...) -> Result<CheckOutcome, RegistryError>` checks each version's publish time from the sparse
 /// index against `minimumReleaseAge`.
 /// Why:
-/// Findings are problems when `minimumReleaseAgeStrict` is true, warnings otherwise; age zero checks nothing.
+/// Findings are problems when `minimumReleaseAgeStrict` is true,
+/// warnings otherwise;
+/// age zero checks nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -290,11 +296,15 @@ fn crate_trust_refusals(
 }
 
 /// What:
-/// `pub fn trust_refusals(...) -> Result<Vec<TrustRefusal>, RegistryError>` checks the trust policy: one history lookup per
-/// crate, plus an owners lookup only for a crate that would otherwise be refused.
+/// `pub fn trust_refusals(...) -> Result<Vec<TrustRefusal>, RegistryError>` checks the trust policy:
+/// one history lookup per
+/// crate,
+/// plus an owners lookup only for a crate that would otherwise be refused.
 /// Why:
-/// A listed owner's first release ranks as a known publisher, so a refusal is rechecked against the current owner list
-/// before it stands; most crates pass without that request.
+/// A listed owner's first release ranks as a known publisher,
+/// so a refusal is rechecked against the current owner list
+/// before it stands;
+/// most crates pass without that request.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -363,7 +373,8 @@ pub fn trust_refusals(
     return Ok(refusals);
 }
 
-/// The findings of `trust_refusals`, flattened.
+/// The findings of `trust_refusals`,
+/// flattened.
 pub fn check_trust(
     // Borrow `&[`: lends the value without copying or giving it away.
     versions: &[LockedVersion],

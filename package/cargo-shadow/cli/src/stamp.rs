@@ -1,12 +1,20 @@
 //! What:
-//! The fingerprint stamp that lets a cargo call skip the install check: after the authoritative check says a workspace's
-//! `Cargo.lock` satisfies its manifests, the stamp records the size and modification time of the lockfile and of every
+//! The fingerprint stamp that lets a cargo call skip the install check:
+//! after the authoritative check says a workspace's
+//! `Cargo.lock` satisfies its manifests,
+//! the stamp records the size and modification time of the lockfile and of every
 //! manifest the lockfile was resolved from.
 //! Why:
-//! The shadow sits on every cargo call, and the authoritative check (`cargo update --workspace --locked --offline`) costs a
-//! cargo start plus index reads; measured on the largest lockfile in the repository it took 0.20 to 0.29 seconds. If every
-//! recorded file still has the same size and modification time, nothing the check reads has changed, so the answer is still
-//! "satisfied" and no process is started. This is the same test cargo's own fingerprints use for source files.
+//! The shadow sits on every cargo call,
+//! and the authoritative check (`cargo update --workspace --locked --offline`) costs a
+//! cargo start plus index reads;
+//! measured on the largest lockfile in the repository it took 0.20 to 0.29 seconds.
+//! If every
+//! recorded file still has the same size and modification time,
+//! nothing the check reads has changed,
+//! so the answer is still
+//! "satisfied" and no process is started.
+//! This is the same test cargo's own fingerprints use for source files.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -38,7 +46,8 @@ use std::time::UNIX_EPOCH;
 // Imports `serde_json::Value`.
 use serde_json::Value;
 
-/// Where stamps live, relative to the repository root (gitignored with the rest of `.cache`).
+/// Where stamps live,
+/// relative to the repository root (gitignored with the rest of `.cache`).
 pub const STAMP_DIR: &str = ".cache/cargo-shadow/stamps";
 
 /// The stamp file of a crate root.
@@ -55,7 +64,9 @@ pub fn stamp_file(catalog_root: &Path, crate_dir: &str) -> PathBuf {
     return catalog_root.join(STAMP_DIR).join(format!("{}.json", crate_dir.replace('/', "__")));
 }
 
-/// A file's modification time in nanoseconds since 1970 and its length, as text, or `None` when it cannot be read.
+/// A file's modification time in nanoseconds since 1970 and its length,
+/// as text,
+/// or `None` when it cannot be read.
 fn fingerprint(path: &Path) -> Option<(String, String)> {
     // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
     // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
@@ -105,8 +116,14 @@ fn fingerprint(path: &Path) -> Option<(String, String)> {
 /// `pub fn is_fresh(stamp: &Path, lock: &Path) -> bool` says whether the stamp lists the lockfile and every listed file still
 /// has the recorded size and modification time.
 /// Why:
-/// Any missing stamp, unreadable file, or difference answers `false`, which sends the caller to the authoritative check; a
-/// wrong `false` costs time, a wrong `true` would let cargo rewrite the lockfile, so every doubt is `false`.
+/// Any missing stamp,
+/// unreadable file,
+/// or difference answers `false`,
+/// which sends the caller to the authoritative check;
+/// a
+/// wrong `false` costs time,
+/// a wrong `true` would let cargo rewrite the lockfile,
+/// so every doubt is `false`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -238,7 +255,8 @@ pub fn is_fresh(stamp: &Path, lock: &Path) -> bool {
     return lists_the_lock;
 }
 
-/// Writes the stamp for the lockfile and the manifests; a failure to write only costs the next call a check.
+/// Writes the stamp for the lockfile and the manifests;
+/// a failure to write only costs the next call a check.
 pub fn record(stamp: &Path, lock: &Path, manifests: &[PathBuf]) {
     // `let mut`: a binding that may change.
     // Typed binding: `entries: Vec<Value>`.
@@ -306,7 +324,8 @@ pub fn record(stamp: &Path, lock: &Path, manifests: &[PathBuf]) {
     let _ = fs::write(stamp, format!("{}\n", Value::Object(body)));
 }
 
-/// The manifests a `cargo metadata` document says the lockfile was resolved from: every package without a registry or git
+/// The manifests a `cargo metadata` document says the lockfile was resolved from:
+/// every package without a registry or git
 /// source (workspace members and path dependencies) plus the workspace root manifest.
 pub fn manifests_from_metadata(metadata_json: &str) -> Vec<PathBuf> {
     // `match`: picks the arm whose pattern fits the value.

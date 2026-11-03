@@ -1,10 +1,19 @@
 //! What:
-//! The shadow mode: when the binary is started as `cargo`, it warns about manifest problems in the workspace of the
-//! current directory, finds the real `cargo` on PATH, runs it as a child with the arguments untouched, waits for it,
+//! The shadow mode:
+//! when the binary is started as `cargo`,
+//! it warns about manifest problems in the workspace of the
+//! current directory,
+//! finds the real `cargo` on PATH,
+//! runs it as a child with the arguments untouched,
+//! waits for it,
 //! and exits with the child's own status.
 //! Why:
-//! The warning never blocks. A scan problem, a missing workspace and a closed standard error all lead to the same
-//! thing: cargo runs. Only a missing or unstartable cargo is the shadow's own failure.
+//! The warning never blocks.
+//! A scan problem,
+//! a missing workspace and a closed standard error all lead to the same
+//! thing:
+//! cargo runs.
+//! Only a missing or unstartable cargo is the shadow's own failure.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,22 +26,26 @@
 //! }
 //! ```
 
-/// Imports the process-environment module (PATH, the current directory).
+/// Imports the process-environment module (PATH,
+/// the current directory).
 use std::env;
 
-/// Imports the owned operating-system text type: arguments may be invalid UTF-8 and pass byte for byte.
+/// Imports the owned operating-system text type:
+/// arguments may be invalid UTF-8 and pass byte for byte.
 use std::ffi::OsString;
 
 /// Imports the file-system module (resolves the shadow's own path).
 use std::fs;
 
-/// Imports `Write`, the trait that adds `write_all` to standard error.
+/// Imports `Write`,
+/// the trait that adds `write_all` to standard error.
 use std::io::Write;
 
 /// What:
 /// `use std::os::unix::process::ExitStatusExt;` imports a trait that adds `.signal()` to a process's exit status.
 /// Why:
-/// A child killed by a signal has no exit code, and the shadow reports it the way a shell does.
+/// A child killed by a signal has no exit code,
+/// and the shadow reports it the way a shell does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,10 +54,12 @@ use std::io::Write;
 use std::os::unix::process::ExitStatusExt;
 
 /// What:
-/// `use std::os::unix::process::CommandExt;` imports a trait that adds `.exec()` to a command: replace this process with the
+/// `use std::os::unix::process::CommandExt;` imports a trait that adds `.exec()` to a command:
+/// replace this process with the
 /// program instead of starting it as a child.
 /// Why:
-/// A run that needs no notice hands over completely, so the shadow's cost ends before cargo starts.
+/// A run that needs no notice hands over completely,
+/// so the shadow's cost ends before cargo starts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +92,9 @@ use crate::verb::{Treatment, treatment_of};
 /// What:
 /// `pub fn exit_code_of(status: ExitStatus) -> i32` turns a finished child's status into the number the shadow exits with.
 /// Why:
-/// A normal exit passes its code through; death by signal becomes `128 + signal`, the shell convention.
+/// A normal exit passes its code through;
+/// death by signal becomes `128 + signal`,
+/// the shell convention.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,14 +1,26 @@
 //! What:
-//! The catalog half of `pnpm update --latest`: writes the new range of an updated dependency into `rust-catalog.toml`, then runs
+//! The catalog half of `pnpm update --latest`:
+//! writes the new range of an updated dependency into `rust-catalog.toml`,
+//! then runs
 //! the sync that renders it into the manifests.
 //! Why:
-//! pnpm keeps `catalog:` in `package.json` and writes the updated range to the catalog entry in `pnpm-workspace.yaml`: the
+//! pnpm keeps `catalog:` in `package.json` and writes the updated range to the catalog entry in `pnpm-workspace.yaml`:
+//! the
 //! resolver collects `updatedCatalogs` for every wanted dependency with `updateSpec === true` and a catalog lookup
-//! (`pnpm11/installing/deps-resolver/src/index.ts:280-322`, `getUpdatedCatalogs`, `getCatalogUpdatesOfProject`;
-//! `pnpm11/installing/deps-resolver/src/wantedDepShouldUpdateCatalog.ts:3-5`: true when `updateSpec` is set and `saveSpec` is not
-//! false, so `--no-save` turns it off). `--latest` is the update that moves ranges, so `cargo update --breaking` is the cargo
-//! command that gets the same treatment: every catalog entry whose highest locked version rose gets its `>=` floor raised to
-//! that version, and `file-enforcer write` renders the manifests. Entries in named catalogs (bounded requirements by design) are
+//! (`pnpm11/installing/deps-resolver/src/index.ts:280-322`,
+//! `getUpdatedCatalogs`,
+//! `getCatalogUpdatesOfProject`;
+//! `pnpm11/installing/deps-resolver/src/wantedDepShouldUpdateCatalog.ts:3-5`:
+//! true when `updateSpec` is set and `saveSpec` is not
+//! false,
+//! so `--no-save` turns it off).
+//! `--latest` is the update that moves ranges,
+//! so `cargo update --breaking` is the cargo
+//! command that gets the same treatment:
+//! every catalog entry whose highest locked version rose gets its `>=` floor raised to
+//! that version,
+//! and `file-enforcer write` renders the manifests.
+//! Entries in named catalogs (bounded requirements by design) are
 //! never touched.
 //!
 //! In TS you'd write (pseudocode):
@@ -29,18 +41,22 @@ use crate::version_order::compare_texts;
 /// What:
 /// `pub trait Syncer { fn sync(&self, root: &Path) -> Result<String, String>; }` renders the catalog into the manifests.
 /// Why:
-/// The real one runs `file-enforcer write`; tests give a fake that records the call.
+/// The real one runs `file-enforcer write`;
+/// tests give a fake that records the call.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// interface Syncer { sync(root: string): string }
 /// ```
 pub trait Syncer {
-    /// Runs the sync from the repository root; the string is a one-line result for the report.
+    /// Runs the sync from the repository root;
+    /// the string is a one-line result for the report.
     fn sync(&self, root: &Path) -> Result<String, String>;
 }
 
-/// The real sync: `file-enforcer write`, the task `sync:files` runs.
+/// The real sync:
+/// `file-enforcer write`,
+/// the task `sync:files` runs.
 pub struct FileEnforcer;
 
 impl Syncer for FileEnforcer {
@@ -89,7 +105,9 @@ pub fn raised_names(before: &[LockedVersion], after: &[LockedVersion]) -> BTreeS
 /// `pub fn raise_floors(source: &str, locked: &[LockedVersion], changed: &BTreeSet<String>) -> Result<(String, Vec<String>), String>`
 /// raises the `>=` floor of each default-catalog entry in `changed` to the highest locked version when that is higher.
 /// Why:
-/// Only `>=` floors are raised, the file's other text and each value's comments are kept, and an entry whose floor is already at
+/// Only `>=` floors are raised,
+/// the file's other text and each value's comments are kept,
+/// and an entry whose floor is already at
 /// or above the locked version is left alone.
 ///
 /// In TS you'd write (pseudocode):

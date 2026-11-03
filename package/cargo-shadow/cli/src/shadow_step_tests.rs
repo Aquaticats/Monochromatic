@@ -1,4 +1,7 @@
-//! The unit tests of the fallback after a failed install step: `--locked` is added to the user's command, once, before `--`.
+//! The unit tests of the fallback after a failed install step:
+//! `--locked` is added to the user's command,
+//! once,
+//! before `--`.
 
 use std::ffi::OsString;
 

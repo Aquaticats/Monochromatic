@@ -1,4 +1,5 @@
-//! The unit tests of the toolchain choice, ported from `toolchain.unit.test.ts`.
+//! The unit tests of the toolchain choice,
+//! ported from `toolchain.unit.test.ts`.
 
 use crate::test_scratch::scratch;
 use crate::toolchain::{cargo_toolchain, rust_toolchain_from_lock};

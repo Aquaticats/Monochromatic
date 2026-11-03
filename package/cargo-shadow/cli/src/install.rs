@@ -1,23 +1,44 @@
 //! What:
-//! The install step, the counterpart of `pnpm install`: makes each listed crate root's `Cargo.lock` satisfy its manifests,
+//! The install step,
+//! the counterpart of `pnpm install`:
+//! makes each listed crate root's `Cargo.lock` satisfy its manifests,
 //! moving as little as the manifests force.
 //! Why:
-//! `mise run sync:files` renders catalog floors and path-crate versions into the manifests and never touches a lockfile, so a
-//! crate whose lockfile held an older release is left with a lockfile its own manifest refuses; any plain cargo run then
-//! rewrites it through cargo's own resolver, past the trust policy. pnpm repairs the same situation with `pnpm install`,
-//! and follows these lockfile rules (https://pnpm.io/settings/build, https://pnpm.io/settings/store, read 2026-11-03):
+//! `mise run sync:files` renders catalog floors and path-crate versions into the manifests and never touches a lockfile,
+//! so a
+//! crate whose lockfile held an older release is left with a lockfile its own manifest refuses;
+//! any plain cargo run then
+//! rewrites it through cargo's own resolver,
+//! past the trust policy.
+//! pnpm repairs the same situation with `pnpm install`,
+//! and follows these lockfile rules (<https://pnpm.io/settings/build>,
+//! <https://pnpm.io/settings/store>,
+//! read 2026-11-03):
 //!
 //! - Outside CI a stale lockfile is updated (`--no-frozen-lockfile`).
-//! - In CI, or with `--frozen-lockfile`, a stale lockfile is a failure that names the roots and writes nothing.
+//! - In CI,
+//!   or with `--frozen-lockfile`,
+//!   a stale lockfile is a failure that names the roots and writes nothing.
 //! - `--dry-run` reports what an install would update and writes nothing.
-//! - A root that still satisfies its manifests keeps its lockfile byte for byte; in a stale root the dependencies whose
+//! - A root that still satisfies its manifests keeps its lockfile byte for byte;
+//!   in a stale root the dependencies whose
 //!   requirements still hold keep their locked versions.
 //!
-//! Per crate root, offline: `cargo update --workspace --locked --offline` asks whether the lockfile already satisfies the
-//! manifests (reads the index only, writes nothing); a refusal means stale; `cargo update --workspace --offline` re-locks the
-//! workspace members and what their changed requirements force; `cargo metadata --locked --offline` confirms the result. A
-//! non-frozen install is one transaction: every lockfile is snapshotted first, and any failure or refusal restores all of
-//! them. A registry version that no lockfile held before goes through the release-age and trust checks.
+//! Per crate root,
+//! offline:
+//! `cargo update --workspace --locked --offline` asks whether the lockfile already satisfies the
+//! manifests (reads the index only,
+//! writes nothing);
+//! a refusal means stale;
+//! `cargo update --workspace --offline` re-locks the
+//! workspace members and what their changed requirements force;
+//! `cargo metadata --locked --offline` confirms the result.
+//! A
+//! non-frozen install is one transaction:
+//! every lockfile is snapshotted first,
+//! and any failure or refusal restores all of
+//! them.
+//! A registry version that no lockfile held before goes through the release-age and trust checks.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -56,20 +77,26 @@ use crate::registry::Registry;
 // Imports `crate::verify::{verify_added_since_base, ve...`.
 use crate::verify::{verify_added_since_base, verify_locked_entries};
 
-/// Asks whether the lockfile satisfies the manifests: exits 0 without writing when it does.
+/// Asks whether the lockfile satisfies the manifests:
+/// exits 0 without writing when it does.
 pub const CHECK_ARGS: [&str; 4] = ["update", "--workspace", "--locked", "--offline"];
 
-/// Re-locks the workspace members and whatever their changed requirements force, keeping every other locked release.
+/// Re-locks the workspace members and whatever their changed requirements force,
+/// keeping every other locked release.
 pub const UPDATE_ARGS: [&str; 3] = ["update", "--workspace", "--offline"];
 
 /// The consistency check run after the update.
 pub const VERIFY_ARGS: [&str; 5] = ["metadata", "--locked", "--offline", "--format-version", "1"];
 
 /// What:
-/// `pub fn arguments_for(args: &[&str], offline: bool) -> Vec<String>` is an argument list as owned text, without `--offline`
+/// `pub fn arguments_for(args: &[&str], offline: bool) -> Vec<String>` is an argument list as owned text,
+/// without `--offline`
 /// when the run may use the network.
 /// Why:
-/// A fresh CI runner has no cached registry index, so an offline check cannot read it; a developer machine has one, and the
+/// A fresh CI runner has no cached registry index,
+/// so an offline check cannot read it;
+/// a developer machine has one,
+/// and the
 /// offline form keeps the check from touching the network at all.
 ///
 /// In TS you'd write (pseudocode):
@@ -118,7 +145,8 @@ pub fn arguments_for(args: &[&str], offline: bool) -> Vec<String> {
 /// The values of the `CI` variable that mean this is not a continuous integration run.
 const NOT_CI_VALUES: [&str; 3] = ["", "0", "false"];
 
-/// Whether the environment is a continuous integration run, where `pnpm install` defaults `--frozen-lockfile` to true.
+/// Whether the environment is a continuous integration run,
+/// where `pnpm install` defaults `--frozen-lockfile` to true.
 pub fn is_continuous_integration(ci_value: &str) -> bool {
     // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
     // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
@@ -136,7 +164,8 @@ pub fn is_continuous_integration(ci_value: &str) -> bool {
 pub struct InstallReport {
     /// Every crate root examined.
     pub crate_dirs: Vec<String>,
-    /// Roots whose lockfile did not satisfy its manifests (updated, or only reported under `--dry-run`).
+    /// Roots whose lockfile did not satisfy its manifests (updated,
+    /// or only reported under `--dry-run`).
     pub stale: Vec<String>,
     /// Registry versions the install newly locked (kept or restored).
     pub added: Vec<LockedVersion>,
@@ -170,7 +199,8 @@ pub enum InstallError {
         /// What failed.
         message: String,
     },
-    /// A file could not be read or written, or cargo could not be started.
+    /// A file could not be read or written,
+    /// or cargo could not be started.
     Io {
         /// What failed.
         message: String,
@@ -265,13 +295,18 @@ impl From<RegistryError> for InstallError {
 pub struct InstallRequest<'a> {
     /// The repository root.
     pub root: &'a Path,
-    /// The crate roots to examine, repo-relative.
+    /// The crate roots to examine,
+    /// repo-relative.
     pub crate_dirs: &'a [String],
-    /// Fail on a stale lockfile instead of updating it (pnpm's `--frozen-lockfile`, the CI default).
+    /// Fail on a stale lockfile instead of updating it (pnpm's `--frozen-lockfile`,
+    /// the CI default).
     pub frozen: bool,
-    /// Keep every cargo call offline; false in CI, where no registry index is cached yet.
+    /// Keep every cargo call offline;
+    /// false in CI,
+    /// where no registry index is cached yet.
     pub offline: bool,
-    /// Report what would be updated, then restore every lockfile.
+    /// Report what would be updated,
+    /// then restore every lockfile.
     pub dry_run: bool,
     /// The current time in milliseconds.
     pub now: i64,
@@ -281,12 +316,14 @@ pub struct InstallRequest<'a> {
     pub runner: &'a dyn CargoRunner,
     /// The registry for the policy checks.
     pub registry: &'a dyn Registry,
-    /// Reads one crate's lockfile text at the base revision (empty when absent there); a frozen install under `trustLockfile`
+    /// Reads one crate's lockfile text at the base revision (empty when absent there);
+    /// a frozen install under `trustLockfile`
     /// checks only the versions this reader's lockfiles did not hold.
     pub lock_base: Option<&'a dyn Fn(&str) -> String>,
 }
 
-/// Runs cargo in a crate root; a start failure is an `Io` error.
+/// Runs cargo in a crate root;
+/// a start failure is an `Io` error.
 fn run_cargo(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result<CargoOutcome, InstallError> {
     return request
         .runner
@@ -303,7 +340,8 @@ fn run_cargo(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result
         .map_err(|message| { return InstallError::Io { message }; });
 }
 
-/// Whether a crate root's lockfile no longer satisfies its manifests, without writing anything.
+/// Whether a crate root's lockfile no longer satisfies its manifests,
+/// without writing anything.
 pub fn is_stale(request: &InstallRequest, crate_dir: &str) -> Result<bool, InstallError> {
     // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
     // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
@@ -360,7 +398,8 @@ fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
     return snapshots.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
 }
 
-/// The crate roots whose lockfile is stale, found with read-only checks.
+/// The crate roots whose lockfile is stale,
+/// found with read-only checks.
 pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
@@ -403,7 +442,10 @@ pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError
     return Ok(stale);
 }
 
-/// The transaction body: update the stale roots, then check the new versions; restoring on refusal is the caller's.
+/// The transaction body:
+/// update the stale roots,
+/// then check the new versions;
+/// restoring on refusal is the caller's.
 fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produced: &mut Option<Vec<LockSnapshot>>) -> Result<InstallReport, InstallError> {
     // `let mut`: a binding that may change.
     // Typed binding: `stale: Vec<String>`.
@@ -488,7 +530,8 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     });
 }
 
-/// The policy findings for the registry versions `after` holds that `before` did not; used to judge a killed run's leftovers.
+/// The policy findings for the registry versions `after` holds that `before` did not;
+/// used to judge a killed run's leftovers.
 pub fn policy_findings(settings: &Settings, registry: &dyn Registry, now: i64, before: &[LockSnapshot], after: &[LockSnapshot]) -> Vec<String> {
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&sources_of`: lends the value without copying or giving it away.
@@ -531,9 +574,16 @@ pub fn policy_findings(settings: &Settings, registry: &dyn Registry, now: i64, b
 /// `pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport, InstallError>` runs the install over the
 /// listed crate roots.
 /// Why:
-/// A frozen install only checks and fails naming the stale roots. A non-frozen install first finishes any run that was killed
-/// (`journal.rs`), then snapshots every lockfile, updates the stale ones, checks the newly locked versions, and puts the
-/// snapshots back on a failure, a refusal or a dry run, but only into lockfiles that still hold what this run produced.
+/// A frozen install only checks and fails naming the stale roots.
+/// A non-frozen install first finishes any run that was killed
+/// (`journal.rs`),
+/// then snapshots every lockfile,
+/// updates the stale ones,
+/// checks the newly locked versions,
+/// and puts the
+/// snapshots back on a failure,
+/// a refusal or a dry run,
+/// but only into lockfiles that still hold what this run produced.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

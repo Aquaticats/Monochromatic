@@ -1,18 +1,35 @@
 //! What:
-//! The catalog update, the counterpart of `pnpm update`: moves lockfiles to newer releases under the release-age and trust
-//! policy in `rust-catalog.toml`, as one transaction.
+//! The catalog update,
+//! the counterpart of `pnpm update`:
+//! moves lockfiles to newer releases under the release-age and trust
+//! policy in `rust-catalog.toml`,
+//! as one transaction.
 //! Why:
-//! pnpm's `update` is its own policy-aware command (https://pnpm.io/cli/update, read 2026-11-03): it moves dependencies
-//! within their ranges and applies `minimumReleaseAge` and `trustPolicy` while it chooses. Cargo's resolver applies neither,
+//! pnpm's `update` is its own policy-aware command (<https://pnpm.io/cli/update>,
+//! read 2026-11-03):
+//! it moves dependencies
+//! within their ranges and applies `minimumReleaseAge` and `trustPolicy` while it chooses.
+//! Cargo's resolver applies neither,
 //! so the shadow answers `cargo update` with this procedure instead of passing it to cargo's resolver.
 //!
-//! Two kinds. The full kind re-resolves each crate root with
-//! `cargo -Zunstable-options generate-lockfile --publish-time <now minus minimumReleaseAge>`, which picks the newest releases
-//! published before the cutoff (only `generate-lockfile` accepts `--publish-time`, re-probed 2026-10-29), then moves crates
-//! the catalog exempts from the release age to their newest release. The targeted kind runs the user's `cargo update` command
-//! (named packages, `--precise`, `--breaking`) as given. Both then collect the registry versions no lockfile held before,
-//! set aside what the policy refuses, check what is left, and keep the new lockfiles only when nothing failed and it is not a
-//! dry run; otherwise every lockfile is restored.
+//! Two kinds.
+//! The full kind re-resolves each crate root with
+//! `cargo -Zunstable-options generate-lockfile --publish-time <now minus minimumReleaseAge>`,
+//! which picks the newest releases
+//! published before the cutoff (only `generate-lockfile` accepts `--publish-time`,
+//! re-probed 2026-10-29),
+//! then moves crates
+//! the catalog exempts from the release age to their newest release.
+//! The targeted kind runs the user's `cargo update` command
+//! (named packages,
+//! `--precise`,
+//! `--breaking`) as given.
+//! Both then collect the registry versions no lockfile held before,
+//! set aside what the policy refuses,
+//! check what is left,
+//! and keep the new lockfiles only when nothing failed and it is not a
+//! dry run;
+//! otherwise every lockfile is restored.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -67,7 +84,8 @@ pub enum UpdateKind<'a> {
     Full,
     /// Run the user's `cargo update` arguments as given (`pnpm update <name>[@<version>]`).
     Targeted {
-        /// The complete cargo arguments, starting with `update`.
+        /// The complete cargo arguments,
+        /// starting with `update`.
         cargo_args: &'a [String],
     },
 }
@@ -76,7 +94,8 @@ pub enum UpdateKind<'a> {
 pub struct UpdateRequest<'a> {
     /// The repository root.
     pub root: &'a Path,
-    /// The crate roots to update, repo-relative.
+    /// The crate roots to update,
+    /// repo-relative.
     pub crate_dirs: &'a [String],
     /// Report without keeping anything.
     pub dry_run: bool,
@@ -84,18 +103,26 @@ pub struct UpdateRequest<'a> {
     pub now: i64,
     /// The catalog settings.
     pub settings: &'a Settings,
-    /// The catalog file, edited to prune stale excludes after a kept full update.
+    /// The catalog file,
+    /// edited to prune stale excludes after a kept full update.
     pub catalog_path: &'a Path,
     /// The cargo to run.
     pub runner: &'a dyn CargoRunner,
     /// The registry for the policy checks.
     pub registry: &'a dyn Registry,
-    /// Cargo options forwarded to every cargo call (`--offline`, `--config`, `-Z`, `--color`, `-q`, `-v`).
+    /// Cargo options forwarded to every cargo call (`--offline`,
+    /// `--config`,
+    /// `-Z`,
+    /// `--color`,
+    /// `-q`,
+    /// `-v`).
     pub forward: &'a [String],
     /// Renders the catalog into the manifests after `--breaking` raised floors.
     pub syncer: &'a dyn Syncer,
-    /// Prune exclude selectors that no locked version needs. Only an update that covers every lockfile of the repository may
-    /// say that nothing needs a selector; an update of some workspaces must leave the lists alone.
+    /// Prune exclude selectors that no locked version needs.
+    /// Only an update that covers every lockfile of the repository may
+    /// say that nothing needs a selector;
+    /// an update of some workspaces must leave the lists alone.
     pub prune_catalog: bool,
 }
 
@@ -108,7 +135,8 @@ pub struct UpdateReport {
     pub added: Vec<LockedVersion>,
     /// Findings that refused the update.
     pub problems: Vec<String>,
-    /// Findings reported without refusing, including set-asides.
+    /// Findings reported without refusing,
+    /// including set-asides.
     pub warnings: Vec<String>,
     /// Roots resolved without the release-age cutoff (`minimumReleaseAgeStrict = false`).
     pub fell_back: Vec<String>,
@@ -118,7 +146,8 @@ pub struct UpdateReport {
     pub pruned: Vec<String>,
 }
 
-/// Why an update did not complete; every lockfile was restored first.
+/// Why an update did not complete;
+/// every lockfile was restored first.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UpdateError {
     /// Cargo could not resolve a crate.
@@ -130,7 +159,8 @@ pub enum UpdateError {
         /// Cargo's output.
         output: String,
     },
-    /// A registry lookup, file operation or parse failed.
+    /// A registry lookup,
+    /// file operation or parse failed.
     Other {
         /// What failed.
         message: String,
@@ -188,9 +218,14 @@ impl fmt::Display for UpdateError {
 }
 
 /// What:
-/// `fn run_or_fail(request, crate_dir, args) -> Result<CargoOutcome, UpdateError>` runs one cargo command in a crate root and turns a non-zero exit into an error naming the crate. `Result<T, E>` is Rust's success-or-failure value (sibling: `Option<T>`, a value or nothing); `?` on one returns early with the failure.
+/// `fn run_or_fail(request, crate_dir, args) -> Result<CargoOutcome, UpdateError>` runs one cargo command in a crate root and turns a non-zero exit into an error naming the crate.
+/// `Result<T, E>` is Rust's success-or-failure value (sibling:
+/// `Option<T>`,
+/// a value or nothing);
+/// `?` on one returns early with the failure.
 /// Why:
-/// Every cargo step of an update fails the same way, so the message is in one place.
+/// Every cargo step of an update fails the same way,
+/// so the message is in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -258,8 +293,10 @@ fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Res
 /// `pub fn excluded_update_specs(lock: &str, selectors: &[String]) -> Result<Vec<String>, String>` lists `name@version` for
 /// each locked registry crate that a name-only selector exempts from the release age.
 /// Why:
-/// Those crates move to their newest release with `cargo update`; a selector naming exact versions only exempts those
-/// versions from the checks and does not move the crate, because the cutoff already chose its version.
+/// Those crates move to their newest release with `cargo update`;
+/// a selector naming exact versions only exempts those
+/// versions from the checks and does not move the crate,
+/// because the cutoff already chose its version.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -335,7 +372,8 @@ pub fn excluded_update_specs(lock: &str, selectors: &[String]) -> Result<Vec<Str
 /// What:
 /// `fn resolve_crate(request, crate_dir, cutoff) -> Result<bool, UpdateError>` re-resolves one crate root under the cutoff and returns whether it had to fall back to ignoring the cutoff.
 /// Why:
-/// With `minimumReleaseAgeStrict` false a crate that cannot resolve under the cutoff resolves without it and is reported; strict fails instead.
+/// With `minimumReleaseAgeStrict` false a crate that cannot resolve under the cutoff resolves without it and is reported;
+/// strict fails instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -391,7 +429,8 @@ fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Resu
 /// What:
 /// `fn resolve_all(request, cutoff) -> Result<Vec<String>, UpdateError>` resolves every listed crate root and then moves the exempt crates to their newest release.
 /// Why:
-/// The exempt update reads the lockfile that the same root's resolution just wrote, so the two steps stay together per root.
+/// The exempt update reads the lockfile that the same root's resolution just wrote,
+/// so the two steps stay together per root.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -468,7 +507,8 @@ fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, Upd
 }
 
 /// What:
-/// `fn sources_of(snapshots) -> Vec<String>` copies the lockfile texts out of snapshots; `.clone()` makes an independent copy of owned text.
+/// `fn sources_of(snapshots) -> Vec<String>` copies the lockfile texts out of snapshots;
+/// `.clone()` makes an independent copy of owned text.
 /// Why:
 /// The lockfile diff takes plain texts.
 ///
@@ -505,9 +545,16 @@ fn other(message: String) -> UpdateError {
 }
 
 /// What:
-/// `fn run_update(request, kind, before, produced) -> Result<UpdateReport, UpdateError>` is the transaction body: resolve or run the user's update, set refused versions aside, check what is left, prune and raise catalog entries when kept. `&mut Option<...>` is a borrowed slot the function may fill.
+/// `fn run_update(request, kind, before, produced) -> Result<UpdateReport, UpdateError>` is the transaction body:
+/// resolve or run the user's update,
+/// set refused versions aside,
+/// check what is left,
+/// prune and raise catalog entries when kept.
+/// `&mut Option<...>` is a borrowed slot the function may fill.
 /// Why:
-/// The caller restores on an error or a refusal; `produced` records what cargo wrote before the slow registry checks, so the restore can tell a concurrent writer from this run.
+/// The caller restores on an error or a refusal;
+/// `produced` records what cargo wrote before the slow registry checks,
+/// so the restore can tell a concurrent writer from this run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -721,8 +768,12 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
 /// `pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Result<UpdateReport, UpdateError>` runs the
 /// update over the listed crate roots.
 /// Why:
-/// It first finishes any run that was killed (`journal.rs`), snapshots every lockfile, and puts the snapshots back on a failure,
-/// a refusal or a dry run, but only into lockfiles that still hold what this run produced, so a refused version never stays in
+/// It first finishes any run that was killed (`journal.rs`),
+/// snapshots every lockfile,
+/// and puts the snapshots back on a failure,
+/// a refusal or a dry run,
+/// but only into lockfiles that still hold what this run produced,
+/// so a refused version never stays in
 /// some crates and not others and a change written by another process is never discarded.
 ///
 /// In TS you'd write (pseudocode):

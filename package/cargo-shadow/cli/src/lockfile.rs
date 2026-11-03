@@ -1,8 +1,10 @@
 //! What:
-//! Reads the registry packages out of `Cargo.lock` text, and finds which `name@version` pairs one set of lockfiles holds
+//! Reads the registry packages out of `Cargo.lock` text,
+//! and finds which `name@version` pairs one set of lockfiles holds
 //! that another does not.
 //! Why:
-//! Only a version no lockfile held before needs the release-age and trust checks, so one run costs one registry lookup per
+//! Only a version no lockfile held before needs the release-age and trust checks,
+//! so one run costs one registry lookup per
 //! moved crate instead of one per locked crate.
 //!
 //! In TS you'd write (pseudocode):
@@ -39,7 +41,9 @@ impl LockedVersion {
 /// `pub fn parse_registry_versions(source: &str) -> Result<Vec<LockedVersion>, String>` returns every `[[package]]` whose
 /// `source` starts with `registry+`.
 /// Why:
-/// Workspace members and path dependencies have no source; git dependencies have a `git+` source. Neither goes through the
+/// Workspace members and path dependencies have no source;
+/// git dependencies have a `git+` source.
+/// Neither goes through the
 /// registry's release-age and trust rules.
 ///
 /// In TS you'd write (pseudocode):
@@ -66,7 +70,8 @@ pub fn parse_registry_versions(source: &str) -> Result<Vec<LockedVersion>, Strin
     return Ok(versions);
 }
 
-/// The distinct registry versions of several lockfiles, sorted by key.
+/// The distinct registry versions of several lockfiles,
+/// sorted by key.
 pub fn registry_versions(sources: &[String]) -> Result<Vec<LockedVersion>, String> {
     let mut unique: BTreeSet<LockedVersion> = BTreeSet::new();
     for source in sources {
@@ -83,7 +88,8 @@ pub fn registry_versions(sources: &[String]) -> Result<Vec<LockedVersion>, Strin
 /// `pub fn added_versions(before: &[String], after: &[String]) -> Result<Vec<LockedVersion>, String>` returns the registry
 /// versions present after that no lockfile held before.
 /// Why:
-/// A version some other lockfile already held passed the policy when it arrived; it costs no registry request now.
+/// A version some other lockfile already held passed the policy when it arrived;
+/// it costs no registry request now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -102,11 +108,16 @@ pub fn added_versions(before: &[String], after: &[String]) -> Result<Vec<LockedV
 
 /// What:
 /// `pub fn direct_dependency_names(source: &str) -> Result<BTreeSet<String>, String>` lists the names that a workspace member
-/// or path package depends on directly, read from the `dependencies` of every `[[package]]` without a `source`.
+/// or path package depends on directly,
+/// read from the `dependencies` of every `[[package]]` without a `source`.
 /// Why:
 /// pnpm refuses `pnpm update <name>@<version>` for a package that is not a direct dependency
-/// (`ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP`, https://pnpm.io/cli/update); the shadow applies the same rule to `--precise`.
-/// A lock entry reads `name` or, when two versions exist, `name version` or `name version (source)`.
+/// (`ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP`,
+/// <https://pnpm.io/cli/update>);
+/// the shadow applies the same rule to `--precise`.
+/// A lock entry reads `name` or,
+/// when two versions exist,
+/// `name version` or `name version (source)`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

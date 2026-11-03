@@ -1,4 +1,6 @@
-//! The unit tests of the option reading: the command line is read, never changed.
+//! The unit tests of the option reading:
+//! the command line is read,
+//! never changed.
 
 use std::ffi::OsString;
 use std::path::PathBuf;

@@ -1,8 +1,13 @@
 //! What:
-//! A streaming reader for the CSV tables of the crates.io database dump: quoted fields, doubled quotes inside them, and line
+//! A streaming reader for the CSV tables of the crates.io database dump:
+//! quoted fields,
+//! doubled quotes inside them,
+//! and line
 //! breaks inside quoted fields.
 //! Why:
-//! `versions.csv` is hundreds of megabytes, so it is read as a stream one row at a time and never held whole; the `csv` crate is
+//! `versions.csv` is hundreds of megabytes,
+//! so it is read as a stream one row at a time and never held whole;
+//! the `csv` crate is
 //! not in the repository's catalog and the format needs only this much.
 //!
 //! In TS you'd write (pseudocode):
@@ -49,7 +54,8 @@ impl State {
         self.field.clear();
     }
 
-    /// Hands the finished row to the callback; `false` from the callback stops the read.
+    /// Hands the finished row to the callback;
+    /// `false` from the callback stops the read.
     fn end_row(&mut self, on_row: &mut dyn FnMut(&[String]) -> bool) -> bool {
         self.end_field();
         let keep_going: bool = on_row(&self.row);
@@ -68,8 +74,12 @@ impl State {
 /// `pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool) -> io::Result<()>` reads rows until the
 /// stream ends or the callback returns `false`.
 /// Why:
-/// A byte state machine: inside quotes a doubled quote is one quote and a single quote ends the quoting; outside quotes a comma
-/// ends a field, a line feed ends a row, and a carriage return is dropped.
+/// A byte state machine:
+/// inside quotes a doubled quote is one quote and a single quote ends the quoting;
+/// outside quotes a comma
+/// ends a field,
+/// a line feed ends a row,
+/// and a carriage return is dropped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -125,7 +135,8 @@ pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool
     return Ok(());
 }
 
-/// The column positions of the wanted names in a header row, or an error naming the missing column.
+/// The column positions of the wanted names in a header row,
+/// or an error naming the missing column.
 pub fn column_indexes(header: &[String], columns: &[&str]) -> Result<Vec<usize>, DumpFormatError> {
     let mut indexes: Vec<usize> = Vec::new();
     for column in columns {

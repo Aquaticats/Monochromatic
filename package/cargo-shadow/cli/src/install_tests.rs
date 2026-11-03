@@ -1,4 +1,5 @@
-//! The unit tests of the install step, ported from `install.unit.test.ts` against a fake cargo and a fake registry.
+//! The unit tests of the install step,
+//! ported from `install.unit.test.ts` against a fake cargo and a fake registry.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -44,7 +45,9 @@ fn lock_with(name: &str, version: &str) -> String {
     return format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"{name}\"\nversion = \"{version}\"\nsource = \"{REGISTRY}\"\n");
 }
 
-/// A fake cargo over files: `update --locked` passes when the lock text is satisfied; a plain `update` writes `after`.
+/// A fake cargo over files:
+/// `update --locked` passes when the lock text is satisfied;
+/// a plain `update` writes `after`.
 struct FakeCargo {
     commands: RefCell<Vec<String>>,
     after: String,
@@ -102,7 +105,8 @@ fn record(num: &str, created_at: &str, publisher_id: &str, trustpub_repository: 
     };
 }
 
-/// A repository with crate roots whose lockfile texts are given, in the order listed.
+/// A repository with crate roots whose lockfile texts are given,
+/// in the order listed.
 fn repository(locks: &[(&str, &str)]) -> (tempfile::TempDir, Vec<String>) {
     let root = scratch();
     let mut dirs: Vec<String> = Vec::new();
@@ -267,7 +271,8 @@ fn ci_is_any_value_but_empty_zero_or_false() {
     }
 }
 
-/// A path-only workspace whose lockfile lacks the dependency `a` declares on `b`: stale without any registry.
+/// A path-only workspace whose lockfile lacks the dependency `a` declares on `b`:
+/// stale without any registry.
 fn write_stale_path_workspace(root: &Path) {
     let dir: PathBuf = root.join("package/real/ws");
     fs::create_dir_all(dir.join("a/src")).expect("make a");
@@ -354,7 +359,9 @@ fn a_check_that_may_use_the_network_does_not_pass_offline() {
     assert_eq!(*cargo.commands.borrow(), vec!["one :: update --workspace --locked".to_string()]);
 }
 
-/// A registry that, like a second process, rewrites the lockfile while the policy check runs.
+/// A registry that,
+/// like a second process,
+/// rewrites the lockfile while the policy check runs.
 struct InterferingRegistry {
     lock: PathBuf,
     histories: BTreeMap<String, Vec<VersionRecord>>,
@@ -456,7 +463,9 @@ fn a_frozen_install_also_checks_every_locked_version_against_the_policy_like_pnp
     assert_eq!(lock_text(root.path(), "package/a/one"), lock_with("dep", "1.0.1"), "a frozen install writes nothing");
 }
 
-/// A frozen install of a satisfied lockfile that holds `dep@1.0.1`, whose history the trust policy refuses, under `trustLockfile`
+/// A frozen install of a satisfied lockfile that holds `dep@1.0.1`,
+/// whose history the trust policy refuses,
+/// under `trustLockfile`
 /// with the given lockfile text at the base revision.
 fn frozen_under_trust_lockfile(base_lock: &str, with_reader: bool) -> Result<InstallReport, InstallError> {
     let (root, dirs) = repository(&[("package/a/one", &lock_with("dep", "1.0.1"))]);

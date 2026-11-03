@@ -1,22 +1,69 @@
 //! What:
 //! Reads a `cargo update` or `cargo generate-lockfile` command line and decides which pnpm command it stands for.
 //! Why:
-//! The owner's rule (2026-11-03, "follow pnpm semantics"): `cargo update` under the shadow behaves like `pnpm update`, which
-//! is pnpm's own policy-aware command (https://pnpm.io/cli/update, read 2026-11-03), and `cargo generate-lockfile` like
-//! `pnpm install --lockfile-only` (https://pnpm.io/cli/install). The mapping, flag by flag:
+//! The owner's rule (2026-11-03,
+//! "follow pnpm semantics"):
+//! `cargo update` under the shadow behaves like `pnpm update`,
+//! which
+//! is pnpm's own policy-aware command (<https://pnpm.io/cli/update>,
+//! read 2026-11-03),
+//! and `cargo generate-lockfile` like
+//! `pnpm install --lockfile-only` (<https://pnpm.io/cli/install>).
+//! The mapping,
+//! flag by flag:
 //!
-//! - no names: `pnpm update`, every dependency within its range: the full catalog update of this workspace.
-//! - `[SPEC]...` or `-p SPEC`: `pnpm update <name>`, the named dependencies within their ranges.
-//! - `--recursive`: `pnpm update <name> --depth Infinity` (the dependencies of the named ones too); cargo's own resolver
-//!   decides which move, then the policy checks the result. Without it, only the named ones.
-//! - `--precise V`: `pnpm update <name>@<version>`, still subject to the policy; pnpm refuses it for a package that is not a
-//!   direct dependency (`ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP`), and so does this.
-//! - `--breaking`: `pnpm update --latest`, run by cargo and then checked; set aside to an older release when refused.
-//! - `-n`, `--dry-run`: pnpm update has no dry run; the nearest is this tool's own: report, then restore every lockfile.
-//! - `-w`, `--workspace`: `pnpm install` (relink the workspace's own packages): the install step.
-//! - `--locked`, `--frozen`: `pnpm install --frozen-lockfile`: check and fail naming the lock, change nothing.
-//! - `--offline`, `--ignore-rust-version`, `--config`, `-Z`, `--color`, `-q`, `-v`: cargo-only; forwarded to every cargo call.
-//! - `-m`, `--manifest-path`: pnpm's `--dir`; it selects the workspace.
+//! - no names:
+//!   `pnpm update`,
+//!   every dependency within its range:
+//!   the full catalog update of this workspace.
+//! - `[SPEC]...` or `-p SPEC`:
+//!   `pnpm update <name>`,
+//!   the named dependencies within their ranges.
+//! - `--recursive`:
+//!   `pnpm update <name> --depth Infinity` (the dependencies of the named ones too);
+//!   cargo's own resolver
+//!   decides which move,
+//!   then the policy checks the result.
+//!   Without it,
+//!   only the named ones.
+//! - `--precise V`:
+//!   `pnpm update <name>@<version>`,
+//!   still subject to the policy;
+//!   pnpm refuses it for a package that is not a
+//!   direct dependency (`ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP`),
+//!   and so does this.
+//! - `--breaking`:
+//!   `pnpm update --latest`,
+//!   run by cargo and then checked;
+//!   set aside to an older release when refused.
+//! - `-n`,
+//!   `--dry-run`:
+//!   pnpm update has no dry run;
+//!   the nearest is this tool's own:
+//!   report,
+//!   then restore every lockfile.
+//! - `-w`,
+//!   `--workspace`:
+//!   `pnpm install` (relink the workspace's own packages):
+//!   the install step.
+//! - `--locked`,
+//!   `--frozen`:
+//!   `pnpm install --frozen-lockfile`:
+//!   check and fail naming the lock,
+//!   change nothing.
+//! - `--offline`,
+//!   `--ignore-rust-version`,
+//!   `--config`,
+//!   `-Z`,
+//!   `--color`,
+//!   `-q`,
+//!   `-v`:
+//!   cargo-only;
+//!   forwarded to every cargo call.
+//! - `-m`,
+//!   `--manifest-path`:
+//!   pnpm's `--dir`;
+//!   it selects the workspace.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -46,23 +93,30 @@ use crate::verb::{find_verb, words_before_double_dash};
 /// What the command line stands for.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UpdatePlan {
-    /// `pnpm install --frozen-lockfile`: check only.
+    /// `pnpm install --frozen-lockfile`:
+    /// check only.
     FrozenCheck,
-    /// `pnpm install` (and `--lockfile-only`): the install step.
+    /// `pnpm install` (and `--lockfile-only`):
+    /// the install step.
     Install {
         /// Report without keeping anything.
         dry_run: bool,
     },
-    /// `pnpm update`: the full catalog update.
+    /// `pnpm update`:
+    /// the full catalog update.
     Full {
         /// Report without keeping anything.
         dry_run: bool,
     },
-    /// `pnpm update <name>[@<version>]`: run the user's update, then the policy.
+    /// `pnpm update <name>[@<version>]`:
+    /// run the user's update,
+    /// then the policy.
     Targeted {
         /// Report without keeping anything.
         dry_run: bool,
-        /// The cargo arguments, starting with `update`, without the forwarded options.
+        /// The cargo arguments,
+        /// starting with `update`,
+        /// without the forwarded options.
         cargo_args: Vec<String>,
         /// The package names named (without any `@version`).
         names: Vec<String>,
@@ -93,8 +147,10 @@ const FORWARDED_FLAGS: [&str; 6] = ["--offline", "--ignore-rust-version", "-q", 
 /// `pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String>` maps a `cargo update` or
 /// `cargo generate-lockfile` command line to the pnpm command it stands for.
 /// Why:
-/// `Err` carries the message of a refusal that mirrors pnpm's own (a `--precise` without one name, or for an indirect
-/// dependency is checked later, where the lockfile is known).
+/// `Err` carries the message of a refusal that mirrors pnpm's own (a `--precise` without one name,
+/// or for an indirect
+/// dependency is checked later,
+/// where the lockfile is known).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

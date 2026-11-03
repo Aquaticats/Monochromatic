@@ -1,9 +1,14 @@
 //! What:
-//! Reads the lockfiles of a base revision with `git`, for the frozen install under `trustLockfile`.
+//! Reads the lockfiles of a base revision with `git`,
+//! for the frozen install under `trustLockfile`.
 //! Why:
 //! The base is the pushed range's previous commit or a pull request's base (`doc/decision/rust-dependency-catalog.md`,
-//! amended by the owner on 2026-10-29). CI names it in the environment variable below; without it the base is `HEAD`, so a
-//! developer's uncommitted lockfile changes are the ones checked. The old TypeScript `rust:verify` took the same revision as
+//! amended by the owner on 2026-10-29).
+//! CI names it in the environment variable below;
+//! without it the base is `HEAD`,
+//! so a
+//! developer's uncommitted lockfile changes are the ones checked.
+//! The old TypeScript `rust:verify` took the same revision as
 //! `--base`.
 //!
 //! In TS you'd write (pseudocode):
@@ -35,8 +40,11 @@ pub fn base_from_environment() -> String {
 /// `pub fn git_base_lock_reader(root: &Path, base: &str) -> Result<Box<dyn Fn(&str) -> String>, String>` resolves the base to a
 /// commit once and returns a reader of `<commit>:<crate>/Cargo.lock`.
 /// Why:
-/// A base that is not a commit is an error naming the remedy (in CI, fetch it first); a lockfile absent at the base reads as the
-/// empty string, so every version it holds counts as new.
+/// A base that is not a commit is an error naming the remedy (in CI,
+/// fetch it first);
+/// a lockfile absent at the base reads as the
+/// empty string,
+/// so every version it holds counts as new.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

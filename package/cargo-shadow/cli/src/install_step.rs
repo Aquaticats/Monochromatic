@@ -1,11 +1,19 @@
 //! What:
-//! The shadow's install step: before a cargo command that resolves dependencies, make the `Cargo.lock` of the Cargo workspace
-//! that holds the working directory satisfy its manifests, under the catalog's trust policy.
+//! The shadow's install step:
+//! before a cargo command that resolves dependencies,
+//! make the `Cargo.lock` of the Cargo workspace
+//! that holds the working directory satisfy its manifests,
+//! under the catalog's trust policy.
 //! Why:
 //! This is pnpm's `verifyDepsBeforeRun: install` default ("Automatically runs install if `node_modules` is not up to
-//! date", https://pnpm.io/settings/build, read 2026-11-03) for lockfiles: a stale lock is brought in line by the same code as
-//! the install command (`install.rs`), in CI or under the user's own `--locked` or `--frozen` it fails naming the stale lock
-//! instead (pnpm's `frozenLockfile`), and the user's cargo command is then run unchanged by the caller.
+//! date",
+//! <https://pnpm.io/settings/build>,
+//! read 2026-11-03) for lockfiles:
+//! a stale lock is brought in line by the same code as
+//! the install command (`install.rs`),
+//! in CI or under the user's own `--locked` or `--frozen` it fails naming the stale lock
+//! instead (pnpm's `frozenLockfile`),
+//! and the user's cargo command is then run unchanged by the caller.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -52,9 +60,11 @@ use crate::workspace::{find_cargo_root, find_catalog_root};
 /// What the install step did.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StepOutcome {
-    /// Nothing to do here, with the reason.
+    /// Nothing to do here,
+    /// with the reason.
     Skipped(String),
-    /// The recorded fingerprints still match: no cargo was started.
+    /// The recorded fingerprints still match:
+    /// no cargo was started.
     FastPath,
     /// The authoritative check found the lockfile satisfied.
     Passed,
@@ -65,7 +75,8 @@ pub enum StepOutcome {
         /// The registry versions newly locked.
         added: Vec<LockedVersion>,
     },
-    /// The step refused or failed, with the message to show.
+    /// The step refused or failed,
+    /// with the message to show.
     Failed(String),
 }
 
@@ -75,7 +86,9 @@ pub struct StepRequest<'a> {
     pub start_dir: &'a Path,
     /// Fail on a stale lockfile instead of updating it.
     pub frozen: bool,
-    /// Keep every cargo call offline; false in CI, where no registry index is cached yet.
+    /// Keep every cargo call offline;
+    /// false in CI,
+    /// where no registry index is cached yet.
     pub offline: bool,
     /// The current time in milliseconds.
     pub now: i64,
@@ -87,7 +100,9 @@ pub struct StepRequest<'a> {
     pub lock_base: Option<&'a dyn Fn(&str) -> String>,
 }
 
-/// The crate root relative to the repository, with forward slashes; `None` when it is not inside it.
+/// The crate root relative to the repository,
+/// with forward slashes;
+/// `None` when it is not inside it.
 fn relative_crate_dir(catalog_root: &Path, cargo_root: &Path) -> Option<String> {
     // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
     // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
@@ -188,7 +203,8 @@ fn read_catalog(catalog_root: &Path) -> Result<CatalogDocument, String> {
     return parse_catalog(&text, CATALOG_MARKER).map_err(|error| { return error.to_string(); });
 }
 
-/// Records the stamp after a pass: one `cargo metadata` call lists the manifests the lockfile was resolved from.
+/// Records the stamp after a pass:
+/// one `cargo metadata` call lists the manifests the lockfile was resolved from.
 fn write_stamp(request: &StepRequest, catalog_root: &Path, crate_dir: &str) {
     // Typed binding: `cargo_root: PathBuf`.
     let cargo_root: PathBuf = catalog_root.join(crate_dir);
@@ -236,8 +252,14 @@ fn write_stamp(request: &StepRequest, catalog_root: &Path, crate_dir: &str) {
 /// What:
 /// `pub fn run_install_step(request: &StepRequest) -> StepOutcome` runs the step for the workspace of `request.start_dir`.
 /// Why:
-/// Outside a catalog repository, or in a workspace without a lockfile, the step does nothing. Otherwise a matching stamp
-/// answers at once; without one, the install over this one crate root answers, and a pass or a kept update records a stamp.
+/// Outside a catalog repository,
+/// or in a workspace without a lockfile,
+/// the step does nothing.
+/// Otherwise a matching stamp
+/// answers at once;
+/// without one,
+/// the install over this one crate root answers,
+/// and a pass or a kept update records a stamp.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

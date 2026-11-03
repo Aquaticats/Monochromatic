@@ -1,4 +1,5 @@
-//! The unit tests of the release-age and trust decisions, ported case for case from `policy.unit.test.ts`.
+//! The unit tests of the release-age and trust decisions,
+//! ported case for case from `policy.unit.test.ts`.
 
 use std::collections::BTreeSet;
 

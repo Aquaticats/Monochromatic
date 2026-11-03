@@ -1,15 +1,30 @@
 //! What:
-//! Compare-before-replace for the lockfile transaction, and a journal that lets the next run finish what a killed run left.
+//! Compare-before-replace for the lockfile transaction,
+//! and a journal that lets the next run finish what a killed run left.
 //! Why:
-//! The install and the update snapshot every lockfile, let cargo rewrite them, check the new versions against the policy, and
-//! put the snapshot back on a refusal. Owner rules: "never discard user data" and "use as few locks as possible". So there is no
-//! lock: a restore replaces a lockfile only if it still holds what this run produced (anything else was written by someone
-//! else meanwhile and is left alone with a warning), and the replacement is a write to a sibling file and an atomic rename.
-//! A process killed between cargo's write and the restore leaves a journal directory with the snapshots; the next run reads it,
-//! checks the live lock against the policy, keeps it if it passes, and otherwise saves it beside the lockfile as
-//! `Cargo.lock.refused` before putting the snapshot back, so no lockfile content is ever thrown away.
-//! `cargo -Zunstable-options update --lockfile-path`, which would resolve into a private file and publish it with one rename,
-//! does not exist on the pinned nightly (checked 2026-11-03: `cargo update --help` and `cargo check --help` list no such option).
+//! The install and the update snapshot every lockfile,
+//! let cargo rewrite them,
+//! check the new versions against the policy,
+//! and
+//! put the snapshot back on a refusal.
+//! Owner rules:
+//! "never discard user data" and "use as few locks as possible".
+//! So there is no
+//! lock:
+//! a restore replaces a lockfile only if it still holds what this run produced (anything else was written by someone
+//! else meanwhile and is left alone with a warning),
+//! and the replacement is a write to a sibling file and an atomic rename.
+//! A process killed between cargo's write and the restore leaves a journal directory with the snapshots;
+//! the next run reads it,
+//! checks the live lock against the policy,
+//! keeps it if it passes,
+//! and otherwise saves it beside the lockfile as
+//! `Cargo.lock.refused` before putting the snapshot back,
+//! so no lockfile content is ever thrown away.
+//! `cargo -Zunstable-options update --lockfile-path`,
+//! which would resolve into a private file and publish it with one rename,
+//! does not exist on the pinned nightly (checked 2026-11-03:
+//! `cargo update --help` and `cargo check --help` list no such option).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,13 +40,16 @@ use std::path::{Path, PathBuf};
 use crate::constants::LOCKFILE_NAME;
 use crate::crates::{LockSnapshot, read_locks};
 
-/// Where journals live, relative to the repository root.
+/// Where journals live,
+/// relative to the repository root.
 pub const JOURNAL_DIR: &str = ".cache/cargo-shadow/journal";
 
 /// The extension appended to a lockfile name when a refused live lock is saved before the snapshot goes back.
 pub const REFUSED_SUFFIX: &str = ".refused";
 
-/// The file in a journal directory that names the crate roots, one per line, in the order of the snapshot files.
+/// The file in a journal directory that names the crate roots,
+/// one per line,
+/// in the order of the snapshot files.
 const INDEX_FILE: &str = "index.txt";
 
 /// The path of a sibling file used for the write half of an atomic replace.
@@ -52,8 +70,11 @@ pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
 /// `pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot]) -> io::Result<Vec<String>>`
 /// puts each snapshot back only when the live lockfile still holds what this run produced.
 /// Why:
-/// A live lockfile that differs from `produced` was changed by another process after cargo finished; replacing it would discard
-/// that change, so it is left alone and named in a warning. One that already equals the snapshot needs nothing.
+/// A live lockfile that differs from `produced` was changed by another process after cargo finished;
+/// replacing it would discard
+/// that change,
+/// so it is left alone and named in a warning.
+/// One that already equals the snapshot needs nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,10 +107,12 @@ fn journal_path(root: &Path, pid: u32) -> PathBuf {
 }
 
 /// What:
-/// `pub fn begin(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()>` writes the journal of this process: every snapshot
+/// `pub fn begin(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()>` writes the journal of this process:
+/// every snapshot
 /// and the list of crate roots.
 /// Why:
-/// If this process is killed before `finish`, the next run finds the snapshots here.
+/// If this process is killed before `finish`,
+/// the next run finds the snapshots here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,7 +130,8 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()> {
     return atomic_write(&directory.join(INDEX_FILE), &index);
 }
 
-/// Removes this process's journal; a missing journal is fine.
+/// Removes this process's journal;
+/// a missing journal is fine.
 pub fn finish(root: &Path) {
     let _ = fs::remove_dir_all(journal_path(root, std::process::id()));
 }
@@ -123,7 +147,9 @@ fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>> {
     return Ok(snapshots);
 }
 
-/// Whether a process with this id exists (Linux `/proc`; a reused id reads as alive, which only delays a recovery).
+/// Whether a process with this id exists (Linux `/proc`;
+/// a reused id reads as alive,
+/// which only delays a recovery).
 pub fn process_exists(pid: u32) -> bool {
     return Path::new("/proc").join(pid.to_string()).exists();
 }
@@ -131,9 +157,13 @@ pub fn process_exists(pid: u32) -> bool {
 /// What:
 /// `pub fn recover(root, is_alive, judge) -> Vec<String>` finishes the journals of processes that no longer exist.
 /// Why:
-/// For each such journal: a live lock equal to its snapshot needs nothing; a live lock the `judge` finds acceptable (no policy
-/// findings for the versions it added) is kept; otherwise the live lock is saved as `Cargo.lock.refused` and the snapshot goes
-/// back by atomic rename. Either way the journal is removed and a message says what happened.
+/// For each such journal:
+/// a live lock equal to its snapshot needs nothing;
+/// a live lock the `judge` finds acceptable (no policy
+/// findings for the versions it added) is kept;
+/// otherwise the live lock is saved as `Cargo.lock.refused` and the snapshot goes
+/// back by atomic rename.
+/// Either way the journal is removed and a message says what happened.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
