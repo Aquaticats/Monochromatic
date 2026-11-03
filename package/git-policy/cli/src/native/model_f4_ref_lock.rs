@@ -30,7 +30,7 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'candidate-no-journal' | 'candidate-removes-any';
+/// type Rules = 'six' | 'seven' | 'candidate' | 'eight' | 'nine' | 'candidate-no-journal' | 'candidate-removes-any';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
@@ -44,6 +44,9 @@ pub enum Rules {
     Candidate,
     /// Revision 8 draft, X1: a terminate signal, a wait for the grace, and nothing further; the wrapper never removes a ref lock.
     Eight,
+    /// Revision 9, X1: classification is by the kind of command and `update-ref` is exempt, whatever hook is configured now
+    /// or installed later; the wrapper never cancels it and never removes a ref lock.
+    Nine,
     /// The candidate without the journal write before the link (a mutation that must stay red).
     CandidateNoJournal,
     /// The candidate whose recovery removes whatever lock is present (a mutation that must stay red).
@@ -160,6 +163,12 @@ pub struct State {
     pub foreign_creations: u8,
     /// Harm: a lock the wrapper did not create was removed by the wrapper.
     pub foreign_removed: bool,
+    /// A person installed a `reference-transaction` hook (at any time, even after the child was launched).
+    pub hook_installed: bool,
+    /// Git dispatched the hook and it is running.
+    pub hook_running: bool,
+    /// Harm: a cancellation ended a running person's hook.
+    pub hook_ended: bool,
 }
 
 /// What:
@@ -185,6 +194,9 @@ pub fn initial(rules: Rules, birth_time: bool) -> State {
         journal_inode: 0,
         foreign_creations: 0,
         foreign_removed: false,
+        hook_installed: false,
+        hook_running: false,
+        hook_ended: false,
     };
 }
 
@@ -284,10 +296,30 @@ fn git_steps(state: &State) -> Vec<(String, State)> {
         after.term_sent = false;
         push_step(&mut found, "git: handles the terminate signal, removes its own lock and exits", after);
     }
+    let hooks_possible: bool = state.rules == Rules::Eight || state.rules == Rules::Nine;
+    if hooks_possible && !state.hook_installed {
+        let mut after: State = state.clone();
+        after.hook_installed = true;
+        push_step(&mut found, "person: installs a reference-transaction hook", after);
+    }
+    if hooks_possible && state.child == GPhase::Locked && state.hook_installed && !state.hook_running {
+        let mut after: State = state.clone();
+        after.hook_running = true;
+        push_step(&mut found, "git: dispatches the reference-transaction hook", after);
+    }
+    if state.hook_running {
+        let mut after: State = state.clone();
+        after.hook_running = false;
+        push_step(&mut found, "hook: returns", after);
+    }
+    // Revision 8 classifies at spawn time (no hook was configured then); revision 9 exempts `update-ref` by kind.
     if state.owner == OwnerPhase::Running && child_alive(state) && !state.term_sent && (seven || state.rules == Rules::Eight) {
         let mut after: State = state.clone();
         after.owner = OwnerPhase::Term;
         after.term_sent = true;
+        if state.hook_running {
+            after.hook_ended = true;
+        }
         push_step(&mut found, "owner: sends the terminate signal to the stalled child", after);
     }
     let can_kill: bool = child_alive(state) && ((seven && state.owner == OwnerPhase::Term) || (state.rules == Rules::Six && state.owner == OwnerPhase::Running));
@@ -409,6 +441,9 @@ fn embedded_steps(state: &State) -> Vec<(String, State)> {
 /// function invariant(s: State): string | undefined;
 /// ```
 pub fn invariant(state: &State) -> Option<String> {
+    if state.hook_ended {
+        return Some("a cancellation ended a running person's hook".to_string());
+    }
     if state.foreign_removed {
         return Some("a lock the wrapper did not create was removed".to_string());
     }

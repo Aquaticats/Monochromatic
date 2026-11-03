@@ -158,25 +158,45 @@ fn candidate_that_removes_any_lock_is_red() {
     assert_eq!(violation.message, "a lock the wrapper did not create was removed");
 }
 
-/// Revision 8 draft, X1: the wrapper signals and waits, never kills and never removes a lock. No schedule removes a foreign
-/// lock or leaves an own lock behind; the stated wait (a child that ignores the signal keeps the request pending) is reachable.
+/// Revision 8 (red): X1 classified the child at spawn time as unable to dispatch a protected program; a person then installs a
+/// `reference-transaction` hook, Git dispatches it, the child stalls and the cancellation ends the hook.
 #[test]
-fn eight_signals_and_waits_and_never_removes_a_lock() {
-    let report: Report = check(Rules::Eight);
-    if let Some(violation) = &report.violation {
-        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
-    }
-    assert!(report.exhausted);
-    println!("F4 eight: {} states, deepest {}", report.states, report.deepest);
-    let waiting = replay(
+fn eight_cancels_an_update_ref_whose_hook_was_installed_after_classification() {
+    let reached = replay(
         initial(Rules::Eight, true),
         steps,
         &[
             "owner: observes branch.lock absent and launches update-ref",
+            "person: installs a reference-transaction hook",
             "git: creates branch.lock",
+            "git: dispatches the reference-transaction hook",
             "owner: sends the terminate signal to the stalled child",
         ],
     );
-    assert!(waiting.lock.present);
+    assert_eq!(invariant(&reached), Some("a cancellation ended a running person's hook".to_string()));
+    assert!(check(Rules::Eight).violation.is_some());
+}
+
+/// Revision 9 (green): `update-ref` is exempt from X1 by kind, so no schedule cancels it; no foreign lock is removed and no
+/// own lock is left by a cancellation; the stated wait (a stalled update-ref keeps the request pending) is reachable.
+#[test]
+fn nine_never_cancels_update_ref_and_never_removes_a_lock() {
+    let report: Report = check(Rules::Nine);
+    if let Some(violation) = &report.violation {
+        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
+    }
+    assert!(report.exhausted);
+    println!("F4 nine: {} states, deepest {}", report.states, report.deepest);
+    let waiting = replay(
+        initial(Rules::Nine, true),
+        steps,
+        &[
+            "owner: observes branch.lock absent and launches update-ref",
+            "person: installs a reference-transaction hook",
+            "git: creates branch.lock",
+            "git: dispatches the reference-transaction hook",
+        ],
+    );
+    assert!(!steps(&waiting).iter().any(|entry| { return entry.0.contains("terminate signal"); }));
     assert_eq!(invariant(&waiting), None);
 }
