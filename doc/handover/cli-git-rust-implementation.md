@@ -785,8 +785,16 @@ in this order:
   stash kept,
   `UU` entries),
   instead of leaving the merge stopped (picked under the delegation:
-  "Auto merging should never fail.");
-  running with the word-level agent on `fix/git-policy-cli-finish-applies-a-conflicting-autostash`.
+  "Auto merging should never fail.").
+  Done and fast-forwarded into the 0.5.28 base:
+  `fix/git-policy-cli-finish-applies-a-conflicting-autostash` `2b5e99f5a8`
+  (`autostash_blocks_finish` removed;
+  merge and pull controls compare with a twin repository on which Git stops,
+  the person resolves and `git commit` concludes;
+  the wrapper had ended with status 1 where Git's commit gives 0;
+  6 of 6 autostash controls plus one for unsaved changes to a stash file;
+  44 library and 41 binary tests,
+  clippy clean).
 - A gate after the regression fix,
   the index round 4 and the waits follow-ups merge,
   then release 0.5.28.
