@@ -147,8 +147,7 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   ask the service manager to start an inactive unit after `START_WAIT`;
   a scratch file can be aged out during a wait longer than a day.
   The 150 s hold-age margin is for the owner to approve on return.
-- Done,
-  to merge into the 0.5.28 base once its running gate ends:
+- Done and merged into the 0.5.28 base (`cfd30ccd18`):
   the two shipped lock-deletion P1s from the eighth design review (S-1,
   S-2),
   `fix/git-policy-cli-never-removes-a-live-lock` `9f92dae98c` (from `177f9ebc50`).
@@ -317,8 +316,29 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   the full gate was not run.
   The claim-kill probe's scope showed inactive before the tests ran,
   so that run was bounded only by the tests' five-minute limit.
-- The third round on the in-process index writer,
-  its agent resumed with the third re-review's findings and told to merge the base `177f9ebc50` first.
+- Done and merged into the 0.5.28 base (`a840964c97`):
+  the third round on the in-process index writer,
+  `perf/git-policy-cli-follow-up-index-in-process` `01e4d4c610`.
+  Findings 1 to 5 of the third re-review fixed,
+  each red first;
+  6 (the reclaimer's check-then-unlink) recorded in SPEC,
+  not fixed.
+  The shipped P1:
+  `IndexLock::release_with_record` installs the index,
+  records `<batch>.indexed` (the commit name,
+  synced) while the lock is held,
+  then unlocks;
+  recovery that finds the record replays only the conclusion state.
+  The HEAD check is asked again once the lock is held;
+  recovery that finds another branch checked out leaves its index alone.
+  `PrivateCopy` is made with `O_EXCL` and never reused,
+  so copies a killed run left can pile up (no cleanup yet).
+  720 library and 70 binary tests,
+  clippy clean.
+  Running,
+  not an agent:
+  the fourth cross-vendor re-review (`~/temp/agent/reviews/follow-up-index-sol-4.txt`,
+  with the round's diff and eight whole files).
 - Done:
   design revision 9 of `doc/planning/cli-git-commits-never-fail.md`,
   `a7b917e47e` to `5ff9706edc` (2026-11-03T11:44:10-05:00 to 11:54:15),
@@ -354,17 +374,39 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   (`pull_isolation.rs`),
   because native `git pull` starts its merge as Git's own child,
   out of the wrapper's sight.
-  178 library and 72 neighbouring binary tests,
-  clippy clean;
-  full suite not run.
-  Its agent is resumed with the three picks in "Picks made under the owner's delegation",
-  a measurement of the pull split's extra Git starts,
-  and a merge of the base at `afc9a8621d`.
-- Running:
+  Second round done (`411e98e732`) and merged into the 0.5.28 base (`9e0b06ad83`):
+  the three picks built
+  (an autostash whose apply would conflict leaves the merge stopped as Git does,
+  the work kept in `MERGE_AUTOSTASH`;
+  the pull's working-tree update waits for the index lock);
+  a fast-forwarding pull skips the isolated attempt.
+  Measured under the load there was (load average 9 to 11,
+  debug build,
+  nine alternating rounds,
+  native-versus-native spread 2 ms or less):
+  a merging pull 367 ms against native 14 to 16 ms,
+  a fast-forwarding pull 128 ms against 11 to 12 ms;
+  most of the merging cost is the isolated merge itself (a typed merge 302 ms).
+  Answering the pull's queries in process is open.
+  179 library and 83 binary tests,
+  clippy clean.
+  Its agent is resumed on `fix/git-policy-cli-conflict-warning-reads-the-content` from `9e0b06ad83`:
+  the false conflict-marker warning in "Known flakes and failures not yet fixed",
+  then carry-back A.
+- Passed:
   a second early gate of the 0.5.28 base at `afc9a8621d` (after the waits,
   citations follow-ups and fallback merges),
   unit `gpc-gate-candidate-0-5-28-fallback-citations-20261103T114530-0500.service`,
-  log beside it in `~/temp/agent/gate/`.
+  4468 of 4468,
+  6 skipped,
+  one slow.
+- Running:
+  a third early gate at `9e0b06ad83` (after the index writer's third round,
+  the lock-removal fix and the word-level pass),
+  unit `gpc-gate-candidate-0-5-28-index-r3-locks-word-level-20261103T120421-0500.service`.
+- The index-lock and service waits follow-ups,
+  its agent resumed with the picks;
+  it merges the base `afc9a8621d` and the index round `01e4d4c610` into its branch first.
 - Passed:
   an early gate of the 0.5.28 base at its tip after the index writer's second round
   (unit `gpc-gate-candidate-0-5-28-early-20261103T111639-0500.service`,
@@ -543,29 +585,12 @@ in this order:
     the reclamation check-then-unlink in `service_index_lock.rs` 285-289 needs a per-physical-index single-reclaimer
     guarantee or a test;
     the non-Linux test imports stay paused.
-- Carry a conflicted autostash's stash and unmerged entries back from the shadow repository
-  (option A in "Word-level second merge pass and pull"),
-  after the index writer's third round,
-  because both change the landing code;
-  it fixes a shipped loss for a person's own `git commit` after `merge --autostash`.
-- The index-lock and service waits follow-ups listed in "Picks made under the owner's delegation",
-  "Shipped-limits follow-ups":
-  resume the waits agent with them once the index round finishes,
-  because both change the index lock wait and the landing code.
-- Running,
-  not an agent:
-  the cross-vendor review of the step 3 and 4 components only
-  (ledger,
-  binding,
-  request,
-  spool,
-  replay;
-  94 KB diff `~/temp/agent/reviews/commit-components-1.diff` from `5e8c96de21` to `22e0ba1f37`,
-  with the design at `a7b917e47e`;
-  output `commit-components-sol-1.txt`).
-  The models (about 5800 lines) are reviewed after revision 9 reshapes them,
+- Clean up private index copies a killed run left (`<index>.cli-git-<seq>`),
+  only those this tool made,
+  once the fourth index re-review has judged the round.
+- The models (about 5800 lines) are reviewed after the step-1 agent's revision 9 round,
   together with the eighth review's section-4 controls,
-  which the step-1 agent builds against revision 9 when resumed.
+  then the components' re-review from `commit-components-2.diff`.
 - The third cross-vendor review of cargo-shadow,
   three parts,
   once its fix round writes the diffs.
@@ -1406,6 +1431,23 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 
 ### Known flakes and failures not yet fixed
 
+- Shipped in 0.5.27,
+  seen live 2026-11-03T12:00 on the 0.5.28 base:
+  `git commit -m <subject> -- <path>` during a merge,
+  with the conflict resolved in the file but not staged,
+  landed a one-parent commit of that path (`f1f78f7920`,
+  as SPEC designs:
+  "Named paths during a merge: Git refuses; the wrapper lands them and the merge is carried on")
+  and printed that the path "still has conflict markers,
+  and they were committed",
+  though the committed file has none.
+  `service_prepare.rs:445` lists every path that was unmerged in the index before the commit,
+  whatever the content holds.
+  Its advice (another `git commit -- <path>`) also leaves the merge open.
+  The merge was concluded with a plain `git commit` (`cfd30ccd18`);
+  a corrective comment is on `f1f78f7920`
+  (<https://github.com/Aquaticats/Monochromatic/commit/f1f78f7920e379b3d45893e25739a689be60331e#commitcomment-207965325>).
+  Fix running with the word-level agent.
 - `a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait` failed twice alone at load 38 to 44
   (`objects_ms=6760`,
   `attempts=2`:
