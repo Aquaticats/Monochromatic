@@ -20,7 +20,8 @@ consent,
 file-provider,
 shared-memory,
 and existing-test files cited here were byte-compared between those revisions.
-The fetched files were identical.
+The comparison covers `49` selected files;
+each matched between revisions.
 
 The [retained reproduction](../../troubleshooting/chromium-disk-responsiveness/live-histogram-reproduction.md)
 establishes browser-main writes through a live regular-file-backed `BrowserMetrics` mapping.
@@ -318,7 +319,21 @@ The author must settle how the existing early test overrides select storage,
 and whether spare-file work belongs in the same patch.
 Broader coverage needs agreement on crash-loss and collector behavior before treating a new persistence design as equivalent.
 
-Source citations and rendered-document verification are pending for this new document.
+## Verification at 2026-11-03T11:35:27+00:00
+
+All `31` pinned source selections passed the `agent-browser` check
+at `2026-11-03T11:27:25.866Z`.
+The selected GitHub lines matched freshly fetched source and were highlighted.
+The owned browser closed successfully,
+and its systemd scope is inactive.
+Scoped `mise run lint:monochromatic-lint` passed.
+
+GitHub's repository-contents HTML renderer was exercised on commit `5e0dc5e6a1`.
+Its heading sequence and inline code spans matched the Markdown input,
+with no stray backticks,
+unexpected emphasis,
+or tables.
+The source research landed in `253ca18e57` and `5e0dc5e6a1` before this verification record.
 No Chromium C++ file was changed by this research pass.
 
 [startup]: https://github.com/chromium/chromium/blob/986947eb4afc18471e51b7cb473f7c2f779f62bf/chrome/app/chrome_main_delegate.cc#L1803-L1825
