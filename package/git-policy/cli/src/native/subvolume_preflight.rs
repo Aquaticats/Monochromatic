@@ -192,8 +192,10 @@ pub fn migrate_refusals(platform: &dyn Platform, layout: &Layout, journal: &Jour
         )),
         Err(error) => found.push(refuse(format!("the filesystem of {} cannot be identified: {error}", root.display()), "Check that the path exists and that this user can read it.")),
     }
-    if let Ok((_, free)) = platform.filesystem_facts(layout.parent.as_path()) {
-        // Counting reads directory listings only, and it is done after the cheap refusals above could have returned.
+    // The need is the metadata of btrfs, so the tree is counted and the space compared only where the checkout is on btrfs.
+    let on_btrfs: bool = matches!(platform.filesystem_facts(root), Ok((FilesystemKind::Btrfs, _)));
+    if on_btrfs && let Ok((_, free)) = platform.filesystem_facts(layout.parent.as_path()) {
+        // Counting reads directory listings only; it is the one walk of the tree this check makes.
         let entries: u64 = count_entries(root);
         let needed: u64 = required_free_bytes(entries);
         if free < needed {

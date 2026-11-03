@@ -42,7 +42,8 @@ const INITIAL_PID_NAMESPACE: &str = "pid:[4026531836]";
 ///  written by a Git on another machine, whose process numbers mean nothing here.
 const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
 
-/// One hour: the offset a hardware clock kept in local time shows against the true time after a time zone or daylight-saving change.
+/// One hour: the step a daylight-saving change gives a clock that follows local time. The step measured below fell on the day clocks
+///  went back, 2026-11-01.
 pub const ZONE_OFFSET: Duration = Duration::from_secs(3600);
 
 /// The hour-scale clock step measured on this host: `chronyd` logged "System clock was stepped by -3599.507590 seconds" at

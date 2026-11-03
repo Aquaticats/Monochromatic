@@ -394,11 +394,16 @@ The only caller is `src/native/service_prepare.rs:448`, the ending of a commit w
 
 - After the delegated pick (option C, the coordinator's pick under delegation, open to the owner's veto): cited, value
   kept.
-  The record is written once and its modification time is not refreshed while the owner works, so the patience must
-  outlast the longest hold of an owner record.
-  Measured: the longest command in the commit timing log took 750.6 s and the longest worktree add 539.7 s
-  ("Measurement record", foreign-owner patience), so an hour is 4.8 times the longest hold seen and twice the 1800 s
-  that a command may wait for a live lock holder.
+  Three kinds of record are judged by this age: a merge's intent record (`merge_isolation_journal.rs`,
+  `write_merge_intent`, written once and synced per merge), a claim file (`single_owner_claim.rs`, `write_private`,
+  written once), and the item path of a worktree add (`worktree_copy_owner.rs`, `is_alive`, judged by its own
+  modification time).
+  The first two are not rewritten while the owner works, so the age is the owner's whole hold; the patience must outlast
+  the longest hold.
+  Measured: the longest worktree add took 539.7 s and the nearest log of a command that waits, the commit timing log,
+  has a longest of 750.6 s ("Measurement record", service housekeeping).
+  No log records the length of a merge, which waits up to the 1800 s live lock wait with its record already written,
+  so an hour is twice the longest wait the code allows and 4.8 times the longest command measured.
   The comment is at `src/native/pid_namespace.rs:19`.
 - Dependency: the 1800 s wait belongs to the pick on the index-lock holder wait, which other agents own.
   If that wait is lengthened or removed, this patience must be revisited with it, because a wrapper that waits holds
@@ -1188,6 +1193,10 @@ Owner decision "Pass only if unset" (`SPEC.md:651`, `src/native/checkout_workers
   dry run now reads directory listings of the whole tree, without opening a file.
   A small checkout no longer needs 5 GiB free; a checkout of two million entries needs about 3.8 GiB, and one of four
   million about 7.6 GiB.
+  Cost of the walk: `find package -xdev -printf .` listed 149,589 entries of this repository in 0.60, 0.42 and 0.43 s
+  (2.8 to 4.0 microseconds an entry, warm cache, `IOWeight=10`), so a checkout of two million entries takes about 6 to 8
+  s warm; a cold cache was not measured.
+  The count and the comparison now run only where the checkout is on btrfs.
   Limits: the metadata of the copy is assumed to need a new chunk, because the free space the check reads did not move
   with the metadata in the runs (preallocated metadata chunks absorbed it); the cost of the later passes and the index
   rewrite was not added; a filesystem with one copy of metadata is over-estimated by two.
@@ -1554,6 +1563,8 @@ read only.
 - Clock: `CONFIG_HZ=1000`; a new file's birth time lagged a clock read just before the create by at most 1.684 and
   1.729 ms (two runs of 10,000 creates); the start time derived from `/proc/<pid>/stat` and `/proc/uptime` exceeded the
   clock read before the spawn by at most 2.331 and 2.329 ms (two runs of 1,000 spawns).
+- Entry listing: `find package -xdev -printf .` in `systemd-run --user --scope` with `CPUQuota=100%` and `IOWeight=10`,
+  three runs, 149,589 entries each: 0.60, 0.42 and 0.43 s, warm cache.
 - Boot: `journalctl -u chronyd` since 2026-10-06 (19 boots) shows steps of 1.292345 s (2026-10-30), -3599.507590 s
   (2026-11-01) and 2,934,868.227998 s (2026-10-17).
 
@@ -2162,7 +2173,7 @@ stale lock; A > C because C adds delay without evidence.
 #### Free-space preflight scope
 
 - A. As built: count entries by listing the tree, 2048 bytes each.
-  Visible result: exact for the copy, and the dry run reads every directory once.
+  Visible result: exact for the copy, and the dry run reads every directory once (about 3 microseconds an entry warm).
 - B. Count only the entries of the index.
   Visible result: no walk; ignored files such as `node_modules` and `target` are not counted, so large checkouts are
   under-estimated.

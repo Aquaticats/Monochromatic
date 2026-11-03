@@ -327,3 +327,17 @@ fn deleting_the_old_tree_needs_a_finished_migration_and_an_old_tree() {
     assert_eq!(remove_old_refusals(&layout, &journal).len(), 1, "a started verification is not finished");
     remove(parent.as_path());
 }
+
+/// Free space only matters where the copy writes btrfs metadata, so a filesystem that is not btrfs is refused for that and not
+///  also for space, and its tree is not listed to be counted.
+#[test]
+fn free_space_is_not_checked_where_the_filesystem_is_not_btrfs() {
+    let (parent, layout) = checkout("preflight-space-other");
+    let mut platform: PlainPlatform = PlainPlatform::new();
+    platform.kind = FilesystemKind::Other;
+    platform.free = Some(0);
+    let text: String = causes(migrate_refusals(&platform, &layout, &empty_journal(&layout)).as_slice());
+    assert!(text.contains("a filesystem other than btrfs"), "{text}");
+    assert!(!text.contains("bytes free"), "{text}");
+    remove(parent.as_path());
+}
