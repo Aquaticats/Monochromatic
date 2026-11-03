@@ -10293,3 +10293,12 @@ by the coordinator at merge.
   `perf/git-policy-cli-fast-snapshot-add` from the stack (split the add's steps without strace, judge the two walks
   and the parent fsync against the kernel source; also why an add from main took the full copy route at
   2026-11-03T03:29:01-05:00, "copied 140294 ignored filesystem entries").
+- 2026-11-03T03:42:03-05:00: word-level second merge pass built (branch `feat/git-policy-cli-word-level-second-merge-pass`, host
+  3340 and binary 557 passed, clippy clean; own merge `word_merge.rs` on `similar` 3.2.1 Myers, matching
+  Jujutsu 0.46.0 on 41 stored corpus inputs; runs in a person's merge/rebase/cherry-pick/revert, the isolated
+  merge, the auto-push reconcile merge and the commit replay; `native:perf` commit +1.7 ms inside the run-median
+  spread of 40.3 to 57.0 ms). Owner answer (question tool): a fully resolved merge "Finish like a clean merge
+  (Recommended)", honouring `--no-commit`, `--squash`, `--edit` and similar. Adopted unasked from standing
+  decisions and sent to the agent with it: cover `git pull` (a merge a person runs), respect a person's
+  `attr.tree` as Git does, derive the candidate size bounds from Git's own constants, and give service-sent
+  journal entries the service's identifier. The agent first merges the 0.5.22 stack into its branch.
