@@ -10110,3 +10110,83 @@ by the coordinator at merge.
   `fix/git-policy-cli-deadline-stop-leaves-no-git-lock`. Git's own `index.lock` and ref locks are Git's protocol for
   writing those files and stay; the work there is shorter holds and fewer waits. Each branch: red controls, guards
   shown red, SPEC and README; then the coordinator gates, merges and releases.
+- 2026-11-03T02:12:00-05:00, merge auto-resolution fully decided. Merge-code measurements (same-vendor agent;
+  `~/temp/agent/merge-code-options/`) are recorded in `doc/planning/cli-git-merge-auto-resolution.md` (`a8471c17c5`):
+  all three buildable options matched `jj` 0.46.0 on 44 of 44 inputs, byte for byte, and own-on-`similar` with Myers
+  matched on 600 of 600 random edits. Owner's choices (question tool): "Own merge on similar (Recommended)" and, for
+  union, "doc/handover/*.md only (Recommended)", done in `.gitattributes` (`8ecbb0b188`; `git check-attr` checked).
+  QUEUED, waiting for a free agent slot (all five busy with the lock passes, the deadline fix and the pnpm-in-image
+  fix): implement the word-level second pass on `similar` 3.2.1 (Myers) for merges a person runs and for the
+  wrapper's unattended merges (auto-push reconciliation, commit replay), accepting a file only when every part
+  resolves and logging each merged part on stderr and in the journal; decide which tree supplies attributes to
+  `git merge-tree` so the union line applies there too; tests that keep the results equal to Jujutsu's on the
+  measured corpus. Release 0.5.20 published (crates.io 07:02:27Z); install running.
+- 2026-11-03T02:14:00-05:00, 0.5.20 installed (lock commit by `upgrade-wrapper.ts`): its commit landed through the
+  new service (0.5.19 retired, 0.5.20 started, landing 58 ms) but took 4351 ms end to end, with `buildMs` 2434 and
+  `provisionMs` 841, against 1419 ms for the 0.5.19 install's sample; one sample under load average near 30 is not
+  evidence of a regression, so `native:perf` (30 paired samples, wrapped against direct Git, limit 5000 ms per
+  delta) is running in `.claude/worktrees/add-explains-slow-route` fast-forwarded to main.
+- 2026-11-03T02:20:00-05:00, `native:perf` on main (release build of 0.5.20, 30 paired samples, wrapped against
+  direct Git): forwarded commands add a median of 1.1 to 1.3 ms (p95 at most 1.4 ms); commits through the service
+  add a median of 40.2 ms (paired delta p95 47.8 ms, max 260.4 ms); signed commits a median of 50.5 ms (max 58.6 ms).
+  Every delta is far under the 5000 ms limit, so the 4351 ms install sample was the one-off service upgrade under
+  load, not a regression.
+- 2026-11-03T02:22:50-05:00, real conversion started. Owner, verbatim, asked whether the real repository-wide
+  conversion was approved: "Yes I did." Dry run with the installed 0.5.20 (`~/temp/agent/convert-dry-run-0.5.20.log`):
+  172 worktrees looked at, 106 already subvolumes, 48 would convert, 18 skipped, all 18 with "the Git configuration
+  cannot be read without running Git, so a global attributes file cannot be ruled out"
+  (`worktree_clean_content.rs:293`, raised when `repo_read_config_list.rs` `list_config` returns `None`). The earlier
+  debug-build dry run showed 64 convertible and 2 skipped. Checked so far: no `include` directive in any config
+  (the only hits are branch names), no `GIT_CONFIG_PARAMETERS` in the environment, `is_include_key` is exact. Not yet
+  known which `None` path fires (an unresolvable scope, a config file the native parser rejects, or an environment
+  entry); only worktrees whose stat data no longer vouches reach this content check, which is why only 18 are hit.
+  The refusal is the safe side, so the 48 are converting now as unit
+  `cli-git-convert-all-20261103T022250-0500` (log `~/temp/agent/convert-all-20261103T022250-0500.log`, CPUQuota 400%,
+  MemoryMax 8G, IOWeight 10, the shell's PATH). QUEUED: diagnose and fix the `list_config` `None` for this
+  repository, then convert the 18. The subvolume-tools lock agent was told the run uses 0.5.20 and leaves
+  `cli-git-convert.lock` files and 0.5.20 journals behind.
+- 2026-11-03T02:25:17-05:00: the package-manager gate's one failure (no pnpm in the test image) is fixed on its branch
+  (`c68770ddb3` red, `666ee0b9ef`, `a60b5318bb`): the image gets the `pnpm` row of `toolchain.lock.json` (archive and
+  sha256 checked on the host, `/opt/pnpm` on `PATH`; the locked pnpm 12.16.1 is standalone, so no Node); in an
+  image built with the network off, the `package_repair` tests ran 58 of 58. Full gate
+  `gpc-gate-package-repair-pnpm-in-image-20261103T022517-0500` running. That branch is 130 commits ahead of its
+  remote copy because its auto-pushes keep stopping at the 30 s LFS push deadline (input for the deadline agent).
+  The queued second-pass merge work started on `feat/git-policy-cli-word-level-second-merge-pass`.
+- 2026-11-03T02:39:15-05:00: package-manager branch merged to main as `f93bd82ff6`. Gate
+  `gpc-gate-package-repair-pnpm-in-image-20261103T022517-0500` passed on branch head `a60b5318bb` (3914 run, 3914
+  passed, 6 skipped). Main had moved since; the only new main commits under the wrapper were the 0.5.20 version
+  bump (`ad89623dd7`) and the handover union line (`8ecbb0b188`), and `git merge-tree` found no conflict, so the
+  gate result stands without a combined rerun. Ships in 0.5.21. Owner questions still open from this lane: the
+  hand-made absolute stub link into main, the stale `Cargo.lock` files, and other packages' container disk weight.
+- 2026-11-03T02:47:44-05:00, real conversion finished (unit `cli-git-convert-all-20261103T022250-0500`, exit 0):
+  172 looked at, 48 converted, 18 skipped, matching the dry run. Spot check of `.claude/worktrees/survivors-subvolume-timing`:
+  inode 256 (a subvolume root), `git status` clean; a `git worktree add --detach` from it into a throwaway
+  `.claude/worktrees/convert-check-snapshot-*` made a subvolume (inode 256) with a clean status, then
+  `git worktree remove` destroyed it in 403 ms. That add took 13500 ms untraced, against the 1.85 s recorded for an
+  add from main (load average near 21). Traces (`~/temp/agent/add-trace-*.strace`, scripts
+  `~/temp/agent/add-trace.ts` and `add-trace-buckets.ts`): `BTRFS_IOC_SNAP_CREATE_V2` itself took 7.05 s and 6.93 s;
+  under a full trace (49.8 s total) the wrapper walked the source (about 30000 `statx`/`openat2`) before the
+  snapshot, walked again after it, then one `fsync` of the parent directory took 18.39 s. A directory fsync after a
+  new subvolume entry forces a full btrfs transaction commit, which the snapshot ioctl has already done once. QUEUED
+  (after the settlement-lock agent lands, since it changes this path): split the add's time without strace, decide
+  whether the second walk and the parent fsync are needed, and measure against the 1.85 s figure.
+- 2026-11-03T02:47:44-05:00, cause of the 18 refusals found: the wrapper puts `CLI_GIT_NATIVE_FORWARD_TARGET` only
+  in its children's environment (`strace --no-abbrev` of `git --version`: 3 `HOME=` matches, one per process, and the
+  variable only in `/usr/bin/git`'s), while `worktree_clean_content.rs` `ConversionEnvironment::from_process` and the
+  `list_config` call read the wrapper's own environment, so `system_config_for` and `system_attributes_for` return
+  `None` and the content check refuses. The service path already adds the variable through `with_real_git`. Fix
+  delegated on a branch from the subvolume-tools branch; the 18 convert after the release that carries it.
+- 2026-11-03T02:47:44-05:00: subvolume and conversion lock pass done (agent `a0d61f5390425048f`, branch
+  `fix/git-policy-cli-subvolume-tools-without-locks`): lock-free numbered claim files (`single_owner_claim.rs`)
+  replace the conversion `flock`, the migration gained the single-owner guard it never had, conversion's `index.lock`
+  hold now spans only proof through rewrite, migration and conversion refuse each other, and a leftover 0.5.20
+  `cli-git-convert.lock` retires itself. Host suites 3326 and 550 passed. Main merged into it cleanly; gate
+  `gpc-gate-subvolume-claims-with-main-20261103T024559-0500` running. Found by that agent: worktrees made from main
+  after main moved to pnpm's global virtual store have relative `node_modules` links that resolve only at main's depth
+  (`Cannot find module '/var/home/user/Monochromatic/.claude/worktrees/.local/share/pnpm/store/v11/links/...'`); the
+  package repair merged in `f93bd82ff6` relinks new worktrees from 0.5.21 on. QUEUED: count the existing worktrees
+  with broken links after 0.5.21 and ask the owner before relinking worktrees of other sessions. Its open owner
+  questions: porting `campaign-lock.ts` and `gate-slot.ts` off `flock`, the migration's `index.lock` span over the
+  catch-up, and the one-hour patience for an owner in another PID namespace. Its finding
+  `subvolume_journal.rs::mark` (a fixed `.tmp` sibling created with `File::create`, which follows a planted link) is
+  a pre-existing issue in this package, so it is fixed unasked in the same delegated branch.

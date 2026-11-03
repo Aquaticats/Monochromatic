@@ -926,6 +926,69 @@ use `1` when Git ended by signal without a numeric status.
 If Git failed but synchronization succeeds,
 preserve its status after writing the successful copy summary.
 
+### Package-manager repair of a new worktree
+
+Design, survey and measurements: `doc/planning/cli-git-main-worktree-ignored-copy.md`, section "Package-manager state of a new worktree".
+Code: `src/native/package_repair*.rs`; the call is in `settle_under_lock` of `src/native/worktree_copy.rs`.
+
+A copy, a clone and a snapshot keep links and build state exactly as the source had them, which is wrong for tools that record the
+place they were installed or built at.
+After every rung has filled a new worktree and the ignored files are in place, the wrapper starts each such tool's own offline
+repair in the new worktree, after the settlement lock is released (the repairs touch only the new worktree and read
+the source, so another add never waits for them), and never edits the tool's files itself.
+The owner allowed this on 2026-11-03: "The wrapper may launch pnpm itself for worktree copying", widened to "all pkg managers".
+
+Which worktrees:
+every worktree the command created, including one a snapshot served and one whose ignored files the copy filled.
+Nothing runs for `--no-worktree-copy`, for `--no-checkout` (the switches are read from the arguments, so a form the ladder does
+not serve is read too), for a bare repository (nothing was copied), or after a copy that failed.
+
+The repairs, which run side by side:
+
+- pnpm, when the worktree holds `pnpm-lock.yaml` and a copied `node_modules`:
+  `pnpm install --offline --frozen-lockfile` in the worktree, with the `pnpm` the person's `PATH` resolves.
+  In this repository that is the pnpm-shadow, which scans manifests, warns on standard error, and runs the real pnpm; its text is
+  captured and shown only inside a failure.
+  Scripts are not suppressed: the repository's own `allowBuilds` decides.
+- Cargo, for every Cargo workspace among the worktree's tracked `Cargo.toml` files (found with `git ls-files`, so no walk reads
+  `node_modules` or build output):
+  `cargo metadata --locked --offline --no-deps` names the workspace root, its members, its `build_directory` and its
+  `target_directory`; the same command in the source's counterpart workspace names the source's build directory.
+  When Cargo keeps the build directory outside the worktree and the worktree has none, the source's is cloned
+  (`FICLONE` per file, modes, times and links kept) to the worktree's; under the default layout it is inside `target/`, which the
+  copy already carried.
+  Then `cargo clean --offline --package <member>` for every member, so registry and git dependencies are reused and
+  the worktree's own crates rebuild with the worktree's own paths.
+  `--locked` is not passed to the clean, because a committed `Cargo.lock` that disagrees with its manifest (ten workspaces of this
+  repository do) makes Cargo refuse; the lock is read before and put back byte for byte after, so the new worktree stays as
+  checked out.
+  Nothing is cloned or cleaned when the source and the worktree share one build directory, when the source has no such
+  workspace, or when the worktree's build directory already holds state.
+- Toolchain: when a launcher record under `.cache/toolchain-launchers` names a `toolchain.lock.json` other than the worktree's,
+  `mpm-shadow install --frozen-lockfile`, with `MONOCHROMATIC_WORKTREE_ROOT` set to the worktree.
+  The install is lock-constrained: it relinks what is installed and downloads the tools the worktree's lock names that are not
+  installed yet.
+  The owner chose this on 2026-11-03 ("Install online during the add"), told that an add can then download and can retire tool
+  copies another checkout still links; both are accepted consequences.
+  The success line keeps mpm-shadow's own summary of what was installed.
+  A failed install, a timeout or a missing `mpm-shadow` never fails the add: the line names the reason and
+  `mise run toolchain:install`.
+- The `pnpm` the repair starts is the first one on the person's `PATH`, which in this repository is the pnpm-shadow.
+  The owner decided this on 2026-11-03: "The repair should start whatever pnpm is first on path."
+
+Each tool ends in a finding.
+A run longer than the tool limit is stopped with its whole process group.
+A repair never fails the add: the exit status stays Git's.
+When all repairs worked, one line on standard error names the worktree, each tool's detail and its time, unless `--quiet` was given.
+A repair that did not finish, including a missing tool, prints one line per failure, also under `--quiet`, that names the reason
+and the command to run, for example `pnpm --dir <worktree> install --offline --frozen-lockfile`.
+
+Limits:
+another process changing files while a worktree is copied or repaired is the person's risk and is not defended against.
+Bun, npm, uv, Gradle and Zig are not repaired: the survey found no state of theirs in this repository that a copy breaks, except
+a Zig project cache (`.zig-cache`, left out of a copy as a cache) and uv virtual environments (no project of this repository has
+one).
+
 ### Post-commit
 
 After a successful non-dry-run commit lands

@@ -274,6 +274,8 @@ fn run_settled(
             .map(|token| return token.to_string_lossy().into_owned()),
         context,
         add_plan: facts.add_plan.clone(),
+        #[cfg(target_os = "linux")]
+        repair: super::package_repair::RepairSwitch::from_arguments(arguments),
     };
     let mut stderr = std::io::stderr();
     // The runner starts Git as a child with the lease token, so nested wrappers see the lock they are inside.
