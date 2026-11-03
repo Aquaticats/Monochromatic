@@ -110,13 +110,18 @@ documented at `defaultSlotCount` in `src/constants.ts`.
 ### Gates of the earlier release
 
 Until this release the limiter held `flock` locks on `slot-N.lock` files for as long as the command ran.
-A gate that started before the change may still run, so each time a gate looks at a slot it opens that slot's `slot-N.lock`
-without creating it and asks `flock` once, without waiting, for the lock (`src/legacy-flock.ts`).
-A held lock counts as a live holder and is named in the notice as a gate of the earlier release.
-A lock file nobody holds is removed while the probe still holds it, so the leftovers retire themselves and a slot whose file is
-gone costs one failed `open`.
-A launcher that still runs the earlier source does not see the claim files and can take a slot beside a gate of this release;
-the limit is whole again once every launcher reads this release.
+A gate that started before the change may still run, and a gate that waits polls `flock --nonblock` on `slot-N.lock` every
+few seconds without ever looking at a claim file, as does any checkout that still has the earlier source.
+So a gate of this release holds that kernel lock too, for exactly as long as its claim (`src/legacy-flock.ts`): it asks
+`flock` once, without waiting, for the lock on the slot's file (creating the file as a poll of the earlier release does) after
+it has taken the claim, keeps the file open while the command runs, and gives the lock back just before the claim.
+A waiting gate of the earlier release then finds the slot held and keeps waiting.
+Each time a gate looks at a slot it first asks, without waiting, whether the lock is held: a held lock with a live claim in the
+slot is named in the notice as that process, and a held lock without one as a gate of the earlier release.
+The lock files are never removed: a probe that removes a file races with a gate of the earlier release that has just created
+and locked a new one at the same path, and would delete the file that gate holds.
+A gate that reads the interim source (claims without the lock) holds only a claim, and an earlier-release gate can still take
+its slot; that source existed for hours, and the limit is whole again once no such gate runs.
 
 ## Who runs a campaign
 
@@ -218,6 +223,8 @@ or lost to a reboot, but a campaign process that handed its work to another proc
 A campaign that the earlier release started holds a kernel lock on the evidence directory instead of a claim.
 The run takes its claim first and then asks `flock` once, without waiting, for that lock (`src/legacy-flock.ts`);
 a held lock gives its claim back and refuses the run, naming the earlier release.
+A lock that is free is kept for as long as the run holds its claim, so a campaign of the earlier release that starts on the
+same directory meanwhile is refused by the lock it takes without waiting.
 The claim is needed although the parallel launcher names each campaign's systemd unit,
 because a run started by hand,
 or by another launcher under another label for the same file,
@@ -434,8 +441,9 @@ the campaigns themselves are run by a person, never by a test.
   and the names of its generations), `src/claim-files.ts` (the exclusive `link` publication and the atomic release),
   `src/claim-liveness.ts` (whether an owner is alive) and `src/owner-claim.ts` (take a claim, read the live owner).
   `src/campaign-lock.ts` uses one claim per evidence directory, and `src/gate-slot-run.ts` one claim series per slot.
-- `src/legacy-flock.ts` is the one-time probe of the kernel locks the earlier release took; it is the only place that runs
-  `flock`, and it can be deleted with its callers' probe calls once no gate or campaign of that release can still run.
+- `src/legacy-flock.ts` probes, and while a claim is held keeps, the kernel locks the earlier release took; it is the only
+  place that runs `flock`, and it can be deleted with its callers' calls once no gate or campaign of that release, nor any
+  checkout of its source, can still run.
 - `startUnit` (`src/start-units.ts`) starts one unit and reports it;
   a product launcher can use it,
   with `planUnits`,

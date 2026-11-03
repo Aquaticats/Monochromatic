@@ -226,16 +226,24 @@ await describe({
         /**
          What a campaign of the earlier release did to start: the kernel lock on the directory, without waiting.
          */
-        const legacyStart = () => spawnSync(
-          flockProgram,
-          [
-            '--nonblock',
-            '--exclusive',
-            `--conflict-exit-code=${String(slotConflictExitCode)}`,
-            evidence,
-            'true',
-          ],
-        ).status;
+        function legacyStart(): number {
+          /**
+           How `flock` ended.
+           */
+          const { status } = spawnSync(
+            flockProgram,
+            [
+              '--nonblock',
+              '--exclusive',
+              `--conflict-exit-code=${String(slotConflictExitCode)}`,
+              evidence,
+              'true',
+            ],
+          );
+          if (status === null)
+            throw new Error('flock was ended by a signal.');
+          return status;
+        }
         const taken = await attempt(evidence);
         expect(taken.lock).toHaveLength(1);
         expect(legacyStart()).toBe(slotConflictExitCode);

@@ -33,7 +33,9 @@ import {
 } from './gate-slot.ts';
 import {
   runInSlot,
-  takeAnySlot,
+  type SlotsFull,
+  type SlotTaken,
+  takeAnySlot as takeAnySlotUntracked,
 } from './gate-slot-run.ts';
 import {
   flockProgram,
@@ -56,8 +58,11 @@ import { readBootId } from './process-identity.ts';
  legacyPollStatus('/l/slot-1.lock');
  ```
  */
-function legacyPollStatus(path: string): number | null {
-  return spawnSync(
+function legacyPollStatus(path: string): number {
+  /**
+   How `flock` ended.
+   */
+  const { status } = spawnSync(
     flockProgram,
     [
       '--nonblock',
@@ -66,7 +71,38 @@ function legacyPollStatus(path: string): number | null {
       path,
       'true',
     ],
-  ).status;
+  );
+  if (status === null)
+    throw new Error('flock was ended by a signal.');
+  return status;
+}
+
+/**
+ The kernel locks of the slots the cases took, closed when the file ends: a lock is an open file, and one left to the garbage
+ collector is an error.
+ */
+const keptLocks: AsyncDisposable[] = [];
+
+/**
+ Take a slot as the gate does, and keep its kernel lock for the end of the file.
+
+ @param parameters - the same as {@link takeAnySlotUntracked}
+
+ @returns what it returns
+
+ @example
+ ```ts
+ await takeAnySlot({ options });
+ ```
+ */
+async function takeAnySlot(parameters: Parameters<typeof takeAnySlotUntracked>[0]): Promise<SlotTaken | SlotsFull> {
+  /**
+   What the take came to.
+   */
+  const attempt = await takeAnySlotUntracked(parameters);
+  if (attempt.kind === 'taken')
+    keptLocks.push(attempt.legacyLock);
+  return attempt;
 }
 
 /**
@@ -225,6 +261,7 @@ await describe({
             const first = await takeAnySlot({ options });
             if (first.kind !== 'taken')
               throw new Error('The first take was refused.');
+            await first.legacyLock[Symbol.asyncDispose]();
             await first.claim.release();
             const second = await takeAnySlot({ options });
             if (second.kind !== 'taken')
@@ -399,6 +436,7 @@ await describe({
             expect(notices[0]).toContain('slot 1');
             expect(notices[0]).toContain('slot 2');
             const released = Date.now();
+            await two.legacyLock[Symbol.asyncDispose]();
             await two.claim.release();
             await waiting;
             expect(started).toEqual([2]);
@@ -432,6 +470,7 @@ await describe({
             });
             const waitStarted = Date.now();
             await sleep(1_050);
+            await held.legacyLock[Symbol.asyncDispose]();
             await held.claim.release();
             await waiting;
             const waitedMs = Date.now() - waitStarted;
@@ -488,6 +527,7 @@ await describe({
               },
             });
             await sleep(stillWaitingMs);
+            await held.legacyLock[Symbol.asyncDispose]();
             await held.claim.release();
             await waiting;
             expect(looks).toBeGreaterThan(3);
@@ -570,7 +610,7 @@ await describe({
               lockDirectory: directory.path,
               slot: 1,
             });
-            const seen: (number | null)[] = [];
+            const seen: number[] = [];
             await runInSlot({
               options: gateOptions({ lockDirectory: directory.path }),
               runCommand: async () => {
@@ -642,3 +682,7 @@ await describe({
     }),
   ],
 });
+
+await Promise.all(keptLocks.map(async function closeLock(lock) {
+  await lock[Symbol.asyncDispose]();
+}));
