@@ -207,6 +207,26 @@ fn a_second_pass_while_one_runs_does_its_own_work_and_neither_loses_a_record() {
     remove(root.as_path());
 }
 
+/// A file added to a judged directory after the listing makes it a directory the pass did not judge: it stays, with the new
+/// file, and the pass says why. (Its change time moves when a file is added, as when another pass removes files, so the
+/// pass compares what the directory holds now with what it held when listed.)
+#[test]
+fn a_file_added_after_the_listing_keeps_the_directory() {
+    let root: PathBuf = fixture("prune-file-added");
+    let common: PathBuf = root.join("repo.git");
+    let saved_root: PathBuf = saved_root_of(common.as_path());
+    let chosen: PathBuf = save_under(saved_root.as_path(), 90 * DAY, "old.txt", "old");
+    let outcome = prune_with(common.as_path(), NOW, age_only(), None, &mut |_candidate: &Path| {
+        std::fs::write(chosen.join("added.txt"), "written after the listing").expect("a new file");
+    });
+    assert_eq!(std::fs::read_to_string(chosen.join("added.txt")).expect("kept"), "written after the listing");
+    assert!(chosen.join("old.txt").exists(), "nothing of the directory was removed");
+    assert!(outcome.removed.is_empty(), "{:?}", outcome.removed);
+    assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::EntryChanged]);
+    assert!(audit(common.as_path()).is_empty());
+    remove(root.as_path());
+}
+
 /// Passes that empty one directory together share its files without a lock: a file is audited by the pass whose removal of it
 /// succeeded, so every copy is counted once across the passes and none of them reports a failure.
 #[test]

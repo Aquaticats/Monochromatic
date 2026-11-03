@@ -670,7 +670,7 @@ The folder is bounded, because it would otherwise grow for as long as the reposi
  then, while the folder is over 1 GiB, the oldest saves first.
  A save younger than 24 hours is never removed by either limit, and neither is the save just written.
  Only directories named like the wrapper's own (`2026-11-02T14-01-07`) are touched.
- No commit waits for this, and two passes never run at once.
+ No commit waits for this, and no lock is taken: passes that overlap share a save's files, and each copy is audited once.
  The folder is never followed through a link: if `.git/cli-git` or `.git/cli-git/discarded` is a symbolic link,
  nothing is removed, and the command's notice and `git cli-git doctor` say so;
  make it a real directory to apply the limits again.

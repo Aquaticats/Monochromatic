@@ -9,8 +9,10 @@
 //!  younger than a day is out of reach of both, and the pass runs only after a new copy is complete and durable (so a kill while copying costs the older copies
 //!  nothing), and touches only directories named like the wrapper's own (`2026-11-02T14-01-07`, with an optional
 //!  `-<number>`). The folder is opened once without following a link and everything is read and removed through that
-//!  descriptor (`discarded_store.rs`); an exclusive lock on it, taken without waiting, lets one pass run at a time, and no
-//!  commit waits on it. What a pass cannot do is kept and said, never skipped silently.
+//!  descriptor (`discarded_store.rs`). No lock is taken: passes may overlap, and a file is counted and audited by the one pass
+//!  whose removal of it succeeded, so overlapping passes split a directory's files between their audit lines and every copy
+//!  is audited once. A directory another pass removed first is not a problem. No commit waits on a pass. What a pass cannot do
+//!  is kept and said, never skipped silently.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -198,6 +200,9 @@ pub struct Listing {
     pub problems: Vec<Problem>,
     /// How many files the entries hold.
     pub files: usize,
+    /// The files each entry held when it was listed, by the entry's name, so that a removal can tell a directory that only
+    /// lost files (another pass removing them) from one that gained a file after it was judged.
+    pub listed_files: std::collections::HashMap<String, std::collections::HashSet<String>>,
 }
 
 impl Problem {
@@ -250,8 +255,6 @@ pub struct PruneOutcome {
     pub removed: Vec<Removed>,
     /// What could not be done.
     pub problems: Vec<Problem>,
-    /// Whether another pass held the folder, so that this one did nothing.
-    pub busy: bool,
 }
 
 /// Why a directory goes.
@@ -354,7 +357,8 @@ fn list_in(store: &Store, saved_root: &Path) -> Listing {
             Ok(None) => {}
             Ok(Some((identity, tally))) => {
                 listing.files += tally.names.len();
-                listing.entries.push(Stamped { name: text, millis, bytes: tally.bytes, identity });
+                listing.entries.push(Stamped { name: text.clone(), millis, bytes: tally.bytes, identity });
+                listing.listed_files.insert(text, tally.names.into_iter().collect());
             }
             Err(detail) => listing.problems.push(Problem { path, kind: ProblemKind::EntryUnreadable, detail }),
         }
@@ -378,6 +382,8 @@ fn survey_entry(store: &Store, name: &OsStr) -> Result<Option<(Identity, Tally)>
     }
     return match directory.survey() {
         Ok(tally) => Ok(Some((opened, tally))),
+        // Removed by another pass while it was read: nothing to count.
+        Err(Interrupted { error, .. }) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(Interrupted { error, .. }) => Err(error.to_string()),
     };
 }
@@ -438,7 +444,7 @@ fn audit_line(outcome: &str, removed: &Removed, copies: &[String], limits: Limit
 /// Why:
 ///   A line per directory, written once it is gone, means a kill between two removals leaves a line for each directory that
 ///  went and a whole directory for each that did not; a directory that cannot be removed is left, said as a debug line, and
-///  has no line. No lock is taken and no commit waits on this.
+///  has no line. No lock is taken and no commit waits on this; a directory that another pass removes first is that pass's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -461,18 +467,6 @@ pub fn prune_with(common_dir: &Path, now_millis: i64, limits: Limits, keep: Opti
             return outcome;
         }
     };
-    match store.try_lock() {
-        Ok(true) => {}
-        Ok(false) => {
-            debug(TAG, &format!("{} is being pruned by another pass; this one does nothing", saved_root.display()));
-            outcome.busy = true;
-            return outcome;
-        }
-        Err(error) => {
-            outcome.problems.push(Problem { path: saved_root, kind: ProblemKind::StoreUnusable, detail: format!("it cannot be locked: {error}") });
-            return outcome;
-        }
-    }
     let listing: Listing = list_in(&store, saved_root.as_path());
     outcome.problems.extend(listing.problems);
     let doomed: Vec<(usize, Reason)> = plan(listing.entries.as_slice(), now_millis, limits, keep);
@@ -490,7 +484,7 @@ pub fn prune_with(common_dir: &Path, now_millis: i64, limits: Limits, keep: Opti
         let entry: &Stamped = &listing.entries[index];
         let path: PathBuf = saved_root.join(entry.name.as_str());
         before_removal(path.as_path());
-        let mut context: Removal = Removal { store: &store, audit_path: audit_path.as_path(), limits, folder_bytes, now_millis };
+        let mut context: Removal = Removal { store: &store, audit_path: audit_path.as_path(), limits, folder_bytes, now_millis, listed_files: &listing.listed_files };
         remove_entry(&mut context, entry, path, reason, &mut outcome);
     }
     return outcome;
@@ -498,7 +492,7 @@ pub fn prune_with(common_dir: &Path, now_millis: i64, limits: Limits, keep: Opti
 
 /// What a removal needs besides the entry: the folder, where the audit goes, the limits and the numbers its line states.
 struct Removal<'pass> {
-    /// The folder, locked by this pass.
+    /// The folder this pass opened.
     store: &'pass Store,
     /// The audit file.
     audit_path: &'pass Path,
@@ -508,6 +502,8 @@ struct Removal<'pass> {
     folder_bytes: u128,
     /// The time of the pass.
     now_millis: i64,
+    /// The files each directory held when the pass listed it.
+    listed_files: &'pass std::collections::HashMap<String, std::collections::HashSet<String>>,
 }
 
 /// Writes the audit line of a directory of which `tally` went; said as a problem when the line cannot be written.
@@ -549,6 +545,21 @@ fn remove_entry(context: &mut Removal, entry: &Stamped, path: PathBuf, reason: R
     };
     match directory.identity() {
         Ok(found) if found == entry.identity => {}
+        // The same directory whose change time moved: another pass removing its files does that, and so does a file added after
+        //  the listing. Only a directory that gained nothing is the directory that was judged.
+        Ok(found) if found.device == entry.identity.device && found.inode == entry.identity.inode => match directory.survey() {
+            Ok(now) if now.names.iter().all(|file| { return context.listed_files.get(entry.name.as_str()).is_some_and(|listed| { return listed.contains(file); }); }) => {}
+            Ok(_) => {
+                outcome.problems.push(kept(ProblemKind::EntryChanged, String::from("a file was added to it after the pass listed it")));
+                return;
+            }
+            // Removed by another pass while it was looked at.
+            Err(Interrupted { error, .. }) if error.kind() == std::io::ErrorKind::NotFound => return,
+            Err(Interrupted { error, .. }) => {
+                outcome.problems.push(kept(ProblemKind::NotRemoved, error.to_string()));
+                return;
+            }
+        },
         Ok(_) => {
             outcome.problems.push(kept(ProblemKind::EntryChanged, String::from("the name now stands for another directory")));
             return;
@@ -575,7 +586,12 @@ fn remove_entry(context: &mut Removal, entry: &Stamped, path: PathBuf, reason: R
     gone.bytes = tally.bytes;
     match context.store.remove_empty_directory(name, entry.identity) {
         Ok(true) => {}
-        Ok(false) => outcome.problems.push(kept(ProblemKind::EntryChanged, String::from("the name now stands for another directory, which was kept; the copies judged are gone"))),
+        Ok(false) => match context.store.directory_identity(name) {
+            // Another pass removed the emptied directory first. It audits what it removed; this pass audits what it removed.
+            Ok(None) if tally.names.is_empty() => return,
+            Ok(None) => {}
+            _ => outcome.problems.push(kept(ProblemKind::EntryChanged, String::from("the name now stands for another directory, which was kept; the copies judged are gone"))),
+        },
         Err(error) => {
             write_audit(context, "partial", &gone, &tally, outcome);
             outcome.problems.push(kept(ProblemKind::PartiallyRemoved, format!("its copies are gone but the empty directory could not be removed: {error}")));

@@ -3099,10 +3099,17 @@ with nothing waiting on it.
 The folder is opened once without following a link at `cli-git` or `discarded`
 (a link there, or a non-directory, keeps every copy and is said in the notice and by the doctor),
 and everything is read and removed through that descriptor, never through a path walked again.
-A non-blocking exclusive lock on the folder lets one pass run at a time; a pass that finds it held does nothing.
+No lock covers the folder (the folder's `flock` of earlier releases is gone):
+passes may overlap, and none waits for another or turns away because another runs.
+A file has one owner, the pass whose `unlinkat` of it succeeded (the kernel lets one succeed), and only that pass counts and audits it,
+so overlapping passes split a directory's files between their audit lines and every copy is audited once.
+A file or a directory that another pass removed first is not an error, and a directory that is gone before the pass opens it is not a problem.
 A directory is removed only when, opened by name without following a link,
-it is still the directory the listing saw (device, inode and change time):
-its files go through its descriptor, files of a directory before its subdirectories,
+it is still the directory the listing saw (device and inode).
+Its change time moves when another pass removes files from it, so a moved change time is not a replacement by itself:
+the pass looks at what the directory holds now, and keeps it, naming the cause,
+only when it holds a file the listing did not see.
+Its files go through its descriptor, files of a directory before its subdirectories,
 then the empty directory is removed by inode,
 so a replacement under the same name is never touched.
 A link inside a save is removed as a link and never entered; a tree deeper than 128 levels is kept.
@@ -3124,7 +3131,7 @@ and `maxSize`, a safe integer of at least 1 (bytes) or a string of digits with a
 A value that is not that is a configuration failure that names the key, as for every other key of the file
 (exit `2` before any policy runs); zero never means "no limit" or "remove everything", and nothing is removed.
 An unknown key under the section is refused with `maxAgeDays` and `maxSize` named.
-Each removed save is followed by one audit line, written once the directory is gone:
+Each removed save is followed by one audit line per pass that removed copies from it, written once those copies are gone:
 `schemaVersion`, `time`, `level`, `timeMillis`, `release`, `pid`, `form` (`PruneDiscarded`), `outcome` (`pruned`),
 `reason` (`age` or `size`), `limit` (days or bytes), `folderBytes` (the folder before the pass), `path`, `bytes`,
 `copiesTotal` and `copies` (at most one hundred names).
