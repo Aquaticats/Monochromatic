@@ -40,8 +40,8 @@ const ROTATE_AT_BYTES: u64 = 1024 * 1024;
 /// Derived from the measurement at `ROTATE_AT_BYTES`: the busiest measured day was 211 lines, and the lines written now are
 /// about 489 bytes each (the newest day's 67 lines took 32,779 bytes), so about 103 KB; the saved copies that these lines
 /// explain are kept for `DEFAULT_MAX_AGE_DAYS` (30) days, and 30 such days are about 3.0 MiB. Four generations hold that
-/// with one to spare. It is a default set by the coordinator under the owner's delegation, open to the owner's veto; it
-/// bounds only history that explains no saved copy, because a generation that names a copy still on disk is never removed.
+/// with one to spare. The coordinator picked this under the owner's delegation (pick 11, option C), open to the owner's veto.
+/// It bounds only history that explains no saved copy, because a generation that names a copy still on disk is never removed.
 pub const AUDIT_HISTORY_BYTES: u64 = 4 * ROTATE_AT_BYTES;
 
 /// Module tag for diagnostics.
@@ -285,6 +285,9 @@ pub fn record_audit_with_copies(
 ///  second rotation would put over the full history); a rotation that cannot finish never costs the record; and when the file ends without a newline (a write a full disk or a signal cut short) it starts its own line
 ///  on a fresh one, so one torn line never swallows the next record. A writer that looks while another is half-way
 ///  through a write can add an empty line the same way; readers skip empty lines, and nothing is lost.
+///  Where the moved file goes depends on the file: the audit file keeps a generation per rotation and trims them
+///  (`discard_audit_generations.rs`), and every other log (the timing logs and the push trigger log) keeps one, `.1`,
+///  which the next rotation replaces.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -457,8 +460,10 @@ fn give_back(taken: &Path, target: &Path) -> std::io::Result<()> {
 /// Why:
 ///   The check of the path and the move cannot be one step, so the move itself is the check: the name is taken with one
 ///  rename to a private path (the writer that renames owns whatever it got, with no lock), then the file taken is compared
-///  with the one opened. The same file goes to `.1`; any other file is a newer file that a writer that rotated first started,
-///  and it goes back to its name without replacing anything. Nothing is deleted, so no line is lost by the rotation.
+///  with the one opened. The same file goes to `.1` (a timing log, replacing the older `.1`) or to the next free generation
+///  number (the audit file, replacing nothing); any other file is a newer file that a writer that rotated first started,
+///  and it goes back to its name without replacing anything. The rotation itself deletes nothing that a reader could
+///  want except a timing log's older `.1`; the removal of audit generations is `trim_generations`, after the rotation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

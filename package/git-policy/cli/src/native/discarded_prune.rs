@@ -32,12 +32,20 @@ use std::path::{Path, PathBuf};
 pub use super::discarded_store::Identity;
 
 /// Days after which a copy is removed unless the setting says otherwise.
+///
+/// No measurement sets this yet. Measured on this host (read-only, 2026-11-03T14:55Z): the folder `cli-git/discarded` does
+/// not exist in any repository with a Git directory within three levels of the home directory, and the audit file of the main
+/// repository (950 lines, 2026-10-21T00:35:32Z to 2026-11-03T14:15:51Z) holds no `saved-conflict` or `pruned` line, while the
+/// feature is a day old (commit 1d2f4bec8e, 2026-11-02T14:08:46-05:00). The value is the coordinator's earlier default, kept
+/// until growth can be measured; `doc/planning/cli-git-shipped-limits-audit.md`, "Defaults for saved conflict copies", has
+/// the measurement, the options and the open question about copies that may be the only copy of a person's work.
 pub const DEFAULT_MAX_AGE_DAYS: u64 = 30;
 
-/// Bytes the folder is kept under unless the setting says otherwise: one gibibyte.
+/// Bytes the folder is kept under unless the setting says otherwise: one gibibyte. No measurement sets this yet; see
+/// `DEFAULT_MAX_AGE_DAYS`.
 pub const DEFAULT_MAX_BYTES: u64 = 1024 * 1024 * 1024;
 
-/// A copy younger than this is never removed, by either limit.
+/// A copy younger than this is never removed, by either limit. No measurement sets this yet; see `DEFAULT_MAX_AGE_DAYS`.
 pub const YOUNG_FLOOR_MILLISECONDS: i64 = 24 * 60 * 60 * 1000;
 
 /// Milliseconds in a day.

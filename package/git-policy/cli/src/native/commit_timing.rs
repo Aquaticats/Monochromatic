@@ -39,7 +39,8 @@ use std::time::{Duration, Instant};
 
 /// The file inside the common Git directory that collects the timing records of every worktree of the repository.
 /// It moves
-///  aside to `cli-git-commit-timing.jsonl.1` at the size limit `discard_audit::append_line` applies.
+///  aside to `cli-git-commit-timing.jsonl.1`, replacing the older one (a timing log keeps one generation), at the size limit
+///  `discard_audit::append_line` applies.
 pub const TIMING_FILE: &str = "cli-git-commit-timing.jsonl";
 
 /// The version of the record's fields;
