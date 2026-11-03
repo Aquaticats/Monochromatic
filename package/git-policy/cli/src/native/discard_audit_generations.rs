@@ -85,8 +85,8 @@ fn list_pieces(target: &Path) -> std::io::Result<Vec<Piece>> {
     let directory: &Path = target.parent().unwrap_or(Path::new("."));
     let stem: String = target.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
     let mut pieces: Vec<Piece> = Vec::new();
-    for entry in std::fs::read_dir(directory)? {
-        let entry: std::fs::DirEntry = entry?;
+    for listed in std::fs::read_dir(directory)? {
+        let entry: std::fs::DirEntry = listed?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let Some(rest) = name.strip_prefix(stem.as_str()).and_then(|after| { return after.strip_prefix('.'); }) else { continue };
         let number: Option<u64> = if !rest.is_empty() && rest.bytes().all(|byte| { return byte.is_ascii_digit(); }) { rest.parse::<u64>().ok() } else { None };
