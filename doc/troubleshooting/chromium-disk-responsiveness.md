@@ -26,6 +26,8 @@ The supporting evidence is split by the affected execution path:
   and [candidate inventory](chromium-disk-responsiveness/candidates.jsonl.gz).
 
 Source-link browser checks and dependency-result consolidation are in progress.
+The complete-tree searches are finished;
+the inventory is not an exhaustive proof of every reachable operation in every Chromium dependency.
 
 ## Symptom boundaries
 
@@ -312,6 +314,56 @@ macro-generated operations,
 platform-library internals,
 and dependencies not checked out.
 It also cannot detect arbitrary executable-page or swapped-anonymous-memory faults from a file-API search.
+
+### Dependency coverage
+
+The pinned V8,
+Skia,
+ANGLE,
+Dawn,
+PDFium,
+ICU,
+LevelDB,
+SQLite,
+and WebRTC repositories were also acquired and scanned.
+Together they contribute `144,427` regular tracked files,
+`1,229,036,005` searched bytes,
+and `17,752` matching lines after adding named dependency file helpers.
+The original core patterns match `17,166` of those lines.
+A separate library-loader pass found `191` matching lines;
+it overlaps the main dependency scan.
+
+The other `264` top-level gitlinks were not populated by this audit.
+The selected dependencies also contain `148` nested gitlinks and a symlink that were inventoried,
+not traversed.
+Build-time downloads,
+generated output,
+private Chrome code,
+OS implementations,
+and proprietary graphics or printer drivers are outside the inspected source corpus.
+The [top-level gitlink manifest](chromium-disk-responsiveness/gitlinks.json)
+retains their exact paths and revisions.
+This scope is broader than a Chromium-directory keyword search,
+but it is not a complete audit of the transitive dependency universe.
+
+### Browser-validation resource limit
+
+The first disposable citation browser ran with `TasksMax=128`.
+Its cgroup recorded `pids.events` value `max 100`,
+while its memory limit and OOM counters remained zero.
+`agent-browser 0.41.0` reported
+`Operation timed out. The page may still be loading or the element may not exist.`
+and a later probe reported
+`Failed to read: Resource temporarily unavailable (os error 11)`.
+No failed navigation was counted as a verified citation.
+
+Closing that owned session and relaunching the same browser with `TasksMax=512`
+loaded the same GitHub source selection successfully.
+A second validation session measured `176` live tasks with `pids.events max 0`
+after the corrected launch.
+The source scans retained their own lower task bounds.
+This is evidence that the validation task budget was insufficient;
+it is not evidence that each browser error had the same immediate cause.
 
 No Chromium build,
 device latency test,

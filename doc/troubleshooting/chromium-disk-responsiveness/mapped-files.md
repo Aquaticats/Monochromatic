@@ -1,20 +1,26 @@
 # Chromium mapped-file disk risks at 2026-11-03T08:10:39+00:00
 
-Source revision: `2f9a11097447f226133bc1a31c787291a5eeab98`,
+Source revision:
+`2f9a11097447f226133bc1a31c787291a5eeab98`,
 Chromium `156.0.8078.73`.
 The complete shallow checkout is `${HOME}/temp/agent/chromium-disk-audit-20261103`.
 Initial pinned raw-source downloads are in sibling `chromium-mapped-source`.
 This is static source tracing except for the explicitly attributed prior BrowserMetrics capture.
 No browser latency experiment or source patch was performed.
-Source-selection browser navigation is not yet verified; the parent should verify the selections it publishes.
+Source-selection browser navigation is not yet verified;
+the parent should verify the selections it publishes.
 
 ## BrowserMetrics writes can fault on the browser UI thread
 
-Priority: strongest evidence, browser-wide responsiveness boundary.
+Priority:
+strongest evidence,
+browser-wide responsiveness boundary.
 The prior runtime finding is in [`helium-window-freezes.md`](../helium-window-freezes.md):
 a matching main-thread write fault landed in the active `BrowserMetrics/*.pma` mapping,
 with `btrfs_page_mkwrite` and writeback/transaction waits.
-That report, rather than this source pass, supplies the measured stall evidence.
+That report,
+rather than this source pass,
+supplies the measured stall evidence.
 
 The installed source initializes mapped histograms before field trials in
 [`chrome/app/chrome_main_delegate.cc:1745-1765`](https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/chrome/app/chrome_main_delegate.cc#L1745-L1765).
@@ -28,7 +34,8 @@ File file(file_path, flags);
 success = mmfile->Initialize(std::move(file), MemoryMappedFile::READ_WRITE);
 ```
 
-New files use `READ_WRITE_EXTEND`; both modes reach a shared writable mapping in
+New files use `READ_WRITE_EXTEND`;
+both modes reach a shared writable mapping in
 [`base/files/memory_mapped_file_posix.cc:74-101`](https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/base/files/memory_mapped_file_posix.cc#L74-L101):
 
 ```cpp
@@ -58,9 +65,14 @@ It is not evidence that every histogram write waits or that every Chromium-deriv
 
 ## UI resource packs expose mapped bytes during synchronous string and image lookup
 
-Priority: browser UI candidate, cold or reclaimed file pages; no runtime stall measured here.
+Priority:
+browser UI candidate,
+cold or reclaimed file pages;
+no runtime stall measured here.
 [`ui/base/resource/data_pack.cc:245-268`](https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ui/base/resource/data_pack.cc#L245-L268)
-opens the pack, maps it, and retains the mapping for an uncompressed pack.
+opens the pack,
+maps it,
+and retains the mapping for an uncompressed pack.
 Its data source returns the mapped span at `data_pack.cc:114-128`.
 Its resource lookup returns a view into that data at
 [`ui/base/resource/data_pack.cc:443-474`](https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ui/base/resource/data_pack.cc#L443-L474):
@@ -83,14 +95,16 @@ data = locale_data->GetStringView(static_cast<uint16_t>(resource_id));
 ```
 
 The function copies/converts the mapped text to UTF-16 while holding `locale_resources_data_lock_`.
-Concrete user-triggered caller: `BrowserAppMenuButton::ShowMenuWithFlags`
+Concrete user-triggered caller:
+`BrowserAppMenuButton::ShowMenuWithFlags`
 constructs `AppMenuModel` at `chrome/browser/ui/views/toolbar/browser_app_menu_button.cc:83-112`;
 `AppMenuModel::Init` calls `Build` at `chrome/browser/ui/toolbar/app_menu_model.cc:1263-1264`;
 `Build` adds localized menu entries at `app_menu_model.cc:2123-2129`.
 The image path also reads resource-pack bytes in
 `ui/base/resource/resource_bundle.cc:1182-1207` when decoding a bitmap.
 
-Limits: a cache hit can avoid loading an image;
+Limits:
+a cache hit can avoid loading an image;
 resident pages do not need disk reads;
 gzip-compressed packs are expanded into `StringDataSource` at `data_pack.cc:258-266`,
 so their later resource bytes are not borrowed from the pack mapping.
@@ -98,7 +112,8 @@ The finding is specifically that uncompressed mapped resources remain on synchro
 
 ## Font misses synchronously await disk work, then retain file mappings for rendering
 
-Priority: renderer responsiveness candidate during layout or new font use.
+Priority:
+renderer responsiveness candidate during layout or new font use.
 The active Linux default is `kFontDataServiceLinux`,
 enabled at `content/common/features.cc:311`.
 `FontDataServiceForCSSLocalFonts` is disabled by default at `features.cc:332-334`,
@@ -117,10 +132,12 @@ MatchFamilyName(string family_name, TypefaceStyle style) =>
 
 `FontDataManager::onMatchFamilyStyle` uses that synchronous call on a cache miss at
 `content/child/font_data/font_data_manager.cc:187-227`.
-The service has a `MayBlock`, `USER_BLOCKING` sequenced worker at
+The service has a `MayBlock`,
+`USER_BLOCKING` sequenced worker at
 `components/services/font_data/font_data_service_impl.cc:70-74`,
 but the renderer awaits its result.
-Before responding, `CreateMatchFamilyNameResult` opens the font stream and obtains a file handle
+Before responding,
+`CreateMatchFamilyNameResult` opens the font stream and obtains a file handle
 at `font_data_service_impl.cc:475-486`.
 The actual file open is at
 [`components/services/font_data/font_data_service_impl.cc:125-150`](https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/services/font_data/font_data_service_impl.cc#L125-L150):
@@ -161,8 +178,10 @@ and `fonts/skia/sktypeface_factory.cc:21-31`.
 
 ## Hunspell dictionaries remain mapped on synchronous editing paths
 
-Priority: renderer responsiveness candidate when focusing an editable field,
-checking text, or requesting spelling suggestions.
+Priority:
+renderer responsiveness candidate when focusing an editable field,
+checking text,
+or requesting spelling suggestions.
 [`components/spellcheck/renderer/hunspell_engine.cc:62-69`](https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/spellcheck/renderer/hunspell_engine.cc#L62-L69):
 
 ```cpp
@@ -194,11 +213,15 @@ return reader.FindWord(base::as_byte_span(word), affix_indices);
 Posting delayed paragraph checking does not prove a worker-thread escape:
 `spellcheck.cc:530-538` uses `SingleThreadTaskRunner::GetCurrentDefault()`.
 The feature/build selection is `components/spellcheck/renderer/spelling_engine.cc:20-38`.
-This finding applies to the Hunspell implementation, not every platform-native spellchecker.
+This finding applies to the Hunspell implementation,
+not every platform-native spellchecker.
 
 ## External V8 snapshots and ICU data retain startup and cold-page dependencies
 
-Priority: startup, renderer creation, and cold data access candidates.
+Priority:
+startup,
+renderer creation,
+and cold data access candidates.
 `content/app/content_main_runner_impl.cc:1025-1033` initializes ICU,
 then loads the V8 snapshot when external startup data is configured.
 `gin/v8_initializer.cc:155-182` opens the file synchronously;
@@ -216,11 +239,14 @@ data->raw_size = static_cast<int>(mapped_file->bytes().size());
 The pointer is passed to `v8::V8::SetSnapshotDataBlob` at `gin/v8_initializer.cc:539-543`.
 Context creation uses `v8::Context::FromSnapshot` at
 `third_party/blink/renderer/bindings/modules/v8/v8_context_snapshot_impl.cc:346-350`.
-The V8 dependency itself is a separate checkout, pinned in `DEPS:344` to
-`235050a0df6db2c9d92a419af2b72fbf3b2dd73b`; its internals were not inspected in this subtask.
+The V8 dependency itself is a separate checkout,
+pinned in `DEPS:344` to
+`235050a0df6db2c9d92a419af2b72fbf3b2dd73b`;
+its internals were not inspected in this subtask.
 Do not claim a measured ongoing V8 stall from this integration trace.
 
-For external ICU data, `base/i18n/icu_util.cc:186-197` opens `icudtl.dat`;
+For external ICU data,
+`base/i18n/icu_util.cc:186-197` opens `icudtl.dat`;
 [`base/i18n/icu_util.cc:241-248`](https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/base/i18n/icu_util.cc#L241-L248)
 maps it and passes its pointer to ICU:
 
@@ -231,13 +257,15 @@ udata_setCommonData((*out_mapped_data_file)->bytes().data(), out_error_code);
 ```
 
 `ICU_UTIL_DATA_STATIC` is a distinct build branch at `icu_util.cc:447-450`.
-This subtask traced the external-data integration, not every ICU consumer or its dependency internals.
+This subtask traced the external-data integration,
+not every ICU consumer or its dependency internals.
 
 ## Legacy GPU disk-cache mapping is not a proven steady-state UI fault
 
 `gpu/ipc/host/gpu_disk_cache.cc:681-686` creates a `net::SHADER_CACHE` backend.
 `net/disk_cache/blockfile/mapped_file_posix.cc:26-27` maps its files writable and shared.
-However, normal blockfile operations use a dedicated `CacheThread_BlockFile`
+However,
+normal blockfile operations use a dedicated `CacheThread_BlockFile`
 defined at `net/disk_cache/blockfile/backend_impl.cc:132-155`.
 [`net/disk_cache/blockfile/in_flight_backend_io.cc:663-666`](https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/net/disk_cache/blockfile/in_flight_backend_io.cc#L663-L666):
 
@@ -250,8 +278,10 @@ background_thread_->PostTask(
 GPU-facing cache reads in `gpu/command_buffer/service/dawn_caching_interface.cc:57-82`
 read a memory cache.
 `GrShaderCache::WriteToDisk` at `gpu/command_buffer/service/gr_shader_cache.cc:253-266`
-forwards to `client_->StoreShader`; its name alone is not a disk syscall.
-Therefore, the existence of `GPUCache`/`Dawn*Cache` mappings in a browser process
+forwards to `client_->StoreShader`;
+its name alone is not a disk syscall.
+Therefore,
+the existence of `GPUCache`/`Dawn*Cache` mappings in a browser process
 does not identify a UI-thread fault.
 
 There is a real synchronous teardown edge:
@@ -265,19 +295,29 @@ done.Wait();
 ```
 
 Cleanup writes the mapped crash flag at `backend_impl.cc:365-368`,
-closes files, and flushes the index at `backend_impl.cc:380-382`.
+closes files,
+and flushes the index at `backend_impl.cc:380-382`.
 The invoking owner/teardown thread was not fully traced in this subtask,
 so classify this as a pending lifetime-specific candidate rather than a confirmed ordinary-browsing UI stall.
 The parent's new persistent-cache investigation is a separate implementation and must not inherit this exclusion.
 
 ## Coverage and exclusions
 
-This subtask searched mapped-file references across `chrome`, `content`, `components`,
-`ui`, `gin`, `gpu`, `skia`, and `third_party/blink` production `.cc`/`.mm` files,
+This subtask searched mapped-file references across `chrome`,
+`content`,
+`components`,
+`ui`,
+`gin`,
+`gpu`,
+`skia`,
+and `third_party/blink` production `.cc`/`.mm` files,
 then traced the listed candidates.
 It does not certify every mapped call site in the full source tree.
 The parent's complete-tree ledger supplies overall scan scope.
 Wayland keymaps and DMA buffers were not classified as regular disk files merely because they use `mmap`.
 Off-main translation/model-loading helpers were not promoted to UI-thread findings without a blocking caller chain.
-No synthetic host load, browser state changes, background poller, or source edits were used.
+No synthetic host load,
+browser state changes,
+background poller,
+or source edits were used.
 All download/scan scopes were transient and completed.

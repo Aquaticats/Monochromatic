@@ -2,7 +2,8 @@
 
 ## Scope and evidence status
 
-Source: Chromium `156.0.8078.73`,
+Source:
+Chromium `156.0.8078.73`,
 commit `2f9a11097447f226133bc1a31c787291a5eeab98`.
 The full checkout is `${HOME}/temp/agent/chromium-disk-audit-20261103`.
 This is static source evidence of synchronous operations and their callers,

@@ -1,0 +1,8 @@
+[tasks."verify:markdown"]
+description = "Render the Chromium disk audit and its source evidence"
+run = [
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-audit-overview.html" ../chromium-disk-responsiveness.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-audit-desktop.html" desktop-ui.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-audit-mapped.html" mapped-files.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-audit-mobile.html" mobile-renderer-lifecycle.md',
+]
