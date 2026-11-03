@@ -2828,11 +2828,19 @@ after a power loss the lock can come back with the marker of the boot that ended
 which every reader reads as gone,
 so the next acquisition reclaims it and a wrapped command says the service no longer runs.
 
-The built index is written by Git's own `reset` under the private index file (`service_land_follow.rs`,
-`build_index`),
-so Git's `core.fsync` governs it,
-and the rename that installs it has the durability native Git's has,
-by default and when the user opts in.
+The built index is written without a Git process (`index_reset_file.rs`, called from `build_index` in `service_land_follow.rs`;
+the ported rules are in `doc/planning/cli-git-main-commit-within-native-plus-five.md`, "The landing's index update and the
+index check in process").
+It runs only for the landing that holds the live index lock: the private copy `index.cli-git-<batch>` is made from the live
+index while the lock is held, the update first checks that the live lock's marker names this
+process and this batch (`holds_the_lock` in `index_reset_publish.rs`), and the lock's release renames the copy over the live
+index (`IndexLock::release_with`).
+So a foreign `git add` finds the lock taken from the copy to the installation, and what it staged before is in the copy.
+The result goes to a temporary file made exclusively beside the copy, with Git's index file mode (`core.sharedRepository`
+through `adjust_shared_perm`), flushed to the disk, and renamed over the copy; a run removes only the file it made.
+Whatever the update does not reproduce (the list is in the planning section) is left to `git reset --no-refresh` on the same
+private file, so Git's `core.fsync` governs only that fallback; the in-process write always flushes the file, as Git's default does.
+The rename that installs the copy has the durability native Git's has, by default and when the user opts in.
 The index can be rebuilt from `HEAD`,
 and the service syncs the commits and refs.
 
