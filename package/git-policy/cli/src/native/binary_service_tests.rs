@@ -21,7 +21,7 @@ use git_policy_cli::service_instance::instance_of;
 use git_policy_cli::service_journal::{DONE_EXTENSION, DONE_RETAINED};
 use git_policy_cli::service_messages::{Platform, ClientFailure, STARTING_NOTICE, UPDATING_NOTICE};
 use git_policy_cli::service_protocol::{
-    ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client, encode_retire, encode_service,
+    ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_service, encode_client, encode_retire, encode_service,
 };
 use git_policy_cli::service_server::Bind;
 use std::ffi::OsStr;
@@ -714,4 +714,46 @@ fn a_service_killed_at_each_point_of_an_amend_lands_it_exactly_once() {
         stop(restarted);
         remove_settled(&fixture);
     }
+}
+
+/// How many times the client's wait a stand-in service stays silent while it lands a slow commit.
+const SILENT_WAITS: u32 = 3;
+
+/// A service that is alive and slow (a landing on a saturated disk says nothing for minutes) is waited for as long as its
+///  connection stays open, with a notice naming the wait; elapsed time alone never ends the commit.
+#[test]
+fn a_slow_but_live_service_is_waited_for_and_the_commit_lands() {
+    let fixture: Fixture = fixture("service-slow-landing");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "slow-landing");
+    let sent: CommitRequest = request(&fixture, &repo, "slow-1", "s.txt", "s\n");
+    let wait: Duration = Duration::from_millis(300);
+    let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
+    let listener: UnixListener = UnixListener::bind_addr(&socket).expect("bind the stand-in service");
+    let standin = std::thread::spawn({
+        let id: String = sent.id.clone();
+        let base: String = sent.base.clone();
+        move || {
+            let (stream, _) = listener.accept().expect("the client connects");
+            let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(RELEASE.to_string()) });
+            greeting.push('\n');
+            (&stream).write_all(greeting.as_bytes()).expect("greet");
+            let mut asked: String = String::new();
+            BufReader::new(&stream).read_line(&mut asked).expect("the request");
+            // Alive, connected and silent for longer than the client's wait: a landing that is slow, not a service that is gone.
+            std::thread::sleep(wait * SILENT_WAITS);
+            let mut answer: String = encode_service(&ServiceMessage::Landed { id, commit: base, already: false });
+            answer.push('\n');
+            // A client that gave up has closed its end; what it was told is the control's subject, not this write.
+            let _answered = (&stream).write_all(answer.as_bytes());
+        }
+    });
+    let patient: ClientConfig = ClientConfig { start_wait: PATIENCE, commit_wait: wait, ..config(name.as_str()) };
+    let mut notices: Vec<u8> = Vec::new();
+    let answered = submit(&patient, &sent, &mut notices);
+    standin.join().expect("stand-in service");
+    let said: String = String::from_utf8(notices).expect("UTF-8");
+    assert!(matches!(answered, Ok(Submitted::Landed { .. })), "{answered:?}: {said}");
+    assert!(said.contains("still waiting for the commit service"), "the wait is named: {said:?}");
+    remove_settled(&fixture);
 }
