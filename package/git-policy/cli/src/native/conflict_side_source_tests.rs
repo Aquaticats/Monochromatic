@@ -49,3 +49,85 @@ fn an_ancestor_that_is_a_link_or_a_file_is_a_failure_naming_it() {
     assert!(locate(base.as_path(), b"real/absent").expect("a missing name").is_none());
     remove(base.as_path());
 }
+
+/// Copy `path` below `base` to `base/copy`, running `change` once, after the first chunk was written.
+fn copy_while_changing(base: &std::path::Path, path: &str, change: &dyn Fn()) -> std::io::Result<()> {
+    let located = locate(base, path.as_bytes()).expect("lookup").expect("present");
+    let mut changed: bool = false;
+    return copy_located(&located, base.join("copy").as_path(), &mut || {
+        if !changed {
+            changed = true;
+            change();
+        }
+    });
+}
+
+/// A source larger than one chunk of the copy loop, so the copy is still running when the change happens.
+fn large_source(base: &std::path::Path) -> Vec<u8> {
+    let content: Vec<u8> = (0..300_000_u32).map(|each| { return u8::try_from(each % 251).expect("fits"); }).collect();
+    std::fs::write(base.join("a.rs"), content.as_slice()).expect("a");
+    // An old modification time, so a rewrite within the same clock tick still shows.
+    let hour_ago: std::time::SystemTime = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+    std::fs::File::options().write(true).open(base.join("a.rs")).expect("open").set_modified(hour_ago).expect("old time");
+    return content;
+}
+
+/// A file that does not change during the copy is copied whole and kept.
+#[test]
+fn a_file_that_holds_still_is_copied_whole() {
+    let base = fixture("source-still");
+    let content: Vec<u8> = large_source(base.as_path());
+    copy_while_changing(base.as_path(), "a.rs", &|| {}).expect("copy");
+    assert_eq!(std::fs::read(base.join("copy")).expect("copy"), content);
+    remove(base.as_path());
+}
+
+/// A source that changes while it is copied is never reported as saved, whichever way it changes, and no copy stays.
+#[test]
+fn a_source_that_changes_during_the_copy_is_a_failure_and_leaves_no_copy() {
+    type Change = Box<dyn Fn(&std::path::Path)>;
+    let changes: Vec<(&str, Change)> = vec![
+        (
+            "an atomic save over the path",
+            Box::new(|base: &std::path::Path| {
+                std::fs::write(base.join("a.rs.new"), b"the newer version\n").expect("new version");
+                std::fs::rename(base.join("a.rs.new"), base.join("a.rs")).expect("rename over");
+            }),
+        ),
+        (
+            "an append in place",
+            Box::new(|base: &std::path::Path| {
+                let mut file = std::fs::OpenOptions::new().append(true).open(base.join("a.rs")).expect("open");
+                std::io::Write::write_all(&mut file, b"more\n").expect("append");
+            }),
+        ),
+        (
+            "a truncation in place",
+            Box::new(|base: &std::path::Path| {
+                std::fs::File::options().write(true).open(base.join("a.rs")).expect("open").set_len(10).expect("truncate");
+            }),
+        ),
+        (
+            "a rewrite in place that keeps the size",
+            Box::new(|base: &std::path::Path| {
+                let mut file = std::fs::OpenOptions::new().write(true).open(base.join("a.rs")).expect("open");
+                std::io::Write::write_all(&mut file, b"same size, other bytes").expect("rewrite");
+            }),
+        ),
+        (
+            "the path now names a link",
+            Box::new(|base: &std::path::Path| {
+                std::fs::remove_file(base.join("a.rs")).expect("remove");
+                std::os::unix::fs::symlink("elsewhere", base.join("a.rs")).expect("link");
+            }),
+        ),
+    ];
+    for (round, (label, change)) in changes.into_iter().enumerate() {
+        let base = fixture(format!("source-changes-{round}").as_str());
+        large_source(base.as_path());
+        let error = copy_while_changing(base.as_path(), "a.rs", &|| { change(base.as_path()); }).expect_err(label);
+        assert!(!error.to_string().is_empty(), "{label}");
+        assert!(!base.join("copy").exists(), "{label}: no cut-short or stale copy stays");
+        remove(base.as_path());
+    }
+}
