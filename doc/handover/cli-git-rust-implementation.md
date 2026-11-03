@@ -9409,3 +9409,12 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `package/git-policy/cli/src/native/manual_push_probe.rs` `probe_manual_push_updates` (empty porcelain plus a nonzero
   exit becomes a probe error). A push Git's own dry run refuses should end as Git's refusal (its message, its exit
   code), with no hint that names a cause that is not the case.
+- Journal-logging review back (`~/temp/agent/review-journal-logging/sol-review.txt`), QUEUED for the next free agent
+  slot (the code ships in 0.5.16). P1: `discarded_prune.rs` follows a symlinked `discarded` root (or one swapped in
+  between listing and removal) and `remove_dir_all` deletes outside the store; P1: removal follows the stale pathname,
+  so a replacement directory (possibly younger than 24 hours) is deleted. P2: `journald_native.rs` flattens newlines
+  instead of the length-prefixed native form; field-name validation (the reviewer says a leading digit is allowed;
+  check systemd's `journal_field_valid` source before following that); the stderr fallback can drop or splice lines,
+  and can block on a full pipe; concurrent prune passes; impossible calendar dates accepted as stamps; the 24-hour
+  floor measured from the start of the stamped second; unchecked size and age arithmetic; traversal, removal and
+  audit failures reported as success. `config_discarded.rs`: no findings.
