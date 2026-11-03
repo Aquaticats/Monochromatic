@@ -184,3 +184,85 @@ fn the_registry_reads_the_dump_only_above_the_break_even_and_the_api_serves_a_cr
     assert_eq!(history.len(), 2);
     assert!(registry.history("trusted", &["1.0.0".to_string()]).is_err(), "a crate left to the API needs the network");
 }
+
+fn read_all(text: &str) -> std::io::Result<Vec<Vec<String>>> {
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    let mut reader: Cursor<Vec<u8>> = Cursor::new(text.as_bytes().to_vec());
+    read_csv(&mut reader, &mut |row: &[String]| {
+        rows.push(row.to_vec());
+        return true;
+    })?;
+    return Ok(rows);
+}
+
+/// Review finding (malformed EOF): a stream that ends inside a quoted field is cut off, not finished.
+#[test]
+fn a_stream_that_ends_inside_a_quoted_field_is_an_error() {
+    assert!(read_all("a,b\n1,\"never closed").is_err());
+}
+
+/// Review finding (malformed quoting): text after a closing quote, and a quote inside a bare field, are not CSV.
+#[test]
+fn text_after_a_closing_quote_and_a_quote_inside_a_bare_field_are_errors() {
+    assert!(read_all("a,b\n\"x\"y,2\n").is_err());
+    assert!(read_all("a,b\nx\"y,2\n").is_err());
+}
+
+/// Review finding (bounded memory): one field larger than the bound is refused instead of grown.
+#[test]
+fn a_field_over_the_bound_is_refused() {
+    let text: String = format!("a\n\"{}\"\n", "x".repeat(crate::csv::MAX_FIELD_BYTES + 1));
+
+    assert!(read_all(&text).is_err());
+}
+
+/// A row with more fields than the bound is refused.
+#[test]
+fn a_row_over_the_field_bound_is_refused() {
+    let text: String = format!("a\n{}\n", ",".repeat(crate::csv::MAX_ROW_FIELDS + 1));
+
+    assert!(read_all(&text).is_err());
+}
+
+/// Review finding (padding of short rows): a row narrower than the header is a damaged table, and nothing may be cached
+/// from it.
+#[test]
+fn a_short_row_refuses_the_table_and_nothing_is_cached() {
+    let cache = scratch();
+    let short_versions: &str = "crate_id,num,created_at,published_by,repository\n1,1.0.0,2024-01-01 00:00:00+00,7\n";
+    let bytes: Vec<u8> = archive(&[("d/data/crates.csv", CRATES), ("d/data/versions.csv", short_versions)]);
+
+    let result = fill_histories_from_dump(Box::new(Cursor::new(bytes)), &wanted(&["wanted"]), cache.path());
+
+    assert!(result.is_err());
+    assert!(!cache.path().join("wanted.json").exists());
+}
+
+/// Review finding: a versions table cut off inside a quoted field caches nothing.
+#[test]
+fn a_versions_table_cut_off_inside_a_quote_caches_nothing() {
+    let cache = scratch();
+    let cut: &str = "crate_id,num,created_at,published_by,repository\n1,1.0.0,2024-01-01 00:00:00+00,7,\"https://example.invalid/unfinished";
+    let bytes: Vec<u8> = archive(&[("d/data/crates.csv", CRATES), ("d/data/versions.csv", cut)]);
+
+    let result = fill_histories_from_dump(Box::new(Cursor::new(bytes)), &wanted(&["wanted"]), cache.path());
+
+    assert!(result.is_err());
+    assert!(!cache.path().join("wanted.json").exists());
+}
+
+/// Review finding (retained history): one crate's history is bounded.
+#[test]
+fn more_releases_of_one_crate_than_the_bound_are_refused() {
+    let cache = scratch();
+    let mut versions: String = "crate_id,num,created_at,published_by,repository\n".to_string();
+    for number in 0..=crate::dump::MAX_VERSIONS_PER_CRATE {
+        versions.push_str(&format!("1,1.0.{number},2024-01-01 00:00:00+00,7,\n"));
+    }
+    let bytes: Vec<u8> = archive(&[("d/data/crates.csv", CRATES), ("d/data/versions.csv", &versions)]);
+
+    let result = fill_histories_from_dump(Box::new(Cursor::new(bytes)), &wanted(&["wanted"]), cache.path());
+
+    assert!(result.is_err());
+    assert!(!cache.path().join("wanted.json").exists());
+}
