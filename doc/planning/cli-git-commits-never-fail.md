@@ -268,6 +268,18 @@ The inbox case of this rule is C4 on `EEXIST` (the step-1 variant `NineFsyncOnEx
 name taken); the binding case is C3 on `EEXIST`; the order and ledger cases are the answers `adopted` and `terminal` of C3. The cost is paid only
 by a resend, which is rare, and an fsync of an already durable directory is cheap.
 
+Rule N, names the lane may remove (revision 10; R9-3). Linux offers no unlink or rename that is conditional on the identity of the file at a
+pathname: a check of the inode followed by `unlink`, a `rename` into a private directory and a `RENAME_EXCHANGE` each leave an instant in which a
+replacement file that a foreign program created at that pathname is removed, displaced or substituted, and a journaled `(device, inode)` pair
+identifies nothing once the inode is freed (an unnamed `O_TMPFILE` inode dies with its last descriptor and its number is reused). So the lane
+removes a name only if no program but the lane ever creates that name: the unique names under `lane/`, `incoming/`, `saved/` and `lane/tmp/`
+(including the carry-forward temporaries, which are created in `lane/tmp/` and moved by `RENAME_EXCHANGE` across directories of one file system,
+or, where that fails, beside the path under a unique name that carries the incarnation id and a counter, which no other program picks). The lane
+never removes, displaces or exchanges a pathname that a foreign program may also create: `index.lock`, a ref lock, any file of the person.
+Where recovery would need such a removal, it leaves the file, reports it, and keeps the request deferred (M1 and MG2 are `pending`). A journaled
+inode identity is a claim only while a name the lane owns pins the inode (a hard link under `lane/`), and is then used for reports, never as
+deletion authority at a shared name.
+
 Lane transitions (the owner and its incarnation)
 - L1 acquire. Pre: none. Do: open `lane/owner` (a file created once and never replaced) with close-on-exec, wait for the exclusive lock.
   Crash: nothing to recover. Note: the wait ends when the previous owner and any child still between fork and exec have gone; a child
@@ -420,25 +432,25 @@ Build and publication (lane)
 
 Materialization and retirement
 - M1 materialize (one path for every follow-up, whether the lock is free now or later). Pre: `published`, the attachment guard,
-  and a single try of `index.lock` after the publication (never before it, never across P2). Do: (1) build the complete new index in an
-  unnamed temporary file (`O_TMPFILE`) from the index read, apply the per-path entry rule to it, and fsync it; (2) journal the identity of
-  that file (device and inode) and the intent, fsync; (3) take the lock by `linkat` of that file to `index.lock` (it fails with `EEXIST` when
-  a foreign program holds the lock, which is the single try; then the request keeps its entries and Q1-style retry is a later single try);
-  (4) with the lock held read `HEAD` before and after reading the current index and decline unless it is attached to the request's target
-  ref in both reads (declined: M2); if the index read under the lock differs from the one the file was built from, rewrite the contents of our
-  own file (its inode is the journaled one and we still hold its descriptor) from the index read under the lock, and fsync it; no second try of the lock is made; (5) S1 replacement setting the marker `materializing`; (6) rename
-  `index.lock` over the index; (7) apply M3 (c) and record the per-path outcomes; replace the document with the marker `none`. Per-path outcomes, one each and recorded
+  and a single try of `index.lock` after the publication (never before it, never across P2). Do: (1) create `index.lock` with `O_CREAT|O_EXCL`
+  and journal the intent first with the incarnation id (fsync), so a later report can say which incarnation made it; `EEXIST` is the single try
+  failing: a foreign program (or a stranded lock, see Crash) holds it, the request keeps its entries and a later single try is made by Q1;
+  (2) with the lock held read `HEAD` before and after reading the current index and decline unless it is attached to the request's target
+  ref in both reads (declined: M2); (3) S1 replacement setting the marker `materializing`; (4) apply the per-path entry rule to the index read
+  under the lock, write the new index into the lock file, fsync it; (5) rename `index.lock` over the index; (6) apply M3 (c), record the
+  per-path outcomes in the closing replacement and replace the document with the marker `none`. Per-path outcomes, one each and recorded
   with the request: `installed` (the entry was `E` and the worktree held the target; staged), `already` (the entry already equals the
   target; nothing written), `preserved` (the entry is neither `E` nor the target: the person's own staging; left alone; the entry is
   dropped because there is nothing to suppress), `declined` (the entry was `E` but the worktree is not the target, or the branch moved
   on: left alone and the entry becomes `suppress`, as in M2). The request is `materialized` when no path is `declined`, else it is
-  `materialized` with the declined paths named as voided. Crash: a killed process leaves no exit handler, so `index.lock` may remain.
-  L4 handles it by identity only: if `index.lock` is the journaled inode it is ours and is unlinked (we created that inode and journaled it
-  first, the identity rule of the carry-forward), then M1 is repeated from (1) as a new single try; if `index.lock` exists and is any other
-  inode it is a foreign lock and is never touched; if the index file is the journaled inode the rename happened and L4 finishes (7) (the
-  consumption release the crash interrupted), and otherwise the index was replaced by another writer and M1 repeats from (1). M1 is
-  idempotent because the entry rule is conditional on the entry read under the lock, so a repeat can neither install a stale entry
-  nor remove a person's staging. A crash between the creation of the unnamed file and its journal leaves no name on disk to clean.
+  `materialized` with the declined paths named as voided. Crash (R9-3): the lane's death inside this window leaves `index.lock` in place, because
+  no exit handler runs after SIGKILL, an outside kill or power loss, and the lane never removes it (rule N). L4 finds a lock whose journaled intent
+  names the dead incarnation, and reports it: the lock was made by this tool's dead incarnation, no process of that incarnation holds it, and the
+  person may remove it; the request stays `published` with M1 deferred. The index is untouched until the rename, so nothing is lost; if the
+  rename happened (the index file is the one the lock file was, which L4 sees as the absence of `index.lock` and the journaled intent
+  without a closing record), L4 completes (6). M1 is idempotent because the entry rule is conditional on the entry read under the lock, so
+  a repeat can neither install a stale entry nor remove a person's staging. This narrows the guarantee in the same way as owner question A:
+  a stalled owner killed inside the window can leave a lock that only a person clears, as Git itself leaves one after its own kill.
 - M2 void. Pre: the guard declined, the branch was rewritten (the commit is not reachable from the tip), or a later foreign successor made
   the entry rule decline. Do: in one S1 replacement record `voided` for the request and the paths, end the installation authority (kind
   `install` becomes kind `suppress`, keeping `E`), and tell the person which paths were left alone. Nothing is released by voiding: an
@@ -511,8 +523,11 @@ Cancellation
   Input from the shipped lock rule: the branch `fix/git-policy-cli-never-removes-a-live-lock` is reworking the shipped code that deleted locks
   (the stopped-child sweep in `stopped_git_locks.rs` and the general judge in `stale_ref_lock_judge.rs`). This design depends on none of it: it
   works with zero removals. It needs that branch to leave no automatic deletion of a ref lock the design did not prove its own, and any later
-  removal rule must supply a holder identity qualified by its pid namespace and a removal primitive that cannot unlink a different file that
-  later occupies the pathname before it is called a proof; the design does not specify such a rule.
+  removal rule must supply a holder identity qualified by its pid namespace and a removal primitive that cannot unlink, displace or substitute a
+  different file that later occupies the pathname before it is called a proof. Rename-to-private is not such a primitive (R9-S): between the
+  rename and any restoration another program can create the pathname and enter a transaction, so the public pathname loses its single-holder
+  property even when no wrong inode is deleted. The design therefore asks the shipped branch for non-removal of ref locks until a primitive is
+  shown (rule N); it does not specify one.
 
 Maintenance (object-store-wide)
 - G1 reserve. Pre: a destructive run is to be started by the wrapper (a forwarded `gc`, `prune` or `maintenance` command, or the
@@ -1824,6 +1839,17 @@ M. Merge order (new in revision 9; for the coordinator to pick).
      user data" excludes, while M-A's cost is machinery and saved files, both recoverable.
    - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): M-A, the machine's default, because of "never discard
      user data".
+R. A stranded `index.lock` made by the lane's own dead incarnation (new in revision 10; for the coordinator to pick).
+   Case: the service is killed by an outside kill between creating `index.lock` and renaming it; the next commit's follow-up finds the lock.
+   - Option R-never, the lane never removes `index.lock` (rule N); it reports which incarnation made it and defers M1 and merges.
+     Pros: no schedule can remove a foreign program's live lock; one rule for every shared pathname. Cons: the person clears the lock by
+     hand, so a lane crash inside this short window leaves a manual step (the same step Git itself needs after its own kill).
+   - Option R-pin-and-unlink, keep a hard-link pin under `lane/` so the inode cannot be reused, compare the identity, then unlink the
+     pathname. Pros: self-heals in the common case. Cons: the pin fixes inode reuse only; the compare-then-unlink race remains (a cleaner
+     removes our lock, a foreign program creates a new one, the unlink removes it), and this is the flaw of the shipped sweeper again.
+   - Ranking: R-never > R-pin-and-unlink. R-never beats R-pin-and-unlink because the pin leaves the pathname race standing, and that race
+     can break a mutual exclusion that the owner's "never discard user data" and Git's own protocol depend on, while R-never costs one manual
+     step in a rare window.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
