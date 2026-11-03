@@ -326,7 +326,11 @@ fn a_live_service_holders_lock_is_never_taken_over() {
     let waiter = std::thread::spawn(move || {
         let lock = acquire(&waiter_index, 10, &|_| {}).expect("taken once the holder is gone");
         let _sent = finished.send(());
-        return lock;
+        // The lock is given up here and not returned with the thread: this thread and the acquisition below race for the lock
+        //  once the holder is gone, and a lock kept until the join would make the loser wait for ever when this thread wins
+        //  (seen: a stack with the test thread polling in `wait_and_place` and this thread already ended, in about one run of
+        //  four, on the base sources too).
+        drop(lock);
     });
     assert!(ended.recv_timeout(Duration::from_millis(600)).is_err(), "a live holder's lock was taken over");
     assert!(try_acquire(&index, 10).is_none());
@@ -338,7 +342,7 @@ fn a_live_service_holders_lock_is_never_taken_over() {
     drop(lock);
     // The wait that was going on follows the release.
     ended.recv_timeout(Duration::from_secs(30)).expect("the waiting acquisition took the lock once it was released");
-    drop(waiter.join().expect("waiter"));
+    waiter.join().expect("waiter");
     remove(root.as_path());
 }
 

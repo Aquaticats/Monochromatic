@@ -414,12 +414,14 @@ median delta, the build 269 and 264 ms, with native at 274 to 295 ms in all four
 
 ## Controls that failed intermittently, not by this work
 
-- `service_index_lock::tests::a_live_service_holders_lock_is_never_taken_over` aborts after the 120 s of the test
-  runner
-  (`SIGABRT`) in about one run of four or five, on the branch tip and on the base sources alike: the module run alone
-  aborted in 1 of 4 runs on the tip and in 1 of 5 runs after the base sources (`e7e304ffd6`) were checked out over it.
-  It passes in 0.6 s when it does not abort, and its module does not touch what this work changed; the cause was not
-  found.
+- `service_index_lock::tests::a_live_service_holders_lock_is_never_taken_over` aborted after the 120 s of the test runner
+  (`SIGABRT`) in 4 of 8 runs of its module on the branch tip, in 1 of 4 on an earlier tip, in 1 of 5 after the base sources
+  (`e7e304ffd6`) were checked out over it, and in 2 of 3 container gate runs; the first gate run of this work passed it.
+  A stack of a hung run (`gdb -p`) shows the test thread polling in `wait_and_place` and the thread that raced it for the
+  lock already ended: the thread returned its `IndexLock`, which lives until the join, so when it won the race the other
+  acquisition waited for ever.
+  It is a defect of the control, present on the base.
+  The control now drops the lock in the thread; the module then passed 8 runs of 8.
 - `service_sequencer::a_pathspec_commit_after_a_conflicted_cherry_pick_lands_and_carries_the_pick` failed once in a
   container gate run and passed alone and in a whole host run of the binary controls.
   Its count of finished batches reads `.done` files in a journal that sixteen services share, and the services' batch
