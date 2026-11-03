@@ -203,11 +203,19 @@ impl Ewah {
         out.extend_from_slice(&(self.rlw as u32).to_be_bytes());
     }
 
-    /// Read one bitmap from the start of `bytes` and the number of bytes it used, or `None` for a truncated or
-    /// inconsistent one (`ewah_read_mmap`, with the checks Git leaves to later reads made here).
-    pub fn read(bytes: &[u8]) -> Option<(Ewah, usize)> {
+    /// Read one bitmap from the start of `bytes` and the number of bytes it used, or `None` for a truncated or inconsistent one
+    /// (`ewah_read_mmap`) and for one of more than `max_bits` bits.
+    ///
+    /// The checks are the ones that keep a small input from describing a large bitmap: every run-length word's literal words
+    /// are in the buffer, the last run-length word is where the position says, and the words the runs and literals add up to
+    /// are exactly the words a bitmap of that bit size takes (what `ewah_set` builds). The caller names the most bits it can
+    /// use (the entries of the index, the directories of the cache), so the set bits that `bits` lists are bounded by it.
+    pub fn read(bytes: &[u8], max_bits: usize) -> Option<(Ewah, usize)> {
         let bit_size: usize = u32::from_be_bytes(bytes.get(0..4)?.try_into().ok()?) as usize;
         let count: usize = u32::from_be_bytes(bytes.get(4..8)?.try_into().ok()?) as usize;
+        if bit_size > max_bits {
+            return None;
+        }
         let words_end: usize = 8usize.checked_add(count.checked_mul(8)?)?;
         let mut buffer: Vec<u64> = Vec::with_capacity(count.min(1 << 20));
         let (chunks, leftover) = bytes.get(8..words_end)?.as_chunks::<8>();
@@ -218,7 +226,14 @@ impl Ewah {
             buffer.push(u64::from_be_bytes(*chunk));
         }
         let rlw: usize = u32::from_be_bytes(bytes.get(words_end..words_end + 4)?.try_into().ok()?) as usize;
-        if buffer.is_empty() || rlw >= buffer.len() {
+        let (mut at, mut last, mut logical): (usize, usize, u64) = (0, 0, 0);
+        while at < buffer.len() {
+            last = at;
+            let word: u64 = buffer[at];
+            logical = logical.checked_add(running_len(word))?.checked_add(literal_words(word))?;
+            at = at.checked_add(1)?.checked_add(usize::try_from(literal_words(word)).ok()?)?;
+        }
+        if buffer.is_empty() || at != buffer.len() || rlw != last || logical != bit_size.div_ceil(WORD_BITS) as u64 {
             return None;
         }
         return Some((Ewah { bit_size, buffer, rlw }, words_end + 4));

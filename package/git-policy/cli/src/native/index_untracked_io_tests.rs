@@ -48,3 +48,29 @@ fn irregular_forms_are_not_read() {
     extra.insert(extra.len() - 1, 7);
     assert!(read_untracked(extra.as_slice(), 20).is_none());
 }
+
+/// An untracked cache whose first bitmap names more directories than the cache has is refused instead of expanded.
+#[test]
+fn a_bitmap_longer_than_the_directory_list_is_refused() {
+    let cache = read_untracked(untracked_extension("untracked-io-long-bitmap").as_slice(), 20).expect("read");
+    let mut lone: Untracked = cache;
+    if let Some(root) = lone.root.as_mut() {
+        root.dirs.clear();
+        root.valid = false;
+        root.check_only = false;
+        root.exclude_id = vec![0; 20];
+    }
+    let written: Vec<u8> = write_untracked(&lone);
+    assert!(read_untracked(written.as_slice(), 20).is_some(), "the control reads");
+    // One directory and three empty bitmaps end the extension, then the guard byte.
+    let mut empty: Vec<u8> = Vec::new();
+    crate::index_ewah::Ewah::new().serialize(&mut empty);
+    let tail: usize = 3 * empty.len() + 1;
+    let mut hostile: Vec<u8> = written[..written.len() - tail].to_vec();
+    crate::index_ewah::Ewah::from_bits(&[1_000_000]).serialize(&mut hostile);
+    for _ in 0..2 {
+        hostile.extend_from_slice(empty.as_slice());
+    }
+    hostile.push(0);
+    assert!(read_untracked(hostile.as_slice(), 20).is_none());
+}

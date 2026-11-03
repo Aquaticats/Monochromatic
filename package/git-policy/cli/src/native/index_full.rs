@@ -173,7 +173,7 @@ pub fn parse_full_index(bytes: &[u8], hash_length: usize) -> Option<FullIndex> {
             b"TREE" => index.cache_tree = Some(CacheTree::read(data, hash_length)?),
             b"REUC" => index.resolve_undo = Some(ResolveUndo::read(data, hash_length)?),
             b"UNTR" => index.untracked = Some(read_untracked(data, hash_length)?),
-            b"FSMN" => index.fsmonitor = Some(read_fsmonitor(data)?),
+            b"FSMN" => index.fsmonitor = Some(read_fsmonitor(data, index.entries.len())?),
             // Git writes neither of these unless asked to, and an optional extension it does not know is not kept.
             b"EOIE" | b"IEOT" => {}
             _ => {}
