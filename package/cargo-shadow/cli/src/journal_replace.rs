@@ -653,3 +653,17 @@ fn replace_core(path: &Path, expected: &str, new_text: &str, keep: &KeepAs, betw
         Err(left) => left,
     }));
 }
+
+/// What:
+/// `pub fn keep_name(displaced, target, keep) -> io::Result<PathBuf>` gives a file a surviving name under the kept directory
+/// (or beside the target), exactly as the replace protocol does for a displaced file.
+/// Why:
+/// Other code that removes a name (the stand-in lockfile) must first make sure the inode keeps another one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function keepName(displaced: string, target: string, keep: KeepAs): string
+/// ```
+pub fn keep_name(displaced: &Path, target: &Path, keep: &KeepAs) -> io::Result<PathBuf> {
+    return preserve(displaced, target, keep, &real_link);
+}

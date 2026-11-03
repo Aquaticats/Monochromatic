@@ -47,6 +47,10 @@ use std::ffi::OsString;
 /// import { Write } from 'std/io';
 /// ```
 use std::io::Write;
+/// Imports the exclusive rename the stand-in is taken with.
+use rustix::fs::{CWD, RenameFlags, renameat_with};
+/// Imports the error code of a name that exists or a path that does not.
+use rustix::io::Errno;
 /// What:
 /// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
 /// Why:
@@ -565,110 +569,77 @@ pub fn run_with_placeholder_lock(lock_path: &Path, keep_dir: &Path, dry_run: boo
 }
 
 /// What:
-/// `fn remove_placeholder(lock_path: &Path)` removes the stand-in lockfile only if the file taken from the path is still the stand-in.
+/// `fn remove_placeholder(lock_path: &Path, keep_dir: &Path)` takes the stand-in lockfile away from its path without ever
+/// unlinking an inode that something may still have open.
 /// Why:
-/// Review finding (2c 5):
-/// reading the path and then removing it lets a real lockfile published between the two be deleted.
-/// The file is first taken by an atomic rename to a unique name,
-/// so what is read is exactly what is removed;
-/// a file that is not the stand-in is linked back to the path (a link never replaces something published meanwhile)
-/// and,
-/// when the path is taken again or the link fails,
-/// stays under its taken name,
-/// reported on stderr.
+/// Review finding (3c P1-3): reading the taken file and then unlinking it still loses the data of a writer that opened the
+/// stand-in earlier and writes after the read.
+/// The file is taken by an exclusive rename to a unique name (an existing name is never overwritten), read, and then:
+/// a stand-in is given a surviving name in `keep_dir` before the taken name is removed;
+/// anything else is linked back to the path (a link never replaces something published meanwhile), or stays under its taken
+/// name, reported on stderr.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function removePlaceholder(lockPath: string): void  // rename, read, then unlink or link back
+/// function removePlaceholder(lockPath: string, keepDir: string): void  // rename (no replace), read, keep, then unlink the taken name
 /// ```
-fn remove_placeholder(lock_path: &Path, _keep_dir: &Path) {
-    // `match`: picks the arm whose pattern fits the value.
-    // Typed binding: `nanos: u128`.
-    let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        Ok(elapsed) => elapsed.as_nanos(),
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(_) => 0,
-    };
-    // `let mut`: a binding that may change.
-    // Typed binding: `taken_name: std::ffi::OsString`.
-    // What:     `OsString` is operating-system text that need not be valid UTF-8 (sibling: `String`, always valid UTF-8).
-    // Why:      Command-line arguments pass through byte for byte, so they are kept as the OS gave them.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: string
-    // ```
-    let mut taken_name: std::ffi::OsString = lock_path.as_os_str().to_os_string();
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    taken_name.push(format!(".taken.{}.{nanos}", std::process::id()));
-    // Typed binding: `taken: std::path::PathBuf`.
-    let taken: std::path::PathBuf = std::path::PathBuf::from(taken_name);
-    // `match`: picks the arm whose pattern fits the value.
-    // Borrow `&taken`: lends the value without copying or giving it away.
-    match std::fs::rename(lock_path, &taken) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        Ok(()) => {}
-        // Nothing is at the path any more: nothing to remove.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(error) => {
-            // Macro `eprintln!`: builds or prints text (or a list) from a template.
-            eprintln!("cargo-shadow: warning: the stand-in {} could not be taken for removal: {error}", lock_path.display());
-            return;
+fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
+    let mut taken: Option<std::path::PathBuf> = None;
+    for _attempt in 0..MAX_TAKEN_NAMES {
+        let mut name: std::ffi::OsString = lock_path.as_os_str().to_os_string();
+        name.push(format!(".taken.{}", crate::journal::unique_suffix()));
+        let candidate: std::path::PathBuf = std::path::PathBuf::from(name);
+        match renameat_with(CWD, lock_path, CWD, &candidate, RenameFlags::NOREPLACE) {
+            Ok(()) => {
+                taken = Some(candidate);
+                break;
+            }
+            Err(code) if code == Errno::EXIST => continue,
+            // Nothing is at the path any more: nothing to remove.
+            Err(code) if code == Errno::NOENT => return,
+            Err(code) => {
+                eprintln!("cargo-shadow: warning: the stand-in {} could not be taken for removal: {code}", lock_path.display());
+                return;
+            }
         }
     }
-    // `match`: picks the arm whose pattern fits the value.
-    // Borrow `&taken`: lends the value without copying or giving it away.
-    // Typed binding: `is_placeholder: bool`.
+    let Some(taken) = taken else {
+        eprintln!("cargo-shadow: warning: no free name to take the stand-in {} under; it was left in place", lock_path.display());
+        return;
+    };
     let is_placeholder: bool = match crate::file_owner::observe(&taken) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        // `Some`: the present or the absent value of an `Option`.
         Ok(Some(seen)) => seen.text == EMPTY_LOCK,
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        // `None`: the present or the absent value of an `Option`.
         Ok(None) => return,
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => {
-            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("cargo-shadow: warning: {} could not be read, so it is kept: {error}", taken.display());
             false
         }
     };
     if is_placeholder {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
-        // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (value !== undefined) { const inner = value; ... }
-        // ```
-        // Borrow `&taken`: lends the value without copying or giving it away.
-        if let Err(error) = std::fs::remove_file(&taken) {
-            // Macro `eprintln!`: builds or prints text (or a list) from a template.
-            eprintln!("cargo-shadow: warning: the stand-in {} could not be removed: {error}", taken.display());
+        let keep: crate::journal::KeepAs = crate::journal::KeepAs::in_directory(keep_dir, ".placeholder");
+        match crate::journal_replace::keep_name(&taken, lock_path, &keep) {
+            Ok(_) => {
+                if let Err(error) = std::fs::remove_file(&taken) {
+                    eprintln!("cargo-shadow: warning: the stand-in {} could not be removed: {error}", taken.display());
+                }
+            }
+            Err(error) => eprintln!("cargo-shadow: warning: the stand-in is kept as {} ({error})", taken.display()),
         }
         return;
     }
-    // `match`: picks the arm whose pattern fits the value.
-    // Borrow `&taken`: lends the value without copying or giving it away.
     match std::fs::hard_link(&taken, lock_path) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(()) => {
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-            // Borrow `&taken`: lends the value without copying or giving it away.
             if let Err(error) = std::fs::remove_file(&taken) {
-                // Macro `eprintln!`: builds or prints text (or a list) from a template.
                 eprintln!("cargo-shadow: warning: {} could not be removed after it was put back: {error}", taken.display());
             }
         }
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `eprintln!`: builds or prints text (or a list) from a template.
         Err(error) => eprintln!("cargo-shadow: warning: a lockfile written during the run is kept as {} ({error})", taken.display()),
     }
 }
+
+/// The most names tried to take the stand-in under (owner rule of 2026-11-03: "nothing should ever wait forever or indefinitely");
+/// the names carry the process id, the clock and a counter, so one try is the normal case.
+const MAX_TAKEN_NAMES: u32 = 100;
 
 /// What:
 /// `pub fn run_with_placeholder_lock_hooked(lock_path, dry_run, body, before_cleanup) -> i32` is `run_with_placeholder_lock` with a
