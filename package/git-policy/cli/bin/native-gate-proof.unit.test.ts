@@ -13,6 +13,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  defaultContainerLimits,
+  diskWeightArguments,
+  lowestDiskWeight,
+  runLimitArguments,
+} from './container-limits.ts';
+import {
   gatePassedRecord,
   passingGateEvidence,
 } from './native-gate-proof.ts';
@@ -34,9 +40,10 @@ const gateLimits = [
   '--rm',
   '--init',
   '--network=none',
-  '--memory=2g',
-  '--cpus=2',
-  '--pids-limit=512',
+  ...runLimitArguments({
+    limits: defaultContainerLimits,
+    withPidsLimit: true,
+  }),
 ];
 
 /**
@@ -443,6 +450,52 @@ await describe({
               image,
               limits: { memory: '64g', pidsLimit: 100_000 },
             })).toEqual([]);
+          },
+        }),
+        it({
+          name: 'reads the disk-weight arguments the runners write, and records made before them, but not another weight',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            /**
+             Arguments of a gate that ran before the runners wrote a disk weight.
+             */
+            const beforeWeight = gateLimits.filter(function isNotWeight(argument) {
+              return !diskWeightArguments().includes(argument);
+            });
+            /**
+             Arguments with a disk weight above the lowest, which the runners never write.
+             */
+            const otherWeight = [
+              ...beforeWeight,
+              `--blkio-weight=${String(lowestDiskWeight + 1)}`,
+            ];
+            /**
+             Gate directories by name and the arguments their manifest records.
+             */
+            const runs = {
+              'native-with-weight': gateLimits,
+              'native-before-weight': beforeWeight,
+              'native-other-weight': otherWeight,
+            };
+            await Promise.all(Object.entries(runs).map(function writeRun([name, limits]) {
+              return writeGateDirectory({
+                root: root.path,
+                name,
+                files: {
+                  'manifest.json': manifestOf(image, limits),
+                  'passed.json': JSON.stringify(gatePassedRecord(image)),
+                },
+              });
+            }));
+            expect(beforeWeight.length).toBeLessThan(gateLimits.length);
+            expect((await passingGateEvidence({
+              evidenceRoot: root.path,
+              image,
+              limits: campaignLimits,
+            })).toSorted()).toEqual([
+              join(root.path, 'native-before-weight'),
+              join(root.path, 'native-with-weight'),
+            ]);
           },
         }),
         it({

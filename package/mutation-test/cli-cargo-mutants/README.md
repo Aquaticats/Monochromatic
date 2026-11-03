@@ -64,6 +64,8 @@ Run the script without arguments for the same list with defaults.
   They are forwarded to the task only when given; otherwise nothing is forwarded and the task's defaults apply.
   The process limit (`--pids-limit`) is not a launcher option; the task's default is 512 processes
   (`defaultPidsLimit` in `src/container-limits.ts`, 128 before 2026-11-01).
+  Every started container also gets the lowest disk weight (`--blkio-weight=10` and `--cgroup-conf=io.weight=10`),
+  which no option raises.
 - `--passes <1|2>` is forwarded to the task only when given.
   `--passes 2` asks a product that offers it to run each file's campaign in two passes (see "Two passes").
 - `--unit-memory-max <value>` and `--unit-cpu-quota <value>` cap the whole systemd unit (the task, the container client
@@ -355,7 +357,9 @@ that supplies its image names, scopes, limits defaults and manifest:
 
 - `excludedMutantKinds` and `exclusionArguments`: the two mutant kinds no campaign tries, one repository-wide
   constant; a product adds exclusions on top and never removes one.
-- `parseContainerLimitOptions` and the argument builders for `--memory`, `--cpus` and `--pids-limit`.
+- `parseContainerLimitOptions` and the argument builders for `--memory`, `--cpus`, `--pids-limit` and the lowest disk
+  weight (`lowestDiskWeight`, `diskWeightArguments`; `runLimitArguments` adds it to every started container, and
+  `podman build` has no such option, so the build arguments carry none).
 - `parseTimeoutAndExamine`, `examinePatternOf`, `parseFileScopes` and `baselineSkipArguments`: the campaign options
   (`--timeout`, `--build-timeout`, `--examine`, `--file`) and their messages.
   A product passes the parsed `buildTimeoutSeconds` to `campaignCommand`, which hands it to cargo-mutants.
