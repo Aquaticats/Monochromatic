@@ -159,11 +159,26 @@ No user configuration was changed during these prototype checks.
 ### Installation
 
 The user subsequently authorized installing the function.
-On 2026-11-03,
+On 2026-11-02 in `America/New_York`,
 the exact tested definition was written to `${HOME}/.bashrc.d/claude.sh` with mode `0644`.
 The write required the destination to be absent,
 and the existing `.bashrc` drop-in loading remains unchanged.
-Post-installation checks are pending.
+`${HOME}/temp/agent/claude-yolo.5Z9XjC4z/installed-probe.ts` verified startup with
+`bash --noprofile --rcfile <actual-user-bashrc> -i +m -c 'declare -f claude'`,
+a disposable home,
+and copies of the installed drop-in files.
+The fresh interactive shell defined `claude` with the expected translation and executable delegation.
+
+The same harness read the installed file and reran the argument,
+delimiter,
+exit-status,
+and real-Claude parser checks successfully.
+The private startup and consumer output is retained under
+`${HOME}/temp/agent/claude-yolo-installed.lGmIeL`.
+The recording-executable fixtures are under `${HOME}/temp/agent/claude-yolo-reserved.AIjStt`.
+The installed file's measured mode is `0644`.
+Existing shells retain their current function definitions until they source the drop-in or restart;
+new interactive Bash shells load it through `.bashrc`.
 
 This function has no list of Claude options to keep synchronized.
 The earlier maintenance warning concerned a different,

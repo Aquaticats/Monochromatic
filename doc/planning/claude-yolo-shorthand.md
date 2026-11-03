@@ -2,7 +2,7 @@
 
 ## Installation status
 
-On 2026-11-03,
+On 2026-11-02 in `America/New_York`,
 the user authorized installation:
 
 > Okay, install the bash fn.
@@ -10,7 +10,14 @@ the user authorized installation:
 The tested definition is installed at `${HOME}/.bashrc.d/claude.sh` with mode `0644`.
 The existing `.bashrc` already loads that directory.
 No existing startup file or Claude executable was changed.
-Post-installation checks are pending.
+Post-installation checks passed:
+a fresh interactive Bash loaded the installed drop-in through the actual `.bashrc`,
+using a disposable home;
+the installed definition also passed argument-preservation,
+delimiter,
+exit-status,
+and real Claude parser checks.
+Evidence is recorded in the [installation verification](../troubleshooting/claude-code-yolo-option.md#installation).
 
 ## Corrected requirements
 
@@ -115,7 +122,8 @@ argument boundaries,
 an unknown future option,
 exit status,
 and real Claude parser acceptance after translation.
-No authenticated model turn or installation check was performed for this revised function.
+The installation check also passed after the user's explicit authorization.
+No authenticated model turn was performed.
 
 ## Proposed agent-guidance correction
 
