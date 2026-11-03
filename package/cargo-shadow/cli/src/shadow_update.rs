@@ -12,18 +12,43 @@
 //! export function runUpdateCommand(args: string[]): number | undefined  // undefined: run cargo itself
 //! ```
 
+// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
+// Why:      The code below names these items directly instead of spelling their full paths each time.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { Name } from './module.ts';
+// ```
+// What:     `OsString` is operating-system text that need not be valid UTF-8 (sibling: `String`, always valid UTF-8).
+// Why:      Command-line arguments pass through byte for byte, so they are kept as the OS gave them.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // TS has one type for this: string
+// ```
 use std::ffi::OsString;
+// Imports `std::io::Write`.
 use std::io::Write;
+// Imports `std::path::Path`.
 use std::path::Path;
 
+// Imports `crate::commands::{print_findings, print_ins...`.
 use crate::commands::{print_findings, print_install_report, print_update_report};
+// Imports `crate::constants::{CATALOG_MARKER, INSTALL_...`.
 use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE, LOCKFILE_NAME};
+// Imports `crate::crates::read_locks`.
 use crate::crates::read_locks;
+// Imports `crate::install::{InstallReport, InstallRequ...`.
 use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles};
+// Imports `crate::lockfile::direct_dependency_names`.
 use crate::lockfile::direct_dependency_names;
+// Imports `crate::shadow_step::{Prepared, lock_base_re...`.
 use crate::shadow_step::{Prepared, lock_base_reader, now_millis, prepare};
+// Imports `crate::tighten::FileEnforcer`.
 use crate::tighten::FileEnforcer;
+// Imports `crate::update::{UpdateKind, UpdateReport, U...`.
 use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
+// Imports `crate::update_plan::{UpdatePlan, plan_updat...`.
 use crate::update_plan::{UpdatePlan, plan_update};
 
 /// The lockfile text that stands in for a missing lockfile while a full update creates it.
@@ -41,61 +66,191 @@ const EMPTY_LOCK: &str = "version = 4\n";
 /// export function runUpdateCommand(args: string[]): number | undefined
 /// ```
 pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
+    // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
+    // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
+    // ```
+    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const name: Type = value;
+    // ```
     let prepared: Prepared = match prepare(arguments) {
+        // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+        // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Ok(value)  is  return value;
+        // // Err(error) is  throw error;   (the caller sees it as a returned value)
+        // ```
+        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+        // Why:      Absence is a value the caller must check; there is no `null`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Some(value) is  value
+        // // None        is  undefined
+        // ```
         Ok(Some(found)) => found,
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
         Ok(None) => return None,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(message) => {
+            // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+            // Why:      Text building and printing are written as one call instead of string concatenation.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // `..${x}..`   // template literal
+            // console.error(text);   // eprintln!
+            // [a, b]            // vec![a, b]
+            // ```
             eprintln!("{message}");
+            // `Some`: the present or the absent value of an `Option`.
             return Some(INSTALL_FAILED_EXIT_CODE);
         }
     };
+    // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+    // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+    // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const value = await expr;   // throws to the caller on failure
+    // ```
+    // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+    // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+    // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // structuredClone(value)  // or [...list] / {...object}
+    // ```
+    // Typed binding: `crate_dir: String`.
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let crate_dir: String = prepared.crate_dir.clone()?;
+    // `match`: picks the arm whose pattern fits the value.
     let planned = match plan_update(arguments) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(found) => found,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(message) => {
+            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("cargo-shadow: {message}");
+            // `Some`: the present or the absent value of an `Option`.
             return Some(INSTALL_FAILED_EXIT_CODE);
         }
     };
+    // `.clone()`: an independent owned copy.
+    // Typed binding: `crate_dirs: Vec<String>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let crate_dirs: Vec<String> = vec![crate_dir.clone()];
+    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+    // ```
+    // Typed binding: `root: &Path`.
+    // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+    // Why:      Joined or stored paths are owned; paths passed in are borrowed.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let root: &Path = &prepared.catalog_root;
+    // Borrow `&crate_dir`: lends the value without copying or giving it away.
+    // Typed binding: `lock_exists: bool`.
     let lock_exists: bool = root.join(&crate_dir).join(LOCKFILE_NAME).is_file();
+    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+    // Why:      The value is built up or replaced step by step below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let x = ...;   // plain Rust `let` is TS `const`
+    // ```
     let mut sink = std::io::stderr();
+    // `match`: picks the arm whose pattern fits the value.
     match planned.plan {
         UpdatePlan::FrozenCheck | UpdatePlan::Install { .. } if lock_exists => {
+            // `match`: picks the arm whose pattern fits the value.
             let (frozen, dry_run) = match planned.plan {
                 UpdatePlan::Install { dry_run } => (prepared.frozen && !dry_run, dry_run),
                 _ => (true, false),
             };
+            // `match`: picks the arm whose pattern fits the value.
+            // Borrow `&prepared.document`: lends the value without copying or giving it away.
             let reader = match lock_base_reader(root, &prepared.document, frozen) {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 Ok(found) => found,
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 Err(message) => {
+                    // Macro `eprintln!`: builds or prints text (or a list) from a template.
                     eprintln!("cargo-shadow: {message}");
+                    // `Some`: the present or the absent value of an `Option`.
                     return Some(INSTALL_FAILED_EXIT_CODE);
                 }
             };
+            // Borrow `&InstallRequest`: lends the value without copying or giving it away.
             let outcome = install_rust_lockfiles(&InstallRequest {
                 root,
+                // Borrow `&crate_dirs`: lends the value without copying or giving it away.
                 crate_dirs: &crate_dirs,
                 frozen,
                 offline: prepared.offline,
                 dry_run,
                 now: now_millis(),
+                // Borrow `&prepared.document.settings`: lends the value without copying or giving it away.
                 settings: &prepared.document.settings,
+                // Borrow `&prepared.runner`: lends the value without copying or giving it away.
                 runner: &prepared.runner,
+                // Borrow `&prepared.registry`: lends the value without copying or giving it away.
                 registry: &prepared.registry,
                 lock_base: reader.as_deref(),
             });
+            // `Some`: the present or the absent value of an `Option`.
+            // Borrow `&mut sink`: lends the value without copying or giving it away.
             return Some(report_install(outcome, dry_run, &mut sink));
         }
         UpdatePlan::Targeted { dry_run, cargo_args, names, precise } => {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Borrow `&crate_dir`: lends the value without copying or giving it away.
             if precise && let Err(message) = check_direct(root, &crate_dir, &names) {
+                // Macro `eprintln!`: builds or prints text (or a list) from a template.
                 eprintln!("cargo-shadow: {message}");
+                // `Some`: the present or the absent value of an `Option`.
                 return Some(INSTALL_FAILED_EXIT_CODE);
             }
+            // `Some`: the present or the absent value of an `Option`.
+            // Borrow `&prepared`: lends the value without copying or giving it away.
             return Some(run_update(&prepared, &crate_dirs, dry_run, &UpdateKind::Targeted { cargo_args: &cargo_args }, &planned.forward, &mut sink));
         }
         UpdatePlan::Full { dry_run } => {
+            // `Some`: the present or the absent value of an `Option`.
+            // Borrow `&prepared`: lends the value without copying or giving it away.
             return Some(run_full_update(&prepared, &crate_dirs, dry_run, &planned.forward, &mut sink));
         }
         UpdatePlan::Install { dry_run } => {
@@ -103,7 +258,9 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
             return Some(run_full_update(&prepared, &crate_dirs, dry_run, &planned.forward, &mut sink));
         }
         UpdatePlan::FrozenCheck => {
+            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("cargo-shadow: {crate_dir} has no {LOCKFILE_NAME} to assert about");
+            // `Some`: the present or the absent value of an `Option`.
             return Some(INSTALL_FAILED_EXIT_CODE);
         }
     }
@@ -119,15 +276,58 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
 /// function checkDirect(root: string, crateDir: string, names: string[]): void  // throws
 /// ```
 fn check_direct(root: &Path, crate_dir: &str, names: &[String]) -> Result<(), String> {
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
+    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (a, b) => body
+    // ```
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // String(value)  // JS strings are always owned values
+    // ```
+    // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
+    // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { ... } catch (error) { throw new MyError(String(error)); }
+    // ```
     let snapshots = read_locks(root, &[crate_dir.to_string()]).map_err(|error| { return error.to_string(); })?;
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
+    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
+    // Why:      They express one step of a pipeline without an index loop.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // list.map(f).filter(g)
+    // ```
     let direct = direct_dependency_names(snapshots.first().map(|snapshot| { return snapshot.source.as_str(); }).unwrap_or(""))?;
     for name in names {
         if !direct.contains(name) {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(format!(
                 "{name} is not a direct dependency of {crate_dir}, so --precise cannot pin it (pnpm: ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP, which names overrides for indirect dependencies; use [patch] or a direct requirement in Cargo.toml)"
             ));
         }
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(());
 }
 
@@ -141,17 +341,23 @@ fn check_direct(root: &Path, crate_dir: &str, names: &[String]) -> Result<(), St
 /// function reportInstall(outcome, dryRun: boolean, sink: Writable): number
 /// ```
 fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, dry_run: bool, sink: &mut dyn Write) -> i32 {
+    // `match`: picks the arm whose pattern fits the value.
     return match outcome {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(report) => {
+            // Borrow `&report`: lends the value without copying or giving it away.
             print_install_report(&report, dry_run, sink);
             if report.problems.is_empty() {
                 0
             } else {
+                // Borrow `&report.problems`: lends the value without copying or giving it away.
                 print_findings("Install refused; no Cargo.lock was left changed", &report.problems);
                 INSTALL_FAILED_EXIT_CODE
             }
         }
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => {
+            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("{error}");
             INSTALL_FAILED_EXIT_CODE
         }
@@ -168,10 +374,30 @@ fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, 
 /// function runFullUpdate(args): number
 /// ```
 fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, forward: &[String], sink: &mut dyn Write) -> i32 {
+    // Borrow `&crate_dirs`: lends the value without copying or giving it away.
     let lock_path = prepared.catalog_root.join(&crate_dirs[0]).join(LOCKFILE_NAME);
+    // Borrow `&lock_path`: lends the value without copying or giving it away.
+    // Typed binding: `created_placeholder: bool`.
     let created_placeholder: bool = !lock_path.is_file() && std::fs::write(&lock_path, EMPTY_LOCK).is_ok();
+    // Borrow `&UpdateKind`: lends the value without copying or giving it away.
+    // Typed binding: `code: i32`.
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
     let code: i32 = run_update(prepared, crate_dirs, dry_run, &UpdateKind::Full, forward, sink);
     if created_placeholder && code != 0 {
+        // Borrow `&lock_path`: lends the value without copying or giving it away.
+        // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
+        // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // void expr;   // or try { expr } catch {}
+        // ```
         let _ = std::fs::remove_file(&lock_path);
     }
     return code;
@@ -189,33 +415,47 @@ fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, fo
 fn run_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, kind: &UpdateKind, forward: &[String], sink: &mut dyn Write) -> i32 {
     let catalog_path = prepared.catalog_root.join(CATALOG_MARKER);
     let outcome = update_rust_lockfiles(
+        // Borrow `&UpdateRequest`: lends the value without copying or giving it away.
         &UpdateRequest {
+            // Borrow `&prepared.catalog_root`: lends the value without copying or giving it away.
             root: &prepared.catalog_root,
             crate_dirs,
             dry_run,
             now: now_millis(),
+            // Borrow `&prepared.document.settings`: lends the value without copying or giving it away.
             settings: &prepared.document.settings,
+            // Borrow `&catalog_path`: lends the value without copying or giving it away.
             catalog_path: &catalog_path,
+            // Borrow `&prepared.runner`: lends the value without copying or giving it away.
             runner: &prepared.runner,
+            // Borrow `&prepared.registry`: lends the value without copying or giving it away.
             registry: &prepared.registry,
             forward,
+            // Borrow `&FileEnforcer`: lends the value without copying or giving it away.
             syncer: &FileEnforcer,
             prune_catalog: false,
         },
         kind,
     );
+    // `match`: picks the arm whose pattern fits the value.
     return match outcome {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(report) => {
+            // Typed binding: `finished: UpdateReport`.
             let finished: UpdateReport = report;
+            // Borrow `&finished`: lends the value without copying or giving it away.
             print_update_report(&finished, dry_run, sink);
             if finished.problems.is_empty() {
                 0
             } else {
+                // Borrow `&finished.problems`: lends the value without copying or giving it away.
                 print_findings("Update refused; every Cargo.lock was restored", &finished.problems);
                 INSTALL_FAILED_EXIT_CODE
             }
         }
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => {
+            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("{error}");
             INSTALL_FAILED_EXIT_CODE
         }

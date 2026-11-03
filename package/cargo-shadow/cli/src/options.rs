@@ -14,23 +14,127 @@
 //! export function assertsLock(args: string[]): boolean
 //! ```
 
+// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
+// Why:      The code below names these items directly instead of spelling their full paths each time.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { Name } from './module.ts';
+// ```
+// What:     `OsString` is operating-system text that need not be valid UTF-8 (sibling: `String`, always valid UTF-8).
+// Why:      Command-line arguments pass through byte for byte, so they are kept as the OS gave them.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // TS has one type for this: string
+// ```
 use std::ffi::OsString;
+// Imports `std::path::PathBuf`.
+// What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+// Why:      Joined or stored paths are owned; paths passed in are borrowed.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // TS has one type for this: string
+// ```
 use std::path::PathBuf;
 
+// Imports `crate::verb::words_before_double_dash`.
 use crate::verb::words_before_double_dash;
 
 /// The value of an option written `--name value` or `--name=value`; the last one wins, as in cargo.
 fn long_option_value(words: &[String], name: &str) -> Option<String> {
+    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const name: Type = value;
+    // ```
+    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+    // Why:      Text building and printing are written as one call instead of string concatenation.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // `..${x}..`   // template literal
+    // console.error(text);   // eprintln!
+    // [a, b]            // vec![a, b]
+    // ```
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let prefix: String = format!("{name}=");
+    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+    // Why:      Absence is a value the caller must check; there is no `null`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // Some(value) is  value
+    // // None        is  undefined
+    // ```
+    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+    // Why:      The value is built up or replaced step by step below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let x = ...;   // plain Rust `let` is TS `const`
+    // ```
+    // Typed binding: `found: Option<String>`.
     let mut found: Option<String> = None;
+    // `let mut`: a binding that may change.
+    // Typed binding: `index: usize`.
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
     let mut index: usize = 0;
     while index < words.len() {
         if words[index] == name && index + 1 < words.len() {
+            // `Some`: the present or the absent value of an `Option`.
+            // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+            // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+            // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // structuredClone(value)  // or [...list] / {...object}
+            // ```
             found = Some(words[index + 1].clone());
             index += 2;
             continue;
         }
+        // `Some`: the present or the absent value of an `Option`.
+        // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+        // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (value !== undefined) { const inner = value; ... }
+        // ```
+        // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+        // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+        // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+        // ```
         if let Some(value) = words[index].strip_prefix(&prefix) {
+            // `Some`: the present or the absent value of an `Option`.
+            // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+            // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // String(value)  // JS strings are always owned values
+            // ```
             found = Some(value.to_string());
         }
         index += 1;
@@ -40,16 +144,39 @@ fn long_option_value(words: &[String], name: &str) -> Option<String> {
 
 /// The `--manifest-path` value, when given.
 pub fn manifest_path(arguments: &[OsString]) -> Option<PathBuf> {
+    // Borrow `&words_before_double_dash`: lends the value without copying or giving it away.
+    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
+    // Why:      They express one step of a pipeline without an index loop.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // list.map(f).filter(g)
+    // ```
     return long_option_value(&words_before_double_dash(arguments), "--manifest-path").map(PathBuf::from);
 }
 
 /// The `-C <directory>` value, when given (cargo's own option, nightly only).
 pub fn change_dir(arguments: &[OsString]) -> Option<PathBuf> {
+    // Typed binding: `words: Vec<String>`.
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let words: Vec<String> = words_before_double_dash(arguments);
+    // `None`: the present or the absent value of an `Option`.
+    // `let mut`: a binding that may change.
+    // Typed binding: `found: Option<PathBuf>`.
     let mut found: Option<PathBuf> = None;
+    // `let mut`: a binding that may change.
+    // Typed binding: `index: usize`.
     let mut index: usize = 0;
     while index < words.len() {
         if words[index] == "-C" && index + 1 < words.len() {
+            // `Some`: the present or the absent value of an `Option`.
+            // Borrow `&words`: lends the value without copying or giving it away.
             found = Some(PathBuf::from(&words[index + 1]));
             index += 2;
             continue;
@@ -61,5 +188,19 @@ pub fn change_dir(arguments: &[OsString]) -> Option<PathBuf> {
 
 /// Whether the command line asks cargo to keep the lockfile unchanged (`--locked`) or also stay offline (`--frozen`).
 pub fn asserts_lock(arguments: &[OsString]) -> bool {
+    // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
+    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (a, b) => body
+    // ```
+    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
+    // Why:      The collection stays usable after the walk and no item is copied until it must be.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const item of list) { ... }  // or list.map(...)
+    // ```
     return words_before_double_dash(arguments).iter().any(|word| { return word == "--locked" || word == "--frozen"; });
 }

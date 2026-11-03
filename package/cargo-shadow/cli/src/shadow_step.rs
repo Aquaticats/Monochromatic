@@ -11,24 +11,61 @@
 //! export function beforeCargo(args: string[]): string | undefined  // a failure message
 //! ```
 
+// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
+// Why:      The code below names these items directly instead of spelling their full paths each time.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { Name } from './module.ts';
+// ```
+// What:     `OsString` is operating-system text that need not be valid UTF-8 (sibling: `String`, always valid UTF-8).
+// Why:      Command-line arguments pass through byte for byte, so they are kept as the OS gave them.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // TS has one type for this: string
+// ```
 use std::ffi::OsString;
+// Imports `std::io::Write`.
 use std::io::Write;
+// Imports `std::path::{Path, PathBuf}`.
+// What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+// Why:      Joined or stored paths are owned; paths passed in are borrowed.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // TS has one type for this: string
+// ```
 use std::path::{Path, PathBuf};
+// Imports `std::time::{SystemTime, UNIX_EPOCH}`.
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// Imports `monochromatic_dependency_catalog::{CatalogD...`.
 use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};
 
+// Imports `crate::cargo_run::RealCargo`.
 use crate::cargo_run::RealCargo;
+// Imports `crate::catalog_warning::warn_about_manifest`.
 use crate::catalog_warning::warn_about_manifest;
+// Imports `crate::constants::{CATALOG_MARKER, MANIFEST...`.
 use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};
+// Imports `crate::git_base::{base_from_environment, gi...`.
 use crate::git_base::{base_from_environment, git_base_lock_reader};
+// Imports `crate::http::UreqFetcher`.
 use crate::http::UreqFetcher;
+// Imports `crate::install::is_continuous_integration`.
 use crate::install::is_continuous_integration;
+// Imports `crate::install_step::{StepOutcome, StepRequ...`.
 use crate::install_step::{StepOutcome, StepRequest, run_install_step};
+// Imports `crate::options::{asserts_lock, change_dir, ...`.
 use crate::options::{asserts_lock, change_dir, manifest_path};
+// Imports `crate::real_binary::find_real_cargo`.
 use crate::real_binary::find_real_cargo;
+// Imports `crate::registry::CratesIo`.
 use crate::registry::CratesIo;
+// Imports `crate::toolchain::cargo_toolchain`.
 use crate::toolchain::cargo_toolchain;
+// Imports `crate::workspace::{find_cargo_root, find_ca...`.
 use crate::workspace::{find_cargo_root, find_catalog_root};
 
 /// What:
@@ -42,12 +79,46 @@ use crate::workspace::{find_cargo_root, find_catalog_root};
 /// export function startDir(args: string[], cwd: string): string
 /// ```
 pub fn start_dir(arguments: &[OsString], current: &Path) -> PathBuf {
+    // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
+    // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
+    // ```
+    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
+    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const name: Type = value;
+    // ```
     let base: PathBuf = match change_dir(arguments) {
+        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+        // Why:      Absence is a value the caller must check; there is no `null`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Some(value) is  value
+        // // None        is  undefined
+        // ```
         Some(directory) => current.join(directory),
+        // `None`: the present or the absent value of an `Option`.
         None => current.to_path_buf(),
     };
+    // `Some`: the present or the absent value of an `Option`.
+    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value !== undefined) { const inner = value; ... }
+    // ```
     if let Some(manifest) = manifest_path(arguments) {
+        // Typed binding: `full: PathBuf`.
         let full: PathBuf = base.join(manifest);
+        // `Some`: the present or the absent value of an `Option`.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         if let Some(parent) = full.parent() {
             return parent.to_path_buf();
         }
@@ -57,6 +128,42 @@ pub fn start_dir(arguments: &[OsString], current: &Path) -> PathBuf {
 
 /// Milliseconds since 1970 now.
 pub fn now_millis() -> i64 {
+    // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
+    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // (a, b) => body
+    // ```
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
+    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
+    // Why:      They express one step of a pipeline without an index loop.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // list.map(f).filter(g)
+    // ```
+    // What:     `value as i64` converts a number to another numeric type (siblings: `i32`, `u32`, `u64`, `usize`, `f64`); it truncates silently if the value does not fit.
+    // Why:      Time arithmetic and sizes come in different integer widths and must be made equal.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // Number(value)  // JS has one number type, so no cast is needed
+    // ```
+    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
+    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: number
+    // ```
     return SystemTime::now().duration_since(UNIX_EPOCH).map(|elapsed| { return elapsed.as_millis() as i64; }).unwrap_or(0);
 }
 
@@ -94,29 +201,152 @@ pub struct Prepared {
 /// export function prepare(args: string[]): Prepared | undefined  // throws
 /// ```
 pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
+    // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+    // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+    // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const value = await expr;   // throws to the caller on failure
+    // ```
+    // Closure `|error|`: an anonymous function, like a TS arrow function.
+    // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
+    // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { ... } catch (error) { throw new MyError(String(error)); }
+    // ```
+    // Typed binding: `current: PathBuf`.
+    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
+    // Why:      Text building and printing are written as one call instead of string concatenation.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // `..${x}..`   // template literal
+    // console.error(text);   // eprintln!
+    // [a, b]            // vec![a, b]
+    // ```
     let current: PathBuf = std::env::current_dir().map_err(|error| { return format!("cargo-shadow: no working directory: {error}"); })?;
+    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
+    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
+    // ```
+    // Typed binding: `start: PathBuf`.
     let start: PathBuf = start_dir(arguments, &current);
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&start`: lends the value without copying or giving it away.
+    // Typed binding: `catalog_root: PathBuf`.
     let catalog_root: PathBuf = match find_catalog_root(&start) {
+        // `Some`: the present or the absent value of an `Option`.
         Some(found) => found,
+        // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
+        // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // Ok(value)  is  return value;
+        // // Err(error) is  throw error;   (the caller sees it as a returned value)
+        // ```
+        // `None`: the present or the absent value of an `Option`.
         None => return Ok(None),
     };
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Closure `||`: an anonymous function, like a TS arrow function.
+    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
+    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // String(value)  // JS strings are always owned values
+    // ```
+    // What:     `.ok()` turns a `Result` into an `Option` (dropping the error); `.ok_or(e)` turns an `Option` into a `Result` with the given error.
+    // Why:      The next step wants a value-or-nothing, or a value-or-error, not the other form.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { return compute(); } catch { return undefined; }
+    // ```
+    // Typed binding: `program: PathBuf`.
     let program: PathBuf = find_real_cargo().ok_or_else(|| { return "cargo-shadow: no real cargo found on PATH for the install step".to_string(); })?;
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Typed binding: `explicit: String`.
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let explicit: String = std::env::var("RUSTUP_TOOLCHAIN").unwrap_or_default();
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Closure `|message|`: an anonymous function, like a TS arrow function.
+    // Borrow `&catalog_root`: lends the value without copying or giving it away.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let (toolchain, warning) = cargo_toolchain(&catalog_root, &explicit).map_err(|message| { return format!("cargo-shadow: toolchain.lock.json is not readable: {message}"); })?;
+    // `Some`: the present or the absent value of an `Option`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     if let Some(text) = warning {
+        // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: warning: {text}");
     }
+    // Typed binding: `catalog_text: String`.
     let catalog_text: String = std::fs::read_to_string(catalog_root.join(CATALOG_MARKER))
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+        // Closure `|error|`: an anonymous function, like a TS arrow function.
+        // `.map_err(...)`: converts the callee's error into this function's error type.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         .map_err(|error| { return format!("cargo-shadow: {CATALOG_MARKER}: {error}"); })?;
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Closure `|error|`: an anonymous function, like a TS arrow function.
+    // Borrow `&catalog_text`: lends the value without copying or giving it away.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
+    // Typed binding: `document: CatalogDocument`.
     let document: CatalogDocument = parse_catalog(&catalog_text, CATALOG_MARKER).map_err(|error| { return error.to_string(); })?;
+    // Borrow `&std`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Typed binding: `in_ci: bool`.
     let in_ci: bool = is_continuous_integration(&std::env::var("CI").unwrap_or_default());
+    // Closure `|cargo_root|`: an anonymous function, like a TS arrow function.
+    // Borrow `&start`: lends the value without copying or giving it away.
+    // `.ok()`/`.ok_or()`: converts between `Result` and `Option`.
+    // Adapter `.and_then(`: transforms or selects items with a closure.
+    // Typed binding: `crate_dir: Option<String>`.
     let crate_dir: Option<String> = find_cargo_root(&start).and_then(|cargo_root| { return cargo_root.strip_prefix(&catalog_root).ok().map(|relative| { return relative.to_string_lossy().replace('\\', "/"); }); });
+    // Closure `||`: an anonymous function, like a TS arrow function.
+    // Typed binding: `frozen: bool`.
     let frozen: bool = in_ci || asserts_lock(arguments);
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Borrow `&str`: lends the value without copying or giving it away.
+    // Typed binding: `lock_base: Option<Box<dyn Fn(&str) -> Strin...`.
+    // What:     `&dyn Trait` is a borrowed value of any type that implements the trait (a TS interface type); the call goes through a lookup table at run time.
+    // Why:      The caller may pass the real implementation or a test fake.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // function f(registry: Registry) { ... }  // an interface type
+    // ```
     let lock_base: Option<Box<dyn Fn(&str) -> String>> = lock_base_reader(&catalog_root, &document, frozen)?;
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // `Some`: the present or the absent value of an `Option`.
     return Ok(Some(Prepared {
         start,
         lock_base,
         runner: RealCargo { program, toolchain },
+        // Borrow `&catalog_root`: lends the value without copying or giving it away.
+        // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
+        // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const list: string[] = [];   // or new Set() / new Map()
+        // ```
         registry: CratesIo::with_defaults(&catalog_root, Box::new(UreqFetcher::new()), Box::new(UreqFetcher::new())),
         catalog_root,
         crate_dir,
@@ -139,8 +369,12 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
 /// ```
 pub fn lock_base_reader(catalog_root: &Path, document: &CatalogDocument, needed: bool) -> Result<Option<Box<dyn Fn(&str) -> String>>, String> {
     if !needed || !document.settings.trust_lockfile {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
         return Ok(None);
     }
+    // Borrow `&base_from_environment`: lends the value without copying or giving it away.
+    // Adapter `.map(`: transforms or selects items with a closure.
     return git_base_lock_reader(catalog_root, &base_from_environment()).map(Some);
 }
 
@@ -155,29 +389,48 @@ pub fn lock_base_reader(catalog_root: &Path, document: &CatalogDocument, needed:
 /// export function beforeCargo(args: string[]): string | undefined
 /// ```
 pub fn before_cargo(arguments: &[OsString]) -> Option<String> {
+    // `match`: picks the arm whose pattern fits the value.
+    // Typed binding: `prepared: Prepared`.
     let prepared: Prepared = match prepare(arguments) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
         Ok(Some(found)) => found,
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `None`: the present or the absent value of an `Option`.
         Ok(None) => return None,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `Some`: the present or the absent value of an `Option`.
         Err(message) => return Some(message),
     };
+    // Borrow `&StepRequest`: lends the value without copying or giving it away.
+    // Typed binding: `outcome: StepOutcome`.
     let outcome: StepOutcome = run_install_step(&StepRequest {
+        // Borrow `&prepared.start`: lends the value without copying or giving it away.
         start_dir: &prepared.start,
         frozen: prepared.frozen,
         offline: prepared.offline,
         now: now_millis(),
+        // Borrow `&prepared.runner`: lends the value without copying or giving it away.
         runner: &prepared.runner,
+        // Borrow `&prepared.registry`: lends the value without copying or giving it away.
         registry: &prepared.registry,
         lock_base: prepared.lock_base.as_deref(),
     });
+    // `match`: picks the arm whose pattern fits the value.
     match outcome {
+        // `Some`: the present or the absent value of an `Option`.
         StepOutcome::Failed(message) => return Some(message),
         StepOutcome::Updated { crate_dir, added } => {
+            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!(
                 "cargo-shadow: {crate_dir}/Cargo.lock did not satisfy its manifests and was updated offline ({} newly locked registry versions passed the policy)",
                 added.len()
             );
+            // `None`: the present or the absent value of an `Option`.
             return None;
         }
+        // `None`: the present or the absent value of an `Option`.
+        // Closure `| StepOutcome::FastPath |`: an anonymous function, like a TS arrow function.
         StepOutcome::Skipped(_) | StepOutcome::FastPath | StepOutcome::Passed => return None,
     }
 }
@@ -185,17 +438,26 @@ pub fn before_cargo(arguments: &[OsString]) -> Option<String> {
 /// Writes the catalog warning for the manifest cargo worked on: the one named by `--manifest-path`, else the nearest
 /// `Cargo.toml` above the start directory.
 pub fn warn_after_cargo(arguments: &[OsString], sink: &mut dyn Write) {
+    // `match`: picks the arm whose pattern fits the value.
+    // Typed binding: `current: PathBuf`.
     let current: PathBuf = match std::env::current_dir() {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(found) => found,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(_) => return,
     };
+    // Borrow `&current`: lends the value without copying or giving it away.
+    // Typed binding: `start: PathBuf`.
     let start: PathBuf = start_dir(arguments, &current);
+    // Borrow `&start`: lends the value without copying or giving it away.
     if find_catalog_root(&start).is_none() {
         return;
     }
     for directory in start.ancestors() {
+        // Typed binding: `manifest: PathBuf`.
         let manifest: PathBuf = directory.join(MANIFEST_NAME);
         if manifest.is_file() {
+            // Borrow `&manifest`: lends the value without copying or giving it away.
             warn_about_manifest(&manifest, sink);
             return;
         }
@@ -217,18 +479,53 @@ pub fn warn_after_cargo(arguments: &[OsString], sink: &mut dyn Write) {
 /// ```
 pub fn with_locked(arguments: &[OsString]) -> Vec<OsString> {
     if asserts_lock(arguments) {
+        // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
+        // Why:      The result can be stored or modified independently of the slice it came from.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // [...slice]
+        // ```
         return arguments.to_vec();
     }
+    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
+    // Why:      The value is built up or replaced step by step below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let x = ...;   // plain Rust `let` is TS `const`
+    // ```
+    // Typed binding: `result: Vec<OsString>`.
+    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
+    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
+    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: T[] / Set / Map / number
+    // ```
     let mut result: Vec<OsString> = Vec::new();
+    // `let mut`: a binding that may change.
+    // Typed binding: `added: bool`.
     let mut added: bool = false;
     for argument in arguments {
         if !added && argument == "--" {
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             result.push(OsString::from("--locked"));
             added = true;
         }
+        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // structuredClone(value)  // or [...list] / {...object}
+        // ```
         result.push(argument.clone());
     }
     if !added {
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         result.push(OsString::from("--locked"));
     }
     return result;
