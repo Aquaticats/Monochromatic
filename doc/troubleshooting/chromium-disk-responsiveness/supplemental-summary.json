@@ -1,0 +1,23 @@
+{
+  "data": {
+    "elapsed_total": {
+      "human": "38.777017s",
+      "nanos": 777017349,
+      "secs": 38
+    },
+    "stats": {
+      "bytes_printed": 34698388,
+      "bytes_searched": 3041578519,
+      "elapsed": {
+        "human": "56.896111s",
+        "nanos": 896111458,
+        "secs": 56
+      },
+      "matched_lines": 58646,
+      "matches": 61335,
+      "searches": 505073,
+      "searches_with_match": 12600
+    }
+  },
+  "type": "summary"
+}
