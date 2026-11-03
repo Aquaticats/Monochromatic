@@ -33,3 +33,7 @@ run = "cargo publish --dry-run"
 [tasks.publish]
 description = "Fallback local publish. Canonical path is .github/workflows/cargo-publish.yml (OIDC Trusted Publishing); the very first version of a crate must be published once with a personal API token (doc/runbook/publish-crate-first-time.md)."
 run = "cargo publish"
+
+[tasks."test:debug"]
+description = "cargo nextest run in the debug profile (no LTO link), for the red-green loop; the release task stays the gate"
+run = "cargo nextest run"
