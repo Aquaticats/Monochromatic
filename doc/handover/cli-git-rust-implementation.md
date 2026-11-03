@@ -9664,3 +9664,12 @@ by the coordinator at merge.
   from main 1851 ms, the new root is a subvolume (inode 256), `git status` clean in 73 ms, `git worktree remove` 245 ms
   and the path is gone, branch deleted. The timer-race merge `b952297332` landed after this run's push step, so it
   ships in the next release.
+- Gate 63 PASSED 3441 of 3441 on the push refusal and hint-by-cause branch; merged into main, clippy clean. 0.5.18 was
+  dispatched (run 41573472815) and then cancelled before its push so the main-snapshot work could join.
+- Gate 64 PASSED 3629 of 3629 (6 skipped) on `feat/git-policy-cli-main-snapshot-worktree` `a855da4afc`. Merged into
+  main (no conflict). 0.5.18 dispatched again with everything after `native:clippy` on main. Branches
+  `feat/git-policy-cli-main-snapshot-worktree` and `main-ignored-copy` (contained in it) deleted. The conversion and
+  trash review (`~/temp/agent/review-main-snapshot/`) is still running and is handled as a follow-up.
+- NEXT after 0.5.18 is installed: `git cli-git convert-worktree-to-subvolume --dry-run --all` in main, read the
+  refusals, then run the real `--all` (owner: "Convert once + snapshot (Recommended)"); busy worktrees are refused by
+  the tool itself and stay ordinary until a later run.
