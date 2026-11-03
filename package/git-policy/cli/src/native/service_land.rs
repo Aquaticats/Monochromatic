@@ -18,7 +18,7 @@ use super::service_head::head_names;
 use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
 use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
-use super::service_index_lock::{Announce, IndexLock, acquire_noting_wait, remove_stale, try_acquire};
+use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait, remove_stale, try_acquire};
 use super::service_timing::{LandTiming, wait_line};
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
 use super::service_protocol::{CommitRequest, FailureCode, is_zero_object};
@@ -220,20 +220,6 @@ pub fn land_batch_timed(
     let mut attempts_left: usize = LANDING_ATTEMPTS;
     // A branch that does not exist yet is prepared against the all-zero name and lands only while it still does not.
     let unborn: bool = is_zero_object(first.base.as_str());
-    // Git's own order: the index lock is taken before the branch is read or moved and given up when the new index is in place,
-    //  so a foreign `git` that holds it finishes first and this landing builds on what it left. A lock that is not given up
-    //  here (a refusal, a failure) is removed when it goes out of scope, and the index stays as it was.
-    let waiting_since: Instant = Instant::now();
-    let taken = acquire_noting_wait(first.index.as_path(), seq, context.index_wait, announce, &mut timing.lock_notes);
-    timing.lock_wait = waiting_since.elapsed();
-    timing.lock_holder.clone_from(&timing.lock_notes.holder);
-    // The wait is written down when it ends, not with the answer, so a landing that fails later still leaves it.
-    if let Some(line) = wait_line(seq, timing.lock_wait, &timing.lock_notes, taken.is_ok()) {
-        // A lock that was refused fails the commit, so the line stands out from a wait that ended in the lock.
-        let priority: Priority = if taken.is_ok() { Priority::Info } else { Priority::Error };
-        crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);
-    }
-    let mut lock: Option<IndexLock> = Some(taken.map_err(|failure| { return failure.code; })?);
     loop {
         timing.attempts += 1;
         let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", first.reference.as_str()], None) {
@@ -362,6 +348,38 @@ pub fn land_batch_timed(
         timing.journal += journal_began.elapsed();
         written.map_err(|error| { return storage_failure(&error); })?;
         reach("after-intent");
+        // Git's own rule: the index lock is held before the branch is moved and given up when the new index is in place, so
+        //  a foreign `git` that holds it finishes first and this landing builds on what it left. Everything that can be done
+        //  without the index is done before the lock is asked for (the reads, the objects, the intent), so the lock is held
+        //  for the branch move and the index build only, and a foreign holder is waited for while the work above is done,
+        //  not before it. A lock that is not given up here (a refusal, a failure) is removed when it goes out of scope, and
+        //  the index stays as it was.
+        let waiting_since: Instant = Instant::now();
+        let mut notes: WaitNotes = WaitNotes::default();
+        let taken = acquire_noting_wait(first.index.as_path(), seq, context.index_wait, announce, &mut notes);
+        let waited: std::time::Duration = waiting_since.elapsed();
+        timing.lock_wait += waited;
+        // A pass over the batch that found the lock free has nothing to add to what an earlier pass found held.
+        if notes.looks > 0 || timing.attempts == 1 {
+            timing.lock_holder.clone_from(&notes.holder);
+            timing.lock_notes = notes.clone();
+        }
+        // The wait is written down when it ends, not with the answer, so a landing that fails later still leaves it.
+        if let Some(line) = wait_line(seq, waited, &notes, taken.is_ok()) {
+            // A lock that was refused fails the commit, so the line stands out from a wait that ended in the lock.
+            let priority: Priority = if taken.is_ok() { Priority::Info } else { Priority::Error };
+            crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);
+        }
+        let held: IndexLock = match taken {
+            Ok(lock) => lock,
+            Err(failure) => {
+                // Nothing moved: forget the intent and the scratch branch, as for a branch that moved under the batch.
+                let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+                let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+                return Err(failure.code);
+            }
+        };
+        let hold_began: Instant = Instant::now();
         // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
         let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
         // A detached head is the `HEAD` file itself: it is updated without following a symbolic reference, so a head that
@@ -378,6 +396,7 @@ pub fn land_batch_timed(
             let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
             // For an amend, the next round finds the tip away from its base and answers that the branch moved.
             attempts_left -= 1;
+            timing.hold += hold_began.elapsed();
             if attempts_left == 0 {
                 return Err(FailureCode::BranchKeepsChanging);
             }
@@ -385,17 +404,16 @@ pub fn land_batch_timed(
         }
         reach("after-ref");
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
-        let Some(held) = lock.take() else { return Err(FailureCode::Unavailable) };
         let sync_began: Instant = Instant::now();
         let synced: bool = follow_up(&git, repository, &intent, held);
         timing.sync += sync_began.elapsed();
+        timing.hold += hold_began.elapsed();
         if synced {
             reach("after-index");
             let _marked = mark_done(context.journal.as_path(), seq);
         }
-        for (slot, (index, request)) in landing.iter().enumerate() {
+        for (slot, (index, _request)) in landing.iter().enumerate() {
             outcomes[*index] = Outcome::Landed { commit: commits[slot].clone() };
-            super::service_captures::record_landed(request.common_dir.as_path(), request.repository.as_path(), commits[slot].as_str(), request.captured);
         }
         return Ok(outcomes);
     }

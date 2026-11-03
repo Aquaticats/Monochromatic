@@ -1915,14 +1915,35 @@ Each commit passes through three phases:
 2.  Landing:
     in the service,
     one step at a time per worktree.
-    The service creates Git's own `index.lock` exclusively,
-    advances the target ref by compare-and-swap from the tip the wrapper read,
+    The service reads the branch, makes the commits' objects and writes the batch's intent to the journal first,
+    none of which needs the index,
+    then creates Git's own `index.lock` exclusively,
+    advances the target ref by compare-and-swap from the tip it read,
     builds the new index beside the real one,
     and installs it by renaming the lock over `index`.
+    The lock is therefore held for the branch move and the index build only
+    (`lock_hold_ms` in the service's log line for the request),
+    and a foreign holder is waited for after the objects and the intent exist, not before them.
+    Measured (btrfs,
+    host,
+    release build,
+    the repository's own `native:perf` task,
+    three alternating runs of each arm,
+    180 landings each,
+    service log of the request):
+    the hold had a median of 24 ms and a 95th percentile of 68 ms when the lock was taken first
+    (the sum of every phase after the wait),
+    and a median of 5 ms and a 95th percentile of 6 ms as `lock_hold_ms` when it is taken after the intent.
+    The median paired delta of the commit scenario against native Git was 39.5 to 40.2 ms for the unchanged release
+    (six runs, a spread of 0.7 ms) and 38.9 to 39.8 ms for the new one (three runs, a spread of 0.9 ms);
+    the commit path was not made slower.
+    A foreign commit that moves the branch while the service waits for the lock makes the compare-and-swap fail,
+    and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
     bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (thirty minutes by default)
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`;
-    a holder that outlasts the bound ends the commit before anything moved,
+    a holder that outlasts the bound ends the commit before the branch moved,
+    removing the batch's intent and scratch branch,
     with a plain message naming the process.
     Both variables belong in the environment of the unit that runs the service.
 3.  After landing:
@@ -1940,6 +1961,39 @@ The only lock a commit meets is Git's `index.lock`,
 and the only wait is the service's bounded wait for a foreign holder
 and a forwarded index writer's event-driven wait for the service's own hold on the index.
 A forwarded index writer that finds a foreign `index.lock` ends as native Git ends it.
+
+### Locks and waits of the service, by item
+
+Concurrency in the service is lock-free first: atomic rename, exclusive creation, one owner per item.
+Every lock that remains covers the smallest unit and has its reason written beside it in the code.
+`src/native/service_lock_inventory_tests.rs` fails when a lock primitive (a mutex, a read-write lock, a condition variable,
+an `flock`) appears in the service and support sources outside its inventory, or without the reason above its declaration.
+
+Removed:
+
+- The `flock` on the discarded copies' folder (`discarded_store.rs`):
+  each file is owned by the pass whose `unlinkat` of it succeeded (see "Discarded copies").
+- The mutex-guarded table of landed captures (`service_captures.rs`):
+  the serve loop that lands commits and answers clients owns it, and passes it down.
+- The mutex on the review credentials (`service_work.rs`):
+  the work thread that remembers, reads and forgets them owns the map.
+- The mutexes and the condition variable of the claim renewal (`service_claim_renewal.rs`):
+  see "Leases of claimed work".
+- The long hold of Git's `index.lock`:
+  the service asks for it after the objects and the intent exist, and holds it for the branch move and the index build only.
+
+Kept, each with its reason in the code and here:
+
+- Git's own `index.lock`:
+  Git's protocol for writing the index, which the service writes.
+  It is held for the branch move and the index build (a median of 5 ms), and waited for on an event watch.
+- The mutex on the pending bytes of the journal's stream (`journald_native.rs`):
+  a stream may take a line in parts and two lines must never run together, so the unfinished rest of a line and the write that
+  finishes it are one critical section of one non-blocking write; the waiter waits for one system call, never for the journal.
+- The claim and its lease on work items (`work_item.rs`, `service_claim_renewal.rs`):
+  rename-based, no lock file; a lease is how a later instance learns that a killed holder abandoned a claim (see "Leases of claimed work").
+
+Init-once cells (`OnceLock`) hold values read at first use (a boot ID, the machine ID, the Git release, the process identity) and wait for nothing after.
 
 ### The service's hold on the index lock
 
@@ -2757,6 +2811,21 @@ because boot IDs are random per kernel boot and two hosts that drain one work di
 have unrelated ones:
 each would otherwise take the other's live claims at once.
 
+Why the lease and its renewal stay:
+a service that is killed leaves its claims in `claimed`, and the file name is the only record of who held them and since when,
+so a lease is how a later instance knows a claim was abandoned without a process identity or a lock file.
+Several instances drain one directory in two cases:
+the common directory of a bare repository, whose linked worktrees each run an instance (`drain_common_records`),
+and a service started by hand or by a downgrade beside the unit's own, which the manager's one main process per unit does not allow.
+The renewal that keeps a live holder's claim from looking abandoned is in-process state shared by two threads,
+and it takes no lock:
+the renewal thread alone knows the names claims have now and renames them,
+the drain thread tells it of each claim over a channel and settles by finding the claim's file by its id and generation
+(a renewal changes the reading in the name and nothing else),
+asking again when a renewal renamed the file between the look and the rename,
+and the two share only a flag per claim for taken over and settled.
+Neither side waits for the other.
+
 A reading with no machine ID leaves the fourth part out,
 which is the file-name form of releases up to 0.5.9.
 Such a claim decodes and is judged by its lease even by a judge that has a machine ID.
@@ -3196,10 +3265,17 @@ with nothing waiting on it.
 The folder is opened once without following a link at `cli-git` or `discarded`
 (a link there, or a non-directory, keeps every copy and is said in the notice and by the doctor),
 and everything is read and removed through that descriptor, never through a path walked again.
-A non-blocking exclusive lock on the folder lets one pass run at a time; a pass that finds it held does nothing.
+No lock covers the folder (the folder's `flock` of earlier releases is gone):
+passes may overlap, and none waits for another or turns away because another runs.
+A file has one owner, the pass whose `unlinkat` of it succeeded (the kernel lets one succeed), and only that pass counts and audits it,
+so overlapping passes split a directory's files between their audit lines and every copy is audited once.
+A file or a directory that another pass removed first is not an error, and a directory that is gone before the pass opens it is not a problem.
 A directory is removed only when, opened by name without following a link,
-it is still the directory the listing saw (device, inode and change time):
-its files go through its descriptor, files of a directory before its subdirectories,
+it is still the directory the listing saw (device and inode).
+Its change time moves when another pass removes files from it, so a moved change time is not a replacement by itself:
+the pass looks at what the directory holds now, and keeps it, naming the cause,
+only when it holds a file the listing did not see.
+Its files go through its descriptor, files of a directory before its subdirectories,
 then the empty directory is removed by inode,
 so a replacement under the same name is never touched.
 A link inside a save is removed as a link and never entered; a tree deeper than 128 levels is kept.
@@ -3221,7 +3297,7 @@ and `maxSize`, a safe integer of at least 1 (bytes) or a string of digits with a
 A value that is not that is a configuration failure that names the key, as for every other key of the file
 (exit `2` before any policy runs); zero never means "no limit" or "remove everything", and nothing is removed.
 An unknown key under the section is refused with `maxAgeDays` and `maxSize` named.
-Each removed save is followed by one audit line, written once the directory is gone:
+Each removed save is followed by one audit line per pass that removed copies from it, written once those copies are gone:
 `schemaVersion`, `time`, `level`, `timeMillis`, `release`, `pid`, `form` (`PruneDiscarded`), `outcome` (`pruned`),
 `reason` (`age` or `size`), `limit` (days or bytes), `folderBytes` (the folder before the pass), `path`, `bytes`,
 `copiesTotal` and `copies` (at most one hundred names).

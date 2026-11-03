@@ -48,6 +48,10 @@ fn save_under(root: &Path, age: i64, file: &str, text: &str) -> PathBuf {
     return directory;
 }
 
+/// How many passes empty one directory together, and how many copies each of its two levels holds.
+const SHARED_PASSES: usize = 4;
+const SHARED_COPIES: usize = 400;
+
 /// The folder of a repository's saved copies, made.
 fn saved_root_of(common: &Path) -> PathBuf {
     let saved_root: PathBuf = common.join(SAVED_DIRECTORY);
@@ -181,10 +185,10 @@ fn a_subdirectory_replaced_by_a_link_is_removed_as_a_link() {
     remove(root.as_path());
 }
 
-/// A second pass that starts while one is running does nothing and says it found the folder in use; the running pass removes
-/// the directory once and audits it once.
+/// A second pass that starts while one is running does not wait and does not give up: it removes what it judged, the running
+/// pass then finds the directory gone and says nothing, and the directory is audited once (NLK: no lock covers the folder).
 #[test]
-fn a_second_pass_while_one_runs_does_nothing() {
+fn a_second_pass_while_one_runs_does_its_own_work_and_neither_loses_a_record() {
     let root: PathBuf = fixture("prune-two-passes");
     let common: PathBuf = root.join("repo.git");
     let saved_root: PathBuf = saved_root_of(common.as_path());
@@ -192,15 +196,67 @@ fn a_second_pass_while_one_runs_does_nothing() {
     let mut nested = None;
     let outcome = prune_with(common.as_path(), NOW, age_only(), None, &mut |_candidate: &Path| {
         let second = prune(common.as_path(), NOW, age_only(), None);
-        assert!(chosen.exists(), "the second pass removed the directory the first was about to remove");
+        assert!(!chosen.exists(), "the second pass left the directory it judged to a pass that holds the folder: {second:?}");
         nested = Some(second);
     });
     let second = nested.expect("the step ran");
-    assert!(second.busy && second.removed.is_empty(), "{second:?}");
-    assert_eq!(outcome.removed.len(), 1, "{outcome:?}");
-    assert!(!outcome.busy);
-    assert!(!chosen.exists());
-    assert_eq!(audit(common.as_path()).len(), 1);
+    assert_eq!(second.removed.len(), 1, "{second:?}");
+    assert!(second.problems.is_empty(), "{second:?}");
+    assert!(outcome.removed.is_empty() && outcome.problems.is_empty(), "the first pass found the directory gone and had nothing to say: {outcome:?}");
+    assert_eq!(audit(common.as_path()).len(), 1, "one directory removed, one line");
+    remove(root.as_path());
+}
+
+/// A file added to a judged directory after the listing makes it a directory the pass did not judge: it stays, with the new
+/// file, and the pass says why. (Its change time moves when a file is added, as when another pass removes files, so the
+/// pass compares what the directory holds now with what it held when listed.)
+#[test]
+fn a_file_added_after_the_listing_keeps_the_directory() {
+    let root: PathBuf = fixture("prune-file-added");
+    let common: PathBuf = root.join("repo.git");
+    let saved_root: PathBuf = saved_root_of(common.as_path());
+    let chosen: PathBuf = save_under(saved_root.as_path(), 90 * DAY, "old.txt", "old");
+    let outcome = prune_with(common.as_path(), NOW, age_only(), None, &mut |_candidate: &Path| {
+        std::fs::write(chosen.join("added.txt"), "written after the listing").expect("a new file");
+    });
+    assert_eq!(std::fs::read_to_string(chosen.join("added.txt")).expect("kept"), "written after the listing");
+    assert!(chosen.join("old.txt").exists(), "nothing of the directory was removed");
+    assert!(outcome.removed.is_empty(), "{:?}", outcome.removed);
+    assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::EntryChanged]);
+    assert!(audit(common.as_path()).is_empty());
+    remove(root.as_path());
+}
+
+/// Passes that empty one directory together share its files without a lock: a file is audited by the pass whose removal of it
+/// succeeded, so every copy is counted once across the passes and none of them reports a failure.
+#[test]
+fn passes_emptying_one_directory_together_audit_every_copy_once() {
+    let root: PathBuf = fixture("prune-shared-directory");
+    let common: PathBuf = root.join("repo.git");
+    let saved_root: PathBuf = saved_root_of(common.as_path());
+    let chosen: PathBuf = save_under(saved_root.as_path(), 90 * DAY, "first.txt", "first");
+    let copies: usize = SHARED_COPIES;
+    for number in 0..copies {
+        std::fs::write(chosen.join(format!("copy-{number}.txt")), "x").expect("a copy");
+    }
+    std::fs::create_dir(chosen.join("inner")).expect("a subdirectory");
+    for number in 0..copies {
+        std::fs::write(chosen.join("inner").join(format!("deep-{number}.txt")), "y").expect("a deeper copy");
+    }
+    let total: usize = copies * 2 + 1;
+    let starting: std::sync::Barrier = std::sync::Barrier::new(SHARED_PASSES);
+    let outcomes: Vec<super::PruneOutcome> = std::thread::scope(|scope| {
+        let passes: Vec<_> = (0..SHARED_PASSES)
+            .map(|_| { return scope.spawn(|| { starting.wait(); return prune(common.as_path(), NOW, age_only(), None); }); })
+            .collect();
+        return passes.into_iter().map(|pass| { return pass.join().expect("a pass finished"); }).collect();
+    });
+    for outcome in &outcomes {
+        assert!(outcome.problems.is_empty(), "{outcome:?}");
+    }
+    assert!(!chosen.exists(), "the directory is gone");
+    let audited: u64 = audit(common.as_path()).iter().map(|line| { return line["copiesTotal"].as_u64().unwrap_or(0); }).sum();
+    assert_eq!(audited, u64::try_from(total).expect("a count"), "every copy is audited once across the passes: {outcomes:?}");
     remove(root.as_path());
 }
 
