@@ -103,6 +103,15 @@ fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, u32)> {
     return Some((parse_full_index(bytes.as_slice(), hash_length)?, seconds as u32));
 }
 
+/// Write `bytes` to a new file at `path` and flush them to the disk, as Git does for the index it writes (`CSUM_FSYNC`), so a
+///  crash leaves the old index or the whole new one.
+fn write_durably(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
+    file.write_all(bytes)?;
+    return file.sync_all();
+}
+
 /// The update, with every decline as `None`.
 fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, file: &Path) -> Option<()> {
     let around: Surroundings = surroundings(git, repository)?;
@@ -118,8 +127,9 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     let format: ObjectFormat = around.layout.object_format;
     let bytes: Vec<u8> = write_full_index(&index, &|data: &[u8]| { return checksum(format, data); })?;
     let staged = file.with_file_name(format!("{}.cli-git-reset", file.file_name()?.to_string_lossy()));
-    std::fs::write(&staged, bytes).ok()?;
-    if std::fs::rename(&staged, file).is_err() {
+    // A file an earlier killed update left is not this update's.
+    let _stale = std::fs::remove_file(&staged);
+    if write_durably(&staged, bytes.as_slice()).is_err() || std::fs::rename(&staged, file).is_err() {
         let _removed = std::fs::remove_file(&staged);
         return None;
     }
