@@ -48,3 +48,20 @@ pub const CONNECTED_PUSH_QUIET_WINDOW: Duration = Duration::from_secs(150);
 ///  environment variable. Five minutes is the longest any test may run (`.config/nextest.toml`: a test is stopped after
 ///  `slow-timeout` 60 s times `terminate-after` 5), so the marker never outlives the control that armed it.
 pub const PHASE_PATIENCE: Duration = Duration::from_secs(5 * 60);
+
+/// The longest a quick Git query step (`rev-parse`, `for-each-ref`, `cat-file`, `write-tree`, ...) runs before the wrapper ends it,
+///  even while it shows signs of work. Measured: the longest read step of the service's landings was 9,663 ms (`reads_ms`, 1,651
+///  landings); two minutes is 12 times that. It is below `ANSWER_CEILING`, so the service answers first.
+pub const PLUMBING_STEP_CEILING: Duration = Duration::from_secs(2 * 60);
+
+/// The longest a bulk Git step (`fast-import`, `add`, `reset`, the commit Git builds in a scratch repository, ...) runs before the
+///  wrapper ends it, even while it shows signs of work. Measured: the longest client-side preparation of the timing log was
+///  250,280 ms (`prepareMs`, 1,400 records) and the longest build 183,296 ms; the service's object step took at most 1,358 ms
+///  (`objects_ms`). Ten minutes is 2.4 times the longest preparation and below `ANSWER_CEILING`.
+pub const OBJECT_STEP_CEILING: Duration = Duration::from_secs(10 * 60);
+
+/// The longest a reference update (`update-ref`), the step that is not safe to run twice, runs before the wrapper ends it. Measured:
+///  the longest of 1,651 reference updates took 3,438 ms (`ref_ms`); one minute is 17 times that. Git writes a reference by creating
+///  its lock file and renaming it, so ending the step leaves either the old reference or the new one, and the lock file it may leave
+///  is removed by the stale-lock sweep once the process is gone.
+pub const REFERENCE_STEP_CEILING: Duration = Duration::from_secs(60);

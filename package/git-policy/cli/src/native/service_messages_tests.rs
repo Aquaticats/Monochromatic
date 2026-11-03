@@ -20,6 +20,7 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: Some(String::from("/work/repo/.git/cli-git-saved-message-ab12")) },
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: None },
         ClientFailure::ServiceSilent,
+        ClientFailure::StepTooSlow,
         ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("a landing behind another program's index lock")) },
         ClientFailure::StillWithService { minutes: 20, blocker: None },
         ClientFailure::WithdrawalUnconfirmed,
@@ -61,7 +62,8 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::BranchMovedMessageSaved { .. } => 17,
         ClientFailure::OtherRelease => 18,
         ClientFailure::BranchSwitched { .. } => 19,
-        ClientFailure::ContentPruned => 22,
+        ClientFailure::ContentPruned => 23,
+        ClientFailure::StepTooSlow => 22,
         ClientFailure::StillWithService { .. } => 20,
         ClientFailure::WithdrawalUnconfirmed => 21,
     };

@@ -23,8 +23,9 @@
 use super::forwarding::git_command;
 use super::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
-use super::child_class::class_of;
-use super::child_watch::{WatchTerms, output_watched_stopping};
+use super::child_class::{ChildClass, class_of};
+use super::child_watch::{WatchTerms, output_watched_within};
+use super::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING, REFERENCE_STEP_CEILING};
 /// Private exclusive files for standard input.
 use super::private_storage::write_exclusive_scratch;
 /// The repository scratch directory the input file is made in.
@@ -523,7 +524,7 @@ fn run_git_once_with(
 ) -> std::io::Result<GitOutput> {
     let first: std::io::Result<GitOutput> = run_git_watched(context, request, terms());
     return match first {
-        Err(error) if error.kind() == std::io::ErrorKind::TimedOut && may_be_rerun(request) => {
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut && may_be_rerun(request) && !super::child_watch::is_ceiling(&error) => {
             // Terminal output error: a notice is advisory; a failed write must not stop the commit.
             let _written = writeln!(
                 std::io::stderr(),
@@ -543,6 +544,38 @@ fn step_subject(request: &GitRequest) -> String {
         command_text(&request.arguments),
         class_of(request.arguments.as_slice()).label()
     );
+}
+
+/// What:
+///  The longest the request's step runs before it is ended, whatever it shows: the reference update has the shortest ceiling, the
+///  other steps the ceiling of their class.
+/// Why:
+///   The owner's rule is that nothing waits for ever, and a landing's one thread must not be held for good by a step that never
+///  returns (`wait_ceilings.rs`). In a unit test the ceiling can be shortened for the thread that runs the control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stepCeiling(request): number { return request.subcommand === 'update-ref' ? REFERENCE_STEP_CEILING : classOf(request).ceiling }
+/// ```
+fn step_ceiling(request: &GitRequest) -> Duration {
+    #[cfg(test)]
+    if let Some(shortened) = STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get) {
+        return shortened;
+    }
+    let reference: bool = subcommand_of(request.arguments.as_slice()).is_some_and(|(_, name)| { return name == "update-ref"; });
+    if reference {
+        return REFERENCE_STEP_CEILING;
+    }
+    return match class_of(request.arguments.as_slice()) {
+        ChildClass::Plumbing => PLUMBING_STEP_CEILING,
+        ChildClass::Object => OBJECT_STEP_CEILING,
+    };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A shortened ceiling for the steps the current thread starts, so a control ends a step in a moment.
+    pub(crate) static STEP_CEILING_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
 }
 
 /// What:
@@ -568,7 +601,7 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     let subject: String = step_subject(request);
     let ledger_step: String = super::add_timing::git_step_label(request.arguments.as_slice());
     let output: std::process::Output =
-        output_watched_stopping(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request))?;
+        output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), step_ceiling(request))?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,

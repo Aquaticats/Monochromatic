@@ -190,6 +190,8 @@ pub enum FailureCode {
     BranchKeepsChanging,
     /// The branch is no longer where the commit was prepared, and the commit cannot be made again on another tip.
     BranchMoved,
+    /// A Git step of the landing ran longer than the wrapper lets one step run and was ended; the batch was withdrawn.
+    StepTooSlow,
     /// Anything else the service could not resolve.
     Unavailable,
 }
@@ -204,18 +206,20 @@ impl FailureCode {
             Self::Rejected => "rejected",
             Self::BranchKeepsChanging => "branch-keeps-changing",
             Self::BranchMoved => "branch-moved",
+            Self::StepTooSlow => "step-too-slow",
             Self::Unavailable => "unavailable",
         };
     }
 
     /// Every code, so a test reaches all of them.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::RepositoryFull,
         Self::RepositoryReadOnly,
         Self::IndexInUse,
         Self::Rejected,
         Self::BranchKeepsChanging,
         Self::BranchMoved,
+        Self::StepTooSlow,
         Self::Unavailable,
     ];
 

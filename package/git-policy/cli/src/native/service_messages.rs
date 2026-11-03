@@ -98,6 +98,8 @@ pub enum ClientFailure {
     StillWithService { minutes: u64, blocker: Option<String> },
     /// The client stopped waiting and could not confirm the service withdrew the request.
     WithdrawalUnconfirmed,
+    /// A Git step of the landing ran longer than the wrapper allows and was ended; the commit was withdrawn and kept.
+    StepTooSlow,
     /// The request was refused as malformed or unsafe.
     Refused,
     /// Another program holds the repository's index.
@@ -205,6 +207,11 @@ pub fn render(failure: &ClientFailure) -> String {
              see what is still staged. If it was not made, run the commit again; if the service is stuck, look at why with \
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
             CHECK_COMMANDS[0], CHECK_COMMANDS[1]
+        ),
+        ClientFailure::StepTooSlow => format!(
+            "A Git step of this commit ran longer than the commit service allows and was ended, so this commit was not made and will not \
+             land later by itself. The step is named above, and the commit built for you is kept on the side ref named there when one \
+             is. Run the commit again; if it happens again, look at why with `{LOG_COMMAND}`. {NOTHING_CHANGED}"
         ),
         ClientFailure::Refused => format!(
             "The commit service refused this commit because it names a path or a value that cannot be committed, so it \

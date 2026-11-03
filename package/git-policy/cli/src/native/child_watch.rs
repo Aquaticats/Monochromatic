@@ -31,6 +31,8 @@
 
 /// The bound variable shared by every class of step, and the classes themselves.
 use super::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
+/// The longest one step runs.
+use super::wait_ceilings::OBJECT_STEP_CEILING;
 /// Starts that ride out a short shortage of processes.
 use super::start_retry::RetryStart;
 /// The notice cadence, its ticker and the child-wait line.
@@ -267,6 +269,10 @@ struct WatchFlags {
     stoppable: Arc<AtomicBool>,
     /// The longest quiet gap so far, in microseconds.
     longest: Arc<AtomicU64>,
+    /// How long one wait may last in all, in microseconds, whatever the child shows; the largest value means no ceiling.
+    ceiling: Arc<AtomicU64>,
+    /// Raised by the watcher when the child was ended because the ceiling passed, not because it was quiet.
+    ceiling_hit: Arc<AtomicBool>,
 }
 
 /// What:
@@ -297,6 +303,10 @@ pub struct ChildWatch {
     longest: Arc<AtomicU64>,
     /// The step name the longest quiet gap is kept under in the ledger when the watch is dropped; nothing keeps no figure.
     ledger_step: Option<String>,
+    /// How long one wait may last in all (shared with the watcher), in microseconds.
+    ceiling: Arc<AtomicU64>,
+    /// Whether the child was ended because the ceiling passed.
+    ceiling_hit: Arc<AtomicBool>,
 }
 
 impl ChildWatch {
@@ -314,7 +324,15 @@ impl ChildWatch {
         let expired: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         let stoppable: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
         let longest: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
-        let flags: WatchFlags = WatchFlags { expired: Arc::clone(&expired), stoppable: Arc::clone(&stoppable), longest: Arc::clone(&longest) };
+        let ceiling: Arc<AtomicU64> = Arc::new(AtomicU64::new(u64::MAX));
+        let ceiling_hit: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+        let flags: WatchFlags = WatchFlags {
+            expired: Arc::clone(&expired),
+            stoppable: Arc::clone(&stoppable),
+            longest: Arc::clone(&longest),
+            ceiling: Arc::clone(&ceiling),
+            ceiling_hit: Arc::clone(&ceiling_hit),
+        };
         let subject: String = String::from(waiting_for);
         let limit: Duration = terms.limit;
         let thread: Option<JoinHandle<()>> = std::thread::Builder::new()
@@ -323,7 +341,7 @@ impl ChildWatch {
                 watch_loop(&incoming, &flags, subject.as_str(), pid, terms, &locks);
             })
             .ok();
-        return Self { marks: Some(marks), expired, thread, limit, stoppable, longest, ledger_step: None };
+        return Self { marks: Some(marks), expired, thread, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit };
     }
 
     /// Keep the longest quiet gap of this watch in the ledger under `step` when the watch is dropped.
@@ -336,6 +354,18 @@ impl ChildWatch {
     ///  update, a commit Git builds) is ended in the middle of its write only by the person.
     pub fn never_stop(&self) {
         self.stoppable.store(false, Ordering::Release);
+    }
+
+    /// Give every wait of this child a ceiling: the child is ended when one wait has lasted this long, whatever it shows and
+    ///  whether or not a quiet child may be ended (owner, 2026-11-03: "nothing should ever wait forever or indefinitely").
+    pub fn within(self, ceiling: Duration) -> Self {
+        self.ceiling.store(u64::try_from(ceiling.as_micros()).unwrap_or(u64::MAX - 1), Ordering::Release);
+        return self;
+    }
+
+    /// Whether the child was ended because its ceiling passed.
+    pub fn ceiling_hit(&self) -> bool {
+        return self.ceiling_hit.load(Ordering::Acquire);
     }
 
     /// Send one mark; a watcher that is gone has nothing to be told.
@@ -432,6 +462,17 @@ fn watch_loop(incoming: &Receiver<Mark>, flags: &WatchFlags, waiting_for: &str, 
         // The clock is read at every look, a step that may not be run twice included, so its quiet gap is measured even though
         // the step is never ended. Printing can never keep a child that shows no sign of work past its window, because the
         // judgment follows the notice however long the notice took.
+        // The ceiling ends the child whatever it shows and whether or not a quiet child may be ended.
+        let ceiling: Duration = Duration::from_micros(flags.ceiling.load(Ordering::Acquire));
+        if waited >= ceiling {
+            flags.ceiling_hit.store(true, Ordering::Release);
+            expired.store(true, Ordering::Release);
+            marks.keep_gap();
+            marks.since = None;
+            marks.clock = None;
+            stop_process(pid, locks, incoming);
+            continue;
+        }
         let verdict: Option<StopCause> = marks.clock.as_mut().and_then(Clock::check);
         let quiet: bool = verdict.is_some_and(|cause| { return matches!(cause, StopCause::Stalled(_) | StopCause::Deadline); });
         if quiet && stoppable.load(Ordering::Acquire) {
@@ -444,7 +485,8 @@ fn watch_loop(incoming: &Receiver<Mark>, flags: &WatchFlags, waiting_for: &str, 
             continue;
         }
         let until_notice: Duration = marks.ticker.next_in(since.elapsed());
-        let sleep: Duration = until_notice.min(SAMPLE_INTERVAL).min(terms.limit).max(SHORTEST_SLEEP);
+        let until_ceiling: Duration = Duration::from_micros(flags.ceiling.load(Ordering::Acquire)).saturating_sub(since.elapsed());
+        let sleep: Duration = until_notice.min(SAMPLE_INTERVAL).min(terms.limit).min(until_ceiling).max(SHORTEST_SLEEP);
         match incoming.recv_timeout(sleep) {
             Ok(mark) => marks.apply(mark, terms.cadence),
             Err(RecvTimeoutError::Timeout) => {}
@@ -523,17 +565,65 @@ pub fn output_watched_stopping(
     terms: WatchTerms,
     stoppable: bool,
 ) -> std::io::Result<Output> {
+    return output_watched_within(command, waiting_for, ledger_step, terms, stoppable, OBJECT_STEP_CEILING);
+}
+
+/// The error of a step ended at its ceiling, which tells it apart from a step ended for being quiet: a step that may be run again
+///  is run again after the second and not after the first.
+#[derive(Debug)]
+pub struct CeilingReached(
+    /// The sentence that names the step and the ceiling.
+    pub String,
+);
+
+impl std::fmt::Display for CeilingReached {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return formatter.write_str(self.0.as_str());
+    }
+}
+
+impl std::error::Error for CeilingReached {}
+
+/// Whether `error` is the error of a step ended at its ceiling.
+pub fn is_ceiling(error: &std::io::Error) -> bool {
+    return error.get_ref().is_some_and(|inner| { return inner.is::<CeilingReached>(); });
+}
+
+/// What:
+///  `output_watched_stopping` where the step is ended at `ceiling` whatever it shows.
+/// Why:
+///   The owner's rule is that nothing waits for ever; the ceiling is what ends a step that keeps working and one that may not be
+///  ended for being quiet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = await spawnWatched(command, { waitingFor, ledgerStep, terms, stoppable, ceilingMs }); // throws on a stall or the ceiling
+/// ```
+pub fn output_watched_within(
+    command: &mut Command,
+    waiting_for: &str,
+    ledger_step: &str,
+    terms: WatchTerms,
+    stoppable: bool,
+    ceiling: Duration,
+) -> std::io::Result<Output> {
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
     let child: Child = command.spawn_retrying()?;
-    let watch: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks).kept_as(ledger_step);
+    let watch: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks).kept_as(ledger_step).within(ceiling);
     if !stoppable {
         watch.never_stop();
     }
     watch.begin();
     let output: std::io::Result<Output> = child.wait_with_output();
     watch.end();
+    if watch.ceiling_hit() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            CeilingReached(format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended", ceiling.as_secs())),
+        ));
+    }
     if watch.expired() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::TimedOut,
