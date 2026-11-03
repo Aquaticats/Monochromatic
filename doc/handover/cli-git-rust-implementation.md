@@ -10547,3 +10547,46 @@ by the coordinator at merge.
   `29ea04f7da` (parents `7e0ab30556`, `1cf8b39701`); then `377e73d5c8` (0.5.24 in the toolchain lock). 0.5.24 is
   published (crates.io 2026-11-03T10:52:20Z) and installed. mpm-shadow branch: the 0.2.3 bump was reverted to 0.2.2
   (`1cf8b39701`, lock via rust:install) because crate-release makes the bump itself.
+- 2026-11-03T06:25:00-05:00: mpm-shadow releases through crate-release (`7036dca934`; test fix `9ef2c198cf`,
+  2026-11-03T06:16:08-05:00). Main equals origin. mpm-shadow 0.2.3 dispatched as run 41626466432; `release:wait`
+  running. Next for it: `toolchain:update`, `toolchain:install`, then issue 6259's `mpm i -g` output and the env
+  fragment through `mise env` in a fresh shell.
+  0.5.25 candidate: worktree `.claude/worktrees/integrate-parallel-rounds-rebuilt-note` (branch
+  `integrate/git-policy-cli-parallel-rounds-and-rebuilt-commit-note`) merges three branches, all clean:
+  `perf/git-policy-cli-parallel-independent-work`, `feat/git-policy-cli-note-after-rebuilt-commit` and
+  `fix/git-policy-cli-snapshot-add-with-uncommitted-main`. Gate
+  `gpc-gate-parallel-rounds-rebuilt-note-snapshot-add-20261103T062142-0500` running; a two-branch gate started at
+  06:19:55 was stopped to add the third branch. `launch-gate.ts` now refuses a label outside lowercase letters,
+  digits and hyphens, because a sentence label failed systemd's unit-name mangling.
+  Snapshot-add agent: "Git could not list the uncommitted changes" came from `changed_paths`, which turned an empty
+  `git status` listing into `None` (`let first = paths.first()?;`) after the stat check found racy entries (merge
+  `2146f8d242` at 05:14:15, add at 05:14:47). Fixed: zero changes takes the snapshot with restore, and a failing
+  status names its exit code and what Git said (`StatusFailed`, journal cause `status-failed`). Racy source measured:
+  old 15.7 to 27.3 s, new 0.95 to 1.40 s. `checkout.workers=0` is passed only when nothing sets the key (owner: "Pass
+  only if unset"); under load average 28 to 63 the copy-route `gitAdd` medians were about equal (3.0 s against 2.9 s,
+  wide spread), so it stays as the owner decided.
+  Rule broken: that agent sent SIGTERM to Git's fsmonitor daemon PID 575579, which its own `git status` had started
+  under the global `core.fsmonitor=true`, and ran a scratch script `~/temp/agent/tools/stop-my-fsmonitor.ts` that
+  stops daemons under its paths (it found none). The package README section "Git's own fsmonitor" forbids stopping
+  or killing that daemon; reported to the owner; nobody uses that script.
+  Commit-speed agent: it chose on its own not to stop the fsmonitor daemon. The owner granted two exact command
+  strings; relayed. The strace one would attach to PID 226402, a live 0.5.22 service, instead of the agent's scratch
+  service 1232090, so the agent was told not to run it in that form. Live main data from 06:1x on 0.5.24: a commit of
+  one path waited on `read-tree --reset` over 10 s and on `add --all -- <path>` over 50 s; a `worktree add` waited on
+  `status` over 50 s and on the untracked `.gitattributes` listing over 40 s.
+  45 `cli-git-service` processes run (0.5.20 to 0.5.24, one per worktree, 3 to 6 MB RSS each, all started today):
+  each worktree runs the wrapper its own lock names, and each exits after three idle hours; not a leak.
+  Cargo shadow (`feat/cargo-shadow-cli`): built, 142 tests, 15 guards shown red; nothing released. Its owner-only
+  list is settled by existing owner answers and was sent back to the agent:
+  - Failed install step: pnpm's "prints a warning and runs the command anyway" (https://pnpm.io/settings/build, raw
+    HTML checked 2026-11-03) maps to warn, then run cargo with `--locked`, so nothing past the policy is locked or
+    built and a current lock still runs.
+  - Port the crates.io dump ("Put the existing rust catalog tools inside it").
+  - `--breaking` and the verify step follow pnpm's source at the installed version.
+  - Keep the bin name `cargo-shadow` and the toolchain pin from `toolchain.lock.json`.
+  - Losing a concurrent writer's lock is not accepted ("never discard user data"): a private `--lockfile-path`, or
+    compare before replace.
+  - The launcher-recursion test gets a bound.
+  QUEUED for me after its next report: review; first hand-publish of `monochromatic-cargo-shadow` 0.1.0
+  (`doc/runbook/publish-crate-first-time.md`); the `toolchain.plan.jsonc` entry; `toolchain:update`; a check of the
+  launcher-backed link; then its workflow commit.
