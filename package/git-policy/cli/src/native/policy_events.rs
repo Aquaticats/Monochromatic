@@ -145,7 +145,7 @@ pub enum EngineFailureHint {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PolicyEvent = FindingEvent | ConfigurationWarningEvent | CoreFindingEvent | EngineFailureEvent | FixSummaryEvent;
+/// type PolicyEvent = FindingEvent | ConfigurationWarningEvent | CoreFindingEvent | EngineFailureEvent | FixSummaryEvent | CommitLandedEvent | WordMergedEvent;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PolicyEvent {

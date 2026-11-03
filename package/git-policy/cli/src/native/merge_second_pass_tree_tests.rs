@@ -76,3 +76,16 @@ fn a_git_that_cannot_start_returns_nothing() {
     assert_eq!(resolve_tree(&broken, common.as_path(), tree.as_str(), conflicts.as_slice()), None);
     remove(world.root.as_path());
 }
+
+/// A process whose own environment names an attribute source keeps it, and one that names none gets the tip.
+#[test]
+fn the_service_keeps_an_attribute_source_of_its_own_environment() {
+    // The test process names none (a developer who exports the variable to run the tests sees the other branch).
+    if std::env::var_os(ATTRIBUTE_SOURCE_VARIABLE).is_some() {
+        assert!(attribute_source_variables_of_process("abc", &[]).is_empty());
+        return;
+    }
+    assert_eq!(attribute_source_variables_of_process("abc", &[]), vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("abc"))]);
+    let overlay: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("main"))];
+    assert!(attribute_source_variables_of_process("abc", overlay.as_slice()).is_empty());
+}

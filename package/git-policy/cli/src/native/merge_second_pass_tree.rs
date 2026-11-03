@@ -48,6 +48,24 @@ pub fn attribute_source_variables(tip: &str, environment: &[(OsString, OsString)
     return vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from(tip))];
 }
 
+/// What:
+///  The same variable pair for a process that holds the environment itself: the service's own, and the overlay its Git
+///  starts add.
+/// Why:
+///   The commit replay runs in the service, whose Git children inherit the service's environment plus the overlay; a person's
+///  `GIT_ATTR_SOURCE` that reached either is kept there too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// attributeSourceVariablesOfProcess(tip, overlay) // [] when process.env or the overlay names GIT_ATTR_SOURCE
+/// ```
+pub fn attribute_source_variables_of_process(tip: &str, overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
+    if std::env::var_os(ATTRIBUTE_SOURCE_VARIABLE).is_some() {
+        return Vec::new();
+    }
+    return attribute_source_variables(tip, overlay);
+}
+
 /// A merge tree whose every conflicted file resolved.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Resolved {

@@ -12,7 +12,7 @@
 /// The conflicts of a merge tree, with their stages, for the word-level second pass.
 use super::merge_second_pass::{Conflict, conflicts_of_merge_tree};
 /// The attribute tree a merge from objects reads.
-use super::merge_second_pass_tree::attribute_source_variables;
+use super::merge_second_pass_tree::attribute_source_variables_of_process;
 /// Shadow runs and the raw runner for a merge whose exit status matters.
 use super::shadow_git::shadow_request;
 use super::transaction_git::{GitContext, GitFailure, GitRequest, run_git};
@@ -100,7 +100,7 @@ pub fn merge_replay_tree(
         ],
     );
     // No worktree is read, so the landed tip's `.gitattributes` is the one the merge applies (the `union` line included).
-    request.environment.extend(attribute_source_variables(current, &[]));
+    request.environment.extend(attribute_source_variables_of_process(current, context.overlay.as_slice()));
     let output = run_git(context, &request).map_err(|error| {
         return ReplayMergeError::Git(GitFailure(format!("git merge-tree could not start: {error}")));
     })?;

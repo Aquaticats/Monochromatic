@@ -21,7 +21,7 @@ use super::commit_transaction::{TransactionResult, TransactionStop, failed};
 use super::path_bytes::{os_from_path_bytes, path_message_text};
 use super::policy_events::PolicyEvent;
 use super::merge_second_pass::{Conflict, ContextRunner, Merged as MergedFile};
-use super::merge_second_pass_tree::{announce, attribute_source_variables, resolve_tree};
+use super::merge_second_pass_tree::{announce, attribute_source_variables_of_process, resolve_tree};
 use super::replay_capture_order::CaptureOrderDecision;
 use super::replay_merge::{ReplayMerge, merge_replay_tree};
 use super::replay_shared_paths::{SharedPath, list_shared_paths};
@@ -267,7 +267,7 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
         cwd: top.as_path(),
         without_prefix: true,
         object_directory: Some(site.object_directory),
-        environment: attribute_source_variables(tip, &[]),
+        environment: attribute_source_variables_of_process(tip, site.context.overlay.as_slice()),
     };
     return match resolve_tree(&runner, site.common_dir, tree, conflicts) {
         Some(resolved) => Merged::Combined { tree: resolved.tree, files: resolved.merged },
