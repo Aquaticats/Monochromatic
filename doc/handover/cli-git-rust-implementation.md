@@ -10458,3 +10458,24 @@ by the coordinator at merge.
   process of this boot and PID namespace, or an empty lock with no pid file past a settle time that no process has
   open, then retry once. The owner approved deleting the 12 benchmark build directories the add-speed agent left;
   all 12 removed.
+- 2026-11-03T05:20:00-05:00: lockfiles. I reset main's `cli.fuzz/Cargo.lock` with `git show HEAD:… >`, a hand edit the
+  owner rejected: "You're not meant to manually edit lockfiles! You're meant to fix the mpm set of tools we control and
+  run it! And it is meant to follow pnpm!" (the reset content equalled HEAD, so no wrong content landed). Owner then:
+  "Make a cargo shadow like what we did for pnpm shadow. Put the existing rust catalog tools inside it instead of
+  making them separate." Agent started on that (task 128; package `package/cargo-shadow/cli`, branched from the
+  catalog tip `90486e74e3`; model pnpm's `verifyDepsBeforeRun: install` default and CI-frozen lockfile, read from
+  pnpm.io/settings/build and /store; never rewrite cargo's arguments; `cargo update` handling goes to the owner).
+  Owner: "Just commit the lock file." for main's `android-app/rust/Cargo.lock` (rewritten by an agent's unlocked
+  clippy run; equal to the catalog branch's tool output): committed `56f6d75b97`, then merged
+  `fix/dependency-catalog-regenerate-every-cargo-lock` into main (ten tool-regenerated locks, `rust:install`, the
+  sha2 0.11 fix, three clippy fixes in cli.fuzz and ide/app; cli.fuzz and ide/app clippy passed; the Android check is
+  still blocked by the env fix and a nightly-2026-11-01 compile error in turso_sync_engine 0.8.2, "cycle detected when
+  computing when turso_parser::ast::Select needs async drop", QUEUED). `rust:install --frozen-lockfile` on main: 34
+  lockfiles, 0 unsatisfied. 0.5.23 installed (`210718067a`); service 0.5.22 retired and 0.5.23 started.
+  Agents finished: mpm env export (branch `fix/mpm-shadow-cli-export-tool-env-to-mise`, unmerged; needs mpm-shadow
+  0.2.3 released, toolchain:update, toolchain:install; global RUSTUP_TOOLCHAIN export is an owner veto point;
+  pre-existing failure `tests/shim.rs::passes_arguments_and_exit_code_through_then_prunes` QUEUED), flock port
+  (`refactor/mutation-test-cli-cargo-mutants-claims-not-flocks`, unmerged; no old gate-slot process running at
+  05:16), no-progress meter (`feat/git-policy-cli-push-stops-on-no-progress` 077a281b96, host 3439 and 576 pass),
+  `--quiet` removal (`fix/git-policy-cli-wrapper-options-before-pathspec`, host 3397 and 583 pass). Next: both
+  git-policy branches gated together as 0.5.24 in `.claude/worktrees/release-0.5.24`.
