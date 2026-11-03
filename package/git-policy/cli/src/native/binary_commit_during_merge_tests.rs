@@ -132,6 +132,8 @@ fn a_commit_naming_a_conflicted_path_lands_with_its_markers_and_warns() {
     assert!(git_text(&fixture, &repo, &["show", "HEAD:y.txt"]).contains("<<<<<<<"), "the committed blob holds the markers");
     assert!(stderr.contains("y.txt") && stderr.contains("conflict markers") && stderr.contains("committed"), "the warning names the path: {stderr}");
     assert!(stderr.contains("follow-up commit"), "the warning says how to fix it: {stderr}");
+    assert!(repo.join(".git/MERGE_HEAD").exists(), "the merge is carried on");
+    assert_eq!(git_text(&fixture, &repo, &["ls-files", "--unmerged"]), "", "the committed path is no longer unmerged in the index");
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);
