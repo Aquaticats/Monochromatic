@@ -8,6 +8,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  campaignProtocolFile,
+  startedMarkerProtocolVersion,
+} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/constants.ts';
+import {
   describe,
   expect,
   it,
@@ -445,6 +449,8 @@ await describe({
         await using root = await evidenceRoot();
         const campaign = join(root.path, `${prefix}campaign`);
         expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
+        // The directory records that the started marker is written before every start.
+        await writeFile(join(campaign, campaignProtocolFile), JSON.stringify({ version: startedMarkerProtocolVersion }));
         // An attempt that was opened and seeded, or never started, owes nothing, and neither does a controls-only directory.
         await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
         await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'previously_caught.txt'), 'a\n');
@@ -459,10 +465,56 @@ await describe({
       },
     }),
     it({
-      name: 'still finds a run of the runner before the started marker: outcome lists in an attempt, interrupted or in a completed pass 2, but not a seed-only attempt',
+      name: 'rejects a missing manifest where a markerless attempt cannot be told from an interrupted run of a runner that predated the marker, and accepts it where the directory records the marker protocol',
       fn: async () => {
         await using root = await evidenceRoot();
         const campaign = join(root.path, `${prefix}campaign`);
+        // The layout of a runner before the started marker, killed in pass 2 before any outcome list or exit record: pass 1
+        // finished, the aggregate exit record is there, and pass 2 has an opened attempt that only holds its seed.
+        await mkdir(join(campaign, 'pass-1'));
+        await writeManifest({ root: root.path, directory: 'pass-1', manifest: { baseImage: image } });
+        await writeFile(join(campaign, 'exit.json'), '{}');
+        await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
+        await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'previously_caught.txt'), 'a\n');
+        expect(
+          statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
+        ).toEqual(['invalid']);
+        // The same layout in a directory created by a runner that writes the marker before every start: no marker means no start.
+        await writeFile(join(campaign, campaignProtocolFile), JSON.stringify({ version: startedMarkerProtocolVersion }));
+        expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
+        // A protocol record that is not this protocol vouches for nothing.
+        await writeFile(join(campaign, campaignProtocolFile), '{torn');
+        expect(
+          statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
+        ).toEqual(['invalid']);
+        await writeFile(join(campaign, campaignProtocolFile), JSON.stringify({ version: startedMarkerProtocolVersion + 1 }));
+        expect(
+          statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
+        ).toEqual(['invalid']);
+      },
+    }),
+    it({
+      name: 'judges the pass-1 directory by the protocol record of the campaign directory, and an unopened pass by nothing',
+      fn: async () => {
+        await using root = await evidenceRoot();
+        const campaign = join(root.path, `${prefix}campaign`);
+        // A pass 1 with an opened attempt and no marker, manifest or exit record.
+        await mkdir(join(campaign, 'pass-1', 'attempt-001', 'mutants.out'), { recursive: true });
+        await writeFile(join(campaign, 'pass-1', 'attempt-001', 'mutants.out', 'previously_caught.txt'), 'a\n');
+        expect(
+          statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
+        ).toEqual(['invalid']);
+        await writeFile(join(campaign, campaignProtocolFile), JSON.stringify({ version: startedMarkerProtocolVersion }));
+        expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
+      },
+    }),
+    it({
+      name: 'still finds a run of the runner before the started marker: outcome lists in an attempt, interrupted or in a completed pass 2, but not a seed-only attempt where the marker protocol is recorded',
+      fn: async () => {
+        await using root = await evidenceRoot();
+        const campaign = join(root.path, `${prefix}campaign`);
+        // The directory records that the started marker is written before every start.
+        await writeFile(join(campaign, campaignProtocolFile), JSON.stringify({ version: startedMarkerProtocolVersion }));
         // A seed-only attempt has just previously_caught.txt.
         await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
         await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'previously_caught.txt'), 'a\n');
@@ -483,6 +535,7 @@ await describe({
         await writeManifest({ root: root.path, directory: 'pass-1', manifest: { baseImage: image } });
         await writeFile(join(campaign, 'exit.json'), '{}');
         await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
+        await writeFile(join(campaign, campaignProtocolFile), JSON.stringify({ version: startedMarkerProtocolVersion }));
         expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
         await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'missed.txt'), '');
         expect(
@@ -517,7 +570,8 @@ await describe({
         await writeFile(join(campaign, 'pass-1', 'container-started.json'), '{}');
         await writeManifest({ root: root.path, directory: 'pass-1', manifest: { baseImage: image } });
         expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
-        // Its pass 2 was seeded but not started: still nothing owed.
+        // Its pass 2 was seeded but not started, in a directory that records the marker protocol: still nothing owed.
+        await writeFile(join(campaign, campaignProtocolFile), JSON.stringify({ version: startedMarkerProtocolVersion }));
         await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
         await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'previously_caught.txt'), 'a\n');
         expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
