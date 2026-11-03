@@ -321,12 +321,27 @@ pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
         std::thread::sleep(POLL_PAUSE);
     }
     kill_members(below.as_slice());
+    let _sweeper = settle_locks(child, collected, tree, locks, grace);
+}
+
+/// What:
+///  Remove the locks of a stopped tree now when it has ended, or on a thread of its own when it has not.
+/// Why:
+///   A killed process ends only when the kernel has run it once more, which a loaded or stalled host may not do within the
+///  grace; a sweep before that finds the tree running and removes nothing, and nothing would try again. The thread waits for
+///  the whole tree and then sweeps. Returns the thread, if one was started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (collected && allEnded(tree)) { locks.sweep(tree); return undefined; } return sweepAfterExit(child, tree, locks);
+/// ```
+pub fn settle_locks(child: Child, collected: bool, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<std::thread::JoinHandle<()>> {
     if collected {
         wait_for_tree(tree.as_slice(), grace);
         locks.sweep(tree.as_slice());
-    } else {
-        let _sweeper = sweep_after_exit(child, tree, locks);
+        return None;
     }
+    return sweep_after_exit(child, tree, locks);
 }
 
 /// Read the shared output file back from its start,
