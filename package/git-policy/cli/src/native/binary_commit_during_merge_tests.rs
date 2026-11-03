@@ -179,3 +179,24 @@ fn a_plain_commit_with_unmerged_files_finishes_the_merge_with_their_markers_and_
     let _waited = service.wait();
     remove_settled(&fixture);
 }
+
+/// The owner (2026-11-03): "Committing a conflicted path is fine. Warn and commit anyway". `git commit -a` stages the working
+///  copy of every tracked file, an unmerged one included, so it commits the markers too, and it warns for each such file in the
+///  same words as a plain commit.
+#[test]
+fn a_commit_with_all_over_unmerged_files_commits_their_markers_and_warns() {
+    let fixture: Fixture = fixture("all-commit-conflicted");
+    let repo: PathBuf = conflicted_merge(&fixture, "repo");
+    let name: String = format!("acc-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let landed: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--no-enforce-only", "-a", "--message=finish the merge with -a"]);
+    let stderr: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert_eq!(landed.status.code(), Some(0), "the merge is finished: {stderr}");
+    assert!(git_text(&fixture, &repo, &["show", "HEAD:y.txt"]).contains("<<<<<<<"), "the committed blob holds the markers");
+    assert!(!repo.join(".git/MERGE_HEAD").exists(), "the merge is concluded");
+    assert!(stderr.contains("y.txt") && stderr.contains("conflict markers") && stderr.contains("committed"), "the warning names the file: {stderr}");
+    assert!(stderr.contains("follow-up commit"), "the warning says how to fix it: {stderr}");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
