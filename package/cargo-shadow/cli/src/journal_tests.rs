@@ -212,3 +212,33 @@ fn a_lock_the_run_never_produced_is_left_alone_even_when_it_differs_from_the_sna
     assert_eq!(lock(root.path()), "written by someone else");
     assert_eq!(warnings.len(), 1);
 }
+
+/// Delegated pick 5 (2026-11-03): a restore compares and replaces in one atomic step (`renameat2` with `RENAME_EXCHANGE`) and
+/// undoes the swap when the file it displaced is not the one it expected. Another writer publishes a lockfile in the gap
+/// between the comparison and the replacement; that lockfile must survive.
+#[test]
+fn a_lockfile_published_between_the_comparison_and_the_replacement_is_not_lost() {
+    use crate::journal::restore_if_unchanged_with;
+    let root = repository("produced");
+    let publish = |path: &Path| { fs::write(path, "published by another writer in the gap").expect("the other writer"); };
+
+    let warnings = restore_if_unchanged_with(root.path(), &[snapshot("original")], &[snapshot("produced")], &publish).expect("restores");
+
+    assert_eq!(lock(root.path()), "published by another writer in the gap");
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+}
+
+/// The recovery of a killed run replaces the same way: a lockfile published after it was judged survives.
+#[test]
+fn recovery_does_not_replace_a_lock_published_in_the_gap_after_the_last_comparison() {
+    use crate::journal::recover_with;
+    let root = repository("unchecked output of the killed run");
+    plant_journal(root.path(), "original");
+    let lock_path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let publish = move |_path: &Path| { fs::write(&lock_path, "published by another writer in the gap").expect("the other writer"); };
+
+    let messages = recover_with(root.path(), &|_pid| { return false; }, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; }, &publish);
+
+    assert_eq!(lock(root.path()), "published by another writer in the gap");
+    assert!(messages.iter().any(|message| { return message.contains("another process"); }), "{messages:?}");
+}

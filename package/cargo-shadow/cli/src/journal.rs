@@ -177,6 +177,21 @@ fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a
 /// export function restoreIfUnchanged({ root, snapshots, produced }): string[]
 /// ```
 pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot]) -> io::Result<Vec<String>> {
+    return restore_if_unchanged_with(root, snapshots, produced, &|_path| {});
+}
+
+/// What:
+/// `pub fn restore_if_unchanged_with(root, snapshots, produced, between)` is `restore_if_unchanged` with a hook that runs
+/// after a lockfile was compared and before it is replaced.
+/// Why:
+/// The gap between the comparison and the replacement is where another writer can publish a lockfile;
+/// the hook lets a test publish one exactly there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function restoreIfUnchangedWith({ root, snapshots, produced, between }): string[]
+/// ```
+pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> io::Result<Vec<String>> {
     let mut warnings: Vec<String> = Vec::new();
     for snapshot in snapshots {
         let path: PathBuf = root.join(&snapshot.crate_dir).join(LOCKFILE_NAME);
@@ -204,6 +219,7 @@ pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &
                 continue;
             }
         }
+        between(&path);
         atomic_write(&path, &snapshot.source)?;
     }
     return Ok(warnings);
@@ -336,6 +352,20 @@ pub fn process_exists(pid: u32) -> bool {
 /// export function recover({ root, isAlive, judge }): string[]
 /// ```
 pub fn recover(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>) -> Vec<String> {
+    return recover_with(root, is_alive, judge, &|_path| {});
+}
+
+/// What:
+/// `pub fn recover_with(root, is_alive, judge, between) -> Vec<String>` is `recover` with a hook that runs after the last
+/// comparison of a lockfile and before it is replaced.
+/// Why:
+/// The same gap as in `restore_if_unchanged_with`, for the recovery of a killed run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function recoverWith({ root, isAlive, judge, between }): string[]
+/// ```
+pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> Vec<String> {
     let mut messages: Vec<String> = Vec::new();
     let entries = match fs::read_dir(root.join(JOURNAL_DIR)) {
         Ok(found) => found,
@@ -388,6 +418,7 @@ pub fn recover(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[Loc
                 ));
                 continue;
             }
+            between(&path);
             let saved: io::Result<PathBuf> = save_aside(&path.with_file_name(format!("{LOCKFILE_NAME}{REFUSED_SUFFIX}")), &now.source);
             let restored: io::Result<PathBuf> = match saved {
                 Ok(copy) => atomic_write(&path, &old.source).map(|()| { return copy; }),
