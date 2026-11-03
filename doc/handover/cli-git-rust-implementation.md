@@ -9280,3 +9280,27 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   without it (plant T2).
   The look and the push are still two steps;
   handlers tolerate a repeated push.
+- Owner (2026-11-02): "What is going on with all these extremely non-descriptive branch names? Is that your doing?" Yes:
+  the `integrate-NNN` series and round suffixes were mine. Owner decisions: "Delete, then rename open (Recommended)"; and,
+  on a proposed rule, "I believe there is already a similar rule you should extend?". No branch-naming rule existed; the
+  closest is GCG (commit subjects), already near the 200-character limit, so the extension is a sibling rule `GBN` right
+  under it (`AGENTS.md`, commit `a380f54cb2`): branch names are `<type>/<scope>-<subject>`, an integration branch names
+  what it bundles, never a bare counter or review-round suffix.
+- Cleanup DONE (`~/temp/agent/branch-cleanup.ts`, dry run first): 37 local branches deleted (31 merged into main, 6
+  superseded integration branches whose every commit is in main or an open branch), 29 of them also on origin; each
+  worktree that held one was detached, not removed, so files and mutation evidence stay. Renamed (`branch-rename.ts`):
+  `bound-supervisor-r2` to `fix/git-policy-cli-bound-supervisor`, `logging-quality` to
+  `feat/git-policy-cli-journal-logging`, `planted-control-r7` to `fix/mutation-test-cli-cargo-mutants-campaign-lock`.
+  Still to rename when their agents finish: `btrfs-worktree-ladder`, `main-ignored-copy`.
+- Bundle merged into main: `2a0b8e7417` (gate 54 on `integrate-074` PASSED 3335 of 3335: `index-lock-wait-log`,
+  `reader-fsmonitor` round 3, `child-watch-host`, `claim-lease-load`; no crate change on main since its base); pushed.
+  0.5.15 dispatched (run 41565744263).
+- Gate 55 on `fix/git-policy-cli-bound-supervisor` PASSED 3302 of 3302; it merges after it takes main (both it and
+  `child-watch-host` fix the same `child_watch` zombie check).
+- Ladder round 3 part A (`~/temp/agent/review-btrfs-ladder-add-3/sol-review.txt`): 7 P1, 2 P2, all recovery or
+  rollback deleting what it cannot prove it created. Decision (mine, under the owner's discard rules and "a loud, clear
+  failure"; veto open): recovery and rollback never delete or unregister; they complete in place or leave the worktree
+  and report the removal command. Sent to the ladder agent.
+- Campaigns finished: index lock round 4 (two passes; 215 mutants, 26 then 9 survivors) to the index-lock agent; the
+  resumed subvolume-2 (25 lines) and timing-service (73 mutants, 2 missed) to the survivors agent, who first separates
+  new survivors from ones dispositioned before the reboot.
