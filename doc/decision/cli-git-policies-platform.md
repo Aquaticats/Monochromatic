@@ -84,6 +84,8 @@ journal recovery,
 settlement locking,
 and synchronization,
 even when they create a linked worktree.
+(Changed 2026-11-03T02:57:19-05:00: there is no settlement locking; the other bypasses stand, and a main checkout that creates a worktree
+is still a copy source. See `package/git-policy/cli/SPEC.md`, "Linked-worktree ignored-state synchronization".)
 For applicable sources,
 do not classify only literal `worktree add` argv.
 Compare linked administrative identities before and after forwarding so ordinary aliases and worktrees retained after

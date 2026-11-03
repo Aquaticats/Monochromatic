@@ -266,6 +266,10 @@ Evidence:
   it no longer blocks every invocation while another commit runs.
 - Every read of live `HEAD` in the transaction uses the recorded preparation base or the landed OID.
 - Recovery searches the target ref's reflog for its nonce instead of checking only the newest entry.
+- Superseded as of 2026-11-03T02:57:19-05:00: no settlement lock exists any more.
+  Concurrent adds never wait for one another; the destination comes from the command line, and journals and stage
+  claims name their owner process (`package/git-policy/cli/SPEC.md`, "Linked-worktree ignored-state synchronization").
+  The text that follows is the historical record.
 - The worktree-copy settlement lock is held only by forwarded commands that,
   after alias resolution,
   create or move worktrees.
