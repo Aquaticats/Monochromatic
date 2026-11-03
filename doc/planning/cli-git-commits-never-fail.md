@@ -2225,7 +2225,7 @@ P. A merge that touches a path the person has staged (restated in revision 11 un
      before the bound rule; the machine keeps P-wait as written in MG1 until the pick is re-made.
    - Earlier pick (coordinator, 2026-11-03, before the bound rule, veto open): P-wait, because of "never discard user data"; the wait was on a decision only the
      person can make, and Git itself refuses this merge. Re-opened by the bound rule.
-   - Owner's decision (question tool, 2026-11-03 at about 13:00-05:00): "Merge anyway, unstage x", that is P-carry. The option read: "Your staged x becomes an
+   - Owner's decision (question tool, 2026-11-03, answered before the 12:56:51-05:00 commit that records it): "Merge anyway, unstage x", that is P-carry. The option read: "Your staged x becomes an
      unstaged edit merged onto the result, so nothing is lost and the merge completes." It needs its own differential controls against Git; MG1 changes
      from P-wait to P-carry.
 W. The attachment concession for merge file writes (restated in revision 11; for the coordinator to pick).
@@ -2243,7 +2243,7 @@ W. The attachment concession for merge file writes (restated in revision 11; for
      person; the residue of W-detect is why this is an approval question and not a technical one.
    - Earlier pick (coordinator, 2026-11-03, before the tenth review, veto open): W-detect, because of "Auto merging should never fail." The tenth review does not
      approve W-detect as specified in revision 10; revision 11 repairs it and the residue above needs the owner's explicit approval.
-   - Owner's decision (question tool, 2026-11-03 at about 13:00-05:00): "Allow the rare leftover", that is W-detect with the residue approved. The option read:
+   - Owner's decision (question tool, 2026-11-03, answered before the 12:56:51-05:00 commit that records it): "Allow the rare leftover", that is W-detect with the residue approved. The option read:
      "Merges keep completing by themselves; in the rare instant above, the merge's files can show up as changes in your new branch until the wrapper's next
      check restores them from saved copies." The option also named the cost: "a `git commit -a` in that window could commit them to the wrong branch."
 G. Retention against late maintenance (restated in revision 11; for the coordinator to pick).
