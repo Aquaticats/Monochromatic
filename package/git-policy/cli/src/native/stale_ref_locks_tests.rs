@@ -489,3 +489,40 @@ fn a_staging_file_inside_the_margin_stays() {
     assert!(stage.packed_staging().exists());
     stage.finish();
 }
+
+/// A Git program started after the lock was made, named by the pid file, is taken for the holder by its name alone.
+#[test]
+fn a_git_that_started_after_the_lock_is_still_taken_for_the_holder() {
+    let stage: Stage = killed::stage("stale-refs-later-git", true);
+    killed::write_file(stage.lock_of(PLANTED_REF).as_path(), "");
+    std::thread::sleep(Duration::from_millis(400));
+    let later: Held = killed::idle_git(&stage);
+    std::thread::sleep(Duration::from_millis(50));
+    killed::write_file(stage.pid_file_of(PLANTED_REF).as_path(), &format!("pid {}\n", later.pid()));
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Held(_))), "{outcome:?}");
+    drop(later);
+    stage.finish();
+}
+
+/// A staging file that a process has open is in use, though no lock is beside it.
+#[test]
+fn a_staging_file_that_a_process_holds_open_stays() {
+    let stage: Stage = killed::stage("stale-refs-open-staging", true);
+    killed::write_file(stage.packed_staging().as_path(), "# pack-refs with:\n");
+    let holder: Helper = Helper(Command::new("sh").arg("-c").arg("exec 3<>\"$1\"; exec sleep 120").arg("sh").arg(stage.packed_staging().as_os_str()).spawn().expect("start the holder"));
+    let descriptors: PathBuf = PathBuf::from(format!("/proc/{}/fd", holder.pid()));
+    let staging: PathBuf = stage.packed_staging();
+    let started: std::time::Instant = std::time::Instant::now();
+    while !std::fs::read_dir(descriptors.as_path()).expect("fds").flatten().any(|entry| { return std::fs::read_link(entry.path()).is_ok_and(|target| { return target == staging; }); }) {
+        assert!(started.elapsed() < killed::HOLD_PATIENCE, "the holder opened the staging file");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(stage.packed_staging().exists());
+    assert!(matches!(verdict_of(&outcome, stage.packed_staging().as_path()), Some(Verdict::Held(_))), "{outcome:?}");
+    drop(holder);
+    stage.finish();
+}
