@@ -42,6 +42,16 @@ fn the_option_goes_before_the_subcommand_and_after_the_global_options() {
     assert_eq!(arguments, words(&["-C", "/r", "-c", "core.hooksPath=/x", "-c", "checkout.workers=0", "worktree", "add", "../w"]));
 }
 
+/// A global option with a separate value (`--git-dir <path>`, `--work-tree <path>`) is skipped, so the option still lands before `worktree`.
+#[test]
+fn separate_valued_global_options_do_not_move_the_subcommand() {
+    let mut arguments: Vec<OsString> = words(&["--git-dir", "/r/.git", "--work-tree", "/r", "worktree", "add", "--quiet", "w"]);
+    assert!(!typed_before_subcommand(arguments.as_slice()));
+    insert_parallel_checkout(&mut arguments);
+    assert_eq!(arguments, words(&["--git-dir", "/r/.git", "--work-tree", "/r", "-c", "checkout.workers=0", "worktree", "add", "--quiet", "w"]));
+    assert!(typed_before_subcommand(words(&["--git-dir", "/r/.git", "-c", "checkout.workers=2", "worktree", "add"]).as_slice()));
+}
+
 /// Only the fallback checkout is a checkout step.
 #[test]
 fn only_the_reset_to_head_is_a_checkout_step() {

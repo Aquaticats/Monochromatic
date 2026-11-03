@@ -15,6 +15,7 @@
 
 use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use super::diagnostic_log::debug;
+use super::global_arguments::{GlobalOutcome, global_layout};
 use super::transaction_git::{GitContext, subcommand_of};
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
@@ -24,6 +25,22 @@ pub const KEY: &str = "checkout.workers";
 
 /// The option the wrapper adds: one worker per logical CPU.
 const PARALLEL: &str = "checkout.workers=0";
+
+/// What:
+///  How many leading words of the arguments are global options, which is where the subcommand starts.
+/// Why:
+///   The wrapper reads global options with one reader (`--git-dir <path>` and `--work-tree <path>` take a separate value, `-c`
+///  and `-C` too, and `--option=value` forms are one word), so the position agrees with where the wrapper's own hook options go.
+///  Arguments with no subcommand have no position, and the whole list is global options.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const prefixLength = layout.outcome === 'command' ? layout.prefixLen : args.length;
+/// ```
+fn global_prefix_length(arguments: &[OsString]) -> usize {
+    let layout = global_layout(arguments);
+    return if layout.outcome == GlobalOutcome::Command { layout.prefix_len } else { arguments.len() };
+}
 
 /// What:
 ///  Whether a global option the person typed before the subcommand names the key: `-c checkout.workers=<n>`,
@@ -36,10 +53,7 @@ const PARALLEL: &str = "checkout.workers=0";
 /// args.slice(0, subcommandIndex).some((word) => word.toLowerCase().includes('checkout.workers'))
 /// ```
 pub fn typed_before_subcommand(arguments: &[OsString]) -> bool {
-    let before: &[OsString] = match subcommand_of(arguments) {
-        Some((index, _name)) => &arguments[..index],
-        None => arguments,
-    };
+    let before: &[OsString] = &arguments[..global_prefix_length(arguments)];
     return before.iter().any(|word: &OsString| { return word.to_string_lossy().to_lowercase().contains(KEY); });
 }
 
@@ -113,8 +127,11 @@ pub fn parallel_checkout_wanted(context: &GitContext, cwd: &Path, arguments: &[O
 /// args.splice(subcommandIndex, 0, '-c', 'checkout.workers=0');
 /// ```
 pub fn insert_parallel_checkout(arguments: &mut Vec<OsString>) {
-    let Some((index, _name)) = subcommand_of(arguments.as_slice()) else { return };
-    arguments.splice(index..index, [OsString::from("-c"), OsString::from(PARALLEL)]);
+    let layout = global_layout(arguments.as_slice());
+    if layout.outcome != GlobalOutcome::Command {
+        return;
+    }
+    arguments.splice(layout.prefix_len..layout.prefix_len, [OsString::from("-c"), OsString::from(PARALLEL)]);
 }
 
 /// What:
