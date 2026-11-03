@@ -370,6 +370,10 @@ mod service_lane;
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
 
+/// The ends of the waits on the commit path: a commit withdrawn at its bound never lands, not even after a restart of the service.
+#[path = "binary_service_withdraw_tests.rs"]
+mod service_withdraw;
+
 /// The client's wait for the commit service: heartbeats, silence, a start the manager reports failed, a late start.
 #[path = "binary_service_heartbeat_tests.rs"]
 mod service_heartbeat;

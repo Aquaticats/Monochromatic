@@ -64,7 +64,9 @@ fn main() {
     let context: LandContext = LandContext {
         git: GitContext { real_git: git, overlay: git_policy_cli::child_environment::lockfile_pid_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
-        on_objects_written: None, lock_ceiling: git_policy_cli::wait_ceilings::LOCK_CEILING,
+        on_objects_written: None,
+        // A control gives a short ceiling with `--lock-ceiling-millis`; a service the manager starts never passes it.
+        lock_ceiling: option(&arguments, "--lock-ceiling-millis").and_then(|text| { return text.parse::<u64>().ok(); }).map_or(git_policy_cli::wait_ceilings::LOCK_CEILING, Duration::from_millis),
     };
     let idle: Duration = option(&arguments, "--idle-seconds")
         .and_then(|text| { return text.parse::<u64>().ok(); })
