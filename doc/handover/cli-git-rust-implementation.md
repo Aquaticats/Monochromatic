@@ -10291,5 +10291,5 @@ by the coordinator at merge.
   both in time order); gate `gpc-gate-release-0.5.22-lock-free-add-candidate-20261103T033514-0500` running.
   Plan: 0.5.21 = conversion candidate when its gate passes; 0.5.22 = this stack. Add-speed lane started on
   `perf/git-policy-cli-fast-snapshot-add` from the stack (split the add's steps without strace, judge the two walks
-  and the parent fsync against the kernel source; also why an add from main took the full copy route at 03:3x
+  and the parent fsync against the kernel source; also why an add from main took the full copy route at 2026-11-03T03:29:01-05:00
   today, "copied 140294 ignored filesystem entries").
