@@ -271,10 +271,28 @@ It judges the lock-versus-service question an implementation choice,
 and only the signed-commit,
 prune-boundary,
 deterministic-Git-bug and no-reflog cases owner decisions.
-Fifth revision sent to the design agent.
+Fifth revision `6d727bcab0` and `42aff9b39c` (2026-11-03T09:08:32-05:00 and 09:09:29):
+no kill-before-acquire,
+no unit watchdog or takeover,
+no lock sweeping after an owner crash,
+a permanent ledger,
+an unconditional `^refs/cli-git/*` on every push,
+deletion only of inodes the lane created and journaled,
+a per-path consumption map,
+worktree attachment and generation on each request.
+Its own trade-off,
+not an owner decision:
+a wedged owner has no automatic recovery and the person restarts the unit,
+which the coordinator flagged against "never stuck".
+Its four owner questions:
+signed commit with a moved parent;
+a Git hang on identical input (the owner's "embed instead of spawning" may already decide it);
+an overlapping destructive prune;
+no-reflog ambiguity.
+Fifth review running,
+output `~/temp/agent/reviews/commits-never-fail-sol-5.txt`.
 Remaining:
-read the revision,
-review again,
+read it,
 ask the owner the questions it leaves,
 then build in the reviewer's order (models and crash fixtures first),
 with the exit inventory as a gate.
