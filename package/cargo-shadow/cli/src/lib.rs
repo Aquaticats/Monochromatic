@@ -20,20 +20,47 @@ pub mod cli;
 /// The fixed values (shadowed name, file names, exit codes).
 pub mod constants;
 
+/// Runs the real cargo for the install and update steps.
+pub mod cargo_run;
+
+/// Finds the crate roots that carry a lockfile, and snapshots and restores them.
+pub mod crates;
+
+/// The one HTTP GET the registry lookups need.
+pub mod http;
+
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `cargo`.
 pub mod guard;
+
+/// Registry versions in a lockfile and the difference between lockfile sets.
+pub mod lockfile;
+
+/// The release-age and trust rules.
+pub mod policy;
 
 /// The marker file that tells an outer shadow instance that an inner one already printed the notice.
 pub mod notice_marker;
 
+/// The crates.io lookups.
+pub mod registry;
+
 /// The PATH lookup that finds the real `cargo` while skipping the shadow itself.
 pub mod real_binary;
+
+/// The selector syntax of the catalog's exclude lists.
+pub mod selectors;
 
 /// The line and the section the shadow adds after cargo's `--version` and `--help`, the only places it names itself.
 pub mod shadow_notice;
 
 /// The shadow mode: install step, look up, launch, wait.
 pub mod shim;
+
+/// Timestamps from the registry.
+pub mod time_text;
+
+/// The rustup toolchain the repository pins.
+pub mod toolchain;
 
 /// The command-word rules: what the shadow does for a cargo command line.
 pub mod verb;
@@ -53,6 +80,21 @@ mod real_binary_tests;
 
 #[cfg(test)]
 mod shadow_notice_tests;
+
+#[cfg(test)]
+mod lockfile_tests;
+
+#[cfg(test)]
+mod policy_tests;
+
+#[cfg(test)]
+mod selectors_tests;
+
+#[cfg(test)]
+mod time_text_tests;
+
+#[cfg(test)]
+mod toolchain_tests;
 
 #[cfg(test)]
 mod verb_tests;

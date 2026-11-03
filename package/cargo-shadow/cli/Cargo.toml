@@ -51,6 +51,12 @@ toml_edit = { workspace = true }
 # Reads cargo metadata, toolchain.lock.json and the crates.io responses.
 serde_json = { workspace = true }
 
+# Reads the crates.io sparse index and web API for release age and publisher history.
+ureq = { workspace = true, default-features = false, features = ["rustls"] }
+
+# Parses and validates rust-catalog.toml, the one source of the release-age and trust settings.
+monochromatic-dependency-catalog = { path = "../../dependency-catalog/core-native", version = "=0.1.0" }
+
 [dev-dependencies]
 # Disposable directories for the workspace and PATH fixtures.
 tempfile = { workspace = true }
@@ -73,3 +79,4 @@ clap = ">=4.6.7"
 serde_json = ">=1.0.154"
 tempfile = ">=3.27.0"
 toml_edit = ">=0.25.17"
+ureq = { version = ">=3.5.0", default-features = false }

@@ -100,3 +100,39 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option
     }
     return None;
 }
+
+/// What:
+/// `pub fn own_real_path() -> PathBuf` is the shadow's own resolved executable path, or an empty path when the system cannot
+/// say.
+/// Why:
+/// The PATH search skips every entry that resolves to it; an empty path matches nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function ownRealPath(): string { return fs.realpathSync(process.execPath); }
+/// ```
+pub fn own_real_path() -> PathBuf {
+    if let Ok(executable) = std::env::current_exe() {
+        if let Ok(resolved) = fs::canonicalize(&executable) {
+            return resolved;
+        }
+        return executable;
+    }
+    return PathBuf::new();
+}
+
+/// What:
+/// `pub fn find_real_cargo() -> Option<PathBuf>` is the first `cargo` on PATH that is not this binary.
+/// Why:
+/// The install step and the catalog commands run cargo themselves, and they must never run the shadow again. The result keeps
+/// the PATH entry's own name (not its resolved path): `~/.cargo/bin/cargo` is a rustup proxy that picks the toolchain from
+/// the name it was started under, so only the skip test uses resolved paths.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function findRealCargo(): string | undefined { return findInPath('cargo', process.env.PATH ?? '', [ownRealPath()]); }
+/// ```
+pub fn find_real_cargo() -> Option<PathBuf> {
+    let path_variable: String = std::env::var("PATH").unwrap_or_default();
+    return find_in_path(crate::constants::SHADOWED_NAME, &path_variable, &[own_real_path()]);
+}

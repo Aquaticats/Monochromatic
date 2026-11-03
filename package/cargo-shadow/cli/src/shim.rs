@@ -65,7 +65,7 @@ use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, MAX_HOPS, format_guard, is_
 /// Imports the notice handshake.
 use crate::notice_marker::{claim_marker_in, leave_marker_in, runtime_dir};
 /// Imports the PATH lookup.
-use crate::real_binary::find_in_path;
+use crate::real_binary::{find_in_path, own_real_path};
 /// Imports the notice that follows cargo's version and help.
 use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
 /// Imports the command-word rules.
@@ -112,25 +112,6 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
     }
     let status: ExitStatus = command.status()?;
     return Ok(exit_code_of(status));
-}
-
-/// What:
-/// `fn own_real_path() -> PathBuf` is the shadow's own resolved executable path, or an empty path when the system cannot say.
-/// Why:
-/// The PATH search skips every entry that resolves to it; an empty path matches nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function ownRealPath(): string { return fs.realpathSync(process.execPath); }
-/// ```
-fn own_real_path() -> PathBuf {
-    if let Ok(executable) = env::current_exe() {
-        if let Ok(resolved) = fs::canonicalize(&executable) {
-            return resolved;
-        }
-        return executable;
-    }
-    return PathBuf::new();
 }
 
 /// What:
