@@ -28,11 +28,10 @@ fn arguments(values: &[&str]) -> Vec<OsString> {
     return values.iter().map(OsString::from).collect();
 }
 
-/// The copy applies to linked and bare repositories always, to the main checkout only for a creation with paths,
+/// The copy applies to linked and bare repositories always, to the main checkout only for a creation,
 /// and never outside a repository.
 #[test]
 fn the_copy_applies_by_repository_shape() {
-    let named: Vec<String> = vec![String::from(".cache/rules.txt")];
     let main: WorktreeIdentity = main_identity(Path::new("/r"), Path::new("/r/.git"));
     let linked: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
         common_dir: PathBuf::from("/r/.git"),
@@ -44,13 +43,12 @@ fn the_copy_applies_by_repository_shape() {
         git_dir: PathBuf::from("/b.git"),
     };
     for creates in [true, false] {
-        assert!(copy_applies(&linked, creates, &[]), "linked {creates}");
-        assert!(copy_applies(&bare, creates, &[]), "bare {creates}");
-        assert!(!copy_applies(&WorktreeIdentity::OutsideWorktree, creates, named.as_slice()));
+        assert!(copy_applies(&linked, creates), "linked {creates}");
+        assert!(copy_applies(&bare, creates), "bare {creates}");
+        assert!(!copy_applies(&WorktreeIdentity::OutsideWorktree, creates));
     }
-    assert!(copy_applies(&main, true, named.as_slice()));
-    assert!(!copy_applies(&main, false, named.as_slice()), "a main checkout command that creates nothing");
-    assert!(!copy_applies(&main, true, &[]), "a main checkout without a configured file");
+    assert!(copy_applies(&main, true));
+    assert!(!copy_applies(&main, false), "a main checkout command that creates nothing");
 }
 
 /// Without a copy the run is plain Git: its exit status passes through, and an unstartable Git is an engine failure.
@@ -91,17 +89,16 @@ fn a_plain_run_reports_git_status_or_the_start_failure() {
     remove(root.as_path());
 }
 
-/// A settled creation from the main checkout runs Git with the lease, copies the named file, and keeps Git's status.
+/// A settled creation from the main checkout runs Git with the lease, copies its ignored state, and keeps Git's status.
 #[cfg(unix)]
 #[test]
-fn a_settled_creation_copies_the_named_file() {
+fn a_settled_creation_from_the_main_checkout_copies_its_ignored_state() {
     let root: PathBuf = fixture("forward-settled");
     let (main, common) = source(root.as_path());
     let topic: PathBuf = root.join("topic");
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), common.as_path()),
         creates_or_moves: true,
-        main_checkout_paths: vec![String::from(".cache/rules.txt")],
         global_prefix: arguments(&["-C", main.to_str().expect("utf8")]),
         environment: Vec::new(),
         add_plan: None,
@@ -157,7 +154,6 @@ fn a_settled_run_that_cannot_ask_git_fails_with_the_reason() {
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), common.as_path()),
         creates_or_moves: true,
-        main_checkout_paths: vec![String::from(".cache/rules.txt")],
         global_prefix: Vec::new(),
         environment: Vec::new(),
         add_plan: None,

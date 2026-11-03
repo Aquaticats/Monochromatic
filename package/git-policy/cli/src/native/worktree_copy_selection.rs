@@ -13,6 +13,7 @@
 //! ```
 
 use super::transaction_git::{GitContext, GitRequest, run_git};
+use super::worktree_copy_prune::Prune;
 use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
 use crate::json_record::quote;
 use std::cmp::Ordering;
@@ -316,19 +317,21 @@ pub fn read_ignored_roots(
 
 /// What:
 ///  Which of a source's ignored paths one copy takes:
-///  every ignored root, or only the named repository paths.
+///  every ignored root, every ignored root minus what a main checkout leaves out, or only the named repository paths.
 /// Why:
 ///   A linked or bare source hands over all of its ignored state, as the incumbent does;
-///  a main checkout holds the repository's heavy ignored trees, so it hands over only what the caller names.
+///  a main checkout hands over the same minus its caches and every other checkout, so a worktree added from it works at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CopySelection = { kind: 'ignored' } | { kind: 'paths'; paths: readonly string[] };
+/// type CopySelection = { kind: 'ignored' } | { kind: 'main-checkout' } | { kind: 'paths'; paths: readonly string[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CopySelection {
     /// Every path Git's standard exclusion stack ignores, plus the ignored special entries.
     Ignored,
+    /// The same listing, walked under the main checkout's leave-out rule (`worktree_copy_prune.rs`).
+    MainCheckout,
     /// Only these repository paths, and only the ones Git ignores and the source has.
     Paths(Vec<String>),
 }
@@ -402,10 +405,30 @@ pub fn select_roots(
 ) -> Result<Vec<String>, WorktreeCopyError> {
     // `match` on the selection: the full listing for linked and bare sources, the named lookup otherwise.
     match selection {
-        CopySelection::Ignored => return read_ignored_roots(context, source_root, excluded_roots),
+        CopySelection::Ignored | CopySelection::MainCheckout => {
+            return read_ignored_roots(context, source_root, excluded_roots);
+        }
         CopySelection::Paths(paths) => {
             return read_named_ignored_roots(context, source_root, paths.as_slice());
         }
+    }
+}
+
+impl CopySelection {
+    /// What:
+    ///  The leave-out rule the selection's walk applies.
+    /// Why:
+    ///   The stage and the final source check must walk with the same rule, so both ask the selection.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// selection.kind === 'main-checkout' ? Prune.mainCheckout() : Prune.never
+    /// ```
+    pub fn prune(&self) -> Prune {
+        return match self {
+            CopySelection::MainCheckout => Prune::main_checkout(),
+            CopySelection::Ignored | CopySelection::Paths(_) => Prune::Never,
+        };
     }
 }
 

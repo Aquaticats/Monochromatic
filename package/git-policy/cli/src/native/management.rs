@@ -58,6 +58,7 @@ use super::scanner_selection::RULES_VARIABLE;
 use super::startup_gate::{Gate, recover_for_command};
 use super::transaction_git::GitContext;
 use super::subvolume_arguments::MigrateArguments;
+use super::worktree_convert_arguments::ConvertArguments;
 #[cfg(target_os = "linux")]
 use super::subvolume_command::migrate_action;
 use super::unported::{unported_from_unavailable, unported_notice};
@@ -491,6 +492,46 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
     return run_migrate(&arguments, cwd.as_path());
 }
 
+/// What:
+///  Decide the action of `git cli-git convert-worktree-to-subvolume`: a refused invocation prints its reason, anything else
+///  runs from the working directory.
+/// Why:
+///   Like the migration, the command needs neither configuration nor Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planConvert(parsed: ConvertArguments | string): Action;
+/// ```
+fn plan_convert(parsed: Result<ConvertArguments, String>) -> Action {
+    let arguments: ConvertArguments = match parsed {
+        Ok(found) => found,
+        Err(reason) => {
+            return Action::Exit {
+                code: ENGINE_FAILURE_EXIT_CODE,
+                stdout: String::new(),
+                stderr: format!("git cli-git convert-worktree-to-subvolume: {reason}\n"),
+            };
+        }
+    };
+    let cwd: PathBuf = match std::env::current_dir() {
+        Ok(found) => found,
+        Err(error) => return failure(format!("cannot determine the current directory: {error}").as_str()),
+    };
+    return run_convert(&arguments, cwd.as_path());
+}
+
+/// Run the conversion command where the platform has btrfs subvolumes.
+#[cfg(target_os = "linux")]
+fn run_convert(arguments: &ConvertArguments, cwd: &Path) -> Action {
+    return super::worktree_convert_command::convert_action(arguments, cwd);
+}
+
+/// Other platforms have no btrfs subvolumes, so the command says so.
+#[cfg(not(target_os = "linux"))]
+fn run_convert(_arguments: &ConvertArguments, _cwd: &Path) -> Action {
+    return failure("git cli-git convert-worktree-to-subvolume works on Linux with btrfs only");
+}
+
 /// The doctor's filesystem section read from the running system.
 #[cfg(target_os = "linux")]
 pub fn host_filesystem_section(common_directory: &Path) -> String {
@@ -628,6 +669,7 @@ pub fn plan_management_with_section(
         ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
         ManagementAction::ServiceStatus => return plan_service(git_global_arguments, environment, inputs),
         ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
+        ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse),
         ManagementAction::Direct {
             fix,
             all,

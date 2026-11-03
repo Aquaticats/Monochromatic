@@ -111,6 +111,31 @@ pub fn ensure_parents(
     entry: &WorktreeCopyEntry,
     created: &mut Vec<InstalledPath>,
 ) -> Result<(), WorktreeCopyError> {
+    return ensure_parents_remembering(destination_root, entry, created, &mut std::collections::HashSet::new());
+}
+
+/// What:
+///  Creates each missing unselected parent directory of one entry, skipping every parent an earlier call already proved.
+/// Why:
+///   Entries arrive parent first, so almost every entry's parent was just proved or created; asking the filesystem about
+///  each ancestor of each of hundreds of thousands of entries costs more than the clones themselves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function ensureParentsRemembering({ destinationRoot, entry, created, known }): Promise<void>;
+/// ```
+pub fn ensure_parents_remembering(
+    destination_root: &Path,
+    entry: &WorktreeCopyEntry,
+    created: &mut Vec<InstalledPath>,
+    known: &mut std::collections::HashSet<String>,
+) -> Result<(), WorktreeCopyError> {
+    let Some((parent, _name)) = entry.relative_path.rsplit_once('/') else {
+        return Ok(());
+    };
+    if known.contains(parent) {
+        return Ok(());
+    }
     let components: Vec<&str> = entry.relative_path.split('/').collect();
     let parent_count: usize = components.len().saturating_sub(1);
     for depth in 1..=parent_count {
@@ -138,6 +163,9 @@ pub fn ensure_parents(
                 )?);
             }
         }
+    }
+    for depth in 1..=parent_count {
+        known.insert(components[..depth].join("/"));
     }
     return Ok(());
 }

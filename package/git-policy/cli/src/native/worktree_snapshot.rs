@@ -143,6 +143,7 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     let made: Option<ObjectId> = open_root(stage.parent().unwrap_or(stage)).ok().and_then(|parent: File| { return identity_at(&parent, stage.file_name()?).ok(); });
     let failed = |reason: String| -> SnapshotFailure { return SnapshotFailure { reason, stage: made }; };
     std::fs::set_permissions(stage, std::fs::Permissions::from_mode(0o700)).map_err(|error| { return failed(format!("the stage cannot be made private ({error})")); })?;
+    super::worktree_trash::prune_snapshot(stage, source).map_err(failed)?;
     remove_stubs(stage, source, plan).map_err(failed)?;
     replace_git_pointer(stage, pointer).map_err(failed)?;
     install_index(source, stage, admin).map_err(failed)?;

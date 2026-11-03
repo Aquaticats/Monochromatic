@@ -35,8 +35,6 @@ pub struct CopyFacts {
     pub identity: WorktreeIdentity,
     /// Whether the command, after alias resolution, creates or moves worktrees.
     pub creates_or_moves: bool,
-    /// Repository paths a main-checkout source hands over (the configured rules file).
-    pub main_checkout_paths: Vec<String>,
     /// The invocation's global options, replayed before the repository queries that ask for the identity again.
     pub global_prefix: Vec<OsString>,
     /// The environment the invocation inherited, which may carry an outer settlement's lease.
@@ -60,36 +58,28 @@ pub struct CopyFacts {
 /// ```ts
 /// identity.kind !== 'outside-worktree' && (identity.kind !== 'main-worktree' || (createsOrMoves && paths.length > 0))
 /// ```
-pub fn copy_applies(
-    identity: &WorktreeIdentity,
-    creates_or_moves: bool,
-    main_checkout_paths: &[String],
-) -> bool {
-    return copy_applies_with(identity, creates_or_moves, main_checkout_paths, false);
+pub fn copy_applies(identity: &WorktreeIdentity, creates_or_moves: bool) -> bool {
+    return copy_applies_with(identity, creates_or_moves, false);
 }
 
 /// What:
 ///  Whether the copy applies to an invocation, when a `git worktree add` or `git worktree remove` that the ladder
 ///  serves may also run in the main checkout.
 /// Why:
-///   The ladder snapshots or clones from the creating worktree, and the main checkout is one, so a creating command
-///  there takes the lifecycle although no rules file is configured; a removal is served from any checkout.
+///   The ladder snapshots or clones from the creating worktree, and the main checkout is one; a removal is served from
+///  any checkout. A creating command from the main checkout takes the lifecycle whatever the configuration names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// copyApplies(identity, createsOrMoves, paths) || (servesLadder && identity.kind === 'main-worktree')
+/// copyApplies(identity, createsOrMoves) || (servesLadder && identity.kind === 'main-worktree')
 /// ```
-pub fn copy_applies_with(
-    identity: &WorktreeIdentity,
-    creates_or_moves: bool,
-    main_checkout_paths: &[String],
-    serves_ladder: bool,
-) -> bool {
-    // `match` on the repository shape; `||` keeps the main checkout's conditions together.
+pub fn copy_applies_with(identity: &WorktreeIdentity, creates_or_moves: bool, serves_ladder: bool) -> bool {
+    // `match` on the repository shape; the main checkout takes the lifecycle when the command creates or moves a worktree
+    // or the ladder serves it.
     match identity {
         WorktreeIdentity::OutsideWorktree => return false,
         WorktreeIdentity::MainWorktree { .. } => {
-            return serves_ladder || (creates_or_moves && !main_checkout_paths.is_empty());
+            return serves_ladder || creates_or_moves;
         }
         WorktreeIdentity::LinkedWorktree { .. } | WorktreeIdentity::BareRepository { .. } => {
             return true;
@@ -262,7 +252,6 @@ fn run_settled(
         inherited_token: environment_value(facts.environment.as_slice(), WORKTREE_COPY_LEASE_ENV)
             .map(|token| return token.to_string_lossy().into_owned()),
         context,
-        main_checkout_paths: facts.main_checkout_paths.clone(),
         add_plan: facts.add_plan.clone(),
     };
     let mut stderr = std::io::stderr();

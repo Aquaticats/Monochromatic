@@ -73,7 +73,10 @@ fn a_clean_ordinary_main_checkout_is_cloned_and_equals_gits_own_checkout() {
     let repo: PathBuf = ordinary_repository(&fixture);
     let (created, control) = add_pair(&fixture, repo.as_path(), "topic", "control", &["-b", "NAME", "../NAME"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
-    assert_eq!(stderr_of(&created).replace("topic", "NAME"), stderr_of(&control).replace("control", "NAME"));
+    let wrapped: String = stderr_of(&created).replace("topic", "NAME");
+    let git_words: String = stderr_of(&control).replace("control", "NAME");
+    assert!(wrapped.starts_with(git_words.as_str()), "Git's own words come first: {wrapped}");
+    assert!(wrapped[git_words.len()..].starts_with("cli-git: copied "), "then the summary line of the ignored-state copy: {wrapped}");
     assert_eq!(String::from_utf8_lossy(&created.stdout), String::from_utf8_lossy(&control.stdout));
     let topic: PathBuf = fixture.root.join("topic");
     assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the clones went into a subvolume");
@@ -81,7 +84,7 @@ fn a_clean_ordinary_main_checkout_is_cloned_and_equals_gits_own_checkout() {
     assert_ne!(first_physical_extent(fixture.root.join("control/big.bin").as_path()), first_physical_extent(repo.join("big.bin").as_path()), "Git's checkout wrote its own");
     assert_eq!(tracked_content(&fixture, topic.as_path()), tracked_content(&fixture, fixture.root.join("control").as_path()));
     assert_eq!(git(&fixture, topic.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]).stdout, b"", "clean on the first status");
-    assert!(!topic.join("ignored").exists(), "a main checkout hands over no ignored state on this rung");
+    assert!(topic.join("ignored").exists(), "the clones carry no ignored state; the copy of the main checkout does");
     remove(&fixture);
 }
 

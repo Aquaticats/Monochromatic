@@ -196,13 +196,18 @@ Read-only commands,
    the size, times and inode its index entry recorded, and Git lists no untracked file that it does not ignore.
   Rungs 1 and 2 are declined for a sparse checkout, a worktree-specific configuration, a submodule, `.gitattributes`
    files that differ between the source and the new `HEAD`, and `--force`, `--no-checkout`, `-B`, `--orphan`, `--track`,
-   any `-c` option, and `--no-worktree-copy`; rung 1 is also declined while a nested linked worktree is an ordinary
-   directory (`git cli-git migrate-to-subvolume` makes them subvolumes).
+   any `-c` option, and `--no-worktree-copy`; rung 1 from a linked worktree is also declined while a nested linked worktree is
+   an ordinary directory (`git cli-git migrate-to-subvolume` or `git cli-git convert-worktree-to-subvolume` makes them
+   subvolumes). A snapshot of the main checkout does not decline for one: it sets those worktrees, other checkouts, caches
+   and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards.
   Every worktree the wrapper creates on btrfs is a subvolume, so rung 1 needs no migration after the first one.
   Git's `post-checkout` hook runs on no rung, because every real Git start of the wrapper switches hooks off.
   `git worktree remove <directory>` (no option) destroys a clean, unlocked subvolume worktree with one ioctl and deletes
    its administrative directory when the mount has `user_subvol_rm_allowed` (the doctor prints the commands that set it);
    in every other case Git removes it.
+  From the main checkout the copy carries the dependencies and builds a new worktree needs to run at once
+   (`node_modules`, `target/`, `dist/`, local configuration files and the repository's `.cache/`),
+   and leaves out caches, the records of earlier runs and any directory that is another checkout.
 - Signals.
   The wrapper catches `SIGINT`,
    `SIGTERM`,
@@ -449,6 +454,28 @@ Files that only the new subvolume holds and this user may not read cannot be car
 Both deletions make the directories this user owns writable on the way down, so a mode-555 directory does not stop them.
 Deleting a subvolume uses the kernel's destroy call where the mount has `user_subvol_rm_allowed` and otherwise empties
  it and calls `rmdir`, which the kernel allows for an empty subvolume root.
+
+### Converting nested worktrees to subvolumes
+
+`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)` turns a linked worktree that is an
+ordinary directory into a btrfs subvolume at the same path, one worktree at a time.
+A snapshot of the main checkout shows a nested worktree that is a subvolume as an empty directory, so converting the ones
+under `.claude/worktrees/` once removes the work of setting each of them aside at every `git worktree add`.
+
+- `--dry-run` lists each worktree and either `would convert` or why it is skipped: locked, an `index.lock`, an operation in
+  progress, a modified tracked file, a process with its working directory or an open file inside it, a worktree registered
+  inside it, or a converting directory that no journal owns.
+  Run it first; it changes nothing.
+- Without `--dry-run` the command quiesces the worktree (it takes the administrative directory's `index.lock` with its own
+  token), copies it into `<path>.cli-git-converting` with cloned data, proves the copy equal with a second pass, swaps the two
+  directories with one exchange, checks that the path is a subvolume with the same `.git` bytes, rewrites the index stat fields
+  so the first `git status` stays fast, and removes the old tree only when it is the directory it recorded.
+  The registration never changes: the path and the bytes of the `.git` file are the same.
+- Run the same command again after any stop: it completes the conversion in place. `--abandon` undoes one that has not
+  reached its swap, destroying only the subvolume its journal says it created.
+- Measured on a fixture of four ordinary worktrees of 22.3 thousand entries each: 4.2 s per worktree under a scope of
+  `CPUQuota=400%`, load average 6 to 10.
+- Stop sessions that have a working directory in the worktree first; the command refuses while one does.
 
 ### Version and help
 
@@ -1201,6 +1228,25 @@ The wrapper records that directory's name in the common Git directory before it 
 so a copy that was killed while staging cannot leak it:
 the next invocation in the repository removes the directory and says so on stderr.
 Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
+
+A worktree added from the main checkout receives the main checkout's ignored state minus what a new worktree does not need.
+Left out by directory name, wherever the name sits below the main checkout:
+ a directory that holds a `.git` file or directory (another checkout, including every registered worktree);
+ the caches `.pnpm-store`, `.gradle` and `.kotlin`;
+ a `.cache` directory other than the one in the repository root (the root `.cache` holds the tool launchers and generated
+ inputs that tasks read, so it is copied);
+ `incremental` and `zig-global-cache` below a `target` directory;
+ and the records of earlier runs, `.monochromatic` below a `node_modules` directory, `target/verification`, `mutants.out`,
+ `mutants.out.old`, `playwright-report`, `test-results` and `.serena/cache`.
+The run records follow the constant `COPY_RUN_RECORDS` in `src/native/worktree_copy_prune.rs`, which is `false`.
+A linked or bare source copies everything it ignores except its nested registered worktrees.
+An ignored file or directory that the user cannot read, such as a log written by `root`, is left out of any copy instead of
+ failing it, and one stderr line says how many and which first paths: `cli-git: left out 2 unreadable ignored entries from
+ "/path/to/source": "a/b", "c"`.
+The copy clones files with a copy-on-write request, in parallel on a large tree, and trusts the clone: it proves a cloned
+ source file unchanged by its size, modification time, change time and inode instead of reading both files again.
+A source file written to during the copy still fails the copy, and a file the filesystem would not clone is compared byte
+ for byte.
 
 ## Development
 

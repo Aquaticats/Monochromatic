@@ -47,6 +47,9 @@ pub struct SnapshotSource {
     pub nested: Vec<PathBuf>,
     /// The configuration the checks read, which names the abbreviation length of the line Git's checkout prints.
     pub config: ConfigSnapshot,
+    /// Whether Git ignores the place a snapshot of the main checkout sets its left-out directories aside; false for a linked
+    ///  worktree, which sets nothing aside.
+    pub trash_ignored: bool,
 }
 
 /// What:
@@ -256,7 +259,8 @@ pub fn common_source(context: &GitContext, identity: &WorktreeIdentity) -> Resul
         return Err(reason);
     }
     let clean: CleanSource = check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path())?;
-    return Ok(SnapshotSource { root: root.clone(), git_dir: git_dir.clone(), common_dir: common_dir.clone(), clean, nested, config: snapshot });
+    let trash_ignored: bool = git_dir == common_dir && super::worktree_trash::trash_location_is_ignored(context, root.as_path());
+    return Ok(SnapshotSource { root: root.clone(), git_dir: git_dir.clone(), common_dir: common_dir.clone(), clean, nested, config: snapshot, trash_ignored });
 }
 
 /// What:
@@ -271,6 +275,10 @@ pub fn common_source(context: &GitContext, identity: &WorktreeIdentity) -> Resul
 pub fn snapshot_blocker(source: &SnapshotSource) -> Option<String> {
     if let Some(path) = nested_through_link(source.nested.as_slice()) {
         return Some(format!("the worktree {} inside the source is reached through a symbolic link", path.display()));
+    }
+    // A snapshot of the main checkout sets the nested ordinary worktrees aside (`worktree_trash.rs`), so they do not block it.
+    if source.git_dir == source.common_dir {
+        return None;
     }
     return nested_ordinary_worktree(source.nested.as_slice()).map(|path: PathBuf| { return format!("the worktree {} inside the source is an ordinary directory; `git cli-git migrate-to-subvolume` makes it a subvolume", path.display()); });
 }

@@ -65,7 +65,7 @@ fn listing(fixture: &Fixture, repo: &Path) -> String {
 }
 
 /// A worktree added from the main checkout is a subvolume with its files, is registered, and the caller sees only
-///  what real Git prints.
+///  what real Git prints and the summary line of the copy.
 #[test]
 fn a_worktree_added_from_the_main_checkout_is_a_subvolume() {
     let fixture: Fixture = fixture("ladder-add-main");
@@ -77,7 +77,12 @@ fn a_worktree_added_from_the_main_checkout_is_a_subvolume() {
     let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "-b", "topic", "../topic"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "-b", "control", "../control"]);
-    assert_eq!(stderr_of(&created).replace("topic", "NAME"), stderr_of(&control).replace("control", "NAME"), "the caller sees Git's own words");
+    // Git's own words, then the one summary line of the ignored-state copy: this main checkout is no subvolume, so no snapshot
+    //  served it and the copy ran.
+    let wrapped: String = stderr_of(&created).replace("topic", "NAME");
+    let git_words: String = stderr_of(&control).replace("control", "NAME");
+    assert!(wrapped.starts_with(git_words.as_str()), "the caller sees Git's own words first: {wrapped}");
+    assert!(wrapped[git_words.len()..].starts_with("cli-git: copied "), "{wrapped}");
     let topic: PathBuf = fixture.root.join("topic");
     assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the new worktree is a subvolume");
     assert!(!is_subvolume_root(fixture.root.join("control").as_path()).expect("probe"), "real Git makes an ordinary directory");

@@ -55,6 +55,8 @@ pub enum WorkKind {
     Push,
     /// Repository maintenance.
     Maintenance,
+    /// Emptying a directory of left-out files that a snapshot-made worktree set aside.
+    Trash,
 }
 
 /// Methods over a kind.
@@ -65,12 +67,13 @@ impl WorkKind {
             WorkKind::Review => "review",
             WorkKind::Push => "push",
             WorkKind::Maintenance => "maintenance",
+            WorkKind::Trash => "trash",
         };
     }
 
     /// The kind a name spells.
     pub fn from_name(name: &str) -> Option<WorkKind> {
-        return [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance].into_iter().find(|kind| return kind.name() == name);
+        return [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash].into_iter().find(|kind| return kind.name() == name);
     }
 }
 
@@ -273,7 +276,7 @@ type Stamp<'a> = &'a dyn Fn(&Path) -> std::io::Result<()>;
 /// Whether `id` is a kind and an object name,
 /// which makes every name built from it fit in a file name.
 pub(crate) fn is_valid_id(id: &str) -> bool {
-    return [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance]
+    return [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash]
         .iter()
         .any(|kind| { return id.strip_prefix(format!("{}-", kind.name()).as_str()).is_some_and(is_object_name); });
 }
@@ -357,7 +360,7 @@ pub fn find_claim(work_dir: &Path, id: &str) -> Option<PathBuf> {
 /// await rename(join(workDir, 'pending', id), join(workDir, 'claimed', claimFileName(id, newGeneration(), now)))
 /// ```
 pub fn claim_next(work_dir: &Path, now: &ClaimTime) -> Result<Option<Claimed>, String> {
-    return claim_next_of(work_dir, now, &[WorkKind::Review, WorkKind::Push, WorkKind::Maintenance]);
+    return claim_next_of(work_dir, now, &[WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash]);
 }
 
 /// What:

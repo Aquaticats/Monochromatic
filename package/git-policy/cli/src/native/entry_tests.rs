@@ -490,7 +490,6 @@ fn commands_in_a_linked_worktree_are_settled_by_the_copy() {
         ));
         assert_eq!(facts.creates_or_moves, creates, "{rest:?}");
         assert!(matches!(facts.identity, crate::worktree_identity::WorktreeIdentity::LinkedWorktree { .. }));
-        assert!(facts.main_checkout_paths.is_empty(), "a linked source copies everything it ignores");
     }
     // The inherited environment is handed on, so a nested command can present an outer lease.
     let environment: Vec<(OsString, OsString)> = vec![(
@@ -550,10 +549,9 @@ fn the_opt_out_and_short_circuit_forms_are_not_settled() {
     remove(root.as_path());
 }
 
-/// From the main checkout, only a worktree creation with a configured rules file is settled,
-///  and it hands over exactly that file.
+/// From the main checkout, only a worktree creation or move is settled, whatever the configuration names.
 #[test]
-fn the_main_checkout_is_settled_only_for_a_creation_with_a_rules_file() {
+fn the_main_checkout_is_settled_only_for_a_creation() {
     let root: PathBuf = fixture("entry-settled-main");
     let (repo, _linked): (PathBuf, PathBuf) = repository_with_rules_file(root.as_path());
     let resolution: ResolutionInputs = inputs(root.as_path());
@@ -568,11 +566,6 @@ fn the_main_checkout_is_settled_only_for_a_creation_with_a_rules_file() {
             &resolution,
         ));
         assert!(facts.creates_or_moves, "{rest:?}");
-        assert_eq!(
-            facts.main_checkout_paths,
-            vec![String::from(".cache/forbidden-strings.rules.txt")],
-            "{rest:?}"
-        );
     }
     // Commands that create nothing keep their plain forward from the main checkout.
     for rest in [vec!["worktree", "list"], vec!["status"], vec!["log", "--oneline"]] {
@@ -591,27 +584,22 @@ fn the_main_checkout_is_settled_only_for_a_creation_with_a_rules_file() {
     remove(root.as_path());
 }
 
-/// A main checkout whose configuration names no rules file stays a plain forward for a creation the ladder does not
-///  serve, and is settled with the plan for one it does.
+/// A main checkout whose configuration names no rules file is settled for a creation too, because its ignored state is
+///  copied whole under the main-checkout rule and needs no configuration; the ladder's plan rides along for a form it serves.
 #[test]
-fn a_main_checkout_without_a_rules_file_is_settled_only_for_a_form_the_ladder_serves() {
+fn a_main_checkout_without_a_rules_file_is_settled_for_a_creation() {
     let root: PathBuf = fixture("entry-settled-main-unconfigured");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let resolution: ResolutionInputs = inputs(root.as_path());
-    for arguments in [
-        vec!["worktree", "add", "--force", "--quiet", "-b", "second", "../second"],
-        vec!["worktree", "move", "../linked", "../moved"],
-    ] {
-        assert_eq!(
-            plan_invocation(in_directory(repo.as_path(), arguments.as_slice()).as_slice(), &[], &resolution),
-            forward(in_directory(repo.as_path(), arguments.as_slice())),
-            "{arguments:?}"
-        );
-    }
+    let unserved: Vec<&str> = vec!["worktree", "add", "--force", "--quiet", "-b", "second", "../second"];
+    let facts = settled_facts(plan_invocation(in_directory(repo.as_path(), unserved.as_slice()).as_slice(), &[], &resolution));
+    assert!(facts.creates_or_moves);
+    assert!(facts.add_plan.is_none(), "the ladder does not serve a forced add");
     let served: Vec<&str> = vec!["worktree", "add", "--quiet", "-b", "second", "../second"];
-    let facts = settled_facts(plan_invocation(in_directory(repo.as_path(), served.as_slice()).as_slice(), &[], &resolution));
-    assert!(facts.main_checkout_paths.is_empty());
-    let plan = facts.add_plan.expect("the ladder serves this form");
+    let served_facts = settled_facts(plan_invocation(in_directory(repo.as_path(), served.as_slice()).as_slice(), &[], &resolution));
+    assert!(served_facts.creates_or_moves);
+    assert!(matches!(served_facts.identity, crate::worktree_identity::WorktreeIdentity::MainWorktree { .. }));
+    let plan = served_facts.add_plan.expect("the ladder serves this form");
     assert_eq!(plan.destination, std::fs::canonicalize(root.as_path()).expect("canonical").join("second"));
     remove(root.as_path());
 }

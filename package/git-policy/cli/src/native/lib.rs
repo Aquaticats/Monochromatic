@@ -911,6 +911,9 @@ pub mod worktree_copy_registry;
 /// The ignored source paths a linked-worktree copy selects, and the path validation every selection passes.
 pub mod worktree_copy_selection;
 
+/// What a copy from a main checkout leaves out: caches, optionally run records, and other checkouts.
+pub mod worktree_copy_prune;
+
 /// The deterministic parent-first manifest of a copy, and the mode application to a staged copy.
 pub mod worktree_copy_manifest;
 
@@ -1390,3 +1393,18 @@ pub mod shell_quote;
 /// The filesystem section of `git cli-git doctor`: btrfs subvolume, overlayfs, the removal mount option and its commands.
 #[cfg(target_os = "linux")]
 pub mod doctor_filesystem;
+
+/// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path, resumably.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert;
+
+/// The grammar of `git cli-git convert-worktree-to-subvolume`.
+pub mod worktree_convert_arguments;
+
+/// `git cli-git convert-worktree-to-subvolume`: the worktrees to cover and the report.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_command;
+
+/// Setting aside what a snapshot of the main checkout leaves out, and having the commit service empty it.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash;

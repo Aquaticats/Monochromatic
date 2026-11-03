@@ -10,8 +10,8 @@
 //!  command creates or moves worktrees after alias resolution) with the native modules that already own them,
 //!  passes the repository identity and the effective working directory, and supplies the runner that starts real Git
 //!  with the lease token in its environment. This module never runs the commit refusal; it is not wired yet.
-//!  A main-checkout source is a bypass unless the caller also names `Invocation::main_checkout_paths` (the configured
-//!  forbidden-strings rules files, each entry of an array); then only those paths are copied, and only when Git ignores them.
+//!  A main-checkout source is observed only when the command creates or moves a worktree; it then hands over its ignored
+//!  state under the main checkout's leave-out rule (`worktree_copy_prune.rs`), with its registered worktrees excluded.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,9 +27,9 @@ use super::worktree_copy_recovery::{
 };
 use super::worktree_copy_selection::CopySelection;
 use super::worktree_copy_registry::{
-    CreatedWorktrees, WorktreeCopyObservation, find_created_worktrees, observe_copy_source_for,
+    CreatedWorktrees, WorktreeCopyObservation, find_created_worktrees, observe_copy_source,
 };
-use super::worktree_copy_transaction::synchronize_created_worktree;
+use super::worktree_copy_transaction::synchronize_created_worktree_noting;
 use super::worktree_identity::WorktreeIdentity;
 use super::worktree_add_plan::AddPlan;
 use super::worktree_ladder::{LadderResult, begin_ladder};
@@ -81,9 +81,6 @@ pub struct Invocation {
     pub short_circuit: bool,
     /// The lease token inherited from an outer settlement, when the environment carried one.
     pub inherited_token: Option<String>,
-    /// Repository paths a main-checkout source hands over (the configured rules file);
-    ///  empty keeps the main checkout a bypass, and linked and bare sources ignore it.
-    pub main_checkout_paths: Vec<String>,
     /// The real Git executable and the variables every Git child receives.
     pub context: GitContext,
     /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves, when it is one.
@@ -246,13 +243,14 @@ fn synchronize_after(
         None => {}
         Some(source) => {
             for destination in &found.created {
-                copied += synchronize_created_worktree(
+                copied += synchronize_created_worktree_noting(
                     context,
                     observation.common_dir.as_path(),
                     source.as_path(),
                     destination.root.as_path(),
                     found.registered_roots.as_slice(),
                     &observation.selection,
+                    stderr,
                 )?;
             }
         }
@@ -285,11 +283,9 @@ fn settle_under_lock(
     lease_token: &str,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
-    let refreshed: Option<WorktreeCopyObservation> = observe_copy_source_for(
+    let refreshed: Option<WorktreeCopyObservation> = observe_copy_source(
         &identity_after_lock()?,
         invocation.effective_cwd.as_path(),
-        invocation.main_checkout_paths.as_slice(),
-        invocation.add_plan.is_some(),
     )?;
     let observation: WorktreeCopyObservation = match refreshed {
         Some(observed) if observed.common_dir == first.common_dir => observed,
@@ -352,11 +348,9 @@ fn settle_invocation(
     if invocation.opted_out || invocation.short_circuit {
         return forward_only(run_git);
     }
-    let Some(observation) = observe_copy_source_for(
+    let Some(observation) = observe_copy_source(
         &invocation.identity,
         invocation.effective_cwd.as_path(),
-        invocation.main_checkout_paths.as_slice(),
-        invocation.add_plan.is_some(),
     )?
     else {
         return forward_only(run_git);

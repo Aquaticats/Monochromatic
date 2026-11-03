@@ -36,7 +36,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// The kinds of work the service runs itself.
-pub const SERVICE_KINDS: [WorkKind; 3] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review];
+pub const SERVICE_KINDS: [WorkKind; 4] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash];
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
@@ -63,6 +63,10 @@ pub trait WorkHandlers {
     fn maintenance(&self, item: &WorkItem) -> Verdict;
     /// Review one landed commit into the repository's shadow log.
     fn review(&self, item: &WorkItem) -> Verdict;
+    /// Empty the directory of left-out files a snapshot-made worktree set aside; a handler that does not know it skips.
+    fn trash(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler does not empty trash directories"));
+    }
 }
 
 /// The work directory of a repository.
@@ -309,7 +313,8 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
         let (acceptable, refused): (Vec<_>, Vec<_>) = claimed.into_iter().partition(|item| { return is_acceptable(&item.item, git_dir); });
         settle_all(work_dir.as_path(), &held, &refused, FAILED);
         let (pushes, rest): (Vec<_>, Vec<_>) = acceptable.into_iter().partition(|item| { return item.item.kind == WorkKind::Push; });
-        let (reviews, upkeep): (Vec<_>, Vec<_>) = rest.into_iter().partition(|item| { return item.item.kind == WorkKind::Review; });
+        let (trashes, after_trash): (Vec<_>, Vec<_>) = rest.into_iter().partition(|item| { return item.item.kind == WorkKind::Trash; });
+        let (reviews, upkeep): (Vec<_>, Vec<_>) = after_trash.into_iter().partition(|item| { return item.item.kind == WorkKind::Review; });
         let mut groups: Vec<((String, String), Vec<Claimed>)> = Vec::new();
         for item in pushes {
             let key = (item.item.repository.clone(), item.item.branch_ref.clone());
@@ -393,6 +398,21 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
                 };
             }
             settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
+        }
+        // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow
+        //  reviews: freeing them is a bounded, local job.
+        for item in still_held(&held, work_dir.as_path(), trashes) {
+            match handlers.trash(&item.item) {
+                Verdict::Done => settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE),
+                Verdict::Failed(reason) => {
+                    eprintln!("cli-git-service: the trash {} could not be emptied: {reason}", item.item.parent);
+                    settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), FAILED);
+                }
+                Verdict::Skipped(reason) => {
+                    eprintln!("cli-git-service: the trash {} was left as it is: {reason}", item.item.parent);
+                    settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
+                }
+            }
         }
         // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
         for item in still_held(&held, work_dir.as_path(), reviews) {
@@ -520,6 +540,10 @@ impl WorkHandlers for GitHandlers {
             Ok(result) => Verdict::Failed(result.shown),
             Err(error) => Verdict::Failed(format!("{error}")),
         };
+    }
+
+    fn trash(&self, item: &WorkItem) -> Verdict {
+        return super::worktree_trash::empty_trash(item);
     }
 
     fn maintenance(&self, item: &WorkItem) -> Verdict {
