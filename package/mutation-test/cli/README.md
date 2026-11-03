@@ -93,6 +93,11 @@ floor) and `--timeout-factor` (multiple of baseline test time),
  `--skip-image-build`,
  `--report <file>`.
 
+Every shard container also starts at the lowest disk weight,
+`--blkio-weight=10` and `--cgroup-conf=io.weight=10` (`LOWEST_DISK_WEIGHT` in `src/host/podman.ts`),
+and no flag raises it:
+a rootless container sits outside the launcher's unit and ignores the launcher's `IOWeight`.
+
 Test selection:
  `<stem>.unit.test.ts` plus dot-sidecars
 (`<stem>.regression.unit.test.ts`) plus package-level

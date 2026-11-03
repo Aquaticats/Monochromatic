@@ -781,7 +781,9 @@ no network,
 user `1000:1000`,
 2 GiB memory,
 2 CPUs,
-and 128 PIDs.
+128 PIDs,
+and the lowest disk weight (`--blkio-weight=10` and `--cgroup-conf=io.weight=10`,
+from `diskWeightArguments` in `@monochromatic-dev/mutation-test-cli-cargo-mutants`).
 They do not replace installed production binaries.
 
 ```sh

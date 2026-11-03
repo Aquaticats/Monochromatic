@@ -1,3 +1,11 @@
+[vars]
+# Lowest weight podman accepts for a container's disk I/O (`--blkio-weight` takes 10 to 1000; the default is 100). Repository rule
+# HXR (AGENTS.md) starts containers that can exhaust the host at this weight. The image:check containers are rootful, so they sit
+# in a system scope outside this task's unit and the launcher's IOWeight never reaches them. `--blkio-weight` sets io.bfq.weight
+# (read by the BFQ scheduler) and `--cgroup-conf io.weight=` sets io.weight (read by the other schedulers); the host's scheduler
+# reads one of them. src/disk-weight.ts holds the same value for the converter container, and its unit test fails if they differ.
+lowest_disk_weight = "10"
+
 [tasks.run]
 description = "Build container image and import as libvirt VM"
 run = "node src/build-and-import.ts"
@@ -9,9 +17,9 @@ run = "sudo --non-interactive podman build --cpu-period 100000 --cpu-quota 80000
 [tasks."image:check"]
 description = "Inspect OdyTTY and terminal defaults in disposable containers from the dev image"
 run = [
-  "sudo --non-interactive podman run --rm --network none --cpus 2 --memory 2g --pids-limit 128 --blkio-weight 25 --user user --entrypoint /usr/bin/odytty localhost/monochromatic-dev:latest --version",
-  "sudo --non-interactive podman run --rm --network none --cpus 2 --memory 2g --pids-limit 128 --blkio-weight 25 --user user --env XDG_CONFIG_HOME=/home/user/.config --entrypoint /usr/bin/odytty localhost/monochromatic-dev:latest --show-config",
-  "sudo --non-interactive podman run --rm --network none --cpus 2 --memory 2g --pids-limit 128 --blkio-weight 25 --user user --entrypoint /usr/bin/cat localhost/monochromatic-dev:latest /home/user/.config/kdeglobals /home/user/.config/xdg-terminals.list /usr/share/applications/io.unfinished_works.odytty.desktop",
+  "sudo --non-interactive podman run --rm --network none --cpus 2 --memory 2g --pids-limit 128 --blkio-weight {{vars.lowest_disk_weight}} --cgroup-conf io.weight={{vars.lowest_disk_weight}} --user user --entrypoint /usr/bin/odytty localhost/monochromatic-dev:latest --version",
+  "sudo --non-interactive podman run --rm --network none --cpus 2 --memory 2g --pids-limit 128 --blkio-weight {{vars.lowest_disk_weight}} --cgroup-conf io.weight={{vars.lowest_disk_weight}} --user user --env XDG_CONFIG_HOME=/home/user/.config --entrypoint /usr/bin/odytty localhost/monochromatic-dev:latest --show-config",
+  "sudo --non-interactive podman run --rm --network none --cpus 2 --memory 2g --pids-limit 128 --blkio-weight {{vars.lowest_disk_weight}} --cgroup-conf io.weight={{vars.lowest_disk_weight}} --user user --entrypoint /usr/bin/cat localhost/monochromatic-dev:latest /home/user/.config/kdeglobals /home/user/.config/xdg-terminals.list /usr/share/applications/io.unfinished_works.odytty.desktop",
 ]
 
 [tasks.import]
