@@ -97,8 +97,9 @@ commit `c7b46ae`).
   pnpm can do that because `pnpm run` never rewrites the lockfile;
   cargo does,
   hence `--locked`.
-  A frozen check (CI, or the user's own `--locked`) that refuses keeps this behavior too: "CI keeps the frozen behavior already
-  recorded (the 2026-10-29 trustLockfile amendment)".
+  A frozen check (CI, or the user's own `--locked`) that finds a stale lockfile keeps this behavior too: "CI keeps the frozen
+  behavior already recorded (the 2026-10-29 trustLockfile amendment)". A frozen policy refusal stops the command by a delegated
+  pick of 2026-11-03 (below).
   Replaces the fail-closed behavior built first,
   and, for a policy refusal of a local install, is replaced in turn by the next two decisions.
 - A local (not frozen) install sets a release under `minimumReleaseAge` aside instead of refusing it.
@@ -219,8 +220,7 @@ What changed, and what each rests on:
   Measured cost of the fast path was not repeated after this change.
 - A local install checks existing entries (pnpm's `startLockfileVerification` is not gated on frozen).
 - `--breaking` edits the manifests, so they are part of the transaction.
-  The catalog write and the `file-enforcer` sync stay after the commit point;
-  a sync failure is still a warning (open question to the owner, below).
+  The catalog write and the `file-enforcer` sync are inside the transaction by a delegated pick of 2026-11-03 (below).
 - Update arguments are read in every supported spelling, before and after the command word, and an unmapped option is refused.
 - The CSV reader refuses malformed tables and bounds fields, rows and histories.
 - A full update whose strict cutoff cannot resolve a crate that `minimumReleaseAgeExclude` exempts resolves without the cutoff and
