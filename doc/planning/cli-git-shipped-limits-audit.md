@@ -2031,8 +2031,8 @@ fixture, and reflinked copies of `git archive HEAD` of this repository (20,768 f
 Every run was in `systemd-run --user --scope` with `IOWeight=10` and a `CPUQuota`, `MemoryMax` and `TasksMax` sized to
 it
 (burst: 800%, 8G, 1500 and 3000 tasks; thresholds: 1800%, 12G, 600 tasks).
-The claim-kill run's scope had ended by the time its tests ran, so it was bounded only by the test's own five minutes; it
-ran one fixture service and sleeping hooks.
+The claim-kill run's scope had ended by the time its tests ran, so it was bounded only by the test's own five
+minutes; it ran one fixture service and sleeping hooks.
 
 #### Batch burst
 
@@ -2860,3 +2860,9 @@ Coordinator, under the owner's delegation, veto open:
   B.
 - Free-space preflight scope:
   A.
+
+Applied on branch `fix/git-policy-cli-limits-cite-measurements`: batch size 64 to 256 (measured burst), claim lease kept at
+120 s (measured kill recovery 119.55 to 119.57 s), idle exit and foreign-owner patience and preflight unchanged, local
+per-update queries 8 and remote 4, the three parallel thresholds 16, install batch and removal depth and index rewrite
+copies measured and kept, lock age margin 7 s.
+See "After the follow-up picks" and "Follow-up measurements".
