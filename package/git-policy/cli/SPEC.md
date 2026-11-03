@@ -1312,22 +1312,34 @@ in-process reader can) gives every value of the multi-valued keys.
   and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
 - No step of the push waits without a bound.
   The push is stopped on no progress, under a ceiling.
-  Progress is the bytes the push and every process it started read and write:
-  `rchar` plus `wchar` of `/proc/<pid>/io`, summed over the whole process tree and sampled twice a second
-  (`SAMPLE_INTERVAL` in `push_progress.rs`).
-  These counters were chosen by measurement on 2026-11-03:
+  A push is at work, and not stalled, when the push or any process it started shows one of three signs,
+  each read from `/proc` twice a second (`SAMPLE_INTERVAL` in `push_progress.rs`):
+  it moved bytes, which is `rchar` plus `wchar` of `/proc/<pid>/io` growing;
+  it used processor time, which is `utime` plus `stime` of `/proc/<pid>/stat` growing;
+  or a task of it is able to run (state `R`) or waiting for the disk (state `D`) at the look,
+  read per task in `/proc/<pid>/task/<tid>/stat`, because a thread waits in an `fsync` while the process itself sleeps.
+  Only a tree that shows none of them for the stall window is stalled.
+  The three were chosen by measurement on 2026-11-03:
   a 30 MB push to a local bare remote moved 94 MB of `rchar` and 156 MB of `wchar` over its four processes,
   while `read_bytes` was 64 KB and `write_bytes` arrived late and in bursts from the receiver's disk writes,
-  so the block-layer counters do not see the transfer.
-  `rchar` and `wchar` count `read` and `write` calls, which is how Git moves a pack between its processes (pipes),
-  how `ssh` and `git-lfs` write to a socket, and how `git-remote-https` receives it from `git push`;
-  they do not count `send` and `recv` (measured: 102 bytes for 100000 bytes sent and received,
-  100102 through `read` and `write`),
-  so a transfer that curl alone performs is seen through the pipe that feeds or drains it, which backs up when the
-  socket stops moving.
+  so the block-layer counters do not see the transfer;
+  `rchar` and `wchar` count `read` and `write` calls, not `send` and `recv`
+  (measured: 102 bytes for 100000 bytes sent and received, 100102 through `read` and `write`),
+  so a transfer that curl alone performs is seen through the pipe that feeds or drains it;
+  a `dd` of 64 MB with `conv=fsync` was in state `D` in six of seven looks and used no processor tick (a tick is 10 ms),
+  so a wait for the disk shows in neither bytes nor processor time;
+  a process reading a silent socket and a `sleep` stay in state `S` with a constant tick count.
+  The signs cost this:
+  bytes alone stop a push that is busy on a slow disk, as a gate saw (an `fsync` of 5 seconds after the hook, 13 seconds in all);
+  processor time makes a process that spins or polls look alive, at a resolution of one tick;
+  state `D` makes a process wedged for ever in the kernel look alive, and state `R` one that only waits for a processor;
+  the ceiling bounds all of these.
+  A server that checks the push before it answers is in state `S` with nothing moving, which cannot be told from a dead peer:
+  a check longer than the stall window is stopped, and raising `CLI_GIT_PUSH_DEADLINE_SECONDS` is the remedy.
+  The ceiling does not help there; it bounds the opposite case, a push that never stalls.
   Two limits apply, each in whole seconds and each ignored when zero, negative, fractional or non-numeric:
   the stall window, `CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 by default (`DEFAULT_PUSH_DEADLINE`),
-  is how long the push may move nothing;
+  is how long the push may show no sign of work;
   the variable keeps its name, so a setting made for the old fixed deadline now sets the stall window,
   and it is not an alias of anything else.
   The ceiling, `CLI_GIT_PUSH_CEILING_SECONDS`, 1800 by default (`DEFAULT_PUSH_CEILING`),

@@ -1164,9 +1164,12 @@ fractional or non-numeric value is ignored.
    and how often the commit service repeats the line that names the holder of a foreign `index.lock`.
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
    default `30`.
-  How long the push after a landed commit may go without moving any data (the stall window) before it is stopped.
-  The push and every process it started are watched: a push that keeps reading and writing bytes is not stopped here,
-   however slow, and one that moves nothing is stopped after this many seconds.
+  How long the push after a landed commit may show no sign of work (the stall window) before it is stopped.
+  The push and every process it started are watched: one that moves bytes, uses processor time, or has a task able to run
+   or waiting for the disk (an `fsync` on a slow volume) is working and is not stopped here, however slow;
+   one that does none of these, such as a push waiting on a server that says nothing, is stopped after this many seconds.
+  A server that checks the push for longer than this before it answers looks the same as a dead one, so raise the setting
+   for such a remote.
   The name is kept from the time when this was a fixed deadline, so an existing setting now sets the stall window.
   Where the system cannot count bytes (no `/proc/<pid>/io`, as on macOS),
    it is a fixed deadline for the whole push, as before.
