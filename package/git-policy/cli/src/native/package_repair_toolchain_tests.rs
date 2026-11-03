@@ -50,46 +50,49 @@ fn a_worktree_without_launchers_has_nothing_stale() {
     remove(&root);
 }
 
-/// A fixture `mpm-shadow`: `list` exits with `list_status`; every start is recorded; `install` rewrites the stale record.
-fn fake_mpm(root: &Path, bin: &Path, destination: &Path, list_status: i32) {
+/// The summary line a real `mpm-shadow install` prints on standard output.
+const SUMMARY: &str = "toolchain install: 3 installed, 62 unchanged, 0 failed";
+
+/// A fixture `mpm-shadow` that records every start, prints the summary on standard output, rewrites the stale record, and exits
+///  with `install_status`.
+fn fake_mpm(root: &Path, bin: &Path, destination: &Path, install_status: i32) {
     let script: String = format!(
-        "#!/bin/sh\necho \"$1 in $(pwd -P) root=$MONOCHROMATIC_WORKTREE_ROOT\" >> '{record}'\nif [ \"$1\" = list ]; then exit {list_status}; fi\nsed -i 's#/source/#/destination/#' '{launch}'\nexit 0\n",
+        "#!/bin/sh\necho \"$* in $(pwd -P) root=$MONOCHROMATIC_WORKTREE_ROOT\" >> '{record}'\necho '{SUMMARY}'\nif [ {install_status} -eq 0 ]; then sed -i 's#/source/#/destination/#' '{launch}'; fi\nexit {install_status}\n",
         record = root.join("record").display(),
         launch = destination.join(LAUNCHERS).join("foreign.launch").display(),
     );
     executable(bin.join("mpm-shadow").as_path(), script.as_bytes());
 }
 
-/// In-sync tools: `list` then `install --frozen-lockfile`, both in the worktree with the worktree as the toolchain root.
+/// The install runs once, frozen, in the worktree with the worktree as the toolchain root, whether or not the installed tools
+///  already match the lock (the owner accepted an online install during an add), and the summary is reported.
 #[test]
-fn lists_then_installs_frozen_when_the_tools_are_in_sync() {
-    let (root, destination, bin, environment) = scene("toolchain-sync");
+fn installs_frozen_once_in_the_worktree_and_reports_the_summary() {
+    let (root, destination, bin, environment) = scene("toolchain-install");
     record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
     fake_mpm(&root, &bin, &destination, 0);
     let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
     assert_eq!(finding.tool, Tool::Toolchain);
-    assert!(matches!(finding.outcome, Outcome::Repaired { .. }), "{finding:?}");
+    let Outcome::Repaired { detail, .. } = &finding.outcome else { panic!("expected a success: {finding:?}") };
+    assert!(detail.contains("3 installed"), "the summary of what was installed is kept: {detail}");
     let recorded: String = std::fs::read_to_string(root.join("record")).expect("record");
     let lines: Vec<&str> = recorded.lines().collect();
-    assert_eq!(lines.len(), 2, "{recorded}");
-    assert!(lines[0].starts_with("list") && lines[1].starts_with("install"), "{recorded}");
-    for line in lines {
-        assert!(line.contains(destination.to_str().expect("utf8")), "{recorded}");
-    }
+    assert_eq!(lines.len(), 1, "{recorded}");
+    assert!(lines[0].starts_with("install") && lines[0].contains("--frozen-lockfile"), "{recorded}");
+    assert!(lines[0].contains(destination.to_str().expect("utf8")), "{recorded}");
     remove(&root);
 }
 
-/// Tools out of sync: `install` is never started (it could download), and the failure names the person's own command.
+/// A failing install never fails the add: it is a failure finding with the reason and the person's own command.
 #[test]
-fn drift_stops_before_install() {
-    let (root, destination, bin, environment) = scene("toolchain-drift");
+fn a_failing_install_names_its_reason_and_the_command() {
+    let (root, destination, bin, environment) = scene("toolchain-install-fails");
     record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
     fake_mpm(&root, &bin, &destination, 1);
     let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
-    let Outcome::Failed { run_instead, .. } = finding.outcome else { panic!("expected a failure") };
+    let Outcome::Failed { reason, run_instead } = finding.outcome else { panic!("expected a failure") };
+    assert!(reason.contains("exit status"), "{reason}");
     assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
-    let recorded: String = std::fs::read_to_string(root.join("record")).expect("record");
-    assert!(!recorded.contains("install in"), "install started although the tools differ: {recorded}");
     remove(&root);
 }
 
