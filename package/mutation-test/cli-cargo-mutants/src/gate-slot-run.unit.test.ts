@@ -35,6 +35,7 @@ import {
   runInSlot,
   takeAnySlot,
 } from './gate-slot-run.ts';
+import { noticeGraceMs } from './constants.ts';
 import { liveOwnerOf } from './owner-claim.ts';
 
 /**
@@ -54,6 +55,11 @@ const slotCount = 2;
  Longest a case waits for a gate that must wake, in milliseconds.
  */
 const wakeBudgetMs = 10_000;
+
+/**
+ Longest a gate may take to start after a release when only the directory watch can have woken it, in milliseconds.
+ */
+const promptWakeMs = 3_000;
 
 /**
  Milliseconds that count as "did not happen yet" when a case checks that a gate is still waiting.
@@ -318,12 +324,12 @@ await describe({
           },
         }),
         it({
-          name: 'waits only while every slot is held, says what it waits for and who holds it, and wakes on a release within the budget though the fallback re-check is far off',
+          name: 'waits only while every slot is held, says what it waits for and who holds it, and wakes on a release at once though neither the next notice nor the fallback re-check is near',
           fn: async () => {
             await using directory = await gateDirectory('gate-wake-');
             const options = gateOptions({
               lockDirectory: directory.path,
-              noticeIntervalMs: 50,
+              noticeIntervalMs: 600_000,
             });
             const one = await takeAnySlot({ options });
             const two = await takeAnySlot({ options });
@@ -341,9 +347,10 @@ await describe({
                 notices.push(text);
               },
             });
-            await sleep(stillWaitingMs);
+            // Past the grace before the first notice, so the next timer is the far-off notice interval, not a short wait.
+            await sleep(noticeGraceMs + stillWaitingMs);
             expect(started).toEqual([]);
-            expect(notices.length).toBeGreaterThan(0);
+            expect(notices).toHaveLength(1);
             expect(notices[0]).toContain('waiting for a free slot');
             expect(notices[0]).toContain(String(process.pid));
             expect(notices[0]).toContain('slot 1');
@@ -352,7 +359,7 @@ await describe({
             await two.claim.release();
             await waiting;
             expect(started).toEqual([2]);
-            expect(Date.now() - released).toBeLessThan(wakeBudgetMs);
+            expect(Date.now() - released).toBeLessThan(promptWakeMs);
           },
         }),
         it({
