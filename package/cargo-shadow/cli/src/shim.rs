@@ -59,7 +59,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
 /// Imports the fixed values.
-use crate::constants::{EXEC_FAILED_EXIT_CODE, INSTALL_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
+use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
 /// Imports the loop guard.
 use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, MAX_HOPS, format_guard, is_meant_for, parse_guard};
 /// Imports the notice handshake.
@@ -69,7 +69,8 @@ use crate::real_binary::{find_in_path, own_real_path};
 /// Imports the notice that follows cargo's version and help.
 use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
 /// Imports the command-word rules.
-use crate::shadow_step::{before_cargo, warn_after_cargo};
+use crate::options::asserts_lock;
+use crate::shadow_step::{before_cargo, warn_after_cargo, with_locked};
 use crate::shadow_update::run_update_command;
 use crate::verb::{Treatment, treatment_of};
 
@@ -126,7 +127,7 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
 /// ```ts
 /// export function runShim(args: Buffer[]): number
 /// ```
-pub fn run_shim(arguments: Vec<OsString>) -> i32 {
+pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // The loop guard (`guard.rs`): a value an earlier shadow instance left for the process its candidate started. It counts
     // only when it was left for this very process, so a script that the real cargo runs never inherits it.
     let mut skipped: Vec<PathBuf> = Vec::new();
@@ -161,12 +162,19 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     {
         return code;
     }
+    // The install step failed or was refused: pnpm warns and runs the command anyway ("If that install fails ... pnpm prints a
+    // warning and runs the command anyway", https://pnpm.io/settings/build). Cargo rewrites a stale lock, so the command runs
+    // with `--locked` added (unless the user already passed it), and cargo stops with its own lock error where it would have
+    // changed the lock. `arguments` is replaced for the rest of the run, so the notice and guard logic see the same line.
     if hops == 0
         && treatment == Treatment::InstallStep
         && let Some(message) = before_cargo(&arguments)
     {
         eprintln!("{message}");
-        return INSTALL_FAILED_EXIT_CODE;
+        if !asserts_lock(&arguments) {
+            eprintln!("cargo-shadow: warning: the install step did not complete, so `--locked` is added to your cargo command; cargo stops with its own lock error where it would have changed Cargo.lock");
+        }
+        arguments = with_locked(&arguments);
     }
 
     let path_variable: String = env::var("PATH").unwrap_or_default();

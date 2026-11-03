@@ -177,7 +177,34 @@ pub fn warn_after_cargo(arguments: &[OsString], sink: &mut dyn Write) {
     }
 }
 
-/// Stub.
+/// What:
+/// `pub fn with_locked(arguments: &[OsString]) -> Vec<OsString>` is the user's command line with `--locked` added before any
+/// `--`, unless the user already passed `--locked` or `--frozen`.
+/// Why:
+/// This is the one place the shadow adds an option, and only after a failed or refused install step: pnpm runs the command
+/// anyway when its install step fails, because `pnpm run` never rewrites the lockfile; cargo does rewrite a stale lock, so the
+/// faithful form of "run it anyway" is to run it with `--locked`, which makes cargo stop with its own lock error where it would
+/// have changed the lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function withLocked(args: string[]): string[]
+/// ```
 pub fn with_locked(arguments: &[OsString]) -> Vec<OsString> {
-    return arguments.to_vec();
+    if asserts_lock(arguments) {
+        return arguments.to_vec();
+    }
+    let mut result: Vec<OsString> = Vec::new();
+    let mut added: bool = false;
+    for argument in arguments {
+        if !added && argument == "--" {
+            result.push(OsString::from("--locked"));
+            added = true;
+        }
+        result.push(argument.clone());
+    }
+    if !added {
+        result.push(OsString::from("--locked"));
+    }
+    return result;
 }

@@ -35,7 +35,7 @@ if [ \"$1\" = metadata ]; then\n\
   exit 0\n\
 fi\n\
 case \" $* \" in\n\
-  *\" --locked \"*) if ! head -n 1 Cargo.lock | grep -q satisfied; then echo 'error: the lock file needs to be updated but --locked was passed' >&2; exit 101; fi ;;\n\
+  *\" --locked \"*|*\" --frozen \"*) if ! head -n 1 Cargo.lock | grep -q satisfied; then echo 'error: the lock file needs to be updated but --locked was passed' >&2; exit 101; fi ;;\n\
 esac\n\
 echo \"fake-cargo-ran $@\"\n\
 exit \"${FAKE_CARGO_EXIT:-0}\"\n";
