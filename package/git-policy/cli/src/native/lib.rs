@@ -1503,6 +1503,11 @@ mod no_self_invocation_tests;
 #[cfg(test)]
 mod standards_review_boundary_tests;
 
+/// The shared base of the checks that read the crate's own source text: a strict walk and the module tree, so a check
+/// is right for nested module directories; never in the release build.
+#[cfg(test)]
+mod source_scan_tests;
+
 /// The standards-review shadow run: appending an entry to the shared log without a lock, once per commit, with repair.
 pub mod standards_review_append;
 

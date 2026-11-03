@@ -2,7 +2,9 @@
 //! from the review run that the resident service calls, never from the wrapper's forwarded-command or commit-client
 //! paths. The test reads the crate's own source, so a new `use` on a client path fails it before any binary is built.
 
-use std::path::PathBuf;
+use std::path::Path;
+
+use crate::source_scan_tests::{CrateRoot, real_roots, source_root};
 
 /// The one file that may name the HTTP library.
 const CLIENT_FILE: &str = "standards_review_client.rs";
@@ -21,17 +23,21 @@ fn may_name_service_modules(file: &str) -> bool {
 
 /// The source files of this crate that ship in the executable or its library: every `.rs` file of the native directory
 /// with its text.
-fn native_sources() -> Vec<(String, String)> {
-    let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join("native");
+fn native_sources_in(root: &Path, _roots: &[CrateRoot]) -> Result<Vec<(String, String)>, String> {
     let mut sources: Vec<(String, String)> = Vec::new();
-    for entry in std::fs::read_dir(directory).expect("the native source directory").flatten() {
+    for entry in std::fs::read_dir(root).expect("the native source directory").flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if name.ends_with(".rs") {
             sources.push((name, std::fs::read_to_string(entry.path()).expect("a source file")));
         }
     }
     sources.sort();
-    return sources;
+    return Ok(sources);
+}
+
+/// The sources of this crate's own native directory.
+fn native_sources() -> Vec<(String, String)> {
+    return native_sources_in(&source_root(), &real_roots()).expect("the crate's own sources");
 }
 
 /// The violations in a set of sources: a file that names the HTTP library but is not the client, and a file that names
