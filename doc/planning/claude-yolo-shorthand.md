@@ -1,61 +1,99 @@
 # Proposed `claude --yolo` shorthand
 
-## Recommendation
+## Corrected requirements
 
-For the user's interactive Bash command,
-define a `claude` function in `${HOME}/.bashrc.d/claude.sh` that translates a leading `--yolo`
-to Claude Code's supported `--dangerously-skip-permissions` option.
-The inspected `${HOME}/.bashrc` already sources files from `${HOME}/.bashrc.d/`.
-This is a proposal,
-not an installed shell change.
+On 2026-11-02 the user clarified:
 
-```bash
-# Proposed personal shell configuration: ${HOME}/.bashrc.d/claude.sh
-claude() {
-  if [[ ${1-} == --yolo ]]; then
-    shift
-    set -- --dangerously-skip-permissions "$@"
-  fi
-  command claude "$@"
-}
+> I want to make claude --model sonnet --yolo and so on work too.
+
+The user also rejected modifying Claude:
+
+> Patching Claude Code itself is not good.
+
+The first-position-only Bash function was rejected.
+The initial recommendation incorrectly treated the example `claude --yolo` as permission to restrict option order.
+Its passing forwarding tests did not test the user's intended command grammar.
+No shell function or binary patch was installed.
+
+## Revised recommendation
+
+Use an executable wrapper exposed as `claude`,
+following the repository's existing command-shadow pattern.
+It translates a parsed `--yolo` option to `--dangerously-skip-permissions`,
+then replaces its process with the unchanged real Claude executable.
+This is a design recommendation,
+not an implemented or verified launcher.
+
+The proposed argument contract includes:
+
+```text
+# Required translation examples; these are not shell installation commands.
+claude --yolo --model sonnet
+  => claude --dangerously-skip-permissions --model sonnet
+claude --model sonnet --yolo
+  => claude --model sonnet --dangerously-skip-permissions
+claude --model=sonnet --yolo
+  => claude --model=sonnet --dangerously-skip-permissions
+claude --system-prompt '--yolo'
+  => unchanged: --yolo is the required value of --system-prompt
+claude -- '--yolo'
+  => unchanged: --yolo is positional data after --
 ```
 
-`claude --yolo --continue` becomes `claude --dangerously-skip-permissions --continue`.
-`claude --continue` forwards unchanged.
-The bypass option skips permission prompts;
-it does not add process isolation.
+Preserve all other argument bytes and their order.
+Use the existing shadow approach to real-executable resolution and recursion prevention;
+do not replace Claude's installed executable or its updater-managed link.
+Unix process replacement preserves the terminal streams and lets the caller observe Claude's own exit or signal.
 
-The shorthand must come first.
-Translating arbitrary arguments would need Claude's option grammar to distinguish an option from
-a literal `--yolo` prompt or an option value.
-`command claude` invokes the executable found through `PATH` without recursively calling the function.
-Quoted `"$@"` preserves argument boundaries,
-and the last command's status becomes the function's status.
+The wrapper needs option-arity information to distinguish flags from values.
+A global string replacement or a loop that rewrites every `--yolo` token is insufficient.
+Required values,
+optional values,
+variadic options,
+short forms,
+the `--` delimiter,
+and subcommands need coverage against the real CLI.
+The option metadata source and its update strategy remain implementation design work.
+Help-text parsing alone has not been established as a complete schema,
+particularly for hidden options.
+Do not present this proposal as upgrade-proof.
 
-## Alternatives and ranking
+## Repository precedent and alternatives
 
-- A Bash function supports the requested spelling and follows the existing executable on `PATH`.
-  It applies only in shells where the function is loaded.
-- An executable wrapper earlier on `PATH` also covers subprocess launches.
-  It needs a distinct way to locate the real executable and avoid invoking itself,
-  plus integration with the existing installation's update behavior.
-- A separate alias such as `cyolo` is concise and needs no argument translation.
-  It changes the requested command spelling.
+[`pnpm-shadow`](../../package/pnpm-shadow/cli/README.md) documents executable resolution,
+process replacement,
+and recursion through managed launchers.
+[`mpm-shadow`](../../package/mpm-shadow/cli/README.md) documents skipping option values while interpreting arguments,
+including the maintenance requirement when upstream adds a value-taking option.
+These are precedents,
+not evidence that either existing wrapper already supports Claude.
 
-Ranking:
-Bash function > executable wrapper > separate alias for the stated interactive command.
-The function achieves that command without managing another executable path;
-the executable wrapper ranks ahead of the alias because it preserves `claude --yolo`.
-If the required consumer is a program spawning `claude` directly,
-the executable wrapper becomes the relevant design instead.
+An executable wrapper ranks ahead of a shell function for consistent behavior across launchers;
+the tradeoff is an additional managed executable and option metadata maintenance.
+A function that parses the same grammar could satisfy the demonstrated interactive commands,
+but would still depend on shell initialization.
+The rejected first-position-only function does not satisfy the clarified requirement.
+Binary patching is excluded by the user's instruction.
+A separate alias changes the requested spelling and is not a substitute for this task.
 
-## Evidence and limits
+## Verification and remaining decisions
 
-[Verification](../troubleshooting/claude-code-yolo-option.md) covers the installed CLI,
-argument preservation,
-and exit status forwarding.
-The existing user setting is `permissions.defaultMode = "auto"`;
-the proposal makes bypass mode explicit per invocation.
-Interactive onboarding,
-policy restrictions,
-and an authenticated model turn were not exercised.
+[Verification](../troubleshooting/claude-code-yolo-option.md) confirms the installed CLI's distinction
+between the `--yolo` option position and the same text used as a value.
+There is no new wrapper implementation to claim as tested.
+Package ownership,
+option metadata maintenance,
+installation integration,
+and completion integration remain unselected.
+The current user permission default is `auto`;
+the alias should select bypass mode only for the requested invocation.
+
+## Proposed agent-guidance correction
+
+Tighten existing `AGENTS.md` rule `OCG` to prevent inferring option-order restrictions from an example.
+This is a proposed edit,
+not an applied rule change:
+
+> CLI options follow host grammar; never restrict order unasked.
+> Output cardinality never decides occurrence grammar;
+> sketch token encoding before repeated, delimited, or variadic forms.

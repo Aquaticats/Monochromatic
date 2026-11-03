@@ -84,17 +84,48 @@ The harness stopped the process at its configured deadline while it retried the 
 That verifies mode selection without an authenticated model turn.
 It does not verify interactive onboarding or permission behavior under managed policies.
 
-## Verified workaround
+## Rejected workaround and corrected scope
 
-The [proposed Bash function](../planning/claude-yolo-shorthand.md) passed the argument and status checks.
-It supports `claude --yolo` in shells that load the function,
-with the shorthand first.
-It does not intercept programs that spawn the executable directly.
+The original Bash function passed the recorded argument and status checks,
+but those checks omitted normal option ordering.
+On 2026-11-02 the user required `claude --model sonnet --yolo` as well.
+The function only examined the first argument,
+so the recommendation did not satisfy the clarified requirement and is withdrawn.
+The [revised proposal](../planning/claude-yolo-shorthand.md) describes an executable wrapper with option-aware parsing.
+It has not been implemented.
 No user shell configuration was changed.
 
 The troubleshooting record and proposal passed the scoped `format:monochromatic-lint` task
 and a CommonMark-to-HTML-tree rendering check using the repository's installed renderer.
 Rendered evidence is retained beside the private harness as `*.hast.json`.
+
+### Corrected argument-grammar probes
+
+`${HOME}/temp/agent/claude-yolo-native.RkvlTxjV/grammar-probe.ts` ran the installed Claude Code
+with disposable configuration and a deliberately invalid sentinel option.
+Every invocation exited during parsing,
+before a model turn.
+
+- `--model sonnet --yolo` and `--model=sonnet --yolo` produced `error: unknown option '--yolo'`.
+- `--system-prompt --yolo` consumed `--yolo` as the required value,
+  then rejected the sentinel option.
+- `--system-prompt=--yolo` also rejected the sentinel option rather than the value.
+- With the sentinel before `-- --yolo`,
+  Claude rejected the sentinel option.
+  This last probe does not independently prove delimiter handling,
+  because parsing can reject the sentinel before examining the later tokens.
+
+The required-value probe rules out blindly replacing every matching argument as a transparent alias.
+No claim about a complete wrapper follows from these parser probes.
+
+### Abandoned binary inspection
+
+The user explicitly rejected patching Claude Code itself.
+An in-progress `tweakcc unpack` inspection was terminated;
+it returned exit status `143` and produced no extracted file.
+No repack or patch command ran,
+and no installed binary was modified.
+This cancellation establishes no conclusion about current `tweakcc` compatibility.
 
 ## What does not work
 
@@ -125,7 +156,7 @@ not evidence that the documented upstream option is broken.
   not assessed;
   no tracker or duplicate search was performed under the exemption.
 - Prototype:
-  the local Bash function was tested;
+  the local Bash function was tested and subsequently rejected for its argument-order restriction;
   no upstream patch was created.
 
 [cli-reference]: https://code.claude.com/docs/en/cli-reference#:~:text=--dangerously-skip-permissions
