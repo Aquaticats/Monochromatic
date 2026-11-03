@@ -23,6 +23,7 @@
 //! console.error(`cli-git-service: answered request=${id} queued_ms=${queued} lock_wait_ms=${lockWait} total_ms=${total}`);
 //! ```
 
+use super::service_index_found::WaitNotes;
 use std::io::Write;
 use std::time::{Duration, Instant};
 
@@ -64,6 +65,11 @@ pub struct LandTiming {
     /// The holder the evidence named while the lock was waited for,
     /// when it named one.
     pub lock_holder: Option<String>,
+    /// What the acquisition noted about its wait:
+    /// what the first and the last look at the held lock found,
+    /// how many looks there were,
+    /// and how the time split between flushing the marker and waiting for the holder.
+    pub lock_notes: WaitNotes,
     /// Time to make the commits:
     /// one import for the batch,
     /// or the checks of a commit Git built.
@@ -135,6 +141,59 @@ fn holder_field(who: &String) -> String {
     return format!(" lock_holder={who:?}");
 }
 
+/// The words for what the wait for the lock found,
+/// empty when the lock was free at the first placement:
+/// the placements that found it held,
+/// the time spent flushing the marker and the time spent waiting,
+/// and the first and the last description of the held lock.
+pub fn lock_notes_fields(notes: &WaitNotes) -> String {
+    if notes.looks == 0 {
+        return format!(" lock_stage_ms={} lock_stage_kind={} lock_place_ms={}", notes.staging.as_millis(), notes.stage_kind, notes.placing.as_millis());
+    }
+    let first: &str = notes.found.as_deref().unwrap_or("none");
+    let last: &str = notes.last.as_deref().unwrap_or("none");
+    return format!(
+        " lock_stage_ms={} lock_stage_kind={} lock_place_ms={} lock_looks={} lock_found={first:?} lock_last={last:?}",
+        notes.staging.as_millis(),
+        notes.stage_kind,
+        notes.placing.as_millis(),
+        notes.looks
+    );
+}
+
+/// The wait for the index lock that is written down even when no holder was met:
+/// a flush of the marker or a wait that long is a slow landing's first suspect.
+pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
+
+/// What:
+///  The line for the end of a wait for the index lock,
+/// or nothing when the lock was free at the first placement and the acquisition was quick.
+/// Why:
+///   Written when the wait ends,
+/// not with the answer,
+/// so a landing that fails afterwards still leaves what it waited for.
+/// It says the total,
+/// how it split between flushing the marker and waiting for a holder,
+/// how many times the lock was found held,
+/// and what the first and the last look found (`lock_found`,
+/// `lock_last`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitLine(seq, total, notes, taken) // 'waited batch=7 result=taken lock_wait_ms=5629 ...' | undefined
+/// ```
+pub fn wait_line(seq: u64, total: Duration, notes: &WaitNotes, taken: bool) -> Option<String> {
+    if notes.looks == 0 && notes.staging < SLOW_LOCK_STEP && total < SLOW_LOCK_STEP {
+        return None;
+    }
+    return Some(format!(
+        "waited for the index lock batch={seq} result={} lock_wait_ms={}{}",
+        if taken { "taken" } else { "refused" },
+        total.as_millis(),
+        lock_notes_fields(notes)
+    ));
+}
+
 /// What:
 ///  One answered request as a line of `key=value` words,
 /// without the prefix.
@@ -150,7 +209,8 @@ fn holder_field(who: &String) -> String {
 /// `answered request=${JSON.stringify(id)} outcome=${outcome} queued_ms=${queued} ...`
 /// ```
 pub fn answered_line(answered: &Answered<'_>) -> String {
-    let holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
+    let mut holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
+    holder.push_str(lock_notes_fields(&answered.landing.lock_notes).as_str());
     return format!(
         "answered request={:?} branch={:?} outcome={} batch={} size={} position={} read_ms={} queued_ms={} settle_ms={} \
          lock_wait_ms={}{holder} reads_ms={} objects_ms={} journal_ms={} ref_ms={} sync_ms={} attempts={} landing_ms={} \
@@ -222,25 +282,69 @@ pub fn exit_line(reason: ExitReason, uptime: Duration) -> String {
     return format!("exiting reason={} uptime_ms={}", reason.word(), uptime.as_millis());
 }
 
+/// The wall clock in whole milliseconds since the Unix epoch,
+/// the time a log line states for its own event.
+pub fn wall_millis() -> u128 {
+    return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_millis(); });
+}
+
+/// What:
+///  The text of one log line:
+/// the prefix,
+/// the line,
+/// the time of the event as `at_ms=<epoch milliseconds>` at the end,
+/// and the newline.
+/// Why:
+///   The journal stamps a line when it receives it,
+/// and under load that can be seconds after the event;
+/// the line states its own time,
+/// at the end so that the prefix and the first word stay where readers look for them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${LOG_PREFIX}${line} at_ms=${Date.now()}\n`
+/// ```
+pub fn stamped_line(line: &str, at_ms: u128) -> String {
+    return format!("{LOG_PREFIX}{line} at_ms={at_ms}\n");
+}
+
 /// What:
 ///  Writes one line to the service's log.
 /// Why:
 ///   Standard error is the service manager's journal;
 /// one `write` carries the prefix,
-/// the line and the newline together,
+/// the line,
+/// its own time and the newline together,
 /// and a
 ///  closed or broken stream is not the service's failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// console.error(LOG_PREFIX + line)
+/// console.error(LOG_PREFIX + line + ` at_ms=${Date.now()}`)
 /// ```
 pub fn log(line: &str) {
-    let mut text: String = format!("{LOG_PREFIX}{line}");
-    text.push('\n');
+    let text: String = stamped_line(line, wall_millis());
     // The result is dropped on purpose: `eprintln!` panics when the stream breaks (a journal restarting), and a log line may
     //  never take the landing that wrote it down with it.
     let _written = std::io::stderr().write_all(text.as_bytes());
+}
+
+/// What:
+///  Writes one formatted line to the service's log,
+/// with its time.
+/// Why:
+///   Every line the service writes states its own time (`stamped_line`);
+/// the macro is the one way to write a line with arguments.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceLog(`cannot take the index lock ${path}: ${error}`)
+/// ```
+#[macro_export]
+macro_rules! service_log {
+    ($($argument:tt)*) => {
+        $crate::service_timing::log(format!($($argument)*).as_str())
+    };
 }
 
 /// The lines,

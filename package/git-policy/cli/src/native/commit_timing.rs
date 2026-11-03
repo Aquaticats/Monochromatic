@@ -100,6 +100,20 @@ impl ReachTrace {
 }
 
 /// What:
+///  What a waiting notice of the service says of the holder of the index lock.
+/// Why:
+///   The notice is the only thing about the holder that reaches the client,
+/// and the record should say whether the wait was for a process proven to hold the lock or for one nobody could prove alive.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holderKindOf(text) // 'proven-alive' | 'unproven'
+/// ```
+pub fn holder_kind_of(text: &str) -> &'static str {
+    return if text.contains("cannot be proven alive") { "unproven" } else { "proven-alive" };
+}
+
+/// What:
 ///  What the client did to hand one request to the service and get its answer.
 /// Why:
 ///   The queue wait,
@@ -109,7 +123,7 @@ impl ReachTrace {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type SubmitTrace = { total: number; reach: ReachTrace; answerWait: number; positions: number[]; waitingNotices: number };
+/// type SubmitTrace = { total: number; reach: ReachTrace; answerWait: number; positions: number[]; waitingNotices: number; holderKind?: string };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SubmitTrace {
@@ -127,6 +141,10 @@ pub struct SubmitTrace {
     pub positions: Vec<usize>,
     /// Notices the service sent while it waited for another program's hold on the index.
     pub waiting_notices: usize,
+    /// What the last of those notices said of the holder:
+    /// `proven-alive` when it named a process proven to hold the lock,
+    /// `unproven` when it said the owner could not be proven alive.
+    pub holder_kind: Option<&'static str>,
     /// Times the connection broke before an answer and the same request was sent again.
     pub reconnects: usize,
     /// Requests written.
@@ -322,7 +340,7 @@ impl CommitTiming {
              \"prepareMs\":{},\"attempts\":{},\"buildMs\":{},\"provisionMs\":{},\
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
              \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
-             \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"reconnects\":{},\
+             \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
              \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"otherMs\":{}}}\n",
             self.start_millis,
             std::process::id(),
@@ -346,6 +364,7 @@ impl CommitTiming {
             self.submit.answer_wait.as_millis(),
             positions.join(","),
             self.submit.waiting_notices,
+            self.submit.holder_kind.map_or_else(null_word, quote),
             self.submit.reconnects,
             self.after_landing.as_millis(),
             self.gate.as_millis(),

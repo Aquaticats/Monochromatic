@@ -631,12 +631,31 @@ object format,
 reftable,
 a valid `HEAD`),
 and the proof that every configuration value is
-one Git accepts does not,
-because Git has read and accepted them.
-A user-level `core.fsmonitor = true` (which the reader cannot prove harmless,
-since it starts a daemon) once made the reader
-decline the whole repository,
+one Git accepts does not.
+That proof guards the wording of a failure Git would give for a malformed value,
+and a command that already succeeded has none to give;
+it is not a certificate that every value is valid,
+because the files are read again and not the snapshot the command saw,
+and a successful command types only the keys it consults.
+A user-level `core.fsmonitor = true` once made the reader
+decline the whole repository
+(the proof then accepted only false spellings of the key),
 so no merge was ever handed over for that user and nothing said why.
+The proof now accepts `true`,
+`yes` and `on` for that key
+(and types `fsmonitor.allowRemote` and `fsmonitor.socketDir`,
+which Git reads once the monitor is on),
+and a hook path still declines it,
+as do the bare name and the numbers other than zero,
+which Git reads as true.
+A same-user listener on the monitor's socket that answers with a malformed reply is an accepted limit,
+by the owner's decision that the wrapper leaves Git's monitor alone.
+An active `trace2.normalTarget`,
+`trace2.eventTarget` or `trace2.perfTarget` in any configuration file declines the readers,
+because Git then writes trace output they do not.
+The trigger keeps reading as a caller that follows a successful Git run,
+because any other value the proof cannot vouch for
+would stop it the same way.
 
 Every ending of the trigger leaves one line in `cli-git-push-trigger.jsonl` in the common Git directory (size-capped like
 the commit timing file,
@@ -1576,7 +1595,7 @@ The lifecycle that lets one marker-writing taker at a time take the lock stays t
 #### Placement and its refusals
 
 The marked file is first created under a name that has never existed
-(`index.lock.cli-git-marker-<pid>-<batch>-<uuid>`),
+(`index.lock.cli-git-marker-<pid>.<pid namespace>-<batch>-<uuid>`),
 with exclusive creation,
 so no attempt ever opens or empties a file that an earlier attempt,
 or an alias of a lock,
@@ -1686,6 +1705,56 @@ not by the age of the lock file:
   so a hold placed after a long wait is not old.
 
 #### Removing the lock and what is made durable
+
+The marker of the next batch is made ahead.
+When a batch has been landed and answered,
+the service makes the marker of the batch after it,
+which is numbered one more and lands on the same index:
+it creates the file,
+writes the marker and flushes it to storage,
+on a thread of its own while the service is idle.
+The next commit then only places that file (a rename that does not replace),
+so the flush is not on its path.
+The file is the service's one:
+it is kept for the service thread,
+named with this process and the batch number,
+and replaced or removed (waiting for a flush that is still running) when the batch or the index is not the one it was made for.
+It is removed when the service ends,
+whichever way its loop ends,
+and what a killed service leaves is removed by the next acquisition,
+by these rules:
+a whole marker decides alone,
+and its verdict vetoes the name
+(a holder that runs,
+or that the cleaner cannot compare with,
+keeps its file;
+a holder that is gone loses it);
+without a whole marker the name decides,
+and only when it carries this cleaner's PID namespace
+and the cleaner's `/proc` numbers it as the system does,
+and the process it names is gone.
+A name without a namespace (an earlier release's) or with another one,
+and an unreadable `/proc`,
+are no evidence of death.
+An empty or partial file is never removed on its content.
+A marker is a whole line:
+the text up to its newline,
+so a marker cut at any point reads as no marker,
+from the text and from a file.
+The file's pathname is checked before it is placed:
+it must still name a regular file (not a link) with the device and inode of the descriptor the service holds.
+A pathname that names another file is that file's,
+and is not removed.
+A commit that arrives while the flush is still running waits for it and starts no second.
+The file the first commit of a service needs is made by that commit,
+because the service learns the index only from a request.
+`lock_stage_ms` is what a commit waited for in this step,
+measured over the whole of it:
+near zero when the marker was ready,
+the rest of the flush when it was not,
+a wait for a flush that failed or was for another batch plus the cold staging that followed,
+the whole creation and flush when it staged its own;
+`lock_stage_kind` says `pre` or `cold`.
 
 A lock the holder owns is removed by the release after the index is installed,
 or when the holder goes out of scope.
@@ -2307,6 +2376,7 @@ and within `submitMs` the reach (`reachMs`,
 `answeredByRelease`) and the wait for the answer (`answerWaitMs`,
 `positions`,
 `waitingNotices`,
+`lockHolderKind`,
 `reconnects`,
 `sends`).
 Durations come from the monotonic clock in whole milliseconds,
@@ -2322,6 +2392,9 @@ an `answered` line for every request with the phases of its stay
 `queued_ms`,
 `settle_ms`,
 `lock_wait_ms` and the holder when one is named,
+the split of the lock wait into the flush of the marker (`lock_stage_ms`) and the wait for a holder (`lock_place_ms`),
+and when the lock was found held `lock_looks`,
+`lock_found` and `lock_last`,
 `reads_ms`,
 `objects_ms`,
 `journal_ms`,

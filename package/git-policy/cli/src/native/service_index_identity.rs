@@ -66,7 +66,7 @@ pub struct ReaderView<'a> {
 
 /// The PID namespace of this process as `/proc/self/ns/pid` names it (the number inside `pid:[...]`),
 /// once.
-fn current_pid_scope() -> Option<&'static str> {
+pub fn current_pid_scope() -> Option<&'static str> {
     static SCOPE: OnceLock<Option<String>> = OnceLock::new();
     return SCOPE
         .get_or_init(|| {

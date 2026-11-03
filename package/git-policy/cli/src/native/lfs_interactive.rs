@@ -25,7 +25,7 @@ use super::lfs_object_plan::narrow_plan;
 use super::lfs_upload::{run_upload_interactive, submodule_notice};
 /// The repository found from the files.
 use super::git_system_config::with_real_git;
-use super::repo_read_layout::read_layout;
+use super::repo_read_layout::read_layout_after_success_for;
 /// What to upload.
 use super::lfs_upload_plan::{Query, Settings, plan_upload, read_settings};
 /// Owned OS strings for Git arguments.
@@ -98,7 +98,11 @@ pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
     match planned {
         Ok(Some(plan)) => {
             // The layout is read from the files; a repository the readers decline keeps the plan, which `git-lfs` scans.
-            let layout = read_layout(request.prefix, with_real_git(request.overlay, request.real_git).as_slice());
+            // The plan came from Git queries that exited with status 0 (the settings may be held from an earlier query),
+            // so Git had its say about the values it consults;
+            // the files are read again,
+            // and a plan that cannot be narrowed is still pushed by `git-lfs` and Git.
+            let layout = read_layout_after_success_for(request.prefix, with_real_git(request.overlay, request.real_git).as_slice());
             let submodules: bool = plan.submodules;
             let Some(narrowed) = narrow_plan(plan, layout.as_ref()) else {
                 // Nothing of this repository to upload, but Git still pushes the submodules, whose objects are not covered.

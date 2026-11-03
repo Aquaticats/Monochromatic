@@ -605,6 +605,60 @@ fn a_push_without_a_new_pointer_starts_no_git_lfs() {
     remove_settled(&fixture);
 }
 
+/// A repository whose configuration holds a key the typed-value proof cannot vouch for (the stand-in for a user-level
+///  `core.fsmonitor = true`,
+/// which would start a daemon in a test) is still read in process once Git has read the plan:
+/// the
+///  push adds no pointer,
+/// so it starts no `git-lfs`.
+/// Before,
+/// the reader declined it and `git-lfs` scanned the whole push.
+#[test]
+fn a_value_the_typed_proof_refuses_does_not_send_the_scan_to_git_lfs() {
+    let fixture: Fixture = fixture("lfs-real-unprovable");
+    let Some((repo, _origin, server, _content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let first: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
+    let log: PathBuf = record_git_lfs(&fixture);
+    let after_first: usize = batches(&server);
+    git(&fixture, repo.as_path(), &["config", "diff.dirstat", "changes"]);
+    empty_commit(&fixture, repo.as_path());
+    let second: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(second.code, Some(0), "{}", stderr_of(&second));
+    assert_eq!(recorded_runs(log.as_path()), Vec::<String>::new(), "git-lfs was not started");
+    assert_eq!(batches(&server), after_first, "and no request reached the server");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// The same for the auto-push,
+/// which runs the push as a bounded child:
+/// a commit that adds no pointer,
+/// in a repository whose
+///  configuration holds a key the typed-value proof refuses,
+/// reaches the remote without a `git-lfs` run.
+#[test]
+fn an_auto_push_with_a_value_the_typed_proof_refuses_starts_no_git_lfs() {
+    let fixture: Fixture = fixture("lfs-real-auto-unprovable");
+    let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let first: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
+    let log: PathBuf = record_git_lfs(&fixture);
+    git(&fixture, repo.as_path(), &["config", "diff.dirstat", "changes"]);
+    let landed: Observed = observe(&mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=second"]), b"");
+    let stderr: String = stderr_of(&landed);
+    assert_eq!(landed.code, Some(0), "{stderr}");
+    assert!(!stderr.contains("auto-push to origin failed"), "{stderr}");
+    assert_eq!(published_main(&fixture, origin.as_path()), super::commit::git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(), "{stderr}");
+    assert_eq!(recorded_runs(log.as_path()), Vec::<String>::new(), "git-lfs was not started: {stderr}");
+    drop(server);
+    remove_settled(&fixture);
+}
+
 /// A push that adds one pointer uploads exactly that object by name, with one `git-lfs` run and one batch request.
 #[test]
 fn a_push_that_adds_one_pointer_uploads_exactly_that_object() {
