@@ -2,38 +2,81 @@
 
 This extends the source audit of Chromium `156.0.8078.73`,
 commit `2f9a11097447f226133bc1a31c787291a5eeab98`.
-Findings are static responsiveness risks, not measured latency regressions.
+Findings are static responsiveness risks,
+not measured latency regressions.
 The source came from the dependency URLs recorded in Chromium's `.gitmodules`,
 at the exact gitlink revisions.
-GitHub mirrors are navigation copies; source content is compared with those pinned local checkouts.
+GitHub mirrors are navigation copies;
+source content is compared with those pinned local checkouts.
 
 ## Coverage
 
 The non-recursive native `git submodule update --init --depth 1 --jobs 3 -- <explicit paths>` succeeded.
 All selected dependencies match their gitlink commits.
-The scan submitted every regular tracked file explicitly to `rg`, including ignored and hidden tracked files.
-It excluded `148` nested gitlinks and one symlink; their paths and revisions are in each inventory.
+The scan submitted every regular tracked file explicitly to `rg`,
+including ignored and hidden tracked files.
+It excluded `148` nested gitlinks and one symlink;
+their paths and revisions are in each inventory.
 No nested test/tool dependency checkout was requested.
 
-Across `144,427` regular tracked files, the scan retained `17,752` matching lines in `2,572` files.
-Of those lines, `17,166` matched the core audit's original patterns.
-Additional wrapper patterns cover Skia, LevelDB, and ICU file helpers.
+Across `144,427` regular tracked files,
+the scan retained `17,752` matching lines in `2,572` files.
+Of those lines,
+`17,166` matched the core audit's original patterns.
+Additional wrapper patterns cover Skia,
+LevelDB,
+and ICU file helpers.
 A separate native-library-loading pass found `191` matching lines in `87` files.
 Do not add its line count to the first pass without deduplicating shared locations.
 
-- V8: `19,826` regular files, `1,778` matches, revision `235050a0df6db2c9d92a419af2b72fbf3b2dd73b`.
-- Skia: `12,431` regular files, `5,513` matches, revision `a65b5cc03a5131808aec172085b7074fc66625b9`.
-- ANGLE: `4,037` regular files, `658` matches, revision `127e783de33425c27a70a3f48da9d9202d6a0745`.
-- Dawn: `85,594` regular files, `1,823` matches, revision `0caf3649477f7c3ffbd4b1ca4764a81b469b1582`.
-- PDFium: `5,440` regular files, `208` matches, revision `fa4d5f8fbd89ea07273529daf9fd24fe1c7f6b9a`.
-- ICU: `7,119` regular files, `947` matches, revision `2a51536dfb3b448bdf3dae70c782ea2879c90904`.
-- LevelDB: `152` regular files, `335` matches, revision `7ee830d02b623e8ffe0b95d59a74db1e58da04c5`.
-- SQLite: `2,218` regular files, `5,080` matches, revision `ba8c54c83337618a9f15dd368a267e46b672fc84`.
-- WebRTC: `7,610` regular files, `1,410` matches, revision `19576e37870bfe5a0a910a32f98ff411f722f43a`.
+- V8:
+  `19,826` regular files,
+  `1,778` matches,
+  revision `235050a0df6db2c9d92a419af2b72fbf3b2dd73b`.
+- Skia:
+  `12,431` regular files,
+  `5,513` matches,
+  revision `a65b5cc03a5131808aec172085b7074fc66625b9`.
+- ANGLE:
+  `4,037` regular files,
+  `658` matches,
+  revision `127e783de33425c27a70a3f48da9d9202d6a0745`.
+- Dawn:
+  `85,594` regular files,
+  `1,823` matches,
+  revision `0caf3649477f7c3ffbd4b1ca4764a81b469b1582`.
+- PDFium:
+  `5,440` regular files,
+  `208` matches,
+  revision `fa4d5f8fbd89ea07273529daf9fd24fe1c7f6b9a`.
+- ICU:
+  `7,119` regular files,
+  `947` matches,
+  revision `2a51536dfb3b448bdf3dae70c782ea2879c90904`.
+- LevelDB:
+  `152` regular files,
+  `335` matches,
+  revision `7ee830d02b623e8ffe0b95d59a74db1e58da04c5`.
+- SQLite:
+  `2,218` regular files,
+  `5,080` matches,
+  revision `ba8c54c83337618a9f15dd368a267e46b672fc84`.
+- WebRTC:
+  `7,610` regular files,
+  `1,410` matches,
+  revision `19576e37870bfe5a0a910a32f98ff411f722f43a`.
 
-Counts include declarations, comments, tests, utilities, and false positives such as geometric `close()` calls.
-The `production-looking` field is a filename heuristic, not a validated production call graph.
-The complete matches, patterns, inventories, and summaries are retained in
+Counts include declarations,
+comments,
+tests,
+utilities,
+and false positives such as geometric `close()` calls.
+The `production-looking` field is a filename heuristic,
+not a validated production call graph.
+The complete matches,
+patterns,
+inventories,
+and summaries are retained in
 `${HOME}/temp/agent/chromium-disk-audit-dependency-results/`.
 The loader pass is in that directory's `loaders/` child.
 The scanner is `${HOME}/temp/agent/chromium-dependency-disk-scan.ts`.
@@ -79,7 +122,8 @@ auto stream = std::make_unique<SkFILEStream>(path);
 The browser font service uses the same `skia::DefaultFontMgr()` at
 `components/services/font_data/font_data_service_impl.cc:105`.
 Therefore a service worker opening a new font can also hold the manager mutex needed by a UI font miss.
-This is a source-supported contention possibility, not a measured lock wait.
+This is a source-supported contention possibility,
+not a measured lock wait.
 Caches and resident pages can avoid disk work.
 The source search for manager overrides found child-process overrides and a Windows override,
 not a Linux browser override of this default path.
@@ -107,10 +151,12 @@ does `fstat` and `pread` directly:
 ssize_t n = HANDLE_EINTR(pread(fd, output, data_length, data_offset));
 ```
 
-Trigger: rendering or measuring PDF text that needs a substitute system font.
+Trigger:
+rendering or measuring PDF text that needs a substitute system font.
 `pdf/pdf_view_web_plugin.cc:210` initializes the SDK with `FontMappingMode::kBlink`;
 `pdf/pdfium/pdfium_engine.cc:1015` installs this Linux mapper.
-This can delay the PDF renderer; it does not establish a whole-browser UI stall.
+This can delay the PDF renderer;
+it does not establish a whole-browser UI stall.
 
 The document-byte path is a useful exclusion.
 [`pdf/pdfium/pdfium_document.cc:109-117`][pdf-document] uses `FPDF_LoadCustomDocument`;
@@ -122,13 +168,15 @@ return chunk_stream_.ReadData(
     gfx::Range(position, addition_result.ValueOrDie()), buf);
 ```
 
-Consequently, PDFium's standalone file-opening and `fsync` helpers alone do not prove that Chromium's
+Consequently,
+PDFium's standalone file-opening and `fsync` helpers alone do not prove that Chromium's
 normal PDF document reads block on disk.
 Font callbacks provide the concrete synchronous path here.
 
 ## Stopping an enabled AEC dump waits for file writes on renderer main
 
-This is a diagnostic-feature path, not a claim about ordinary calls with AEC dumping disabled.
+This is a diagnostic-feature path,
+not a claim about ordinary calls with AEC dumping disabled.
 [`MediaStreamAudioProcessor::Stop` and `OnStopDump`][aec-main]
 at `third_party/blink/renderer/modules/mediastream/media_stream_audio_processor.cc:91-114`
 assert the main-thread runner and call `audio_processor_->OnStopDump()`.
@@ -154,9 +202,11 @@ No AEC recording was enabled or stopped during this audit.
 
 ## V8 and ICU preserve the mapped-data dependencies
 
-The V8 pin was inspected, resolving the initial mapped-source subtask's dependency limitation.
+The V8 pin was inspected,
+resolving the initial mapped-source subtask's dependency limitation.
 [`src/snapshot/snapshot.cc:204-218`][v8-context] reads the isolate snapshot blob,
-extracts the context slice, and deserializes synchronously.
+extracts the context slice,
+and deserializes synchronously.
 [`src/snapshot/snapshot.cc:716-733`][v8-slice] points that slice into the original blob:
 
 ```cpp
@@ -168,7 +218,8 @@ return base::Vector<const uint8_t>(context_data, context_length);
 
 The context creation path therefore consumes Chromium's externally mapped snapshot bytes.
 Snapshot compression changes the subsequent representation but still reads the input bytes to decompress them.
-This is a new-context/startup exposure, not a claim that ordinary execution continuously reads the snapshot file.
+This is a new-context/startup exposure,
+not a claim that ordinary execution continuously reads the snapshot file.
 
 ICU's [`source/common/udata.cpp:878-898`][icu-common]
 passes the supplied common-data pointer to `UDataMemory_setData`.
@@ -186,7 +237,10 @@ The integration and build-mode limitations are in the [mapped-file report](mappe
 ## Native-library loading is an additional conditional GPU dependency
 
 The first matcher did not cover dynamic-loader names.
-The supplemental pass covers `LoadLibrary*`, `dlopen`, `dlmopen`, and Chromium library-loading helpers.
+The supplemental pass covers `LoadLibrary*`,
+`dlopen`,
+`dlmopen`,
+and Chromium library-loading helpers.
 It is separate because loader waits must not be counted as an established UI-thread disk call without tracing callers.
 
 ANGLE's [`src/libANGLE/renderer/d3d/HLSLCompiler.cpp:116-143`][angle-loader]
@@ -239,7 +293,10 @@ It remains a candidate.
 
 Acquisition and both scans completed successfully.
 `git submodule status -- <explicit paths>` reports the exact pinned commits without dirty/mismatch prefixes.
-No source edits, builds, browser performance experiments, or synthetic host load were performed.
+No source edits,
+builds,
+browser performance experiments,
+or synthetic host load were performed.
 The acquisition's surviving Git fsmonitor daemons were identified in its cgroup and stopped.
 Both scan scopes also reached inactive state.
 Source-selection browser checks will be recorded in

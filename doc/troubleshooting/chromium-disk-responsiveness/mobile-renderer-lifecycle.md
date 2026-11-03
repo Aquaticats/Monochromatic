@@ -23,7 +23,8 @@ and the DOM-storage service.
 Raw outputs are `chromium-platform-candidates.txt`,
 `chromium-platform-allowances.txt`,
 and `chromium-platform-browser-android-allowances.txt` in the scratch directory.
-The parent audit owns whole-tree enumeration and candidate accounting.
+The [overview](../chromium-disk-responsiveness.md#verification-and-coverage)
+records whole-tree enumeration and candidate accounting.
 These passes are not an exhaustive call-graph proof.
 
 No Android or iOS device tests were run.
@@ -33,8 +34,9 @@ not a measured freeze or a claim that every call reaches physical storage.
 Disk-cache residency,
 feature selection,
 and call-site thread matter.
-Source links in this evidence draft were checked against local pinned source;
-the parent must perform the required browser selection-link checks before publishing them.
+All cited URLs were opened in a disposable browser session.
+The selected start line was visible and its source excerpt matched the pinned checkout.
+The [verification record](mobile-link-checks.json) retains exact checked excerpts and failed attempts separately.
 
 ## Renderer cold localStorage access synchronously waits for database reads
 

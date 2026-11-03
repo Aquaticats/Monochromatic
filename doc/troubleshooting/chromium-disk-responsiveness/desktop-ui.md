@@ -9,8 +9,9 @@ The full checkout is `${HOME}/temp/agent/chromium-disk-audit-20261103`.
 This is static source evidence of synchronous operations and their callers,
 not a runtime latency measurement or proof that any new finding caused the reported Helium freeze.
 All source ranges refer to this commit.
-Permalinks are constructed from the checked source;
-this worker has not run browser selection verification.
+Every cited source-selection URL was opened in a disposable browser session.
+Highlighted line ranges and their text matched the pinned checkout.
+The [verification record](desktop-link-checks.json) retains failures and successful retries separately.
 
 The production-source searches covered `chrome/browser`,
 `ui`,

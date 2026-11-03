@@ -7,8 +7,9 @@ The complete shallow checkout is `${HOME}/temp/agent/chromium-disk-audit-2026110
 Initial pinned raw-source downloads are in sibling `chromium-mapped-source`.
 This is static source tracing except for the explicitly attributed prior BrowserMetrics capture.
 No browser latency experiment or source patch was performed.
-Source-selection browser navigation is not yet verified;
-the parent should verify the selections it publishes.
+The cited source selections were opened in a disposable browser session,
+with selected text compared against the pinned checkout.
+The [verification record](core-link-checks.json) is shared with the overview's source checks.
 
 ## BrowserMetrics writes can fault on the browser UI thread
 
@@ -242,7 +243,8 @@ Context creation uses `v8::Context::FromSnapshot` at
 The V8 dependency itself is a separate checkout,
 pinned in `DEPS:344` to
 `235050a0df6db2c9d92a419af2b72fbf3b2dd73b`;
-its internals were not inspected in this subtask.
+its mapped-data consumption is traced in the
+[dependency evidence](dependencies.md#v8-and-icu-preserve-the-mapped-data-dependencies).
 Do not claim a measured ongoing V8 stall from this integration trace.
 
 For external ICU data,
@@ -299,7 +301,8 @@ closes files,
 and flushes the index at `backend_impl.cc:380-382`.
 The invoking owner/teardown thread was not fully traced in this subtask,
 so classify this as a pending lifetime-specific candidate rather than a confirmed ordinary-browsing UI stall.
-The parent's new persistent-cache investigation is a separate implementation and must not inherit this exclusion.
+The [persistent-cache finding](../chromium-disk-responsiveness.md#gpu-persistent-cache-misses-synchronously-read-sqlite-backed-files)
+concerns a separate implementation and must not inherit this exclusion.
 
 ## Coverage and exclusions
 
@@ -313,7 +316,8 @@ This subtask searched mapped-file references across `chrome`,
 and `third_party/blink` production `.cc`/`.mm` files,
 then traced the listed candidates.
 It does not certify every mapped call site in the full source tree.
-The parent's complete-tree ledger supplies overall scan scope.
+The [overview and complete-tree ledger](../chromium-disk-responsiveness.md#verification-and-coverage)
+supply the overall scan scope.
 Wayland keymaps and DMA buffers were not classified as regular disk files merely because they use `mmap`.
 Off-main translation/model-loading helpers were not promoted to UI-thread findings without a blocking caller chain.
 No synthetic host load,

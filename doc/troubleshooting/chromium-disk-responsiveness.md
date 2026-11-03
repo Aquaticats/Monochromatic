@@ -26,7 +26,6 @@ The supporting evidence is split by the affected execution path:
 - [Machine-readable scan results](chromium-disk-responsiveness/scan-summary.json)
   and [candidate inventory](chromium-disk-responsiveness/candidates.jsonl.gz).
 
-Source-link browser checks and dependency-result consolidation are in progress.
 The complete-tree searches are finished;
 the inventory is not an exhaustive proof of every reachable operation in every Chromium dependency.
 
@@ -267,7 +266,8 @@ and feature gates for each flag:
   and mobile foreground/background transitions.
 - Configured NetLog or TLS key logging synchronously opens files when the network service is created.
 - External ICU data and V8 snapshot loading have startup file opens and mapped-data dependencies.
-- Stopping an enabled WebRTC echo-cancellation dump waits on the renderer main thread
+- With renderer-side audio processing,
+  stopping an enabled WebRTC echo-cancellation dump waits on the renderer main thread
   for queued file writes to finish.
   This is a diagnostic-feature teardown path.
 - ANGLE and Dawn synchronously load native libraries in selected initialization branches.
@@ -294,6 +294,8 @@ enumerated in [the symlink inventory](chromium-disk-responsiveness/symlinks.json
 No untracked files entered the primary scan.
 Git internals were excluded;
 hidden and ignored source files were included.
+Ripgrep's binary-file detection remained active;
+this is a text-source search rather than an exhaustive search of binary assets.
 
 The [search patterns](chromium-disk-responsiveness/patterns.txt)
 cover explicit blocking allowances,
@@ -406,7 +408,31 @@ device latency test,
 feature-toggle experiment,
 or new browser stall reproduction was performed.
 No runtime flags or profile files were changed for this audit.
-The three delegated source passes used the same model vendor and are not independent reviews.
+The delegated source passes used the same model vendor and are not independent reviews.
+
+### Reproducing the lexical search
+
+The primary scan used the invocation in this excerpt from a fresh top-level checkout,
+before separately versioned dependencies were populated.
+Its pattern file is committed with this report.
+Populated dependency directories must be excluded to reproduce the core-only counts;
+the supplemental scans used exclusions generated from `gitlinks.json`.
+
+```sh
+# From the pinned Chromium checkout, with AUDIT_DIR naming this report's companion directory.
+systemd-run --user --scope \
+  --property=CPUQuota=200% --property=MemoryMax=6G \
+  --property=TasksMax=128 --property=IOWeight=10 \
+  rg --json --hidden --no-ignore --glob '!.git/**' \
+  --file "${AUDIT_DIR}/patterns.txt" .
+```
+
+The JSON records expose path,
+line,
+and matched text.
+The committed compressed inventory adds categories and a filename-based triage label.
+Rendering is reproducible with `mise run verify:markdown`
+from `doc/troubleshooting/chromium-disk-responsiveness`.
 
 ## What does not establish a UI disk stall
 
