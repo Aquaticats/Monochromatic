@@ -382,13 +382,15 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
 /// What:
 ///  Run `work` for every item on up to `workers` threads, each item once, results in item order.
 /// Why:
-///   The repairs of different workspaces share no state, so a queue of items keeps every thread busy.
+///   The repairs of different workspaces share no state, so a queue of items keeps every thread busy. SCAFFOLD: panics are not
+///  caught yet.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const results = await mapConcurrent(items, workers, work);
+/// const results = await mapConcurrent(items, workers, label, work);
 /// ```
-fn map_concurrent<T: Sync, R: Send>(items: &[T], workers: usize, work: &(dyn Fn(&T) -> R + Sync)) -> Vec<R> {
+fn map_concurrent<T: Sync, R: Send>(items: &[T], workers: usize, label: &(dyn Fn(&T) -> String + Sync), work: &(dyn Fn(&T) -> R + Sync)) -> Vec<Result<R, String>> {
+    let _label = label;
     let next: AtomicUsize = AtomicUsize::new(0);
     let mut results: Vec<(usize, R)> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers.max(1).min(items.len().max(1)))
@@ -407,7 +409,7 @@ fn map_concurrent<T: Sync, R: Send>(items: &[T], workers: usize, work: &(dyn Fn(
         return handles.into_iter().flat_map(|handle| { return handle.join().unwrap_or_default(); }).collect();
     });
     results.sort_by_key(|(index, _result): &(usize, R)| { return *index; });
-    return results.into_iter().map(|(_index, result): (usize, R)| { return result; }).collect();
+    return results.into_iter().map(|(_index, result): (usize, R)| { return Ok(result); }).collect();
 }
 
 /// What:
@@ -453,7 +455,10 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
         return vec![missing_tool(Tool::Cargo, PROGRAM, "cargo clean --offline --package <member> in each Cargo workspace of the worktree")];
     };
     let workers: usize = request.environment.workers;
-    let read: Vec<Result<Workspace, String>> = map_concurrent(directories.as_slice(), workers, &|directory: &PathBuf| { return work("cargoMetadataWorktree", || { return read_workspace(cargo.as_path(), directory.as_path(), request.environment.tool_limit); }); });
+    let read: Vec<Result<Workspace, String>> = map_concurrent(directories.as_slice(), workers, &|directory: &PathBuf| { return format!("reading the Cargo workspace at {}", directory.display()); }, &|directory: &PathBuf| { return work("cargoMetadataWorktree", || { return read_workspace(cargo.as_path(), directory.as_path(), request.environment.tool_limit); }); })
+        .into_iter()
+        .map(|outcome: Result<Result<Workspace, String>, String>| { return outcome.and_then(|inner: Result<Workspace, String>| { return inner; }); })
+        .collect();
     let mut findings: Vec<Finding> = Vec::new();
     let mut found: Vec<Workspace> = Vec::new();
     for (directory, outcome) in directories.iter().zip(read) {
@@ -466,7 +471,13 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
     // Real paths: Cargo names the workspace by its real path, and the worktree may be reached through a link.
     let destination_root: PathBuf = std::fs::canonicalize(request.destination).unwrap_or_else(|_error| { return request.destination.to_path_buf(); });
     let clone_workers: usize = if workspaces.len() > 1 { 1 } else { workers };
-    let done: Vec<Done> = map_concurrent(workspaces.as_slice(), workers, &|workspace: &Workspace| { return work("cargoRepairWorkspace", || { return repair_workspace(cargo.as_path(), workspace, destination_root.as_path(), request, clone_workers); }); });
+    let done: Vec<Done> = map_concurrent(workspaces.as_slice(), workers, &|workspace: &Workspace| { return format!("the repair of the Cargo workspace at {}", workspace.root.display()); }, &|workspace: &Workspace| { return work("cargoRepairWorkspace", || { return repair_workspace(cargo.as_path(), workspace, destination_root.as_path(), request, clone_workers); }); })
+        .into_iter()
+        .zip(workspaces.iter())
+        .map(|(outcome, workspace): (Result<Done, String>, &Workspace)| {
+            return outcome.unwrap_or_else(|reason: String| { return Done::Failed(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual_command(workspace.root.as_path(), &[String::from("<member>")]) } }); });
+        })
+        .collect();
     let mut cleaned: usize = 0;
     let mut cloned: usize = 0;
     let mut left_out: usize = 0;
