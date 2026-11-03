@@ -13,9 +13,9 @@
 //! ```
 
 use super::fs_primitive_error::PrimitiveError;
-use std::cell::Cell;
 use std::fmt;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// What:
 ///  Why a migration step stopped.
@@ -99,9 +99,11 @@ impl From<PrimitiveError> for MigrateError {
 
 /// What:
 ///  The simulated kill: stop the run after a named point has been reached a number of times.
-///  `Cell<u64>` is a number that can change behind a shared borrow (TS has no distinction; everything mutates).
+///  `AtomicU64` is a number that can change behind a shared borrow from several threads at once (TS has no distinction;
+///  everything mutates).
 /// Why:
-///   A control sets the point, runs, sees the `Interrupted` error, and runs again with `Interrupt::never()`.
+///   A control sets the point, runs, sees the `Interrupted` error, and runs again with `Interrupt::never()`. Worktrees converted
+///  side by side share one hook, so the hits are counted across all of them and exactly one hit is the chosen one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,18 +114,18 @@ pub struct Interrupt {
     /// The point name and how many earlier hits to let pass.
     target: Option<(String, u64)>,
     /// Hits seen so far.
-    hits: Cell<u64>,
+    hits: AtomicU64,
 }
 
 impl Interrupt {
     /// A run that is never stopped: what the release code uses.
     pub fn never() -> Interrupt {
-        return Interrupt { target: None, hits: Cell::new(0) };
+        return Interrupt { target: None, hits: AtomicU64::new(0) };
     }
 
     /// A run that stops at the `after`-th (counting from 0) hit of `point`.
     pub fn at(point: &str, after: u64) -> Interrupt {
-        return Interrupt { target: Some((point.to_string(), after)), hits: Cell::new(0) };
+        return Interrupt { target: Some((point.to_string(), after)), hits: AtomicU64::new(0) };
     }
 
     /// What:
@@ -140,8 +142,7 @@ impl Interrupt {
         if name != point {
             return Ok(());
         }
-        let seen: u64 = self.hits.get();
-        self.hits.set(seen + 1);
+        let seen: u64 = self.hits.fetch_add(1, Ordering::SeqCst);
         if seen == *after {
             return Err(MigrateError::Interrupted(point.to_string()));
         }

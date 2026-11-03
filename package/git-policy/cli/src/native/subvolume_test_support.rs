@@ -21,11 +21,11 @@ use super::subvolume_command::execute;
 use super::subvolume_error::Interrupt;
 use super::subvolume_platform::Platform;
 use crate::test_support::{fixture, git, git_text, repository};
-use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 /// What:
 ///  A platform on plain directories.
@@ -40,7 +40,7 @@ use std::path::{Path, PathBuf};
 /// ```
 pub(crate) struct PlainPlatform {
     /// Device and inode of every directory made by `create_subvolume`.
-    pub subvolumes: RefCell<HashSet<(u64, u64)>>,
+    pub subvolumes: Mutex<HashSet<(u64, u64)>>,
     /// What `filesystem_facts` reports as the kind.
     pub kind: FilesystemKind,
     /// What `filesystem_facts` reports as free bytes; `None` asks the real filesystem.
@@ -57,7 +57,7 @@ impl PlainPlatform {
     /// A platform that looks like btrfs with plenty of room, with removal allowed and clones refused.
     pub(crate) fn new() -> PlainPlatform {
         return PlainPlatform {
-            subvolumes: RefCell::new(HashSet::new()),
+            subvolumes: Mutex::new(HashSet::new()),
             kind: FilesystemKind::Btrfs,
             free: Some(u64::MAX / 2),
             removal: true,
@@ -69,7 +69,7 @@ impl PlainPlatform {
     /// Register a directory as a subvolume root.
     pub(crate) fn register(&self, path: &Path) {
         let metadata: std::fs::Metadata = std::fs::metadata(path).expect("registered path exists");
-        self.subvolumes.borrow_mut().insert((metadata.dev(), metadata.ino()));
+        self.subvolumes.lock().expect("the registry of subvolumes").insert((metadata.dev(), metadata.ino()));
     }
 }
 
@@ -91,7 +91,7 @@ impl Platform for PlainPlatform {
 
     fn is_subvolume_root(&self, path: &Path) -> Result<bool, PrimitiveError> {
         let Ok(metadata) = std::fs::metadata(path) else { return Ok(false) };
-        return Ok(self.subvolumes.borrow().contains(&(metadata.dev(), metadata.ino())));
+        return Ok(self.subvolumes.lock().expect("the registry of subvolumes").contains(&(metadata.dev(), metadata.ino())));
     }
 
     fn create_subvolume(&self, path: &Path) -> Result<(), PrimitiveError> {
@@ -112,7 +112,7 @@ impl Platform for PlainPlatform {
         std::fs::remove_dir_all(path).map_err(|error: std::io::Error| {
             return PrimitiveError { operation: "BTRFS_IOC_SNAP_DESTROY", path: path.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) };
         })?;
-        self.subvolumes.borrow_mut().remove(&(metadata.dev(), metadata.ino()));
+        self.subvolumes.lock().expect("the registry of subvolumes").remove(&(metadata.dev(), metadata.ino()));
         return Ok(());
     }
 

@@ -1421,6 +1421,10 @@ pub mod subvolume_command;
 #[cfg(all(test, target_os = "linux"))]
 mod subvolume_test_support;
 
+/// A point where threads must all arrive, for controls that prove work overlapped.
+#[cfg(test)]
+mod parallel_test_support;
+
 /// The migration controls that need the real btrfs ioctls, `FICLONE` and exchange.
 #[cfg(all(test, target_os = "linux"))]
 mod subvolume_btrfs_tests;

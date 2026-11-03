@@ -2,49 +2,9 @@
 //!  never overlap inside themselves, and a worker's panic ends the run instead of hanging it.
 
 use super::*;
+use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE};
+use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Condvar, Mutex};
-use std::time::Duration;
-
-/// How long a control waits for something that only parallel work can make happen before it reports that it did not.
-const PATIENCE: Duration = Duration::from_secs(10);
-
-/// How long the control for a serial run waits at a point it can never pass.
-const SERIAL_PATIENCE: Duration = Duration::from_millis(200);
-
-/// A point where a number of threads must all arrive: it can be passed only if they overlap in time.
-struct Rendezvous {
-    /// How many threads have arrived.
-    arrived: Mutex<usize>,
-    /// Woken when one arrives.
-    changed: Condvar,
-    /// How many must arrive.
-    target: usize,
-    /// How long an arrival waits for the others.
-    patience: Duration,
-}
-
-impl Rendezvous {
-    /// A point for `target` threads.
-    fn new(target: usize) -> Rendezvous {
-        return Rendezvous { arrived: Mutex::new(0), changed: Condvar::new(), target, patience: PATIENCE };
-    }
-
-    /// A point for `target` threads whose arrivals give up after `patience`.
-    fn impatient(target: usize, patience: Duration) -> Rendezvous {
-        return Rendezvous { patience, ..Rendezvous::new(target) };
-    }
-
-    /// Arrive and wait for the others; false when they did not all come within `PATIENCE`, which is what a serial run sees.
-    fn arrive(&self) -> bool {
-        let mut count = self.arrived.lock().expect("lock");
-        *count += 1;
-        self.changed.notify_all();
-        let (guard, timeout) = self.changed.wait_timeout_while(count, self.patience, |seen: &mut usize| { return *seen < self.target; }).expect("wait");
-        drop(guard);
-        return !timeout.timed_out();
-    }
-}
 
 /// One lane per item.
 fn single_lanes(count: usize) -> Vec<Vec<usize>> {
@@ -101,7 +61,7 @@ fn the_report_keeps_input_order_when_completion_order_inverts() {
         if index == 0 {
             assert!(last_done.wait_for_target(), "the later items finished while the first waited");
         } else {
-            let _passed = last_done.arrive_without_waiting();
+            last_done.arrive_without_waiting();
         }
         return String::from("ok");
     });
@@ -109,24 +69,6 @@ fn the_report_keeps_input_order_when_completion_order_inverts() {
         .flat_map(|index: usize| { return [format!("begin {index}"), format!("line {index} working"), format!("end {index} ok")]; })
         .collect();
     assert_eq!(events, expected);
-}
-
-impl Rendezvous {
-    /// Wait without arriving until the target number have arrived; false after `PATIENCE`.
-    fn wait_for_target(&self) -> bool {
-        let count = self.arrived.lock().expect("lock");
-        let (guard, timeout) = self.changed.wait_timeout_while(count, self.patience, |seen: &mut usize| { return *seen < self.target; }).expect("wait");
-        drop(guard);
-        return !timeout.timed_out();
-    }
-
-    /// Count an arrival without waiting for the others.
-    fn arrive_without_waiting(&self) -> bool {
-        let mut count = self.arrived.lock().expect("lock");
-        *count += 1;
-        self.changed.notify_all();
-        return true;
-    }
 }
 
 /// A line of the first unfinished item reaches the consumer while that item still runs: the item waits for the consumer to have seen it.

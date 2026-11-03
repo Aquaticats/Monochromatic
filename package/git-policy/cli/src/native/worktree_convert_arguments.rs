@@ -41,7 +41,7 @@ pub const RISK_NOTICE: &str = "cli-git: this deletes the old directory of each w
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ConvertArguments = { dryRun: boolean; abandon: boolean; all: boolean; paths: string[]; help: boolean; commandLineAttributes: boolean };
+/// type ConvertArguments = { dryRun: boolean; abandon: boolean; all: boolean; paths: string[]; help: boolean; commandLineAttributes: boolean; jobs?: number };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ConvertArguments {
@@ -57,6 +57,8 @@ pub struct ConvertArguments {
     pub help: bool,
     /// The invocation chose an attribute source before the command (`--attr-source`, `-c attr.tree`).
     pub command_line_attributes: bool,
+    /// The most worktrees converted at once (`--jobs`), or nothing for the budget the host allows.
+    pub jobs: Option<usize>,
 }
 
 /// What:

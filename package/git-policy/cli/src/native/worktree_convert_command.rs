@@ -15,6 +15,7 @@ use super::action::Action;
 use super::subvolume_command::main_checkout_root;
 use super::subvolume_error::Interrupt;
 use super::subvolume_index_files::linked_worktrees_inside;
+use super::parallel_budget::HostResources;
 use super::subvolume_platform::{LinuxPlatform, Platform};
 use super::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments, RISK_NOTICE};
 use super::worktree_convert::{ConvertOptions, Verdict, convert_worktree};
@@ -38,6 +39,43 @@ fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Vec<PathBuf>, Str
 }
 
 /// What:
+///  The bytes one conversion holds at its peak, rounded up for a worktree of about two hundred thousand files.
+/// Why:
+///   The budget divides the free memory by it. A conversion holds the index entries and the tree-walk state of one worktree and
+///  streams the file data through the kernel's clone call, so its peak follows the number of files and not their size: measured
+///  on 2026-11-03 at 7484 KiB resident for a worktree of 16 thousand files (about 0.45 KiB per file), which is about 90 MiB at
+///  two hundred thousand files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const CONVERSION_MEMORY = 128 * MiB;
+/// ```
+pub const CONVERSION_MEMORY: u64 = 128 << 20;
+
+/// What:
+///  Everything one run of the command needs besides the line sink.
+/// Why:
+///   The platform, the interrupt and the host's resources are injected so the controls run the real command on any filesystem
+///  and with a host of any size.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ConvertRun = { platform: Platform; arguments: ConvertArguments; cwd: string; interrupt: Interrupt; host: HostResources };
+/// ```
+pub struct ConvertRun<'run> {
+    /// The filesystem operations; shared by every worktree converted at once.
+    pub platform: &'run (dyn Platform + Sync),
+    /// The parsed options.
+    pub arguments: &'run ConvertArguments,
+    /// The directory relative paths and `--all` are resolved from.
+    pub cwd: &'run Path,
+    /// The simulated kill; shared by every worktree converted at once.
+    pub interrupt: &'run Interrupt,
+    /// The CPUs and memory the budget is derived from.
+    pub host: &'run HostResources,
+}
+
+/// What:
 ///  Run the command over its targets and return the exit status; every line goes through `say`.
 /// Why:
 ///   The platform and the interrupt are injected so the controls run the real command on any filesystem.
@@ -46,7 +84,13 @@ fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Vec<PathBuf>, Str
 /// ```ts
 /// const code = await execute(platform, arguments, cwd, interrupt, say);
 /// ```
-pub fn execute(platform: &dyn Platform, arguments: &ConvertArguments, cwd: &Path, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> i32 {
+pub fn execute(platform: &(dyn Platform + Sync), arguments: &ConvertArguments, cwd: &Path, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> i32 {
+    return execute_run(&ConvertRun { platform, arguments, cwd, interrupt, host: &HostResources::read() }, say);
+}
+
+/// `execute` with the host's resources chosen by the caller.
+pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
+    let ConvertRun { platform, arguments, cwd, interrupt, host: _host } = *run;
     let list: Vec<PathBuf> = match targets(arguments, cwd) {
         Ok(found) => found,
         Err(reason) => {
@@ -120,3 +164,8 @@ pub fn convert_action(arguments: &ConvertArguments, cwd: &Path, environment: &[(
 #[cfg(test)]
 #[path = "worktree_convert_command_tests.rs"]
 mod tests;
+
+/// The controls for worktrees converted side by side stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_convert_parallel_tests.rs"]
+mod parallel_tests;
