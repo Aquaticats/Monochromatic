@@ -191,6 +191,38 @@ fn a_tree_that_keeps_moving_stops_only_at_the_ceiling() {
     remove(root.as_path());
 }
 
+/// Whether the process `pid` still runs: a process that is gone, or ended and waiting to be reaped, does not.
+fn process_runs(pid: u32) -> bool {
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { return false };
+    return stat.rsplit_once(')').and_then(|(_, rest)| { return rest.trim_start().chars().next(); }) != Some('Z');
+}
+
+/// The loop that leaked for 87 minutes, started by a test that then panics, is gone when the test ends: a failing test
+///  must not leave its helper behind, with its `sleep` either.
+#[test]
+fn a_loop_started_by_a_panicking_test_is_gone_when_the_test_ends() {
+    let (sender, receiver) = std::sync::mpsc::channel::<u32>();
+    let handle = std::thread::spawn(move || {
+        let root: std::path::PathBuf = fixture("progress-panic");
+        let child: Child = shell("while :; do echo x >> log; sleep 0.1; done", root.as_path());
+        sender.send(child.id()).expect("send the pid");
+        panic!("the test fails before it ends the loop");
+    });
+    assert!(handle.join().is_err(), "the thread panics on purpose");
+    let pid: u32 = receiver.recv().expect("the pid");
+    let began: Instant = Instant::now();
+    while process_runs(pid) && began.elapsed() < PATIENCE {
+        std::thread::sleep(LOOK);
+    }
+    let left: bool = process_runs(pid);
+    if left {
+        // Tidy up the leak this control exists to catch, so a red run leaves nothing behind either.
+        // SAFETY: `kill` takes a pid and a signal and touches no memory.
+        unsafe { libc::kill(libc::pid_t::try_from(pid).expect("pid"), libc::SIGKILL) };
+    }
+    assert!(!left, "the loop of process {pid} outlived the test that started it");
+}
+
 /// Where nothing is measured the stall window is a fixed deadline, even for a tree that writes all the time.
 #[test]
 fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
