@@ -66,6 +66,8 @@ use super::runner::Runner;
 use super::scope::{EnvMap, Scope};
 /// Imports what this module uses from `super::update`.
 use super::update::{OutcomeKind, update_loaded};
+/// Imports `write_tool_env` from `super::tool_env`.
+use super::tool_env::write_tool_env;
 /// Imports the tool lookup.
 use super::util::find_tool;
 
@@ -144,6 +146,9 @@ pub struct SyncReport {
     /// The cleanup of old copies of this repository's tools:
     /// one sentence per link re-pointed and per old copy removed.
     pub old_copies: Vec<String>,
+    /// The environment variable names the generated mise fragment holds after this run
+    /// (empty when the lock declares none, or for a partial sync that leaves the fragment alone).
+    pub exported_env: Vec<String>,
 }
 
 /// What:
@@ -234,6 +239,14 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     }
     if let Err(error) = rebuild_exposure(ctx, &entries) {
         report.failed.push(("exposure directory".to_string(), error.message));
+    }
+    // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync
+    // (which installs just the tools its lookups need) must not rewrite it from a subset.
+    if only.is_none() {
+        match write_tool_env(ctx) {
+            Ok(outcome) => report.exported_env = outcome.names,
+            Err(error) => report.failed.push(("tool environment".to_string(), error.message)),
+        }
     }
     let commands = run_postinstall_commands(ctx, &entries);
     report.failed.extend(commands.failed);
@@ -533,6 +546,9 @@ pub fn format_sync_report(report: &SyncReport) -> String {
         report.failed.len()
     ));
     text.push_str(&old_copy_lines_text(report));
+    if !report.exported_env.is_empty() {
+        text.push_str(&format!("toolchain install: exported to mise: {}\n", report.exported_env.join(", ")));
+    }
     for (id, message) in &report.failed {
         text.push_str(&format!("toolchain install: {id} failed: {message}\n"));
     }

@@ -154,7 +154,7 @@ fn a_dead_owners_claim_is_replaced_and_a_live_owners_claim_stops_the_conversion(
     let platform: PlainPlatform = PlainPlatform::new();
     let admin: PathBuf = admin_of(worktree.as_path());
     let prefix: &std::ffi::OsStr = std::ffi::OsStr::new(CLAIM_PREFIX);
-    let mut other: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("sleep");
+    let mut other: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30")).expect("sleep");
     let other_pid: i64 = i64::from(other.id());
     let birth: String = process_birth_identity(other_pid).expect("identity").expect("alive");
     plant_claim_for_tests(admin.as_path(), prefix, 1, other_pid, birth.as_str());
@@ -215,7 +215,7 @@ fn a_conversion_is_refused_while_the_main_checkout_is_being_migrated() {
     let (parent, root, worktree) = quiet_worktree("ownership-migration-running");
     let platform: PlainPlatform = PlainPlatform::new();
     let layout = layout_of(root.as_path()).expect("layout");
-    let mut migration: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("sleep");
+    let mut migration: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30")).expect("sleep");
     let pid: i64 = i64::from(migration.id());
     let birth: String = process_birth_identity(pid).expect("identity").expect("alive");
     plant_claim_for_tests(layout.parent.as_path(), layout.claim_prefix.as_os_str(), 1, pid, birth.as_str());

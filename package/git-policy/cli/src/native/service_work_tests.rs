@@ -2,10 +2,12 @@
 
 use super::*;
 use crate::push_failure_notice::{push_failure_text, take_push_failures};
+use crate::push_retry::FIRST_PAUSE;
 use crate::service_claim_renewal::{DrivenRenewal, RENEWALS_PER_LEASE, Renewal, renewal_interval};
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, requeue_expired, state_directory};
 use std::cell::RefCell;
+use std::ffi::OsString;
 use std::time::Duration;
 
 const OID: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -710,25 +712,25 @@ fn a_claim_taken_over_when_no_renewal_has_run_is_not_run_from_the_old_claim() {
     remove(repo.root.as_path());
 }
 
-/// The credential a wake brought is held for that repository only, and is gone once its round ends.
+/// The credential a wake brought is held for that repository only, in the copy of the handlers made for its round; the handlers
+///  the service keeps never hold one.
 #[test]
-fn the_review_key_is_held_per_repository_and_forgotten() {
+fn the_review_key_is_held_per_repository_in_the_round_copy_only() {
     let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
     let first: PathBuf = PathBuf::from("/srv/one/.git");
     let second: PathBuf = PathBuf::from("/srv/two/.git");
     let key: ReviewKey = ReviewKey::new("test-key-not-a-secret").expect("a key");
     assert_eq!(handlers.review_key_of(first.as_path()), None);
-    handlers.remember_review_key(first.as_path(), key.clone());
-    assert_eq!(handlers.review_key_of(first.as_path()), Some(key));
-    assert_eq!(handlers.review_key_of(second.as_path()), None, "another repository does not see it");
-    handlers.forget_review_key(first.as_path());
-    assert_eq!(handlers.review_key_of(first.as_path()), None);
+    let round: GitHandlers = handlers.for_round(std::collections::HashMap::from([(first.clone(), key.clone())]));
+    assert_eq!(round.review_key_of(first.as_path()), Some(key));
+    assert_eq!(round.review_key_of(second.as_path()), None, "another repository does not see it");
+    assert_eq!(handlers.review_key_of(first.as_path()), None, "the handlers the service keeps hold none");
 }
 
-/// A round keeps a wake's credential only until its repository has been drained: nothing of it is left afterwards, for the
+/// A round keeps a wake's credential only for itself: nothing of it is left in the service's handlers afterwards, for the
 /// repository that brought it or any other, and a repeated directory is drained once.
 #[test]
-fn a_round_forgets_the_credentials_it_was_given() {
+fn a_round_leaves_no_credential_in_the_handlers() {
     let first: Repo = repo("work-round");
     let second: Repo = repo("work-round-other");
     let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
@@ -738,7 +740,7 @@ fn a_round_forgets_the_credentials_it_was_given() {
         (first.common.clone(), None),
         (second.common.clone(), Some(key)),
     ];
-    run_round(wakes, &handlers, &ClaimTime::read());
+    run_round(wakes, &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
     assert_eq!(handlers.review_key_of(first.common.as_path()), None);
     assert_eq!(handlers.review_key_of(second.common.as_path()), None);
     remove(first.root.as_path());
@@ -780,7 +782,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     // The service's own context: no repository is named, because one service serves many.
     let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
     let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
-    run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &ClaimTime::read());
+    run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
     let seen: String = mock.finish().to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
         return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
@@ -852,4 +854,30 @@ fn the_production_lease_leaves_a_starved_holder_two_intervals_of_margin() {
     let margin: Duration = CLAIM_LEASE - renewal_interval(CLAIM_LEASE);
     assert_eq!(margin, Duration::from_secs(80));
     assert!(margin >= renewal_interval(CLAIM_LEASE) * 2, "a renewal late by two intervals still beats the lease");
+}
+
+/// Whether the last `core.lockfilePid` entry of a numbered `GIT_CONFIG_*` environment reads as true.
+fn lock_pid_files_enabled(environment: &[(OsString, OsString)]) -> bool {
+    let value_of = |name: &str| -> Option<String> {
+        return environment.iter().rev().find(|(key, _)| { return key.to_str() == Some(name); }).map(|(_, value)| { return value.to_string_lossy().into_owned(); });
+    };
+    let count: usize = value_of("GIT_CONFIG_COUNT").and_then(|text| { return text.parse::<usize>().ok(); }).unwrap_or(0);
+    let mut enabled: bool = false;
+    for index in 0..count {
+        if value_of(format!("GIT_CONFIG_KEY_{index}").as_str()).is_some_and(|key| { return key.eq_ignore_ascii_case("core.lockfilePid"); }) {
+            enabled = value_of(format!("GIT_CONFIG_VALUE_{index}").as_str()).is_some_and(|value| { return value == "true"; });
+        }
+    }
+    return enabled;
+}
+
+/// Every Git the service starts for a push writes the `~pid.lock` file beside each lock, so a lock left by a stopped push
+/// names its owner; without it such a lock cannot be told from another process's.
+#[test]
+fn the_service_starts_its_push_git_with_lock_pid_files_on() {
+    let repo: Repo = repo("service-push-lock-pid");
+    let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
+    let started: PushGit = handlers.push_git(&item(&repo, WorkKind::Push, OID, BRANCH));
+    assert!(lock_pid_files_enabled(started.environment.as_slice()), "the push's Git environment turns on core.lockfilePid");
+    remove(repo.root.as_path());
 }

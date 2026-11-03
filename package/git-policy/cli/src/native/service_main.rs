@@ -36,6 +36,15 @@ fn main() {
         std::process::exit(2);
     };
     let git: PathBuf = option(&arguments, "--git").map_or_else(|| { return PathBuf::from("/usr/bin/git"); }, PathBuf::from);
+    // A launcher of the wrapper named as Git would make every Git start of the service start the wrapper (a unit written by an
+    //  earlier release can hold such a path); the service stops at once and says what to pass instead.
+    if git_policy_cli::real_git_candidate::is_wrapper_launcher(git.as_path(), None) {
+        git_policy_cli::service_error!(
+            "--git {} is a toolchain launcher of cli-git, so every Git the service started would start cli-git again; pass the real Git executable (for example /usr/bin/git), or remove the unit that names this path and let the next cli-git command write it again",
+            git.display()
+        );
+        std::process::exit(2);
+    }
     let address: Bind = match (option(&arguments, "--abstract"), option(&arguments, "--path")) {
         (Some(name), _) => Bind::Abstract(name),
         (None, Some(path)) => Bind::Path(PathBuf::from(path)),
@@ -53,7 +62,7 @@ fn main() {
         }
     };
     let context: LandContext = LandContext {
-        git: GitContext { real_git: git, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None },
+        git: GitContext { real_git: git, overlay: git_policy_cli::child_environment::lockfile_pid_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
         on_objects_written: None,
         index_wait: git_policy_cli::wait_limit::live_wait_limit(),

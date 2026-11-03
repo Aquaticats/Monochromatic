@@ -1,17 +1,25 @@
 //! What:
 //!  Starting one package-manager program for a worktree repair: finding it on a search path, running it in a directory with
-//!  its output captured and a time limit, and saying how it ended.
+//!  its output captured and a quiet window, and saying how it ended.
 //! Why:
 //!  The repairs of a new worktree (`package_repair.rs`) start tools the repository uses (pnpm, Cargo, mpm-shadow). Each one
-//!  must end in a plain verdict the add can word for the person: the program is missing, it failed with a reason, it ran
-//!  past its limit, or it worked. Nothing here decides which tool runs or what its output means.
+//!  must end in a plain verdict the add can word for the person: the program is missing, it failed with a reason, it showed
+//!  no sign of work for its window, or it worked. A tool that works is never ended for being slow (owner, 2026-11-03:
+//!  "Install online during the add"; pick 9 of `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the
+//!  owner's delegation and open to the owner's veto), with the signs of work the push reads (`push_progress.rs`). Nothing here decides which tool runs or what its output means.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const program = findProgram('pnpm', process.env.PATH);
-//! const run = await runTool(program, { arguments: ['install'], directory, set: [] }, limit);
+//! const run = await runTool(program, { arguments: ['install'], directory, set: [] }, quietWindow);
 //! ```
 
+/// The patience of a run that ends on a stall.
+use super::bounded_push::Patience;
+/// The clock that reads the signs of work of a process tree.
+use super::push_progress::Clock;
+/// The longest quiet gap of each tool, kept for the timing records.
+use super::quiet_ledger;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -51,7 +59,7 @@ pub enum ToolEnd {
     Succeeded,
     /// The program did not start, or ended with a failure status; the text names the status and the tail of its output.
     Failed(String),
-    /// The program was still running when its limit passed, and was stopped.
+    /// The program showed no sign of work for its window, and was stopped.
     TimedOut,
 }
 
@@ -75,9 +83,12 @@ pub struct ToolRun {
 }
 
 /// The most bytes of a program's output kept for its failure text.
+///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
+///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const OUTPUT_TAIL_BYTES: usize = 600;
 
-/// How often a running program is checked against its limit.
+/// How often a running program is looked at.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// What:
@@ -164,16 +175,18 @@ fn describe_status(status: std::process::ExitStatus) -> String {
 }
 
 /// What:
-///  Run a program to its end or its limit.
+///  Run a program to its end, or until it has shown no sign of work for `window`.
 /// Why:
-///   The add must never wait without bound on a tool, and must keep the tail of its output for the log. The program leads a
-///  process group of its own, so the stop at the limit reaches the children it started too.
+///   The add must not wait for a tool that does nothing, and must keep the tail of its output for the log. A tool that works is
+///  waited for however long it takes. The program leads a process group of its own, so the stop reaches the children it
+///  started too. Where the system counts nothing (no `/proc/<pid>/io`) the tool is never ended, because no wall-clock bound is
+///  the rule. The longest quiet gap of the run is kept in the ledger under the program's name and first argument.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function runTool(program: string, command: ToolCommand, limit: number): Promise<ToolRun>;
+/// async function runTool(program: string, command: ToolCommand, quietWindowMs: number): Promise<ToolRun>;
 /// ```
-pub fn run_tool(program: &Path, command: &ToolCommand, limit: Duration) -> ToolRun {
+pub fn run_tool(program: &Path, command: &ToolCommand, window: Duration) -> ToolRun {
     use std::os::unix::process::CommandExt;
     let started: Instant = Instant::now();
     let mut starting: Command = Command::new(program);
@@ -187,14 +200,19 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limit: Duration) -> ToolR
     };
     let out_reader: Option<std::thread::JoinHandle<Vec<u8>>> = child.stdout.take().map(collect);
     let error_reader: Option<std::thread::JoinHandle<Vec<u8>>> = child.stderr.take().map(collect);
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: window }).without_wall_fallback();
     let status: Option<std::process::ExitStatus> = loop {
         match child.try_wait() {
             Ok(Some(done)) => break Some(done),
-            Ok(None) if started.elapsed() >= limit => break None,
+            Ok(None) if clock.check().is_some() => break None,
             Ok(None) => std::thread::sleep(POLL_INTERVAL),
             Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new() },
         }
     };
+    // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
+    if clock.measures() {
+        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none());
+    }
     let Some(finished) = status else {
         stop_group(&child);
         // The group is gone, so the pipes close and the readers end; the reaped child leaves no zombie.
@@ -213,6 +231,24 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limit: Duration) -> ToolR
     let combined: Vec<u8> = [stdout.as_slice(), errors.as_slice()].concat();
     let text: String = tail_of(combined.as_slice());
     return ToolRun { end: ToolEnd::Failed(format!("{}: {text}", describe_status(finished))), millis, stdout: Vec::new() };
+}
+
+/// What:
+///  The name a tool's quiet gap is kept under: the program's file name and its first argument, as in `pnpm install`.
+/// Why:
+///   Two uses of one program (`cargo metadata`, `cargo clean`) have different gaps, and the arguments after the first are
+///  paths that would make a name for every worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// [basename(program), args[0]].filter(Boolean).join(' ')
+/// ```
+fn tool_step(program: &Path, command: &ToolCommand) -> String {
+    let name: String = program.file_name().map_or_else(String::new, |file| { return file.to_string_lossy().into_owned(); });
+    return match command.arguments.first() {
+        Some(first) => format!("{name} {}", first.to_string_lossy()),
+        None => name,
+    };
 }
 
 /// What:

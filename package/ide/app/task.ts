@@ -1021,9 +1021,9 @@ if (start < 0 || end < start) throw new Error('Slint virtualization function bou
 const directory = mkdtempSync(join(homedir(), 'temp', 'agent', 'ide-listview-algorithm-'))
 writeFileSync(join(directory, 'algorithm.rs'), source.slice(start, end))
 copyFileSync(resolve('../../../doc/troubleshooting/slint-listview-random-seek-probe.rs'), join(directory, 'harness.rs'))
-const { containerBounds } = await import(resolve('bin/container-bounds.ts'))
+const { containerBounds, diskWeightArguments } = await import(resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
-const args = ['run', '--rm', '--network=none', '--memory=' + containerLimits.memory, '--cpus=' + containerLimits.cpus, '--pids-limit=128', '--security-opt', 'label=disable', '--volume', directory + ':/work', '--workdir', '/work', 'localhost/monochromatic/ide']
+const args = ['run', '--rm', '--network=none', '--memory=' + containerLimits.memory, '--cpus=' + containerLimits.cpus, '--pids-limit=128', ...diskWeightArguments(), '--security-opt', 'label=disable', '--volume', directory + ':/work', '--workdir', '/work', 'localhost/monochromatic/ide']
 console.log('Standalone algorithm controls: ' + directory)
 execFileSync('podman', [...args, 'rustc', '--edition=2024', '--test', 'harness.rs', '--out-dir', '/work'], { stdio: 'inherit' })
 execFileSync('podman', [...args, '/work/harness', '--nocapture'], { stdio: 'inherit' })

@@ -69,6 +69,10 @@ Raw evidence is in
 
 ### Scope beyond Helium checked at 2026-11-03T02:42:31-05:00
 
+The later [fresh upstream reproduction](chromium-disk-responsiveness/live-histogram-reproduction.md)
+establishes mapping attribution in official Chromium `159.0.8141.0`.
+It is a separate run from the historical Chromium observation described in this section.
+
 The captured storage-wait behavior is not exclusive to Helium.
 The retained main-thread observer also recorded ordinary Chromium PID `2972354`
 in `folio_wait_writeback` through `btrfs_page_mkwrite`,

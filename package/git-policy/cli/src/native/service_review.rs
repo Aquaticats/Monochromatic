@@ -1,19 +1,21 @@
 //! What:
 //!  The service's handler for a `review` work item: read the landed commit, ask the decision gateway, and append the
-//!  entry to the repository's live shadow log, all inside a fixed time budget.
+//!  entry to the repository's live shadow log, every step ending on no progress and none on the clock.
 //! Why:
 //!  This replaces the repository's post-commit hook that ran `mise run shadow-review` (`doc/runbook/standards-review-gate.md`).
-//!  The review shares the service's work thread with pushes and upkeep, so every step is bounded: the gateway call by a
-//!  deadline, the Git reads and the write by the budget around the whole run. A review that fails leaves its item in
+//!  The review shares the service's work thread with pushes and upkeep, so every step ends by itself: the gateway call on the
+//!  idle timeouts of its transport, the Git reads under the watch of `child_watch.rs`; the local write of the entry has no
+//!  judge (pick 9 of `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation and open to
+//!  the owner's veto; it replaces the 20 second budget around the whole run). A review that fails leaves its item in
 //!  `failed` as a plain record and the log shows the gateway's failure as an entry; nothing is ever left claimed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const outcome = await Promise.race([reviewLanded(names, sha, subject, read, options), wait(budget)]);
+//! const outcome = await reviewLanded(names, sha, subject, read, options);
 //! ```
 
 use super::standards_review_input::has_shadow_log;
-use super::standards_review_run::{ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_within};
+use super::standards_review_run::{ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained};
 use super::standards_review_source::{read_landed_commit, read_message, read_names};
 use super::standards_review_text::commit_subject;
 use super::service_review_key::{KEY_VARIABLES, ReviewKey};
@@ -23,12 +25,11 @@ use super::work_item::WorkItem;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// How long the gateway call may take: several times the largest figure on record (1.4 s in
-/// `doc/audit/standards-review-gate-shadow.md`), and a third of the script's 30 s, because the work thread is shared.
-pub const CALL_DEADLINE: Duration = Duration::from_secs(10);
-
-/// How long the whole review may take, Git reads and write included; past it the item is failed and the work thread moves on.
-pub const BUDGET: Duration = Duration::from_secs(20);
+/// How long the gateway call may stay silent before it is ended.
+///  Citation: none, and **unmeasured as a quiet window**. The figure was the call's total deadline, "several times the largest
+///  figure on record (1.4 s in `doc/audit/standards-review-gate-shadow.md`)"; that is a whole time, and a whole time is an upper
+///  bound of a quiet gap, not the gap. The gap of every call is now kept in the ledger (`quiet_ledger.rs`).
+pub const CALL_QUIET_WINDOW: Duration = Duration::from_secs(10);
 
 /// What:
 ///  The common Git directory of a worktree's Git directory: the directory its `commondir` file names, else the directory
@@ -73,7 +74,7 @@ pub fn common_dir_of(git_dir: &Path) -> PathBuf {
 pub fn options_for(item: &WorkItem, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
     let common: PathBuf = common_dir_of(Path::new(item.git_dir.as_str()));
     let mut options: ReviewOptions = options_from_environment(common.as_path(), variable);
-    options.deadline = CALL_DEADLINE;
+    options.quiet_window = CALL_QUIET_WINDOW;
     return options;
 }
 
@@ -122,17 +123,18 @@ fn wall_clock_millis() -> u64 {
 }
 
 /// What:
-///  Review one item within `budget`: `Done` when an entry was written, was not needed, or the worktree does not
-///  hold the tracked shadow log that switches the review on;
-///  `Failed` with the reason when the commit could not be read, the log could not be written, or the budget ran out.
+///  Review one item: `Done` when an entry was written, was not needed, or the worktree does not hold the tracked shadow log that
+///  switches the review on; `Failed` with the reason when the commit could not be read, the log could not be written, or the
+///  review stopped with an internal error.
 /// Why:
 ///   The caller settles `Failed` items into `failed`, so a review that cannot finish is a plain record and never a stuck claim.
+///  No budget covers the whole run; each step ends on no progress by itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await reviewItem(context, item, options, budget)
+/// await reviewItem(context, item, options)
 /// ```
-pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions, budget: Duration) -> Verdict {
+pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions) -> Verdict {
     if !has_shadow_log(Path::new(item.repository.as_str())) {
         return Verdict::Done;
     }
@@ -140,9 +142,9 @@ pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions
     // item's Git directory for its input file, as the landing sets it for each request.
     let owned_context: GitContext = GitContext { common_dir: Some(PathBuf::from(item.git_dir.as_str())), ..context.clone() };
     let owned: WorkItem = item.clone();
-    let outcome: Option<ReviewOutcome> = run_within(budget, move || { return run_review(&owned_context, &owned, &options, &wall_clock_millis); });
+    let outcome: Option<ReviewOutcome> = run_contained(move || { return run_review(&owned_context, &owned, &options, &wall_clock_millis); });
     return match outcome {
-        None => Verdict::Failed(format!("the review of {} did not finish within {} s", item.oid, budget.as_secs())),
+        None => Verdict::Failed(format!("the review of {} stopped with an internal error", item.oid)),
         Some(ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message)) => Verdict::Failed(message),
         Some(ReviewOutcome::NoEntry | ReviewOutcome::Skipped | ReviewOutcome::Reviewed(_) | ReviewOutcome::AlreadyLogged) => Verdict::Done,
     };

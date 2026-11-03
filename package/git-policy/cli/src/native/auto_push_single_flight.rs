@@ -12,7 +12,7 @@
 
 use super::bounded_push::STOP_GRACE;
 use super::push_deadline_advice::limit_clause;
-use super::bounded_query::{QueryOutput, query_deadline, run_bounded_query};
+use super::bounded_query::{QueryOutput, query_window, run_bounded_query};
 use super::js_text::trim_javascript;
 /// Owned OS strings for Git arguments and the child environment.
 use std::ffi::OsString;
@@ -45,11 +45,11 @@ pub enum SingleFlightError {
     },
     /// A coordination file could not be read or published.
     Io(std::io::Error),
-    /// A Git query was still running at its deadline and was stopped.
+    /// A Git query showed no sign of work for its quiet window and was stopped.
     TimedOut {
         /// Arguments of the query, for the diagnostic.
         arguments: String,
-        /// The deadline it exceeded, in whole seconds.
+        /// The quiet window it exceeded, in whole seconds.
         seconds: u64,
     },
 }
@@ -71,7 +71,7 @@ impl std::fmt::Display for SingleFlightError {
             Self::Io(error) => write!(formatter, "{error}"),
             Self::TimedOut { arguments, seconds } => write!(
                 formatter,
-                "git {arguments} did not finish within {seconds} seconds and was stopped; {}",
+                "git {arguments} showed no sign of work for {seconds} seconds and was stopped; {}",
                 limit_clause()
             ),
         };
@@ -132,7 +132,10 @@ pub struct PushGit {
 pub fn git_command(git: &PushGit, arguments: &[OsString]) -> Command {
     let mut command = Command::new(&git.real_git);
     super::hooks_off::add_arguments(&mut command, arguments);
-    return in_push_environment(command, git);
+    let mut in_place = in_push_environment(command, git);
+    // The push environment is built from nothing, so the marker is added after it: this start says it is Git's too.
+    super::started_as_git::mark_real_git_start(&mut in_place, super::started_as_git::StartMode::Child);
+    return in_place;
 }
 
 /// What:
@@ -194,13 +197,13 @@ pub fn git_output(git: &PushGit, arguments: &[OsString]) -> Result<String, Singl
 }
 
 /// What:
-///  Run a read-only Git query with its own deadline and capture its streams separately.
+///  Run a read-only Git query that is ended only when it shows no sign of work, and capture its streams separately.
 /// Why:
 ///   A query that never returns would hold the caller, and the service's push behind it, for good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await nanoSpawn(gitPath, args, { cwd, signal: AbortSignal.timeout(deadlineMs) })
+/// await nanoSpawn(gitPath, args, { cwd, signal: quietFor(windowMs) })
 /// ```
 pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, SingleFlightError> {
     // An exact read-only command line the in-process readers know costs no Git process.
@@ -210,7 +213,7 @@ pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, S
     return run_bounded_query(
         git_command(git, arguments),
         describe_arguments(arguments).as_str(),
-        query_deadline(&git.environment),
+        query_window(&git.environment),
         STOP_GRACE,
         git.environment.as_slice(),
     );

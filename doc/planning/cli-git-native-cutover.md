@@ -293,7 +293,8 @@ The `git` that a session in this repository resolves is a pnpm shim,
   "`git cli-git trust is retired. cli-git now reads cli-git.config.jsonc as data ...`" and exit 0,
    change nothing,
   and leave the old records in place and unread (observed with the integration worktree's debug build;
-  decision in `doc/handover/cli-git-rust-implementation.md`,
+  decision in `doc/handover/cli-git-rust-implementation.md` [moved on 2026-11-03 to
+  `doc/planning/cli-git-rust-open-decisions.md`],
    `User decisions 2026-10-05`).
   This difference is the cheapest way to tell which wrapper a `git` is:
    the incumbent prints JSON for `status`.
@@ -427,7 +428,7 @@ Not replaced:
 the scanner source,
  and `.git/cli-git*` state,
  which both wrappers read
-(`doc/handover/cli-git-rust-implementation.md`,
+(`doc/handover/cli-git-rust-implementation.md` [moved on 2026-11-03 to `doc/planning/cli-git-rust-open-decisions.md`],
  `Adopted without a question`,
  first item).
 
@@ -633,7 +634,8 @@ The main checkout's `.claude/settings.json` has no hit;
 - `.github/workflows/cli-git-trust.yml` still builds the incumbent:
    its supported-runtime job runs `build:js`.
 - No workflow runs the native tests on macOS or Windows
-  (`doc/handover/cli-git-rust-implementation.md`,
+  (`doc/handover/cli-git-rust-implementation.md` [moved on 2026-11-03 to
+  `doc/planning/cli-git-rust-open-decisions.md`],
    `Adopted without a question`,
   item on hosted runners,
    is not implemented).
@@ -762,7 +764,8 @@ The main checkout's `.claude/settings.json` has no hit;
   `package/git-policy/cli/src/allowed-worktree-dirs.ts`:
    repoint to `default_allowed_worktree_dirs` in
   `package/git-policy/cli/src/native/effective_target.rs:118`.
-- `doc/handover/cli-git-rust-implementation.md` queue items at `:1556-1558`,
+- `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+  `e10b8186bc`] queue items at `:1556-1558`,
   `:1593` and the sentence "Current production tools remain active until cutover" (`:1599`),
   and `doc/handover/cli-git-native-integration.md` `Remaining`:
    update when the cutover lands;
@@ -898,7 +901,8 @@ The results are in `doc/handover/cli-git-native-interop.md`.
   coupling).
 - `perf/*.json` (the incumbent's measured baselines):
    the accepted performance bar is "faster than the incumbent per
-  scenario" (`doc/handover/cli-git-rust-implementation.md`,
+  scenario" (`doc/handover/cli-git-rust-implementation.md` [moved on 2026-11-03 to
+  `doc/planning/cli-git-rust-open-decisions.md`],
    `Adopted without a question`),
   and the baselines are the incumbent side of that comparison.
   The `perf/*.ts` harness ran a packed npm tarball and was deleted (see `Decisions`);
@@ -1027,7 +1031,8 @@ The results are in `doc/handover/cli-git-native-interop.md`.
      the three differentials are deleted,
      `native:interop` stays and needs provisioning from the pinned
 revision).
-7.  The trailing gates in `doc/handover/cli-git-rust-implementation.md` (`Gates that trail the cutover`) include the
+7.  The trailing gates in `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P
+   and kept in commit `e10b8186bc`] (`Gates that trail the cutover`) include the
     old-and-new interop matrix,
      which needs a runnable incumbent after the retirement.
     Note (2026-10-13): deleted at the user's request and readable at commit `5d61d7b442`:

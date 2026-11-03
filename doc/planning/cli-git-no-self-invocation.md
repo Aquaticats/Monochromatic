@@ -1,7 +1,9 @@
 # The wrapper never starts itself
 
 Status: phase 1 built in this branch (LFS upload run by the parent, merge push, bans, lock budget); phase 2 (the hook
-dispatcher) is another change.
+dispatcher) is another change. The start of the real Git itself is covered by the section "The wrapper never starts
+itself as Git (2026-11-03T10:49:47-05:00)", which supersedes the section "No runtime marker that refuses a nested
+start".
 
 ## The rule
 
@@ -51,7 +53,9 @@ are from the commit before this change (`5561c8b7cb`) unless a path says "now".
   search for the real Git so that the wrapper never selects itself. Nothing is started from it. It carries
   `#[allow(clippy::disallowed_methods)]` with that reason.
 - `entry.rs` `forwarded_to_self` and `FORWARD_TARGET_VARIABLE`. A guard that reports a wrapper found as its own
-  real Git. It prevents an accidental loop; it starts nothing.
+  real Git. It prevents an accidental loop; it starts nothing. It covered only a target that is the running
+  executable; the launcher incident of 2026-11-03 showed that it was not enough, and `started_as_git.rs` was added
+  beside it.
 - `CLI_GIT_STACKED_PUSH`. Still set, now in the planner's environment and in the overlay of the merge push, so Git
   and its hooks can tell a merge push. It is not a start.
 - `hooks_off.rs`. Points `core.hooksPath` at a directory that never exists, so traditional hook files
@@ -153,10 +157,20 @@ repository without LFS keys pays nothing: its pushes still replace the process.
 
 ### No runtime marker that refuses a nested start
 
-A refusal such as "if `CLI_GIT_NESTED` is set, do not run" is not added. A user's own hook or script legitimately runs
-`git status` through an absolute path or an installed wrapper; a runtime refusal would break that, and the forward
-target guard (`forwarded_to_self`) already covers the one accidental loop. The design is removed and banned at build
-time instead.
+Superseded on 2026-11-03T10:49:47-05:00 by the marker of "The wrapper never starts itself as Git". The text that
+follows is the decision as it stood, kept as the record of what was weighed.
+
+A refusal such as "if `CLI_GIT_NESTED` is set, do not run" is not added. A user's own hook or script legitimately
+runs `git status` through an absolute path or an installed wrapper; a runtime refusal would break that, and the
+forward target guard (`forwarded_to_self`) already covers the one accidental loop. The design is removed and banned
+at build time instead.
+
+What the later incident showed (see the section "The wrapper never starts itself as Git"): the forward target guard
+compared the selected file with the running executable, and a toolchain launcher is another file, so the one
+accidental loop it covered was not the only one. The objection to a runtime refusal was that it would refuse
+legitimate nesting. The marker of that section does not: it refuses only the process that a wrapper started as Git,
+or the child of the wrapper that started it, and a hook, alias or editor of the real Git has another process in
+between.
 
 ### The manual-push probe
 
@@ -186,6 +200,142 @@ prints text imitating the explanation does not add one (control
 `a_remote_refusal_is_not_blamed_on_the_upload_even_when_it_imitates_the_explanation`), another configured `pre-push`
 hook of the caller that fails is not blamed on the upload, and a failed upload never starts the push, so Git's
 "failed to push some refs" line does not follow it.
+
+## The wrapper never starts itself as Git (2026-11-03T10:49:47-05:00)
+
+### What was observed
+
+Release 0.5.26, 2026-11-03: with no real Git after the wrapper on `PATH`, the wrapper ran itself as the real Git and
+each copy did the same, a chain of wrapper processes, each one the child of the one above it and each command line
+longer than its parent's (each level adds its own `-c core.hooksPath=/dev/null/cli-git-no-hooks` option and a
+`-c hook.<event>.enabled=false` option for every hook event). It reached the 100 tasks its control group allowed. The
+setup: `PATH` held a directory with a `cargo` link, a rustup toolchain `bin` and `.cache/cli-git-bin`, and no
+`/usr/bin`;
+`.cache/cli-git-bin/git` was a symlink to the toolchain launcher `.cache/toolchain-launchers/cli-git-native` (an
+executable file of the `mpm-shadow` binary, with a `cli-git-native.launch` record beside it naming the real wrapper
+executable). The owner's rule it broke: "We should never invoke ourselves recursively."
+
+Reproduced with a copy of the real launcher, a record that names the debug build, and a `PATH` holding only a
+symlink to it, inside `systemd-run --user --scope --property=TasksMax=24`. `git rev-parse HEAD` grew a chain of
+wrapper processes (17 counted, the command lines 1223, 2291, 3359 and 4427 bytes, growing by 1068 bytes per level)
+until the scope held 24 tasks and refused the next. `git --version` filled the scope the same way, and the wrapper
+logged each start refused for lack of processes (`start_retry.rs` tries again for a bounded time, which is why a
+chain at a cap looks held and not stopped).
+
+### Cause
+
+- `real_git_candidate.rs` `classify_candidate` decided that a `PATH` candidate was the wrapper by inode
+  (`same_file`), by canonical path and by byte equality (`identical_content`), and otherwise by the first four bytes
+  (an executable signature means real Git) or by markers of the TypeScript wrapper in a script. The launcher is a
+  different file with different bytes and a native signature, so it was real Git.
+- The wrapper then started it as Git. The launcher read its record and replaced itself with the real wrapper
+  executable, a third file. That wrapper looked for Git, found the launcher again, and started it again. The first
+  start in the observed chain was a child, not a replacement: `rev-parse` first reads the repository layout through
+  a child Git (`repository_location.rs`, `--git-common-dir --show-toplevel --show-prefix`), and that child was the
+  next wrapper.
+- `entry.rs` `plan_invocation` had one guard, `forwarded_to_self`: stop when the forward-target variable names this
+  executable (`same_file`). The variable named the launcher, and this executable is the real wrapper behind it, so
+  the guard never matched. The one case it covered, a copy that is its own target, is the case the earlier controls
+  tested.
+- The version text and the start disagreed because they were produced under different `PATH` values, not by two code
+  paths. `real_git.rs` `candidate_sequence` promotes a conventional location (`/usr/bin/git`) only when `PATH`
+  exposes it. The reporter's shell had `/usr/bin` and the banner named it; the failing process had none. Under the
+  launcher-only `PATH`, `git --version` loops the same way (measured in the capped scope, above).
+
+### Rule
+
+The wrapper never starts a file as Git when that file is, or leads to, a cli-git wrapper, and a cli-git executable
+that a wrapper started as Git stops at once. There are two layers, because file identity cannot be complete (a copy
+of another release, a launcher with no record, a link through a directory the wrapper cannot read) and the start
+itself can always be recognised.
+
+- Selection (`real_git_candidate.rs` `is_wrapper_launcher`): a candidate with a record `<name>.launch` beside it, or
+  beside the file its links finally reach, is a launcher of the wrapper when the record's `toolId` ends in this
+  crate's name, or its `real` is this executable. It is classified as a wrapper and skipped, like a link or a copy.
+- Arrival (`started_as_git.rs`): every start of the real Git sets `CLI_GIT_STARTED_AS_GIT` to the starter's process
+  number, its birth identity (`process_identity.rs`, `current_birth_identity`) and the mode (`replace` for the exec
+  start, `child` for every other). `run_process` stops the process before it plans anything when the mode is
+  `replace` and the process number is its own with the same birth, or the mode is `child` and the marker names its
+  parent with the same birth. The exit status is 2, and the message names the executable, the starter and how it
+  started this process, the file the starter chose as Git, the `PATH` it saw, why it stops, and the ways out.
+- The failure when no real Git is found lists every candidate with its verdict, the `PATH` value, and the ways out
+  (install Git; add the directory of the real Git to the `PATH` of the program that ran the command; remove an entry
+  that should not be used). `cli-git-service` refuses a `--git` that is a launcher of the wrapper.
+
+### Why the marker names the process and not only the variable
+
+The earlier decision refused a blanket runtime refusal because a hook or alias that runs an installed wrapper below
+a real Git is legitimate. A variable the real Git passes to everything below it cannot tell that case from the loop;
+the starter's process number can. A wrapper below a real Git has the real Git (or its shell) as its parent, never
+the starter, and the process of a replaced starter is Git itself, so a hook of it has a different number. The birth
+identity keeps a reused process number from being taken for the starter. An identity that cannot be read decides by
+the numbers alone, because stopping one start too many is repaired by reading the message, and missing a start is
+not.
+
+Options weighed, with the ranking the repository rules require:
+
+- A. Selection by the launch record plus the arrival marker with the starter's number (built). Pros: stops the
+  observed chain before any start, and stops anything the record does not reveal at the first arrival; no false stop
+  for hooks, aliases or editors below a real Git; costs a variable lookup per ordinary start and one small file read
+  per candidate examined. Cons: a program that the wrapper starts as Git, that is not itself a wrapper but starts
+  one without a replacement (a user script `git` that runs the wrapper as a child), stands between the starter and
+  the arriving wrapper, so the parent test misses it; selection catches such a script only when it carries a record
+  or a marker string.
+- B. The marker alone, as a flag: any cli-git executable that finds the variable stops. Pros: catches the script
+  case. Cons: refuses every legitimate nested use below a real Git, which the earlier decision rejected on purpose.
+- C. Selection only. Pros: the smallest change. Cons: cannot see another release, a launcher with no record or a
+  script; the observed class of failure remains.
+- D. A depth counter in the environment with a limit. Pros: bounds every shape. Cons: bounds the damage and does not
+  prevent the start, and the limit is a number nobody measured; it also stops legitimate deep nesting.
+
+Ranking: A > B > C > D. A over B because B reintroduces the false stops that the earlier decision avoided; B over C
+because B at least stops the chain at its second link in every shape; C over D because C starts nothing in the
+observed class while D lets a bounded chain run.
+
+### Where the wrapper starts the real Git
+
+Every place that starts the real Git sets the marker (the list is `rg "Command::new"` over the release source,
+checked 2026-11-03):
+
+- `forwarding.rs` `git_command`, the shared builder (child), and `replace_process_with_real_git` (replace). Callers:
+  forwarded commands, queries, the commit steps, the auto-push, maintenance, the service's landing and index work.
+- `auto_push_single_flight.rs` `git_command`, the push builder (child).
+- `git_system_config.rs` `ask_git_var` (`git var`, with a cleared environment) and `management.rs` `status_git_dir`
+  (`rev-parse`), the two starts that did not go through a builder.
+- Not Git: `lfs_upload.rs` starts `git-lfs`, which finds Git through a `PATH` whose first entry is the real Git's
+  directory; `package_repair_command.rs` starts package managers; `process_start.rs` and `index_lock_holders.rs`
+  start `ps`, `powershell.exe` and `lsof`. None starts the wrapper, and none is a start of Git.
+- The hook shims: the wrapper writes none (see "The bans"). The shims `git lfs install` writes are never run through
+  the wrapper's Git, because every start carries `core.hooksPath` below `/dev/null`.
+- The service: `service_main.rs` takes `--git`, starts Git only through `git_command` (marked), and now refuses a
+  `--git` that is a launcher of the wrapper. A unit written while the flaw stood would hold the launcher path; the
+  unit text includes `--git`, so `service_provision.rs` `in_place` finds it different from the text the next wrapper
+  writes, and the next wrapper writes it again.
+
+### Controls
+
+- `binary_never_self_start_tests.rs`, behind a counting stand-in launcher that stops the chain itself after
+  `START_CAP` starts (no control relies on the host to stop a process): a symlink to a launcher, a launcher named
+  `git`, a chain of symlinks to a launcher, another release behind an unrecorded launcher (child start and replacing
+  start), and a symlink, a hard link and a copy of the wrapper alone on `PATH`. Before the fix four of the five
+  failed with 7 to 13 starts of the stand-in and exit status 97 (or `stand-in: start cap reached`), and the fifth
+  failed for lack of the explanation. After it, the launchers are never started and the wrapper exits 2 with the
+  message.
+- The arrival marker shown red once: with the check disabled (`if true || ...`) the unrecorded-launcher control
+  chained to the stand-in's cap and failed with `stand-in: start cap reached`, while the three launcher controls
+  still passed because the selection layer stops those. The check was restored.
+- Unit controls: `started_as_git_tests.rs` (marker format, both modes, a reused number, an unreadable identity, the
+  live process, the message, the builders), `real_git_candidate_tests.rs` (a native launcher with a record, through
+  its own name and through links; another tool's launcher; a record whose `real` is this executable; broken
+  records), `real_git_tests.rs` (every candidate and the `PATH` in the failure).
+
+### Not covered
+
+- A user script named `git` that the wrapper starts as Git and that runs the wrapper as a child, with no record and
+  no marker string: the arriving wrapper's parent is the script, not the starter. The script is the cause; the
+  message of a wrapper that cannot find Git names every candidate, so it shows the script as the entry to remove.
+- A `PATH` with no real Git is still a stop. The wrapper does not fall back to `/usr/bin/git` when `PATH` does not
+  expose it; that is a separate decision.
 
 ## Hang analysis: the owner's suspicion of a concurrent LFS deadlock
 

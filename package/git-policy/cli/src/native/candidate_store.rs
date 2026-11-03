@@ -104,7 +104,11 @@ pub struct CandidateStore {
 
 /// The most commits one `git rev-list` receives.
 ///  `usize` is the type of counts; 2,048 object names stay far below any argument limit.
-const COMMIT_CHUNK_SIZE: usize = 2_048;
+///  Exempt from a citation under `LQM` (class: chunk size): it splits one command into several starts of the same
+///  command, so the result is the same and only the number of starts changes. Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
+const COMMIT_CHUNK_SIZE: usize = super::candidate_prediction::PATHSPEC_CHUNK_SIZE;
 
 /// What:
 ///  Build the failure of a listing command that could not be started or exited unsuccessfully.

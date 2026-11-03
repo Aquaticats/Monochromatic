@@ -68,6 +68,10 @@ mod announced;
 #[path = "binary_resolution_tests.rs"]
 mod resolution;
 
+/// The wrapper never starts itself as Git: launchers, links, copies and other releases behind counting stand-ins.
+#[path = "binary_never_self_start_tests.rs"]
+mod never_self_start;
+
 /// Configuration loading and the read-only fast path.
 #[path = "binary_policy_tests.rs"]
 mod policy;
@@ -139,6 +143,10 @@ mod word_merge;
 #[path = "binary_word_merge_finish_tests.rs"]
 mod word_merge_finish;
 
+/// A merge that waits for a held `index.lock` and lands on a branch that moved underneath it.
+#[path = "binary_merge_never_fails_tests.rs"]
+mod merge_never_fails;
+
 /// Real commits through the transaction: landing, policies, replay and conflict.
 #[path = "binary_commit_tests.rs"]
 mod commit;
@@ -202,6 +210,10 @@ mod worktree_slow_route;
 /// A main checkout with uncommitted changes is snapshotted and restored to what Git's own checkout makes.
 #[path = "binary_worktree_dirty_snapshot_tests.rs"]
 mod worktree_dirty_snapshot;
+
+/// The checkout of a new worktree gets Git's parallel checkout only where the person's configuration sets no `checkout.workers`.
+#[path = "binary_worktree_checkout_workers_tests.rs"]
+mod worktree_checkout_workers;
 
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
@@ -298,6 +310,10 @@ mod push_failure;
 /// Merge, pull's merge, cherry-pick, revert and am hand the push to the service, as a commit does; a rebase does not.
 #[path = "binary_push_trigger_tests.rs"]
 mod push_trigger;
+/// A fetch after a Git was killed while it held reference locks: removed on a proof, described and kept otherwise.
+#[path = "binary_stale_ref_lock_tests.rs"]
+mod stale_ref_lock;
+
 
 /// The message and identity options through the service, compared with native Git field by field.
 #[path = "binary_service_options_tests.rs"]
@@ -344,6 +360,18 @@ mod service_scratch;
 /// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
 #[path = "binary_service_native_tests.rs"]
 mod service_native;
+
+/// A commit with named paths during a revert, a cherry-pick or a merge, compared with real Git.
+#[path = "binary_service_sequencer_tests.rs"]
+mod service_sequencer;
+
+/// A commit of named paths while another session's merge is unfinished lands, and the merge is carried forward.
+#[path = "binary_commit_during_merge_tests.rs"]
+mod commit_during_merge;
+
+/// Guard: no option of the wrapper's follows the person's `--` in any Git start, and no `--quiet` is added.
+#[path = "binary_option_order_guard_tests.rs"]
+mod option_order_guard;
 
 /// The route of a commit and the wrapper's own provisioning of socket activation, against a stand-in session bus.
 #[path = "binary_service_provision_tests.rs"]

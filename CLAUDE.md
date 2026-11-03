@@ -30,7 +30,8 @@ advisor reads the transcript,
 sol reads only what you paste.
 Paste whole files,
 never prose.
-Attach a diff as an `@path` argument, not as prose.
+Attach a diff as an `@path` argument,
+not as prose.
 It is the cross-vendor reviewer:
 a Claude subagent is a second pass.
 `timeout` here takes SECONDS.
@@ -229,11 +230,10 @@ VHI:
 
 PX1:
  Take authorized steps unasked,
- including recovery.
-While verification runs,
- advance independent queued work without changing its inputs.
-Don't poll;
- stop only at completion or a genuine blocker.
+ including recovery and missing reproductions/checks.
+While verifying,
+ advance independent work without changing inputs.
+Stop at completion or an external blocker.
 
 MWK:
  Monitors,
@@ -297,9 +297,11 @@ or cross-vendor reviewer;
 never same-session self-review (`doc/agent/self-review.md`).
 
 IRW:
- Independent review means a reviewer from another model vendor than the author, or the user.
+ Independent review means a reviewer from another model vendor than the author,
+ or the user.
 A same-vendor subagent is a second pass:
- label it so, never as independent.
+ label it so,
+ never as independent.
 
 XIC:
  Similar or concurrent symptoms stay separate incidents until user-visible boundaries match.
@@ -491,16 +493,14 @@ Suppressions with rationale are healthy;
 ### Before claiming inability
 
 CB1:
- Before refusing or handing off,
- bridge:
- shell utils;
- web via `agent-browser`;
- GUI via nested compositor,
- HTTP/IPC;
- auth via `expect`/tokens;
- hardware via CLI.
-Refuse only after;
- state bridges tried.
+ Before handing off,
+ try shell,
+ `agent-browser`,
+ nested GUI,
+ HTTP/IPC,
+ auth and hardware CLI bridges.
+A failed tool is not a failed capability;
+ report each attempted bridge and its exact failure.
 
 RXH:
  Research:
@@ -598,6 +598,17 @@ BRQ:
  derivations and own ideas are revisable suggestions;
  inferred requirements or policy:
  ask first.
+
+DQB:
+ Before briefing work on a component,
+ grep `doc/decision/` for its records
+ and quote every owner decision and amendment that bears on the task,
+ with path and lines.
+
+FBN:
+ A user saying a cost is fine or acceptable sets a bound,
+ never a stop:
+ keep improving it unless the user drops the goal.
 
 ## Before running a command
 
@@ -1413,6 +1424,12 @@ MGN:
  or the relation under test,
  so a legitimate change breaks nothing.
 
+LQM:
+ Shipped resource limits (unit caps,
+ timeouts,
+ size bounds) cite a workload measurement or owner decision beside the value;
+ agent-command cgroup rules never size shipped code.
+
 GFP:
  A guard test proves nothing until shown to fail:
  commit it,
@@ -1643,6 +1660,12 @@ RBK:
  handovers:
  `doc/handover/<topic>.md`;
  package-specific ones stay beside code.
+
+H0P:
+ A handover holds only open work and current state:
+ when an item lands or is superseded,
+ move its durable facts to their canonical doc,
+ then delete it from the handover.
 
 ### Handling external changes
 

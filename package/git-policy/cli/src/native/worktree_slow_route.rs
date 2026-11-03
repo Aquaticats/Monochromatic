@@ -114,6 +114,28 @@ fn subject(identity: &WorktreeIdentity) -> &'static str {
 const THEN_QUICK: &str = "and the next add is a snapshot that takes seconds";
 
 /// What:
+///  The sentence for a source whose Git status could not be read, with the run that failed and what the person can do.
+/// Why:
+///   The status is what tells a real change from a record of file times that is out of date; without it neither cause can be
+///  named, and the person can read Git's own error by running the same command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const route = statusFailed({ subject, root, reason });
+/// ```
+fn status_failed(subject: &str, root: &Path, reason: &str) -> SlowRoute {
+    return SlowRoute {
+        word: "status-failed",
+        detail: reason.to_string(),
+        sentence: format!(
+            "Git could not list the uncommitted changes of {subject} ({}). Run `git -C {} status` to read its error and fix what it names, or wait if another Git command is running there, {THEN_QUICK}.",
+            plain(reason),
+            plain(root.to_string_lossy().as_ref())
+        ),
+    };
+}
+
+/// What:
 ///  The cause and the sentence for an unclean source, chosen by the kind of the refusal.
 /// Why:
 ///   A running command and an unfinished operation are told as such; an entry no reset can undo is told as that; otherwise
@@ -139,7 +161,11 @@ fn explain_unclean(context: &GitContext, root: &Path, subject: &str, kind: Clean
         }
         CleanRefusalKind::StagedChange | CleanRefusalKind::FileChanged | CleanRefusalKind::StatStale | CleanRefusalKind::Racy | CleanRefusalKind::Untracked => {}
     }
-    if let Some(ChangedPaths { count, first, .. }) = changed_paths(context, root) {
+    let listed: ChangedPaths = match changed_paths(context, root) {
+        Ok(found) => found,
+        Err(failure) => return status_failed(subject, root, failure.as_str()),
+    };
+    if let ChangedPaths { count, first: Some(first), .. } = listed {
         let paths: &str = if count == 1 { "path" } else { "paths" };
         return SlowRoute {
             word: "uncommitted-changes",
@@ -175,6 +201,7 @@ pub fn explain_refusal(context: &GitContext, identity: &WorktreeIdentity, refusa
     return Some(match refusal.kind {
         RefusalKind::Unclean(kind) => explain_unclean(context, root, subject(identity), kind, refusal.reason.as_str()),
         RefusalKind::Unsupported => explain_unsupported(refusal.reason.as_str()),
+        RefusalKind::StatusFailed => status_failed(subject(identity), root, refusal.reason.as_str()),
     });
 }
 

@@ -54,3 +54,33 @@ fn subjects_join_the_first_paragraph() {
     assert_eq!(subject_of(b""), Some(Vec::new()));
     assert!(subject_of(b"a\r\nb\n").is_none());
 }
+
+/// A second listing of the same tree, through a database opened afresh as each in-process question does, decodes no pack
+/// entry: one commit asks a dozen questions about the same base tree, and each used to read all of it again.
+#[test]
+fn a_tree_listed_before_is_not_read_again() {
+    use crate::repo_read_object::from_hex;
+    use crate::test_support::{fixture, git, git_output, remove};
+    let root = fixture("repo-read-tree-shared");
+    let repo = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    for directory in 0..30 {
+        std::fs::create_dir_all(repo.join(format!("d{directory}/sub"))).expect("dirs");
+        std::fs::write(repo.join(format!("d{directory}/sub/f.txt")), format!("{directory}\n")).expect("file");
+    }
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
+    git(repo.as_path(), &["prune-packed"]);
+    let named = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD^{tree}"]).stdout).expect("UTF-8");
+    let tree = from_hex(named.trim().as_bytes(), ObjectFormat::Sha1).expect("name");
+    let first_database = ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1).expect("database");
+    let first = flatten_tree_shared(&first_database, tree.as_slice(), ObjectFormat::Sha1).expect("listing");
+    assert!(first_database.decoded_entries() > 0, "the first listing reads the pack");
+    let second_database = ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1).expect("database");
+    let second = flatten_tree_shared(&second_database, tree.as_slice(), ObjectFormat::Sha1).expect("listing");
+    assert_eq!(second_database.decoded_entries(), 0, "the second listing decodes nothing");
+    assert_eq!(first, second);
+    remove(root.as_path());
+}

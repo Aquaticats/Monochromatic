@@ -41,9 +41,15 @@ const NAME_SEPARATOR: char = '+';
 
 /// The longest branch key a record name carries whole; a longer key is cut and tagged with a hash of the whole key, so the
 ///  name stays a valid file name and two long branch names do not share records.
+///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
+///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const LONGEST_KEY: usize = 100;
 
 /// The most bytes of Git's own words a record keeps.
+///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
+///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const LONGEST_REASON: usize = 4000;
 
 /// First line of a record that holds its parts as fields; a file without it is the finished text an earlier release wrote.
@@ -66,7 +72,7 @@ pub fn notice_directory(git_dir: &Path) -> PathBuf {
 }
 
 /// A 64-bit FNV-1a hash of the text, in hexadecimal.
-fn fnv_hex(text: &str) -> String {
+pub fn fnv_hex(text: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in text.bytes() {
         hash ^= u64::from(byte);

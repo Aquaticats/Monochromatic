@@ -138,8 +138,7 @@ the Sakura line and the footnote are read on a full-bench pass.
 
 The owner,
 after the payment refusal of 12:22 UTC:
-"What the hell is going on,
-I just topped up 200USD to openrouter yesterday and today it's already dry?
+"I just topped up 200USD to openrouter yesterday and today it's already dry?
 We're being token inefficient at an unsustainable level."
 Then,
 after a question that should not have been asked:

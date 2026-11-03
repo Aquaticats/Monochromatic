@@ -60,6 +60,12 @@ impl IndexLock {
         return IndexLock { lock, index: index.to_path_buf(), marker, held, inspect: calls.0, remove: calls.1, armed: true };
     }
 
+    /// The live index this lock guards.
+    ///  A function that takes a borrow of the lock can only be called by the holder, and works on files beside this index.
+    pub fn index(&self) -> &Path {
+        return self.index.as_path();
+    }
+
     /// What:
     ///  Removes the lock the holder owns.
     /// Why:

@@ -32,7 +32,9 @@ use super::child_environment::{
     FORWARD_TARGET_VARIABLE, child_environment_overlay, environment_value,
 };
 use super::effective_target::default_allowed_worktree_dirs;
+use super::forwarded_lock_notice::{forwarded_lock_notice, is_covered};
 use super::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
+use super::stale_ref_lock_judge::Judge;
 use super::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordinated_forward};
 use super::index_writer_commands::is_index_writer;
 use super::forwarded_command::{ResolvedCommand, Route, creates_worktrees, resolve_forwarded_command};
@@ -48,6 +50,7 @@ use super::policy_checks::{ShippedChecks, shipped_checks};
 /// A forwarded command starts with no candidate content.
 use super::policy_content::LifecycleContent;
 use super::real_git::{ResolutionInputs, process_resolution_inputs, resolve_real_git};
+use super::started_as_git::refusal_when_started_as_git;
 use super::real_git_candidate::same_file;
 use super::repository_facts::{GitFacts, RepositoryFacts, git_facts};
 use super::rule_require_root::{RequireRootDecision, decide_require_root};
@@ -289,7 +292,11 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     // From here on every real-Git start of this process runs with traditional hooks off.
     super::hooks_off::activate();
     let action: Action = match process_resolution_inputs(environment) {
-        Ok(inputs) => plan_invocation(arguments, environment, &inputs),
+        // A cli-git executable that a wrapper started as Git stops before it plans anything or starts anything.
+        Ok(inputs) => match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {
+            Some(refusal) => failure(refusal.as_str()),
+            None => plan_invocation(arguments, environment, &inputs),
+        },
         Err(error) => failure(
             format!(
                 "cannot determine this executable or the current directory, so real Git \
@@ -852,6 +859,13 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
             stderr: stderr_with_warning,
         };
     }
+    // A plain forwarded fetch or push becomes Git itself, so the reference locks of a killed Git are judged here, before.
+    let lock_notice: String = if is_covered(command.word()) {
+        forwarded_lock_notice(command.word(), &command.arguments[..command.subcommand_index], environment, &Judge::here())
+    } else {
+        String::new()
+    };
+    let stderr_with_locks: String = format!("{stderr_with_warning}{lock_notice}");
     let forwarded: Vec<OsString> = arguments;
     return match copy {
         Some(facts) => Action::ForwardSettled {
@@ -859,13 +873,13 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
             arguments: forwarded,
             overlay,
             copy: facts,
-            stderr: stderr_with_warning,
+            stderr: stderr_with_locks,
         },
         None => Action::Forward {
             real_git,
             arguments: forwarded,
             overlay,
-            stderr: stderr_with_warning,
+            stderr: stderr_with_locks,
         },
     };
 }

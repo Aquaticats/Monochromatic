@@ -15,7 +15,7 @@ use super::bounded_push::PUSH_DEADLINE_VARIABLE;
 use super::service_messages::RESTART_COMMAND;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// The deadline the service advice gives as its example, in seconds.
+/// The stall window the service advice gives as its example, in seconds.
 pub const EXAMPLE_SECONDS: u32 = 120;
 
 /// Whether this process is the resident commit service, which says so once at its start.

@@ -195,7 +195,8 @@ which holds the locked ripgrep.
 mise run //package/search-shadow/cli:lint
 mise run //package/search-shadow/cli:lint:clippy
 mise run //package/search-shadow/cli:test
-# Installs the tools this host lacks inside a podman container (no network at run time, 2 GiB, 2 CPUs) and checks
+# Installs the tools this host lacks inside a podman container (no network at run time, 2 GiB, 2 CPUs, the lowest
+# disk weight: --blkio-weight=10 and --cgroup-conf=io.weight=10) and checks
 # every shadow against its real tool
 # (a lone --version must equal the real tool's output plus the one announcement line).
 mise run //package/search-shadow/cli:test:container

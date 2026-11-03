@@ -1,5 +1,8 @@
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import {
+  glob,
+  readFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
@@ -49,6 +52,34 @@ async function readRepositoryFile(path: string): Promise<string> {
     ),
     'utf8'
   );
+}
+
+/**
+ Repository-relative paths of every file a pattern matches, outside dependency and build directories.
+
+ @param pattern - glob relative to the repository root
+ @returns the matching paths in sorted order, so a comparison does not depend on directory order
+ */
+async function repositoryFiles(pattern: string): Promise<string[]> {
+  const found = await Array.fromAsync(glob(pattern, {
+    cwd: root,
+    exclude: ['**/node_modules/**', '**/target/**'],
+  }));
+  return found.toSorted();
+}
+
+/**
+ Whether a manifest line names a crate as a dependency in an inline table, `<name> = { ... }`.
+
+ @param line - one line of a manifest
+ @param name - crate the line may name
+ @returns true for the only dependency form the pin edit supports, so the scan asks the edit only about those lines
+ */
+function namesInlineDependency({ line, name }: { line: string; name: string }): boolean {
+  if (!line.startsWith(name))
+    return false;
+  const afterName = line.slice(name.length).trimStart();
+  return afterName.startsWith('=') && afterName.slice('='.length).trimStart().startsWith('{');
 }
 
 /**
@@ -369,22 +400,29 @@ await describe({
                 },
               }),
               it({
-                name: 'every pin file holds an exact pin of the crate at the version the crate holds now',
+                name: 'the pin files are exactly the manifests that pin the crate at the version the crate holds now',
                 fn: async () => {
                   const version = versionOf(await readRepositoryFile(manifestPath));
-                  expect(entry.pinFiles.length).toBeGreaterThan(0);
-                  const pinTexts = await Promise.all(entry.pinFiles.map(async function readPin(pinFile) {
-                    return await readRepositoryFile(pinFile);
-                  }));
-                  for (const text of pinTexts) {
+                  const manifests = await repositoryFiles(`package/**/${manifestFileName}`);
+                  // The crate's own manifest is part of the scan, so a scan that reached no manifest cannot pass
+                  // for a crate that nothing pins.
+                  expect(manifests).toContain(manifestPath);
+                  const pinning = (await Promise.all(manifests.map(async function pinsTheCrate(manifest) {
+                    const text = await readRepositoryFile(manifest);
+                    const namesTheCrate = text.split('\n').some(function isDependencyLine(line) {
+                      return namesInlineDependency({ line, name });
+                    });
+                    if (!namesTheCrate)
+                      return [];
                     const edit = replaceDependencyPin({
                       text,
                       crateName: name,
                       from: version,
                       to: '99.99.99',
                     });
-                    expect(edit.changed).toBe(true);
-                  }
+                    return edit.changed ? [manifest] : [];
+                  }))).flat();
+                  expect(pinning).toEqual(entry.pinFiles.toSorted());
                 },
               }),
               it({

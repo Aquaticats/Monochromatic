@@ -16,6 +16,7 @@
 //! await restoreDirtySnapshot({ source, target, stage, runGit, context }); // throws the reason it cannot be proven
 //! ```
 
+use super::inner_git_words::record_words;
 use super::transaction_git::{GitContext, GitRequest, run_git};
 use super::worktree_copy::GitRunner;
 use super::worktree_ladder_target::{Target, checkout_environment, run_step};
@@ -55,7 +56,7 @@ pub fn record_left_out(destination: &Path, changed: &ChangedPaths) {
     let fields: [(&str, String); 3] = [
         ("CLI_GIT_WORKTREE", destination.to_string_lossy().into_owned()),
         ("CLI_GIT_DIRTY_PATHS", changed.count.to_string()),
-        ("CLI_GIT_DIRTY_FIRST", changed.first.clone()),
+        ("CLI_GIT_DIRTY_FIRST", changed.first.clone().unwrap_or_default()),
     ];
     super::client_journal::record_entry(super::journald_native::Priority::Info, note.trim_end(), &fields);
 }
@@ -137,10 +138,21 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
         return Err(format!("`git read-tree --reset -u` ended with {:?}", reset.code));
     }
     let reset_ms: u128 = began.elapsed().as_millis();
-    let clean = run_step(run_git_step, in_stage(&["clean", "--force", "-d", "--quiet"]).as_slice(), environment.as_slice())?;
+    // The `clean` carries no `--quiet`, and what it says ("Removing notes.txt" for each untracked file of the stage) is about
+    //  the stage, which the person's command never names, so Git's words are kept in the journal and not printed. It is run
+    //  captured, like the proof that follows, in the same stage under the same Git directory.
+    let clean_request: GitRequest = GitRequest {
+        cwd: stage.to_path_buf(),
+        arguments: ["clean", "--force", "-d"].iter().map(OsString::from).collect(),
+        without_prefix: true,
+        environment: environment.clone(),
+        ..GitRequest::default()
+    };
+    let clean = run_git(context, &clean_request).map_err(|error| { return format!("`git clean --force -d` could not start ({error})"); })?;
     if !clean.succeeded() {
         return Err(format!("`git clean --force -d` ended with {:?}", clean.code));
     }
+    record_words(&["clean", "--force", "-d"], &clean);
     let clean_ms: u128 = began.elapsed().as_millis();
     prove_restored(context, target, stage)?;
     super::diagnostic_log::debug(

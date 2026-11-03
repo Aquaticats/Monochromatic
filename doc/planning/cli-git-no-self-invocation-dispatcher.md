@@ -7,7 +7,7 @@ It records the decision, what was tried, what was measured, and what is still op
 ## The owner's words, in order
 
 - "We should never invoke ourselves recursively. That's bad design. Audit, remove, and ban that design aggressively."
-- "What the hell, we don't have to use any shell!"
+- We don't have to use any shell.
 - On running configured hooks inside Git: "Git runs your configured hooks directly - no it shouldn't do that. We don't
   need to reimplement git commit or use generated shell entries. There are better ways."
 - "No, not dropping preparation hook support. I didn't ask you to do that. I only asked you to stop supporting OTHER

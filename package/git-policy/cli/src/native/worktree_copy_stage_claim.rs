@@ -23,7 +23,7 @@ use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_fail
 use super::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use super::worktree_copy_journal::{
     Role, TEMPORARY_SUFFIX, assert_private_path, ensure_journal_root, journal_root,
-    read_pending_journals, remove_file_if_present, remove_stage, temporary_writer_token, write_atomic,
+    read_pending_journals, remove_file_if_present, remove_stage, temporary_writer_token, write_atomic, write_atomic_unsynced,
 };
 use super::worktree_copy_selection::{STAGE_PREFIX, js_order};
 use super::worktree_copy_stage::new_stage_container;
@@ -85,10 +85,46 @@ impl StageClaim {
     /// await claim.markComplete();
     /// ```
     pub fn mark_complete(&self) -> Result<(), WorktreeCopyError> {
-        write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker")?;
+        super::add_timing::step("markCompleteFile", || { return write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); })?;
         if let Some(parent) = self.path.parent() {
-            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+            super::add_timing::step("markCompleteDirectory", || { return sync_directory(parent); }).map_err(|error| return raw_failure(&error))?;
         }
+        return Ok(());
+    }
+
+    /// What:
+    ///  Records that the worktree add this claim covers is complete, published whole by a rename and flushed by nobody.
+    /// Why:
+    ///   Used after a subvolume was swapped into place: the swap makes the next flush in its btrfs transaction a commit of the
+    ///  whole filesystem, which waited eighteen seconds behind other writers' data. The marker only silences the notice a
+    ///  later command gives for an add it finds without one (recovery changes nothing), and the filesystem's own commit makes it
+    ///  durable. It can never be durable before the swap: both belong to one transaction, or the marker to a later one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await claim.markCompleteUnsynced();
+    /// ```
+    pub fn mark_complete_unsynced(&self) -> Result<(), WorktreeCopyError> {
+        return super::add_timing::step("markCompleteFile", || { return write_atomic_unsynced(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); });
+    }
+
+    /// What:
+    ///  Removes the claim and its records without flushing the removals.
+    /// Why:
+    ///   The same reason as [`StageClaim::mark_complete_unsynced`]. Records that return after a crash only make the next command
+    ///  settle them: a marker present means no notice, and no record means nothing to say.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await claim.releaseUnsynced();
+    /// ```
+    pub fn release_unsynced(self) -> Result<(), WorktreeCopyError> {
+        // The same order as the durable release: the record before the marker, the marker before the claim.
+        if let Some(record) = self.destination_record.as_deref() {
+            remove_file_if_present(record)?;
+        }
+        remove_file_if_present(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
+        remove_file_if_present(self.path.as_path())?;
         return Ok(());
     }
 

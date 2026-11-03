@@ -244,7 +244,7 @@ pub fn start_object_reader_with(
         return Err(reader_ended("started without its request and reply pipes"));
     };
     // `Ok(...)` is the success variant; `Some(...)` is the "present" variant.
-    let watch: ChildWatch = ChildWatch::start(reader_subject().as_str(), child.id(), terms);
+    let watch: ChildWatch = ChildWatch::start(reader_subject().as_str(), child.id(), terms).kept_as("git cat-file --batch");
     return Ok(ObjectReader {
         child,
         pipes: Some(ReaderPipes {

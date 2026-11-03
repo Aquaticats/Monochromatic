@@ -1616,6 +1616,24 @@ arms `arm-a`,
   which tree supplies attributes to `git merge-tree` in the wrapper's
   object-only merges,
   so that the union line also applies there.
+- What a fully resolved merge does when the second pass settles every conflicted part,
+  owner's choice (question tool,
+  2026-11-03):
+  "Finish like a clean merge (Recommended)",
+  that is,
+  the merge,
+  rebase,
+  cherry-pick,
+  revert or `git pull` ends as a clean run of that command would,
+  honouring `--no-commit`,
+  `--squash`,
+  `--edit` and similar options.
+  Adopted from that answer without a further question:
+  the finish runs the hooks a clean merge runs
+  (`pre-merge-commit`,
+  not `pre-commit`),
+  respects a person's `attr.tree` as Git does,
+  and derives the candidate size bounds from Git's own constants.
 
 ## 2026-11-03T03:39:36-05:00: implemented, the word-level second merge pass
 

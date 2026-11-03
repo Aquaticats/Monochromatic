@@ -14,6 +14,8 @@
 
 use super::worktree_copy_compare::{entry_matches, lstat_or_absent};
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
+use super::parallel_budget::{HostResources, sliced_workers};
+use super::worktree_copy_stage::PARALLEL_COPY_MAX_WORKERS;
 use super::worktree_copy_install_entry::{
     InstalledPath, capture_installed_path, create_selected_entry, ensure_parents_remembering,
 };
@@ -178,6 +180,10 @@ fn install_batch(
 ///  The leaves per worker below which a batch's files and links are created on one thread.
 /// Why:
 ///   A large batch spends its time in independent link calls; a small one is faster without the thread start.
+///  Not measured on the install itself. `clone_tree`, which makes files by the same calls, was faster with 8 workers than with
+///  one at every size it ran in parallel (13 ms against 39 ms at 555 entries, 20 ms against 74 ms at 1,077); its own threshold
+///  is 512. This value is the coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -240,7 +246,7 @@ fn install_leaves(
     let workers: usize = if leaves.len() < PARALLEL_INSTALL_MIN_LEAVES {
         1
     } else {
-        std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get).min(8)
+        sliced_workers(leaves.len(), PARALLEL_COPY_MAX_WORKERS, &HostResources::read())
     };
     let slice_length: usize = leaves.len().div_ceil(workers).max(1);
     let results: Vec<(Vec<InstalledPath>, Option<WorktreeCopyError>)> = std::thread::scope(|scope| {

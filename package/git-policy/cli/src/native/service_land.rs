@@ -147,7 +147,7 @@ fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
 fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock) -> bool {
     let cleaned: bool = intent.cleanup.as_ref().is_none_or(|cleanup| { return remove_conclusion_state(git, repository, cleanup); });
     // The new index is built beside the real one and installed by the release of the lock the landing holds.
-    let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), intent.index.as_path(), intent.seq) else {
+    let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), &lock, intent.seq) else {
         return false;
     };
     return lock.release_with(built.as_path()).is_ok() && cleaned;
@@ -301,7 +301,7 @@ pub fn land_batch_timed(
             }
             // Git moves a branch to a commit without looking at what the commit holds, so a tree or a blob that a prune took
             //  while the commit object survived would put a damaged commit on the branch.
-            let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", "--quiet", built] } else { vec!["rev-list", "--objects", "--quiet", built, "--not", old.as_str()] };
+            let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", built] } else { vec!["rev-list", "--objects", built, "--not", old.as_str()] };
             if !run(&git, repository, connected.as_slice(), None)?.succeeded() {
                 return Err(FailureCode::Unavailable);
             }
@@ -309,7 +309,12 @@ pub fn land_batch_timed(
         } else {
             let marks: PathBuf = context.journal.join(format!("marks-{seq}"));
             let marks_argument: String = format!("--export-marks={}", marks.display());
-            checked(&git, repository, &["fast-import", "--quiet", "--done", marks_argument.as_str()], Some(import_stream(scratch.as_str(), old.as_str(), &batch, amended_parents.as_slice())))?;
+            let imported: GitOutput = run(&git, repository, &["fast-import", "--done", marks_argument.as_str()], Some(import_stream(scratch.as_str(), old.as_str(), &batch, amended_parents.as_slice())))?;
+            if !imported.succeeded() {
+                return Err(classify(&imported));
+            }
+            // The import carries no `--quiet`, so its `--stats` report is kept in the service's log.
+            crate::inner_git_words::record_words(&["fast-import", "--done"], &imported);
             let marks_text: String = std::fs::read_to_string(&marks).map_err(|_| { return FailureCode::Unavailable; })?;
             let _marks_removed = std::fs::remove_file(&marks);
             let made: Vec<String> = commits_from_marks(marks_text.as_str(), batch.len()).ok_or(FailureCode::Unavailable)?;

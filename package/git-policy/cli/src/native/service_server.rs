@@ -23,6 +23,7 @@ use super::private_storage::remove_tree;
 use super::service_instance::instance_of;
 use super::claim_time::ClaimTime;
 use super::service_retry::RetrySchedule;
+use super::push_retry::{PLAN_DIRECTORY, PushRetries};
 use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
@@ -36,7 +37,11 @@ use std::sync::Arc;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-/// The most requests landed as one batch.
+/// The most requests landed as one batch. A prototype measured batches that "grow from 1 under light load to 21 to 64 in a burst"
+///  (`doc/planning/cli-git-resident-service.md`, lines 274 to 276), the largest equal to this cap. In production, 1,302 answered
+///  requests in the service journal (2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z, `size` and `position` fields) were all
+///  batches of one, so no observation of this build reaches the cap or shows where it should be; the value is the prototype's, kept
+///  as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const MAX_BATCH: usize = 64;
 
 /// How long a connection may take to send its request line before it is dropped.
@@ -44,6 +49,11 @@ pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// How long the service waits with nothing to do before it exits; the manager's socket stays, so the next connection starts it
 ///  again. Bazel's server does the same with `--max_idle_secs`, whose default is three hours, which is this value's precedent.
+///  Measured cost of exceeding it: of 1,051 commits in the commit timing log (2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z), the 10
+///  that followed an idle gap of more than three hours reached the service in at most 70 ms (`reachMs`) after a start wait of at
+///  most 47 ms (`startWaitMs`); 110 idle exits happened in that window. The 28 running services held 212 MiB together (7.9 MiB each,
+///  `systemctl --user show --property=MemoryCurrent`). A shorter exit would trade at most that start for that memory; the owner's
+///  bound is that a commit should not take 5 s longer than native Git (`SPEC.md`). Kept at three hours as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const IDLE_EXIT: Duration = Duration::from_secs(3 * 60 * 60);
 
 /// File descriptor the service manager passes the listening socket on (`SD_LISTEN_FDS_START`).
@@ -366,6 +376,8 @@ impl BatchTimes {
 /// from the acceptance of its connection to the answer.
 fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, position: usize, outcome: &str) {
     let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
+    // What the Git steps and tools since the previous answer showed; the answer that finds them takes them.
+    let quiet: Vec<(String, Duration)> = super::quiet_ledger::drain();
     let line: String = answered_line(&Answered {
         request: request.id.as_str(),
         reference: request.reference.as_str(),
@@ -380,6 +392,7 @@ fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, po
         land_total: times.land_total,
         answer: times.landed_at.elapsed(),
         total: arrival.accepted.elapsed(),
+        quiet: quiet.as_slice(),
     });
     // A request that was answered with a failure is a warning, so `journalctl --priority=warning` finds the commits that failed.
     let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };
@@ -481,15 +494,30 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
 /// Why:
 ///   Draining claims everything pending, so a burst of wakes for one repository is one pass. The instance that held a claim
 ///  may have died, and nothing but this loop would then wake the work: it waits for a wake no longer than the first lease still
-///  running, and the service counts itself busy meanwhile, so it does not exit idle with work claimed by a dead holder.
+///  running, and the service counts itself busy meanwhile, so it does not exit idle with work claimed by a dead holder. The same
+///  holds for a push the service stopped: the loop owns the plan of its new tries (`PushRetries`), each round hands the workers
+///  what is due and applies what they ask, and the wake for the earliest plan is kept in the same schedule as the lease wakes, so
+///  the service neither forgets the plan nor exits idle while a try is pending.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
 /// ```
-fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize) {
+pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize, mut push_retries: PushRetries) {
     let mut retries: RetrySchedule = RetrySchedule::default();
     let mut counted_waiting: bool = false;
+    // A plan that is already there when the loop starts (one rebuilt from disk) is woken for like one made by a round.
+    let started: Instant = Instant::now();
+    let restored: Vec<(PathBuf, Duration)> = push_retries
+        .directories()
+        .into_iter()
+        .filter_map(|directory| { return push_retries.next_wait(directory.as_path(), started).map(|wait| { return (directory, wait); }); })
+        .collect();
+    retries.replace(&[], restored, started);
+    if !retries.is_empty() {
+        busy.fetch_add(1, Ordering::SeqCst);
+        counted_waiting = true;
+    }
     loop {
         let first: Option<Wake> = match retries.next_wait(Instant::now()) {
             None => match receiver.recv() {
@@ -505,8 +533,10 @@ fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsi
         busy.fetch_add(1, Ordering::SeqCst);
         let mut wakes: Vec<Wake> = first.into_iter().chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })).collect();
         wakes.extend(retries.take_due(Instant::now()).into_iter().map(|directory| { return (directory, None); }));
-        let ran: Vec<PathBuf> = wakes.iter().map(|(directory, _)| { return directory.clone(); }).collect();
-        let asked: Vec<(PathBuf, Duration)> = run_round(wakes, handlers, &ClaimTime::read());
+        let mut ran: Vec<PathBuf> = wakes.iter().map(|(directory, _)| { return directory.clone(); }).collect();
+        let asked: Vec<(PathBuf, Duration)> = run_round(wakes, handlers, &mut push_retries, &ClaimTime::read());
+        // A directory the round named for its plan alone (the common directory of a bare repository) replaces its old entry too.
+        ran.extend(asked.iter().map(|(directory, _)| { return directory.clone(); }));
         retries.replace(ran.as_slice(), asked, Instant::now());
         // A repository waiting to be looked at again keeps the service from exiting idle, as running work does.
         if !retries.is_empty() && !counted_waiting {
@@ -549,7 +579,9 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
-    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy); });
+    // The plan of the pushes waiting for a new try is kept in this instance's own journal, so a restarted service rebuilds it.
+    let plan_directory: PathBuf = context.journal.join(PLAN_DIRECTORY);
+    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path())); });
     let announced_release: String = settings.release.clone();
     let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     let instance: Option<String> = settings.instance.clone();

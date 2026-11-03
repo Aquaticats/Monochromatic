@@ -17,7 +17,8 @@ This branch expresses the repository's own cli-git configuration in the native w
 and proves that the native wrapper decides like the incumbent TypeScript wrapper under it.
 It answers the work-queue item
 "This repository's translated configuration must list all four optional policies and set `rulesFile`"
-in `doc/handover/cli-git-rust-implementation.md`.
+in `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+`e10b8186bc`].
 
 Branch `feat/cli-git-native-config`,
 worktree `.claude/worktrees/cli-git-lane-config`,
@@ -56,7 +57,8 @@ and `security/forbidden-strings`.
 Each one is off unless the file lists it (`off_unless_listed` rows in `src/native/policy_registry.rs:184` to `:208`),
 and an empty file and no file behave identically.
 This is the user decision of 2026-10-05
-(`doc/handover/cli-git-rust-implementation.md:1255` to `:1260`).
+(`doc/handover/cli-git-rust-implementation.md:1255` to `:1260` [moved on 2026-11-03 to
+`doc/planning/cli-git-rust-open-decisions.md`]).
 
 The mapping from `cli-git.config.ts` to `cli-git.config.jsonc`, setting by setting:
 
@@ -68,14 +70,17 @@ The mapping from `cli-git.config.ts` to `cli-git.config.jsonc`, setting by setti
 - `mono/dependent-version-bump` is absent from `cli-git.config.ts`
   but ran at its default severity, `error`, through the registered repository plugin.
   It is listed at `"error"` explicitly
-  (`doc/handover/cli-git-rust-implementation.md:1255` to `:1260` names this consequence).
+  (`doc/handover/cli-git-rust-implementation.md:1255` to `:1260` [moved on 2026-11-03 to
+  `doc/planning/cli-git-rust-open-decisions.md`] names this consequence).
 - `security/forbidden-strings` at `error` (`cli-git.config.ts:42`) becomes
   `["error", { "builtinRules": true, "rulesFile": ".cache/forbidden-strings.rules.txt" }]`.
   `builtinRules` is the schema default, stated as the incumbent states it.
   `rulesFile` is new in the native format (`src/native/config_policies.rs:153`, `src/native/config_schema.rs:130`):
   the scanner reads the file it names relative to the top level,
   else the `FORBIDDEN_STRINGS_RULES` variable, else `forbidden-strings.local.txt`
-  (`src/native/scanner_selection.rs:115`; user decision at `doc/handover/cli-git-rust-implementation.md:1293`).
+  (`src/native/scanner_selection.rs:115`;
+  user decision at `doc/handover/cli-git-rust-implementation.md:1293` [moved on 2026-11-03 to
+  `doc/planning/cli-git-rust-open-decisions.md`]).
   The value is the path the root `mise.toml` gives `FORBIDDEN_STRINGS_RULES` (line 1319),
   so both wrappers read one file.
 - The incumbent's `executable` option has no counterpart:
@@ -239,7 +244,8 @@ blocks `git add` and the commit.
 - Default taken: keep `rulesFile` at `.cache/forbidden-strings.rules.txt`, relative to the worktree,
   and add no mechanism that creates or finds the file.
   The reason is the user decision of 2026-10-05 that the configured option comes first
-  (`doc/handover/cli-git-rust-implementation.md:1293`) and that a missing explicit file is an error,
+  (`doc/handover/cli-git-rust-implementation.md:1293` [moved on 2026-11-03 to
+  `doc/planning/cli-git-rust-open-decisions.md`]) and that a missing explicit file is an error,
   so a worktree never scans with fewer rules than the repository names.
   The native error names the missing path.
 - Chosen by the user on 2026-10-12: the ignored-state copy brings `.cache/forbidden-strings.rules.txt`

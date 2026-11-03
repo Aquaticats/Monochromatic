@@ -176,9 +176,14 @@ pub struct Selection {
 /// const mode = region.hasNoOnlyFlag || concludesSequencer || readOnlySelection || region.hasAllFlag || (!selectsPaths) ? 'index' : 'explicit-path';
 /// ```
 pub fn decide_selection(region: &CommitRegion, conclusion: Conclusion) -> Selection {
-    let concludes_sequencer: bool = conclusion != Conclusion::None && conclusion != Conclusion::Amend;
     let read_only: bool = region.include || region.interactive || region.patch;
     let selects_paths: bool = !region.pathspecs.is_empty() || region.pathspec_from_file.is_some();
+    // Named paths never conclude another session's unfinished merge or stopped cherry-pick: real Git refuses them there as a
+    //  partial commit, and the commit lands as an ordinary commit of those paths while the state is carried on (`SPEC.md`,
+    //  "Merges and commits never fail"). Real Git takes named paths during a revert and concludes it with them, which stays.
+    let paths_only: bool = selects_paths && !read_only && !region.all && region.only != Some(false);
+    let refused_by_git: bool = matches!(conclusion, Conclusion::Merge | Conclusion::CherryPick);
+    let concludes_sequencer: bool = conclusion != Conclusion::None && conclusion != Conclusion::Amend && !(paths_only && refused_by_git);
     let staged_all: bool = region.all && !selects_paths && !read_only && region.only != Some(true);
     let index_mode: bool = region.only == Some(false)
         || concludes_sequencer

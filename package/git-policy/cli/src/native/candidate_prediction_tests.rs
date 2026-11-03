@@ -616,3 +616,25 @@ fn staged_at_base_compares_with_the_recorded_base_and_not_the_moved_head() {
     assert!(nothing.version.candidates().is_empty());
     remove(root.as_path());
 }
+
+/// A chunk of paths, and a chunk of object names of the longest hash, stay under half of the operating system's argument limit,
+///  so the chunk size is far from the limit it exists to avoid.
+#[test]
+fn a_chunk_of_arguments_stays_under_half_the_argument_limit() {
+    // The longest object name is a SHA-256 name in hexadecimal; each argument also costs its terminating NUL byte.
+    const LONGEST_OBJECT_NAME_CHARACTERS: usize = 64;
+    // SAFETY: `sysconf` reads a system constant and touches no memory of this process.
+    let limit: libc::c_long = unsafe { libc::sysconf(libc::_SC_ARG_MAX) };
+    assert!(limit > 0, "the argument limit is known");
+    let half: usize = usize::try_from(limit).expect("a positive limit") / 2;
+    let paths: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZE * (crate::service_protocol::P99_CHANGED_PATH_CHARACTERS + 1);
+    let names: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZE * (LONGEST_OBJECT_NAME_CHARACTERS + 1);
+    assert!(paths <= half, "{paths} bytes of paths must fit under {half}");
+    assert!(names <= half, "{names} bytes of names must fit under {half}");
+}
+
+/// The three chunk sizes that split argument lists are one value, so a change is made once.
+#[test]
+fn the_argument_chunk_sizes_are_one_value() {
+    assert_eq!(crate::candidate_attribute::ATTRIBUTE_CHUNK_SIZE, crate::candidate_prediction::PATHSPEC_CHUNK_SIZE);
+}

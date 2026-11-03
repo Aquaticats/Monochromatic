@@ -85,7 +85,7 @@ impl std::error::Error for MaintenanceError {}
 pub enum MaintenanceDecision {
     /// `maintenance.auto`, or a non-positive `gc.auto` when it is unset, turns maintenance off.
     Disabled,
-    /// Run `git maintenance run --auto --quiet` with the listed arguments.
+    /// Run `git maintenance run --auto` with the listed arguments.
     Run(Vec<&'static str>),
 }
 
@@ -172,7 +172,7 @@ fn javascript_number(value: &str) -> f64 {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// autoMaintenanceArgs({}); // ['maintenance', 'run', '--auto', '--quiet', '--detach']
+/// autoMaintenanceArgs({}); // ['maintenance', 'run', '--auto', '--detach']
 /// ```
 pub fn auto_maintenance_arguments(config: &BTreeMap<String, String>) -> MaintenanceDecision {
     // `get` returns the value of a key that Git printed, or nothing when it was unset.
@@ -198,7 +198,7 @@ pub fn auto_maintenance_arguments(config: &BTreeMap<String, String>) -> Maintena
         Some(value) => bool_or_int_true(value.as_str()),
     };
     let flag: &'static str = if detach { "--detach" } else { "--no-detach" };
-    return MaintenanceDecision::Run(vec!["maintenance", "run", "--auto", "--quiet", flag]);
+    return MaintenanceDecision::Run(vec!["maintenance", "run", "--auto", flag]);
 }
 
 /// Decision controls live beside the decision.

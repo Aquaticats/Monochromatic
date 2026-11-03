@@ -267,18 +267,36 @@ fn kill_self() -> ! {
 }
 
 /// What:
-///  Waits until the release file exists, polling every 20 milliseconds.
+///  Waits until the release file exists, polling every 20 milliseconds, and gives up with an error when the directory the
+///  test named for its markers is gone.
 /// Why:
-///   A paused phase lets a test inspect the repository before the transaction continues.
+///   A paused phase lets a test inspect the repository before the transaction continues. The directory is the test's fixture,
+///  which a test removes as it ends, however it ended; once it is gone nobody can write the release file, and a process that
+///  went on polling would run for ever in a directory that no longer exists. The wait watches the fixture and not a clock, so
+///  a slow host never cuts a pause short.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (;;) { try { await access(path); return; } catch { await wait(20); } }
+/// for (;;) {
+///   if (await exists(release)) return;
+///   if (!(await exists(directory))) throw new Error('the directory of the pause is gone');
+///   await wait(20);
+/// }
 /// ```
-fn await_release(path: &Path) {
-    while !path.exists() {
+///
+/// # Errors
+/// An I/O error of kind `NotFound` when the directory of the pause no longer exists.
+fn await_release(directory: &Path, release: &Path) -> Result<(), PhaseMarkerError> {
+    while !release.exists() {
+        if !directory.exists() {
+            return Err(PhaseMarkerError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("the directory {} of the pause is gone, so nothing can release it", directory.display()),
+            )));
+        }
         std::thread::sleep(RELEASE_POLL);
     }
+    return Ok(());
 }
 
 /// What:
@@ -318,8 +336,7 @@ pub(crate) fn reach_with_value(
         PhaseAction::Kill => kill_self(),
         PhaseAction::Pause => {
             let directory: &Path = signal.directory.as_deref().unwrap_or(Path::new(""));
-            await_release(&directory.join(format!("{stem}.release")));
-            return Ok(());
+            return await_release(directory, &directory.join(format!("{stem}.release")));
         }
     }
 }

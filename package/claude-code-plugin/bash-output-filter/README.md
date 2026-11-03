@@ -123,7 +123,8 @@ Blanket default-on backgrounding is an owner decision confirmed on 2026-10-21,
 ### Scope
 
 The forcing is broader than the long-command procedure in
- [`doc/handover/cli-git-rust-implementation.md`](../../../doc/handover/cli-git-rust-implementation.md),
+ [`doc/handover/cli-git-rust-implementation.md`](../../../doc/handover/cli-git-rust-implementation.md)
+ [section removed on 2026-11-03 under rule H0P and kept in commit `e10b8186bc`],
  which backgrounds only tests,
  clippy,
  mutation,

@@ -145,7 +145,7 @@ fn collapse_ignored_roots(paths: &[String]) -> Vec<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runMetadataGit({ args: ['-C', sourceRoot, 'check-ignore', '--quiet', '--no-index', '--', repositoryPath] })
+/// await runMetadataGit({ args: ['-C', sourceRoot, 'check-ignore', '--no-index', '--', repositoryPath] })
 /// ```
 fn is_ignored_special_path(
     context: &GitContext,
@@ -156,7 +156,6 @@ fn is_ignored_special_path(
         cwd: source_root.to_path_buf(),
         arguments: vec![
             "check-ignore".into(),
-            "--quiet".into(),
             "--no-index".into(),
             "--".into(),
             repository_path.into(),

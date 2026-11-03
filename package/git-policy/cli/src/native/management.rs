@@ -410,13 +410,16 @@ fn status_git_dir(global_arguments: &[OsString], environment: &[(OsString, OsStr
     let Some(real) = real_git else {
         return Selection::Unresolved(String::from("no real Git was found to ask"));
     };
-    let asked = std::process::Command::new(real)
+    let mut asking = std::process::Command::new(real);
+    asking
         .args(global_arguments)
         .args(["rev-parse", "--path-format=absolute", "--absolute-git-dir"])
         .envs(environment.iter().map(|(name, value)| { return (name, value); }))
         .env("LC_ALL", "C")
-        .stdin(std::process::Stdio::null())
-        .output();
+        .stdin(std::process::Stdio::null());
+    // This start of the real Git says so too, like every other (`started_as_git.rs`).
+    super::started_as_git::mark_real_git_start(&mut asking, super::started_as_git::StartMode::Child);
+    let asked = asking.output();
     let output = match asked {
         Ok(found) => found,
         Err(error) => return Selection::Unresolved(format!("Git could not be started: {error}")),

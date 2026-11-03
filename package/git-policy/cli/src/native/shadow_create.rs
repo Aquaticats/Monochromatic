@@ -33,6 +33,8 @@ use super::conclusion_copy::copy_conclusion_state;
 use super::shadow_refs::write_shadow_refs;
 /// Private directory creation and file writes.
 use super::private_storage::create_private_directory;
+/// Where Git's words go now that the `init` carries no `--quiet`.
+use super::inner_git_words::record_words;
 /// Process context and one required Git start.
 use super::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -118,7 +120,7 @@ pub fn ensure_private_directory(directory: &Path) -> std::io::Result<()> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runGit({ args: ['init', '--bare', '--quiet', '--template=', `--object-format=${format}`, '--ref-format=reftable', shadow] });
+/// await runGit({ args: ['init', '--bare', '--template=', `--object-format=${format}`, '--ref-format=reftable', shadow] });
 /// ```
 fn init_with_git(
     context: &GitContext,
@@ -128,7 +130,6 @@ fn init_with_git(
     let arguments: Vec<String> = vec![
         String::from("init"),
         String::from("--bare"),
-        String::from("--quiet"),
         String::from("--template="),
         format!("--object-format={}", layout.object_format),
         String::from("--ref-format=reftable"),
@@ -137,7 +138,9 @@ fn init_with_git(
     let mut init: GitRequest = GitRequest::new(layout.common_dir.as_path(), &arguments);
     init.without_prefix = true;
     init.unset = REPOSITORY_REDIRECT_VARIABLES.iter().map(|name| { return OsString::from(*name); }).collect();
-    run_git_checked(context, &init)?;
+    let made = run_git_checked(context, &init)?;
+    // The `init` carries no `--quiet`; what Git said of it is kept in the journal.
+    record_words(&["init", "--bare", "--template=", "--ref-format=reftable"], &made);
     return Ok(());
 }
 
@@ -183,6 +186,30 @@ pub fn create_shadow_repository_at(
     shadow: &Path,
     transaction_directory: &Path,
 ) -> Result<(), GitFailure> {
+    return create_shadow_repository_carrying(context, cwd, capture, shadow, transaction_directory, true);
+}
+
+/// What:
+///  `create_shadow_repository_at`, with the merge, cherry-pick and revert conclusion state of the worktree either copied into
+///  the scratch repository or left out of it.
+/// Why:
+///   A commit of named paths while another session's merge is unfinished must build as an ordinary commit of those paths on
+///  `HEAD` (real Git refuses it as a partial commit during a merge); a scratch repository that holds no `MERGE_HEAD` builds
+///  exactly that, and the landing then leaves the worktree's own conclusion state alone because the scratch repository
+///  never held it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await createShadowRepositoryCarrying({ gitPath, cwd, capture, shadowPath, transactionDirectory, carryConclusion });
+/// ```
+pub fn create_shadow_repository_carrying(
+    context: &GitContext,
+    cwd: &Path,
+    capture: &InvocationCapture,
+    shadow: &Path,
+    transaction_directory: &Path,
+    carry_conclusion: bool,
+) -> Result<(), GitFailure> {
     let layout = &capture.layout;
     if layout.ref_format == super::transaction_journal::RefFormat::Reftable {
         // The reftable backend's tables are Git's to create, so this one case still starts `git init`.
@@ -208,14 +235,16 @@ pub fn create_shadow_repository_at(
     .map_err(|error| { return GitFailure(format!("writing the shadow alternates failed: {error}")); })?;
     link_shadow_entries(shadow, layout.common_dir.as_path(), layout.git_dir.as_path())
         .map_err(|error| { return GitFailure(format!("linking the shadow entries failed: {error}")); })?;
-    copy_conclusion_state(
-        context,
-        cwd,
-        layout.git_dir.as_path(),
-        shadow,
-        transaction_directory,
-        layout.ref_format,
-    )?;
+    if carry_conclusion {
+        copy_conclusion_state(
+            context,
+            cwd,
+            layout.git_dir.as_path(),
+            shadow,
+            transaction_directory,
+            layout.ref_format,
+        )?;
+    }
     write_shadow_refs(
         context,
         cwd,

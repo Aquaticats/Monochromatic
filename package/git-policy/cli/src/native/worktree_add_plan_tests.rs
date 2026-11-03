@@ -332,11 +332,17 @@ fn a_destination_below_missing_directories_is_read_without_them() {
 /// the table with the same letter, name and value, and the table lists nothing Git does not.
 #[test]
 fn the_option_table_matches_what_git_prints_for_dash_h() {
+    // `git worktree` sets up a repository before it reads `-h`, so it runs inside a fixture repository: outside one, as in
+    // the container gate's working directory, Git stops with "not a git repository" and prints no usage.
+    let root: PathBuf = fixture("add-plan-dash-h");
+    let repo: PathBuf = repository(root.as_path(), "repo");
     let output: Output = std::process::Command::new(crate::test_support::REAL_GIT)
         .args(["worktree", "add", "-h"])
+        .current_dir(repo.as_path())
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .output()
         .expect("git runs");
+    remove(root.as_path());
     // `-h` prints the usage on standard output with status 129, and the option lines follow a blank line.
     let text: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned() + String::from_utf8_lossy(output.stderr.as_slice()).as_ref();
     let listed: Vec<(Option<u8>, Option<String>, bool)> = text

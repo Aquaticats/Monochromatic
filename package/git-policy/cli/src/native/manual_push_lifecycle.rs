@@ -15,7 +15,9 @@ use super::auto_push_single_flight::PushGit;
 use super::candidate_object::parse_object_id;
 use super::candidate_prediction::PushedScope;
 use super::manual_push_cause::ManualPushCause;
-use super::manual_push_probe::{GitRefusal, PushUpdate, probe_manual_push_updates};
+use super::manual_push_probe::{GitRefusal, MOST_CONCURRENT_QUERIES, PushUpdate, QUERY_MEMORY, probe_manual_push_updates};
+use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use super::parallel_runner::{Event, OrderedRun, run_ordered};
 use super::manual_push_range::{
     ManualPushRangeError, UpdateScope, peel_commits, published_tips, tracking_commits, update_scope,
 };
@@ -96,6 +98,15 @@ pub fn scopes_of_updates(
     git: &PushGit,
     updates: &[PushUpdate],
 ) -> Result<Vec<UpdateScope>, ManualPushFailure> {
+    return scopes_of_updates_on(&HostResources::read(), git, updates);
+}
+
+/// `scopes_of_updates` with the host's resources chosen by the caller, so a control states a host of any size.
+pub fn scopes_of_updates_on(
+    host: &HostResources,
+    git: &PushGit,
+    updates: &[PushUpdate],
+) -> Result<Vec<UpdateScope>, ManualPushFailure> {
     let remote_names: Vec<String> = updates.iter().fold(Vec::new(), |mut names, update| {
         if !names.contains(&update.remote_name) {
             names.push(update.remote_name.clone());
@@ -116,14 +127,35 @@ pub fn scopes_of_updates(
         return from_range(&error);
     })?;
     let tips: BTreeMap<String, Vec<String>> = published_tips(updates, &prior, &tracking);
+    // Each update is bounded by its own destination's tips and read by its own `cat-file` and `rev-list`, so the updates are
+    //  independent reads and run side by side, at most `MOST_CONCURRENT_QUERIES` at once; the scopes come back in the order Git
+    //  negotiated the updates, and the first update that fails decides the error.
+    let lanes: Vec<Vec<usize>> = (0..updates.len()).map(|index: usize| { return vec![index]; }).collect();
+    let workers: usize = worker_budget(&BudgetRequest { items: updates.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_QUERIES), cap: None, host });
     let mut scopes: Vec<UpdateScope> = Vec::new();
-    for update in updates {
-        let published: Vec<String> = tips.get(&update.remote_name).cloned().unwrap_or_default();
-        scopes.push(update_scope(git, update, &published).map_err(|error| {
-            return from_range(&error);
-        })?);
-    }
-    return Ok(scopes);
+    let mut failure: Option<ManualPushRangeError> = None;
+    run_ordered(OrderedRun {
+        items: updates,
+        lanes: lanes.as_slice(),
+        workers,
+        work: &|_index: usize, update: &PushUpdate, _say: &mut dyn FnMut(&str)| {
+            let published: Vec<String> = tips.get(&update.remote_name).cloned().unwrap_or_default();
+            return update_scope(git, update, &published);
+        },
+        on_event: &mut |event: Event<'_, Result<UpdateScope, ManualPushRangeError>>| {
+            if let Event::End(_index, outcome) = event {
+                match outcome {
+                    Ok(scope) if failure.is_none() => scopes.push(scope),
+                    Err(error) if failure.is_none() => failure = Some(error),
+                    Ok(_) | Err(_) => {}
+                }
+            }
+        },
+    });
+    return match failure {
+        Some(error) => Err(from_range(&error)),
+        None => Ok(scopes),
+    };
 }
 
 /// What:
@@ -194,3 +226,8 @@ pub fn manual_push_scope(
 #[cfg(test)]
 #[path = "manual_push_lifecycle_tests.rs"]
 mod tests;
+
+/// The controls for a push's destinations and updates read side by side stay out of the release executable.
+#[cfg(test)]
+#[path = "manual_push_parallel_tests.rs"]
+mod parallel_tests;

@@ -31,6 +31,13 @@ pub const PLAN_FILE_NAME: &str = "toolchain.plan.jsonc";
 /// The file name of the lock in both scopes.
 pub const LOCK_FILE_NAME: &str = "toolchain.lock.json";
 
+/// The generated mise fragment that carries the repository scope's tool environment,
+/// relative to the worktree.
+/// Mise reads every file of `.config/mise/conf.d` in name order;
+/// the `.local.` part keeps it out of git (the `*.local.*` ignore pattern),
+/// the way `10-bin.local.toml` is.
+pub const REPO_MISE_ENV_FILE_RELATIVE: &str = ".config/mise/conf.d/30-toolchain-env.local.toml";
+
 /// The exposure directory of the repository scope,
 /// relative to the worktree (the IDE launcher parses this value).
 pub const EXPOSURE_DIR_RELATIVE: &str = ".cache/toolchain-bin";
@@ -143,6 +150,12 @@ pub struct Scope {
     /// The exposure directory as the IDE launcher reads it:
     /// relative to the worktree in the repository scope.
     pub exposure_dir_relative: String,
+    /// The generated mise fragment holding this scope's tool environment (`ANDROID_HOME` and the like),
+    /// in the `conf.d` directory mise reads for the worktree.
+    /// `None` for the machine-global scope:
+    /// tool variables are exported in this repository's worktrees only
+    /// (owner decision 2026-11-03T05:29:17-05:00), never machine-wide.
+    pub mise_env_file: Option<PathBuf>,
     /// The directory postinstall links go to when the link names none.
     pub link_dir: PathBuf,
     /// The directory of per-tree launchers:
@@ -217,6 +230,7 @@ pub fn repo_scope(root: &Path, env: &EnvMap) -> Result<Scope, ToolchainError> {
         guard_file: root.join(".cache").join("toolchain.guard"),
         exposure_dir: root.join(".cache").join("toolchain-bin"),
         exposure_dir_relative: EXPOSURE_DIR_RELATIVE.to_string(),
+        mise_env_file: Some(root.join(REPO_MISE_ENV_FILE_RELATIVE)),
         link_dir: root.join(".cache").join("cli-git-bin"),
         launcher_dir: root.join(".cache").join("toolchain-launchers"),
         toolchain_bin_dir: toolchain_root.join("bin"),
@@ -252,6 +266,7 @@ pub fn global_scope(env: &EnvMap) -> Result<Scope, ToolchainError> {
         guard_file: config_dir.join(".toolchain.guard"),
         exposure_dir: toolchain_root.join("exposure"),
         exposure_dir_relative: "exposure".to_string(),
+        mise_env_file: None,
         link_dir: home.join(".local").join("bin"),
         launcher_dir: toolchain_root.join("launchers"),
         toolchain_bin_dir: toolchain_root.join("bin"),

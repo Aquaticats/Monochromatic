@@ -4,7 +4,6 @@
 
 use super::*;
 use crate::test_support::scratch_environment;
-use std::ffi::OsStr;
 
 /// An environment holding the given pairs.
 fn environment(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
@@ -72,60 +71,19 @@ fn a_non_text_deadline_falls_back_to_the_default() {
     assert_eq!(push_deadline(&pairs), DEFAULT_PUSH_DEADLINE);
 }
 
-/// The low-speed defaults are added when absent and each is left alone when the person set it.
+/// A run goes by the file name of its program and its first word that is not an option, with the values of `-c` and `-C`
+///  skipped; a program with no such word goes by its name alone.
 #[test]
-fn low_speed_defaults_never_override_the_environment() {
+fn a_run_goes_by_its_program_and_its_first_subcommand() {
+    let mut push: Command = Command::new("/nonexistent/bin/git");
+    push.args(["-c", "core.example=1", "-C", "/nonexistent/repository", "--no-pager", "push", "origin", "main"]);
+    assert_eq!(command_label(&push), "git push");
+    let mut upload: Command = Command::new("git-lfs");
+    upload.args(["push", "--all", "origin"]);
+    assert_eq!(command_label(&upload), "git-lfs push");
     let mut bare: Command = Command::new("git");
-    apply_low_speed_defaults(&mut bare, &[]);
-    let added: Vec<(&OsStr, Option<&OsStr>)> = bare.get_envs().collect();
-    assert_eq!(
-        added,
-        vec![
-            (
-                OsStr::new("GIT_HTTP_LOW_SPEED_LIMIT"),
-                Some(OsStr::new(LOW_SPEED_LIMIT))
-            ),
-            (
-                OsStr::new("GIT_HTTP_LOW_SPEED_TIME"),
-                Some(OsStr::new(LOW_SPEED_TIME))
-            ),
-        ]
-    );
-    let mut limited: Command = Command::new("git");
-    apply_low_speed_defaults(
-        &mut limited,
-        &environment(&[("GIT_HTTP_LOW_SPEED_LIMIT", "1")]),
-    );
-    let only_time: Vec<(&OsStr, Option<&OsStr>)> = limited.get_envs().collect();
-    assert_eq!(
-        only_time,
-        vec![(
-            OsStr::new("GIT_HTTP_LOW_SPEED_TIME"),
-            Some(OsStr::new(LOW_SPEED_TIME))
-        )]
-    );
-    let mut both: Command = Command::new("git");
-    apply_low_speed_defaults(
-        &mut both,
-        &environment(&[
-            ("GIT_HTTP_LOW_SPEED_LIMIT", "1"),
-            ("GIT_HTTP_LOW_SPEED_TIME", "2"),
-        ]),
-    );
-    assert_eq!(both.get_envs().count(), 0);
-    let mut only_limit: Command = Command::new("git");
-    apply_low_speed_defaults(
-        &mut only_limit,
-        &environment(&[("GIT_HTTP_LOW_SPEED_TIME", "2")]),
-    );
-    let remaining: Vec<(&OsStr, Option<&OsStr>)> = only_limit.get_envs().collect();
-    assert_eq!(
-        remaining,
-        vec![(
-            OsStr::new("GIT_HTTP_LOW_SPEED_LIMIT"),
-            Some(OsStr::new(LOW_SPEED_LIMIT))
-        )]
-    );
+    bare.args(["--version"]);
+    assert_eq!(command_label(&bare), "git");
 }
 
 /// Exactly one trailing line break goes, of either kind.
@@ -145,7 +103,7 @@ fn one_trailing_line_break_is_removed() {
 fn a_finished_push_keeps_the_interleaved_output_and_exit_code() {
     let attempt: PushAttempt = run_bounded_push(
         shell("echo one; echo two >&2; echo three; exit 3"),
-        Duration::from_secs(60),
+        Patience::Fixed(Duration::from_secs(60)),
         Duration::from_secs(1),
         scratch_environment().as_slice(),
     )
@@ -154,7 +112,7 @@ fn a_finished_push_keeps_the_interleaved_output_and_exit_code() {
     assert_eq!(attempt.output, "one\ntwo\nthree");
     let clean: PushAttempt = run_bounded_push(
         shell("echo remote: done"),
-        Duration::from_secs(60),
+        Patience::Fixed(Duration::from_secs(60)),
         Duration::from_secs(1),
         scratch_environment().as_slice(),
     )
@@ -170,7 +128,7 @@ fn a_finished_push_keeps_the_interleaved_output_and_exit_code() {
 fn a_push_ended_by_a_signal_reports_one() {
     let attempt: PushAttempt = run_bounded_push(
         shell("echo before; kill -9 $$"),
-        Duration::from_secs(60),
+        Patience::Fixed(Duration::from_secs(60)),
         Duration::from_secs(1),
         scratch_environment().as_slice(),
     )
@@ -188,7 +146,7 @@ fn a_stalled_push_is_stopped_at_its_deadline() {
     let started: Instant = Instant::now();
     let attempt: PushAttempt = run_bounded_push(
         shell("echo started; exec sleep 8"),
-        deadline,
+        Patience::Fixed(deadline),
         Duration::from_secs(10),
         scratch_environment().as_slice(),
     )
@@ -226,7 +184,7 @@ fn a_stalled_push_is_stopped_at_its_deadline() {
 fn a_silent_stalled_push_reports_only_the_reason() {
     let attempt: PushAttempt = run_bounded_push(
         shell("exec sleep 8"),
-        Duration::from_millis(200),
+        Patience::Fixed(Duration::from_millis(200)),
         Duration::from_secs(10),
         scratch_environment().as_slice(),
     )
@@ -250,7 +208,7 @@ fn a_push_that_ignores_the_stop_request_is_killed_after_the_grace() {
     let started: Instant = Instant::now();
     let attempt: PushAttempt = run_bounded_push(
         shell("trap '' TERM; echo up; exec sleep 8"),
-        deadline,
+        Patience::Fixed(deadline),
         grace,
         scratch_environment().as_slice(),
     )
@@ -269,7 +227,7 @@ fn a_push_that_ignores_the_stop_request_is_killed_after_the_grace() {
 fn a_push_that_honors_the_stop_request_ends_within_the_grace() {
     let attempt: PushAttempt = run_bounded_push(
         shell("trap 'echo got-the-request; exit 0' TERM; echo up; while :; do sleep 0.05; done"),
-        Duration::from_millis(200),
+        Patience::Fixed(Duration::from_millis(200)),
         Duration::from_secs(3),
         scratch_environment().as_slice(),
     )
@@ -308,7 +266,7 @@ fn a_flooding_push_is_stopped_and_its_output_capped() {
     let flood: String = format!("head -c {} /dev/zero; exec sleep 8", MAX_PUSH_OUTPUT * 2);
     let attempt: PushAttempt = run_bounded_push(
         shell(flood.as_str()),
-        Duration::from_secs(60),
+        Patience::Fixed(Duration::from_secs(60)),
         Duration::from_secs(10),
         scratch_environment().as_slice(),
     )
@@ -331,10 +289,58 @@ fn a_flooding_push_is_stopped_and_its_output_capped() {
 fn a_program_that_cannot_start_is_a_start_failure() {
     let failure: SingleFlightError = run_bounded_push(
         Command::new("/nonexistent/cli-git-push-fixture"),
-        Duration::from_secs(5),
+        Patience::Fixed(Duration::from_secs(5)),
         Duration::from_secs(1),
         scratch_environment().as_slice(),
     )
     .expect_err("no such program");
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");
+}
+
+/// A child the kernel releases only after the push was reported has its lock swept when it ends, on a thread of its own.
+#[cfg(unix)]
+#[test]
+fn a_child_released_late_has_its_lock_swept_when_it_ends() {
+    let root: std::path::PathBuf = crate::test_support::fixture("sweep-after-exit");
+    let heads: std::path::PathBuf = root.join(".git").join("refs").join("heads");
+    std::fs::create_dir_all(heads.as_path()).expect("ref directory");
+    let lock: std::path::PathBuf = heads.join("late.lock");
+    let mut command: Command = shell(": > \"$LOCK\"; exec sleep 1");
+    command.current_dir(root.as_path()).env("LOCK", lock.as_os_str());
+    let locks: LockLedger = LockLedger::before_start(&command);
+    let child: Child = command.spawn().expect("start the child");
+    let member: TreeMember = member_of(i32::try_from(child.id()).expect("pid")).expect("a running child");
+    let sweeper = sweep_after_exit(child, vec![member], locks).expect("the sweeping thread starts");
+    sweeper.join().expect("the sweeping thread ends");
+    assert!(!lock.exists(), "the lock the child left is swept once it ended");
+    crate::test_support::remove(root.as_path());
+}
+
+/// How long the member of a stopped tree outlives the stop in the control below, longer than the grace it is given.
+const LINGERING_MEMBER_SECONDS: &str = "1";
+
+/// A tree that has not ended when the grace is over is not swept then, which would remove nothing and never be tried again:
+/// the sweep waits for it on a thread of its own, and removes the lock once it has ended.
+#[cfg(unix)]
+#[test]
+fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {
+    let root: std::path::PathBuf = crate::test_support::fixture("sweep-lingering-member");
+    let heads: std::path::PathBuf = root.join(".git").join("refs").join("heads");
+    std::fs::create_dir_all(heads.as_path()).expect("ref directory");
+    let lock: std::path::PathBuf = heads.join("lingering.lock");
+    let mut command: Command = Command::new("true");
+    command.current_dir(root.as_path());
+    let locks: LockLedger = LockLedger::before_start(&command).with_settle(Duration::from_millis(100));
+    let mut ended: Child = command.spawn().expect("start the collected child");
+    let mut lingering: Child = Command::new("sleep").arg(LINGERING_MEMBER_SECONDS).spawn().expect("start the member");
+    let member: TreeMember = member_of(i32::try_from(lingering.id()).expect("pid")).expect("a running member");
+    std::fs::write(lock.as_path(), "").expect("an empty lock the tree left");
+    ended.wait().expect("the child is collected");
+    let started = settle_locks(ended, true, vec![member], locks, Duration::from_millis(100));
+    assert!(lock.exists(), "a tree that still runs is not swept");
+    let sweeper = started.expect("the sweep waits for the tree on a thread of its own");
+    lingering.wait().expect("the member ends");
+    sweeper.join().expect("the sweeping thread ends");
+    assert!(!lock.exists(), "the lock is swept once the tree has ended");
+    crate::test_support::remove(root.as_path());
 }

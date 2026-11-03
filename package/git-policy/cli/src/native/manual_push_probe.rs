@@ -21,9 +21,12 @@ use super::lfs_upload_plan::resolve_push_remote;
 /// Removes userinfo from text that may name a remote, and the cause a failure carries.
 use super::lfs_output_mask::mask_userinfo_text;
 use super::manual_push_cause::ManualPushCause;
-use super::manual_push_porcelain::{PorcelainUpdate, RemoteBefore, parse_porcelain};
+use super::manual_push_porcelain::{PorcelainBlock, PorcelainUpdate, RemoteBefore, parse_porcelain};
+use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use super::parallel_runner::{Event, OrderedRun, run_ordered};
 /// The push's own reading of its destination.
-use super::command_push::push_shape;
+use super::command_options::{Boundary, DEFAULT_MODE, parse_options};
+use super::command_push::{PUSH_TABLE, push_shape};
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
 
@@ -125,9 +128,29 @@ pub struct PushUpdate {
     pub remote_ref: String,
 }
 
+/// The most per-destination or per-update Git queries that run at once: the bound `SPEC.md` gives ("at most four per-update
+///  `git rev-list --stdin` or `git ls-tree` processes run concurrently"), which also bounds the connections opened to remotes.
+///  Measured on local queries of this repository (16 branch tips, medians of three runs, alternating orders, other sessions
+///  running): `git ls-tree -r` took 218, 114, 80, 50 and 46 ms at 1, 2, 4, 8 and 16 at once, and `git rev-list` of a whole branch
+///  845, 413, 231, 190 and 194 ms, so local queries still gained 37 and 18 percent from four to eight. The remote side (the
+///  connections a server tolerates) was not measured. Kept at four; the coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
+pub const MOST_CONCURRENT_QUERIES: usize = 4;
+
+/// The bytes one query holds at its peak when it lists the whole history of this repository: the largest resident size of
+///  `git rev-list --all` in three runs (29,164 KiB, 29,032 KiB and 28,848 KiB, so 29,863,936 bytes) plus the 1,413,721 bytes of
+///  its output, which the wrapper reads whole (34,481 commits on 2026-11-03). `git ls-tree -r` of the main tree peaked at 26,080
+///  KiB with 2,459,743 bytes of output.
+pub const MEASURED_WHOLE_HISTORY_QUERY: u64 = 29_863_936 + 1_413_721;
+
+/// The bytes one query holds at its peak: `MEASURED_WHOLE_HISTORY_QUERY` rounded up to a power of two. The coordinator's pick
+///  under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps
+///  and memory estimates"). A history that grows past a few tens of thousands more commits needs a larger figure.
+pub const QUERY_MEMORY: u64 = MEASURED_WHOLE_HISTORY_QUERY.next_power_of_two();
+
 /// What:
 ///  The probe's Git arguments: the invocation's global options, the switches that keep every hook and full object
-///  names, then `push` with `--dry-run --porcelain` placed before any `--` terminator.
+///  names, then `push` with `--dry-run --porcelain` placed before any `--` or `--end-of-options` terminator.
 /// Why:
 ///   The `--` terminator is the user's; the options Git interprets must stay before it. The probe publishes nothing and
 ///  must not run the upload hook of the caller's configuration, so configured `pre-push` hooks are off and the
@@ -138,9 +161,17 @@ pub struct PushUpdate {
 /// probeArgs({ globalPrefix, args });
 /// ```
 pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString]) -> Vec<OsString> {
-    let separator = post_subcommand.iter().position(|argument| {
-        return argument.as_os_str() == "--";
-    });
+    // The separator is the one Git reads: a `--` that is the value of an option such as `--receive-pack` is not it. A region
+    //  Git refuses has no reading, and the probe then stops at the first `--`, where Git refuses it as well.
+    let separator = match parse_options(post_subcommand, PUSH_TABLE, DEFAULT_MODE, &[]) {
+        Ok(parsed) => match parsed.boundary {
+            Boundary::DashDash(at) | Boundary::EndOfOptions(at) => Some(at),
+            Boundary::End | Boundary::NonOption(_) => None,
+        },
+        Err(_) => post_subcommand.iter().position(|argument| {
+            return argument.as_os_str() == "--";
+        }),
+    };
     let insertion = separator.unwrap_or(post_subcommand.len());
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
     for setting in [
@@ -299,6 +330,16 @@ pub fn probe_manual_push_updates(
     global_prefix: &[OsString],
     post_subcommand: &[OsString],
 ) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
+    return probe_manual_push_updates_on(&HostResources::read(), git, global_prefix, post_subcommand);
+}
+
+/// `probe_manual_push_updates` with the host's resources chosen by the caller, so a control states a host of any size.
+pub fn probe_manual_push_updates_on(
+    host: &HostResources,
+    git: &PushGit,
+    global_prefix: &[OsString],
+    post_subcommand: &[OsString],
+) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
     let arguments: Vec<OsString> = probe_arguments(global_prefix, post_subcommand);
     let output = run_query(git, arguments.as_slice()).map_err(|error| {
         return probe_error(cause_of_query(&error), format!("probe push could not run: {error}"));
@@ -362,36 +403,71 @@ pub fn probe_manual_push_updates(
             ),
         ));
     }
+    // Each destination is its own `To` block with its own `ls-remote`, so the confirmations are independent reads and run side by
+    //  side, at most `MOST_CONCURRENT_QUERIES` at once; the updates come back in the order Git printed the blocks, and the
+    //  first block that fails decides the error.
+    let destinations: Vec<(&PorcelainBlock, &String)> = blocks.iter().zip(locations.iter()).collect();
+    let lanes: Vec<Vec<usize>> = (0..destinations.len()).map(|index: usize| { return vec![index]; }).collect();
+    let workers: usize = worker_budget(&BudgetRequest { items: destinations.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_QUERIES), cap: None, host });
     let mut confirmed: Vec<PushUpdate> = Vec::new();
-    for (block, location) in blocks.iter().zip(locations.iter()) {
-        let unnamed: Vec<&str> = block
-            .updates
-            .iter()
-            .filter(|update| {
-                return !update.from.is_empty() && update.after.is_none();
-            })
-            .map(|update| {
-                return update.from.as_str();
-            })
-            .collect();
-        let mut resolved = local_objects(git, global_prefix, unnamed.as_slice())?.into_iter();
-        let group: Vec<(PorcelainUpdate, Option<String>)> = block
-            .updates
-            .iter()
-            .map(|update| {
-                let local: Option<String> = if update.from.is_empty() {
-                    None
-                } else {
-                    update.after.clone().or_else(|| {
-                        return resolved.next();
-                    })
-                };
-                return (update.clone(), local);
-            })
-            .collect();
-        confirmed.extend(confirm_group(git, location.as_str(), remote_name.as_str(), group.as_slice())?);
-    }
-    return Ok(confirmed);
+    let mut failure: Option<ManualPushProbeError> = None;
+    run_ordered(OrderedRun {
+        items: destinations.as_slice(),
+        lanes: lanes.as_slice(),
+        workers,
+        work: &|_index: usize, destination: &(&PorcelainBlock, &String), _say: &mut dyn FnMut(&str)| { return confirm_block(git, global_prefix, remote_name.as_str(), destination.0, destination.1.as_str()); },
+        on_event: &mut |event: Event<'_, Result<Vec<PushUpdate>, ManualPushProbeError>>| {
+            if let Event::End(_index, outcome) = event {
+                match outcome {
+                    Ok(updates) if failure.is_none() => confirmed.extend(updates),
+                    Err(error) if failure.is_none() => failure = Some(error),
+                    Ok(_) | Err(_) => {}
+                }
+            }
+        },
+    });
+    return match failure {
+        Some(error) => Err(error),
+        None => Ok(confirmed),
+    };
+}
+
+/// What:
+///  Resolve the local objects of one destination's block and confirm its values with `ls-remote`.
+/// Why:
+///   A block is everything the probe needs for one destination, so blocks can be confirmed independently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function confirmBlock({ git, globalPrefix, remoteName, block, location }): Promise<PushUpdate[]>;
+/// ```
+fn confirm_block(git: &PushGit, global_prefix: &[OsString], remote_name: &str, block: &PorcelainBlock, location: &str) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
+    let unnamed: Vec<&str> = block
+        .updates
+        .iter()
+        .filter(|update| {
+            return !update.from.is_empty() && update.after.is_none();
+        })
+        .map(|update| {
+            return update.from.as_str();
+        })
+        .collect();
+    let mut resolved = local_objects(git, global_prefix, unnamed.as_slice())?.into_iter();
+    let group: Vec<(PorcelainUpdate, Option<String>)> = block
+        .updates
+        .iter()
+        .map(|update| {
+            let local: Option<String> = if update.from.is_empty() {
+                None
+            } else {
+                update.after.clone().or_else(|| {
+                    return resolved.next();
+                })
+            };
+            return (update.clone(), local);
+        })
+        .collect();
+    return confirm_group(git, location, remote_name, group.as_slice());
 }
 
 /// The probe's arguments and its confirmation rules are controlled in the test module.

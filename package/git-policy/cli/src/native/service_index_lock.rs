@@ -46,6 +46,9 @@ use super::service_index_placement::{log_placement_failure, place_marked, reclai
 use super::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
 
 /// How often the holder's notice is repeated while the wait lasts.
+///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
+///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 pub const NOTICE_EVERY: Duration = Duration::from_secs(10);
 
 /// The environment variable that sets how often the holder's line is repeated, in whole seconds.

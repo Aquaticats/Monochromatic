@@ -2,6 +2,8 @@
 //!  however many, and the conclusion state removal.
 
 use super::*;
+use crate::recording_git::{recorded_starts, recording_context};
+use crate::repo_read_hook::SWITCH_VARIABLE;
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
@@ -70,5 +72,147 @@ fn a_cleanup_without_its_scratch_directory_is_done() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let cleanup: Cleanup = Cleanup { git_dir: repo.join(".git"), scratch: repo.join(".git").join("gone"), reftable: false };
     assert!(remove_conclusion_state(&git_context(), repo.as_path(), &cleanup));
+    remove(root.as_path());
+}
+
+/// What:
+///  Every start of the index update, in each form it takes, as the service makes it.
+/// Why:
+///   The owner's rule is that no Git start of the service gets `--quiet` or `-q`: the three forms of the update (a listed
+///  path, a named path as bytes, a path derived from the old branch) each start `reset`, and each is looked at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const paths of [listed, named, derived]) await updateIndex(recordingGit, repo, second, paths); expect(quietStarts()).toEqual([]);
+/// ```
+#[test]
+fn the_index_update_starts_reset_without_quiet_in_every_form() {
+    let (root, repo, first, second) = index_behind("service-follow-no-quiet", &[b"new.txt".to_vec()]);
+    let (mut context, log) = crate::recording_git::recording_context(root.as_path());
+    // The named form hands its paths on standard input, which a request makes in the common directory.
+    context.common_dir = Some(repo.join(".git"));
+    let listed: Vec<String> = vec![String::from("new.txt")];
+    let named: Vec<Vec<u8>> = vec![b"new.txt".to_vec()];
+    for paths in [IndexPaths::Listed(listed.as_slice()), IndexPaths::Named(named.as_slice()), IndexPaths::Derived { old: first.as_str() }] {
+        git(repo.as_path(), &["read-tree", first.as_str()]);
+        update_index(&context, repo.as_path(), second.as_str(), paths).expect("updated");
+        assert!(!differs(repo.as_path(), second.as_str()), "{paths:?} brings the index to the commit");
+    }
+    let resets: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("reset "); }).collect();
+    assert_eq!(resets.len(), 3, "one reset for each of the three forms: {resets:?}");
+    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(root.as_path());
+}
+
+/// What `reset` says while the index is updated (the list of files still changed in the worktree) is kept in the service's log.
+#[test]
+fn what_reset_says_is_kept_in_the_journal() {
+    let (root, repo, _first, second) = index_behind("service-follow-words", &[b"new.txt".to_vec()]);
+    let shim: PathBuf = root.join("saying-git");
+    let words: &str = "Unstaged changes after reset:";
+    let script: String = format!("#!/bin/sh\ncase \" $* \" in *\" reset \"*) printf '%s\\n' '{words}';; esac\nexec {} \"$@\"\n", crate::test_support::REAL_GIT);
+    crate::test_support::executable(shim.as_path(), script.as_bytes());
+    let mut context: GitContext = git_context();
+    context.real_git = shim;
+    let listed: Vec<String> = vec![String::from("new.txt")];
+    let entries = crate::service_timing::capture::entries_of(|| {
+        update_index(&context, repo.as_path(), second.as_str(), IndexPaths::Listed(listed.as_slice())).expect("updated");
+    });
+    assert_eq!(entries.len(), 1, "{entries:?}");
+    assert!(entries[0].message.contains(words), "{:?}", entries[0]);
+    remove(root.as_path());
+}
+
+/// The landing's index update starts no Git `reset` and no Git `diff-tree`, whichever way the paths are given, and the index it
+/// builds equals the commit for those paths.
+#[test]
+fn the_follow_up_starts_no_git_reset_and_no_git_diff_tree() {
+    let files: Vec<Vec<u8>> = vec![b"top.txt".to_vec(), b"dir/inner.txt".to_vec()];
+    let listed: Vec<String> = vec![String::from("top.txt"), String::from("dir/inner.txt")];
+    for form in ["listed", "named", "derived"] {
+        let (root, repo, first, second) = index_behind(format!("service-follow-starts-{form}").as_str(), files.as_slice());
+        let (mut context, log) = recording_context(root.as_path());
+        // The recorder switches the in-process readers off; the update under test must run with them on.
+        context.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
+        let paths: IndexPaths<'_> = match form {
+            "listed" => IndexPaths::Listed(listed.as_slice()),
+            "named" => IndexPaths::Named(files.as_slice()),
+            _ => IndexPaths::Derived { old: first.as_str() },
+        };
+        let index: PathBuf = repo.join(".git").join("index");
+        // The service builds the index while it holds the live index lock.
+        let held = crate::service_index_lock::try_acquire(index.as_path(), 1).expect("the lock is free");
+        let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), paths, &held, 1).expect("built");
+        let words: Vec<String> = recorded_starts(log.as_path()).iter().map(|start| { return start.split(' ').next().unwrap_or_default().to_string(); }).collect();
+        assert!(!words.iter().any(|word| { return word == "reset" || word == "diff-tree"; }), "{form} started {words:?}");
+        held.release_with(built.as_path()).expect("installed");
+        assert!(!differs(repo.as_path(), second.as_str()), "{form} left the index behind the commit");
+        remove(root.as_path());
+    }
+}
+
+
+/// The names Git lists as staged against `commit`.
+fn staged_against(repo: &Path, commit: &str) -> Vec<String> {
+    return git_text(repo, &["diff", "--cached", "--name-only", commit]).lines().map(str::to_string).collect();
+}
+
+/// A change another session staged before the lock was taken, to a path the commit does not name, survives the in-process
+/// build and its installation; a stage attempted after the lock was taken is refused until the installation; and no Git starts.
+#[test]
+fn what_was_staged_before_the_lock_survives_and_a_stage_after_it_is_refused() {
+    use crate::service_index_lock::{lock_path_of, try_acquire};
+    let files: Vec<Vec<u8>> = vec![b"top.txt".to_vec(), b"dir/inner.txt".to_vec()];
+    let (root, repo, _first, second) = index_behind("service-follow-staged", files.as_slice());
+    std::fs::write(repo.join("unselected.txt"), b"staged by another session\n").expect("write");
+    // An entry recorded in the second of the lock's copy is racily clean and sends the update to Git; this one is older.
+    crate::test_support::age(repo.join("unselected.txt").as_path());
+    git(repo.as_path(), &["add", "unselected.txt"]);
+    let (mut context, log) = recording_context(root.as_path());
+    context.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
+    context.common_dir = Some(repo.join(".git"));
+    let index: PathBuf = repo.join(".git").join("index");
+    let held = try_acquire(index.as_path(), 3).expect("the lock is free");
+    std::fs::write(repo.join("late.txt"), b"staged too late\n").expect("write");
+    assert!(!git_output(repo.as_path(), &["add", "late.txt"]).status.success(), "a stage after the lock is taken is refused");
+    let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &held, 3).expect("built");
+    assert!(lock_path_of(index.as_path()).exists(), "the lock is held until the installation");
+    held.release_with(built.as_path()).expect("installed");
+    let words: Vec<String> = recorded_starts(log.as_path()).iter().map(|start| { return start.split(' ').next().unwrap_or_default().to_string(); }).collect();
+    assert!(!words.iter().any(|word| { return word == "reset"; }), "no Git reset started: {words:?}");
+    assert_eq!(staged_against(repo.as_path(), second.as_str()), vec![String::from("unselected.txt")], "only the earlier stage is left, and it survived");
+    assert!(git_output(repo.as_path(), &["add", "late.txt"]).status.success(), "the lock is gone, so the stage works now");
+    remove(root.as_path());
+}
+
+/// An installation that cannot be made leaves the old index and removes the lock; a lock another program replaced keeps the
+/// index and stays with that program.
+#[test]
+fn a_failed_installation_keeps_the_index_and_a_replaced_lock_is_left_alone() {
+    use crate::service_index_lock::{lock_path_of, try_acquire};
+    let files: Vec<Vec<u8>> = vec![b"top.txt".to_vec()];
+    let (root, repo, _first, second) = index_behind("service-follow-install", files.as_slice());
+    let mut context = git_context();
+    context.common_dir = Some(repo.join(".git"));
+    let index: PathBuf = repo.join(".git").join("index");
+    let before: Vec<u8> = std::fs::read(&index).expect("index");
+    // A lock replaced by another program's: the check sees it, the index is not replaced, the other program's lock stays.
+    let held = try_acquire(index.as_path(), 4).expect("the lock is free");
+    let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &held, 4).expect("built");
+    std::fs::remove_file(lock_path_of(index.as_path())).expect("removed");
+    std::fs::write(lock_path_of(index.as_path()), b"another program's lock").expect("foreign lock");
+    assert!(held.release_with(built.as_path()).is_err());
+    assert_eq!(std::fs::read(&index).expect("index"), before, "the index was not replaced");
+    assert_eq!(std::fs::read(lock_path_of(index.as_path())).expect("lock"), b"another program's lock".to_vec());
+    std::fs::remove_file(lock_path_of(index.as_path())).expect("removed");
+    std::fs::remove_file(&built).expect("built removed");
+    // A rename that fails: the live index path holds a directory, so the copy cannot take its place; the lock goes with the error.
+    let second_hold = try_acquire(index.as_path(), 5).expect("the lock is free");
+    let second_built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &second_hold, 5).expect("built");
+    std::fs::remove_file(&index).expect("index removed");
+    std::fs::create_dir_all(index.join("occupied")).expect("a directory where the index goes");
+    assert!(second_hold.release_with(second_built.as_path()).is_err());
+    assert!(!lock_path_of(index.as_path()).exists(), "the lock is removed with the failure");
+    assert!(index.join("occupied").is_dir());
     remove(root.as_path());
 }

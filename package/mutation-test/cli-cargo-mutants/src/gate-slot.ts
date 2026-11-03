@@ -1,9 +1,14 @@
 /*
- Why locks stay in this file (the repository rule is lock-free first; a lock that must stay covers the smallest unit and says
- why): a slot is one of a fixed number of host-wide permits, and the limit exists to bound the CPU all campaign launchers
- use together. That is a counting limit across unrelated launchers, not one owner per item, so atomic rename or an
- exclusive creation of a per-item claim cannot express it, and every slot is a separate `flock` on its own file, the
- smallest unit. Waiting is the purpose of the limiter: it waits only while every permit is in use, and never for a file.
+ One lock stays in this file's gate, kept only for compatibility (the repository rule is lock-free first; a lock that must stay
+ covers the smallest unit and says why). A slot is one of a fixed number of host-wide permits, and the limit exists to bound
+ the CPU all campaign launchers use together. Each slot is its own numbered claim series (`slot-<n>.owner.<generation>`, see
+ `src/owner-claim.ts`), so a gate takes a free slot with one exclusive `link` and never waits for a file; a gate waits only
+ while every slot is held by a live process, which is the purpose of the limiter, and it wakes when a slot is released
+ (`src/directory-watch.ts`). The unit of the one lock is a slot's `slot-<n>.lock` file. The earlier release held a kernel lock
+ on it, and a gate of that release that is still waiting polls `flock --nonblock` on it without reading a claim, so a gate of
+ this release keeps that lock for as long as its claim (taken once, without waiting, after the claim), and respects a lock a
+ gate of the earlier release holds (`src/legacy-flock.ts`). Nothing waits on the lock; it goes away with the compatibility
+ once no gate of the earlier release, nor a checkout of its source, can run.
  */
 import {
   join,
@@ -11,15 +16,13 @@ import {
 } from 'node:path';
 
 import {
+  defaultNoticeIntervalMs,
   defaultPollIntervalMs,
-  niceProgram,
   defaultSlotCount,
   lockDirectoryEnvironmentVariable,
   lockDirectorySegment,
   scratchSegments,
-  slotConflictExitCode,
   slotCountEnvironmentVariable,
-  slotNiceAdjustment,
 } from './constants.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import type { ForeignBorrowed } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
@@ -34,6 +37,7 @@ export type GateSlotOptions = {
   readonly slotCount: number;
   readonly lockDirectory: string;
   readonly pollIntervalMs: number;
+  readonly noticeIntervalMs: number;
   readonly command: readonly string[];
 };
 
@@ -41,10 +45,12 @@ export type GateSlotOptions = {
  Usage text printed with every option error.
  */
 export const gateSlotUsage: string = [
-  'Usage: gate-slot.ts [--slot-count <count>] [--lock-dir <dir>] [--poll-interval-ms <ms>] [--] <command> [arguments...]',
+  'Usage: gate-slot.ts [--slot-count <count>] [--lock-dir <dir>] [--poll-interval-ms <ms>] [--notice-interval-ms <ms>] [--] <command> [arguments...]',
   '',
-  'Waits until one of the host-wide slots is free, runs the command in it at the lowest nice priority with inherited',
-  'stdio, and exits with the command status.',
+  'Takes one of the host-wide slots at once when one is free, otherwise waits until a holder releases one (or dies),',
+  'runs the command in it at the lowest nice priority with inherited stdio, and exits with the command status.',
+  'While every slot is held it writes a notice naming the holders, and repeats it at the notice interval.',
+  'The poll interval only bounds how long the wait goes without looking again; a release wakes it at once.',
   `The slot count defaults to $${slotCountEnvironmentVariable}, then ${defaultSlotCount}; the lock directory to`,
   `$${lockDirectoryEnvironmentVariable}, then <home>/${[
     ...scratchSegments,
@@ -59,6 +65,7 @@ const knownOptions: ReadonlySet<string> = new Set([
   '--slot-count',
   '--lock-dir',
   '--poll-interval-ms',
+  '--notice-interval-ms',
 ]);
 
 /**
@@ -164,6 +171,10 @@ export function parseGateSlotArguments({
    Poll interval text from the flag.
    */
   const pollInterval = options.get('--poll-interval-ms');
+  /**
+   Notice interval text from the flag.
+   */
+  const noticeInterval = options.get('--notice-interval-ms');
   return {
     slotCount: slotCount === undefined
       ? defaultSlotCount
@@ -183,12 +194,34 @@ export function parseGateSlotArguments({
         option: '--poll-interval-ms',
         value: pollInterval,
       }),
+    noticeIntervalMs: noticeInterval === undefined
+      ? defaultNoticeIntervalMs
+      : positiveWholeNumber({
+        option: '--notice-interval-ms',
+        value: noticeInterval,
+      }),
     command,
   };
 }
 
 /**
- Name the lock file of one slot.
+ Name the claim series of one slot: its files are `<prefix>.<generation>` in the lock directory.
+
+ @param slot - one-based slot number
+
+ @returns the series' name
+
+ @example
+ ```ts
+ slotClaimPrefix(3);
+ ```
+ */
+export function slotClaimPrefix(slot: number): string {
+  return `slot-${String(slot)}.owner`;
+}
+
+/**
+ Name the lock file the earlier release of this package took on one slot, which is only probed now.
 
  @param lockDirectory - directory that holds the lock files
  
@@ -212,152 +245,4 @@ export function slotLockPath({
     lockDirectory,
     `slot-${slot}.lock`,
   );
-}
-
-/**
- Build the `flock` arguments that try one slot without waiting and, when it is free, run the command inside it.
-
- @param lockDirectory - directory that holds the lock files
- 
- @param slot - one-based slot number
- 
- @param command - command and arguments to run inside the slot
- 
- @returns the argument list after the `flock` program name
- 
- @example
- ```ts
- buildFlockArguments({ lockDirectory: '/locks', slot: 1, command: ['mise', 'run'] });
- ```
- */
-export function buildFlockArguments({
-  lockDirectory,
-  slot,
-  command,
-}: {
-  readonly lockDirectory: string;
-  readonly slot: number;
-  readonly command: readonly string[];
-}): readonly string[] {
-  return [
-    '--nonblock',
-    '--exclusive',
-    '--conflict-exit-code',
-    String(slotConflictExitCode),
-    slotLockPath({
-      lockDirectory,
-      slot,
-    }),
-    niceProgram,
-    `--adjustment=${slotNiceAdjustment}`,
-    ...command,
-  ];
-}
-
-/**
- Try the slots one after another, in order, and stop at the first one that is free.
-
- The attempts are chained through a reduction over the slot numbers instead of a loop, so the lowest free slot is the
- one taken and no later slot is tried once the command has run; trying them at once would run the command in several
- slots.
-
- @param options - slot settings and command
- 
- @param runFlock - starts `flock` with the given arguments and returns its exit status
- 
- @returns the command's exit status in a one-element list, or an empty list when every slot was held
- 
- @example
- ```ts
- await tryEverySlot({ options, runFlock });
- ```
- */
-export function tryEverySlot({
-  options,
-  runFlock,
-}: {
-  readonly options: GateSlotOptions;
-  readonly runFlock: (flockArguments: readonly string[]) => Promise<number>;
-}): Promise<readonly number[]> {
-  /**
-   Slot numbers from one to the slot count.
-   */
-  const slots = Array.from(
-    { length: options.slotCount },
-    function slotNumber(
-      _,
-      index
-    ) {
-      return index + 1;
-    },
-  );
-  return slots.reduce(
-    async function tryNextSlot(
-      earlier: Promise<readonly number[]>,
-      slot: number
-    ): Promise<readonly number[]> {
-      /**
-       Result of the slots tried before this one.
-       */
-      const done = await earlier;
-      if (done.length > 0)
-        return done;
-      /**
-       Exit status of the attempt in this slot.
-       */
-      const status = await runFlock(buildFlockArguments({
-        lockDirectory: options.lockDirectory,
-        slot,
-        command: options.command,
-      }));
-      return status === slotConflictExitCode ? [] : [status];
-    },
-    Promise.resolve<readonly number[]>([]),
-  );
-}
-
-/**
- Wait for a free slot and run the command in it.
-
- Slots are tried in order; when every one is held, the limiter waits the poll interval and tries them all again.
- A command that itself exits with the conflict status is indistinguishable from a held slot and is tried again.
-
- @param options - slot settings and command
- 
- @param runFlock - starts `flock` with the given arguments and returns its exit status
- 
- @param sleep - waits the given number of milliseconds
- 
- @returns the command's exit status
- 
- @example
- ```ts
- await runInSlot({ options, runFlock, sleep });
- ```
- */
-export async function runInSlot({
-  options,
-  runFlock,
-  sleep,
-}: {
-  readonly options: GateSlotOptions;
-  readonly runFlock: (flockArguments: readonly string[]) => Promise<number>;
-  readonly sleep: (milliseconds: number) => Promise<void>;
-}): Promise<number> {
-  /**
-   The command's exit status once a slot ran it, or nothing when every slot was held.
-   */
-  const [status] = await tryEverySlot({
-    options,
-    runFlock,
-  });
-  if (status !== undefined)
-    return status;
-  await sleep(options.pollIntervalMs);
-  // The retry is async recursion: each poll resumes on a fresh stack, so waiting for hours does not overflow it.
-  return runInSlot({
-    options,
-    runFlock,
-    sleep,
-  });
 }

@@ -84,6 +84,10 @@ pub const INDEX_FILE_VARIABLE: &str = "GIT_INDEX_FILE";
 /// ```ts
 /// const PATHSPEC_CHUNK_SIZE = 2_048;
 /// ```
+///  Exempt from a citation under `LQM` (class: chunk size): it splits one command into several starts of the same
+///  command, so the result is the same and only the number of starts changes. Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
 pub const PATHSPEC_CHUNK_SIZE: usize = 2_048;
 
 /// What:

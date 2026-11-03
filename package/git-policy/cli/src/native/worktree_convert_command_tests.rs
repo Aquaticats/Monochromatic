@@ -20,7 +20,7 @@ fn two_worktrees(name: &str) -> (PathBuf, PathBuf) {
 }
 
 /// Run the command and return its status and lines.
-fn run(platform: &dyn Platform, arguments: &ConvertArguments, cwd: &Path) -> (i32, Vec<String>) {
+fn run(platform: &(dyn Platform + Sync), arguments: &ConvertArguments, cwd: &Path) -> (i32, Vec<String>) {
     let mut lines: Vec<String> = Vec::new();
     let code: i32 = execute(platform, arguments, cwd, &Interrupt::never(), &mut |text: &str| { lines.push(String::from(text)); });
     return (code, lines);

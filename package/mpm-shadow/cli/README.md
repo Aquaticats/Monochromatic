@@ -13,11 +13,31 @@ and shadows `mpm` ([Meta Package Manager](https://mpm.run)).
   `bin`,
   `prune`,
   and `verify-archive`.
-- As `mpm` (a link the toolchain plan creates) it finds the real `mpm` on `PATH`,
-  runs it with the arguments untouched and the standard streams inherited,
+- As `mpm` (a link the toolchain plan creates) it takes pnpm's verbs too:
+  a command line whose first word is one of the commands named here or one of their aliases
+  (`mpm i -g`,
+  `mpm up`,
+  `mpm ls`)
+  runs that command,
+  exactly as `mpm-shadow` would.
+  The owner's words (2026-11-03,
+  after `mpm i -g` had reached mpm 8.2.0 and failed with "No such command 'i'"):
+  "I want pnpm style verbs.
+  We talked about this!"
+- Every other command line typed to `mpm`,
+  including one that starts with one of mpm's own options
+  (`mpm --verbosity DEBUG outdated`),
+  goes to the real `mpm` found on `PATH`:
+  the shadow runs it with the arguments untouched and the standard streams inherited,
   waits for it,
   deletes the superseded cached versions of this repository's own crates from cargo's registry,
   and exits with mpm's own status.
+  mpm 8.2.0's own `install`,
+  `outdated`,
+  `upgrade` (and its alias `update`)
+  and the `list` alias of `installed` are therefore not reachable through `mpm`:
+  type `mpm installed` for the list,
+  and run the real `mpm` by its path for the others.
 
 ## Design rule: pnpm answers first
 
@@ -108,8 +128,14 @@ because pnpm has none.
   following the `--json` that pnpm's `list` and `outdated` pages document.
   It replaces `bin-paths`.
 - `--global` also has pnpm's short form `-g`.
+- `update`:
+  <https://pnpm.io/cli/update>,
+  "Aliases:
+  up,
+  upgrade"
+  (read 2026-11-03),
+  so `up` and `upgrade` are `update`.
 - Unchanged:
-  `update` (<https://pnpm.io/cli/update>),
   `prune`,
   which keeps its name,
   and `verify-archive`,
@@ -480,9 +506,9 @@ Adding it is the ordinary lifecycle,
 never `update --all`:
 
 ```sh
-# Run from the repository root: lock the new entry alone, then converge the machine-global tools.
-mise run toolchain:update:global -- llama.cpp-cpu
-mise run toolchain:install:global
+# Lock the new entry alone, then converge the machine-global tools; both work from any directory.
+mpm update -g llama.cpp-cpu
+mpm install -g
 ```
 
 The lock then records `llama-b9829-bin-ubuntu-x64.tar.gz` for `linux-x64`,
@@ -597,6 +623,7 @@ llama-cpu-cli \
   then installs every locked tool that is not at its locked version,
   makes the postinstall links,
   rebuilds the exposure directory,
+  writes the tool environment for mise (see "Tool environment"),
   runs the postinstall commands
   and then retires the old copies of this repository's tools
   (see "Old copies of this repository's tools").
@@ -625,6 +652,54 @@ and names `mpm-shadow install --lockfile-only --offline` or `mpm-shadow update <
 `install` does the same when frozen,
 and otherwise updates the lock itself:
 it resolves the new entries and writes the plan's other declaration changes.
+
+### Tool environment
+
+A tool's `env` block names environment variables the tool needs in every process that uses it:
+`RUSTUP_TOOLCHAIN` for the Rust toolchain,
+`JAVA_HOME` for the JDK,
+`ANDROID_HOME` and `ANDROID_SDK_ROOT` for the Android SDK.
+Nothing exports them by itself:
+`install` writes them into a generated mise configuration fragment,
+and mise, which runs every task and shell of the repository, reads that fragment.
+
+- The repository scope writes `.config/mise/conf.d/30-toolchain-env.local.toml` in the worktree.
+  The `.local.` part keeps it out of git through the `*.local.*` ignore pattern,
+  the way file-enforcer's `10-bin.local.toml` is.
+  The machine-global scope (`install --global`) writes no tool environment at all:
+  tool variables are exported in this repository's worktrees only,
+  never in a shell outside the repository,
+  so a global lock's `env` block (its `RUSTUP_TOOLCHAIN`, for one) reaches no process through `install --global`.
+  The hand-written global `config.toml` is never edited.
+- Mise reads every file of a `conf.d` directory in name order, so no committed file points at the fragment.
+  An `include` of the generated file from a committed one would make mise fail on a fresh clone,
+  before the first `install`, because mise refuses an include of a file that is missing.
+- A value with a `/` is relative to the repository scope's toolchain root
+  (`<data home>/monochromatic-dev/toolchain`)
+  and is written as an absolute path:
+  `android-sdk/23.0` becomes `<toolchain root>/android-sdk/23.0`.
+  The lock holds the value with `{version}` already replaced,
+  so a version bump moves the path on the next `install`.
+  Any other value is a literal (`nightly-2026-11-01`).
+  A literal that itself contains a `/` would be read as a path;
+  no tool declares one.
+- The fragment is rewritten whole from the lock on every full `install`,
+  so a tool removed from the lock loses its variables,
+  and a lock with no `env` leaves no fragment.
+  `update` and other partial syncs leave it alone.
+  Tools for another OS family are skipped.
+- A name that is not a plain identifier,
+  a relative value that is absolute or holds an empty, `.` or `..` segment,
+  a value with a control character, a brace or a dollar sign,
+  and one name declared with two values are refused.
+  Mise reads every value as a Tera template (`{{ }}`, `{% %}`, `{# #}`) and expands `$NAME`,
+  so these are not escaped but refused.
+  The refusal fails the `install` with the tool, the variable and the remedy,
+  and leaves the fragment of the last good run as it was.
+  Quotes and backslashes are escaped, since mise reads them back as they were.
+- The variables reach mise only through directory activation,
+  so a process started from outside the worktree (and outside any activated shell) does not have them.
+  `mise exec`, `mise run` and an activated shell in the worktree do.
 
 ### Updating named tools
 
@@ -909,7 +984,7 @@ whichever route installed them.
   in the same words everywhere:
 
   ```text
-  <tool id> is locked at <locked> in this tree but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main
+  <tool id> is locked at <locked> in this tree but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade this tree's lock with `mpm update <tool id>` or merge main
   ```
 
   `install` and `list` print it as `toolchain <verb>: warning: ...` in their report on standard output;
@@ -936,9 +1011,15 @@ the newest finished copy wins wherever it is.
   `update`,
   `outdated` and `bin`,
   and each time the tool runs through its launcher.
-- The warning names the upgrade command of that scope:
-  `mise run toolchain:update` for a tree,
-  and `mise run toolchain:update:global` for the machine-global lock.
+- The warning names the upgrade command of that scope as mpm's own pnpm-style verb with the tool id,
+  so it moves only that row:
+  `mpm update <tool id>` for a tree,
+  and `mpm update -g <tool id>` for the machine-global lock.
+  The id is printed as one shell word,
+  single-quoted when it holds anything other than letters, digits and `@%+=:,./_-`,
+  so the command can be pasted as it is.
+  It names no mise task,
+  because the repository is moving away from mise and `mpm update -g` works from any directory.
 - The exposed links,
   postinstall links and postinstall commands of both scopes use the winning copy,
   so `mpm-shadow install --global` makes `~/.local/bin/git` run the repository root's newest wrapper (through the global launcher) when that is the newest.
@@ -948,7 +1029,7 @@ the newest finished copy wins wherever it is.
   in the same words everywhere the tree's sentence appears:
 
   ```text
-  <tool id> is locked at <locked> in this machine's global lock but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mise run toolchain:update:global`
+  <tool id> is locked at <locked> in this machine's global lock but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mpm update -g <tool id>`
   ```
 
 #### Older managed copies
@@ -1189,7 +1270,7 @@ when:
   or no finished managed copy of the bin exists (a version directory that cargo never recorded does not count),
   because the old copy may be the only working one.
 - cargo's record says the old copy is newer than the managed one:
-  upgrade this tree's lock with `mise run toolchain:update`.
+  upgrade this tree's lock with `mpm update <tool id>`.
 - the entry in the cargo bin directory is a symbolic link and not a copy.
 - some place could not be searched:
   git could not list the worktrees,
@@ -1331,8 +1412,34 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   the newest across them wins,
   so a stale legacy file cannot keep an old version or delete a newer cached archive.
   A version directory without a record is an unfinished install and names nothing.
-- Reports each deletion on standard error as `mpm-shadow: deleted stale <path>`.
-- Skips every candidate that resolves to its own executable when it looks for the real `mpm`.
+- Reports the cleanup as one summary line on standard error,
+  `mpm-shadow: post-run cleanup after the mpm command (not part of it): removed <n> superseded cached copies ... (<size>) under <cargo home>/registry`,
+  so it cannot be read as part of the mpm command that ran before it.
+  Nothing is printed when nothing was removed.
+  `MPM_SHADOW_VERBOSE=1` adds one `mpm-shadow: deleted stale <path>` line per removed path after the summary.
+  A path that could not be removed is always listed, with the system's reason,
+  and the summary line counts it.
+- Skips every candidate that resolves to its own executable when it looks for the real `mpm`,
+  and every launcher whose record names its own executable.
+  `install` links `mpm` to a per-tree launcher (a copy or hard link of this binary with a `.launch` record beside it), which starts the installed binary under the name `mpm`;
+  the launcher is another file, so skipping only the binary's own path took the launcher for the real `mpm`,
+  started it, and the chain repeated until the host refused new processes (issue 6259).
+- Counts the shadows that started it in the `MPM_SHADOW_NESTING` environment variable,
+  passes the count plus one to the program it starts,
+  and refuses to start a program from the fourth level on (exit status 126, with a message that says why).
+  A chain of shadows is never intended; the bound turns a runaway chain into a short, explained failure.
+- Starts the real `mpm` again, with pauses that double up to half a second and total at most five seconds,
+  when the system refuses the start for lack of processes (`EAGAIN`, "Resource temporarily unavailable").
+  A refused start started nothing, so starting again is safe.
+  After a start that needed retries it says so once on standard error.
+- Explains a start that fails for good, instead of one bare line:
+  the command that was run,
+  the program it tried,
+  the stage,
+  the cause in plain words (a process limit, missing permission, a missing program or interpreter, or the system's own words),
+  what to do,
+  the exit status (126) and why the command reports it,
+  and what had completed (nothing of the command ran, and the post-run cleanup does not run).
 - Shows that it is a shadow in the two places a person looks,
   after mpm's own output and only after a successful run:
   a top-level `mpm --version` prints mpm's version text,
@@ -1394,7 +1501,8 @@ The toolchain plan links it as `mpm` into a gitignored directory that comes firs
   a bad command line,
   or a plan or lock file that cannot be read.
 - `126`:
-  (shadow mode) the real `mpm` was found but could not be started.
+  (shadow mode) the real `mpm` was found but could not be started,
+  or the shadow refused to start it because too many shadows were nested.
 - `127`:
   (shadow mode) no real `mpm` on `PATH`.
 - Anything else in shadow mode:

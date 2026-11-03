@@ -38,7 +38,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// The most commits the walk from a tip reads before it gives up and hands nothing over: a branch far ahead, or a history
-/// that never reaches the upstream, is not worth a long walk after every merge.
+/// that never reaches the upstream, is not worth a long walk after every merge. Measured: the 439 most recent merges on `main` of
+///  this repository brought in a median of 8 commits (90th percentile 50, 99th percentile 317, largest 6,542), and only 1 exceeded
+///  this budget, so 438 of 439 are walked in full. Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const WALK_BUDGET: usize = 4096;
 
 /// What the branch looked like before the command: where it pointed and where its repository is.

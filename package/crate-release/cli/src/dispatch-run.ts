@@ -5,6 +5,10 @@ import {
 } from './constants.ts';
 import type { DispatchOptions } from './dispatch-options.ts';
 import { formatCommandLine } from './command-line.ts';
+import {
+  checkOriginContainment,
+  refusalLines,
+} from './origin-containment.ts';
 import { findRunAddress } from './run-results.ts';
 import type {
   ProgramCall,
@@ -44,6 +48,9 @@ function printLines({
 /**
  Start the release workflow for a crate and report where its run is.
 
+ Before that, origin's default branch is fetched and the dispatch is refused unless it holds every commit of the local
+ branch of the same name, or when that could not be checked.
+
  Nothing else happens on this machine: the workflow does the bump, the check, the dry run, the commit, the push and the
  publish start. A refusal by `gh` is shown as `gh` wrote it, with the call that made it, so the person sees the cause.
 
@@ -53,7 +60,8 @@ function printLines({
 
  @param print - prints one line
 
- @returns zero when the workflow was started, the failure status when `gh` refused
+ @returns zero when the workflow was started, the failure status when origin lacks local commits, the check could not
+ finish, or `gh` refused
 
  @example
  ```ts
@@ -69,6 +77,21 @@ export async function dispatchRelease({
   readonly run: DispatchRunner;
   readonly print: (line: string) => void;
 }): Promise<number> {
+  // The workflow builds origin's default branch, not this checkout, and a published crate version can never be taken
+  // back, so nothing is dispatched until origin is known to hold every local commit of that branch.
+  /**
+   How the local default branch stands against origin's.
+   */
+  const containment = await checkOriginContainment({
+    root: options.root,
+    run,
+    print,
+  });
+  if (containment.kind !== 'contained') {
+    for (const line of refusalLines(containment))
+      print(line);
+    return failureExitCode;
+  }
   /**
    The call that starts the workflow.
    */

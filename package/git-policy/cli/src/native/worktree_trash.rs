@@ -58,12 +58,12 @@ const TYPE_MASK: u32 = 0o170_000;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runGit(['check-ignore', '--quiet', '--no-index', '--', `${TRASH_PARENT}/probe/x`]).exitCode === 0
+/// await runGit(['check-ignore', '--no-index', '--', `${TRASH_PARENT}/probe/x`]).exitCode === 0
 /// ```
 pub fn trash_location_is_ignored(context: &GitContext, root: &Path) -> bool {
     let request: GitRequest = GitRequest {
         cwd: root.to_path_buf(),
-        arguments: ["check-ignore", "--quiet", "--no-index", "--"].iter().map(std::ffi::OsString::from).chain(std::iter::once(std::ffi::OsString::from(format!("{TRASH_PARENT}/probe/x")))).collect(),
+        arguments: ["check-ignore", "--no-index", "--"].iter().map(std::ffi::OsString::from).chain(std::iter::once(std::ffi::OsString::from(format!("{TRASH_PARENT}/probe/x")))).collect(),
         without_prefix: true,
         ..GitRequest::default()
     };

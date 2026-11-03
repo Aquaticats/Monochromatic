@@ -1,0 +1,35 @@
+[tasks."verify:markdown"]
+description = "Render the browser responsiveness proposal and upstream evidence"
+run = [
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/browser-responsiveness-proposal.html" ../browser-disk-responsiveness.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/browser-responsiveness-chromium.html" chromium-upstream.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/browser-responsiveness-firefox.html" firefox-upstream.md',
+]
+
+[tasks."verify:issue-watch"]
+description = "Render the issue watcher record and its readiness rule"
+run = [
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-issue-watch.html" ../../handover/chromium-issue-581090722-watch.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-issue-watch-handover.html" ../../handover/chromium-live-histogram-contribution.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-readiness-skill.html" ../../../.agents/skills/troubleshooting-doc/SKILL.md',
+]
+
+[tasks."verify:metrics-ping"]
+description = "Render the Chromium metrics contribution and its verification records"
+run = [
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-ping.html" chromium-metrics-ping.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-route.html" chromium-metrics-ping-route.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-reproduction.html" ../../troubleshooting/chromium-disk-responsiveness/live-histogram-reproduction.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-handover.html" ../../handover/chromium-live-histogram-contribution.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/codex-browser-disabled.html" ../../troubleshooting/codex-in-app-browser-unavailable.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-agents.html" ../../../AGENTS.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-claude.html" ../../../CLAUDE.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-helium-evidence.html" ../../troubleshooting/helium-window-freezes.md',
+]
+
+[tasks."verify:metrics-candidate"]
+description = "Render the Chromium storage candidate and current handover"
+run = [
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-candidate.html" ../../troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-handover.html" ../../handover/chromium-live-histogram-contribution.md',
+]

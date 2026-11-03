@@ -360,7 +360,9 @@ none was fixed.
   the native wrapper reports `policy-incomplete`,
   a message with the cause and both remedies,
   and a `path` naming the candidate.
-  Failure codes follow their cause (`doc/handover/cli-git-rust-implementation.md`, "User decisions 2026-10-05");
+  Failure codes follow their cause (`doc/handover/cli-git-rust-implementation.md` [moved on 2026-11-03 to
+  `doc/planning/cli-git-rust-open-decisions.md`],
+  "User decisions 2026-10-05");
   `plugin-threw` named plugins, which the native wrapper does not have.
 - A file name that is not UTF-8,
   `pkg/caf` 0xE9 `.md`

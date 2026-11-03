@@ -104,6 +104,31 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
     return crate::test_support::fixture_with_prefix("native-command", name);
 }
 
+/// What:
+///  The records of the audit file of a common Git directory, each parsed: the lines that end with a newline and hold something.
+/// Why:
+///  Writers append whole lines without a lock, and a writer that sees no newline at the end because another is half-way through
+///  a write starts its own line on a fresh one, which leaves an empty line between records (`append_line` says readers skip
+///  it). A line without its newline is a record still being written, so a reader does not parse it. A file that is missing
+///  holds no record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = await readFile(join(common, AUDIT_FILE), 'utf8').catch(() => '');
+/// return text.split('\n').slice(0, -1).filter((line) => line !== '').map((line) => JSON.parse(line));
+/// ```
+pub(crate) fn audit_records(common: &Path) -> Vec<serde_json::Value> {
+    let text: String = std::fs::read_to_string(common.join(crate::discard_audit::AUDIT_FILE)).unwrap_or_default();
+    // Only what a newline ended: `split_inclusive` keeps each newline, so a last piece without one is a partial record.
+    return text
+        .split_inclusive('\n')
+        .filter(|piece| { return piece.ends_with('\n'); })
+        .map(|piece| { return piece.trim_end_matches('\n'); })
+        .filter(|line| { return !line.is_empty(); })
+        .map(|line| { return serde_json::from_str(line).expect("a JSON audit line"); })
+        .collect();
+}
+
 /// Start real Git in a fixture with no system or global configuration and a fixed identity.
 fn git_command(directory: &Path) -> Command {
     let mut command: Command = Command::new(REAL_GIT);

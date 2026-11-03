@@ -117,3 +117,40 @@ fn the_clean_names_every_member_and_stays_offline() {
         assert_eq!(arguments[position - 1], "--package", "{arguments:?}");
     }
 }
+
+/// The report says how many entries the clone left out, in the singular and the plural, and nothing when none.
+#[test]
+fn the_report_counts_the_entries_left_out() {
+    assert_eq!(left_out_words(0), "");
+    assert_eq!(left_out_words(1), "; 1 unreadable entry was left out");
+    assert_eq!(left_out_words(3), "; 3 unreadable entries were left out");
+}
+
+/// A worker that panics on one item gives that item a failure naming it; every other item still has its result, in item order.
+#[test]
+fn a_panicking_worker_is_a_failure_naming_its_item() {
+    let items: Vec<usize> = (0..6).collect();
+    let results: Vec<Result<usize, String>> = map_concurrent(items.as_slice(), 2, &|item: &usize| { return format!("item {item}"); }, &|item: &usize| {
+        assert_ne!(*item, 3, "this item breaks");
+        return *item * 10;
+    });
+    assert_eq!(results.len(), items.len(), "{results:?}");
+    for (item, outcome) in items.iter().zip(&results) {
+        if *item == 3 {
+            let reason: &String = outcome.as_ref().expect_err("the broken item fails");
+            assert!(reason.contains("item 3") && reason.contains("this item breaks"), "{reason}");
+        } else {
+            assert_eq!(outcome.as_ref().ok(), Some(&(*item * 10)), "item {item}");
+        }
+    }
+}
+
+/// Without a panic every item has its result in item order, for any number of workers.
+#[test]
+fn every_item_has_its_result_in_item_order() {
+    let items: Vec<usize> = (0..9).collect();
+    for workers in [0, 1, 4, 64] {
+        let results: Vec<Result<usize, String>> = map_concurrent(items.as_slice(), workers, &|item: &usize| { return format!("item {item}"); }, &|item: &usize| { return *item + 1; });
+        assert_eq!(results, items.iter().map(|item: &usize| { return Ok(*item + 1); }).collect::<Vec<Result<usize, String>>>());
+    }
+}

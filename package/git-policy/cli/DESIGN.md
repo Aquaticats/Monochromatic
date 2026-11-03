@@ -36,8 +36,11 @@ A design that is adequate for today's commit rate is a hypothesis about tomorrow
 not a result.
 What grows with the number of committers is burstiness, tail latency,
 wasted optimistic work and the cost of every failure mode under contention.
-The measurements behind this are in `doc/handover/cli-git-rust-implementation.md`,
-section "Owner premise: concurrent committers will keep growing".
+The measured baseline at that time was 582 commits in 24 hours across all branches (`git log --all`),
+one per 148 s;
+the owner's premise is that burstiness,
+not that average,
+is what grows.
 
 ## "Good" is not "perfect"
 
@@ -46,34 +49,29 @@ is a claim about the real world, and the real world here is hostile in ordinary 
 loaded hosts, slow fsync, killed processes, closed terminals, huge repositories,
 other tools' state in the same repository, and many committers at once.
 Each of the following looked good until it met that world.
-Each is recorded with its measurement in the handover sections named.
+Each is recorded here with its measurement.
 
 - **A private index that kept no stat data.**
   An explicit-path commit rebuilt its private index with a plain `read-tree`,
   so the commit step re-hashed every tracked file.
   The commit step took 2377 ms of a 2740 ms wrapped commit on a 20,218-file clone,
   and ran more than 640 s live on this repository under load.
-  Sections: "Independent design review report" and "Commit-timeouts agent report".
 - **One default bound for every Git child process.**
   A single 1800 s bound looked safe and hid a stall behind silence.
   The per-class bounds that replaced it were themselves questioned,
   because the cost of an index refresh grows with the number of stat-dirty files.
-  Section: "Commit-timeouts agent report".
 - **Tests and a performance fixture that were too small to tell the truth.**
   The performance fixture holds 30 files and its commit scenario was not enforced,
   so the 87 percent finding above stayed invisible.
   Branch tests that restored Git state by running more Git took 34 to 44 s each,
   and 1.3 s for thirty tests once each case started from a fresh copy.
-  Sections: "Independent design review report" and the slow-test analysis in the handover.
 - **A gate image that recompiled everything.**
   Any edit under the package tree recompiled 121 crates.
   After layering, a test-file edit rebuilds one crate:
   982 s became 153 s.
-  Section: "Reports of the dispatcher, image-cache and commit-timeouts review".
 - **Locks held across unbounded work.**
   A waiter could give up after 95 s on a holder that was still legitimately working,
   and waiters retry every 20 ms with no order among them.
-  Sections: "LFS rework report" and "Owner's view on locks and a client-server architecture".
 
 ## What this asks of contributors
 

@@ -15,13 +15,14 @@
 //! ```
 
 use super::json_record::quote;
-use super::private_storage::{sync_directory, write_exclusive_synced};
+use super::parallel_budget::{HostResources, sliced_workers};
+use super::private_storage::{sync_directory, write_exclusive_scratch, write_exclusive_synced};
 use super::random_id::random_uuid;
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use super::worktree_copy_install_entry::InstalledPath;
 use super::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use super::worktree_copy_selection::{STAGE_PREFIX, assert_safe_repository_path, js_order};
-use super::worktree_copy_stage::StagedSnapshot;
+use super::worktree_copy_stage::{PARALLEL_COPY_MAX_WORKERS, StagedSnapshot};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -665,6 +666,37 @@ pub fn temporary_writer_token(file_name: &str) -> Option<&str> {
 /// await writeFileAtomically({ path, bytes, subject });
 /// ```
 pub fn write_atomic(path: &Path, bytes: &[u8], subject: &str) -> Result<(), WorktreeCopyError> {
+    return write_atomic_flushing(path, bytes, subject, Flush::ToDisk);
+}
+
+/// Whether a record written by [`write_atomic_flushing`] is flushed to disk before the call returns.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Flush {
+    /// The file and its directory are flushed: a crash finds the record.
+    ToDisk,
+    /// Neither is flushed: the file is published whole by the rename, and the filesystem makes it durable with its next commit.
+    Never,
+}
+
+/// What:
+///  Writes one private file atomically beside its final name without flushing the file or its directory to disk; a failure
+///  names `subject` and leaves no temporary.
+/// Why:
+///   A flush after a subvolume was swapped into place in the same btrfs transaction is a commit of the whole filesystem (the
+///  kernel sets `btrfs_set_log_full_commit` for the swap), which waits for every other writer's data. A record that only
+///  silences a notice is published whole by the rename and made durable by the commit the filesystem makes anyway.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeFileAtomicallyUnflushed({ path, bytes, subject });
+/// ```
+pub fn write_atomic_unsynced(path: &Path, bytes: &[u8], subject: &str) -> Result<(), WorktreeCopyError> {
+    return write_atomic_flushing(path, bytes, subject, Flush::Never);
+}
+
+/// `write_atomic` and `write_atomic_unsynced`: one rename publishes the whole file; `flush` says whether the file and its
+///  directory are flushed.
+fn write_atomic_flushing(path: &Path, bytes: &[u8], subject: &str, flush: Flush) -> Result<(), WorktreeCopyError> {
     let unique: String = random_uuid().map_err(|error| {
         return failure_with_cause(
             format!(
@@ -676,12 +708,16 @@ pub fn write_atomic(path: &Path, bytes: &[u8], subject: &str) -> Result<(), Work
         );
     })?;
     let temporary: PathBuf = temporary_path(path, &current_copy_owner()?, unique.as_str());
+    let written: std::io::Result<()> = match flush {
+        Flush::ToDisk => write_exclusive_synced(temporary.as_path(), bytes),
+        Flush::Never => write_exclusive_scratch(temporary.as_path(), bytes),
+    };
     let persisted: std::io::Result<()> =
-        write_exclusive_synced(temporary.as_path(), bytes)
+        written
             .and_then(|()| return std::fs::rename(temporary.as_path(), path))
-            .and_then(|()| match path.parent() {
-                Some(parent) => return sync_directory(parent),
-                None => return Ok(()),
+            .and_then(|()| match (flush, path.parent()) {
+                (Flush::ToDisk, Some(parent)) => return sync_directory(parent),
+                _ => return Ok(()),
             });
     // A failed write removes its own temporary, so the directory keeps no partial journal.
     if let Err(error) = persisted {
@@ -974,6 +1010,9 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
 /// Why:
 ///   A stage holds a few very large trees (`node_modules`, `target`); three levels below the payload give enough
 ///  independent subtrees to share without walking the whole stage on one thread first.
+///  Not measured: no run of the removal at other depths exists, so this value has the stage's shape as its only basis and is
+///  the coordinator's pick under the owner's delegation, open to the owner's veto; the audit lists it as open
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -985,7 +1024,8 @@ const REMOVAL_SPLIT_DEPTH: usize = 3;
 ///  Removes a directory tree, sharing the subtrees below a split depth among a bounded set of threads.
 /// Why:
 ///   Unlinking a staged copy entry by entry took longer than staging it on a tree of hundreds of thousands of entries;
-///  the unlinks are independent, and the thread count follows the CPUs the process may use, capped at eight.
+///  the unlinks are independent, and the thread count follows the host's budget (the CPUs the process may use less a margin, and the free
+///  memory), capped at eight.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1013,7 +1053,7 @@ fn remove_tree_split(path: &Path) -> std::io::Result<()> {
         }
         level = next;
     }
-    let workers: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get).min(8);
+    let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
     let cursor: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let outcomes: Vec<std::io::Result<()>> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers)

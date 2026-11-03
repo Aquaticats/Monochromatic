@@ -200,9 +200,11 @@ fn the_first_commit_of_a_branch_lands_through_the_service() {
     remove_settled(&fixture);
 }
 
-/// An unmerged index is refused exactly as native Git refuses it: the same words, the same status, nothing landed.
+/// `-a` stages the working copy of a conflicted file, which is a resolution, so the service commits it as native Git does. A plain
+///  commit with unmerged files is no longer refused as native Git refuses it: it finishes the merge with a warning
+///  (`binary_commit_during_merge_tests.rs`, owner, 2026-11-03: "Warn and finish the merge").
 #[test]
-fn an_unmerged_index_is_refused_in_the_words_of_native_git() {
+fn a_commit_with_all_staged_resolves_an_unmerged_file_as_native_git_does() {
     let fixture: Fixture = fixture("landing-unmerged");
     let base: PathBuf = base_repository(&fixture);
     diverged(&fixture, &base);
@@ -210,16 +212,6 @@ fn an_unmerged_index_is_refused_in_the_words_of_native_git() {
     write(&base, "c.txt", "edited elsewhere\n");
     let name: String = format!("landing-unmerged-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
-    for entry in [
-        Case { index_commit: true, full_output: true, ..case("index", &["commit", "-m", "x"]) },
-        Case { index_commit: true, full_output: true, ..case("index with -m twice", &["commit", "-m", "x", "-m", "y"]) },
-        Case { full_output: true, ..case("a named path", &["commit", "-m", "x", "--", "c.txt"]) },
-        Case { full_output: true, ..case("the unmerged path", &["commit", "-m", "x", "--", "b.txt"]) },
-    ] {
-        let (native, served) = compare(&fixture, &base, name.as_str(), &entry);
-        assert_ne!(native.code, Some(0), "{}: native Git refuses", entry.name);
-        assert_eq!(served.code, native.code, "{}", entry.name);
-    }
     // `-a` stages the working copy of the conflicted file, which is a resolution, so native Git commits it and so must the service.
     let resolved = Case { index_commit: true, ..case("all", &["commit", "-a", "-m", "x"]) };
     let (native, _served) = compare(&fixture, &base, name.as_str(), &resolved);

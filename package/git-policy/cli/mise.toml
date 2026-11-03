@@ -46,6 +46,10 @@ run = "node ../../crate-release/cli/bin/await-release.ts --crate monochromatic-g
 description = "Build the native wrapper executable on the host, for differential runs that start it by path"
 run = "cargo build --locked --offline --bin cli-git-native"
 
+[tasks."native:build:release"]
+description = "Build the optimised native wrapper executable on the host, for timing runs that start it by path (`target/release/cli-git-native`); nothing is installed"
+run = "cargo build --locked --offline --release --bin cli-git-native"
+
 [tasks."native:check"]
 description = "Type-check the native wrapper library, executable and test targets without running them"
 run = "cargo check --locked --offline --all-targets"

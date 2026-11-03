@@ -5,18 +5,18 @@
 //! Why:
 //!  The real linter proves what the policy relies on (a rewrite, a kept finding, an exclude, odd names);
 //!  the planted functions reach each failure quickly:
-//!  a panic, a stall past the deadline, a run that ends with a status the configuration never produces.
+//!  a panic, a stall with no sign of work, a run that ends with a status the configuration never produces.
 //!  The planted stall is the guard's required control:
 //!  against a guard that runs the fix on the caller's thread it never returns.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const run = embeddedLinterWith(plantedFix, deadline).lint({ topLevel, options, path, source });
+//! // const run = embeddedLinterWith(plantedFix, window).lint({ topLevel, options, path, source });
 //! ```
 
 /// The linter under test and its private parts.
 use super::{
-    ABANDONED_REASON, EmbeddedLinter, LINT_DEADLINE, embedded_linter, embedded_linter_with, guard_failure_reason,
+    ABANDONED_REASON, EmbeddedLinter, LINT_QUIET_WINDOW, embedded_linter, embedded_linter_with, guard_failure_reason,
 };
 use crate::config_schema::{MarkdownAutofixOptions, MarkdownRule, PolicyConfig};
 use crate::markdown_linter_guard::GuardFailure;
@@ -29,12 +29,12 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-/// The deadline of the one control whose planted fix never returns, so the abandonment shows quickly.
+/// The quiet window of the one control whose planted fix never returns, so the abandonment shows quickly.
 /// Why:
-///   Only a stalled fix waits out its deadline. Every control whose fix returns or panics at once uses the production
-///  `LINT_DEADLINE`, which only bounds a hang: under a loaded host a planted panic came back later than this deadline
+///   Only a stalled fix waits out its window. Every control whose fix returns or panics at once uses the production
+///  `LINT_QUIET_WINDOW`, which only judges a hang: under a loaded host a planted panic came back later than this window
 ///  and read as a timeout instead of the panic, in the container gate of `692dcb9f48` (2026-11-03T00:08:43-05:00).
-const SHORT_DEADLINE: Duration = Duration::from_millis(100);
+const SHORT_WINDOW: Duration = Duration::from_millis(100);
 
 /// The default options:
 ///  the LFS rule and no exclusion.
@@ -60,8 +60,8 @@ fn lint(
 
 /// The bound of the executable's linter is the measured one the former child process had.
 #[test]
-fn the_executable_linter_uses_the_measured_deadline() {
-    assert_eq!(embedded_linter().deadline, LINT_DEADLINE);
+fn the_executable_linter_uses_its_labelled_unmeasured_window() {
+    assert_eq!(embedded_linter().window, LINT_QUIET_WINDOW);
 }
 
 /// How many times the planted stall started, to show that no second one starts beside an abandoned one.
@@ -99,15 +99,15 @@ fn echoes(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure>
     });
 }
 
-/// A stalled fix is abandoned at the deadline with a reason that names the limit and the ways forward;
+/// A stalled fix is abandoned when it shows no sign of work, with a reason that names the limit and the ways forward;
 ///  the commit goes on to report the candidate unchecked instead of hanging.
 #[test]
-fn a_stalled_linter_is_abandoned_at_the_deadline() {
+fn a_stalled_linter_is_abandoned_when_it_shows_no_sign_of_work() {
     let root: PathBuf = fixture("linter-stall");
-    let mut linter: EmbeddedLinter = embedded_linter_with(stalls, SHORT_DEADLINE);
+    let mut linter: EmbeddedLinter = embedded_linter_with(stalls, SHORT_WINDOW);
     let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("abandoned");
-    assert_eq!(reason, guard_failure_reason(&GuardFailure::TimedOut(SHORT_DEADLINE)));
-    assert!(reason.contains(SHORT_DEADLINE.as_millis().to_string().as_str()), "{reason}");
+    assert_eq!(reason, guard_failure_reason(&GuardFailure::Quiet(SHORT_WINDOW)));
+    assert!(reason.contains(SHORT_WINDOW.as_millis().to_string().as_str()), "{reason}");
     assert!(reason.contains("markdown/autofix"), "{reason}");
     // The stalled thread is still running: the next candidate is refused without starting another.
     let starts: usize = STALL_STARTS.load(Ordering::SeqCst);
@@ -126,7 +126,7 @@ fn panics_with_a_long_message(_request: &EmbeddedRequest<'_>) -> Result<Embedded
 #[test]
 fn a_long_panic_message_is_bounded() {
     let root: PathBuf = fixture("linter-long-panic");
-    let mut linter: EmbeddedLinter = embedded_linter_with(panics_with_a_long_message, LINT_DEADLINE);
+    let mut linter: EmbeddedLinter = embedded_linter_with(panics_with_a_long_message, LINT_QUIET_WINDOW);
     let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("reported");
     assert!(reason.contains(format!("{}...", "p".repeat(EXPLANATION_LIMIT)).as_str()), "{reason}");
     assert!(!reason.contains("p".repeat(EXPLANATION_LIMIT + 1).as_str()), "the payload is cut");
@@ -137,11 +137,11 @@ fn a_long_panic_message_is_bounded() {
 #[test]
 fn a_panicking_linter_is_reported_and_the_wrapper_goes_on() {
     let root: PathBuf = fixture("linter-panic");
-    let mut linter: EmbeddedLinter = embedded_linter_with(panics, LINT_DEADLINE);
+    let mut linter: EmbeddedLinter = embedded_linter_with(panics, LINT_QUIET_WINDOW);
     let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("reported");
     assert!(reason.contains("planted panic in the linter"), "{reason}");
     assert!(reason.contains("internal error"), "{reason}");
-    let mut healthy: EmbeddedLinter = embedded_linter_with(echoes, LINT_DEADLINE);
+    let mut healthy: EmbeddedLinter = embedded_linter_with(echoes, LINT_QUIET_WINDOW);
     assert_eq!(
         lint(&mut healthy, root.as_path(), b"a.md", b"a\n"),
         Ok(LintRun {
@@ -156,7 +156,7 @@ fn a_panicking_linter_is_reported_and_the_wrapper_goes_on() {
 #[test]
 fn an_unexpected_status_is_refused() {
     let root: PathBuf = fixture("linter-status");
-    let mut linter: EmbeddedLinter = embedded_linter_with(ends_with_error_status, LINT_DEADLINE);
+    let mut linter: EmbeddedLinter = embedded_linter_with(ends_with_error_status, LINT_QUIET_WINDOW);
     let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("refused");
     assert!(reason.contains(format!("status {NEVER_PRODUCED_STATUS}").as_str()), "{reason}");
     remove(root.as_path());
@@ -189,7 +189,7 @@ fn a_candidate_name_is_the_exact_bytes_the_linter_is_given() {
             findings: Vec::new(),
         });
     }
-    let mut linter: EmbeddedLinter = embedded_linter_with(checks_the_name, LINT_DEADLINE);
+    let mut linter: EmbeddedLinter = embedded_linter_with(checks_the_name, LINT_QUIET_WINDOW);
     let run: LintRun = lint(&mut linter, root.as_path(), EXACT_NAME, b"a\n").expect("the name arrived unchanged");
     assert_eq!(run.fixed, b"ok".to_vec());
     remove(root.as_path());
@@ -283,5 +283,33 @@ fn the_linked_linter_meets_the_contract() {
             remaining: Vec::new(),
         })
     );
+    remove(root.as_path());
+}
+
+/// The quiet window of the control below: longer than the sampling interval of the progress meter.
+const WORKING_WINDOW: Duration = Duration::from_millis(1200);
+
+/// How many times the working fix writes a file, a pause after each: a multiple of the window in all.
+const WORKING_ROUNDS: u32 = 15;
+
+/// A fix that keeps working (it writes a file a round, with a pause between) and then answers, with no busy loop.
+fn works_then_answers(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+    let scratch: PathBuf = request.top_level.join("linter-progress");
+    for round in 0..WORKING_ROUNDS {
+        std::fs::write(&scratch, round.to_string()).expect("the fixture writes its progress");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    return echoes(request);
+}
+
+/// A linter that keeps making progress is never abandoned however long it runs: the window judges quiet time, not wall time.
+#[test]
+fn a_linter_that_keeps_working_is_never_abandoned_however_long_it_runs() {
+    let root: PathBuf = fixture("linter-working");
+    let mut linter: EmbeddedLinter = embedded_linter_with(works_then_answers, WORKING_WINDOW);
+    let started: std::time::Instant = std::time::Instant::now();
+    let run: Result<LintRun, String> = lint(&mut linter, root.as_path(), b"a.md", b"a\n");
+    assert!(run.is_ok(), "{run:?}");
+    assert!(started.elapsed() > WORKING_WINDOW * 2, "the fixture ran only {:?}", started.elapsed());
     remove(root.as_path());
 }

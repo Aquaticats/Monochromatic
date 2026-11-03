@@ -1,0 +1,17 @@
+{
+  "dependency": "third_party/icu",
+  "revision": "2a51536dfb3b448bdf3dae70c782ea2879c90904",
+  "date": "2026-11-03T08:26:50.744Z",
+  "trackedEntries": 7119,
+  "regularFilesScanned": 7119,
+  "omitted": [],
+  "matches": 6,
+  "originalPatternMatches": 6,
+  "wrapperMatches": 0,
+  "matchedFiles": 2,
+  "productionLooking": 4,
+  "searchedBytes": 228846028,
+  "perFamily": {
+    "native-library": 6
+  }
+}

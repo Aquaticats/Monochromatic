@@ -45,8 +45,8 @@ A settled item is adopted without a question unless it is vetoed.
 Every question in this brief is now decided,
 so none of them is open any more,
 even where an item section below still reads "Needs the owner".
-The answers are recorded in [`cli-git-rust-implementation.md`](../handover/cli-git-rust-implementation.md),
-section `User decisions 2026-10-05`:
+The answers are recorded in this document,
+section `User decisions 2026-10-05` (moved here on 2026-11-03 from the cli-git handover):
 the owner answered the optional-policy batch and four transactions-phase questions
 (signals, the exit status of a signaled Git, and the hook entries on Unix and on Windows),
 and asked on 2026-10-06 that a clearly dominant option be adopted without a question for that session.
@@ -104,8 +104,8 @@ Option letters are local to the heading they appear under.
 ## Decisions already made
 
 The owner made these decisions on 2026-10-05.
-They are recorded in `doc/handover/cli-git-rust-implementation.md`,
-section `User decisions 2026-10-05`,
+They are recorded in this document,
+section `User decisions 2026-10-05` (moved here on 2026-11-03 from the cli-git handover),
 and are not reopened here.
 
 - The four optional policies
@@ -649,7 +649,8 @@ Which exit status the wrapper reports when real Git itself was ended by a signal
   `doc/handover/cli-git-native-foundation.md`,
   section `Forwarding`,
   records both and cites Git's convention for the second.
-- `doc/handover/cli-git-rust-implementation.md`,
+- `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+  `e10b8186bc`],
   section `Native wrapper foundation`,
   records that forwarding a signal from a waiting wrapper needs signal handling the standard library lacks,
   and calls the crate "a technology choice for the transaction phase".
@@ -2154,7 +2155,8 @@ and what it costs in runner time or in manual work.
   and line 338 says native macOS and Windows jobs "remain necessary for their filesystem and process contracts".
 - The only wrapper jobs on those systems run trust and filesystem-identity tests
   (`.github/workflows/cli-git-trust.yml:189-232`).
-- `doc/handover/cli-git-rust-implementation.md`,
+- `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+  `e10b8186bc`],
   section `Native wrapper foundation`:
   "Windows and macOS code paths were never compiled."
 - The code that differs by platform is confined to named areas:
@@ -2173,7 +2175,8 @@ and what it costs in runner time or in manual work.
   `.github/workflows/fs-id.yml`,
   `.github/workflows/readonly-semantic-bridge.yml`).
 - The scanner's Windows verification ran in a local virtual machine
-  (`doc/handover/cli-git-rust-implementation.md`,
+  (`doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+  `e10b8186bc`],
   section `Scanner Windows-native verification`).
 - Measured:
   `gh repo view` reports this repository as public.
@@ -3433,6 +3436,280 @@ Should that commit become a measured scenario?"
 
 Detail:
 "Performance acceptance".
+
+## 2026-10-05T14:52:20-04:00: owner answers and adopted decisions, moved from the cli-git handover
+
+These sections were the handover's "User decisions 2026-10-05",
+"Standing instruction for this session",
+"Adopted without a question" and "User correction:
+no vetting decision gate".
+They were moved here on 2026-11-03 when the handover was cut down to open work (rule H0P);
+the answers listed in this document as "recorded in the handover" are these sections.
+Sub-headings are the original ones,
+kept so quotations of them still find their text.
+
+### User decisions 2026-10-05
+
+Asked through the question tool,
+with context restated,
+as rule `QRX` requires.
+
+- No parity rule goes into `AGENTS.md`.
+  The main session proposed a rule that choices settled by a parity measurement against an incumbent
+  are adopted with evidence instead of waiting for acceptance.
+  The user declined:
+  "AGENTS.md are read by all types of agents and adding this rule is inviting lesser,
+  weaker agents to bomb me."
+  Rejected idea;
+  do not re-propose.
+  The correction in `User correction: no vetting decision gate` still stands for this session's work.
+- Rule `WC2` is extended to package `Cargo.toml` files (`0ae51048d`,
+  with the regenerated `CLAUDE.md`).
+  The rule stays at 197 characters,
+  inside the tagged-rule budget.
+- file-enforcer gets no check mode.
+  The user:
+  "Check mode is delibrately not built because it'd go against file-enforcer's naming and philosophy."
+  The issue was framed around where enforcement should run instead:
+  [#607](https://github.com/Aquaticat/Monochromatic/issues/607),
+  "file-enforcer:
+  new managed files can be committed before they are enforced".
+  Do not propose a drift-reporting mode.
+- `cctt` is unregistered from `WorktreeCreate`,
+  in `.claude/settings.local.json` and the terminal-title README (`495f36355`).
+  Built-in worktree isolation works again.
+  Detail:
+  `doc/troubleshooting/claude-code-worktree-create-hook-no-path.md`,
+  section `Fix applied`.
+- Both Claude Code `worktree` settings are set and tested,
+  the option the user picked over leaving isolation unprovisioned.
+  Result:
+  `Isolated worktree settings` under `Delegate results`.
+- The restricted LFS URL normalizer is kept.
+  The 289 endpoint forms the old linter accepts and the native one refuses are accepted as a behavior change.
+- The wrapper's four optional policies (forbidden-strings,
+  forbidden-root-context,
+  dependent-version-bump,
+  Markdown autofix) run only when `cli-git.config.jsonc` lists them.
+  This replaces the foundation's "option C",
+  where a present file turned all nine on;
+  `{}` and no file now behave identically.
+  Cutover consequence:
+  this repository's translated config must list all four,
+  including `mono/dependent-version-bump`,
+  which the incumbent ran at `error` without the root config naming it.
+- The wrapper's repository root is the top level Git reports,
+  for both configuration lookup and require-root,
+  honoring `--git-dir`,
+  `--work-tree` and their environment forms.
+  The incumbent's nearest-marker walk is an intentional difference.
+- A legacy `cli-git.config.ts` beside the JSONC file is reported only by `git cli-git check`.
+  Ordinary commands stay silent about it during the rollback period.
+  A legacy file with no JSONC file stays a migration error.
+- `rust/no-anonymous-functions` rolls out at `warn` everywhere and is raised to `error` when the count reaches zero.
+  The user chose this over a per-file burn-down list;
+  the draft configuration in `doc/planning/unified-linter.md` is updated.
+- Mutation timeouts.
+  Asked first whether to exclude,
+  restructure or patch,
+  the user answered:
+  "Can we change the tool to not do that?"
+  The source says no for 27.1.0
+  (`doc/troubleshooting/cargo-mutants-timeout-exit-status.md`).
+  Asked again with that answer,
+  the user chose to skip the two stalling replacement kinds in every mutation runner
+  and fix the five timeouts those kinds do not cover in code.
+  `+=` replaced by `-=` stays in every campaign.
+- mvm learns this host's setup,
+  where libvirt exists only inside the `org.virt_manager.virt-manager` Flatpak and there is no `virtiofsd`,
+  instead of each run carrying its own shims.
+  A delegate owns `package/cli/mvm` for this;
+  diagnosis:
+  `doc/troubleshooting/mvm-libvirt-flatpak-only-host.md`.
+  The mvm tools in a running session need a reload by the user after the build.
+- The scanner keeps reporting the platform's own reason for a cache root blocked by a regular file
+  (`unreadable` on Unix,
+  `missing` on Windows).
+  The user accepted the difference rather than mapping either platform onto the other;
+  the tests and the README state it.
+
+- The scanner's private rules file is named by a `rulesFile` option in `cli-git.config.jsonc` first,
+  then by `FORBIDDEN_STRINGS_RULES`,
+  then by the default file.
+  The user chose this over keeping the variable alone (silent built-in-only scan when it is absent)
+  and over configuration alone.
+  Implemented in the optional-policies phase;
+  this repository's translated configuration must then set `rulesFile`.
+- The failure code of a shipped policy that could not finish is chosen by cause:
+  `content-unavailable` when repository content or a fact could not be read,
+  `policy-incomplete` when the policy's own machinery failed.
+  `plugin-threw` is not carried over and no code is added.
+  The engine delegate adds `policy-incomplete` to the native code set.
+- The dependent-version bump ends with one implementation,
+  in the native wrapper:
+  the release task calls `git cli-git fix` for that policy
+  and the TypeScript planning code is deleted at cutover.
+  Before that,
+  both entry points must be shown to give the same result on the release workflow's input,
+  and the release workflow must be able to build or fetch the native executable.
+- The cargo-mutants prototype is posted as a comment on upstream issue 545
+  (the user chose a comment over a pull request and over keeping it local):
+  <https://github.com/sourcefrog/cargo-mutants/issues/545#issuecomment-6005242222>.
+
+- A signal that reaches the wrapper while it waits for Git is caught:
+  the wrapper passes it to Git only when the sender was a process and not the terminal,
+  waits for Git,
+  releases its locks and removes the transaction.
+  Chosen over ending at once (today) and over relaying every signal.
+- When real Git was ended by a signal,
+  the wrapper exits with 128 plus the signal number.
+- Hook entry files on Linux and macOS are symbolic links to the wrapper named after the hook;
+  the wrapper acts on the name it was started under.
+- Hook entry files on Windows are `<hook>.exe` hard links to the wrapper,
+  or copies when the Git directory is on another volume.
+  This rests on reading Git's source;
+  nothing was run on Windows.
+  The user selected no option for this one and wrote:
+  "I'm going with all your recommendations this turn".
+- On 2026-10-06 the user wrote:
+  "I'm approving publishing to crates.io for this session."
+  This satisfies the standing requirement that the first crates.io publication needs explicit approval,
+  for the session in which it was given.
+  It unblocks the linter's cutover (plan step 7 of `doc/planning/unified-linter.md`)
+  and the `monochromatic-jsonc-edit` 0.1.1 publication it needs.
+
+The no-config,
+repository-root and legacy-config decisions were sent to the engine delegate,
+which owns the affected modules,
+to implement with tests before building further on those defaults.
+The failure-code decision went to the engine delegate as well,
+and the failure-code and rules-file decisions to the candidate-layer delegate,
+whose scanner adapter they describe;
+neither changes that branch's scope.
+The engine delegate landed the optional-policy and legacy-config decisions as `329de1b97`.
+
+#### Standing instruction for this session
+
+In the same answer the user added:
+"for this session,
+for options that blows all other options out of the water,
+adopt them directly,
+no need to burn a question on that."
+The main session therefore adopts a clearly dominant option,
+records it with its reason under `Adopted without a question`,
+and keeps it open to veto;
+it asks only where options trade real costs against each other.
+The instruction is for this session and is not a repository rule.
+
+#### Adopted without a question
+
+From the transactions-phase items of `doc/planning/cli-git-rust-open-decisions.md`,
+each for the reason given;
+all remain open to the user's veto.
+
+- Locks and journals interoperate with the incumbent in both directions while both are in use,
+  including identical process birth-identity strings.
+  The implementation plan states this as its default,
+  and the alternatives need a moment when no session is committing,
+  which this repository rarely has.
+  A better identity scheme can follow after the rollback period.
+- A legacy `cli-git-transaction` directory makes the native wrapper stop with instructions
+  to run the previous executable once.
+  No instance exists in this checkout,
+  the format was superseded on 2026-09-25,
+  and the previous executable stays available through the rollback period.
+- The test-only crash switch (`CLI_GIT_TEST_ONLY_PHASE_SIGNAL`) is in the release executable.
+  The plan requires container tests to exercise the installed executable,
+  and the landing steps can be reached only through that switch;
+  Git itself reads `GIT_TEST_*` variables in its ordinary executable.
+- A file name that is not UTF-8 appears in an event as a readable `path`
+  plus a new optional `pathBytes` field with the exact bytes.
+  It only adds a field,
+  where escaping in place would change every existing name that contains a backslash
+  and replacing bytes would make the file unidentifiable.
+- An alias that expands to `commit` gets the commit rules.
+  Measured:
+  `git -c alias.c=commit c -a` commits today while `git commit -a` is rejected,
+  so keeping today's behavior keeps a one-argument bypass of the rules.
+- Recovery of interrupted transactions also runs before read-only commands,
+  as the spec and the incumbent do,
+  for every command that already asks Git for the repository location.
+  The check is one directory lookup after a query that runs anyway,
+  and without it `git status` after a crash can show a state recovery was about to repair.
+  Commands that start no Git process (`version`,
+  `help`,
+  native queries) stay exempt.
+- The read-only fast path's accepted contract is what the engine delegate measured:
+  no configuration or lease read,
+  no Git process for exempt commands,
+  exactly one (the location query) otherwise.
+  The plan's "no extra work" cannot hold together with the decision that the root is what Git reports.
+- For the scanner adapter,
+  `policy-incomplete` also covers an unrepresentable pathname,
+  a stale candidate and a pathname with a line break:
+  none is a failure to read repository content,
+  and the incumbent treated the line-break case as an engine failure.
+
+From the cutover items of the same brief,
+on the same basis and equally open to veto:
+
+- The wrapper checks the Git version once before work that depends on it (a commit,
+  hooks,
+  locks);
+  read-only commands are never checked.
+  Checking on every command costs a Git process each time,
+  and checking only at install misses a later change of Git.
+- Git 2.56.0 or newer counts as supported.
+  Requiring the exact release would stop commits after every system update of Git.
+  This host's Git is 2.55.0,
+  so it must be upgraded before cutover;
+  that is a change to the user's system and not something the main session does.
+- The retired trust commands print their explanation and exit 0.
+  Nothing outside the retiring workflow calls them,
+  and exit 0 lets one set of instructions serve both wrappers during rollback.
+- The whole native test suite runs on hosted macOS and Windows runners on every wrapper change.
+  This departs from the brief's ranking,
+  which put the platform-specific suites first:
+  the scanner's Windows run in this session found a platform difference in code believed neutral
+  (the cache-root reason),
+  hosted runners are free for this public repository,
+  and the cost is waiting time plus installing Git 2.56.0 on each runner.
+- The wrapper's line for `git --version` and its note for `git status` are printed first,
+  on standard error,
+  and the command is then handed to Git whole.
+  Printing after Git would keep the wrapper alive behind every such command,
+  and dropping them loses the only place the rules are shown.
+- `MONOCHROMATIC_VERBOSE` stays the switch for verbose diagnostics,
+  shared with the TypeScript tools.
+- The hk cleanup task is kept and moved to a TypeScript package that survives cutover.
+  Whether another machine still has the old settings cannot be measured from here,
+  and keeping it costs one move.
+  If the user knows that no machine does,
+  retiring it is the simpler end state.
+- The performance bar is "faster than the incumbent",
+  per scenario and by more than the measured noise.
+  The rewrite was requested because the wrapper felt slow,
+  and every other bar lets a slower result pass.
+- The commit the user reported at 8.9 seconds (staging and committing one Markdown file)
+  becomes a measured and gated scenario with this repository's real policies.
+
+No item of the brief is left unasked.
+
+### User correction: no vetting decision gate
+
+The main session briefed `markdown/lfs-image-url` as blocked on a vetting decision by the user.
+The user replied (2026-10-05):
+"we don't need a vetting decision here."
+The gate is removed.
+The normalizer owner is chosen by measurement:
+the option that reproduces the incumbent on a differential corpus with the least added dependency footprint.
+The delegate commits `package/linter/monochromatic-lint/fixtures/lfs-url-parity.json`
+and a `Selected owner` section in
+[`native-lfs-url-normalization-evaluation.md`](native-lfs-url-normalization-evaluation.md);
+the linter delegate then ports the rule and may add a selected crate to the manifest.
+The differential test stays because the rule's findings and edits must match the incumbent;
+that is verification,
+not a decision for the user.
 
 [git-src]: https://github.com/git/git/tree/v2.56.0
 [gfw-src]: https://github.com/git-for-windows/git/tree/v2.56.0.windows.1

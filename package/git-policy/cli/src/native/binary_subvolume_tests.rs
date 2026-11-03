@@ -149,6 +149,12 @@ fn the_rollback_restores_the_ordinary_directory() {
     remove(&fixture);
 }
 
+/// The standard error from the first line of the filesystem section on.
+fn from_filesystem_section(text: &str) -> String {
+    let start: usize = text.find(SECTION_MARKER).expect("the filesystem section is on standard error");
+    return String::from(&text[start..]);
+}
+
 /// The doctor ends its standard error with the filesystem section for the checkout's own filesystem, keeps its exit
 ///  status, and the section names the command that applies.
 #[test]
@@ -158,7 +164,8 @@ fn the_doctor_ends_with_the_filesystem_section_and_keeps_its_status() {
     let report: Observed = run_wrapped(&fixture, repo.as_path(), &["cli-git", "doctor"]);
     assert_eq!(report.code, Some(0), "{}", stderr_text(&report));
     assert_eq!(stdout_text(&report), "");
-    let text: String = stderr_text(&report);
+    // The fsmonitor line comes before the section, which ends the standard error.
+    let text: String = from_filesystem_section(stderr_text(&report).as_str());
     assert!(text.starts_with(SECTION_MARKER) && text.contains(repo.to_str().expect("UTF-8")), "{text}");
     let kind = filesystem_kind(repo.as_path()).expect("kind");
     let expected: &str = match kind {
@@ -170,7 +177,7 @@ fn the_doctor_ends_with_the_filesystem_section_and_keeps_its_status() {
     // Git chose the repository, so `-C` from a directory that is no repository reports the same section.
     let chosen: Observed = run_wrapped(&fixture, fixture.root.as_path(), &["-C", repo.to_str().expect("UTF-8"), "cli-git", "doctor"]);
     assert_eq!(chosen.code, Some(0), "{}", stderr_text(&chosen));
-    assert_eq!(stderr_text(&chosen), text);
+    assert_eq!(from_filesystem_section(stderr_text(&chosen).as_str()), text);
     if kind == FilesystemKind::Btrfs && inode(repo.as_path()) != SUBVOLUME_ROOT_INODE {
         assert!(text.contains("git cli-git migrate-to-subvolume --dry-run") && text.contains("can help with performance"), "{text}");
     }

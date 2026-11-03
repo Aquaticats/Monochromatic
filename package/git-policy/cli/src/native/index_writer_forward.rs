@@ -14,6 +14,8 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, environment });
 //! ```
 
+/// The wait for any program's hold on the index lock, before a merge that native Git runs.
+use super::index_holder_wait::wait_for_index_release_here;
 /// The wait for the commit service's own hold on the index.
 use super::service_index_wait::wait_for_service_hold_here;
 /// Starting a command again when the commit service took the index first.
@@ -181,6 +183,9 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
                 if let Some(text) = notice {
                     let _ = std::io::stderr().write_all(text.as_bytes());
                 }
+                // Native Git never waits for the index lock and dies on a held one (`stash failed` for a merge commit):
+                //  the merge it is handed waits for the holder first, bounded and naming it.
+                wait_for_index_release_here(location.real_index_path.as_path(), name.as_str());
             }
             IsolatedMerge::Finished { code, stdout, stderr } => {
                 let _ = std::io::stdout().write_all(stdout.as_bytes());

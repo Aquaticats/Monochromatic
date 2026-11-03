@@ -248,6 +248,7 @@ fn run_settled(
     facts: &CopyFacts,
 ) -> ForwardedRun {
     use std::io::Write;
+    use super::checkout_workers::{insert_parallel_checkout, is_fallback_checkout, parallel_checkout_wanted};
     use super::transaction_git::GitContext;
     use super::worktree_copy::{GitStatus, GitStep, Invocation, exit_code, run_with_worktree_copy};
     use super::worktree_copy_error::WorktreeCopyError;
@@ -273,12 +274,19 @@ fn run_settled(
         repair: super::package_repair::RepairSwitch::from_arguments(arguments),
     };
     let mut stderr = std::io::stderr();
+    // Whether the checkout may get parallel workers, decided at the first checkout step from what the person set, and not again.
+    let mut parallel: Option<bool> = None;
     // The runner starts Git as a child, so the wrapper is still there to copy once Git returns.
     let mut run_git = |step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> {
         let mut child_overlay: Vec<(OsString, OsString)> = overlay.to_vec();
         let mut child_arguments: Vec<OsString> = arguments.to_vec();
         match step {
-            GitStep::Person => {}
+            GitStep::Person => {
+                // The person's `git worktree add` is the checkout of the new worktree: it gets parallel workers where nothing sets them.
+                if facts.creates && *parallel.get_or_insert_with(|| { return parallel_checkout_wanted(&invocation.context, invocation.effective_cwd.as_path(), arguments); }) {
+                    insert_parallel_checkout(&mut child_arguments);
+                }
+            }
             GitStep::WithoutCheckout(at) => {
                 // The index was read from the same arguments, so the word before it is `add`.
                 if *at == 0 || *at > child_arguments.len() || child_arguments[*at - 1] != "add" {
@@ -289,6 +297,10 @@ fn run_settled(
             GitStep::Other { arguments: other, environment } => {
                 child_arguments = other.to_vec();
                 child_overlay.extend(environment.iter().cloned());
+                // The ladder's own checkout after a failed snapshot is the same checkout, so it takes the same option.
+                if is_fallback_checkout(child_arguments.as_slice()) && *parallel.get_or_insert_with(|| { return parallel_checkout_wanted(&invocation.context, invocation.effective_cwd.as_path(), arguments); }) {
+                    insert_parallel_checkout(&mut child_arguments);
+                }
             }
         }
         match run_real_git(real_git, child_arguments.as_slice(), child_overlay.as_slice()) {

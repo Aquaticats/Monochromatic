@@ -93,6 +93,33 @@ pub fn descendants_of(_root: i32) -> Vec<TreeMember> {
     return Vec::new();
 }
 
+/// What:
+///  The root of a tree as a member: its pid and the start time that proves later that it is still that process.
+/// Why:
+///   `descendants_of` lists only what is below a process, and a stop must wait for the process itself too.
+///  A process that has ended, or is a zombie, is no member.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function memberOf(pid: number): Promise<TreeMember | undefined>;
+/// ```
+#[cfg(target_os = "linux")]
+pub fn member_of(pid: i32) -> Option<TreeMember> {
+    let text: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let (_parent, started, zombie) = parse_stat(text.as_str())?;
+    if zombie {
+        return None;
+    }
+    return Some(TreeMember { pid, started });
+}
+
+/// Only Linux reads a process's start time; elsewhere no member is found.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(target_os = "linux"))]
+pub fn member_of(_pid: i32) -> Option<TreeMember> {
+    return None;
+}
+
 /// Whether the process is still the one that was found: it exists, is not a zombie, and has the recorded start time.
 #[cfg(target_os = "linux")]
 pub fn still_running(member: &TreeMember) -> bool {

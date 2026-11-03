@@ -1,7 +1,7 @@
 //! What:
 //!  Running automatic maintenance after a landing:
 //!  one `git config` read for the maintenance keys (or the commit's configuration snapshot),
-//!  then `git maintenance run --auto --quiet`, detached or not, in the real worktree.
+//!  then `git maintenance run --auto`, detached or not, in the real worktree, with Git's words kept in the journal.
 //!  Its exit status is returned for the caller to ignore, as native Git does.
 //! Why:
 //!  Every landing migrates its objects into one pack;
@@ -21,6 +21,8 @@ use super::maintenance_decision::{
 };
 /// Diagnostics on standard error, switched like the incumbent's console sink.
 use super::diagnostic_log;
+/// Where Git's words go now that the run carries no `--quiet`.
+use super::inner_git_words::record_words;
 /// The real-Git context and the captured output of one start.
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// Ordered map of the maintenance keys to their canonical text.
@@ -172,7 +174,7 @@ pub fn run_auto_maintenance(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // config from the snapshot, else a read; then `git maintenance run --auto --quiet --detach|--no-detach`
+/// // config from the snapshot, else a read; then `git maintenance run --auto --detach|--no-detach`
 /// ```
 pub fn run_auto_maintenance_with(
     context: &GitContext,
@@ -208,7 +210,10 @@ pub fn run_auto_maintenance_with(
     )
     .map_err(|error| return start_failure("git maintenance run", error))?;
     let result_code: i32 = exit_status(result.code);
+    // What the run said (the foreground tasks before it detaches; a detached part writes to `/dev/null`, Git 2.56.0 `setup.c`
+    //  `daemonize`) is kept in the journal; a refused `--detach` of Git before 2.47 is logged below instead.
     if result_code != USAGE_EXIT_CODE {
+        record_words(arguments.as_slice(), &result);
         diagnostic_log::debug(
             TAG,
             format!("automatic maintenance exited {result_code}").as_str(),
@@ -232,6 +237,7 @@ pub fn run_auto_maintenance_with(
     )
     .map_err(|error| return start_failure("git maintenance run", error))?;
     let fallback_code: i32 = exit_status(fallback.code);
+    record_words(fallback_arguments, &fallback);
     diagnostic_log::debug(
         TAG,
         format!("automatic maintenance exited {fallback_code}").as_str(),

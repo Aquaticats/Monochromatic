@@ -28,7 +28,10 @@ import {
   join,
   resolve
 } from 'node:path';
-import { containerBounds } from './container-bounds.ts';
+import {
+  containerBounds,
+  diskWeightArguments
+} from './container-bounds.ts';
 import { gpuArguments } from './gpu-arguments.ts';
 import {
   summarize,
@@ -195,7 +198,8 @@ const runBound = [
   '--cpus=2',
   '--pids-limit=2048',
   '--ulimit',
-  'nofile=4096:4096'
+  'nofile=4096:4096',
+  ...diskWeightArguments()
 ];
 const image = 'localhost/monochromatic/ide';
 const packageDirectory = resolve('.');

@@ -245,6 +245,38 @@ fn a_divergent_branch_is_published_as_a_merge_and_the_worktree_is_not_touched() 
     remove(&s.root);
 }
 
+/// The reconcile's fetch runs without a low-speed abort of the wrapper's own: like the push, it waits while its connection is
+///  open (owner, 2026-11-03: "Wait while connected (Recommended)"; pick 5 of the shipped-limits audit, the coordinator's under
+///  the owner's delegation). A stand-in for Git records the two variables the fetch is started with, then runs the real Git.
+#[test]
+fn the_reconcile_fetch_sets_no_low_speed_abort() {
+    let s = scenario("ar-fetch-no-low-speed");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let record = s.root.join("fetch-environment.txt");
+    let stand_in = s.root.join("git-stand-in");
+    std::fs::write(
+        &stand_in,
+        format!(
+            "#!/bin/sh\nfor word in \"$@\"; do\n[ \"$word\" = fetch ] && echo \"$GIT_HTTP_LOW_SPEED_LIMIT|$GIT_HTTP_LOW_SPEED_TIME\" >> '{}'\ndone\nexec /usr/bin/git \"$@\"\n",
+            record.display()
+        ),
+    )
+    .expect("stand-in");
+    std::fs::set_permissions(&stand_in, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    let mut coordinator = push_git(&s.local);
+    coordinator.real_git = stand_in;
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&coordinator, "refs/heads/main", &landed, &mut err).expect("auto-push");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(&err));
+    assert_eq!(
+        std::fs::read_to_string(&record).expect("the fetch ran"),
+        "|\n",
+        "neither variable is set for the fetch"
+    );
+    remove(&s.root);
+}
+
 /// A conflicting merge publishes nothing, names the paths and does not recommend a push that cannot work.
 #[test]
 fn a_conflicting_merge_is_kept_unpublished_with_the_conflicting_paths() {
@@ -1551,3 +1583,86 @@ fn the_journal_identifier_follows_who_runs_the_reconcile() {
     assert_eq!(journal_identifier(true), "cli-git");
 }
 //endregion
+
+/// What:
+///  The starts of a reconcile that fetches the moved remote, publishes a merge and fast-forwards the clean worktree.
+/// Why:
+///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`; the fetch and the
+///  fast-forward are the two that carried it (Git 2.56.0: `builtin/merge.c` and the fetch verbosity gate only messages and
+///  progress on it). The control looks at both starts, so an empty answer is not an absent run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await pushOnce(recordingGit, 'refs/heads/main', landed); expect(startsOf('fetch')).toHaveLength(1); expect(startsOf('merge')).toHaveLength(1); expect(quietStarts()).toEqual([]);
+/// ```
+#[test]
+fn the_fetch_and_the_fast_forward_of_a_reconcile_start_without_quiet() {
+    let s = scenario("ar-no-quiet");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let (context, log) = crate::recording_git::recording_context(s.root.as_path());
+    let mut git = push_git(&s.local);
+    git.real_git = context.real_git.clone();
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&git, "refs/heads/main", &landed, &mut err).expect("auto-push");
+    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{}", String::from_utf8_lossy(&err));
+    let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
+    let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
+    assert_eq!(named("fetch"), 1, "one fetch: {starts:?}");
+    assert_eq!(named("--ff-only"), 1, "one fast-forward: {starts:?}");
+    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(&s.root);
+}
+
+/// What the fetch and the fast-forward of a reconcile say is kept in the service's log: one entry for each, naming the command.
+#[test]
+fn what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal() {
+    let s = scenario("ar-words");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let entries = crate::service_timing::capture::entries_of(|| {
+        let (result, err) = run(&s, &landed);
+        assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    });
+    let said = |command: &str| -> Vec<&crate::service_timing::capture::Captured> {
+        return entries.iter().filter(|entry| { return entry.message.contains(format!("git {command}").as_str()) && entry.message.contains(" said: "); }).collect();
+    };
+    assert_eq!(said("fetch --no-tags").len(), 1, "Git's report of the fetched branch: {entries:?}");
+    assert_eq!(said("merge --ff-only").len(), 1, "Git's report of the fast-forward: {entries:?}");
+    remove(&s.root);
+}
+
+/// The reconcile's fast-forward loses the race for the branch inside Git, after Git installed the published merge's paths and
+/// before its ref update (a stand-in for Git plays the person's commit, which wins, and then the loser's install, and reports
+/// Git's own failure): the paths go back to the winner's content so the checkout matches the branch, the report is the
+/// reason and not a failure, and no record is left. Owner's rule: "Auto merging should never fail."
+#[test]
+fn a_fast_forward_that_loses_the_race_inside_git_leaves_the_checkout_matching_the_branch() {
+    let s = scenario("ar-ff-race");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let old = text_of(&s.local, &["rev-parse", "HEAD"]);
+    let marker = s.root.join("raced");
+    let shim = s.root.join("racing-git");
+    let script = format!(
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = --ff-only ] && [ ! -e '{marker}' ]; then\n    : > '{marker}'\n    cd '{local}' || exit 1\n    echo 'committed meanwhile' > z.txt\n    /usr/bin/git add -- z.txt\n    /usr/bin/git commit --quiet --message=meanwhile -- z.txt\n    winner=$(/usr/bin/git rev-parse HEAD)\n    /usr/bin/git read-tree -m -u '{old}' '{target}'\n    echo \"fatal: update_ref failed for ref 'HEAD': cannot lock ref 'HEAD': is at $winner but expected {old}\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        marker = marker.display(),
+        local = s.local.display(),
+    );
+    std::fs::write(&shim, script).expect("stand-in");
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let mut racing = push_git(&s.local);
+    racing.real_git = shim;
+    let result = advance_local_branch(&racing, "refs/heads/main", &old, &target).expect("git");
+    assert!(marker.exists(), "the race was played");
+    let Err(reason) = result else { panic!("the move lost the race, so it is not reported as done") };
+    assert!(reason.contains("Git refused the fast-forward"), "{reason}");
+    let winner = text_of(&s.local, &["rev-parse", "HEAD"]);
+    assert_eq!(text_of(&s.local, &["log", "-1", "--format=%s", "HEAD"]), "meanwhile");
+    assert_ne!(winner, old);
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the checkout matches the branch");
+    assert_ne!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n", "a.txt is not the published merge's");
+    assert!(s.local.join("z.txt").exists());
+    assert_eq!(std::fs::read_dir(s.local.join(".git/cli-git-merges")).map_or(0, Iterator::count), 0, "no record is left");
+    remove(&s.root);
+}

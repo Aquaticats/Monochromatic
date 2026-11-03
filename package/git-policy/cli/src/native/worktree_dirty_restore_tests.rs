@@ -45,10 +45,11 @@ fn the_proof_accepts_what_gits_checkout_leaves_and_names_what_it_does_not() {
     remove(root.as_path());
 }
 
-/// The two Git runs are `read-tree --reset -u <commit>` and `clean --force -d --quiet`, in that order, each in the stage under
-///  the new worktree's Git directory; nothing else is run through the lifecycle's runner.
+/// The restore runs `read-tree --reset -u <commit>` through the lifecycle's runner and then a captured `clean --force -d`, in that
+///  order, each in the stage under the new worktree's Git directory; nothing else is run through the runner, and the `clean`
+///  carries neither `--quiet` nor `-q`.
 #[test]
-fn the_restore_runs_exactly_the_two_steps_in_the_stage() {
+fn the_restore_runs_read_tree_through_the_runner_and_a_clean_without_quiet_in_the_stage() {
     let root: PathBuf = crate::test_support::fixture("restore-steps");
     let repo: PathBuf = committed(root.as_path());
     let target: Target = target_of(repo.as_path());
@@ -72,13 +73,15 @@ fn the_restore_runs_exactly_the_two_steps_in_the_stage() {
         trash_ignored: false,
         dirty: None,
     };
-    restore_dirty(&source, &target, stage.as_path(), &mut runner, &git_context()).expect("the proof holds for a worktree that equals its commit");
+    let (recording, log) = crate::recording_git::recording_context(root.as_path());
+    restore_dirty(&source, &target, stage.as_path(), &mut runner, &recording).expect("the proof holds for a worktree that equals its commit");
     let words = |step: &Vec<String>| -> Vec<String> { return step[LEADING_WORDS..].to_vec(); };
-    let expected: Vec<Vec<String>> = vec![
-        ["read-tree", "--reset", "-u", target.commit.as_str()].map(String::from).to_vec(),
-        ["clean", "--force", "-d", "--quiet"].map(String::from).to_vec(),
-    ];
-    assert_eq!(seen.iter().map(words).collect::<Vec<Vec<String>>>(), expected, "exactly these two steps, in this order");
+    let expected: Vec<Vec<String>> = vec![["read-tree", "--reset", "-u", target.commit.as_str()].map(String::from).to_vec()];
+    assert_eq!(seen.iter().map(words).collect::<Vec<Vec<String>>>(), expected, "exactly this step goes through the runner");
+    let cleans: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.split(' ').any(|word| { return word == "clean"; }); }).collect();
+    assert_eq!(cleans.len(), 1, "one captured clean: {cleans:?}");
+    assert!(cleans[0].ends_with("clean --force -d"), "{cleans:?}");
+    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     for (arguments, environment) in seen.iter().zip(&environments) {
         assert_eq!(&arguments[..LEADING_WORDS], ["-C", stage.to_string_lossy().as_ref()]);
         assert!(environment.contains(&(String::from("GIT_DIR"), target.admin.to_string_lossy().into_owned())), "{environment:?}");
@@ -135,15 +138,21 @@ fn a_failed_step_or_a_failed_proof_is_an_error() {
     assert!(restore_dirty(&source, &target, repo.as_path(), &mut failing, &git_context()).expect_err("the reset failed").contains("read-tree"));
     let mut succeeding = |_step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { return Ok(GitStatus { code: Some(0) }); };
     std::fs::write(repo.join("left.txt"), b"left").expect("a file the clean left behind");
-    assert!(restore_dirty(&source, &target, repo.as_path(), &mut succeeding, &git_context()).expect_err("the proof fails").contains("left.txt"));
+    // A Git whose `clean` does nothing, so the file stays and the proof is what finds it.
+    let idle_clean: PathBuf = root.join("idle-clean-git");
+    let script: String = format!("#!/bin/sh\ncase \" $* \" in *\" clean \"*) exit 0;; esac\nexec {} \"$@\"\n", crate::test_support::REAL_GIT);
+    crate::test_support::executable(idle_clean.as_path(), script.as_bytes());
+    let mut leaving: GitContext = git_context();
+    leaving.real_git = idle_clean;
+    assert!(restore_dirty(&source, &target, repo.as_path(), &mut succeeding, &leaving).expect_err("the proof fails").contains("left.txt"));
     remove(root.as_path());
 }
 
 /// The note counts the paths in the singular and the plural.
 #[test]
 fn the_note_counts_paths() {
-    let one = ChangedPaths { count: 1, first: String::from("a"), attributes_changed: false };
-    let many = ChangedPaths { count: 3, first: String::from("a"), attributes_changed: false };
+    let one = ChangedPaths { count: 1, first: Some(String::from("a")), attributes_changed: false };
+    let many = ChangedPaths { count: 3, first: Some(String::from("a")), attributes_changed: false };
     assert!(left_out_note(&one).contains(format!("({} path)", one.count).as_str()), "{}", left_out_note(&one));
     assert!(left_out_note(&many).contains(format!("({} paths)", many.count).as_str()), "{}", left_out_note(&many));
     assert!(left_out_note(&one).ends_with('\n'));

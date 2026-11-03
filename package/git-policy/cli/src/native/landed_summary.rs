@@ -3,8 +3,9 @@
 //!  `(root-commit)` for a commit without a parent and `detached HEAD` for a detached head, the name abbreviated as Git
 //!  abbreviates it.
 //! Why:
-//!  The line is printed once, after the service moved the branch, so the name is the commit that landed and not a build that
-//!  lost a race; a person may copy it. The abbreviation honors `core.abbrev` and otherwise follows the size of the
+//!  The line is for a commit the service built itself, where no `git commit` ran to print one. It is printed once, after the
+//!  service moved the branch, so the name is the commit that landed; a commit that real Git builds prints Git's own summary,
+//!  because the wrapper adds no `--quiet` to it. The abbreviation honors `core.abbrev` and otherwise follows the size of the
 //!  repository (`object_abbreviation.rs`), and Git is asked only when the configuration or the object store is not
 //!  something that reader models.
 //!
@@ -109,31 +110,22 @@ pub fn short_name(context: &GitContext, cwd: &Path, _object_directory: &Path, _c
 }
 
 /// What:
-///  The lines the commit command prints below its summary line: what changed against the first parent, and the mode lines
-///  of created, deleted and renamed files.
+///  The one line the wrapper adds after a commit that real Git built was built again because the branch moved.
 /// Why:
-///   A commit Git builds used to print them, and the build is now quiet because its first print may name a commit that
-///  does not land; the same lines are asked of Git once, for the commit that landed. Nothing is returned when Git cannot say.
+///   Git printed a summary for each build, and the earlier ones name commits that never landed; the line says which names
+///  those are and which commit did land, so a person does not copy the wrong one. Git's own output is left as it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await changeSummary({ context, cwd, firstParent, commit }) // ' 1 file changed, 1 insertion(+)\n create mode 100644 b.txt'
+/// rebuiltNote(['1a2b3c4'], '5d6e7f8') // 'cli-git: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.'
 /// ```
-pub fn change_summary(context: &GitContext, cwd: &Path, first_parent: &str, commit: &str) -> String {
-    let root: bool = first_parent.is_empty() || is_zero_object(first_parent);
-    let mut arguments: Vec<&str> = vec!["diff-tree", "--shortstat", "--summary", "-M"];
-    if root {
-        arguments.extend(["--root", commit]);
-    } else {
-        arguments.extend([first_parent, commit]);
-    }
-    return match run_git_checked(context, &GitRequest::new(cwd, arguments.as_slice())) {
-        Ok(output) => String::from_utf8_lossy(output.stdout.as_slice()).trim_end().to_string(),
-        Err(failure) => {
-            warn("landedSummary", format!("asking Git what the commit changed failed: {failure}").as_str());
-            String::new()
-        }
+pub fn rebuilt_note(unlanded: &[String], landed: &str) -> String {
+    let names: String = match unlanded.split_last() {
+        None => String::new(),
+        Some((only, [])) => only.clone(),
+        Some((last, front)) => format!("{} and {last}", front.join(", ")),
     };
+    return format!("cli-git: the branch moved during the commit, so it was built again; {names} did not land, {landed} did.");
 }
 
 /// Summary controls stay out of the release executable.

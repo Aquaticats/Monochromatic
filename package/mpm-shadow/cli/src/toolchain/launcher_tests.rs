@@ -69,7 +69,7 @@ fn a_global_launcher_warns_with_the_global_upgrade_command() {
     let record = LaunchRecord { scope: ScopeKind::Global, ..record_with_current(rig._directory.path(), &["0.4.4"], "0.4.4") };
     let launch = prepare_launch(&record, Some(&lock_text("0.4.0")));
     assert_eq!(launch.warning, Some(older_lock_message_for(ScopeKind::Global, TOOL, "0.4.0", "0.4.4")));
-    assert!(launch.warning.unwrap_or_default().contains("`mise run toolchain:update:global`"));
+    assert!(launch.warning.unwrap_or_default().contains(&format!("`mpm update -g {TOOL}`")));
 }
 
 #[test]

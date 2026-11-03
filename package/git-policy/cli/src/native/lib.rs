@@ -45,6 +45,9 @@ pub mod config_rules_file;
 /// Typed settings and their defaults.
 pub mod config_schema;
 
+/// Whether the checkout of a new worktree may be given Git's parallel checkout, and the option that does it.
+pub mod checkout_workers;
+
 /// One `git config --list` read, parsed, and the lookups the commit path makes against it.
 pub mod config_snapshot;
 
@@ -96,6 +99,30 @@ pub mod real_git;
 
 /// Wrapper self-exclusion for one PATH candidate.
 pub mod real_git_candidate;
+
+/// The marker every real-Git start carries and the check that stops a wrapper which finds it was started as Git.
+pub mod started_as_git;
+
+/// Controls for the lock files a stopped Git child must not leave behind.
+#[cfg(test)]
+mod git_stop_lock_tests;
+
+/// Controls for stopping a push on no progress, with real Git and a local remote.
+#[cfg(test)]
+mod push_patience_tests;
+
+/// Controls for a push that waits for a slow server while connected, on probes that hold sockets and on Git over HTTP.
+#[cfg(test)]
+mod push_wait_tests;
+
+/// Controls for a push whose server runs a silent check after the pack is sent, over HTTP and over a local path.
+#[cfg(test)]
+mod push_slow_server_tests;
+
+/// A loopback HTTP server that serves `git http-backend`, for the controls of a push over HTTP.
+#[cfg(test)]
+#[cfg(unix)]
+mod smart_http_support;
 
 /// Disposable fixtures shared by unit tests;
 ///  never part of the release executable.
@@ -339,6 +366,16 @@ pub mod discard_audit;
 /// The record of where one wrapped commit spent its time,
 /// appended beside the discard audit.
 pub mod commit_timing;
+
+/// The longest quiet gap of every Git step and tool this process ran, kept until a timing record takes it.
+pub mod quiet_ledger;
+
+/// Whether a thread of this process is at work, and the clock that says when it has been quiet for a window.
+pub mod thread_quiet;
+
+/// The record of where one wrapped `git worktree add` spent its time, step by step,
+/// appended beside the commit timing record.
+pub mod add_timing;
 
 /// The intent-guessing hint that follows a finding, an engine failure or a notice.
 pub mod event_hints;
@@ -631,6 +668,9 @@ mod service_lock_inventory_tests;
 /// What `git cli-git doctor` reports from the configuration: configured hooks and the retired `hooks` key.
 pub mod doctor_config;
 
+/// What `git cli-git doctor` says about Git's own fsmonitor: off by the owner's decision, or the setting that turns it on.
+pub mod doctor_fsmonitor;
+
 /// The configured external hooks, read from the snapshot, and the loud report that none runs.
 pub mod external_hooks;
 
@@ -652,8 +692,6 @@ pub mod lfs_upload_settings;
 /// Hides the credentials inside URLs in the text relayed from `git-lfs`.
 pub mod lfs_output_mask;
 
-/// Which failed `git-lfs push` runs are tried again (server errors only), after how long, and the notice.
-pub mod lfs_server_retry;
 
 /// Whether a blob is a Git LFS pointer, decided as `git-lfs` decides it.
 pub mod lfs_pointer;
@@ -806,6 +844,15 @@ pub mod forwarded_command;
 /// Index-writer classification and the commands that coordinate with a landing.
 pub mod index_writer_commands;
 
+/// The wait for any program's hold on `index.lock` before a command changes the checkout.
+pub mod index_holder_wait;
+
+/// The service's own retry of a push it stopped or that failed: the pauses, the waiting branches, the final failure.
+pub mod push_retry;
+
+/// The retry plan on disk, in the service instance's journal, so that a restarted service keeps trying the pushes it was trying.
+pub mod push_retry_store;
+
 /// Waiting for a foreign index.lock under the classification rules and Git's backoff schedule.
 pub mod index_lock_wait;
 
@@ -834,6 +881,9 @@ pub mod merge_second_pass_finish;
 
 /// The `git merge` command lines the wrapper completes in isolation, and those it leaves to native Git.
 pub mod merge_options;
+
+/// The settling of an isolated merge whose branch moved while it was prepared or applied.
+pub mod merge_isolation_moved;
 
 /// The durable intent record of an isolated merge.
 pub mod merge_isolation_journal;
@@ -883,11 +933,54 @@ pub mod bounded_query;
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
 
+/// The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
+pub mod stopped_git_locks;
+
+/// The Git directories a command works in, found without starting Git.
+pub mod git_directory_roots;
+
+/// The reference locks a killed Git left behind: judged one by one, removed on a proof, otherwise described.
+pub mod stale_ref_locks;
+
+/// The record of one judged reference lock and the outcome of a clearing pass.
+pub mod stale_ref_lock_found;
+
+/// Which files below a Git directory are reference locks.
+pub mod stale_ref_lock_walk;
+
+/// A file's identity at the moment it was judged, so the removal can tell it from a new file at the same path.
+pub mod stale_ref_lock_identity;
+
+/// How one reference lock is judged.
+pub mod stale_ref_lock_judge;
+
+/// Removal of a proven stale lock with its companions.
+pub mod stale_ref_lock_retire;
+
+/// The wrapper's own fetch and push, started after the stale reference locks of their repository are cleared.
+pub mod push_lock_clearing;
+
+/// The notice a forwarded fetch or push is preceded by when reference locks of a killed Git are found.
+pub mod forwarded_lock_notice;
+
+/// What the wrapper prints about reference locks, and the quoted command that clears one it will not remove.
+pub mod stale_ref_lock_message;
+
+/// Real Git processes killed with `SIGKILL` while they hold reference locks, for the controls.
+#[cfg(test)]
+mod stale_ref_lock_killed_git;
+
+/// The bytes a push and its processes move, sampled, and the clock that stops it on a stall.
+pub mod push_progress;
+
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 
 /// The processes below one process, read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
+
+/// The connected TCP sockets of the machine with their byte counts, and the sockets a process holds.
+pub mod tcp_sockets;
 
 /// The real Git of a push, its query runner and the failure types of a push.
 pub mod auto_push_single_flight;
@@ -1041,6 +1134,63 @@ pub mod repo_read_tree;
 /// In-process repository reads: the entries of an index file, versions 2 to 4.
 pub mod repo_read_index;
 
+/// In-process index update: Git's EWAH bitmap, for the untracked-cache and fsmonitor extensions.
+pub mod index_ewah;
+
+/// In-process index update: the cache-tree extension.
+pub mod index_cache_tree;
+
+/// In-process index update: the resolve-undo extension.
+pub mod index_resolve_undo;
+
+/// In-process index update: stat fields and Git's varint.
+pub mod index_stat;
+
+/// In-process index update: the untracked-cache extension as directories, and its invalidation.
+pub mod index_untracked;
+
+/// In-process index update: reading and writing the untracked-cache extension.
+pub mod index_untracked_io;
+
+/// In-process index update: the fsmonitor extension.
+pub mod index_fsmonitor;
+
+/// In-process index update: a whole index file read into entries and kept extensions.
+pub mod index_full;
+
+/// In-process index update: a whole index file written as Git writes it.
+pub mod index_full_write;
+
+/// In-process index update: the configuration that decides the extensions and the decline cases.
+#[cfg(unix)]
+pub mod index_settings;
+
+/// In-process index update: a path-limited mixed reset of an index held in memory.
+#[cfg(unix)]
+pub mod index_reset;
+
+/// In-process index update: the trees a path-limited reset reads.
+#[cfg(unix)]
+pub mod index_reset_tree;
+
+/// In-process index update: the lock proof, the temporary file and the file mode of the landing's private index.
+#[cfg(target_os = "linux")]
+pub mod index_reset_publish;
+
+/// In-process index update: the landing's follow-up on an index file.
+#[cfg(target_os = "linux")]
+pub mod index_reset_file;
+
+/// A test body run in a child process under a chosen umask; never part of the release executable.
+#[cfg(test)]
+#[cfg(target_os = "linux")]
+mod umask_child_test_support;
+
+/// Index files real Git wrote, for the controls of the readers and writers; never part of the release executable.
+#[cfg(test)]
+#[cfg(target_os = "linux")]
+mod index_reset_support_probe;
+
 /// In-process repository reads: the difference between two sorted entry lists and the output spellings.
 #[cfg(unix)]
 pub mod repo_read_diff;
@@ -1059,6 +1209,10 @@ pub mod repo_read_query;
 /// In-process repository reads: answers for the reference and configuration command lines.
 #[cfg(unix)]
 pub mod repo_read_query_refs;
+
+/// In-process repository reads: the exit status of `diff-index --cached --quiet`.
+#[cfg(unix)]
+pub mod repo_read_query_quiet;
 
 /// In-process repository reads: the two runner entry points that try the answers before starting Git.
 pub mod repo_read_hook;
@@ -1224,6 +1378,9 @@ pub mod service_claim_renewal;
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 
+/// The drain of several repositories of one round, side by side and without a lock.
+pub mod service_round;
+
 /// The wrapper's side of after-commit work: records and the wake.
 pub mod service_handoff;
 
@@ -1296,6 +1453,9 @@ pub mod worktree_ladder_run;
 /// One entry from the wrapper a person ran to the journal, sent without waiting.
 #[cfg(target_os = "linux")]
 pub mod client_journal;
+
+/// Where the words of a Git run the wrapper or the service started on its own go, now that none carries `--quiet`.
+pub mod inner_git_words;
 
 /// The plain sentence that says why an add was not made as a snapshot, and where it goes.
 #[cfg(target_os = "linux")]
@@ -1409,6 +1569,10 @@ pub mod subvolume_remove_walk;
 #[cfg(target_os = "linux")]
 pub mod subvolume_journal;
 
+/// The count of the entries under a checkout, from which the free space a migration needs follows.
+#[cfg(target_os = "linux")]
+pub mod subvolume_entry_count;
+
 /// The paths of a migration and the refusals that stop it before anything is created.
 #[cfg(target_os = "linux")]
 pub mod subvolume_preflight;
@@ -1435,6 +1599,10 @@ pub mod subvolume_command;
 /// The stand-in platform and fixture checkouts of the subvolume migration controls.
 #[cfg(all(test, target_os = "linux"))]
 mod subvolume_test_support;
+
+/// A point where threads must all arrive, for controls that prove work overlapped.
+#[cfg(test)]
+mod parallel_test_support;
 
 /// The migration controls that need the real btrfs ioctls, `FICLONE` and exchange.
 #[cfg(all(test, target_os = "linux"))]
@@ -1475,6 +1643,12 @@ pub mod worktree_convert_arguments;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_command;
 
+/// How many workers independent items may use together, from the CPUs allowed, the memory free and a measured ceiling.
+pub mod parallel_budget;
+
+/// Independent items on a bounded number of threads, reported in input order with no lock.
+pub mod parallel_runner;
+
 /// Setting aside what a snapshot of the main checkout leaves out, and having the commit service empty it.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash;
@@ -1510,6 +1684,10 @@ pub mod package_repair;
 /// Disposal of a snapshot's trash: the work item, the foreground fallback and the service's handler.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_dispose;
+
+/// The removal of the entries a snapshot's leave-out moved into its trash, side by side.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_entries;
 
 /// What a snapshot's leave-out made and moved, with identities, as the text a work item carries.
 #[cfg(target_os = "linux")]

@@ -238,6 +238,28 @@ fn a_failure_without_gits_words_stays_a_failure_of_the_probe() {
     remove(repo.parent().expect("root"));
 }
 
+/// A `--` that is the value of an option is not the terminator, and `--end-of-options` ends the options as `--` does: the
+///  probe's own options go before the one Git reads, never between an option and its value or among the refs.
+#[test]
+fn probe_arguments_place_their_options_before_the_terminator_git_reads() {
+    let own: [&str; 3] = ["--no-quiet", "--dry-run", "--porcelain"];
+    // The typed words, and how many of them come before the probe's options.
+    for (typed, before) in [
+        (&["--receive-pack", "--", "origin", "--", "main"][..], 3),
+        (&["--exec", "--", "origin", "main"][..], 4),
+        (&["origin", "--end-of-options", "main"][..], 1),
+        (&["origin", "main"][..], 2),
+    ] {
+        let arguments: Vec<OsString> = probe_arguments(&[], &post(typed));
+        let text: Vec<String> = arguments.iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+        let push: usize = text.iter().position(|word| { return word == "push"; }).expect("push");
+        let options: &[String] = &text[push + 1 + before..push + 1 + before + own.len()];
+        assert_eq!(options, own, "{text:?}");
+        let rest: Vec<&str> = text[push + 1..].iter().map(String::as_str).filter(|word| { return !own.contains(word); }).collect();
+        assert_eq!(rest, typed, "{text:?}");
+    }
+}
+
 /// The probe's arguments keep Git's options before the terminator, switch every hook off and ask for full names.
 #[test]
 fn probe_arguments_keep_git_options_before_the_terminator() {
@@ -469,4 +491,11 @@ fn a_revision_expression_with_a_colon_is_probed_as_the_commit_it_names() {
     assert_eq!(updates[0].local_oid.as_deref(), Some(tip.as_str()), "not a deletion");
     assert_eq!(updates[0].remote_ref, "refs/heads/new");
     remove(repo.parent().expect("root"));
+}
+
+/// The estimate covers the measured peak of a query for the whole history, and is that measurement rounded up to a power of two.
+#[test]
+fn the_query_estimate_is_the_measured_whole_history_peak_rounded_up_to_a_power_of_two() {
+    const { assert!(QUERY_MEMORY >= MEASURED_WHOLE_HISTORY_QUERY, "the query estimate must cover the measured whole-history query") };
+    assert_eq!(QUERY_MEMORY, MEASURED_WHOLE_HISTORY_QUERY.next_power_of_two());
 }

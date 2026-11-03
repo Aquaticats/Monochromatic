@@ -16,7 +16,7 @@
 //! is held by the test or by a signal,
 //! or has finished must not be.
 
-use super::support::{Fixture, bounded, bounded_for, executable, fixture, remove, supervised_wait, wrapper_first_path};
+use super::support::{Fixture, bounded, bounded_for, executable, fixture, own_group, remove, spawn_owned, supervised_wait, wrapper_first_path};
 use super::supervisor::{
     CPU_BUDGET, Judge, Limits, NO_PROGRESS_WINDOW, POLL, Reason, SHARED, SHARED_BACKSTOP_SECONDS, UNCLAIMED_EXIT_STATUS, UNCLAIMED_GRACE,
     disk_wait_looks, end_command, hold_idle_judgment, is_shared, is_shared_command_line, is_watching, kill_recorded, looks_of, plant_kill, take_kill,
@@ -205,7 +205,10 @@ fn start(made: &Fixture, script: &str) -> Child {
     let mut command: Command = Command::new(path);
     command.current_dir(&made.root).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     std::os::unix::process::CommandExt::process_group(&mut command, 0);
-    return command.spawn().expect("the script starts");
+    let child: Child = command.spawn().expect("the script starts");
+    // Owned, so a script that loops or sleeps does not outlive a control that failed before it ended it.
+    own_group(&child);
+    return child;
 }
 
 /// The process ID of a child as the readers take it.
@@ -619,6 +622,28 @@ fn a_kill_nobody_claimed_is_found_after_the_grace_only() {
     let claimed: u32 = u32::try_from(i32::MAX - 7).expect("positive");
     assert_eq!(take_kill(claimed), Some(String::from("the planted kill")));
     assert_eq!(unclaimed_kill(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE), None, "a claimed kill is not reported again");
+}
+
+/// How much longer than the grace the ending of a command takes in the control below, as on a starved host.
+const SLOW_ENDING_EXTRA: Duration = Duration::from_millis(500);
+
+/// The time a test has to claim a kill counts from the moment its command is gone, not from the moment the supervisor began
+/// to end it: a tree that is slow to end on a starved host must not leave the test less than the whole grace.
+#[test]
+fn the_grace_to_claim_a_kill_starts_when_the_ending_is_over() {
+    let mut command: Command = Command::new("/bin/sleep");
+    command.arg("60");
+    let mut child: Child = spawn_owned(&mut command).expect("sleep starts");
+    let pid: i32 = i32::try_from(child.id()).expect("fits");
+    let started: u64 = stat_of(pid).expect("the child runs").started;
+    let pin: Pin = Pin::open(pid, started).expect("the child can be pinned");
+    end_command(&pin, "a slow ending", &|named| {
+        std::thread::sleep(UNCLAIMED_GRACE + SLOW_ENDING_EXTRA);
+        end_tree(named);
+    });
+    assert_eq!(unclaimed_kill(Instant::now(), UNCLAIMED_GRACE), None, "the ending took longer than the grace and the test had none left");
+    assert!(take_kill(child.id()).is_some(), "the kill is still there to claim");
+    child.wait().expect("reaped");
 }
 
 /// The variable that makes the probe test below plant a kill nobody claims.

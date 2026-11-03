@@ -1,7 +1,6 @@
 //! Controls for the parent's run of the Git LFS upload.
 
 use super::*;
-use crate::lfs_server_retry::RETRY_DELAYS_VARIABLE;
 use crate::test_support::{executable, fixture, remove};
 use std::path::PathBuf;
 
@@ -252,60 +251,29 @@ fn runs_of(counter: &std::path::Path) -> u32 {
     });
 }
 
-/// A server error that ends after two failures is run again, the upload then succeeds, nothing is explained as failed, the
-///  relayed output has no credentials and each retry says so.
+/// A server error is not run again by the wrapper: pick 12 of the shipped-limits audit (the coordinator's under the owner's
+///  delegation, open to the owner's veto) classes an HTTP 5xx as outside our control, retried by the service's push retry plan
+///  alone. The upload runs once, the program's status is kept, the explanation follows, and no retry is announced.
 #[test]
-fn a_server_error_is_run_again_until_the_upload_succeeds() {
-    let root = fixture("lfs-upload-retry-ok");
-    let counter: PathBuf = root.join("count.txt");
-    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 2, INCIDENT_LINE, 2);
-    let state: String = root.join("state").to_string_lossy().into_owned();
-    let variables = [("XDG_STATE_HOME", state.as_str()), (RETRY_DELAYS_VARIABLE, "1,1")];
-    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
-    assert_eq!(code, None, "{diagnostics}");
-    assert_eq!(runs_of(counter.as_path()), 3, "two failures and the run that succeeded");
-    assert_eq!(diagnostics.matches("Server error https://<credentials>@lfs.example.invalid").count(), 2, "{diagnostics}");
-    assert!(diagnostics.contains("retry 1 of 2") && diagnostics.contains("retry 2 of 2"), "{diagnostics}");
-    assert!(!diagnostics.contains("secret") && !diagnostics.contains("user:"), "{diagnostics}");
-    assert!(!diagnostics.contains(&failed_message("exited with status 2")), "{diagnostics}");
-    remove(root.as_path());
-}
-
-/// A server error that does not end stops after the allowance: three runs, the program's status, the existing explanation.
-#[test]
-fn a_server_error_that_persists_stops_after_the_allowance_with_the_explanation() {
-    let root = fixture("lfs-upload-retry-spent");
+fn a_server_error_ends_the_upload_at_once_with_the_explanation() {
+    let root = fixture("lfs-upload-server-error-once");
     let counter: PathBuf = root.join("count.txt");
     failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, INCIDENT_LINE, 2);
     let state: String = root.join("state").to_string_lossy().into_owned();
-    let variables = [("XDG_STATE_HOME", state.as_str()), (RETRY_DELAYS_VARIABLE, "1,1")];
+    let variables = [("XDG_STATE_HOME", state.as_str())];
     let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
-    assert_eq!(code, Some(2));
-    assert_eq!(runs_of(counter.as_path()), 1 + 2, "the first run and one run per delay");
+    assert_eq!(code, Some(2), "{diagnostics}");
+    assert_eq!(runs_of(counter.as_path()), 1, "the wrapper does not run the upload again: {diagnostics}");
+    assert!(!diagnostics.contains("retry 1"), "{diagnostics}");
     assert!(diagnostics.ends_with(&failed_message("exited with status 2")), "{diagnostics}");
-    assert_eq!(diagnostics.matches("Server error https://<credentials>@").count(), 3, "{diagnostics}");
-    remove(root.as_path());
-}
-
-/// A retry waits for its delay before the program runs again.
-#[test]
-fn the_retry_waits_for_its_delay() {
-    let root = fixture("lfs-upload-retry-wait");
-    let counter: PathBuf = root.join("count.txt");
-    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 1, INCIDENT_LINE, 2);
-    let state: String = root.join("state").to_string_lossy().into_owned();
-    let variables = [("XDG_STATE_HOME", state.as_str()), (RETRY_DELAYS_VARIABLE, "400")];
-    let started = std::time::Instant::now();
-    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
-    assert_eq!(code, None, "{diagnostics}");
-    assert!(started.elapsed() >= std::time::Duration::from_millis(400), "{:?}", started.elapsed());
+    assert!(!diagnostics.contains("secret"), "{diagnostics}");
     remove(root.as_path());
 }
 
 /// A refused credential, a missing object, a failure with no known wording and a server error beside a missing object are
-///  each run once: a retry would meet the same answer.
+///  each run once, as every other failure is: the wrapper runs the upload again for none of them.
 #[test]
-fn a_failure_that_a_retry_cannot_fix_runs_once() {
+fn every_failure_runs_the_upload_once() {
     let cases: [(&str, &str, i32); 4] = [
         ("auth", "batch response: Authorization error: https://u:secret@lfs.invalid/objects/batch", 2),
         ("missing", "Git LFS upload failed:\n  (missing) big.bin (abc)", 2),
@@ -317,7 +285,7 @@ fn a_failure_that_a_retry_cannot_fix_runs_once() {
         let counter: PathBuf = root.join("count.txt");
         failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, message, status);
         let state: String = root.join("state").to_string_lossy().into_owned();
-        let variables = [("XDG_STATE_HOME", state.as_str()), (RETRY_DELAYS_VARIABLE, "1,1")];
+        let variables = [("XDG_STATE_HOME", state.as_str())];
         let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
         assert_eq!(code, Some(status), "{name}: {diagnostics}");
         assert_eq!(runs_of(counter.as_path()), 1, "{name}: {diagnostics}");

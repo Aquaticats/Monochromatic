@@ -23,10 +23,22 @@ pub const PROTOCOL_VERSION: u32 = 5;
 ///  program its unit names, and the behavior behind the same messages, may differ.
 pub const RELEASE: &str = env!("CARGO_PKG_VERSION");
 
-/// The longest line either side accepts, in bytes.
+/// The 99th percentile of the lengths of the paths changed by the 21,696 non-merge commits of this repository since 2026-09-01
+///  (176,042 changed paths read with `git log --no-merges --format=@%H --name-only --all`): 118 characters. The median was 58, the
+///  90th percentile 86, the 99.9th percentile 159 and the longest 189.
+pub const P99_CHANGED_PATH_CHARACTERS: usize = 118;
+
+/// The longest line either side accepts, in bytes: one mebibyte, the size at which a request of `MAX_CHANGES` changes of the
+///  99th-percentile path length (`P99_CHANGED_PATH_CHARACTERS`) still fits (a control in `service_protocol_tests.rs` encodes
+///  one). A request with 4,096 paths of the longest length seen (189) would need about
+///  1.06 MB and is refused as a decode failure. The coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const MAX_LINE_BYTES: usize = 1 << 20;
 
-/// The most paths one request may change.
+/// The most paths one request may change: 4,096. Of the 21,696 non-merge commits of this repository since 2026-09-01 (median 2
+///  changed paths, 99th percentile 38, 99.9th percentile 377) 10 changed more than 4,096 paths (0.05 percent; the largest 8,178),
+///  and those commits take the native path instead of the service. The coordinator's pick under the owner's delegation, open to
+///  the owner's veto.
 pub const MAX_CHANGES: usize = 4096;
 
 /// Modes a change may give a file.
