@@ -38,7 +38,8 @@ pub struct LandContext {
     pub journal: PathBuf,
     /// Test seam: called after the batch's objects exist and before the branch moves.
     pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
-    /// How long a landing waits for another program that holds the index lock before it gives up with nothing changed.
+    /// How long a landing looks again at an index lock whose holder cannot be proven alive or dead before it gives up with nothing
+    ///  changed; a holder proven alive is waited for with no bound.
     pub index_wait: std::time::Duration,
 }
 

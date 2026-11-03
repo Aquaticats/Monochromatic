@@ -43,8 +43,9 @@ pub const REPOSITORY_SCRATCH_NAME: &str = "cli-git-scratch";
 /// How old an entry must be before a preparation removes it:
 ///  far longer than any command of the wrapper runs, so a live process never loses a file. Measured: the longest command in the
 ///  commit timing log (1,051 commits, 2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z) took 750.6 s and the longest worktree add in the
-///  add timing log (48 adds) 539.7 s; a day is about a hundred times the longest. The lock waits (1,800 s) and the patience for
-///  an owner of another namespace (3,600 s) are longer than the longest command measured and still far under a day.
+///  add timing log (48 adds) 539.7 s; a day is about a hundred times the longest. The patience for an owner of another namespace
+///  (3,600 s) is far under a day. A wait for a live program's lock has no bound of its own, so a command that waits on one for
+///  more than a day is the case this age does not cover (none in the logs came near).
 ///  Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const SCRATCH_STALE_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
 

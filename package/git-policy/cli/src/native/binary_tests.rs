@@ -349,6 +349,10 @@ mod service_lane;
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
 
+/// The client's wait for the commit service: heartbeats, silence, a start the manager reports failed, a late start.
+#[path = "binary_service_heartbeat_tests.rs"]
+mod service_heartbeat;
+
 /// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
 #[path = "binary_service_native_tests.rs"]
 mod service_native;

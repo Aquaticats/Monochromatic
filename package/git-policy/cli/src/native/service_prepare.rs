@@ -458,7 +458,7 @@ fn normalized(
     settled: &(Vec<PolicyEvent>, u64, Vec<Vec<u8>>),
 ) -> Result<Prepared, TransactionStop> {
     let (events, passes, changed_paths) = settled;
-    update_index(invocation.context, capture.layout.repository_root.as_path(), base, IndexPaths::Named(committed))
+    update_index(invocation.context, capture.layout.repository_root.as_path(), capture.layout.real_index_path.as_path(), base, IndexPaths::Named(committed))
         .map_err(|code| { return failed(format!("the index could not be reconciled with the corrected files: {}", code.word())); })?;
     let completion = install_added_worktree_files(
         invocation.context,

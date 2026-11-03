@@ -6,14 +6,13 @@
 //!  process in the same worktree during that time must not fail, and must not be told the hold belongs to a program
 //!  nobody can prove alive: the hold is the product's own and ends by itself. A lock without the service's mark is a
 //!  foreign program's and keeps the behavior of native Git. The wait blocks on an inotify watch set before the first look,
-//!  so a release between the look and the wait is not missed, and it ends at the limit every wait on a live program ends at.
+//!  so a release between the look and the wait is not missed. A service the mark proves to run is waited for with no bound.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const outcome = await waitForServiceHold({ realIndex, command: 'add', limit, cadence, stderr });
+//! const outcome = await waitForServiceHold({ realIndex, command: 'add', cadence, stderr });
 //! ```
 
-use super::wait_limit::live_wait_limit;
 use super::service_index_lock::{LOCK_MARKER, Watch, lock_path_of};
 use super::service_index_marker::{holder_is_running, mark_names_a_gone_holder, marker_of};
 use super::wait_progress::{Cadence, Ticker};
@@ -39,13 +38,17 @@ const EMPTY_PAUSE: Duration = Duration::from_millis(2);
 /// or a holder this process cannot ask about
 /// (another PID namespace,
 /// a record it cannot read).
-/// Every step of a landing is bounded,
-/// so such a hold older than this
-/// is taken for a dead service's.
 /// A mark that names a holder decides by the holder instead:
 /// one that runs is waited for however old the file is,
 /// and one that is gone is not waited for.
-pub const HOLD_LIMIT: Duration = Duration::from_secs(60);
+///
+/// Measured on 2026-11-03 in the commit service's journal: of 715 landings that logged the time the service held the lock
+///  (`lock_hold_ms`), 13 held it for 58 to 120 seconds, all of it in the sync of the new index to disk
+///  (`sync_ms`; longest 119,721 ms, 99th percentile 65,787 ms, median 34 ms). A hold of that age is a live service on a slow
+///  disk, so the age is the longest measured hold with a quarter more, 150 seconds; the earlier 60 seconds took those live
+///  holds for leftovers. A wrong call only lets the forwarded command run into Git's own refusal, which is run again while
+///  the service has the index (`service_hold_retry.rs`).
+pub const UNASKABLE_HOLD_AGE: Duration = Duration::from_secs(150);
 
 /// Who holds the index.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -65,9 +68,7 @@ pub enum Waited {
     NotHeld,
     /// The service held the index and let it go.
     Released,
-    /// The service still held the index at the limit.
-    GaveUp,
-    /// The hold is older than any landing lasts,
+    /// The hold is older than any measured landing lasts and nothing shows its holder runs,
     /// or names a holder that no longer runs,
     /// so it is a dead service's leftover and was not waited for.
     Stale,
@@ -115,11 +116,10 @@ pub fn foreign_holds(real_index: &Path) -> bool {
 }
 
 /// The line for the person while the wait lasts.
-fn waiting_line(command: &str, waited: Duration, limit: Duration) -> String {
+fn waiting_line(command: &str, waited: Duration) -> String {
     return format!(
-        "cli-git: git {command} is waiting for the commit service to finish a commit in this repository, {} seconds so far; giving up after {} seconds.\n",
-        waited.as_secs(),
-        limit.as_secs()
+        "cli-git: git {command} is waiting for the commit service to finish a commit in this repository, {} seconds so far; this waits for as long as the service holds the index.\n",
+        waited.as_secs()
     );
 }
 
@@ -135,7 +135,7 @@ fn age_of(lock: &Path) -> Duration {
 /// The line for the person when the hold is a leftover.
 fn stale_line(command: &str, age: Duration) -> String {
     return format!(
-        "cli-git: the commit service's hold on this repository's index is {} seconds old, longer than a commit takes, so git {command} does not wait for it.\n",
+        "cli-git: the commit service's hold on this repository's index is {} seconds old and nothing shows the service still runs, so git {command} does not wait for it.\n",
         age.as_secs()
     );
 }
@@ -144,14 +144,6 @@ fn stale_line(command: &str, age: Duration) -> String {
 fn gone_line(command: &str) -> String {
     return format!(
         "cli-git: the commit service that held this repository's index no longer runs, so git {command} does not wait for it. The next commit made through the service removes the lock it left.\n"
-    );
-}
-
-/// The line for the person when the wait ran out.
-fn gave_up_line(command: &str, waited: Duration) -> String {
-    return format!(
-        "cli-git: the commit service was still finishing a commit in this repository after {} seconds, so git {command} runs now and reports what Git says.\n",
-        waited.as_secs()
     );
 }
 
@@ -164,10 +156,10 @@ fn gave_up_line(command: &str, waited: Duration) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await waitForServiceHold(realIndex, 'add', limit, cadence, stderr)
+/// await waitForServiceHold(realIndex, 'add', cadence, stderr)
 /// ```
-pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, cadence: Cadence, out: &mut dyn Write) -> Waited {
-    return wait_with_watches(real_index, command, limit, cadence, out, &Watch::on);
+pub fn wait_for_service_hold(real_index: &Path, command: &str, cadence: Cadence, out: &mut dyn Write) -> Waited {
+    return wait_with_watches(real_index, command, cadence, out, &Watch::on);
 }
 
 /// What:
@@ -181,9 +173,9 @@ pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await waitWithWatches(realIndex, 'add', limit, cadence, stderr, watchDirectory)
+/// await waitWithWatches(realIndex, 'add', cadence, stderr, watchDirectory)
 /// ```
-fn wait_with_watches(real_index: &Path, command: &str, limit: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> Waited {
+fn wait_with_watches(real_index: &Path, command: &str, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> Waited {
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
     let mut watch: Option<Watch> = lock.parent().and_then(set_watch);
@@ -207,21 +199,17 @@ fn wait_with_watches(real_index: &Path, command: &str, limit: Duration, cadence:
         // A service the marker proves to run is finishing a landing, however long ago its marker was written: the file's age
         //  is only a guide for a hold that proves nothing (a mark without a process, or a process this one cannot see).
         let running: bool = marker_of(&lock).is_some_and(|marked| { return holder_is_running(marked.holder.as_ref()); });
-        if age >= HOLD_LIMIT && !running {
+        if age >= UNASKABLE_HOLD_AGE && !running {
             let _noted = out.write_all(stale_line(command, age).as_bytes()).and_then(|()| { return out.flush(); });
             return Waited::Stale;
         }
         held = true;
         let elapsed: Duration = began.elapsed();
-        if elapsed >= limit {
-            let _noted = out.write_all(gave_up_line(command, elapsed).as_bytes()).and_then(|()| { return out.flush(); });
-            return Waited::GaveUp;
-        }
         if ticker.due(elapsed) {
             // A closed terminal is not a reason to stop the command the person asked for.
-            let _noted = out.write_all(waiting_line(command, elapsed, limit).as_bytes()).and_then(|()| { return out.flush(); });
+            let _noted = out.write_all(waiting_line(command, elapsed).as_bytes()).and_then(|()| { return out.flush(); });
         }
-        if !active.wait(ticker.next_in(elapsed).min(limit.saturating_sub(elapsed)).max(Duration::from_millis(1)), lock_name.as_os_str()) {
+        if !active.wait(ticker.next_in(elapsed).max(Duration::from_millis(1)), lock_name.as_os_str()) {
             // The watch ended with its directory or by the directory being moved: the ended watch is dropped first, because a
             //  new one may need the descriptor and the quota it holds, then the lock is looked at again with a new watch set.
             drop(watch.take());
@@ -230,9 +218,9 @@ fn wait_with_watches(real_index: &Path, command: &str, limit: Duration, cadence:
     }
 }
 
-/// `wait_for_service_hold` with the limit and the notice cadence this process runs under.
+/// `wait_for_service_hold` with the notice cadence this process runs under.
 pub fn wait_for_service_hold_here(real_index: &Path, command: &str) -> Waited {
-    return wait_for_service_hold(real_index, command, live_wait_limit(), Cadence::from_environment(), &mut std::io::stderr());
+    return wait_for_service_hold(real_index, command, Cadence::from_environment(), &mut std::io::stderr());
 }
 
 /// The wait is controlled in the test module.

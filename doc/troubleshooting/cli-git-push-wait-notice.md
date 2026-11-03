@@ -20,6 +20,9 @@ so a commit no longer prints "waiting for process N to finish pushing".
 A failed push is shown by the notice the next command prints.
 A wait on a foreign `index.lock` still prints a "giving up after N seconds" advisory,
 with its limit set by `CLI_GIT_LOCK_WAIT_SECONDS` (`wait_limit.rs`).
+(2026-11-03: the variable and `wait_limit.rs` are gone;
+a holder proven alive is waited for with no bound and the line no longer says
+"giving up", see `package/git-policy/cli/SPEC.md`, "Waits on a lock holder and on the service".)
 The interpretation below,
 that a named future limit is not an elapsed timeout,
 stays valid for those advisories.

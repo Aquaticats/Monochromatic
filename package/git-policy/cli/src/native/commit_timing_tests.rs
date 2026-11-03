@@ -271,11 +271,16 @@ fn whole_milliseconds_drop_the_part_of_a_millisecond() {
 #[test]
 fn the_holder_kind_follows_what_the_notice_says() {
     use super::holder_kind_of;
-    let proven: String = crate::index_lock_evidence::proven_holder_line(42, true, Some("git"), Path::new("/r/.git/index.lock"), 1800);
+    let proven: String = crate::index_lock_evidence::proven_holder_line(42, true, Some("git"), Path::new("/r/.git/index.lock"));
     assert_eq!(holder_kind_of(proven.as_str()), "proven-alive");
     assert_eq!(
-        holder_kind_of("cli-git: waiting for /r/.git/index.lock, whose owner cannot be proven alive, after 3 seconds; giving up after 1800 seconds.\n"),
+        holder_kind_of(crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), Duration::from_secs(1)).as_str()),
         "unproven"
+    );
+    assert_eq!(
+        holder_kind_of(crate::index_lock_evidence::dead_owner_diagnostic(Path::new("/r/.git/index.lock"), 9, "this commit was not made").as_str()),
+        "unproven",
+        "the diagnostic that ends a wait is not a holder proven alive"
     );
     let root: PathBuf = fixture("timing-holder-null");
     let (mut timing, covered) = filled(root.as_path());

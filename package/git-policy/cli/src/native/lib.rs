@@ -900,8 +900,8 @@ pub mod signal_relay;
 /// The per-branch file name of the push failure notice: a reversible, flat, case-safe key.
 pub mod auto_push_branch_key;
 
-/// How long a command waits for the commit service's hold on the index, and the variable that sets it.
-pub mod wait_limit;
+/// How long an `index.lock` whose owner cannot be proven alive or dead is looked at again before the wait ends.
+pub mod unproven_backoff;
 
 /// The shared clock of every wait notice: the grace, the repeat interval and a queued commit's place in line.
 pub mod wait_progress;
@@ -1245,6 +1245,9 @@ pub mod service_protocol;
 
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
+
+/// The connection of one waiting client, answered by the landing thread and kept alive by a beat from the reading thread.
+pub mod service_reply;
 
 /// The commit service's journal and its restart decisions.
 pub mod service_journal;

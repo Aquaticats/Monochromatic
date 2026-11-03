@@ -25,7 +25,7 @@ use super::policy_engine::StageRequest;
 use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
-use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, ScratchWatch, Submitted, submit_traced, watch_scratch};
+use super::service_client::{Activation, ClientConfig, START_WAIT, ScratchWatch, Submitted, manager_watch_for, submit_traced, watch_scratch};
 use super::landed_summary::{rebuilt_note, short_name, subject_of, summary_line};
 use super::service_commit_args::{ServiceCommitArgs, opens_editor, parse_service_commit, with_fixed_message};
 use super::service_handoff::ServiceHandoff;
@@ -35,7 +35,7 @@ use super::service_messages::{ClientFailure, render};
 use super::service_native::{BuildInput, GitBuilt, build_with_git};
 use super::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
 use super::service_replay::{Captured, Retry, conflict_result, retry_of};
-use super::service_protocol::CommitRequest;
+use super::service_protocol::{CommitRequest, HEARTBEAT_SILENCE};
 use super::service_provision::{platform_without_manager, provision};
 use super::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use super::transaction_phase::Phase;
@@ -178,7 +178,13 @@ pub fn service_commit<F: RepositoryFacts>(
     let mut provisioned: bool = false;
     // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.
     let editor_possible: bool = opens_editor(after);
-    let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
+    let config: ClientConfig = ClientConfig {
+        address,
+        activation: Activation::Managed,
+        start_wait: START_WAIT,
+        heartbeat_silence: HEARTBEAT_SILENCE,
+        start_watch: provisioning.as_ref().map(manager_watch_for),
+    };
     let scratch_name: String = format!("cli-git-service-{id}");
     // The service builds the commits it can from the command line; real Git builds the rest in a scratch repository. Which
     //  it is gets decided once the preparation has passed every cheap decision (head, configuration, index, policies), so a

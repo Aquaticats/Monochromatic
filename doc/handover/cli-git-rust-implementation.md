@@ -996,6 +996,11 @@ each stays open to the owner's veto and is listed for the owner on return.
    an unproven owner gets 1000 ms of backoff and then a diagnostic;
    the dead constant goes),
    then B with the commits-never-fail design (the owner's "Same as the ref lock").
+   Built 2026-11-03 on `feat/git-policy-cli-index-lock-and-service-waits`, with three differences the owner may veto:
+   the 1000 ms is cited from a measurement of Git's own commands (at most 100 ms, ten times that),
+   a dead owner ends the wait at once,
+   and the service's own hold keeps a measured 150 seconds (`UNASKABLE_HOLD_AGE`)
+   because live holds ran up to 120 seconds.
 3. Retry counts:
    C with the commits-never-fail design (stack on the new head for every moved branch);
    the interim loops stay until then ("Ship interim now").
@@ -1013,6 +1018,10 @@ each stays open to the owner's veto and is listed for the owner on return.
    A,
    heartbeats and no client wall-clock bound;
    the `COMMIT_WAIT` message naming a nonexistent setting goes.
+   Built 2026-11-03 on `feat/git-policy-cli-index-lock-and-service-waits`:
+   a heartbeat a second, five seconds of silence asks again with the same request,
+   and the start waits on the service manager's `failed` state where the client can ask it
+   (the open questions are in the audit doc).
 7. Foreign-owner patience:
    C,
    measured from the logs.

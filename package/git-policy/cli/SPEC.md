@@ -222,7 +222,9 @@ An older file that sets one still loads, and the value is checked and ignored.
   non-negative safe integer,
   default `1000`.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
-  The service's bounded wait for a foreign `index.lock` (`CLI_GIT_LOCK_WAIT_SECONDS`) replaced it.
+  The service's wait for a foreign `index.lock` replaced it: a holder proven alive is waited for with no bound,
+  and an owner
+  nothing proves alive for a fixed 1000 ms (`src/native/unproven_backoff.rs`), which this key no longer sets.
   `git cli-git doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
   positive safe integer,
@@ -1430,6 +1432,100 @@ What the existing logs bound is recorded in the audit ("Quiet gaps in the existi
 A measured interval replaces a number only after the records above hold healthy runs, with an owner-approved margin
 recorded
 beside the value; no margin is chosen here.
+
+#### Waits on a lock holder and on the service
+
+Delegated picks 2 and 6 of `doc/planning/cli-git-shipped-limits-audit.md` (2026-11-03).
+The owner was away and said: "Pick options as if I had picked them and invite veto when I say I'm back." and clarified:
+"\"As if I had chosen\" means what I would have picked most likely if I'm always here."
+The coordinator picked; both picks are open to the owner's veto.
+
+Owner decisions these waits follow, verbatim:
+
+- "You should (almost) never be waiting."
+- "Use as few locks as possible."
+- "Commits should never fail."
+- "socket activation (OS starts it) or a loud, clear failure - no,
+  never leak internal things that could be resolved to the
+  user." (2026-11-01T07:37:44-05:00, `DESIGN.md`)
+
+The decision record `doc/decision/cli-git-concurrent-commits.md`, "Locks", says, and is followed except where noted:
+"An `index.lock` owner proven alive (open holder matched by device and inode,
+or a PID file naming a live process started no
+later than the lock's ctime) gets an unbounded wait with one line naming the holder."
+"A dead or evidence-free owner gets Git-style quadratic backoff with jitter up to `indexLock.unprovenOwnerTimeoutMs`
+(default
+1000), then a diagnostic listing the evidence."
+The code before this change stopped every one of these waits at `CLI_GIT_LOCK_WAIT_SECONDS` (1800 seconds),
+which is gone.
+
+- A holder proven alive:
+  waited for with no bound.
+  The line names it ("waiting for PID n (command), which holds the lock (proven by an open descriptor | its Git lock PID
+  file)"), repeats every notice interval with the time so far,
+  and says the wait lasts as long as the process holds the lock.
+- An owner nothing proves alive:
+  waited for `UNPROVEN_OWNER_BACKOFF` (1000 ms, ten times the longest hold measured for Git's own `status`, `add -A`,
+  `reset`
+  and `update-index --refresh` in this repository on 2026-11-03: 100 ms;
+  the measurement is in `src/native/unproven_backoff.rs`).
+  The wait then stops with a diagnostic that lists what was found (processes with the lock open,
+  the Git lock PID file), says
+  nothing was changed, leaves the lock in place, and names the file to remove when no program is using the repository.
+  The merge then reports what Git says; the commit service fails the commit with the lock's code and the message
+  "Another program is using this repository's index".
+  The fixed backoff replaces the record's quadratic backoff with jitter;
+  the key `indexLock.unprovenOwnerTimeoutMs` stays
+  retired (see the configuration section above).
+- A dead owner (the PID file names a process that no longer runs):
+  nothing will release the lock, so the wait stops at once with the same kind of diagnostic naming the process.
+  This deviates from the record, which gives a dead owner the same backoff as an unproven one.
+- The service's own hold, for a forwarded `git add`, `rm` or `mv`:
+  a hold whose mark proves the service runs is waited for with no bound;
+  a hold whose holder cannot be asked about is taken for a leftover at `UNASKABLE_HOLD_AGE` (150 seconds,
+  a quarter more than
+  the longest of 715 measured holds, 119.7 s; 13 of them ran 58 to 120 seconds, all in the disk sync of the new index).
+  The earlier 60 seconds took those live holds for leftovers.
+- The index reconciliation of a commit whose corrections left no change waits like the merge does;
+  `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) now cover only a lock that was gone by the time it was looked at.
+
+Not built here: the owner's chosen answer for a commit that meets a live foreign `index.lock`, "Same as the ref lock
+(Recommended)" (a commit lands and exits 0 and the index catches up when the lock frees).
+It comes with the commits-never-fail design.
+Until then a commit behind an owner nothing proves alive, or a dead one, still fails with the diagnostic.
+
+The wait for the commit service has no clock of the client's own:
+
+- The service sends a heartbeat line to every client whose request is queued or landing, once a second
+  (`HEARTBEAT_EVERY`, `service_protocol.rs`), from the thread that read the request.
+  The client waits for the answer for as long as it keeps hearing from the service.
+  The 10-minute `COMMIT_WAIT` and its message, which told the person to raise a setting that does not exist, are gone.
+- A client that hears nothing for `HEARTBEAT_SILENCE` (5 seconds) takes the service for stopped.
+  It prints "The commit service stopped answering; asking it again with the same commit, which cannot land twice.",
+  connects again and sends the same request identity, so nothing lands twice.
+  A service that greets nothing on that connection ends the command with "The commit service stopped answering while
+  this
+  commit waited ... it is not known whether the commit was made", which gives `git log -1`, `git status`,
+  the journal command
+  and the restart command; the exit status is nonzero and the message does not claim that nothing changed.
+  A connection that closes (the service died) is sent the same request again up to `RECONNECTS` (5)
+  times and then ends with
+  the existing "stopped before it confirmed this commit" message.
+- The start of the service is waited for with no clock when the client can ask the service manager:
+  every second it asks for the state of the worktree's service unit,
+  and two answers of "failed" in a row end the wait with
+  "The commit service did not start". Where the manager cannot be asked, the wait ends at `START_WAIT` (10 seconds,
+  ten times
+  the slowest of 52 measured cold starts, 1041 ms) as before.
+  The wait for an older service to retire keeps `START_WAIT` too.
+- The protocol version is 6: a service of the version before sends no heartbeat,
+  and the client retires it as it retires any
+  service of another release.
+- A deadlocked landing thread behind a live connection thread is not detected by this beat;
+  only a service that stops as a
+  process, or freezes, is. A unit that stays `inactive` after a connection, with the socket still listening,
+  is not detected
+  either (open questions in the audit).
 
 #### Commands that add commits
 
@@ -2736,12 +2832,14 @@ Each commit passes through three phases:
     A foreign commit that moves the branch while the service waits for the lock makes the compare-and-swap fail,
     and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
-    bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (thirty minutes by default)
-    with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`;
-    a holder that outlasts the bound ends the commit before the branch moved,
+    with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
+    A holder proven alive is waited for with no bound.
+    An owner nothing proves alive is waited for 1000 ms and a dead one not at all;
+    either ends the commit before the branch moved,
     removing the batch's intent and scratch branch,
-    with a plain message naming the process.
-    Both variables belong in the environment of the unit that runs the service.
+    with a diagnostic that lists the evidence and a plain message naming the process
+    ("Waits on a lock holder and on the service", in "Merges and commits never fail").
+    The variable belongs in the environment of the unit that runs the service.
 3.  After landing:
     in the wrapper,
     print the one summary line,

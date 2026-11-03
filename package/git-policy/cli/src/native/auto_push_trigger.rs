@@ -26,7 +26,8 @@ use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_query_refs::tracking_ref;
 use super::repo_read_refs::{RefValue, Refs};
 use super::repo_read_tree::parse_commit;
-use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT};
+use super::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for};
+use super::service_protocol::HEARTBEAT_SILENCE;
 use super::service_handoff::{ServiceHandoff, hand_over_push};
 use super::service_messages::{ClientFailure, render};
 use super::push_trigger_log::{Decision, Origin, Outcome, record_decision};
@@ -319,14 +320,20 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
             return;
         }
     };
-    let Some(Route { address, .. }) = route_from_environment(watch.real_git.as_path(), watch.layout.git_dir.as_path()) else {
+    let Some(Route { address, provision }) = route_from_environment(watch.real_git.as_path(), watch.layout.git_dir.as_path()) else {
         decide(Outcome::Declined, "no-route", "no way to reach the commit service");
         // Terminal output error: the message is the only report of a push that was not handed over.
         let _written = writeln!(stderr, "{}", render(&ClientFailure::NoActivation(platform_without_manager())));
         return;
     };
     let handoff: ServiceHandoff = ServiceHandoff {
-        config: ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT },
+        config: ClientConfig {
+            address,
+            activation: Activation::Managed,
+            start_wait: START_WAIT,
+            heartbeat_silence: HEARTBEAT_SILENCE,
+            start_watch: provision.as_ref().map(manager_watch_for),
+        },
         repository: watch.layout.worktree_root.clone(),
         git_dir: watch.layout.git_dir.clone(),
         reference: watch.branch_ref.clone(),
