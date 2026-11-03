@@ -585,7 +585,8 @@ Write each conflicted file by its own name after `--`;
  a directory, a wildcard, pathspec magic, a missing `--`, `--force`, `--patch`, `--pathspec-from-file` and
  `restore --staged` are not covered and stay rejected.
  A token that is the value of `--source`, `-s` or `--conflict` is never read as `--worktree` or `--staged`,
- so `git restore --source -W --staged -- f` (a tag can be named `-W`) is an index-only restore and stays rejected.
+ so `git restore --source -W --staged -- f` (a tag can be named `-W`) is an index-only restore and stays rejected,
+ and the rejection names `git restore --staged`, not a restore of file content.
 A conflicted path that is deleted in your worktree has nothing to copy, and the command runs.
 When a copy cannot be written (no space, no permission), the command is rejected and says why.
  A symbolic link or a file where a directory in front of the name should be (`dir` for `dir/file`) is never followed:

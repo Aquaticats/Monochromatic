@@ -2781,6 +2781,8 @@ The forms covered are:
   `-W`, `--worktree`, `-S` and `--staged` count only where Git parses them as options:
   the token after `--source`, `-s` or `--conflict` is that option's value, so in `restore --source -W --staged -- f`
   (a tag can be named `-W`) the `-W` is a revision, the restore is index-only, and the rejection stays.
+The rejection reads the line the same way and names `git restore --staged` (the policy's own classification of an
+index-only restore skips those values and reads `-sW` as `-s` with the value `W`).
 
 Every other line keeps the rejection: a force, a patch, a path list read from a file, a branch option, a form without `--`
 before the paths, an index-only `restore --staged`, and any `reset`, `merge --abort` or other guarded command.

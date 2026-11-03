@@ -160,21 +160,51 @@ pub fn restore_discard(region: &[OsString]) -> Discard {
 ///  Whether a `git restore` region touches the index only.
 /// Why:
 ///   `--staged` alone unstages and leaves the files, so the guidance differs from a restore of file content;
-///  `--worktree` beside it brings the files back in. `--st` and `--w` are the shortest unambiguous prefixes.
+///  `--worktree` beside it brings the files back in. `--st` and `--w` are the shortest unambiguous prefixes. A token that
+///  is the value of `--source`, `-s` or `--conflict` is that value and never a flag (`restore --source -W --staged` names
+///  a revision `-W` and restores the index only).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function restoresIndexOnly(region: string[]): boolean;
 /// ```
 pub fn restores_index_only(region: &[OsString]) -> bool {
+    let tokens: Vec<&[u8]> = options_of(region);
     let mut staged: bool = false;
     let mut worktree: bool = false;
-    for token in options_of(region) {
-        if has_short(token, b'S') || spells_long(token, "--staged", 4) {
-            staged = true;
+    let mut at: usize = 0;
+    while at < tokens.len() {
+        let token: &[u8] = tokens[at];
+        at += 1;
+        if token.starts_with(b"--") {
+            if spells_long(token, "--staged", 4) {
+                staged = true;
+            }
+            if spells_long(token, "--worktree", 3) {
+                worktree = true;
+            }
+            // `--source <tree>` and `--conflict <style>` take the next token as their value, whatever it looks like.
+            if !token.contains(&b'=') && (spells_long(token, "--source", 4) || spells_long(token, "--conflict", 3)) {
+                at += 1;
+            }
+            continue;
         }
-        if has_short(token, b'W') || spells_long(token, "--worktree", 3) {
-            worktree = true;
+        if token.len() > 1 && token[0] == b'-' {
+            // A short cluster is read letter by letter; `s` takes the rest of the token as its value, or the next token
+            // when it ends the cluster, so nothing after it in the same token is a flag.
+            for (position, letter) in token[1..].iter().enumerate() {
+                match *letter {
+                    b'S' => staged = true,
+                    b'W' => worktree = true,
+                    b's' => {
+                        if position + 2 == token.len() {
+                            at += 1;
+                        }
+                        break;
+                    }
+                    _ => {}
+                }
+            }
         }
     }
     return staged && !worktree;
