@@ -2,6 +2,10 @@
 description = "Build container image and import as libvirt VM"
 run = "node src/build-and-import.ts"
 
+[tasks."image:build"]
+description = "Build the dev OS image without converting disks or replacing a libvirt VM"
+run = "sudo --non-interactive podman build --cpu-period 100000 --cpu-quota 800000 --memory 12g --tag localhost/monochromatic-dev:latest --file Containerfile --ignorefile .containerignore ../../.."
+
 [tasks.import]
 description = "Import already-built qcow2 into libvirt (skips build+convert)"
 run = "node src/import.ts"

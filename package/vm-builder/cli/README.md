@@ -19,6 +19,25 @@ needed for copying the qcow2 into `/var/lib/libvirt/images/`.
 
 ## Usage
 
+The image installs OdyTTY `0.17.5` from its upstream x86-64 RPM,
+verifies its SHA-256,
+and seeds the existing OdyTTY preferences and KDE/XDG terminal defaults.
+The version matches the user's interim desktop choice;
+change the version and checksum together when updating it.
+The Ghostty COPR is no longer configured.
+
+Build the image without replacing a VM:
+
+```sh
+# package/vm-builder/cli
+mise run //package/vm-builder/cli:image:build
+```
+
+The full build,
+conversion,
+and import task follows.
+It replaces an existing `monochromatic-dev` VM as described in Re-running.
+
 ```bash
 mise run //package/vm-builder/cli:run
 ```

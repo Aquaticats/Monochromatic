@@ -1,0 +1,3 @@
+[General]
+TerminalApplication=odytty
+TerminalService=io.unfinished_works.odytty.desktop

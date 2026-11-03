@@ -88,12 +88,16 @@ terminal-exec --title="Build logs" --dir=/tmp -- tail -f build.log
 Create `~/.config/xdg-terminals.list` to explicitly set preferred terminals:
 
 ```text
-com.mitchellh.ghostty.desktop
+odytty.desktop
 org.kde.konsole.desktop
 ```
 
 First valid entry wins.
  Entries listed here bypass `OnlyShowIn`/`NotShowIn` checks.
+
+The host's OdyTTY AppImage integration uses `odytty.desktop`.
+The development VM's upstream OdyTTY RPM uses `io.unfinished_works.odytty.desktop` instead.
+Use the desktop-entry filename installed on the target system.
 
 ### Excluding entries from fallback
 
