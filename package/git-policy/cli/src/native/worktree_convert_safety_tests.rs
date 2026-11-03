@@ -1,0 +1,258 @@
+//! Controls for the review findings on the conversion: the journal's files, the identity of the stage, what a late writer
+//!  loses, the lock that serializes commands, the pinned removal, nested registrations in any layout, refusals by kind, and a
+//!  failed index refresh.
+
+use super::*;
+use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_worktree};
+use crate::test_support::{git, remove};
+use crate::worktree_convert_journal::{LOCK_NAME, Phase as JournalPhase};
+use crate::worktree_convert_remove::remove_recorded_old_tree_seamed;
+
+/// The options of a real run.
+const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false };
+
+/// A checkout with one settled detached linked worktree `wt`: old files, a refreshed index, so it is quiet.
+fn quiet_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let (parent, root) = checkout_with_worktree(name);
+    let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
+    backdate(worktree.as_path());
+    git(worktree.as_path(), &["update-index", "--refresh"]);
+    return (parent, root, worktree);
+}
+
+/// Run one conversion and collect its lines.
+fn run(platform: &dyn Platform, worktree: &Path, options: ConvertOptions, interrupt: &Interrupt) -> (Result<Verdict, MigrateError>, Vec<String>) {
+    let mut lines: Vec<String> = Vec::new();
+    let verdict = convert_worktree(platform, worktree, options, interrupt, &mut |text: &str| { lines.push(String::from(text)); });
+    return (verdict, lines);
+}
+
+/// The administrative directory of a worktree.
+fn admin_of(worktree: &Path) -> PathBuf {
+    return inspect(worktree).expect("registered").admin;
+}
+
+/// The words of a failed run.
+fn failure_of(verdict: Result<Verdict, MigrateError>) -> String {
+    return verdict.expect_err("the run fails").to_string();
+}
+
+/// The reasons of a skipped run, joined.
+fn skipped(verdict: Result<Verdict, MigrateError>) -> String {
+    return match verdict.expect("no failure") {
+        Verdict::Skipped(reasons) => reasons.join("\n"),
+        other => panic!("expected a skip, got {other:?}"),
+    };
+}
+
+/// The journal's temporary file is never a name that exists: a link at the old fixed name is not followed or truncated.
+#[test]
+fn the_journal_never_writes_through_a_file_that_is_in_the_way() {
+    let (parent, _root, worktree) = quiet_worktree("safety-journal-tmp");
+    let victim: PathBuf = parent.join("victim");
+    std::fs::write(&victim, b"keep me").expect("victim");
+    std::os::unix::fs::symlink(&victim, admin_of(worktree.as_path()).join("cli-git-convert.tmp")).expect("link at the old name");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (verdict, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(verdict.expect("converted"), Verdict::Converted);
+    assert_eq!(std::fs::read(&victim).expect("victim"), b"keep me");
+    remove(parent.as_path());
+}
+
+/// A journal is made only where there is none, and replacing one is a separate act.
+#[test]
+fn a_fresh_journal_never_replaces_one_that_exists() {
+    let (parent, _root, worktree) = quiet_worktree("safety-journal-new");
+    let admin: PathBuf = admin_of(worktree.as_path());
+    let made = Journal { phase: JournalPhase::Started, token: String::from("a"), path: b"/x".to_vec(), old_device: 1, old_inode: 2, git_file: b"g".to_vec(), new_identity: None };
+    made.create_new(admin.as_path()).expect("first journal");
+    let other = Journal { token: String::from("b"), ..made.clone() };
+    assert!(other.create_new(admin.as_path()).is_err(), "the second one must not replace the first");
+    assert_eq!(Journal::load(admin.as_path()).expect("load"), Some(made));
+    let names: Vec<String> = std::fs::read_dir(&admin).expect("listing").flatten().map(|entry: std::fs::DirEntry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert!(names.iter().all(|name: &String| { return !name.contains(".tmp."); }), "no temporary file is left: {names:?}");
+    remove(parent.as_path());
+}
+
+/// A directory at the converting name that the journal has no identity for is foreign: it is not synced into, not exchanged and
+///  not destroyed by the abandon, whether someone made it or the run was killed between creating and recording it.
+#[test]
+fn a_foreign_stage_is_never_synced_into_exchanged_or_destroyed() {
+    for point in ["journaled", "stage-unrecorded"] {
+        let (parent, _root, worktree) = quiet_worktree(format!("safety-foreign-{point}").as_str());
+        let platform: PlainPlatform = PlainPlatform::new();
+        let converting: PathBuf = converting_path(worktree.as_path());
+        let (killed, _lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::at(point, 0));
+        assert!(killed.is_err(), "{point}: the run was killed");
+        if point == "journaled" {
+            platform.create_subvolume(converting.as_path()).expect("a foreign subvolume");
+        }
+        std::fs::write(converting.join("theirs"), b"theirs").expect("their file");
+        let reasons: String = skipped(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+        assert!(reasons.contains("exists") && reasons.contains("owns it"), "{point}: {reasons}");
+        assert_eq!(std::fs::read(converting.join("theirs")).expect("theirs"), b"theirs", "{point}: nothing was synced over it");
+        assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "{point}: nothing was exchanged");
+        let (abandoned, lines) = run(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true }, &Interrupt::never());
+        assert_eq!(abandoned.expect("abandoned"), Verdict::Abandoned, "{point}");
+        assert!(converting.join("theirs").exists(), "{point}: the abandon left the foreign directory: {lines:?}");
+        assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(), "{point}: the journal is gone");
+        remove(parent.as_path());
+    }
+}
+
+/// After the swap, a different subvolume with the same `.git` bytes at the path is not the installed copy, and the old tree stays.
+#[test]
+fn a_replaced_installed_subvolume_is_not_accepted() {
+    let (parent, _root, worktree) = quiet_worktree("safety-replaced");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let git_file: Vec<u8> = std::fs::read(worktree.join(".git")).expect(".git");
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
+    std::fs::rename(&worktree, parent.join("installed-aside")).expect("move the installed copy away");
+    platform.create_subvolume(worktree.as_path()).expect("another subvolume");
+    std::fs::write(worktree.join(".git"), git_file).expect("same .git bytes");
+    let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(message.contains("not the subvolume this conversion created"), "{message}");
+    assert!(converting.join("README.md").exists(), "the old tree was not removed");
+    remove(parent.as_path());
+}
+
+/// A file written after the copy was proved and before a kill is in the converted worktree, because the copy is made again.
+#[test]
+fn a_file_written_after_a_synced_kill_is_not_lost() {
+    let (parent, _root, worktree) = quiet_worktree("safety-synced");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("synced", 0)).0.is_err());
+    std::fs::write(worktree.join("late.txt"), b"written after the proof\n").expect("late file");
+    let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(finished.expect("finished"), Verdict::Resumed, "{lines:#?}");
+    assert_eq!(std::fs::read(worktree.join("late.txt")).expect("late file"), b"written after the proof\n");
+    assert!(platform.is_subvolume_root(worktree.as_path()).expect("examined"));
+    remove(parent.as_path());
+}
+
+/// A write that reaches the old tree after the exchange is carried into the worktree, the old tree is kept for that run, and
+///  the next run removes it.
+#[test]
+fn a_late_write_keeps_the_old_tree_until_it_is_carried_over() {
+    let (parent, _root, worktree) = quiet_worktree("safety-late");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
+    std::fs::write(converting.join("late.txt"), b"written after the proof\n").expect("late file in the old tree");
+    let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(message.contains("written after the copy was proved") && message.contains("kept"), "{message}");
+    assert_eq!(std::fs::read(worktree.join("late.txt")).expect("carried over"), b"written after the proof\n");
+    assert!(converting.join("README.md").exists(), "the old tree is still there");
+    let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(finished.expect("finished"), Verdict::Resumed, "{lines:#?}");
+    assert!(std::fs::symlink_metadata(&converting).is_err(), "now the old tree is gone");
+    remove(parent.as_path());
+}
+
+/// A process that holds the old tree open keeps it, and the run says which.
+#[test]
+fn a_process_holding_the_old_tree_keeps_it() {
+    let (parent, _root, worktree) = quiet_worktree("safety-holder");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("refreshed", 0)).0.is_err());
+    let mut child: std::process::Child = std::process::Command::new("sleep").arg("30").current_dir(&converting).spawn().expect("sleep");
+    let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(message.contains("kept because process"), "{message}");
+    assert!(converting.join("README.md").exists());
+    child.kill().expect("kill");
+    child.wait().expect("wait");
+    assert_eq!(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect("finished"), Verdict::Resumed);
+    remove(parent.as_path());
+}
+
+/// A second command does not start while one holds the conversion lock, and writes nothing.
+#[test]
+fn a_second_command_does_not_start_while_the_lock_is_held() {
+    let (parent, _root, worktree) = quiet_worktree("safety-lock");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let admin: PathBuf = admin_of(worktree.as_path());
+    let held = ConversionLock::acquire(admin.as_path()).expect("lock").expect("free");
+    let reasons: String = skipped(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(reasons.contains("another conversion") && reasons.contains(LOCK_NAME), "{reasons}");
+    assert!(!admin.join(JOURNAL_NAME).exists() && !admin.join("index.lock").exists(), "nothing was written");
+    assert!(ConversionLock::acquire(admin.as_path()).expect("lock").is_none(), "the lock is exclusive");
+    drop(held);
+    assert_eq!(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect("converted"), Verdict::Converted);
+    remove(parent.as_path());
+}
+
+/// The old tree is removed beneath the directory that was pinned: a directory put at the name after the check survives.
+#[test]
+fn the_removal_follows_the_pinned_directory_not_the_name() {
+    let (parent, _root, worktree) = quiet_worktree("safety-pinned");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let old: PathBuf = parent.join("old");
+    std::fs::create_dir(&old).expect("old");
+    std::fs::write(old.join("mine"), b"mine").expect("mine");
+    let metadata = std::fs::metadata(&old).expect("metadata");
+    let recorded = OldRoot { device: std::os::unix::fs::MetadataExt::dev(&metadata), inode: std::os::unix::fs::MetadataExt::ino(&metadata) };
+    let held = open_root(parent.as_path()).expect("held parent");
+    let moved: PathBuf = parent.join("moved");
+    let outcome = remove_recorded_old_tree_seamed(&platform, &held, std::ffi::OsStr::new("old"), recorded, &mut || {
+        std::fs::rename(&old, &moved).expect("move the old tree away");
+        std::fs::create_dir(&old).expect("another directory at the name");
+        std::fs::write(old.join("theirs"), b"theirs").expect("theirs");
+    })
+    .expect("no failure");
+    assert!(matches!(outcome, Removal::Kept(_)), "{outcome:?}");
+    assert_eq!(std::fs::read(old.join("theirs")).expect("theirs"), b"theirs", "the directory that took the name is untouched");
+    drop(worktree);
+    remove(parent.as_path());
+}
+
+/// A worktree registered inside another is found whatever the common directory is called: here a bare repository.
+#[test]
+fn a_nested_registration_is_found_in_a_bare_layout() {
+    let (parent, root) = checkout_with_worktree("safety-bare");
+    let bare: PathBuf = parent.join("r.git");
+    git(parent.as_path(), &["clone", "--quiet", "--bare", root.to_str().expect("UTF-8"), bare.to_str().expect("UTF-8")]);
+    git(bare.as_path(), &["worktree", "add", "--quiet", "--detach", "../outer"]);
+    let outer: PathBuf = std::fs::canonicalize(parent.join("outer")).expect("canonical outer");
+    backdate(outer.as_path());
+    git(outer.as_path(), &["update-index", "--refresh"]);
+    git(bare.as_path(), &["worktree", "add", "--quiet", "--detach", "../outer/inner"]);
+    let platform: PlainPlatform = PlainPlatform::new();
+    let reasons: String = skipped(run(&platform, outer.as_path(), ConvertOptions { dry_run: true, abandon: false }, &Interrupt::never()).0);
+    assert!(reasons.contains("registered inside it") && reasons.contains("inner"), "{reasons}");
+    remove(parent.as_path());
+}
+
+/// A refusal is exempt by what it is and who owns it, not by its words: a nested worktree whose name contains the converting
+///  suffix still stops a resumed conversion.
+#[test]
+fn a_nested_worktree_named_like_the_stage_still_stops_a_resume() {
+    let (parent, root, worktree) = quiet_worktree("safety-suffix");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("journaled", 0)).0.is_err());
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", worktree.join(format!("inner{CONVERTING_SUFFIX}-backup")).to_str().expect("UTF-8")]);
+    let reasons: String = skipped(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(reasons.contains("registered inside it") && reasons.contains(CONVERTING_SUFFIX), "{reasons}");
+    remove(parent.as_path());
+}
+
+/// An index that cannot be refreshed stops the conversion with the old tree kept and the journal where it was; the next run
+///  finishes it.
+#[test]
+fn a_failed_index_refresh_keeps_the_old_tree() {
+    let (parent, _root, worktree) = quiet_worktree("safety-index");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let index: PathBuf = admin_of(worktree.as_path()).join("index");
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
+    std::fs::set_permissions(&index, std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("make the index unreadable");
+    let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(message.contains("not refreshed") && message.contains("kept"), "{message}");
+    assert!(converting.join("README.md").exists(), "the old tree is kept");
+    assert!(admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(), "the journal is kept");
+    std::fs::set_permissions(&index, std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("restore");
+    assert_eq!(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect("finished"), Verdict::Resumed);
+    assert!(std::fs::symlink_metadata(&converting).is_err());
+    remove(parent.as_path());
+}

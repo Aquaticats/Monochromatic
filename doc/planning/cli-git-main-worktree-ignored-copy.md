@@ -748,6 +748,56 @@ main checkout again (two tests), and the handler following a link at the trash n
 - Both controls were shown red by removing the release comparison from `reach_current_untimed` (a service of the current
   protocol but another release was then accepted); restoring it turned them green.
 
+### Round 3: the conversion tool refused clean worktrees (0.5.18)
+
+- The dry run on the real repository listed 28 worktrees as not quiet that were clean. The log of that run is
+  `convert-dry-run.log` in the scratch directory.
+- Sixteen were refused with "HEAD is not a plain ref to a commit". They were not detached: their `HEAD` names a branch that
+  only `packed-refs` holds, and `packed-refs` of the repository has tags with an `@` in the name
+  (`@monochromatic-dev/module-logger@0.4.1`), which is outside the plain alphabet of `repo_read_refs.rs`; `packed()` returned
+  nothing for the whole file, so no ref resolved. A detached `HEAD` already converted (the existing conversion tests use one).
+  A lookup now leaves out a well-formed line with an unusual name; the list and a damaged line still end the read.
+- Fifteen were refused as racily clean and two for a stale stat. `worktree_clean_content.rs` settles those by content in
+  process: blob hash of the file, a link by its target, compared with the index entry's object name. The reasons that stay
+  refusals: a `filter`, `ident` or `working-tree-encoding` attribute that may apply (attribute sources: tracked
+  `.gitattributes` down the path, `info/attributes`, `core.attributesFile` or the default global file, the system file, macros
+  that set one of them), a carriage return in the file (a line-ending conversion strips it on the way into the index; a file
+  without one is unchanged by `text`, `eol`, `core.autocrlf` and `core.eol`, so those need no attribute lookup), a file over
+  32 MiB, and a type, mode or assume-unchanged difference.
+- The real repository's `* text=auto eol=lf` therefore refuses nothing by itself, and `*.png filter=lfs` refuses only a stale
+  png.
+- Only the conversion uses it (`check_clean_tracked_by_content`); the snapshot and clone rungs keep the stat-only check
+  because they install the index they proved. After a conversion an entry that was not proven keeps its old stat data
+  (`refresh_index_file_with` rewrites only entries whose old file matched), so Git hashes it at its first status.
+- `Platform::config_scope` gives the conversion the configuration files Git reads; a stand-in names none, so controls read
+  only the repository's own configuration. When the system configuration path is unknown (no forward target in the
+  environment) the global attributes file cannot be ruled out and the content decision refuses with that reason.
+- Dry run of the fixed build on the real repository: 160 worktrees, 94 already subvolumes, 65 would convert, 1 skipped
+  (`package/forbidden-strings/core/Cargo.lock` really differs from the committed content).
+
+### Round 4: the cross-vendor reviews of the content proof and the conversion
+
+Every finding was checked against the Git source of the installed version (`attr.c` at `v2.56.0`) before it was fixed.
+
+- System attributes (`attr.c`, `git_attr_system_file`): `system_path(ETC_GITATTRIBUTES)`, independent of
+  `GIT_CONFIG_SYSTEM`, off under `GIT_ATTR_NOSYSTEM`. The path is now asked of the executable with `git var GIT_ATTR_SYSTEM`
+  (cached per executable identity beside the system configuration path) and an unknown place refuses.
+- Lexing (`attr.c`, `parse_attr_line`): the blanks are `" \t\r\n"` only, a line is a C string (NUL ends it), and
+  `read_attr_from_file` skips a UTF-8 byte order mark on its first line; none of this was modelled. Paths, patterns and
+  directory keys are bytes now, with ASCII folding. A quoted pattern keeps all its tokens and counts as applying.
+- Reads: `worktree_clean_content.rs` opens every file and every `.gitattributes` below a held root with `openat2` and no link
+  followed, judges type and mode on the handle, compares the state before and after the read, and bounds the read at the limit
+  plus one byte. A `.gitattributes` that is a link is a refusal (Git opens it without following).
+- Conversion: the journal is created and replaced only through exclusive files, records the identity of the stage, and is
+  guarded by a `flock` per administrative directory; `Synced` is provisional; the old tree is removed beneath a pinned
+  descriptor; nested registrations are read from the common directory; refusals have kinds; a failed refresh keeps the old tree.
+- What the cleanliness proof is for: the conversion copies the whole tree, untracked and ignored files included, so a modified
+  tracked file would survive the conversion. The proof is a policy (do not rebuild a worktree someone is in the middle of), and
+  the data is protected by the copy, the second pass, the identity checks, and the update-only pass before the removal.
+- What stays open: a write that keeps the size and modification time of the copy is invisible to the second pass and to the
+  update-only pass; a process that writes and exits in the window before the exchange is found only by the update-only pass; a
+  system attributes file under a prefix other than the executable's is not read.
+
 ## Assumptions and limits
 
 - The fixture is `git clone --shared` of the main checkout in `/var/home/user/.cache/main-ignored-copy`, with the main

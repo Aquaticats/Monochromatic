@@ -24,6 +24,9 @@ use std::path::{Path, PathBuf};
 /// The kind of the cache file that holds the compiled-in system configuration path.
 pub const SYSTEM_CONFIG_KIND: &str = "git-system-config";
 
+/// The kind of the cache file that holds the compiled-in system attributes path.
+pub const SYSTEM_ATTRIBUTES_KIND: &str = "git-system-attributes";
+
 /// The longest path the cache keeps and the question accepts.
 const PATH_LIMIT: usize = 4096;
 
@@ -47,8 +50,18 @@ pub fn parse_path_line(stdout: &[u8]) -> Option<PathBuf> {
 
 /// Start the executable at `real_git` with `var GIT_CONFIG_SYSTEM` and the environment's overrides removed.
 fn ask_git(real_git: &Path) -> Option<Vec<u8>> {
+    return ask_git_var(real_git, "GIT_CONFIG_SYSTEM");
+}
+
+/// Start the executable at `real_git` with `var GIT_ATTR_SYSTEM` and the environment's overrides removed.
+fn ask_git_attributes(real_git: &Path) -> Option<Vec<u8>> {
+    return ask_git_var(real_git, "GIT_ATTR_SYSTEM");
+}
+
+/// Start the executable at `real_git` with `var <variable>` and the environment's overrides removed.
+fn ask_git_var(real_git: &Path, variable: &str) -> Option<Vec<u8>> {
     let output = std::process::Command::new(real_git)
-        .args(["var", "GIT_CONFIG_SYSTEM"])
+        .args(["var", variable])
         .env_clear()
         .env("LC_ALL", "C")
         .current_dir("/")
@@ -71,9 +84,28 @@ fn ask_git(real_git: &Path) -> Option<Vec<u8>> {
 /// const path = (await readCache(dir, identity, kind)) ?? (await ask(realGit)); // undefined: unknown
 /// ```
 pub fn system_config_of(real_git: &Path, cache: Option<&Path>, ask: &dyn Fn(&Path) -> Option<Vec<u8>>) -> Option<PathBuf> {
+    return learned_path(real_git, cache, SYSTEM_CONFIG_KIND, ask);
+}
+
+/// What:
+///  The system attributes file of the executable at `real_git`, learned like the system configuration path.
+/// Why:
+///   `GIT_CONFIG_SYSTEM` moves the configuration file and nothing else: the attributes file is at `$(prefix)/etc/gitattributes`
+///  of that build, which only the executable itself reports (`git var GIT_ATTR_SYSTEM`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const path = (await readCache(dir, identity, 'git-system-attributes')) ?? (await run(realGit, ['var', 'GIT_ATTR_SYSTEM'])); // undefined: unknown
+/// ```
+pub fn system_attributes_of(real_git: &Path, cache: Option<&Path>, ask: &dyn Fn(&Path) -> Option<Vec<u8>>) -> Option<PathBuf> {
+    return learned_path(real_git, cache, SYSTEM_ATTRIBUTES_KIND, ask);
+}
+
+/// A path the executable at `real_git` reports for itself, cached under `kind` for its identity.
+fn learned_path(real_git: &Path, cache: Option<&Path>, kind: &str, ask: &dyn Fn(&Path) -> Option<Vec<u8>>) -> Option<PathBuf> {
     let identity: BinaryIdentity = binary_identity(real_git)?;
     if let Some(directory) = cache
-        && let Some(path) = read_cached_text(directory, &identity, SYSTEM_CONFIG_KIND).and_then(|text| { return parse_path_line(&[text.as_slice(), b"\n"].concat()); })
+        && let Some(path) = read_cached_text(directory, &identity, kind).and_then(|text| { return parse_path_line(&[text.as_slice(), b"\n"].concat()); })
     {
         return Some(path);
     }
@@ -83,7 +115,7 @@ pub fn system_config_of(real_git: &Path, cache: Option<&Path>, ask: &dyn Fn(&Pat
     if let Some(directory) = cache
         && binary_identity(real_git).as_ref() == Some(&identity)
     {
-        store_cached_text(directory, &identity, SYSTEM_CONFIG_KIND, path.as_os_str().as_encoded_bytes());
+        store_cached_text(directory, &identity, kind, path.as_os_str().as_encoded_bytes());
     }
     return Some(path);
 }
@@ -120,6 +152,20 @@ pub fn with_real_git(variables: &[(OsString, OsString)], real_git: &Path) -> Vec
 pub fn system_config_for(variables: &[(OsString, OsString)]) -> Option<PathBuf> {
     let target: OsString = environment_value(variables, FORWARD_TARGET_VARIABLE)?;
     return system_config_of(Path::new(&target), cache_directory(variables).as_deref(), &ask_git);
+}
+
+/// What:
+///  The system attributes path the Git a child would run reads, learned from the forward-target variable.
+/// Why:
+///   `None` (no variable, no identity, no answer) makes the content decision refuse whenever that file would be read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const path = systemAttributesFor(env); // undefined: unknown
+/// ```
+pub fn system_attributes_for(variables: &[(OsString, OsString)]) -> Option<PathBuf> {
+    let target: OsString = environment_value(variables, FORWARD_TARGET_VARIABLE)?;
+    return system_attributes_of(Path::new(&target), cache_directory(variables).as_deref(), &ask_git_attributes);
 }
 
 #[cfg(test)]
