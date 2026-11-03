@@ -220,6 +220,23 @@ const PRIVATE_CARGO_HOME = await mkdtemp(join(
 ),);
 process.env.CARGO_HOME = PRIVATE_CARGO_HOME;
 
+/**
+ Why the real-cargo tests are skipped, empty when cargo can run.
+
+ The other tests use a fake cargo, so a machine without cargo still runs them.
+ */
+const CARGO_SKIP_REASON = await (async function probeCargo(): Promise<string> {
+  try {
+    /**
+     Result of asking cargo for its version.
+     */
+    const probe = await spawnCargo({ cwd: PRIVATE_CARGO_HOME, args: ['--version',], toolchain: '', },);
+    return probe.ok ? '' : `cargo --version failed: ${probe.output.trim()}`;
+  } catch (error) {
+    return `cargo cannot be started: ${String(error,)}`;
+  }
+})();
+
 //endregion Fixtures
 
 //region Fake cargo
@@ -668,6 +685,7 @@ await describe({
   children: [
     it({
       name: 'regenerates the lockfile of every workspace a catalog bump leaves stale, with minimal movement, under real cargo',
+      skip: CARGO_SKIP_REASON === '' ? false : CARGO_SKIP_REASON,
       fn: async () => {
         /**
          Repository whose manifests were bumped.
@@ -726,6 +744,7 @@ await describe({
     },),
     it({
       name: 'restores every lockfile on a dry run and still reports what it would regenerate',
+      skip: CARGO_SKIP_REASON === '' ? false : CARGO_SKIP_REASON,
       fn: async () => {
         /**
          Repository whose manifests were bumped.

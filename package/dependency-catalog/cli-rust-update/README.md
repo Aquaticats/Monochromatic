@@ -176,4 +176,5 @@ Most tests use fake cargo runners,
  and disposable repositories,
  so they need neither the network nor cargo.
 The reconcile test also runs the real cargo (the repository's pinned one on `PATH`) against a directory source that stands
- in for crates.io, so it needs cargo but not the network.
+ in for crates.io, so it needs cargo but not the network;
+ without cargo on `PATH` those two tests report a skip with the reason and the rest still run.
