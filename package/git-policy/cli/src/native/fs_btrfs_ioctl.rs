@@ -53,18 +53,20 @@ const IOC_TYPE_SHIFT: u32 = 8;
 pub struct IocLayout {
     /// `_IOC_WRITE`: the direction value for an argument user space writes.
     pub write: u32,
+    /// `_IOC_READ`: the direction value for an argument the kernel fills in.
+    pub read: u32,
     /// `_IOC_DIRSHIFT`: where the direction field starts.
     pub direction_shift: u32,
 }
 
 /// The asm-generic encoding.
-pub const GENERIC_IOC_LAYOUT: IocLayout = IocLayout { write: 1, direction_shift: 30 };
+pub const GENERIC_IOC_LAYOUT: IocLayout = IocLayout { write: 1, read: 2, direction_shift: 30 };
 
 /// The encoding of powerpc, mips, sparc and alpha: a 3-bit direction field with `_IOC_WRITE` 4.
-pub const WIDE_DIRECTION_IOC_LAYOUT: IocLayout = IocLayout { write: 4, direction_shift: 29 };
+pub const WIDE_DIRECTION_IOC_LAYOUT: IocLayout = IocLayout { write: 4, read: 2, direction_shift: 29 };
 
 /// The encoding of parisc: `_IOC_WRITE` 2 with the generic field width.
-pub const PARISC_IOC_LAYOUT: IocLayout = IocLayout { write: 2, direction_shift: 30 };
+pub const PARISC_IOC_LAYOUT: IocLayout = IocLayout { write: 2, read: 1, direction_shift: 30 };
 
 /// The encoding of the architecture this code is built for.
 #[cfg(any(target_arch = "powerpc", target_arch = "powerpc64", target_arch = "mips", target_arch = "mips32r6", target_arch = "mips64", target_arch = "mips64r6", target_arch = "sparc", target_arch = "sparc64"))]
@@ -102,6 +104,20 @@ pub const fn ioc_write_with(layout: IocLayout, number: u32, size: usize) -> u32 
 }
 
 /// What:
+///  The request number `_IOWR(magic, number, size)` the C macro computes under a given architecture's encoding, for an
+///  argument that user space fills in and the kernel fills in again.
+/// Why:
+///   See `ioc_write_with`; the direction field holds both bits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const iowr = (layout: IocLayout, nr: number, size: number) => ((layout.write | layout.read) << layout.directionShift) | (size << 16) | (0x94 << 8) | nr;
+/// ```
+pub const fn ioc_read_write_with(layout: IocLayout, number: u32, size: usize) -> u32 {
+    return ((layout.write | layout.read) << layout.direction_shift) | ((size as u32) << IOC_SIZE_SHIFT) | (BTRFS_IOCTL_MAGIC << IOC_TYPE_SHIFT) | number;
+}
+
+/// What:
 ///  The request number `_IOW(magic, number, size)` for the architecture this code is built for.
 ///  `libc::Ioctl` is the width the platform's `ioctl` takes.
 /// Why:
@@ -123,6 +139,18 @@ pub const BTRFS_IOC_SNAP_DESTROY: libc::Ioctl = ioc_write(15, VOLUME_ARGUMENT_BY
 
 /// `BTRFS_IOC_SNAP_CREATE_V2`: `_IOW(0x94, 23, struct btrfs_ioctl_vol_args_v2)`.
 pub const BTRFS_IOC_SNAP_CREATE_V2: libc::Ioctl = ioc_write(23, VOLUME_ARGUMENT_BYTES);
+
+/// `BTRFS_IOC_SNAP_DESTROY_V2`: `_IOW(0x94, 63, struct btrfs_ioctl_vol_args_v2)`.
+pub const BTRFS_IOC_SNAP_DESTROY_V2: libc::Ioctl = ioc_write(63, VOLUME_ARGUMENT_BYTES);
+
+/// `BTRFS_IOC_INO_LOOKUP`: `_IOWR(0x94, 18, struct btrfs_ioctl_ino_lookup_args)`, 4096 bytes.
+pub const BTRFS_IOC_INO_LOOKUP: libc::Ioctl = ioc_read_write_with(HOST_IOC_LAYOUT, 18, VOLUME_ARGUMENT_BYTES) as libc::Ioctl;
+
+/// `BTRFS_SUBVOL_SPEC_BY_ID`: the destroy names the subvolume by its id, in the place of the name.
+const BTRFS_SUBVOL_SPEC_BY_ID: u64 = 1 << 4;
+
+/// `BTRFS_FIRST_FREE_OBJECTID`: the inode number of the root directory of every subvolume.
+const BTRFS_FIRST_FREE_OBJECTID: u64 = 256;
 
 /// What:
 ///  `struct btrfs_ioctl_vol_args`: a source descriptor and a name.
@@ -279,6 +307,79 @@ pub fn snapshot_destroy(parent: &Path, name: &OsStr) -> Result<(), PrimitiveErro
     let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_SNAP_DESTROY, &arguments) };
     if result != 0 {
         return Err(PrimitiveError::last_os_error(operation, parent.join(name).as_path()));
+    }
+    return Ok(());
+}
+
+/// What:
+///  The id of the subvolume that holds the open file or directory (`BTRFS_IOC_INO_LOOKUP` with the root directory's inode
+///  number, the query the kernel answers for any user).
+/// Why:
+///   An id names one subvolume for good, while a path names whatever is there when the call runs; the destroy by id
+///  therefore removes the subvolume that was looked at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const id = await subvolumeId(await open(path));
+/// ```
+pub fn subvolume_id(held: &File, path: &Path) -> Result<u64, PrimitiveError> {
+    // `treeid` 0 asks for the subvolume of the file itself, and `objectid` 256 is the root directory of it; the rest is the
+    // path buffer the kernel zeroes.
+    let mut arguments: [u64; VOLUME_ARGUMENT_BYTES / 8] = [0; VOLUME_ARGUMENT_BYTES / 8];
+    arguments[1] = BTRFS_FIRST_FREE_OBJECTID;
+    // SAFETY: `held` is open for the call; `arguments` is a 4096-byte, 8-byte-aligned buffer as the request number states.
+    let result: libc::c_int = unsafe { libc::ioctl(held.as_raw_fd(), BTRFS_IOC_INO_LOOKUP, arguments.as_mut_ptr()) };
+    if result != 0 {
+        return Err(PrimitiveError::last_os_error("BTRFS_IOC_INO_LOOKUP", path));
+    }
+    return Ok(arguments[0]);
+}
+
+/// What:
+///  Destroy the subvolume with id `subvolume` (`BTRFS_IOC_SNAP_DESTROY_V2` with `BTRFS_SUBVOL_SPEC_BY_ID`), through any
+///  open directory of the same filesystem.
+/// Why:
+///   The kernel looks the subvolume up by id, so a rename or a replacement of its path after the id was read cannot redirect
+///  the call to another subvolume. An unprivileged user needs the same mount option as for the destroy by name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await btrfsIoctl(anyDirectory, 'SNAP_DESTROY_V2', { subvolid });
+/// ```
+pub fn snapshot_destroy_by_id(directory: &File, subvolume: u64, path: &Path) -> Result<(), PrimitiveError> {
+    let operation: &'static str = "BTRFS_IOC_SNAP_DESTROY_V2";
+    // SAFETY: `VolArgsV2` is plain integers and bytes, so the all-zero value is a valid value.
+    let mut arguments: VolArgsV2 = unsafe { std::mem::zeroed() };
+    arguments.flags = BTRFS_SUBVOL_SPEC_BY_ID;
+    // The id takes the place of the name in the structure's last union.
+    arguments.name[..8].copy_from_slice(&subvolume.to_ne_bytes());
+    // SAFETY: `directory` is open for the call; `arguments` is a 4096-byte structure as the request number states.
+    let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_SNAP_DESTROY_V2, &arguments) };
+    if result != 0 {
+        return Err(PrimitiveError::last_os_error(operation, path));
+    }
+    return Ok(());
+}
+
+/// What:
+///  Destroy the subvolume `name` inside the open directory `parent` (`BTRFS_IOC_SNAP_DESTROY`).
+/// Why:
+///   The call acts on the directory that is held, not on a path that can be resolved again, so a replaced ancestor cannot
+///  redirect it. `parent_path` is only the text of the error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await btrfsIoctl(parentHandle, 'SNAP_DESTROY', { name });
+/// ```
+pub fn snapshot_destroy_in(parent: &File, name: &OsStr, parent_path: &Path) -> Result<(), PrimitiveError> {
+    let operation: &'static str = "BTRFS_IOC_SNAP_DESTROY";
+    // SAFETY: `VolArgs` is plain integers and bytes, so the all-zero value is a valid value.
+    let mut arguments: VolArgs = unsafe { std::mem::zeroed() };
+    fill_name(&mut arguments.name, name, operation, parent_path)?;
+    // SAFETY: `parent` is open for the call; `arguments` is a 4096-byte structure as the request number states.
+    let result: libc::c_int = unsafe { libc::ioctl(parent.as_raw_fd(), BTRFS_IOC_SNAP_DESTROY, &arguments) };
+    if result != 0 {
+        return Err(PrimitiveError::last_os_error(operation, parent_path.join(name).as_path()));
     }
     return Ok(());
 }

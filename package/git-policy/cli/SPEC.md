@@ -656,10 +656,64 @@ never bound), prints the stage it did not remove, and drops the record. A record
 looked up keeps the record and says that the state is unknown. The cost: an interrupted or failed add can leave an
 incomplete registered worktree for the person to complete or remove.
 
-`git worktree remove <directory>` with no option, for a registered, unlocked, clean linked worktree that is a subvolume
-root, on a mount that lists `user_subvol_rm_allowed`, destroys the subvolume (`BTRFS_IOC_SNAP_DESTROY`) and deletes the
+`git worktree remove <directory>` with no option and a non-empty directory name, for a clean, unlocked linked worktree
+that is a subvolume root, on a mount that lists `user_subvol_rm_allowed`, destroys the subvolume and deletes the
 administrative directory.
-Every other case, and a refusal by the kernel, is Git's own removal.
+The destroy names the subvolume by its id (`BTRFS_IOC_SNAP_DESTROY_V2` with `BTRFS_SUBVOL_SPEC_BY_ID`, which an
+unprivileged user may call under the same mount option), and by its name below the held parent directory
+(`BTRFS_IOC_SNAP_DESTROY`) on a kernel without that call.
+Every other case, and a refusal by the kernel, is Git's own removal, which words its own refusal.
+
+The wrapper serves the removal only when real Git would remove the same directory without `--force`:
+- The worktree is registered in the repository the command runs in: its administrative directory is one of that
+  repository's `worktrees/<id>`, its `.git` file and the `gitdir` file there name each other, and it is not the main
+  checkout. A worktree that another repository registered is Git's: it answers that the name is not a working tree.
+- Git resolves the operand first by the last path components of every registered worktree path, and by the real path only
+  when that gives no unique match (`find_worktree` in Git's `worktree.c`). The wrapper serves the removal only when no
+  registered path other than the target ends in the operand at a directory boundary, ignoring ASCII case.
+  An empty operand names no worktree (Git: "'' is not a working tree"), so it is Git's too.
+- An operand that reaches the worktree through a symbolic link names the real directory, as Git resolves it: Git removes
+  the real worktree and leaves the link dangling, and so does the wrapper. No refusal is needed for a link.
+- The `locked` entry of the administrative directory is looked up, and only a certain absence (`NotFound`) means unlocked;
+  an entry, or any other result of the lookup, leaves the removal to Git.
+- The worktree is clean by the proof of `worktree_clean.rs`.
+
+Accepted risk, stated to the person who runs the command: the check and the destroy are not one step, and neither are
+Git's check and its deletion.
+A write, a `git worktree lock`, a rename or a replacement of the worktree or of its administrative directory made by another
+process between the last check and the destroy is destroyed or deleted with the worktree, by this command as by Git, and
+nothing can undo the destroy of a subvolume.
+The owner's decision is that the person who runs `git worktree remove` accepts that risk, and that no machinery is built to
+close races that other processes cause.
+The command says so on standard error whenever it destroys a subvolume.
+Cheap guards that already exist are kept and described here without a promise: the parent directory, the worktree directory
+and the administrative directory are held open from before the proof of cleanliness (opened below their parents without
+following a link or crossing a mount), the lock, the identity of the worktree directory, of its parent and of the
+registration, and the `gitdir` text are looked at again immediately before the destroy (any difference leaves the removal
+to Git with nothing changed), the destroy names the subvolume by the id read from the held directory, and the registration is
+emptied through its held descriptor and removed by name from the held `worktrees` directory, which succeeds only for an empty
+directory.
+These narrow the window to a few system calls; they do not close it.
+
+When the subvolume is destroyed and the registration cannot be removed (an unwritable `worktrees` directory, a registration
+replaced meanwhile), the command exits with status 2 and prints one report: the removed worktree, the leftover
+administrative directory, the reason, `git -C <repository> worktree prune` (`git --git-dir=<directory> worktree prune` for a
+repository without a worktree of its own) with its `--dry-run --verbose` form, and the manual removal.
+It never reports success and never hands the command to Git afterwards, whose removal would find the directory gone.
+Git behaves alike (it carries on after the files and exits nonzero), and removes the empty `worktrees` directory when the
+last registration goes, as the wrapper does.
+
+A removal of a directory tree by the migration, the rollback and the worktree trash (`remove_tree`) opens every directory
+below the tree's parent without following a link or crossing a mount, gives the owner access to a directory that forbids
+it, and refuses before it deletes anything when a directory below the tree is a nested subvolume (its device differs
+from the top directory's) or a mount point; the report names that path and says to move it out, to delete it with
+`btrfs subvolume delete`, or to unmount it.
+A boundary that appears after that first pass is refused again at the directory where it is met.
+The settlement of a destination the wrapper made as an empty subvolume removes it only while the name still leads to the
+object created (identity recorded right after the creation) and the object is empty; a replacement is kept with a warning
+that names it.
+The last `rmdir` names the entry in the held parent and removes only an empty directory, so a swap by another process in
+that instant can remove an empty directory at most, never data; that residual is an accepted risk like the one above.
 
 Before staging,
 exclude every registered worktree root strictly nested under the source.

@@ -1246,6 +1246,7 @@ pub mod worktree_remove_plan;
 /// The removal of a clean subvolume worktree by one ioctl, and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]
 pub mod worktree_remove;
+pub mod worktree_remove_registry;
 
 /// Fixtures shared by the controls of the cheap-worktree ladder.
 #[cfg(all(test, target_os = "linux"))]
@@ -1381,6 +1382,7 @@ pub mod subvolume_anchor;
 /// Removal of a directory tree whose directories may lack owner write permission.
 #[cfg(target_os = "linux")]
 pub mod subvolume_remove;
+pub mod subvolume_remove_walk;
 
 /// The migration journal beside the checkout.
 #[cfg(target_os = "linux")]
