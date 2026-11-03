@@ -170,3 +170,21 @@ fn an_option_value_named_like_the_worktree_option_is_not_that_option() {
     assert!(audit_lines(repo.as_path()).iter().all(|line| { return !line.contains("saved-conflict"); }), "{said}");
     remove(&fixture);
 }
+
+/// The same line is rejected as the index-only restore it is, not as a restore of file content: the policy's own reading of
+///  `--source -W --staged` takes the `-W` for the worktree option otherwise, and the rejection names the wrong form.
+#[test]
+fn an_option_value_named_like_the_worktree_option_is_rejected_as_an_index_restore() {
+    let fixture: Fixture = fixture("side-option-value-form");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    git(&fixture, repo.as_path(), &["update-ref", "refs/tags/-W", "topic"]);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["restore", "--source", "-W", "--staged", "--", "a.rs"]);
+    let said: String = stderr_of(&observed);
+    assert!(rejected_by_policy(&observed), "{said}");
+    assert!(said.contains("git restore --staged") && said.contains("removes staged entries"), "the index-only form is named: {said}");
+    assert_eq!(std::fs::read(repo.join("a.rs")).expect("a.rs"), HAND_EDITED, "{said}");
+    // The worktree restore of the same file with a real `-W` is still read as a restore of file content.
+    let worktree: Observed = run_wrapped(&fixture, repo.as_path(), &["restore", "--staged", "-W", "--theirs", "--source=topic", "--", "c.rs"]);
+    assert!(stderr_of(&worktree).contains("overwrites files"), "{}", stderr_of(&worktree));
+    remove(&fixture);
+}

@@ -239,3 +239,27 @@ fn staged_alone_restores_the_index_only() {
         );
     }
 }
+
+/// A token that Git takes as the value of `--source`, `-s` or `--conflict` is not a flag: real Git runs `restore --source -W
+///  --staged -- f` and `restore -sW --staged -- f` as index-only restores (`-W` and `W` are tag names there), so they are
+///  index-only here, and a real `-W` beside such a value still makes a worktree restore.
+#[test]
+fn an_option_value_is_not_a_restore_flag() {
+    for (values, expected) in [
+        (vec!["--source", "-W", "--staged", "--", "f"], true),
+        (vec!["--staged", "--source", "-W", "--", "f"], true),
+        (vec!["-S", "-s", "-W", "--", "f"], true),
+        (vec!["--staged", "--conflict", "-W", "--", "f"], true),
+        (vec!["-sW", "--staged", "--", "f"], true),
+        (vec!["-Ss", "-W", "--", "f"], true),
+        (vec!["--staged", "--so", "-W", "--", "f"], true),
+        (vec!["--source=-W", "--staged", "--", "f"], true),
+        (vec!["--source", "--staged", "--", "f"], false),
+        (vec!["--source", "-S", "-W", "--", "f"], false),
+        (vec!["--staged", "-W", "--source", "HEAD", "--", "f"], false),
+        (vec!["-SW", "-s", "HEAD", "--", "f"], false),
+        (vec!["--staged", "--worktree", "--source=-S", "--", "f"], false),
+    ] {
+        assert_eq!(restores_index_only(os_arguments(values.as_slice()).as_slice()), expected, "{values:?}");
+    }
+}
