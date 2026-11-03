@@ -9717,3 +9717,11 @@ by the coordinator at merge.
 - Gate 65 PASSED 3460 of 3460 on the journal and prune fixes; merged into main. Gate 66 running on
   `fix/git-policy-cli-signal-log-never-blocks` `0335a8f4f8` (the signal handler's stderr fallback never waits for room;
   two full-pipe controls red before).
+- Gate 66 PASSED 3463 of 3463 on the signal fix; merged into main (`0909922e90`); clippy clean on main. Branches
+  `fix/git-policy-cli-signal-log-never-blocks` and `fix/git-policy-cli-journal-and-prune-review` deleted locally and on
+  origin. 0.5.19 dispatched (run 41576044191) with the prune, journal and signal fixes.
+- A mutation-test unit run of mine in `.claude/worktrees/planted-control-cache` (at `cf2c233b95`, before
+  `1a49aa2254`) hung for 8 hours: fixture programs re-parented away from their test kept the output pipe open, so
+  `mise` waited for its end. Stopped by PID. That worktree lacks `fixture-reaper.ts`, which `1a49aa2254` added on main
+  to end fixture process groups with their test; main's version was not rerun against this hang. Its processes were
+  two of the 7 "busy" worktrees in the conversion dry run.
