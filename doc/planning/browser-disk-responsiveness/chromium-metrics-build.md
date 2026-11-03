@@ -83,7 +83,8 @@ Keep this setting confined to the container workflow.
 
 The depot-tools bootstrap also carries a committed [CIPD client pin and digest][depot-client-digest]:
 
-- Client revision: `43615ea9acdcc6c1c213c5c7a30a568fdeb7c3dc`.
+- Client revision:
+  `43615ea9acdcc6c1c213c5c7a30a568fdeb7c3dc`.
 - Linux amd64 client SHA-256:
   `7296d878d6ef509e59838769b79b29d7cc76a4a97f0678c5376ac26190924ec7`.
 - [The tool manifest][depot-bootstrap] references `cipd_manifest.versions`,
@@ -101,12 +102,16 @@ are declared in DEPS.
 Public CIPD `ResolveVersion` requests succeeded for the selected Linux packages
 and returned the instance SHA-256 values recorded here.
 
-- GN package: `gn/gn/linux-amd64`.
-  Version: `git_revision:ed7fee04cb30b96ed40ef188acfad5417349e399`.
+- GN package:
+  `gn/gn/linux-amd64`.
+  Version:
+  `git_revision:ed7fee04cb30b96ed40ef188acfad5417349e399`.
   Instance SHA-256:
   `2bd2c2f10aafea72fa875f8c2d5b87d098031e17f470d4c1b77f2f1ebaf23a75`.
-- Siso package: `build/siso/linux-amd64`.
-  Version: `git_revision:c508213533aa5cd425b69cb0f66e53522d77022d`.
+- Siso package:
+  `build/siso/linux-amd64`.
+  Version:
+  `git_revision:c508213533aa5cd425b69cb0f66e53522d77022d`.
   Instance SHA-256:
   `6c12d0e0ea8216d6b7687869c0426b1865327c6101baafa99aa4e986fb147367`.
 - Ninja remains a declared dependency:
@@ -131,12 +136,14 @@ and [Rust libclang entry][libclang-artifact] specify:
   `Linux_x64/clang-llvmorg-24-init-14453-ge063be79-1.tar.xz`.
   SHA-256:
   `0b76afc1a29b0583f7723e966b9b65a22b15d8fdcd38e7c567ae32343c68944d`.
-  GCS generation: `1792086691304470`.
+  GCS generation:
+  `1792086691304470`.
 - Rust object:
   `Linux_x64/rust-toolchain-8a9dd7abdf013ec10cfeaaa3685feba18ef1c90c-6-llvmorg-24-init-14453-ge063be79.tar.xz`.
   SHA-256:
   `4b4f64d5e82e845099b6ff63c61df311f8202183f1996ca247e20db6d9cda29c`.
-  GCS generation: `1793195406905214`.
+  GCS generation:
+  `1793195406905214`.
 - Matching Rust libclang object:
   `Linux_x64/rust-libclang-8a9dd7abdf013ec10cfeaaa3685feba18ef1c90c-6-llvmorg-24-init-14453-ge063be79.tar.xz`.
   SHA-256:
@@ -271,6 +278,20 @@ Keep Chrome's `--headless` mode off:
 the [startup code][histogram-startup] explicitly skips the relevant initialization in headless mode.
 Do not expose the user's display or drive physical keyboard input.
 
+A native startup regression can directly inherit `InProcessBrowserTest`.
+At the checked revision,
+the [generic setup][harness-setup],
+[default command-line helpers][harness-defaults],
+and [Chrome test-suite initialization][harness-suite]
+do not install either metrics consent override,
+enable forced preference lookup,
+or append `--force-enable-metrics-reporting`.
+The Linux [base fixture invokes real `ContentMain`][harness-content-main].
+Use explicit false precondition assertions for forced reporting and forced preference lookup
+so external launcher arguments cannot silently change the test's premise.
+The specialized `MetricsServiceBrowserTest` and `MetricsServiceBrowserFilesTest` fixtures
+install their own metrics overrides and are unsuitable parents for the reporting-ineligible case.
+
 Verify ordinary and sparse histogram counts through the existing trusted WebUI API
 and inspect the browser process's actual memory mappings.
 Check the normal unbranded path and the deliberately reporting-eligible path separately.
@@ -361,3 +382,7 @@ Source citations and rendered Markdown checks remain to be completed for this do
 [autoninja-local]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/autoninja.py#489
 [gclient-sync]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/gclient.py#4719
 [gclient-revinfo]: https://chromium.googlesource.com/chromium/tools/depot_tools/+/816da11f80777dcf8c10bdaa84df18450dcba12a/gclient.py#5106
+[harness-setup]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/chrome/test/base/in_process_browser_test.cc#L521-L539
+[harness-defaults]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/chrome/test/base/test_launcher_utils.cc#L33-L97
+[harness-suite]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/chrome/test/base/chrome_test_suite.cc#L81-L131
+[harness-content-main]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/content/public/test/browser_test_base.cc#L626-L629
