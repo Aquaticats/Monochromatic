@@ -1839,13 +1839,15 @@ Pushing history unrelated to every published commit still scans that whole unrel
 Process creation is bounded independently of history length and update count:
 one `git cat-file --batch-check` peels every pushed and prior object,
 one `git for-each-ref` lists remote-tracking refs,
-at most four per-update `git rev-list --stdin` or `git ls-tree` processes run concurrently
-(local queries measured 37 and 18 percent faster at eight; the remote side was not measured, so four stays),
+at most eight per-update local `git rev-list --stdin`, `git cat-file` or `git ls-tree` processes run concurrently
+(`MOST_CONCURRENT_LOCAL_QUERIES`: `git ls-tree -r` took 80 and 50 ms at four and eight at once, `git rev-list` 231 and 190 ms,
+and no less at sixteen) and at most four `git ls-remote` queries, which open a connection to a remote, at a time
+(`MOST_CONCURRENT_REMOTE_QUERIES`, not measured),
 one `git diff-tree --stdin` reads every range commit's delta,
 and one `git cat-file --batch` reads every blob.
 Never spawn one process per commit.
 Met by the native executable: the `ls-remote` confirmation of each destination (one per push URL of the remote) and the
- `cat-file` and `rev-list` of each update run side by side, at most four at once and within the host budget, and their answers are
+ `cat-file` and `rev-list` of each update run side by side, at most eight at once and within the host budget, and their answers are
 used in the order Git printed the destinations and negotiated the updates, the first that fails deciding the error.
 Not yet met by the native executable: it peels each update's object with its own `git cat-file` process,
  runs `git rev-list <local> --not <published>`
