@@ -494,6 +494,24 @@ await describe({
       },
     }),
     it({
+      name: 'does not let the protocol record of a directory certify a later attempt that an older runner made and ran',
+      fn: async () => {
+        await using root = await evidenceRoot();
+        const campaign = join(root.path, `${prefix}campaign`);
+        // A runner that writes the marker initialized the directory and stopped before any container.
+        await writeFile(join(campaign, campaignProtocolFile), JSON.stringify({ version: startedMarkerProtocolVersion }));
+        await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
+        expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
+        // An older runner resumed it, opened the next attempt, started a container and was killed before any outcome list or
+        // exit record. Nothing in that attempt says it was made by a runner that writes the marker.
+        await mkdir(join(campaign, 'attempt-002', 'mutants.out'), { recursive: true });
+        await writeFile(join(campaign, 'attempt-002', 'mutants.out', 'previously_caught.txt'), 'a\n');
+        expect(
+          statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
+        ).toEqual(['invalid']);
+      },
+    }),
+    it({
       name: 'judges the pass-1 directory by the protocol record of the campaign directory, and an unopened pass by nothing',
       fn: async () => {
         await using root = await evidenceRoot();
