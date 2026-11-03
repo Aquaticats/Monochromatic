@@ -76,6 +76,60 @@ the latter sets it in `[Scope]` for AppImage scope launches.
 Disposable service and scope launches inherited `10`,
 and the running OdyTTY service's `io.weight` and `io.bfq.weight` both read `default 10` after the live update.
 The Ghostty drop-in remains available for explicit Ghostty launches.
+
+### Installed terminal coverage at 2026-11-03T01:00:12-05:00
+
+The user requested the existing Ghostty `IOWeight=10` policy for all terminals.
+The host's installed `TerminalEmulator` desktop entries now have persistent drop-ins
+under `~/.config/systemd/user/`:
+
+- Ghostty: `com.mitchellh.ghostty`.
+- OdyTTY: `odytty`.
+- Konsole: `org.kde.konsole`.
+- Kitty: `kitty` and its URL launcher `kitty-open`.
+- Rio: `rio`.
+- Contour: `org.contourterminal.Contour`.
+- Monochromatic Terminal: `monochromatic.terminal`.
+- The Konsole-based VSCodium launcher: `vscodium-pod-shell`.
+
+For each desktop ID after `systemd-escape`,
+`app-<id>@.service.d/10-io-weight.conf` and `app-<id>-.service.d/10-io-weight.conf`
+set `IOWeight=10` in `[Service]`;
+`app-<id>-.scope.d/10-io-weight.conf` sets it in `[Scope]`.
+The existing Ghostty surface-scope drop-in remains in place.
+The change added 25 files,
+retained the existing OdyTTY files,
+and reloaded the user manager without restarting terminals.
+Only OdyTTY was running during the process inventory;
+its unit property and both kernel weight files already reported `10`.
+
+Verification used disposable units in `app.slice` with systemd `262.1-1.fc45`.
+Before installation,
+Rio template-service,
+dash-service,
+and scope fixtures each reported `default 100` in both weight files.
+After installation,
+all 28 fixtures across the desktop entries and Ghostty's surface prefix reported `default 10`.
+The fixture commands did not explicitly pass `IOWeight`,
+so these checks exercised drop-in inheritance.
+Scope processes moved by the existing network-exemption service retained both weights at `10`.
+No fixture units remained after verification.
+The discarded initial fixture omitted `--slice=app.slice` and read an unavailable `io.weight` file
+in its automatically created template slice;
+the corrected fixture matched the desktop launch layout.
+This verifies configuration,
+not a disk-performance improvement or each emulator's graphical startup.
+
+Coverage follows the installed desktop IDs.
+Future installations with different IDs need corresponding drop-ins.
+Direct process launches inherit their parent's cgroup unless a launcher creates another unit;
+these drop-ins do not match arbitrary executable names or separately created job units.
+The host files remain local configuration,
+like the original Ghostty policy.
+The installation manifest and disposable probe scripts are in `${HOME}/temp/agent/terminal-io-weight*`.
+
+### Policy evidence and reversal
+
 Evidence and measurements:
 `doc/planning/agent-search-io-throttle.md`.
 To undo:
