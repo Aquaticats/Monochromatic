@@ -246,6 +246,26 @@ pub fn owners_can_change_verdict(name: &str, versions: &[String], history: &[Ver
 }
 
 /// What:
+/// `fn publisher_text(record) -> String` says who published a release, as far as the registry reports it:
+/// the trusted-publishing repository, else the account id, else that it is unknown.
+/// Why:
+/// A trust downgrade is a change of publisher, and the finding should name both ends of the change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const publisherText = (record: VersionRecord): string => record.trustpubRepository ? `trusted publishing from ${record.trustpubRepository}` : record.publisherId ? `account ${record.publisherId}` : 'an unknown publisher';
+/// ```
+fn publisher_text(record: &VersionRecord) -> String {
+    if !record.trustpub_repository.is_empty() {
+        return format!("trusted publishing from {}", record.trustpub_repository);
+    }
+    if !record.publisher_id.is_empty() {
+        return format!("account {}", record.publisher_id);
+    }
+    return "an unknown publisher".to_string();
+}
+
+/// What:
 /// `pub fn trust_level(record, earlier, owner_ids) -> u8` ranks one release:
 /// 3 Trusted Publishing,
 /// 2 known publisher,
@@ -362,15 +382,26 @@ pub fn trust_problems(
     let mut problems: Vec<String> = Vec::new();
     let level: u8 = trust_level(record, &earlier, owner_ids);
     let mut best: u8 = 0;
+    // The most recent earlier release that reached the best level, named in the finding so the publisher change is visible.
+    let mut best_entry: Option<&VersionRecord> = None;
     for (index, entry) in earlier.iter().enumerate() {
         if !is_prerelease(version) && is_prerelease(&entry.num) {
             continue;
         }
-        best = best.max(trust_level(entry, &earlier[..index], owner_ids));
+        let entry_level: u8 = trust_level(entry, &earlier[..index], owner_ids);
+        if entry_level >= best {
+            best = entry_level;
+            best_entry = Some(entry);
+        }
     }
     if best > level {
+        let earlier_text: String = match best_entry {
+            Some(entry) => format!("{} was published by {}", entry.num, publisher_text(entry)),
+            None => "the earlier release's publisher is not known".to_string(),
+        };
         problems.push(format!(
-            "{name}@{version} has trust level {level}, below an earlier release's {best} (3 trusted publishing, 2 known publisher, 1 first-time publisher)"
+            "{name}@{version} has trust level {level}, below an earlier release's {best} (3 trusted publishing, 2 known publisher, 1 first-time publisher); it was published by {}, where {earlier_text}",
+            publisher_text(record)
         ));
     }
     let trusted_repositories: BTreeSet<String> = earlier

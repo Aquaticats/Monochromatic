@@ -247,7 +247,7 @@ fn a_stamp_recorded_under_a_lenient_policy_does_not_skip_the_verification_under_
     let outcome = step(&start, true, &runner, &downgrading_registry());
 
     match outcome {
-        StepOutcome::Failed(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
         other => panic!("the stricter policy was never applied: {other:?}"),
     }
 }
@@ -280,7 +280,7 @@ fn a_pass_against_one_trust_base_does_not_stand_for_another_base() {
 
     assert_eq!(against_the_old_base, StepOutcome::Passed);
     match against_a_base_without_it {
-        StepOutcome::Failed(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
         other => panic!("the new base was never applied: {other:?}"),
     }
 }

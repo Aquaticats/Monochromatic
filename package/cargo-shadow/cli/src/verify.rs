@@ -324,5 +324,9 @@ pub fn verify_added_since_base(
     if versions.is_empty() {
         return Ok(Vec::new());
     }
-    return check_trust(&versions, settings, registry, now).map_err(message_of);
+    // Delegated pick (2026-11-03): the release age applies to the versions new since the base as well as the trust policy,
+    // on this frozen path as on the local one.
+    let mut problems: Vec<String> = check_release_age(&versions, settings, registry, now).map_err(message_of)?.problems;
+    problems.extend(check_trust(&versions, settings, registry, now).map_err(message_of)?);
+    return Ok(problems);
 }

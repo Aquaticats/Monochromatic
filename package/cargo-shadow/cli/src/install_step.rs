@@ -209,14 +209,14 @@ pub enum StepOutcome {
         /// The registry versions newly locked.
         added: Vec<LockedVersion>,
     },
-    /// A local install found a release the policy refuses and no older release in range passes:
+    /// The policy refuses a release and no older release in range passes (a frozen check cannot move one):
     /// the caller must not run the user's command.
     /// Carries the message to show.
     Refused(
         /// The findings, as text (`String`, owned).
         String,
     ),
-    /// The step failed (cargo or the registry could not be asked, or a frozen check refused),
+    /// The step failed (cargo or the registry could not be asked, or a frozen check found a stale lockfile),
     /// with the message to show.
     Failed(
         /// What:
@@ -540,11 +540,9 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
         }
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         lines.push("Settings live in rust-catalog.toml; see doc/decision/rust-dependency-catalog.md.".to_string());
-        // A frozen check keeps the recorded behavior (the caller warns and runs the command with `--locked`); a local install
-        // that could not set the refused release aside stops the command.
-        if request.frozen {
-            return StepOutcome::Failed(lines.join("\n"));
-        }
+        // Delegated pick (2026-11-03): a policy refusal stops the command on every path, frozen or local, as pnpm's frozen
+        // install fails on a rejected lockfile entry before any fetch. A stale lockfile or an operational failure is not a
+        // policy refusal and stays a warning plus `--locked`.
         return StepOutcome::Refused(lines.join("\n"));
     }
     // Borrow `&catalog_root`: lends the value without copying or giving it away.

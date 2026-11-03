@@ -636,10 +636,10 @@ pub fn lock_base_factory(catalog_root: &Path, document: &CatalogDocument) -> Opt
 /// `pub enum Preflight { Failed(String), Refused(String) }` is what the install step tells the shim when the user's command
 /// should not simply run.
 /// Why:
-/// `Failed` is an operational problem (no network, a cargo error, a frozen check that refused): the shim warns and runs the
-/// command with `--locked`, as recorded in `doc/planning/cargo-shadow-update.md`. `Refused` is a policy refusal of a local
-/// install with no older release that passes: the owner decided (2026-11-03) that the command stops, because a refused
-/// release must never run.
+/// `Failed` is an operational problem (no network, a cargo error, a stale lockfile under a frozen check): the shim warns and
+/// runs the command with `--locked`, as recorded in `doc/planning/cargo-shadow-update.md`. `Refused` is a policy refusal with
+/// no older release that passes (local, and by the delegated pick of 2026-11-03 frozen too): the command stops, because a
+/// refused release must never run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -647,10 +647,10 @@ pub fn lock_base_factory(catalog_root: &Path, document: &CatalogDocument) -> Opt
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Preflight {
-    /// An operational problem or a frozen refusal:
+    /// An operational problem or a stale lockfile under a frozen check:
     /// warn, then run with `--locked`.
     Failed(String),
-    /// A local policy refusal:
+    /// A policy refusal:
     /// stop.
     Refused(String),
 }
