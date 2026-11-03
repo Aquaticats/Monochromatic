@@ -12,7 +12,7 @@ fn the_plan_names_one_directory_and_no_option() {
     let canonical: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
     for values in [vec!["worktree", "remove", "wt"], vec!["worktree", "remove", "--", "wt"], vec!["worktree", "remove", "./wt/"]] {
         let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path());
-        assert_eq!(plan, Some(RemovePlan { target: canonical.clone() }), "{values:?}");
+        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from(values[values.len() - 1]) }), "{values:?}");
     }
     for values in [
         vec!["worktree", "remove"],

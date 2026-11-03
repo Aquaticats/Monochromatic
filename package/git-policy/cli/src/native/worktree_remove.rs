@@ -55,47 +55,143 @@ fn registered_admin_directory(target: &Path) -> Option<PathBuf> {
 }
 
 /// What:
-///  Remove the worktree if every condition holds; report whether it was removed.
+///  How one attempt to remove a worktree with a subvolume destroy ended.
 /// Why:
-///   `false` means Git has to do the removal, and nothing was changed.
+///   Three endings need three different next steps: Git removes it (nothing changed), the work is done, or the files
+///  are gone and the registration is not, which only the person can finish and which must never reach Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function removeSubvolumeWorktree(context: GitContext, plan: RemovePlan): Promise<boolean>;
+/// type RemoveOutcome = { kind: 'left-to-git' } | { kind: 'removed' } | { kind: 'incomplete'; report: string };
 /// ```
-pub fn remove_subvolume_worktree(context: &GitContext, plan: &RemovePlan) -> bool {
-    let target: &Path = plan.target.as_path();
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RemoveOutcome {
+    /// Nothing was changed; real Git removes the worktree or states its refusal.
+    LeftToGit,
+    /// The subvolume and the administrative directory are gone.
+    Removed,
+    /// The subvolume was destroyed but the registration could not be removed; the report is for standard error.
+    Incomplete(String),
+}
+
+/// What:
+///  What one removal is asked to do and in which repository.
+/// Why:
+///   The repository that was invoked decides which registrations count; the worktree's own pointers never do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RemoveRequest = { context: GitContext; plan: RemovePlan; commonDir: string };
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct RemoveRequest<'a> {
+    /// How to start real Git for the cleanliness proof.
+    pub context: &'a GitContext,
+    /// The directory the person named.
+    pub plan: &'a RemovePlan,
+    /// The canonical common Git directory of the repository the command was run in.
+    pub common_dir: &'a Path,
+}
+
+/// What:
+///  The operations of one removal that touch the kernel or start Git, behind one trait.
+///  `&self` borrows the implementation read-only; `dyn RemoveOperations` is how a caller holds "any implementation"
+///  (a TS interface).
+/// Why:
+///   The ordering of the checks is the same on any filesystem; a stand-in lets the controls run it on a plain
+///  directory tree, and swap objects between two steps to prove the identity checks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface RemoveOperations { isSubvolumeRoot(path): boolean; removalAllowed(path): boolean; checkClean(...): void; destroy(path): void }
+/// ```
+pub trait RemoveOperations {
+    /// Whether `path` is the root of a subvolume.
+    fn is_subvolume_root(&self, path: &Path) -> bool;
+    /// Whether an unprivileged destroy is allowed on the mount holding `path`.
+    fn removal_allowed(&self, path: &Path) -> bool;
+    /// The proof that the worktree is clean, or the reason it is not proven.
+    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path) -> Result<(), String>;
+    /// Destroy the subvolume at `path`.
+    fn destroy(&self, path: &Path) -> Result<(), String>;
+}
+
+/// The kernel and Git, as they are.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LinuxOperations;
+
+/// Every operation is the primitive of the same name.
+impl RemoveOperations for LinuxOperations {
+    fn is_subvolume_root(&self, path: &Path) -> bool {
+        return is_subvolume_root(path).unwrap_or(false);
+    }
+
+    fn removal_allowed(&self, path: &Path) -> bool {
+        return read_mount_facts(path).ok().flatten().is_some_and(|facts| { return facts.has_option(REMOVAL_OPTION); });
+    }
+
+    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path) -> Result<(), String> {
+        return check_clean(request.context, request.plan.target.as_path(), admin, request.common_dir).map(|_clean| { return (); });
+    }
+
+    fn destroy(&self, path: &Path) -> Result<(), String> {
+        return subvolume_destroy_at(path).map_err(|error| { return error.to_string(); });
+    }
+}
+
+/// What:
+///  Remove the worktree if every condition holds, with the kernel and Git as they are.
+/// Why:
+///   See `remove_with`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function removeSubvolumeWorktree(request: RemoveRequest): Promise<RemoveOutcome>;
+/// ```
+pub fn remove_subvolume_worktree(request: &RemoveRequest<'_>) -> RemoveOutcome {
+    return remove_with(&LinuxOperations, request);
+}
+
+/// What:
+///  Remove the worktree if every condition holds; report how it ended.
+/// Why:
+///   `LeftToGit` means Git has to do the removal, and nothing was changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function removeWith(operations: RemoveOperations, request: RemoveRequest): Promise<RemoveOutcome>;
+/// ```
+pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_>) -> RemoveOutcome {
+    let target: &Path = request.plan.target.as_path();
     let Some(admin) = registered_admin_directory(target) else {
         debug(TAG, format!("{} is not a registered linked worktree; Git removes it", target.display()).as_str());
-        return false;
+        return RemoveOutcome::LeftToGit;
     };
     if admin.join("locked").symlink_metadata().is_ok() {
         debug(TAG, format!("{} is locked; Git decides", target.display()).as_str());
-        return false;
+        return RemoveOutcome::LeftToGit;
     }
-    if !is_subvolume_root(target).unwrap_or(false) {
+    if !operations.is_subvolume_root(target) {
         debug(TAG, format!("{} is not a subvolume; Git removes it file by file", target.display()).as_str());
-        return false;
+        return RemoveOutcome::LeftToGit;
     }
-    let allowed: bool = read_mount_facts(target).ok().flatten().is_some_and(|facts| { return facts.has_option(REMOVAL_OPTION); });
-    if !allowed {
+    if !operations.removal_allowed(target) {
         debug(TAG, format!("the mount of {} lacks {REMOVAL_OPTION}; Git removes the worktree file by file", target.display()).as_str());
-        return false;
+        return RemoveOutcome::LeftToGit;
     }
-    let Some(common_dir) = admin.parent().and_then(Path::parent) else { return false };
-    if let Err(reason) = check_clean(context, target, admin.as_path(), common_dir) {
+    if let Err(reason) = operations.check_clean(request, admin.as_path()) {
         debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());
-        return false;
+        return RemoveOutcome::LeftToGit;
     }
-    if let Err(error) = subvolume_destroy_at(target) {
+    if let Err(error) = operations.destroy(target) {
         debug(TAG, format!("the subvolume of {} was not destroyed ({error}); Git removes it", target.display()).as_str());
-        return false;
+        return RemoveOutcome::LeftToGit;
     }
     if let Err(error) = std::fs::remove_dir_all(admin.as_path()) {
         warn(TAG, format!("{} was removed, but its administrative directory {} was not ({error}); `git worktree prune` removes it", target.display(), admin.display()).as_str());
     }
     debug(TAG, format!("destroyed the subvolume {} and its administrative directory", target.display()).as_str());
-    return true;
+    return RemoveOutcome::Removed;
 }
 
 /// Subvolume removal controls stay out of the release executable.

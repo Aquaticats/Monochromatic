@@ -20,12 +20,14 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RemovePlan = { target: string };
+/// type RemovePlan = { target: string; operand: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RemovePlan {
     /// The real path of the worktree directory.
     pub target: PathBuf,
+    /// The operand as the person typed it, which Git also matches against the last components of every registered path.
+    pub operand: OsString,
 }
 
 /// What:
@@ -48,7 +50,7 @@ pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start:
         _ => return None,
     };
     let target: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
-    return target.is_dir().then_some(RemovePlan { target });
+    return target.is_dir().then_some(RemovePlan { target, operand: operand.clone() });
 }
 
 /// Removal plan controls stay out of the release executable.
