@@ -50,3 +50,25 @@ fn btrfs_a_nested_subvolume_stops_the_walk_and_names_its_path() {
     assert_eq!(std::fs::read(tree.join("a/file")).expect("kept"), b"x");
     remove(root.as_path());
 }
+
+/// The empty directory a snapshot holds for a nested subvolume is part of the snapshot: it is removed, and the nested
+///  subvolume of the original, with its data, stays.
+#[test]
+fn btrfs_a_snapshot_is_emptied_and_the_original_nested_subvolume_stays() {
+    let Some(root) = btrfs_fixture("walk-snapshot") else { return };
+    let original: PathBuf = root.join("original");
+    subvolume_create_at(original.as_path()).expect("original");
+    subvolume_create_at(original.join("inner").as_path()).expect("nested subvolume");
+    std::fs::write(original.join("inner/keep"), b"independent").expect("nested file");
+    std::fs::write(original.join("file"), b"x").expect("file");
+    let copy: PathBuf = root.join("copy");
+    crate::fs_btrfs_ioctl::snapshot_create_at(original.as_path(), copy.as_path()).expect("snapshot");
+    assert!(copy.join("inner").is_dir(), "the snapshot holds a stand-in for the nested subvolume");
+    let held: File = open_root(copy.as_path()).expect("open the top");
+    verify_below(&held, copy.as_path()).expect("a stand-in is not a boundary");
+    empty_directory(&held, copy.as_path()).expect("emptied");
+    assert_eq!(std::fs::read_dir(copy.as_path()).expect("listing").count(), 0);
+    assert_eq!(std::fs::read(original.join("inner/keep")).expect("the nested subvolume of the original is untouched"), b"independent");
+    assert_eq!(std::fs::read(original.join("file")).expect("kept"), b"x");
+    remove(root.as_path());
+}

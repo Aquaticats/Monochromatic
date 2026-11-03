@@ -16,9 +16,14 @@
 //! ```
 
 use super::fs_beneath::{device_of, handle_path, open_directory_widening, remove_at, widen_directory};
+use std::os::unix::fs::MetadataExt;
 use std::ffi::OsString;
 use std::fs::File;
 use std::path::{Path, PathBuf};
+
+/// The inode number btrfs gives the empty directory that stands for a nested subvolume in a snapshot (`BTRFS_EMPTY_SUBVOL_DIR_OBJECTID`):
+///  it reports a device of its own, yet holds nothing and belongs to the snapshot being removed.
+const EMPTY_SUBVOLUME_PLACEHOLDER_INODE: u64 = 2;
 
 /// Which of the two passes is running.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -112,7 +117,8 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<()> {
                 return Err(std::io::Error::new(error.kind(), format!("{} cannot be opened without following a link ({error})", shown_path(shown, &stack, &name).display())));
             }
         };
-        if device_of(&child)? != baseline {
+        let child_facts: std::fs::Metadata = child.metadata()?;
+        if child_facts.dev() != baseline && child_facts.ino() != EMPTY_SUBVOLUME_PLACEHOLDER_INODE {
             return Err(boundary_error(shown, shown_path(shown, &stack, &name).as_path(), "a nested subvolume or another filesystem"));
         }
         let _widened = widen_directory(&child);
