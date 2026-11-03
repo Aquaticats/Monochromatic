@@ -27,7 +27,7 @@ use sha2::{Digest, Sha256};
 
 use crate::checks::{check_release_age, check_trust};
 use crate::crates::LockSnapshot;
-use crate::lockfile::{LockedVersion, registry_versions};
+use crate::lockfile::{LockedVersion, added_versions, registry_versions};
 use crate::registry::Registry;
 
 /// Where passing digests are remembered, relative to the repository root.
@@ -97,13 +97,33 @@ pub fn verify_locked_entries(
     return Ok(problems);
 }
 
-/// Stub for the red run.
+/// What:
+/// `pub fn verify_added_since_base(...) -> Result<Vec<String>, String>` returns the trust findings for the registry versions
+/// that the given lockfiles hold and that the lockfiles at the base revision did not.
+/// Why:
+/// This is the frozen install under `trustLockfile = true`, the owner's decision of 2026-10-29
+/// (`doc/decision/rust-dependency-catalog.md`): committed lockfiles are part of the trusted base because the owner never
+/// accepts pull requests that change a lockfile, so only what changed since the base is checked, and only for trust; release
+/// age is a resolution-time rule, so a version that was locked has already passed it. A lockfile that did not exist at the base
+/// reads as the empty text, so every version in it counts as new.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export async function verifyRustLockfiles({ root, now, registry, readBaseLock }): Promise<string[]>
+/// ```
 pub fn verify_added_since_base(
-    _snapshots: &[LockSnapshot],
-    _read_base_lock: &dyn Fn(&str) -> String,
-    _settings: &Settings,
-    _registry: &dyn Registry,
-    _now: i64,
+    snapshots: &[LockSnapshot],
+    read_base_lock: &dyn Fn(&str) -> String,
+    settings: &Settings,
+    registry: &dyn Registry,
+    now: i64,
 ) -> Result<Vec<String>, String> {
-    return Ok(Vec::new());
+    let base_sources: Vec<String> = snapshots.iter().map(|snapshot| { return read_base_lock(&snapshot.crate_dir); }).collect();
+    let current: Vec<String> = snapshots.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
+    let versions: Vec<LockedVersion> = added_versions(&base_sources, &current)?;
+    eprintln!("cargo-shadow: verifying {} versions newly locked since the base from {} lockfiles", versions.len(), snapshots.len());
+    if versions.is_empty() {
+        return Ok(Vec::new());
+    }
+    return check_trust(&versions, settings, registry, now).map_err(|error| { return error.message; });
 }

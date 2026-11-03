@@ -21,6 +21,7 @@ use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};
 use crate::cargo_run::RealCargo;
 use crate::catalog_warning::warn_about_manifest;
 use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};
+use crate::git_base::{base_from_environment, git_base_lock_reader};
 use crate::http::UreqFetcher;
 use crate::install::is_continuous_integration;
 use crate::install_step::{StepOutcome, StepRequest, run_install_step};
@@ -75,6 +76,8 @@ pub struct Prepared {
     pub registry: CratesIo,
     /// Whether a stale lockfile is a failure: in CI, or the user's own command carries `--locked` or `--frozen`.
     pub frozen: bool,
+    /// The base-revision lockfile reader, built when a frozen install under `trustLockfile` will need it.
+    pub lock_base: Option<Box<dyn Fn(&str) -> String>>,
     /// Whether the install step keeps cargo offline: always, except in CI, where no registry index is cached yet.
     pub offline: bool,
 }
@@ -108,16 +111,37 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     let document: CatalogDocument = parse_catalog(&catalog_text, CATALOG_MARKER).map_err(|error| { return error.to_string(); })?;
     let in_ci: bool = is_continuous_integration(&std::env::var("CI").unwrap_or_default());
     let crate_dir: Option<String> = find_cargo_root(&start).and_then(|cargo_root| { return cargo_root.strip_prefix(&catalog_root).ok().map(|relative| { return relative.to_string_lossy().replace('\\', "/"); }); });
+    let frozen: bool = in_ci || asserts_lock(arguments);
+    let lock_base: Option<Box<dyn Fn(&str) -> String>> = lock_base_reader(&catalog_root, &document, frozen)?;
     return Ok(Some(Prepared {
         start,
+        lock_base,
         runner: RealCargo { program, toolchain },
         registry: CratesIo::with_defaults(&catalog_root, Box::new(UreqFetcher::new()), Box::new(UreqFetcher::new())),
         catalog_root,
         crate_dir,
         document,
-        frozen: in_ci || asserts_lock(arguments),
+        frozen,
         offline: !in_ci,
     }));
+}
+
+/// What:
+/// `pub fn lock_base_reader(catalog_root: &Path, document: &CatalogDocument, needed: bool) -> Result<Option<Box<dyn Fn(&str) -> String>>, String>`
+/// builds the base-revision lockfile reader a frozen install needs under `trustLockfile`, and nothing otherwise.
+/// Why:
+/// The reader runs `git`, so it is built only when a frozen check will use it. The base comes from the environment
+/// (`git_base.rs`), `HEAD` by default.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function lockBaseReader(root: string, settings: Settings, needed: boolean): ReadBaseLock | undefined
+/// ```
+pub fn lock_base_reader(catalog_root: &Path, document: &CatalogDocument, needed: bool) -> Result<Option<Box<dyn Fn(&str) -> String>>, String> {
+    if !needed || !document.settings.trust_lockfile {
+        return Ok(None);
+    }
+    return git_base_lock_reader(catalog_root, &base_from_environment()).map(Some);
 }
 
 /// What:
@@ -143,7 +167,7 @@ pub fn before_cargo(arguments: &[OsString]) -> Option<String> {
         now: now_millis(),
         runner: &prepared.runner,
         registry: &prepared.registry,
-        lock_base: None,
+        lock_base: prepared.lock_base.as_deref(),
     });
     match outcome {
         StepOutcome::Failed(message) => return Some(message),

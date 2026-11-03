@@ -47,6 +47,9 @@ pub mod journal;
 /// Fills the history cache from the crates.io database dump.
 pub mod dump;
 
+/// Reads the lockfiles of a base revision with git.
+pub mod git_base;
+
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `cargo`.
 pub mod guard;
 

@@ -24,6 +24,7 @@ use crate::http::UreqFetcher;
 use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles, is_continuous_integration};
 use crate::real_binary::find_real_cargo;
 use crate::registry::CratesIo;
+use crate::shadow_step::lock_base_reader;
 use crate::toolchain::cargo_toolchain;
 use crate::tighten::FileEnforcer;
 use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
@@ -169,6 +170,13 @@ pub fn run_command(command: Command) -> i32 {
             } else {
                 is_continuous_integration(&std::env::var("CI").unwrap_or_default())
             };
+            let reader = match lock_base_reader(&root, &document, frozen) {
+                Ok(found) => found,
+                Err(message) => {
+                    eprintln!("cargo-shadow: {message}");
+                    return INSTALL_FAILED_EXIT_CODE;
+                }
+            };
             let outcome = install_rust_lockfiles(&InstallRequest {
                 root: &root,
                 crate_dirs: &crate_dirs,
@@ -179,7 +187,7 @@ pub fn run_command(command: Command) -> i32 {
                 settings: &document.settings,
                 runner: &runner,
                 registry: &registry,
-                lock_base: None,
+                lock_base: reader.as_deref(),
             });
             return match outcome {
                 Ok(report) => {

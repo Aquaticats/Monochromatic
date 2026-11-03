@@ -21,7 +21,7 @@ use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE, LOCKFILE_NAME};
 use crate::crates::read_locks;
 use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles};
 use crate::lockfile::direct_dependency_names;
-use crate::shadow_step::{Prepared, now_millis, prepare};
+use crate::shadow_step::{Prepared, lock_base_reader, now_millis, prepare};
 use crate::tighten::FileEnforcer;
 use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
 use crate::update_plan::{UpdatePlan, plan_update};
@@ -67,6 +67,13 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
                 UpdatePlan::Install { dry_run } => (prepared.frozen && !dry_run, dry_run),
                 _ => (true, false),
             };
+            let reader = match lock_base_reader(root, &prepared.document, frozen) {
+                Ok(found) => found,
+                Err(message) => {
+                    eprintln!("cargo-shadow: {message}");
+                    return Some(INSTALL_FAILED_EXIT_CODE);
+                }
+            };
             let outcome = install_rust_lockfiles(&InstallRequest {
                 root,
                 crate_dirs: &crate_dirs,
@@ -77,7 +84,7 @@ pub fn run_update_command(arguments: &[OsString]) -> Option<i32> {
                 settings: &prepared.document.settings,
                 runner: &prepared.runner,
                 registry: &prepared.registry,
-                lock_base: None,
+                lock_base: reader.as_deref(),
             });
             return Some(report_install(outcome, dry_run, &mut sink));
         }

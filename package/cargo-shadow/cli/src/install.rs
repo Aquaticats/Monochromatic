@@ -37,7 +37,7 @@ use crate::journal::{begin, finish, process_exists, recover, restore_if_unchange
 use crate::http::RegistryError;
 use crate::lockfile::{LockedVersion, added_versions};
 use crate::registry::Registry;
-use crate::verify::verify_locked_entries;
+use crate::verify::{verify_added_since_base, verify_locked_entries};
 
 /// Asks whether the lockfile satisfies the manifests: exits 0 without writing when it does.
 pub const CHECK_ARGS: [&str; 4] = ["update", "--workspace", "--locked", "--offline"];
@@ -304,12 +304,23 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             eprintln!("cargo-shadow: frozen install: {} stale lockfiles, nothing written", stale.len());
             return Err(InstallError::Stale { stale_dirs: stale });
         }
-        // pnpm re-validates every lockfile entry against the release-age and trust policy on install, frozen or not, unless
-        // `trustLockfile` is set (verify.rs); a lockfile that passed before is remembered by its digest.
         let locks: Vec<LockSnapshot> =
             read_locks(request.root, request.crate_dirs).map_err(|error| { return InstallError::Io { message: error.to_string() }; })?;
-        let problems: Vec<String> = verify_locked_entries(request.root, &locks, request.settings, request.registry, request.now)
-            .map_err(|message| { return InstallError::Registry { message }; })?;
+        // `trustLockfile = true` (the owner's decision of 2026-10-29): committed lockfiles are trusted, so only the versions no
+        // lockfile held at the base revision are checked. With it false, pnpm's default: every lockfile entry is re-validated
+        // against the release-age and trust policy, and a lockfile that passed before is remembered by its digest (verify.rs).
+        let problems: Vec<String> = if request.settings.trust_lockfile {
+            let read_base = request.lock_base.ok_or_else(|| {
+                return InstallError::Io {
+                    message: "trustLockfile is true in rust-catalog.toml, but no base-revision lockfile reader was given, so nothing can be trusted".to_string(),
+                };
+            })?;
+            verify_added_since_base(&locks, read_base, request.settings, request.registry, request.now)
+                .map_err(|message| { return InstallError::Registry { message }; })?
+        } else {
+            verify_locked_entries(request.root, &locks, request.settings, request.registry, request.now)
+                .map_err(|message| { return InstallError::Registry { message }; })?
+        };
         return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), problems, ..InstallReport::default() });
     }
     let recovered: Vec<String> = recover(request.root, &process_exists, &|old, live| { return policy_findings(request.settings, request.registry, request.now, old, live); });
