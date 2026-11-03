@@ -1003,3 +1003,56 @@ fn a_cleanup_that_fails_does_not_make_the_index_update_replayable() {
     assert!(world.context.journal.join(format!("1.{INDEXED_EXTENSION}")).exists());
     remove(world.root.as_path());
 }
+
+/// A worktree that switches branches while the landing waits for the index lock does not get the other branch's index replaced:
+/// the checked-out branch is read again after the lock is taken and before the ref moves, so the landing is answered as moved,
+/// the branch stays where it was, and no lock or intent is left.
+#[test]
+fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
+    let world: World = world("service-land-switched");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["branch", "other"]);
+    let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let lock: PathBuf = world.repo.join(".git/index.lock");
+    std::fs::write(&lock, "foreign").expect("foreign lock");
+    let intent: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    let outcomes = std::thread::scope(|scope| {
+        let landing = scope.spawn(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); });
+        // The intent is written after the checks before the wait, so once it exists the landing is waiting for the lock.
+        let deadline: Instant = Instant::now() + std::time::Duration::from_secs(10);
+        while !intent.exists() && Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(intent.exists(), "the landing reached the wait");
+        git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
+        std::fs::remove_file(&lock).expect("the foreign program lets go");
+        return landing.join().expect("landing");
+    });
+    assert_eq!(outcomes, Ok(vec![Outcome::BranchMoved]));
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]), base, "the branch did not move");
+    assert!(!intent.exists(), "no intent is left");
+    assert!(!lock.exists(), "no lock is left");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
+    remove(world.root.as_path());
+}
+
+/// A restart that finds the worktree on another branch than the batch's does not touch the index: the branch has its commit, the
+/// index now belongs to the branch checked out, and the batch is finished.
+#[test]
+fn a_restart_leaves_the_index_of_another_checked_out_branch_alone() {
+    let world: World = world("service-land-recover-switched");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    git(world.repo.as_path(), &["branch", "other", base.as_str()]);
+    git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
+    let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    std::fs::rename(&done, &open).expect("reopen");
+    recover(&world.context);
+    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), before, "the index of the branch checked out was not touched");
+    assert!(done.exists() && !open.exists(), "the batch is finished");
+    remove(world.root.as_path());
+}
