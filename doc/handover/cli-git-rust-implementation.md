@@ -412,17 +412,51 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   that is the open owner question in "Shipped lock removal".
   Its five choices picked in `eed561efaa` (see "Commits never fail,
   revision 10").
+  The tenth cross-vendor review (`~/temp/agent/reviews/commits-never-fail-sol-10.txt`,
+  2026-11-03T12:41:05-05:00):
+  "Approve continued executable-model work,
+  pure components without reclamation,
+  and disposable backend experiments only.
+  Do not approve the live protocol."
+  P1s:
+  an absent `index.lock` does not prove M1 installed the index (R10-1);
+  W-detect and MG6 cannot restore after a detected switch (R10-3,
+  so W-detect is not approved as specified);
+  G-root's invariant is not established (R10-4).
+  P2s include a recovery helper that can wait without end (R10-5)
+  and P-wait being possibly indefinite,
+  both now against the owner's no-unbounded-wait rule.
+  Running:
+  design revision 11 for the tenth review and that rule.
+- Done,
+  not merged:
+  step 1,
+  third round,
+  `feat/git-policy-cli-commit-protocol-models` `27fa595034`,
+  149 of 149 model tests,
+  clippy clean.
+  Revision 10 modelled for F1 (an earlier "green" relied on an oracle and is corrected),
+  E1,
+  F8 and M1 (each red under revision 9,
+  green under 10);
+  most of the ninth review's controls are not built.
+  The components re-review's P1s are fixed (a durable chain through an anchor on every call;
+  a canonical manifest checked against the bytes returned),
+  with the P2s and most P3s;
+  not done:
+  a populated-submodule fixture,
+  deterministic fault points,
+  the comment-density pass.
   Running,
   not an agent:
-  the tenth cross-vendor review (`~/temp/agent/reviews/commits-never-fail-sol-10.txt`).
+  the components' third review (`commit-components-sol-3.txt`).
   Running:
   step 1,
-  third round (revision 10 models,
-  the ninth review's controls,
-  the components re-review's fixes and the four left from the first review,
-  the comment-density pass;
-  it writes `commit-components-3.diff`,
-  `components-r3-` files and `commit-models-1.diff`).
+  fourth round (comment density,
+  the two component items,
+  models of observable prefixes and of wait bounds).
+  The models' first review waits for revision 11's models
+  (the models diff is 386 KB and must be split).
 - Done,
   not merged anywhere:
   step 1,
@@ -789,6 +823,31 @@ in this order:
     guarantee or a test;
     the non-Linux test imports stay paused.
 - The fifth index re-review once the fourth round writes `follow-up-index-fixes-4.diff` and its `index-r5-` files.
+- Running:
+  every wait in the wrapper gets a bound (the owner's "nothing should ever wait forever or indefinitely"),
+  the waits agent on `fix/git-policy-cli-every-wait-has-a-bound` from `14c26dbcc9`:
+  an inventory in `doc/planning/cli-git-no-unbounded-waits.md` first,
+  then each bound with a red test,
+  values measured from the timing logs and journals,
+  unclear end behaviors left as choices for the coordinator.
+  A blocker for 0.5.28.
+- Done and fast-forwarded into the 0.5.28 base (`14c26dbcc9`):
+  `fix/git-policy-cli-conflict-check-only-for-conflicted-paths`;
+  an ordinary commit starts no `check-attr` again (the six `budget::` tests red on the base,
+  green after;
+  16 of 16 with the `commit_during_merge` controls).
+- GitHub issue #6260 (2026-11-03T16:23:05Z,
+  no comments):
+  the source scans must find nested modules and key identities and exceptions by relative path.
+  Running:
+  a new agent on `fix/git-policy-cli-source-scans-cover-nested-modules` from `14c26dbcc9`.
+- GitHub issue #6261 (2026-11-03T16:23:43Z,
+  blocked by #6260):
+  group the 1,012 flat files under `src/native/` into subsystem directories and weigh dropping the `native` layer,
+  keeping the file-size rule.
+  Queued after the 0.5.28 release and the open branches merge,
+  because it moves every file;
+  then the lint-debt pass (task 88).
 - Retire option B of the autostash pick now that carry-back A exists,
   so the wrapper's finish ends a conflicting autostash as Git does
   (merge commit made,
@@ -2261,6 +2320,37 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### Nothing waits forever
+
+The owner,
+2026-11-03 at about 12:37-05:00 (said in the session,
+not yet in SPEC):
+"nothing should ever wait forever or indefinitely".
+The owner added that they are not completely back,
+so the delegation continues.
+Coordinator's reading,
+under the delegation (veto open):
+every wait gets a bound;
+at the bound the wait ends without failing what the never-fail rules cover
+(the work is already saved durably,
+the command returns with a line saying what is still pending and how it finishes,
+and the work completes later),
+so "Commits should never fail." still holds.
+It is newer than,
+and conflicts with,
+the owner's "Wait while connected" (pushes with no stall window while connected)
+and these coordinator picks:
+pick 2 (a proven-alive index-lock holder waited for with no bound),
+its follow-up (an unproven owner waited for with no bound,
+built in `82633304d0` and merged into the 0.5.28 base),
+pick 6 (no client wall-clock bound on the service),
+`update-ref` waited for,
+and the design's B-hand,
+P-wait and R-never.
+The newer rule is treated as governing;
+the conflict with "Wait while connected" is for the owner on return.
+0.5.28 does not ship until every wait in it has a bound.
 
 ### Never fail, and what is outside our control
 
