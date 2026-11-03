@@ -469,11 +469,15 @@ await describe({
               ...beforeWeight,
               `--blkio-weight=${String(lowestDiskWeight + 1)}`,
             ];
-            for (const { limits, proves } of [
+            /**
+             Gate arguments, and whether the gate that recorded them proves the image.
+             */
+            const cases = [
               { limits: gateLimits, proves: true },
               { limits: beforeWeight, proves: true },
               { limits: otherWeight, proves: false },
-            ]) {
+            ];
+            await Promise.all(cases.map(async function checkCase({ limits, proves }) {
               await using root = await evidenceRoot();
               await writeGateDirectory({
                 root: root.path,
@@ -488,7 +492,7 @@ await describe({
                 image,
                 limits: campaignLimits,
               })).toEqual(proves ? [join(root.path, 'native-run')] : []);
-            }
+            }));
           },
         }),
         it({
