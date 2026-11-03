@@ -169,6 +169,10 @@ The finite probe recorded `true` in `Monochromatic.BrowserMetricsRepro.Boolean`
 and `42` in `Monochromatic.BrowserMetricsRepro.Sparse`.
 The rendered histogram page showed exactly `1` sample at boolean bucket `1`
 and exactly `1` sample at sparse bucket `42`.
+The same counts remained after disabling subprocess imports.
+The recording API has no JavaScript completion callback;
+renderer evaluation finishing only proves dispatch,
+so the histogram count and a browser-main responsiveness probe must verify completion separately.
 This is an API smoke check,
 not the fresh headed Chromium reproduction or proof of a regular-file mapping.
 The main task owns that measurement on the selected upstream binary.
@@ -198,9 +202,12 @@ GitHub line selections matched the fetched source and were highlighted.
 Other pages contained their expected rendered excerpts,
 including the denied-access message for issue `580929788`.
 The browser session closed successfully.
-The main task owns the combined Markdown lint and rendered-document inspection.
-The reproduction-source citations added in "Reproduction preparation at 2026-11-03T09:37:40+00:00"
-are undergoing their own browser pass.
+The additional `9` reproduction-source citations passed their own browser pass
+at `2026-11-03T09:40:12.129Z`.
+Its browser and the API-smoke browser closed successfully;
+no owned `metrics-ping-*` systemd units remained.
+Scoped `mise run lint:monochromatic-lint` passed for this document.
+The main task owns the combined rendered-document inspection.
 
 [contributing]: https://github.com/chromium/chromium/blob/1ff392dbf4e593ae50b633f6327c06365fd5b8d9/docs/contributing.md?plain=1#L19-L34
 [reporting]: https://www.chromium.org/for-testers/bug-reporting-guidelines/#:~:text=You%20need%20a%20Google%20Account
