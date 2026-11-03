@@ -87,7 +87,7 @@ fn drift_stops_before_install() {
     fake_mpm(&root, &bin, &destination, 1);
     let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
     let Outcome::Failed { run_instead, .. } = finding.outcome else { panic!("expected a failure") };
-    assert!(run_instead.contains("toolchain:install"), "{run_instead}");
+    assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
     let recorded: String = std::fs::read_to_string(root.join("record")).expect("record");
     assert!(!recorded.contains("install in"), "install started although the tools differ: {recorded}");
     remove(&root);
@@ -115,6 +115,6 @@ fn applies_only_to_stale_records_and_reports_a_missing_tool() {
     record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
     std::fs::remove_file(bin.join("mpm-shadow")).expect("remove tool");
     let Some(Finding { outcome: Outcome::Failed { run_instead, .. }, .. }) = repair_toolchain(destination.as_path(), &environment) else { panic!("expected a failure") };
-    assert!(run_instead.contains("toolchain:install"), "{run_instead}");
+    assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
     remove(&root);
 }

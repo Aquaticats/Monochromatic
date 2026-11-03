@@ -10,6 +10,7 @@
 //! process.stderr.write(render(destination, findings, quiet));
 //! ```
 
+use super::package_repair_command::{ToolEnd, ToolRun};
 use std::path::Path;
 
 /// What:
@@ -76,6 +77,64 @@ pub struct Finding {
 }
 
 /// What:
+///  The finding for one tool run: a success worded by the caller, or a failure whose reason is the run's own.
+/// Why:
+///   Every tool ends the same four ways, so the wording of a timeout lives in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function findingFrom(tool: Tool, run: ToolRun, detail: string, runInstead: string): Finding;
+/// ```
+pub fn finding_from(tool: Tool, run: &ToolRun, detail: &str, run_instead: &str) -> Finding {
+    let outcome: Outcome = match &run.end {
+        ToolEnd::Succeeded => Outcome::Repaired { detail: detail.to_owned(), millis: run.millis },
+        ToolEnd::Failed(reason) => Outcome::Failed { reason: reason.clone(), run_instead: run_instead.to_owned() },
+        ToolEnd::TimedOut => Outcome::Failed { reason: String::from("it ran past its time limit and was stopped"), run_instead: run_instead.to_owned() },
+    };
+    return Finding { tool, outcome };
+}
+
+/// What:
+///  The finding for a tool the search path does not provide.
+/// Why:
+///   A missing tool is a verdict with the command to run once it is installed, never an error of the add.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function missingTool(tool: Tool, program: string, runInstead: string): Finding;
+/// ```
+pub fn missing_tool(tool: Tool, program: &str, run_instead: &str) -> Finding {
+    return Finding { tool, outcome: Outcome::Failed { reason: format!("{program} was not found on the search path"), run_instead: run_instead.to_owned() } };
+}
+
+/// What:
+///  A time in milliseconds as seconds with one decimal.
+/// Why:
+///   The person reads a repair's time in seconds; one decimal is the precision the measurements are made to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function seconds(millis: number): string; // "2.1 s"
+/// ```
+fn seconds(millis: u128) -> String {
+    let tenths: u128 = millis / 100;
+    return format!("{}.{} s", tenths / 10, tenths % 10);
+}
+
+/// What:
+///  The text on one line.
+/// Why:
+///   A tool's output tail spans lines, and each failure is one line the person can act on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.split(/\s+/).join(' ');
+/// ```
+fn single_line(text: &str) -> String {
+    return text.split_whitespace().collect::<Vec<&str>>().join(" ");
+}
+
+/// What:
 ///  The lines to print for one worktree: failures always, successes unless quiet.
 /// Why:
 ///   Under `--quiet` the add prints nothing it can leave out, but a worktree that still needs a command is never silent.
@@ -84,8 +143,27 @@ pub struct Finding {
 /// ```ts
 /// function render(destination: string, findings: Finding[], quiet: boolean): string;
 /// ```
-pub fn render(_destination: &Path, _findings: &[Finding], _quiet: bool) -> String {
-    return String::new();
+pub fn render(destination: &Path, findings: &[Finding], quiet: bool) -> String {
+    let shown: String = destination.display().to_string();
+    let mut text: String = String::new();
+    let worked: Vec<String> = findings
+        .iter()
+        .filter_map(|finding: &Finding| {
+            return match &finding.outcome {
+                Outcome::Repaired { detail, millis } => Some(format!("{detail} in {}", seconds(*millis))),
+                Outcome::Failed { .. } => None,
+            };
+        })
+        .collect();
+    if !worked.is_empty() && !quiet {
+        text.push_str(format!("cli-git: made the package-manager state of {shown} work at its new location: {}.\n", worked.join("; ")).as_str());
+    }
+    for finding in findings {
+        if let Outcome::Failed { reason, run_instead } = &finding.outcome {
+            text.push_str(format!("cli-git: the worktree {shown} still needs one step ({}); run {}.\n", single_line(reason), single_line(run_instead)).as_str());
+        }
+    }
+    return text;
 }
 
 /// Report controls stay out of the release executable.

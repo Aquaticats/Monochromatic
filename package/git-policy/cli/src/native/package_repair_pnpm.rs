@@ -11,8 +11,36 @@
 //! ```
 
 use super::package_repair::RepairEnvironment;
-use super::package_repair_report::Finding;
-use std::path::Path;
+use super::package_repair_command::{ToolCommand, ToolRun, find_program, run_tool};
+use super::package_repair_report::{Finding, Tool, finding_from, missing_tool};
+use super::shell_quote::shell_quote;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+
+/// The program the person's environment resolves; in this repository a shadow that checks manifests, then runs pnpm.
+const PROGRAM: &str = "pnpm";
+
+/// The file that names the packages the layout is built from.
+const LOCKFILE: &str = "pnpm-lock.yaml";
+
+/// The directory pnpm links packages into.
+const MODULES: &str = "node_modules";
+
+/// The arguments of the relink: no network, and no change to the lockfile.
+const ARGUMENTS: [&str; 3] = ["install", "--offline", "--frozen-lockfile"];
+
+/// What:
+///  The command a person runs to do what the repair could not, from any directory.
+/// Why:
+///   `--dir` names the worktree, so the printed line works wherever it is pasted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function manualCommand(destination: string): string;
+/// ```
+pub fn manual_command(destination: &Path) -> String {
+    return format!("{PROGRAM} --dir {} {}", shell_quote(destination.as_os_str().as_encoded_bytes()), ARGUMENTS.join(" "));
+}
 
 /// What:
 ///  Relink the copied `node_modules` of a worktree with pnpm, when it has a lockfile and a `node_modules`.
@@ -23,8 +51,19 @@ use std::path::Path;
 /// ```ts
 /// async function repairPnpm(destination: string, environment: RepairEnvironment): Promise<Finding | undefined>;
 /// ```
-pub fn repair_pnpm(_destination: &Path, _environment: &RepairEnvironment) -> Option<Finding> {
-    return None;
+pub fn repair_pnpm(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
+    if !destination.join(LOCKFILE).is_file() || !destination.join(MODULES).is_dir() {
+        super::diagnostic_log::debug("packageRepairPnpm", format!("{}: no lockfile or no node_modules, nothing to relink", destination.display()).as_str());
+        return None;
+    }
+    let manual: String = manual_command(destination);
+    let Some(program) = find_program(PROGRAM, environment.path()) else {
+        return Some(missing_tool(Tool::Pnpm, PROGRAM, manual.as_str()));
+    };
+    let command: ToolCommand = ToolCommand { arguments: ARGUMENTS.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set: Vec::new() };
+    let run: ToolRun = run_tool(program.as_path(), &command, environment.tool_limit);
+    super::diagnostic_log::debug("packageRepairPnpm", format!("{}: {} ended {:?} after {} ms", destination.display(), program.display(), run.end, run.millis).as_str());
+    return Some(finding_from(Tool::Pnpm, &run, "pnpm relinked node_modules", manual.as_str()));
 }
 
 /// pnpm repair controls stay out of the release executable.

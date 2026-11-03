@@ -15,10 +15,26 @@
 //! const findings = await repairCargo(request); // one per workspace that failed, one for the rest that worked
 //! ```
 
+use super::diagnostic_log::debug;
 use super::package_repair::RepairRequest;
-use super::package_repair_report::Finding;
+use super::package_repair_command::{ToolCommand, ToolEnd, ToolRun, find_program, run_tool};
+use super::package_repair_report::{Finding, Outcome, Tool, missing_tool};
+use super::package_repair_tree_clone::clone_tree;
+use super::shell_quote::shell_quote;
+use super::transaction_git::{GitRequest, run_git};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Instant;
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "packageRepairCargo";
+
+/// The program the person's environment resolves.
+const PROGRAM: &str = "cargo";
+
+/// The manifest file that makes a directory a Cargo package or workspace root.
+const MANIFEST: &str = "Cargo.toml";
 
 /// What:
 ///  One Cargo workspace as `cargo metadata --no-deps` describes it.
@@ -95,8 +111,19 @@ pub struct StateFacts {
 /// ```ts
 /// function parseMetadata(text: string): Workspace; // throws
 /// ```
-pub fn parse_metadata(_text: &str) -> Result<Workspace, String> {
-    return Err(String::from("not written yet"));
+pub fn parse_metadata(text: &str) -> Result<Workspace, String> {
+    let metadata: serde_json::Value = serde_json::from_str(text).map_err(|error| { return format!("the output of cargo metadata is not JSON ({error})"); })?;
+    let text_field = |key: &str| -> Option<PathBuf> { return metadata.get(key).and_then(serde_json::Value::as_str).map(PathBuf::from); };
+    let root: PathBuf = text_field("workspace_root").ok_or_else(|| { return String::from("cargo metadata names no workspace_root"); })?;
+    // A Cargo that predates `build-dir` keeps intermediate state in the target directory.
+    let target_directory: PathBuf = text_field("target_directory").ok_or_else(|| { return String::from("cargo metadata names no target_directory"); })?;
+    let build_directory: PathBuf = text_field("build_directory").unwrap_or_else(|| { return target_directory.clone(); });
+    let members: Vec<String> = metadata
+        .get("packages")
+        .and_then(serde_json::Value::as_array)
+        .map(|packages: &Vec<serde_json::Value>| { return packages.iter().filter_map(|package: &serde_json::Value| { return package.get("name").and_then(serde_json::Value::as_str).map(str::to_owned); }).collect(); })
+        .ok_or_else(|| { return String::from("cargo metadata names no packages"); })?;
+    return Ok(Workspace { root, build_directory, target_directory, members });
 }
 
 /// What:
@@ -109,7 +136,9 @@ pub fn parse_metadata(_text: &str) -> Result<Workspace, String> {
 /// ```ts
 /// function distinctWorkspaces(found: Workspace[]): Workspace[];
 /// ```
-pub fn distinct_workspaces(found: Vec<Workspace>) -> Vec<Workspace> {
+pub fn distinct_workspaces(mut found: Vec<Workspace>) -> Vec<Workspace> {
+    found.sort_by(|left: &Workspace, right: &Workspace| { return left.root.cmp(&right.root); });
+    found.dedup_by(|later: &mut Workspace, earlier: &mut Workspace| { return later.root == earlier.root; });
     return found;
 }
 
@@ -122,8 +151,27 @@ pub fn distinct_workspaces(found: Vec<Workspace>) -> Vec<Workspace> {
 /// ```ts
 /// function planBuildState(destination: Workspace, destinationRoot: string, facts: StateFacts): BuildStatePlan;
 /// ```
-pub fn plan_build_state(_destination: &Workspace, _destination_root: &Path, _facts: &StateFacts) -> BuildStatePlan {
-    return BuildStatePlan::Nothing(String::from("not written yet"));
+pub fn plan_build_state(destination: &Workspace, destination_root: &Path, facts: &StateFacts) -> BuildStatePlan {
+    let Some(source_build) = facts.source_build.as_ref() else {
+        return BuildStatePlan::Nothing(String::from("the source has no such workspace, so no state was carried"));
+    };
+    if *source_build == destination.build_directory {
+        return BuildStatePlan::Nothing(String::from("the source and the worktree share one build directory, which a clean would damage"));
+    }
+    if destination.build_directory.starts_with(destination_root) {
+        return if facts.destination_build_exists || facts.destination_target_exists {
+            BuildStatePlan::CleanOnly
+        } else {
+            BuildStatePlan::Nothing(String::from("the build directory is inside the worktree and was not carried"))
+        };
+    }
+    if facts.destination_build_exists {
+        return BuildStatePlan::Nothing(String::from("the worktree's build directory already holds state of its own"));
+    }
+    if facts.source_build_exists {
+        return BuildStatePlan::CloneThenClean { from: source_build.clone(), to: destination.build_directory.clone() };
+    }
+    return if facts.destination_target_exists { BuildStatePlan::CleanOnly } else { BuildStatePlan::Nothing(String::from("neither side holds build state")) };
 }
 
 /// What:
@@ -136,8 +184,176 @@ pub fn plan_build_state(_destination: &Workspace, _destination_root: &Path, _fac
 /// ```ts
 /// function cleanArguments(members: string[]): string[];
 /// ```
-pub fn clean_arguments(_members: &[String]) -> Vec<OsString> {
-    return Vec::new();
+pub fn clean_arguments(members: &[String]) -> Vec<OsString> {
+    let mut arguments: Vec<OsString> = ["clean", "--locked", "--offline"].iter().map(OsString::from).collect();
+    for member in members {
+        arguments.push(OsString::from("--package"));
+        arguments.push(OsString::from(member));
+    }
+    return arguments;
+}
+
+/// What:
+///  The command a person runs in a workspace to do what the repair could not.
+/// Why:
+///   A printed line must work as pasted, so the directory change is part of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function manualCommand(root: string, members: string[]): string;
+/// ```
+fn manual_command(root: &Path, members: &[String]) -> String {
+    let words: Vec<String> = clean_arguments(members).iter().map(|word: &OsString| { return shell_quote(word.as_encoded_bytes()); }).collect();
+    return format!("cd {} && {PROGRAM} {}", shell_quote(root.as_os_str().as_encoded_bytes()), words.join(" "));
+}
+
+/// What:
+///  The directories of the worktree's tracked `Cargo.toml` files.
+/// Why:
+///   Git knows which manifests belong to the checkout, so no walk reads `node_modules` or build output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function manifestDirectories(git: GitContext, destination: string): Promise<string[]>;
+/// ```
+fn manifest_directories(request: &RepairRequest<'_>) -> Result<Vec<PathBuf>, String> {
+    use std::os::unix::ffi::OsStrExt;
+    let listing = GitRequest::new(request.destination, &["ls-files", "-z", "--", "*Cargo.toml"]);
+    let output = run_git(request.git, &listing).map_err(|error| { return format!("git could not list the tracked manifests ({error})"); })?;
+    if !output.succeeded() {
+        return Err(format!("git could not list the tracked manifests: {}", output.error_text()));
+    }
+    let mut directories: Vec<PathBuf> = output
+        .stdout
+        .split(|byte: &u8| { return *byte == 0; })
+        .filter(|entry: &&[u8]| { return !entry.is_empty(); })
+        .map(|entry: &[u8]| { return request.destination.join(std::ffi::OsStr::from_bytes(entry)); })
+        .filter(|path: &PathBuf| { return path.file_name().is_some_and(|name| { return name == MANIFEST; }) && path.is_file(); })
+        .filter_map(|path: PathBuf| { return path.parent().map(Path::to_path_buf); })
+        .collect();
+    directories.sort();
+    directories.dedup();
+    return Ok(directories);
+}
+
+/// What:
+///  `cargo metadata` in a directory, as a workspace.
+/// Why:
+///   `--no-deps` resolves nothing, so it needs no network and writes no lock; `--locked` makes that a promise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function readWorkspace(cargo: string, directory: string, limit: number): Promise<Workspace>;
+/// ```
+fn read_workspace(cargo: &Path, directory: &Path, limit: std::time::Duration) -> Result<Workspace, String> {
+    let arguments: Vec<OsString> = ["metadata", "--locked", "--offline", "--no-deps", "--format-version", "1"].iter().map(OsString::from).collect();
+    let command: ToolCommand = ToolCommand { arguments, directory: PathBuf::from(directory), set: Vec::new() };
+    let run: ToolRun = run_tool(cargo, &command, limit);
+    return match run.end {
+        ToolEnd::Succeeded => parse_metadata(String::from_utf8_lossy(run.stdout.as_slice()).as_ref()),
+        ToolEnd::Failed(reason) => Err(format!("cargo metadata in {} failed: {reason}", directory.display())),
+        ToolEnd::TimedOut => Err(format!("cargo metadata in {} ran past its time limit and was stopped", directory.display())),
+    };
+}
+
+/// What a repair of one workspace did.
+enum Done {
+    /// Nothing was needed; the text says why.
+    Skipped,
+    /// The members were cleaned, and the build directory was cloned first when `cloned` is set.
+    Cleaned {
+        /// Whether a build directory was cloned.
+        cloned: bool,
+    },
+    /// The workspace could not be repaired.
+    Failed(Finding),
+}
+
+/// What:
+///  Repair one workspace: plan, clone, clean.
+/// Why:
+///   Each workspace's state is in a directory of its own, so workspaces never touch each other's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function repairWorkspace(cargo: string, workspace: Workspace, request: RepairRequest, cloneWorkers: number): Promise<Done>;
+/// ```
+fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path, request: &RepairRequest<'_>, clone_workers: usize) -> Done {
+    let manual: String = manual_command(workspace.root.as_path(), workspace.members.as_slice());
+    let failed = |reason: String| -> Done { return Done::Failed(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual.clone() } }); };
+    let Ok(relative) = workspace.root.strip_prefix(destination_root) else {
+        debug(TAG, format!("{} lies outside {} and is left alone", workspace.root.display(), destination_root.display()).as_str());
+        return Done::Skipped;
+    };
+    let source_workspace: PathBuf = request.source.join(relative);
+    let source_build: Option<PathBuf> = if source_workspace.join(MANIFEST).is_file() {
+        match read_workspace(cargo, source_workspace.as_path(), request.environment.tool_limit) {
+            Ok(found) => Some(found.build_directory),
+            Err(reason) => {
+                debug(TAG, format!("the source workspace {} cannot be read: {reason}", source_workspace.display()).as_str());
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let facts: StateFacts = StateFacts {
+        source_build_exists: source_build.as_ref().is_some_and(|path: &PathBuf| { return path.exists(); }),
+        source_build,
+        destination_build_exists: workspace.build_directory.exists(),
+        destination_target_exists: workspace.target_directory.exists(),
+    };
+    let plan: BuildStatePlan = plan_build_state(workspace, destination_root, &facts);
+    debug(TAG, format!("{}: {plan:?}", workspace.root.display()).as_str());
+    let cloned: bool = match &plan {
+        BuildStatePlan::Nothing(_) => return Done::Skipped,
+        BuildStatePlan::CleanOnly => false,
+        BuildStatePlan::CloneThenClean { from, to } => {
+            match clone_tree(from.as_path(), to.as_path(), clone_workers) {
+                Ok(made) => debug(TAG, format!("cloned {made} entries from {} to {}", from.display(), to.display()).as_str()),
+                Err(reason) => return failed(format!("the build state could not be cloned: {reason}")),
+            }
+            true
+        }
+    };
+    let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
+    let run: ToolRun = run_tool(cargo, &command, request.environment.tool_limit);
+    return match run.end {
+        ToolEnd::Succeeded => Done::Cleaned { cloned },
+        ToolEnd::Failed(reason) => failed(reason),
+        ToolEnd::TimedOut => failed(String::from("it ran past its time limit and was stopped")),
+    };
+}
+
+/// What:
+///  Run `work` for every item on up to `workers` threads, each item once, results in item order.
+/// Why:
+///   The repairs of different workspaces share no state, so a queue of items keeps every thread busy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const results = await mapConcurrent(items, workers, work);
+/// ```
+fn map_concurrent<T: Sync, R: Send>(items: &[T], workers: usize, work: &(dyn Fn(&T) -> R + Sync)) -> Vec<R> {
+    let next: AtomicUsize = AtomicUsize::new(0);
+    let mut results: Vec<(usize, R)> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..workers.max(1).min(items.len().max(1)))
+            .map(|_worker: usize| {
+                return scope.spawn(|| {
+                    let mut done: Vec<(usize, R)> = Vec::new();
+                    loop {
+                        let index: usize = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(item) = items.get(index) else { break };
+                        done.push((index, work(item)));
+                    }
+                    return done;
+                });
+            })
+            .collect();
+        return handles.into_iter().flat_map(|handle| { return handle.join().unwrap_or_default(); }).collect();
+    });
+    results.sort_by_key(|(index, _result): &(usize, R)| { return *index; });
+    return results.into_iter().map(|(_index, result): (usize, R)| { return result; }).collect();
 }
 
 /// What:
@@ -149,8 +365,53 @@ pub fn clean_arguments(_members: &[String]) -> Vec<OsString> {
 /// ```ts
 /// async function repairCargo(request: RepairRequest): Promise<Finding[]>;
 /// ```
-pub fn repair_cargo(_request: &RepairRequest<'_>) -> Vec<Finding> {
-    return Vec::new();
+pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
+    let started: Instant = Instant::now();
+    let directories: Vec<PathBuf> = match manifest_directories(request) {
+        Ok(found) => found,
+        Err(reason) => {
+            debug(TAG, format!("{}: {reason}", request.destination.display()).as_str());
+            return Vec::new();
+        }
+    };
+    if directories.is_empty() {
+        return Vec::new();
+    }
+    let Some(cargo) = find_program(PROGRAM, request.environment.path()) else {
+        return vec![missing_tool(Tool::Cargo, PROGRAM, "cargo clean --locked --offline --package <member> in each Cargo workspace of the worktree")];
+    };
+    let workers: usize = request.environment.workers;
+    let read: Vec<Result<Workspace, String>> = map_concurrent(directories.as_slice(), workers, &|directory: &PathBuf| { return read_workspace(cargo.as_path(), directory.as_path(), request.environment.tool_limit); });
+    let mut findings: Vec<Finding> = Vec::new();
+    let mut found: Vec<Workspace> = Vec::new();
+    for (directory, outcome) in directories.iter().zip(read) {
+        match outcome {
+            Ok(workspace) => found.push(workspace),
+            Err(reason) => findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual_command(directory.as_path(), &[String::from("<member>")]) } }),
+        }
+    }
+    let workspaces: Vec<Workspace> = distinct_workspaces(found);
+    // Real paths: Cargo names the workspace by its real path, and the worktree may be reached through a link.
+    let destination_root: PathBuf = std::fs::canonicalize(request.destination).unwrap_or_else(|_error| { return request.destination.to_path_buf(); });
+    let clone_workers: usize = if workspaces.len() > 1 { 1 } else { workers };
+    let done: Vec<Done> = map_concurrent(workspaces.as_slice(), workers, &|workspace: &Workspace| { return repair_workspace(cargo.as_path(), workspace, destination_root.as_path(), request, clone_workers); });
+    let mut cleaned: usize = 0;
+    let mut cloned: usize = 0;
+    for outcome in done {
+        match outcome {
+            Done::Skipped => {}
+            Done::Cleaned { cloned: was_cloned } => {
+                cleaned += 1;
+                cloned += usize::from(was_cloned);
+            }
+            Done::Failed(finding) => findings.push(finding),
+        }
+    }
+    if cleaned > 0 {
+        let workspace_noun: &str = if cleaned == 1 { "workspace" } else { "workspaces" };
+        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun} ({cloned} build directories cloned)"), millis: started.elapsed().as_millis() } });
+    }
+    return findings;
 }
 
 /// Cargo repair controls stay out of the release executable.

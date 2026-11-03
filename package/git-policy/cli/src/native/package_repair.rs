@@ -14,12 +14,28 @@
 //! repairWorktree({ git, source, destination, switch: { quiet, noCheckout }, environment }, process.stderr);
 //! ```
 
-use super::package_repair_report::Finding;
+use super::diagnostic_log::debug;
+use super::package_repair_cargo::repair_cargo;
+use super::package_repair_pnpm::repair_pnpm;
+use super::package_repair_report::{Finding, render};
+use super::package_repair_toolchain::repair_toolchain;
 use super::transaction_git::GitContext;
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
 use std::path::Path;
 use std::time::Duration;
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "packageRepair";
+
+/// The options of `worktree add` whose value is the next argument.
+const VALUE_OPTIONS: [&str; 3] = ["-b", "-B", "--reason"];
+
+/// The longest one tool may run before it is stopped; a hung tool must not hold an add forever.
+const TOOL_LIMIT: Duration = Duration::from_secs(600);
+
+/// The most threads the repairs use together; cloning and process starts are bound by the filesystem more than by CPU.
+const MAX_WORKERS: usize = 8;
 
 /// What:
 ///  The switches of the person's `git worktree add` that change what a repair may do.
@@ -50,8 +66,34 @@ impl RepairSwitch {
     /// ```ts
     /// function fromArguments(args: string[]): RepairSwitch;
     /// ```
-    pub fn from_arguments(_arguments: &[OsString]) -> RepairSwitch {
-        return RepairSwitch::default();
+    pub fn from_arguments(arguments: &[OsString]) -> RepairSwitch {
+        let mut found: RepairSwitch = RepairSwitch::default();
+        let Some(add_at) = arguments.windows(2).position(|pair: &[OsString]| { return pair[0] == "worktree" && pair[1] == "add"; }) else { return found };
+        let mut words = arguments[add_at + 2..].iter();
+        while let Some(word) = words.next() {
+            let bytes: &[u8] = word.as_encoded_bytes();
+            if bytes == b"--" {
+                break;
+            }
+            if VALUE_OPTIONS.iter().any(|option: &&str| { return bytes == option.as_bytes(); }) {
+                words.next();
+            } else if bytes == b"--quiet" {
+                found.quiet = true;
+            } else if bytes == b"--no-checkout" {
+                found.no_checkout = true;
+            } else if bytes == b"--checkout" {
+                found.no_checkout = false;
+            } else if bytes.len() > 1 && bytes[0] == b'-' && bytes[1] != b'-' {
+                // A bundle of short flags: `q` quiets, and the first flag that takes a value ends the bundle.
+                let flags: &[u8] = &bytes[1..];
+                let end: usize = flags.iter().position(|flag: &u8| { return *flag == b'b' || *flag == b'B'; }).unwrap_or(flags.len());
+                found.quiet |= flags[..end].contains(&b'q');
+                if end + 1 == flags.len() {
+                    words.next();
+                }
+            }
+        }
+        return found;
     }
 }
 
@@ -86,7 +128,8 @@ impl RepairEnvironment {
     /// RepairEnvironment.fromProcess();
     /// ```
     pub fn from_process() -> RepairEnvironment {
-        return RepairEnvironment { search_path: None, tool_limit: Duration::ZERO, workers: 1 };
+        let available: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        return RepairEnvironment { search_path: std::env::var_os("PATH"), tool_limit: TOOL_LIMIT, workers: available.min(MAX_WORKERS) };
     }
 
     /// The search path as a borrowed value.
@@ -126,8 +169,25 @@ pub struct RepairRequest<'a> {
 /// ```ts
 /// await repairWorktree(request, stderr);
 /// ```
-pub fn repair_worktree(_request: &RepairRequest<'_>, _notices: &mut dyn Write) -> Vec<Finding> {
-    return Vec::new();
+pub fn repair_worktree(request: &RepairRequest<'_>, notices: &mut dyn Write) -> Vec<Finding> {
+    if request.switch.no_checkout {
+        debug(TAG, format!("{}: --no-checkout, so there is nothing to repair", request.destination.display()).as_str());
+        return Vec::new();
+    }
+    let started: std::time::Instant = std::time::Instant::now();
+    let (pnpm, cargo, toolchain): (Option<Finding>, Vec<Finding>, Option<Finding>) = std::thread::scope(|scope| {
+        let pnpm = scope.spawn(|| { return repair_pnpm(request.destination, request.environment); });
+        let toolchain = scope.spawn(|| { return repair_toolchain(request.destination, request.environment); });
+        let cargo: Vec<Finding> = repair_cargo(request);
+        // A tool that panicked has no finding; the add goes on and the worktree stays as the copy left it.
+        return (pnpm.join().unwrap_or(None), cargo, toolchain.join().unwrap_or(None));
+    });
+    let findings: Vec<Finding> = pnpm.into_iter().chain(cargo).chain(toolchain).collect();
+    debug(TAG, format!("{}: {} findings in {} ms", request.destination.display(), findings.len(), started.elapsed().as_millis()).as_str());
+    let text: String = render(request.destination, findings.as_slice(), request.switch.quiet);
+    // A closed standard error leaves nowhere to say it; the worktree is whole either way.
+    let _written = notices.write_all(text.as_bytes());
+    return findings;
 }
 
 /// Repair controls stay out of the release executable.
