@@ -131,7 +131,7 @@ const AMEND: Budget = Budget {
         ("ls-files", 0),
         ("maintenance run", 0),
         ("pack-objects", 0),
-        ("read-tree", 1),
+        ("read-tree", 0),
         ("remote", 0),
         ("reset", 0),
         ("rev-parse", 3),
