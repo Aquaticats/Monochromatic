@@ -493,10 +493,20 @@ in this order:
   "Shipped-limits follow-ups":
   resume the waits agent with them once the index round finishes,
   because both change the index lock wait and the landing code.
-- A cross-vendor review of the step-1 models and components
-  (`feat/git-policy-cli-commit-protocol-models` from `5e8c96de21` to `22e0ba1f37`),
-  then the eighth review's section-4 controls against revision 9:
-  resume the step-1 agent.
+- Running,
+  not an agent:
+  the cross-vendor review of the step 3 and 4 components only
+  (ledger,
+  binding,
+  request,
+  spool,
+  replay;
+  94 KB diff `~/temp/agent/reviews/commit-components-1.diff` from `5e8c96de21` to `22e0ba1f37`,
+  with the design at `a7b917e47e`;
+  output `commit-components-sol-1.txt`).
+  The models (about 5800 lines) are reviewed after revision 9 reshapes them,
+  together with the eighth review's section-4 controls,
+  which the step-1 agent builds against revision 9 when resumed.
 - The third cross-vendor review of cargo-shadow,
   three parts,
   once its fix round writes the diffs.
