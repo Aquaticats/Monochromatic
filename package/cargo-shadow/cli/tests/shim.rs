@@ -34,6 +34,9 @@ if [ \"$1\" = metadata ]; then\n\
   printf '{\"workspace_root\":\"%s\",\"packages\":[]}' \"$PWD\"\n\
   exit 0\n\
 fi\n\
+case \" $* \" in\n\
+  *\" --locked \"*) if ! head -n 1 Cargo.lock | grep -q satisfied; then echo 'error: the lock file needs to be updated but --locked was passed' >&2; exit 101; fi ;;\n\
+esac\n\
 echo \"fake-cargo-ran $@\"\n\
 exit \"${FAKE_CARGO_EXIT:-0}\"\n";
 
@@ -132,30 +135,47 @@ fn a_stale_lock_is_updated_before_a_resolving_command_which_then_gets_its_argume
 }
 
 #[test]
-fn in_ci_a_stale_lock_fails_naming_it_and_cargo_never_runs() {
+fn in_ci_a_stale_lock_warns_naming_it_then_cargo_runs_with_locked_and_stops_on_its_own_lock_error() {
     let world = make_world();
     write_lock(&world, STALE);
 
     let output = run_shadow(&world, &["check"], "true", 0);
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&output.stderr).contains(CRATE_DIR));
+    let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
+    assert_eq!(output.status.code(), Some(101), "{stderr}");
+    assert!(stderr.contains(CRATE_DIR), "{stderr}");
+    assert!(stderr.contains("warning"), "{stderr}");
+    assert!(stderr.contains("--locked"), "the warning must say that --locked was added: {stderr}");
     assert!(!String::from_utf8_lossy(&output.stdout).contains(FAKE_MARKER));
+    assert_eq!(log_lines(&world).last().cloned(), Some("check --locked".to_string()));
     assert_eq!(read_lock(&world), STALE);
 }
 
 #[test]
-fn the_users_own_locked_or_frozen_option_asks_for_the_same_failure_outside_ci() {
+fn the_users_own_locked_or_frozen_option_is_not_added_twice_and_the_failure_is_cargos() {
     for option in ["--locked", "--frozen"] {
         let world = make_world();
         write_lock(&world, STALE);
 
         let output = run_shadow(&world, &["check", option], "", 0);
 
-        assert_eq!(output.status.code(), Some(1), "{option}");
-        assert!(String::from_utf8_lossy(&output.stderr).contains(CRATE_DIR), "{option}");
+        let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
+        assert_eq!(output.status.code(), Some(101), "{option}: {stderr}");
+        assert!(stderr.contains(CRATE_DIR), "{option}: {stderr}");
+        assert_eq!(log_lines(&world).last().cloned(), Some(format!("check {option}")), "{option}");
         assert_eq!(read_lock(&world), STALE, "{option}");
     }
+}
+
+#[test]
+fn locked_goes_before_a_double_dash_so_it_stays_cargos_option_and_not_the_programs() {
+    let world = make_world();
+    write_lock(&world, STALE);
+
+    let output = run_shadow(&world, &["run", "--", "--flag"], "true", 0);
+
+    assert_eq!(output.status.code(), Some(101));
+    assert_eq!(log_lines(&world).last().cloned(), Some("run --locked -- --flag".to_string()));
 }
 
 #[test]

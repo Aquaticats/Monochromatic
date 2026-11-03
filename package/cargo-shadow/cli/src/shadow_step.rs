@@ -176,3 +176,8 @@ pub fn warn_after_cargo(arguments: &[OsString], sink: &mut dyn Write) {
         }
     }
 }
+
+/// Stub.
+pub fn with_locked(arguments: &[OsString]) -> Vec<OsString> {
+    return arguments.to_vec();
+}

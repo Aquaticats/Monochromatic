@@ -136,6 +136,9 @@ mod real_binary_tests;
 mod shadow_notice_tests;
 
 #[cfg(test)]
+mod shadow_step_tests;
+
+#[cfg(test)]
 mod install_step_tests;
 
 #[cfg(test)]
