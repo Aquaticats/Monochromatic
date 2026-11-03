@@ -5,7 +5,7 @@
 //!  moves the branch first and takes the lock afterwards leaves the index showing content a landed commit replaced for as long
 //!  as the foreign holder keeps the lock (found by the concurrent end-to-end scenarios `foreign-index-lock-holder` and
 //!  `foreign-index-lock-unproven`). The service therefore takes the lock first and waits for a holder without polling: for as
-//!  long as a holder proven alive keeps the lock, and for a short backoff for an owner nothing proves alive.
+//!  long as a holder proven alive, or an owner nothing proves alive, keeps the lock.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
@@ -122,15 +122,15 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
 const RELEASED_HOLD_SECONDS: u32 = 0;
 
 /// The notices of the holder a control reads before it lets the holder go: at one notice a second, more seconds of waiting than
-///  the backoff of an owner nothing proves alive lasts, so only a holder proven alive is waited for this long.
+///  the second an owner nothing proves alive used to be given, so only a wait with no bound lasts this long.
 const NOTICES_BEYOND_BACKOFF: usize = 4;
 
 /// The holder is proven alive (Git's lock PID file names it), so the commit waits for it however long it holds the lock, with
 ///  the holder named, and lands on top of the holder's commit when the holder lets go: nothing fails, nothing is given up.
 /// The control releases the holder on the commit's own fourth notice, so the outcome does not depend on how fast the host runs
-///  the commit and the wait is known to have gone on past the backoff.
+///  the commit and the wait is known to have gone on past that second.
 #[test]
-fn a_foreign_holder_proven_alive_is_waited_for_past_the_backoff_and_the_commit_lands_on_top() {
+fn a_foreign_holder_proven_alive_is_waited_for_with_no_bound_and_the_commit_lands_on_top() {
     let fixture: Fixture = fixture("landing-lock-no-bound");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("ll-nobound-{}", std::process::id());

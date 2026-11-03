@@ -25,12 +25,15 @@ use std::path::Path;
 
 /// How many times the index update is tried again when the lock was gone by the time it was looked at: the holder let go
 ///  between Git's refusal and the look, so the next try is expected to take the lock.
-///  Five tries of the longest hold measured for any of Git's own short commands in this repository (100 ms, 2026-11-03,
-///  `unproven_backoff.rs`) cover five holds in a row; a holder that is still there is waited for by the wait of
-///  `index_holder_wait.rs` instead, and does not use these tries.
+///  Measured on 2026-11-03 on this host, on a copy of this repository's index (20,739 tracked files, 2.9 MB), with 20 runs each
+///  of `git status`, `git add -A`, `git reset -q` and `git update-index --refresh`: Git held `index.lock` for at most 100 ms
+///  (`add -A`; medians 26 to 53 ms, `status` at most 55 ms, `reset` at most 71 ms, `update-index` at most 77 ms). Five tries
+///  of that hold cover five holds in a row. A holder that is still there is waited for by `index_holder_wait.rs`, with no bound,
+///  and does not use these tries.
 const INDEX_ATTEMPTS: usize = 5;
 
-/// The pause between index tries when the lock was gone: the longest hold measured for one of Git's own short commands.
+/// The pause between index tries when the lock was gone: the longest hold measured for one of Git's own short commands (see
+///  `INDEX_ATTEMPTS`).
 const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 
 /// Which index entries a landing updates.
@@ -163,8 +166,8 @@ pub fn update_index(git: &GitContext, repository: &Path, index: &Path, new: &str
         };
         if code == FailureCode::IndexInUse {
             match wait_for_index_release_here(index, "commit") {
-                // The diagnostic of a wait that ended on a holder nothing proves alive, or on a dead one, is already written.
-                IndexWait::Unproven(_) | IndexWait::OwnerGone(_) => return Err(code),
+                // The diagnostic of a wait that ended on a dead owner is already written.
+                IndexWait::OwnerGone(_) => return Err(code),
                 // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well.
                 IndexWait::Released(_) => continue,
                 IndexWait::NotHeld => {}

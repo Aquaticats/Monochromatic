@@ -6,7 +6,7 @@
 //!  that moved the branch first and took the lock afterwards left the index showing content a landed commit had replaced for
 //!  as long as a foreign `git` held the lock, and a commit prepared from that index could land a revert. The wait for a
 //!  foreign holder is event-driven: an inotify watch on the Git directory wakes the service when the lock itself is removed or
-//!  moved away, and the only timers are the backoff of an owner nothing proves alive (`unproven_backoff.rs`) and the repetition of the holder's notice. On
+//!  moved away, and the only timer is the repetition of the holder's notice. On
 //!  platforms without inotify a held lock fails at once with the plain message. The lock carries a marker with the batch
 //!  number and the holding process from the moment it exists until it is removed after the new index is in place, so a
 //!  restart can tell its own stale lock from a foreign one wherever the service was killed, and never takes over a lock
@@ -139,24 +139,25 @@ pub fn lock_path_of(index: &Path) -> PathBuf {
 }
 
 /// What:
-///  Takes `index.lock` by exclusive creation, waiting for a foreign holder until the limit.
+///  Takes `index.lock` by exclusive creation, waiting for a foreign holder until it lets go.
 /// Why:
 ///   Git's own protocol: creation fails while any process holds the lock. The wait blocks on an inotify watch set before the
 ///  first attempt, so a release between the attempt and the wait is not missed, and it wakes only for the lock itself. The
 ///  marker is written once, before the first attempt, so the attempts themselves create and remove nothing in the watched
-///  directory. When the limit passes, nothing was changed; the clients learn who held the lock.
+///  directory. A holder is waited for however long it holds, and a dead owner (a PID file naming a process that is gone) ends the wait at once with
+///  nothing changed; the clients learn who held the lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await acquireIndexLock(index, marker, limit, announce)
+/// await acquireIndexLock(index, marker, announce)
 /// ```
 ///
 /// # Errors
 ///
-/// `LockFailure` with `IndexInUse` when the lock stayed held to the limit (or cannot be waited for), and with the storage
+/// `LockFailure` with `IndexInUse` when the lock's owner is dead, and with the storage
 ///  code when the lock cannot be created.
-pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
-    return acquire_noting_holder(index, seq, limit, announce, &mut None);
+pub fn acquire(index: &Path, seq: u64, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+    return acquire_noting_holder(index, seq, announce, &mut None);
 }
 
 /// What:
@@ -169,15 +170,15 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await acquireIndexLock(index, marker, limit, announce, (who) => { holder = who })
+/// await acquireIndexLock(index, marker, announce, (who) => { holder = who })
 /// ```
 ///
 /// # Errors
 ///
 /// As `acquire`.
-pub fn acquire_noting_holder(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
+pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
     let mut notes: WaitNotes = WaitNotes::default();
-    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, limit, announce, &mut notes, None);
+    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, announce, &mut notes, None);
     holder.clone_from(&notes.holder);
     return taken;
 }
@@ -194,19 +195,19 @@ pub fn acquire_noting_holder(index: &Path, seq: u64, limit: Duration, announce: 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await acquireIndexLock(index, marker, limit, announce, notes)
+/// await acquireIndexLock(index, marker, announce, notes)
 /// ```
 ///
 /// # Errors
 ///
 /// As `acquire`.
-pub fn acquire_noting_wait(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
     // The whole of the preparation counts as staging time: taking the marker made ahead, waiting for a flush that fails or is
     //  for another batch, and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
     let preparing: std::time::Instant = std::time::Instant::now();
     let prepared: Option<Prestaged> = take(index, seq);
     notes.staging = preparing.elapsed();
-    return acquire_placing(&SYSTEM, index, seq, limit, announce, notes, prepared);
+    return acquire_placing(&SYSTEM, index, seq, announce, notes, prepared);
 }
 
 /// `acquire` with the calls of `platform`.
@@ -216,8 +217,8 @@ pub fn acquire_noting_wait(index: &Path, seq: u64, limit: Duration, announce: &d
 /// As `acquire`;
 /// the log of the service says why a lock that could not be created or removed stays,
 /// and why a process with no birth identity takes none.
-pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(platform, index, seq, limit, announce, &mut WaitNotes::default(), None);
+pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+    return acquire_placing(platform, index, seq, announce, &mut WaitNotes::default(), None);
 }
 
 /// `acquire_noting_holder` with the calls of `platform`.
@@ -225,7 +226,6 @@ fn acquire_placing(
     platform: &Platform,
     index: &Path,
     seq: u64,
-    limit: Duration,
     announce: &dyn Fn(Announce),
     notes: &mut WaitNotes,
     prestaged: Option<Prestaged>,
@@ -262,7 +262,7 @@ fn acquire_placing(
     let placing_began: std::time::Instant = std::time::Instant::now();
     let outcome: Result<(), LockFailure> = wait_and_place(
         platform,
-        &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index, backoff: limit },
+        &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index },
         &mut watch,
         announce,
         notes,

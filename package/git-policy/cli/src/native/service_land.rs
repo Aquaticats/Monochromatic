@@ -38,9 +38,6 @@ pub struct LandContext {
     pub journal: PathBuf,
     /// Test seam: called after the batch's objects exist and before the branch moves.
     pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
-    /// How long a landing looks again at an index lock whose holder cannot be proven alive or dead before it gives up with nothing
-    ///  changed; a holder proven alive is waited for with no bound.
-    pub index_wait: std::time::Duration,
 }
 
 /// What became of one request of a batch.
@@ -368,7 +365,7 @@ pub fn land_batch_timed(
         //  the index stays as it was.
         let waiting_since: Instant = Instant::now();
         let mut notes: WaitNotes = WaitNotes::default();
-        let taken = acquire_noting_wait(first.index.as_path(), seq, context.index_wait, announce, &mut notes);
+        let taken = acquire_noting_wait(first.index.as_path(), seq, announce, &mut notes);
         let waited: std::time::Duration = waiting_since.elapsed();
         timing.lock_wait += waited;
         // A pass over the batch that found the lock free has nothing to add to what an earlier pass found held.

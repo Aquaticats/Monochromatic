@@ -424,8 +424,8 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     // The scratch directory of a command that waits is renewed at once and then as often as the config says, whatever the
     //  service sends, so a wait longer than the sweep's age never has its directory swept.
     let mut last_renewed: Option<Instant> = None;
-    let mut renew_scratch = |config: &ClientConfig| {
-        if let Some(fresh) = config.keep_fresh.as_ref()
+    let mut renew_scratch = |settings: &ClientConfig| {
+        if let Some(fresh) = settings.keep_fresh.as_ref()
             && last_renewed.is_none_or(|at| { return at.elapsed() >= fresh.every; })
         {
             super::scratch_location::renew(fresh.path.as_path());

@@ -97,7 +97,7 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     let index: PathBuf = repo.join(".git/index");
     let lock: PathBuf = repo.join(".git/index.lock");
     std::fs::write(&lock, b"").expect("a lock nobody holds");
-    let holding: std::time::Duration = crate::unproven_backoff::UNPROVEN_OWNER_BACKOFF * 3;
+    let holding: std::time::Duration = std::time::Duration::from_millis(2500);
     let holder = std::thread::spawn(move || {
         std::thread::sleep(holding);
         std::fs::remove_file(&lock).expect("the lock goes");
@@ -107,22 +107,6 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     holder.join().expect("holder");
     assert!(began.elapsed() >= holding, "{:?}", began.elapsed());
     assert!(!differs(repo.as_path(), second.as_str()));
-    remove(root.as_path());
-}
-
-/// A lock nothing proves anyone holds is waited for the backoff and no longer; the index update then fails with the lock's
-///  code, the diagnostic is written by the wait, and the lock stands.
-#[test]
-fn an_owner_nothing_proves_alive_ends_the_update_after_the_backoff() {
-    let (root, repo, _first, second) = index_behind("service-follow-unproven-holder", &[b"new.txt".to_vec()]);
-    let lock: PathBuf = repo.join(".git/index.lock");
-    std::fs::write(&lock, b"").expect("a lock nobody holds");
-    let began: std::time::Instant = std::time::Instant::now();
-    let failed = update_index(&git_context(), repo.as_path(), repo.join(".git/index").as_path(), second.as_str(), IndexPaths::Named(&[b"new.txt".to_vec()]));
-    assert_eq!(failed, Err(FailureCode::IndexInUse));
-    assert!(began.elapsed() >= crate::unproven_backoff::UNPROVEN_OWNER_BACKOFF, "{:?}", began.elapsed());
-    assert!(lock.exists(), "the lock is left in place");
-    assert!(differs(repo.as_path(), second.as_str()), "the index was not changed");
     remove(root.as_path());
 }
 

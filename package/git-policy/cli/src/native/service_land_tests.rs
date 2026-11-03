@@ -21,7 +21,7 @@ fn world(name: &str) -> World {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir(&journal).expect("journal");
-    let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, index_wait: std::time::Duration::from_secs(5) };
+    let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None };
     return World { root, repo, context };
 }
 
@@ -415,7 +415,6 @@ fn the_index_lock_is_not_held_while_the_objects_are_made() {
 #[test]
 fn a_foreign_holder_is_waited_for_after_the_objects_are_made_not_before() {
     let mut world: World = world("service-land-wait-after-objects");
-    world.context.index_wait = std::time::Duration::from_millis(400);
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
@@ -430,15 +429,19 @@ fn a_foreign_holder_is_waited_for_after_the_objects_are_made_not_before() {
     remove(world.root.as_path());
 }
 
-/// A holder that outlives the limit: the landing fails before anything moves, the holder's lock stands, and no intent is left.
+/// A dead owner's index lock (Git's lock PID file names a process that is gone): the landing fails before anything moves, the
+///  lock stands, and no intent is left. Nothing is waited for, because nothing will release that lock.
 #[test]
-fn a_foreign_index_lock_that_outlives_the_limit_changes_nothing() {
-    let mut world: World = world("service-land-foreign-lock-limit");
-    world.context.index_wait = std::time::Duration::from_millis(400);
+fn a_dead_owners_index_lock_changes_nothing() {
+    let world: World = world("service-land-dead-owner-lock");
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
+    let mut gone = std::process::Command::new("true").spawn().expect("a short process");
+    let gone_pid: u32 = gone.id();
+    gone.wait().expect("it ends");
+    std::fs::write(crate::recovery_files::lock_pid_path(world.repo.join(".git/index").as_path()), format!("pid {gone_pid}\n")).expect("PID file");
     assert_eq!(land_batch(&world.context, 1, &[request]), Err(FailureCode::IndexInUse));
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
     assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "foreign");
@@ -725,7 +728,7 @@ fn a_switch_is_found_in_a_reftable_repository() {
     let world: World = World {
         root: root.clone(),
         repo: repo.clone(),
-        context: LandContext { git: git_context(), journal, on_objects_written: None, index_wait: std::time::Duration::from_secs(5) },
+        context: LandContext { git: git_context(), journal, on_objects_written: None },
     };
     git(repo.as_path(), &["branch", "side"]);
     let on_branch: CommitRequest = request(&world, "kept", "kept.txt", "x\n");

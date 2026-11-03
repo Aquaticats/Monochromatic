@@ -1,7 +1,7 @@
 //! Binary-level controls for the notices of a commit that waits for Git's own `index.lock` (issue 1811):
 //!  the wait names what it waits for and who holds it,
-//!  repeats at a steady interval, waits for a holder proven alive with no bound, and ends the wait for an owner nothing
-//!  proves alive after the short backoff with a diagnostic that lists the evidence.
+//!  repeats at a steady interval, and waits with no bound for a holder proven alive and for an owner nothing proves alive,
+//!  saying what is known about the second.
 //! The holder is this test process, holding the lock file open.
 //! A control of a repeated notice reads the wrapper's standard error line by line and ends the wait on the notice that
 //!  counts, so the count holds however slowly a loaded host runs the wrapper; a control of the backoff only asks for a
@@ -10,7 +10,7 @@
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::support::{
-    Fixture, Observed, fixture, git, observe_raw, repository, stderr_of,
+    Fixture, fixture, git, repository,
 };
 use std::ffi::OsStr;
 use std::fs::File;
@@ -140,7 +140,7 @@ fn a_commit_waits_on_a_live_index_lock_holder_with_no_bound() {
 }
 
 /// The notices a control waits for before it lets the holder go: more seconds of waiting, at one notice a second, than the
-///  backoff of an owner nothing proves alive lasts, so only a holder proven alive is waited for this long.
+///  second an owner nothing proves alive used to be given, so only a wait with no bound lasts this long.
 const LONG_WAIT_NOTICES: usize = 4;
 
 /// A commit that waits for an `index.lock` nobody can be proven to hold says so, and a lock that goes during the backoff lets
@@ -163,21 +163,25 @@ fn a_commit_waiting_for_an_unproven_index_lock_lands_when_it_goes() {
     remove_settled(&fixture);
 }
 
-/// A commit that waits for an `index.lock` nobody can be proven to hold stops after the backoff with the evidence listed, the
-///  file to remove named, and nothing changed; the lock stands.
+/// A commit that waits for an `index.lock` nobody can be proven to hold waits for it like one proven alive: through more notices
+///  than the second it used to be given, each saying what is known and naming the file to remove if no program is using the
+///  repository, and it lands when the lock goes. The person's own `git commit` with its editor open holds the lock the same way.
 #[test]
-fn a_commit_that_gives_up_on_an_unproven_index_lock_lists_the_evidence() {
-    let fixture: Fixture = fixture("wait-notice-index-unproven-bound");
+fn a_commit_waits_on_an_unproven_index_lock_and_says_what_it_knows() {
+    let fixture: Fixture = fixture("wait-notice-index-unproven-no-bound");
     let repo: PathBuf = edited_repository(&fixture);
     let lock_path: PathBuf = repo.join(".git/index.lock");
     std::fs::write(&lock_path, b"").expect("index lock nobody holds");
-    let observed: Observed = observe_raw(&mut waiting_commit(&fixture, repo.as_path()), b"");
-    let stderr: String = stderr_of(&observed);
-    assert_ne!(observed.code, Some(0), "{stderr}");
-    assert!(stderr.contains("cannot be proven alive"), "{stderr}");
-    assert!(stderr.contains("nothing proves a program holds it") && stderr.contains("no Git lock PID file"), "the evidence is listed: {stderr}");
-    assert!(stderr.contains(format!("removing the file {}", lock_path.display()).as_str()), "the way out is named: {stderr}");
-    assert!(stderr.contains("was not made"), "nothing changed: {stderr}");
-    assert!(lock_path.exists(), "the lock stands");
+    let needle: &str = "cannot be proven alive";
+    let watched: Watched = watch_notices(&mut waiting_commit(&fixture, repo.as_path()), needle, LONG_WAIT_NOTICES, {
+        let released: PathBuf = lock_path.clone();
+        move || { std::fs::remove_file(&released).expect("the lock goes"); }
+    });
+    let notices: Vec<&str> = lines_with(watched.stderr.as_str(), needle);
+    assert!(notices.len() >= LONG_WAIT_NOTICES, "{}", watched.stderr);
+    assert!(notices.iter().all(|line| { return line.contains("no Git lock PID file") && line.contains("has the lock open"); }), "what is known is said: {}", watched.stderr);
+    assert!(watched.stderr.contains(format!("removing the file {}", lock_path.display()).as_str()), "the way out is named: {}", watched.stderr);
+    assert!(!watched.stderr.contains("was not made") && !watched.stderr.contains("stops waiting"), "{}", watched.stderr);
+    assert_eq!(watched.code, Some(0), "the commit landed once the lock went: {}", watched.stderr);
     remove_settled(&fixture);
 }
