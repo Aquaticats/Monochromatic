@@ -27,3 +27,11 @@ mod model_f7_identity;
 /// The red control of finding F7.
 #[path = "model_f7_tests.rs"]
 mod model_f7_tests;
+
+/// Finding F2 and the seventh review's F2A and F2B: owner lifetime, descendants and the new owner's cleanup.
+#[path = "model_f2_lifetime.rs"]
+mod model_f2_lifetime;
+
+/// The controls of finding F2.
+#[path = "model_f2_tests.rs"]
+mod model_f2_tests;

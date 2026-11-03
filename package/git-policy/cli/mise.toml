@@ -77,7 +77,7 @@ run = "cargo nextest run --locked --offline --test native_binary"
 [tasks."native:test:model"]
 description = "Run the commits-never-fail protocol models matching `-- <filter>...` on the host: exhaustive schedule exploration (bounded by each test's state and depth caps) and disposable-directory fixtures, two test threads at most"
 env = { CLI_MODEL_SCRATCH = "{{env.HOME}}/temp/agent/cli-model" }
-run = "cargo nextest run --locked --offline --test native_models --test-threads 2"
+run = "cargo nextest run --locked --offline --test native_models --test-threads 2 --no-fail-fast"
 
 [tasks."test:git-image"]
 description = "Build the audited Git 2.56.0 release in the bounded Rust test image; `-- <git checkout> [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 512 PIDs; the make job count follows the whole CPUs)"
