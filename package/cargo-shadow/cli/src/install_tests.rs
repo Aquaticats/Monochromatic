@@ -340,7 +340,7 @@ fn real_cargo_finds_the_path_workspace_stale_updates_it_offline_and_then_finds_i
     let root = scratch();
     write_stale_path_workspace(root.path());
     let dirs: Vec<String> = vec!["package/real/ws".to_string()];
-    let cargo: crate::cargo_run::RealCargo = crate::cargo_run::RealCargo { program, toolchain: String::new() };
+    let cargo: crate::cargo_run::RealCargo = crate::cargo_run::RealCargo { program, toolchain: String::new(), bound: std::time::Duration::from_secs(crate::cargo_run::CARGO_CALL_SECONDS) };
     let catalog_settings: Settings = settings();
     let registry: FakeRegistry = empty_registry();
     let request = |frozen: bool| {

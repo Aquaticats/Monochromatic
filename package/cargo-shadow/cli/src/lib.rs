@@ -321,6 +321,10 @@ mod journal_support;
 #[cfg(test)]
 mod git_fallback_tests;
 
+/// The tests of the bounds on cargo calls and registry pauses.
+#[cfg(test)]
+mod wait_bound_tests;
+
 /// The tests of the bounded child runs.
 #[cfg(test)]
 mod bounded_run_tests;

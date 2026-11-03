@@ -107,7 +107,14 @@ pub struct RealCargo {
     /// `RUSTUP_TOOLCHAIN` for the child;
     /// empty to inherit the caller's.
     pub toolchain: String,
+    /// The longest one cargo call may take (owner rule of 2026-11-03: "nothing should ever wait forever or indefinitely");
+    /// at the bound cargo is stopped and the error names the call and the command to run again.
+    pub bound: std::time::Duration,
 }
+
+/// The default bound of one cargo call, in seconds.
+/// Chosen generously (half an hour) because a first resolution may fetch an index over a slow network, not measured.
+pub const CARGO_CALL_SECONDS: u64 = 1_800;
 
 /// What:
 /// `impl CargoRunner for RealCargo { ... }` makes the real cargo usable wherever a `CargoRunner` is asked for (a trait is a TS interface,

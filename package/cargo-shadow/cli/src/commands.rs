@@ -534,7 +534,7 @@ pub fn run_command(command: Command) -> i32 {
         }
     };
     // Typed binding: `runner: RealCargo`.
-    let runner: RealCargo = RealCargo { program, toolchain };
+    let runner: RealCargo = RealCargo { program, toolchain, bound: std::time::Duration::from_secs(crate::cargo_run::CARGO_CALL_SECONDS) };
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&root`: lends the value without copying or giving it away.
     // Typed binding: `crate_dirs: Vec<String>`.

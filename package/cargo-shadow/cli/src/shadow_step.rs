@@ -583,7 +583,7 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
         start,
         lock_base,
         trust_base,
-        runner: RealCargo { program, toolchain },
+        runner: RealCargo { program, toolchain, bound: std::time::Duration::from_secs(crate::cargo_run::CARGO_CALL_SECONDS) },
         // Borrow `&catalog_root`: lends the value without copying or giving it away.
         // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
         // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
