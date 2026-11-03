@@ -9644,3 +9644,8 @@ by the coordinator at merge.
   agent on `fix/mutation-test-cli-cargo-mutants-unit-under-process-limits`.
 - Conversion and trash review started (`~/temp/agent/review-main-snapshot/`: `worktree_convert.rs`,
   `worktree_trash.rs` at `91c306da97`).
+- Gate 60 PASSED 3398 of 3398 on the timer-race audit (`ebff8fe9c5`); gate 62 running on the branch head `22f975caff`.
+- Gate 61 PASSED 3559 of 3559 (6 skipped) on `feat/git-policy-cli-btrfs-worktree-add` `3681539d6b`. Merged into main
+  `c0d7bf8bf3` (no conflict), `native:clippy` on main clean. 0.5.17 dispatched (run 41571832948): new worktrees on btrfs
+  are subvolumes. The remove-path review (`~/temp/agent/review-btrfs-ladder-remove-3/`) is still running and is handled
+  as a follow-up per the owner's "Treat reviews as async".
