@@ -9968,3 +9968,24 @@ by the coordinator at merge.
   `assert_eq!(LINT_DEADLINE, Duration::from_secs(60))` (a production value copied into a test) and the bare numbers
   in my new comment there; this handover's older entries keep their "round N" labels as historical text (most name
   review folders such as `review-planted-controls-3`), and new entries use timestamps.
+- 2026-11-03T00:41:28-05:00, merges to main: the slow-route gate (`b40ab62da0`, 3760/3760) and the trash gate
+  (`78928da1f1`, 3748/3748; the two later commits change only the planning doc) passed. Merged as `83adc0b2ab`
+  (slow route) and `14601b28d3` (trash). The trash merge stopped on `package/git-policy/cli/README.md`: the trash
+  branch extended a sentence and the slow-route branch added a paragraph on the next line; resolved by keeping both,
+  the trash text first. Then `74e2c4da64` (the linter test no longer pins `LINT_DEADLINE`, and the stall comment
+  names the gate by commit and time) passed on the host (`native:test:host -- markdown_linter`, 24/24) and merged as
+  `24f6b1bce8`. Main was merged into the conflict-side and remove-path branches cleanly, and their gates run as
+  `gpc-gate-conflict-side-with-main-20261103T003956-0500` and `gpc-gate-remove-path-with-main-20261103T003957-0500`
+  (gate runs are now named by what they cover plus a timestamp, per WHN; logs beside them in `~/temp/agent/gate/`,
+  launcher `~/temp/agent/gate/launch-gate.ts`). On both passes: merge both, gate main, release 0.5.20, install,
+  verify a commit.
+- Owner question 2026-11-03, verbatim: "What is going on with all these conflicts? Shouldn't our wrapper auto
+  resolve non-conflicting conflicts?" Measured with Git 2.56.0 in throwaway repositories
+  (`~/temp/agent/merge-adjacency-probe.ts`): an edit and an insertion on neighbouring lines conflict (the
+  `histogram` algorithm does not help), two sections appended at the end of a file conflict, a true overlap
+  conflicts, and the same edit and insertion with one unchanged line between them merge cleanly. Both conflicts of
+  this segment were of the first two shapes. Today the wrapper forwards `git merge` to Git unchanged, and its own
+  object-only merges (`git merge-tree --write-tree` in auto-push reconciliation and in the commit replay) stop on
+  the same shapes. A research agent is writing `~/temp/agent/research/merge-auto-resolution.md` (mergiraf: licence,
+  languages, library use; whether merge-tree honours merge drivers; the `union` driver; other tools; documented
+  wrong auto-merges). Next: a proposal in `doc/planning/` and a ranked question to the owner. Not decided.
