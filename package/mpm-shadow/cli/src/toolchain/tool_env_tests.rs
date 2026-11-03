@@ -149,13 +149,19 @@ const REFUSED_VALUES: &[&str] = &[
 
 #[test]
 fn a_value_that_leaves_the_root_or_that_mise_would_template_or_expand_is_refused_naming_tool_and_variable() {
+    let mut accepted: Vec<&str> = Vec::new();
     for value in REFUSED_VALUES.iter().copied() {
         let rig = rig_exporting(&[("ANDROID_HOME", value)]);
-        let error = write_tool_env(&rig.context()).expect_err(value);
-        assert_eq!(error.kind, ErrorKind::Failure, "{value}");
-        assert!(error.message.contains("android-sdk") && error.message.contains("ANDROID_HOME"), "{value}: {error}");
-        assert!(!rig.scope.mise_env_file.exists(), "{value}: nothing may be written");
+        match write_tool_env(&rig.context()) {
+            Ok(_) => accepted.push(value),
+            Err(error) => {
+                assert_eq!(error.kind, ErrorKind::Failure, "{value}");
+                assert!(error.message.contains("android-sdk") && error.message.contains("ANDROID_HOME"), "{value}: {error}");
+                assert!(!rig.scope.mise_env_file.exists(), "{value}: nothing may be written");
+            }
+        }
     }
+    assert!(accepted.is_empty(), "values that were written instead of refused: {accepted:?}");
 }
 
 #[test]
@@ -174,12 +180,18 @@ const REFUSED_NAMES: &[&str] = &["", "1ST", "A B", "A=B", "A.B", "A\"B", "A\nB =
 
 #[test]
 fn a_variable_name_that_is_not_a_plain_identifier_is_refused() {
+    let mut accepted: Vec<&str> = Vec::new();
     for name in REFUSED_NAMES.iter().copied() {
         let rig = rig_exporting(&[(name, "value")]);
-        let error = write_tool_env(&rig.context()).expect_err(name);
-        assert!(error.message.contains("android-sdk"), "{name:?}: {error}");
-        assert!(!rig.scope.mise_env_file.exists(), "{name:?}: nothing may be written");
+        match write_tool_env(&rig.context()) {
+            Ok(_) => accepted.push(name),
+            Err(error) => {
+                assert!(error.message.contains("android-sdk"), "{name:?}: {error}");
+                assert!(!rig.scope.mise_env_file.exists(), "{name:?}: nothing may be written");
+            }
+        }
     }
+    assert!(accepted.is_empty(), "names that were written instead of refused: {accepted:?}");
 }
 
 #[test]
