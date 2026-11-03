@@ -9382,3 +9382,24 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   readiness is taken for lifetime ownership (a dead holder frees the lock while the campaign runs); P2 a failed
   handshake is accepted; P2 a markerless legacy layout is read as never executed. Given to a new agent on
   `fix/mutation-test-cli-cargo-mutants-campaign-lock`.
+- 0.5.16 run 41568194623 refused its push ("PUSH REFUSED: Paths the release depends on changed on main since
+  4a3f2afe33") because I merged `fix/git-policy-cli-bound-supervisor` (gate 57 PASSED 3351 of 3351) into main during
+  it. DECIDED BY THE OWNER (2026-11-03, question tool note): "This is expected and fine, the correct answer is to release
+  again combining all the changes." This supersedes my earlier self-rule (0.5.1 entry) of holding merges while a release
+  runs: merge gated work as it passes, and dispatch again with everything combined. Run 41568920733 was cancelled before
+  its push so the gated survivors bundle could join; run 41569276274 releases main with journal logging, the bound
+  supervisor and the survivors bundle.
+- Gate 58 on the survivors bundle PASSED 3409 of 3409 (6 skipped); merged into main.
+- `an_ended_watch_is_dropped_before_the_next_is_set` fixed on `fix/git-policy-cli-ended-watch-order` (`e2f2ed684a`,
+  test only): the test raced its own 300 ms release timer against a cold staging flush; reproduced deterministically
+  with a 600 ms flush hook (`36575e186a`). The sibling wait test had the same race. Same agent now audits every
+  timer-based releaser in the crate's tests.
+- Ladder: main merged (`4b3e472171`), btrfs-free controls for `subvolume_platform.rs:76` and `:80` (`b9826f2d3f`;
+  each hand-applied mutant red on tmpfs). Part B review (`~/temp/agent/review-btrfs-ladder-add-4/sol-review.txt`):
+  6 P1, 1 P2 (trash-box swap before unlink, rollback of a replaced parent or symlink, symlink stat from a live name,
+  `index.lock` swapped before publication, refresh deleting the next Git command's lock, staging write following a
+  symlink, binding verified against the saved admin path instead of the pointer's target). No threat model is written
+  for same-user processes (searched `SPEC.md` and the planning doc); handled under the rules in force: never discard
+  user data, recovery never deletes what it cannot prove it made. Sent to the ladder agent.
+- Journal-logging review running (`~/temp/agent/review-journal-logging/`: `journald_native.rs`,
+  `discarded_prune.rs`, `config_discarded.rs`).
