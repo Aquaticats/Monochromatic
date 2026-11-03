@@ -23,6 +23,9 @@ pub mod constants;
 /// Release-age and trust checks over newly locked versions.
 pub mod checks;
 
+/// Warns about dependencies that do not use the workspace catalog.
+pub mod catalog_warning;
+
 /// Runs the real cargo for the install and update steps.
 pub mod cargo_run;
 
@@ -65,6 +68,9 @@ pub mod selectors;
 /// The line and the section the shadow adds after cargo's `--version` and `--help`, the only places it names itself.
 pub mod shadow_notice;
 
+/// The steps the shadow runs around a cargo command.
+pub mod shadow_step;
+
 /// The shadow mode: install step, look up, launch, wait.
 pub mod shim;
 
@@ -86,6 +92,9 @@ pub mod verb;
 /// Scratch directories for the unit tests, placed beside the build output.
 #[cfg(test)]
 mod test_scratch;
+
+#[cfg(test)]
+mod catalog_warning_tests;
 
 #[cfg(test)]
 mod guard_tests;

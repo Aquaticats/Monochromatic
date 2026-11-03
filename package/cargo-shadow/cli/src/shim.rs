@@ -59,7 +59,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
 /// Imports the fixed values.
-use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
+use crate::constants::{EXEC_FAILED_EXIT_CODE, INSTALL_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
 /// Imports the loop guard.
 use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, MAX_HOPS, format_guard, is_meant_for, parse_guard};
 /// Imports the notice handshake.
@@ -69,6 +69,7 @@ use crate::real_binary::{find_in_path, own_real_path};
 /// Imports the notice that follows cargo's version and help.
 use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
 /// Imports the command-word rules.
+use crate::shadow_step::{before_cargo, warn_after_cargo};
 use crate::verb::{Treatment, treatment_of};
 
 /// What:
@@ -149,8 +150,17 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
         return EXEC_FAILED_EXIT_CODE;
     }
 
-    // The treatment of the command line (`verb.rs`). Nothing is done yet beyond running cargo.
-    let _treatment: Treatment = treatment_of(&arguments);
+    // The treatment of the command line (`verb.rs`). Only the first instance acts: an instance started by an earlier one
+    // (hops above zero) has already had its install step run. The install step comes first and its messages go to standard
+    // error, so cargo's standard output stays exactly cargo's.
+    let treatment: Treatment = treatment_of(&arguments);
+    if hops == 0
+        && treatment == Treatment::InstallStep
+        && let Some(message) = before_cargo(&arguments)
+    {
+        eprintln!("{message}");
+        return INSTALL_FAILED_EXIT_CODE;
+    }
 
     let path_variable: String = env::var("PATH").unwrap_or_default();
     let mut skip_list: Vec<PathBuf> = vec![own_real_path()];
@@ -184,7 +194,7 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     // ```ts
     // execvp(program, args);  // never returns on success; Node has no exec, this is the POSIX call
     // ```
-    if request == TopLevelRequest::Other {
+    if request == TopLevelRequest::Other && treatment != Treatment::CatalogWarning {
         let error: std::io::Error = Command::new(&program).args(&arguments).env(GUARD_VARIABLE, &guard_value).exec();
         eprintln!("cargo-shadow: could not start {}: {error}", program.display());
         return EXEC_FAILED_EXIT_CODE;
@@ -200,6 +210,11 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     }
     match run_program(&program, &arguments, Some(&guard_value)) {
         Ok(code) => {
+            // After `cargo add` or `cargo remove` succeeded, warn about dependencies that do not use the catalog; the exit
+            // code stays cargo's.
+            if code == 0 && treatment == Treatment::CatalogWarning && hops == 0 {
+                warn_after_cargo(&arguments, &mut std::io::stderr());
+            }
             // Like hub after git's version: only after a successful top-level `--version` or `--help` of cargo itself,
             // so the notice follows cargo's own text and is the one place the shadow names itself. A closed standard
             // output is ignored on purpose: cargo's output already went out. When the candidate was a launcher that
