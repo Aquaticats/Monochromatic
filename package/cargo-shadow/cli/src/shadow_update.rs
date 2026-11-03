@@ -527,7 +527,7 @@ fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, 
 fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, forward: &[String], sink: &mut dyn Write) -> i32 {
     let lock_path = prepared.catalog_root.join(&crate_dirs[0]).join(LOCKFILE_NAME);
     // Borrow `&lock_path`: lends the value without copying or giving it away.
-    return run_with_placeholder_lock(&lock_path, dry_run, &mut || {
+    return run_with_placeholder_lock(&lock_path, &prepared.catalog_root.join(crate::journal::QUARANTINE_DIR), dry_run, &mut || {
         // Borrow `&UpdateKind`: lends the value without copying or giving it away.
         return run_update(prepared, crate_dirs, dry_run, &UpdateKind::Full, forward, sink);
     });
@@ -553,7 +553,7 @@ fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, fo
 /// ```ts
 /// export function runWithPlaceholderLock(lockPath: string, dryRun: boolean, body: () => number): number
 /// ```
-pub fn run_with_placeholder_lock(lock_path: &Path, dry_run: bool, body: &mut dyn FnMut() -> i32) -> i32 {
+pub fn run_with_placeholder_lock(lock_path: &Path, keep_dir: &Path, dry_run: bool, body: &mut dyn FnMut() -> i32) -> i32 {
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
     //
@@ -561,7 +561,7 @@ pub fn run_with_placeholder_lock(lock_path: &Path, dry_run: bool, body: &mut dyn
     // ```ts
     // (a, b) => body
     // ```
-    return run_with_placeholder_lock_hooked(lock_path, dry_run, body, &crate::journal_replace::no_hook);
+    return run_with_placeholder_lock_hooked(lock_path, keep_dir, dry_run, body, &crate::journal_replace::no_hook);
 }
 
 /// What:
@@ -581,7 +581,7 @@ pub fn run_with_placeholder_lock(lock_path: &Path, dry_run: bool, body: &mut dyn
 /// ```ts
 /// function removePlaceholder(lockPath: string): void  // rename, read, then unlink or link back
 /// ```
-fn remove_placeholder(lock_path: &Path) {
+fn remove_placeholder(lock_path: &Path, _keep_dir: &Path) {
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `nanos: u128`.
     let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
@@ -681,7 +681,7 @@ fn remove_placeholder(lock_path: &Path) {
 /// ```ts
 /// export function runWithPlaceholderLockHooked(lockPath: string, dryRun: boolean, body: () => number, beforeCleanup: (path: string) => void): number
 /// ```
-pub fn run_with_placeholder_lock_hooked(lock_path: &Path, dry_run: bool, body: &mut dyn FnMut() -> i32, before_cleanup: &dyn Fn(&Path)) -> i32 {
+pub fn run_with_placeholder_lock_hooked(lock_path: &Path, keep_dir: &Path, dry_run: bool, body: &mut dyn FnMut() -> i32, before_cleanup: &dyn Fn(&Path)) -> i32 {
     // `create_new(true)` fails with `AlreadyExists` instead of truncating (the exclusive-create flag `wx` of Node), so the
     // check and the creation are one step another writer cannot slip into.
     let created_placeholder: bool = match std::fs::OpenOptions::new().write(true).create_new(true).open(lock_path) {
@@ -701,7 +701,7 @@ pub fn run_with_placeholder_lock_hooked(lock_path: &Path, dry_run: bool, body: &
     let code: i32 = body();
     if created_placeholder && (code != 0 || dry_run) {
         before_cleanup(lock_path);
-        remove_placeholder(lock_path);
+        remove_placeholder(lock_path, keep_dir);
     }
     return code;
 }
