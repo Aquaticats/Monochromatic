@@ -2484,6 +2484,12 @@ A commit the service builds itself, with no `git commit` run, still prints the o
 once the branch has moved.
 A commit that Git builds again because the branch moved prints Git's summary for each build,
 so the line of a build that did not land can precede the line of the commit that did.
+Owner decision (2026-11-03), verbatim: "Add a wrapper note (Recommended)".
+Git's output stays untouched; once the commit has landed, the wrapper adds one line to standard error
+that names every build that did not land and the commit that did, by the names Git's summary lines carry:
+`cli-git: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.`
+Several builds that did not land are joined with commas and `and`.
+A commit that was not built again prints no note.
 
 Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
