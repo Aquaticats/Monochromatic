@@ -18,7 +18,7 @@ use super::conflict_sides::{
     Operation, SAVED_DIRECTORY, SaveFailure, SavedCopy, SideDecision, clean_paths_note, conflicted_paths, decide_sides, operation_in_progress,
     save_copies, saved_notice,
 };
-use super::discarded_prune::{Limits, directory_name_of, prune};
+use super::discarded_prune::{Limits, Problem, directory_name_of, prune};
 use super::global_arguments::command_tokens;
 use super::private_storage::read_regular_file;
 use super::repo_read_index::{IndexEntry, parse_index};
@@ -74,23 +74,26 @@ fn read_conflicts(layout: &RepoLayout) -> Result<std::collections::BTreeSet<Vec<
 }
 
 /// What:
-///  Applies the age and size limits to the folder of saved copies, now that a new save is complete and durable.
+///  Applies the age and size limits to the folder of saved copies, now that a new save is complete and durable, and gives
+///  the sentences for whatever the pass could not do (empty when it did all it should).
 /// Why:
 ///   Pruning after the save, never before, means a kill while copying costs no older copy; the directory just written is
-///  never chosen, whatever its name says. The pass takes no lock and nothing waits on it, and a failure of it never changes
-///  the verdict (`discarded_prune` says it on standard error when a setting is no limit).
+///  never chosen, whatever its name says. Nothing waits on the pass (another pass holding the folder makes this one do
+///  nothing), and a failure of it never changes the verdict; it is said in the notice, so the person sees that the limits
+///  did not apply and why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await pruneAfterSave(layout, copies, milliseconds)
 /// ```
-fn prune_after_save(layout: &RepoLayout, copies: &[SavedCopy], milliseconds: i64, limits: Limits) {
+fn prune_after_save(layout: &RepoLayout, copies: &[SavedCopy], milliseconds: i64, limits: Limits) -> String {
     let saved_root: std::path::PathBuf = layout.common_dir.join(SAVED_DIRECTORY);
     let keep: Option<String> = copies.iter().find_map(|copy| { return copy.saved_to.as_deref().and_then(|place| { return directory_name_of(saved_root.as_path(), place); }); });
     if keep.is_none() {
-        return;
+        return String::new();
     }
-    let _removed = prune(layout.common_dir.as_path(), milliseconds, limits, keep.as_deref());
+    let outcome = prune(layout.common_dir.as_path(), milliseconds, limits, keep.as_deref());
+    return outcome.problems.iter().map(Problem::message).collect();
 }
 
 /// What:
@@ -125,8 +128,8 @@ pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], millis
         SideDecision::Allow(paths) => {
             match save_copies(layout.worktree_root.as_path(), layout.common_dir.as_path(), paths.as_slice(), milliseconds) {
                 Ok(copies) => {
-                    prune_after_save(&layout, copies.as_slice(), milliseconds, limits);
-                    return SideVerdict::Allowed { notice: saved_notice(copies.as_slice()), copies };
+                    let unpruned: String = prune_after_save(&layout, copies.as_slice(), milliseconds, limits);
+                    return SideVerdict::Allowed { notice: format!("{}{unpruned}", saved_notice(copies.as_slice())), copies };
                 }
                 Err(failure) => return SideVerdict::CopyFailed(copy_failed_text(&failure)),
             }

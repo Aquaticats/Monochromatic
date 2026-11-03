@@ -24,7 +24,7 @@
 //! ```
 
 use super::service_index_found::WaitNotes;
-use super::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, one_line};
+use super::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, cut, one_line};
 use super::lfs_output_mask::mask_userinfo_text;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -351,7 +351,8 @@ pub fn set_context(release: &str, instance: Option<&str>) {
 /// What:
 ///  Writes one entry of a priority, with fields a reader can filter the journal on, and gives where it went.
 /// Why:
-///   The text is one line with the userinfo of every URL masked (a push or a review reports what Git and a server said),
+///   The userinfo of every URL is masked (a push or a review reports what Git and a server said), the line on standard error
+///  is one line,
 ///  then it states its own time (`stamped_line`); a native entry also carries the time as `CLI_GIT_AT_MS`, the priority
 ///  and the context. Nothing here waits: see `journald_native`.
 ///
@@ -363,16 +364,17 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     let at_ms: u128 = wall_millis();
     // Masked before it is cut: a cut that falls just before the `@` of `scheme://user:secret@host` would leave a password
     //  that no longer looks like userinfo.
-    let clean: String = one_line(mask_userinfo_text(line).as_str(), MESSAGE_LIMIT);
+    let masked: String = mask_userinfo_text(line);
     let mut all: Vec<(&str, String)> = CONTEXT.get().map_or_else(Vec::new, |context| { return context.iter().map(|(name, value)| { return (*name, value.clone()); }).collect(); });
     all.push(("CLI_GIT_AT_MS", at_ms.to_string()));
     all.extend(fields.iter().map(|(name, value)| { return (*name, mask_userinfo_text(value.as_str())); }));
+    // A native entry carries the text as written (a newline in the length-prefixed form); the line on standard error is one line.
+    let message: String = format!("{} at_ms={at_ms}", cut(masked.as_str(), MESSAGE_LIMIT));
     #[cfg(test)]
-    if capture::record(priority, format!("{clean} at_ms={at_ms}").as_str(), all.as_slice()) {
+    if capture::record(priority, message.as_str(), all.as_slice()) {
         return Delivery::Stderr;
     }
-    let message: String = format!("{clean} at_ms={at_ms}");
-    let text: String = stamped_line(clean.as_str(), at_ms);
+    let text: String = stamped_line(one_line(masked.as_str(), MESSAGE_LIMIT).as_str(), at_ms);
     // On the journal's stream a line that finds no room is dropped, never waited for.
     if sink().on_stream() {
         return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut StreamWriter::stderr());

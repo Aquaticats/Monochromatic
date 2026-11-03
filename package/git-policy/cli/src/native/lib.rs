@@ -1126,6 +1126,9 @@ pub mod config_discarded;
 /// The bound on the folder of saved copies of conflicted files: age, size, audit and doctor report.
 pub mod discarded_prune;
 
+/// The folder of saved copies opened once without following a link, with every read and removal addressed through descriptors.
+pub mod discarded_store;
+
 /// The native journal protocol and the standard error fallback the service's entries go through.
 pub mod journald_native;
 

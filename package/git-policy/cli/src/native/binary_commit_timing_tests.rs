@@ -77,8 +77,13 @@ fn spawn_service(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str
 
 /// `spawn_service` with more variables in the service's otherwise empty environment.
 fn spawn_service_with_environment(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str], environment: &[(&str, String)]) -> Held {
-    std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
     let log = std::fs::OpenOptions::new().create(true).append(true).open(&places.log).expect("service log");
+    return spawn_service_with_stderr(root, places, idle_seconds, extra, environment, Stdio::from(log));
+}
+
+/// `spawn_service_with_environment` with the service's standard error given, so a control can make it a pipe.
+fn spawn_service_with_stderr(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str], environment: &[(&str, String)], stderr: Stdio) -> Held {
+    std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
     let child: Child = Command::new(SERVICE)
         .args(["--journal"])
         .arg(root.join("journal"))
@@ -95,7 +100,7 @@ fn spawn_service_with_environment(root: &Path, places: &Places, idle_seconds: &s
         .envs(environment.iter().map(|(name, value)| { return (*name, value.as_str()); }))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::from(log))
+        .stderr(stderr)
         .spawn()
         .expect("the service starts");
     let held: Held = Held(child);
@@ -689,4 +694,91 @@ fn a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority
     assert!(text.lines().any(|line| { return line.starts_with("<6>cli-git-service: ready"); }), "{text}");
     assert!(text.lines().all(|line| { return line.starts_with("<6>") && line.contains(" at_ms="); }), "{text}");
     remove_settled(&fixture);
+}
+
+/// A pipe whose write end the control keeps, so it can fill the pipe after the service has started.
+struct FullablePipe {
+    /// The end the service gets as standard error.
+    service_end: std::os::fd::OwnedFd,
+    /// The end the control keeps and fills; it shares the open file description with the service's end, so the flags the
+    /// control leaves alone stay blocking for the service.
+    control_end: std::os::fd::OwnedFd,
+    /// The end nobody reads, kept open so that the pipe stays full instead of broken.
+    _reader: std::os::fd::OwnedFd,
+}
+
+/// A new pipe, made as two descriptors for each end.
+fn fullable_pipe() -> FullablePipe {
+    use std::os::fd::{FromRawFd, OwnedFd};
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    // SAFETY: `ends` is valid for the two descriptors `pipe2` writes.
+    assert_eq!(unsafe { libc::pipe2(ends.as_mut_ptr(), libc::O_CLOEXEC) }, 0);
+    // SAFETY: `pipe2` returned two new descriptors that nothing else owns.
+    let (reader, writer) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
+    let control_end: OwnedFd = writer.try_clone().expect("a second descriptor of the write end");
+    return FullablePipe { service_end: writer, control_end, _reader: reader };
+}
+
+impl FullablePipe {
+    /// Fills the pipe with page-sized writes while a poll shows room, never changing the flags it shares with the service,
+    /// so the next write of the service finds a full pipe that blocks.
+    fn fill(&self) {
+        use std::os::fd::AsRawFd;
+        let page: [u8; 4096] = [b'x'; 4096];
+        loop {
+            let mut request: libc::pollfd = libc::pollfd { fd: self.control_end.as_raw_fd(), events: libc::POLLOUT, revents: 0 };
+            // SAFETY: `request` is valid for the call, which reads and writes one `pollfd`.
+            let ready: libc::c_int = unsafe { libc::poll(&raw mut request, 1, 0) };
+            if ready <= 0 || request.revents & libc::POLLOUT == 0 {
+                return;
+            }
+            // SAFETY: `page` is valid for its length for the call.
+            assert!(unsafe { libc::write(self.control_end.as_raw_fd(), page.as_ptr().cast(), page.len()) } > 0);
+        }
+    }
+}
+
+/// A service stopped by `SIGTERM` while its standard error is a full blocking pipe still exits by the signal, within a bound:
+/// the handler may lose its line, never wait for room.
+fn stopped_with_a_full_pipe(name: &str, on_stream: bool) {
+    use std::os::fd::AsRawFd;
+    let fixture: Fixture = fixture(name);
+    let unique: String = format!("{name}-{}", std::process::id());
+    let places: Places = Places { socket: runtime_for(unique.as_str()).join("cli-git/full-pipe.sock"), log: fixture.root.join("unused.log") };
+    let pipe: FullablePipe = fullable_pipe();
+    let mut environment: Vec<(&'static str, String)> = Vec::new();
+    if on_stream {
+        // SAFETY: `stat` is plain data for which all zero bytes is a valid value.
+        let mut status: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: the descriptor is open and `status` is valid for one `stat`.
+        assert_eq!(unsafe { libc::fstat(pipe.control_end.as_raw_fd(), &raw mut status) }, 0);
+        environment.push((git_policy_cli::journald_native::STREAM_VARIABLE, format!("{}:{}", status.st_dev, status.st_ino)));
+        // Nobody listens there, so the handler's datagram fails and the line falls back to the pipe.
+        environment.push((git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@cli-git-test-journal-nobody-{unique}")));
+    }
+    let service_end: std::os::fd::OwnedFd = pipe.service_end.try_clone().expect("a descriptor for the service");
+    let mut service: Held = spawn_service_with_stderr(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice(), Stdio::from(service_end));
+    pipe.fill();
+    let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
+    // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    let status = exit_of(&mut service, FULL_PIPE_BOUND);
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
+    remove_settled(&fixture);
+}
+
+/// How long a service gets to end after `SIGTERM` when its standard error has no room: far more than it needs, far less than
+/// forever.
+const FULL_PIPE_BOUND: Duration = Duration::from_secs(10);
+
+/// The handler's fallback to a plain standard error never waits for room in a pipe.
+#[test]
+fn a_service_stopped_while_standard_error_is_a_full_pipe_still_exits() {
+    stopped_with_a_full_pipe("signal-full-pipe", false);
+}
+
+/// The same holds when standard error is named as the journal's stream and the datagram cannot be sent.
+#[test]
+fn a_service_on_a_journal_stream_that_is_a_full_pipe_still_exits() {
+    stopped_with_a_full_pipe("signal-full-stream", true);
 }

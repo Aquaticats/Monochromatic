@@ -9705,3 +9705,35 @@ by the coordinator at merge.
   the clone rung); the 0.5.18 snapshot route brings builds along once the nested worktrees are converted.
   Corrective comment on `1a49aa2254`:
   https://github.com/Aquaticats/Monochromatic/commit/1a49aa2254cfb6cd7b4b1cff6339db80423bf4d4#commitcomment-207866173
+- 0.5.18 PUBLISHED (crates.io 2026-11-03T03:46:55Z, built from `f984fb4111`) and installed (lock commit `b878c2e92a`;
+  sample commit 1145 ms): the main snapshot route, `convert-worktree-to-subvolume`, the push refusal and hint fixes.
+- Conversion dry run on the real repository (`git cli-git convert-worktree-to-subvolume --dry-run --all`, log
+  `~/temp/agent/convert-dry-run.log`): 159 worktrees; 93 already subvolumes; 31 would convert; 7 busy (a process
+  inside; right to skip); 33 refused wrongly: 16 for a detached HEAD, 15 racily clean ("as new as the index"), 2 stat
+  mismatches. Sent to the tool's author (`fix/git-policy-cli-convert-accepts-clean-worktrees`): accept a detached HEAD
+  naming a commit, settle racy and stat-mismatched entries by hashing the content in process, refuse filtered paths.
+  The real conversion waits for the conversion and trash review (`~/temp/agent/review-main-snapshot/`), since it
+  removes each old tree.
+- Gate 65 PASSED 3460 of 3460 on the journal and prune fixes; merged into main. Gate 66 running on
+  `fix/git-policy-cli-signal-log-never-blocks` `0335a8f4f8` (the signal handler's stderr fallback never waits for room;
+  two full-pipe controls red before).
+- Gate 66 PASSED 3463 of 3463 on the signal fix; merged into main (`0909922e90`); clippy clean on main. Branches
+  `fix/git-policy-cli-signal-log-never-blocks` and `fix/git-policy-cli-journal-and-prune-review` deleted locally and on
+  origin. 0.5.19 dispatched (run 41576044191) with the prune, journal and signal fixes.
+- A mutation-test unit run of mine in `.claude/worktrees/planted-control-cache` (at `cf2c233b95`, before
+  `1a49aa2254`) hung for 8 hours: fixture programs re-parented away from their test kept the output pipe open, so
+  `mise` waited for its end. Stopped by PID. That worktree lacks `fixture-reaper.ts`, which `1a49aa2254` added on main
+  to end fixture process groups with their test; main's version was not rerun against this hang. Its processes were
+  two of the 7 "busy" worktrees in the conversion dry run.
+- `fault_trace` follow-up-commit flakes diagnosed and fixed in the test fixture
+  (`fix/git-policy-cli-fault-trace-follow-up-commit`: `aaca11b8f7` red repro, `a34eb9f539`, `4c50555da4`; main merged
+  in as `76de7fc56b`). Cause: `stop_all` waited only for its direct child, which under a tracer is `strace`; the
+  traced service outlived it and still answered on its socket, so the next fixture service hit
+  `cannot listen: Address already in use`, exited 3, and `FixtureService::serve` reported it listening because its
+  `connect()` reached the dying listener. Both failures in the agent's earlier run each contain one such line. Fix:
+  `wait_until_nothing_listens` after the kill and before each spawn (60 s bound, loud panic). Production is not
+  affected (the manager owns and passes the socket). The kill sweep (`a_service_killed_at_any_call_...`) spent
+  10 s per case waiting out `START_WAIT` for a restart that no fixture manager made; a stand-in manager now restarts
+  ended services for `Effect::Kill` and a guard requires one commit through a restarted service. Host runs: library
+  3122 of 3122, binary 525 of 525, no SLOW; the three tests 20 s, 20 s, 28 s (was 87 s). Unverified: the exact
+  dying-tracee timing was not reproduced without load. Gate 67 running.

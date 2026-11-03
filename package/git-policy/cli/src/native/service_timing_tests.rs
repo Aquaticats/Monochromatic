@@ -299,11 +299,14 @@ fn the_macros_write_at_the_priority_their_name_says() {
     assert_eq!(entries.iter().map(|entry| { return entry.priority; }).collect::<Vec<_>>(), vec![Priority::Info, Priority::Warning, Priority::Error]);
 }
 
-/// A message with a newline in it is one entry on one line, so it cannot start a second line on standard error.
+/// A message with a newline in it is one entry; a native entry keeps the newline, as written, and the line on standard
+/// error is one line, so it cannot start a second line there.
 #[test]
-fn a_message_with_a_newline_is_one_line() {
+fn a_message_with_a_newline_is_one_entry_and_one_line_on_standard_error() {
     let entries = crate::service_timing::capture::entries_of(|| { crate::service_log!("first\nsecond"); });
-    assert!(entries[0].message.starts_with("first second at_ms="), "{}", entries[0].message);
+    assert!(entries[0].message.starts_with("first\nsecond at_ms="), "{}", entries[0].message);
+    let line: String = crate::service_timing::stamped_line(crate::journald_native::one_line("first\nsecond", crate::journald_native::MESSAGE_LIMIT).as_str(), 7);
+    assert_eq!(line, format!("{}first second at_ms=7\n", crate::service_timing::LOG_PREFIX));
 }
 
 /// A cut that falls just before the `@` of a URL's userinfo must not leave the password: the text is masked whole, then cut.
