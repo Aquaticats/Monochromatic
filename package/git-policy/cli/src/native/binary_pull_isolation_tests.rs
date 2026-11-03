@@ -15,7 +15,7 @@
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::merge_isolation::{copy_of, diverged, snapshot, stage_unrelated_work};
-use super::support::{Fixture, Observed, direct, fixture, git, observe, without_wait_notices};
+use super::support::{Fixture, Observed, direct, fixture, git, observe, repository, without_wait_notices};
 use std::path::{Path, PathBuf};
 
 /// A repository whose `main` follows a bare remote that holds the `feature` history as its `main`, so a pull merges.
@@ -71,5 +71,75 @@ fn a_pull_that_merges_is_completed_over_staged_work_and_equals_native_gits() {
     let after: Vec<String> = git_text(&fixture, dirty.as_path(), &["diff", "--cached", "--name-status", "HEAD"]).lines().map(String::from).collect();
     assert_eq!(after, staged, "the other session's staged work is still staged and nothing else is");
     assert!(!snapshot(&fixture, dirty.as_path()).status.is_empty(), "the staged work is still there");
+    remove_settled(&fixture);
+}
+
+/// The same pull into a clean index, which the isolated merge completes since it completes a clean-index merge, equals native Git's.
+#[test]
+fn a_pull_into_a_clean_index_equals_native_gits() {
+    let fixture: Fixture = fixture("pull-isolated-clean");
+    let ours_repo: PathBuf = diverged_with_remote(&fixture);
+    let theirs_repo: PathBuf = copy_of(&fixture, ours_repo.as_path(), "clean");
+    let arguments: [&str; 3] = ["pull", "--no-rebase", "--no-edit"];
+    let theirs: Observed = native(&fixture, theirs_repo.as_path(), &arguments);
+    let ours: Observed = run(&fixture, ours_repo.as_path(), &arguments);
+    assert_eq!((ours.code, theirs.code), (Some(0), Some(0)), "{}", String::from_utf8_lossy(&ours.stderr));
+    assert_eq!(String::from_utf8_lossy(&ours.stdout), String::from_utf8_lossy(&theirs.stdout), "output");
+    assert_eq!(String::from_utf8_lossy(&ours.stderr), String::from_utf8_lossy(&theirs.stderr), "diagnostics");
+    assert_eq!(commit_shape(&fixture, ours_repo.as_path()), commit_shape(&fixture, theirs_repo.as_path()));
+    remove_settled(&fixture);
+}
+
+/// A pull the wrapper does not read exactly, or that Git refuses by its own advice, is native Git's whole, in words and status.
+#[test]
+fn a_pull_native_git_refuses_or_the_wrapper_does_not_read_is_native_gits() {
+    let cases: [(&str, &[&str]); 4] = [
+        ("advice", &["pull", "--no-edit"]),
+        ("ff-only", &["pull", "--ff-only"]),
+        ("rebase", &["pull", "--rebase"]),
+        ("abbreviation", &["pull", "--no-reb", "--no-edit"]),
+    ];
+    for (name, arguments) in cases {
+        let fixture: Fixture = fixture(format!("pull-native-{name}").as_str());
+        let ours_repo: PathBuf = diverged_with_remote(&fixture);
+        let theirs_repo: PathBuf = copy_of(&fixture, ours_repo.as_path(), "clean");
+        let theirs: Observed = native(&fixture, theirs_repo.as_path(), arguments);
+        let ours: Observed = run(&fixture, ours_repo.as_path(), arguments);
+        assert_eq!(ours.code, theirs.code, "{name}: {}", String::from_utf8_lossy(&ours.stderr));
+        assert_eq!(String::from_utf8_lossy(&ours.stdout), String::from_utf8_lossy(&theirs.stdout), "{name}: output");
+        assert_eq!(String::from_utf8_lossy(&ours.stderr), String::from_utf8_lossy(&theirs.stderr), "{name}: diagnostics");
+        assert_eq!(git_text(&fixture, ours_repo.as_path(), &["rev-parse", "HEAD"]), git_text(&fixture, theirs_repo.as_path(), &["rev-parse", "HEAD"]), "{name}: head");
+        remove_settled(&fixture);
+    }
+}
+
+/// A fetch that moves the checked-out branch takes the working tree along, then the pull merges, as in native Git.
+#[test]
+fn a_fetch_that_moves_the_checked_out_branch_updates_the_working_tree_as_native_git_does() {
+    let fixture: Fixture = fixture("pull-moved-head");
+    let repo: PathBuf = repository(&fixture, std::ffi::OsStr::new("repo"));
+    let remote: PathBuf = fixture.root.join("remote.git");
+    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "remote.git"]);
+    git(&fixture, repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
+    std::fs::write(repo.join("f.txt"), b"one\n").expect("file");
+    git(&fixture, repo.as_path(), &["add", "--", "f.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    std::fs::write(repo.join("f.txt"), b"two\n").expect("file");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=two"]);
+    git(&fixture, repo.as_path(), &["push", "--quiet", "origin", "main"]);
+    git(&fixture, repo.as_path(), &["reset", "--quiet", "--hard", "HEAD~1"]);
+    git(&fixture, repo.as_path(), &["config", "remote.origin.fetch", "+refs/heads/*:refs/heads/*"]);
+    git(&fixture, repo.as_path(), &["config", "branch.main.remote", "origin"]);
+    git(&fixture, repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    let clean: PathBuf = copy_of(&fixture, repo.as_path(), "clean");
+    let arguments: [&str; 3] = ["pull", "--no-rebase", "--no-edit"];
+    let theirs: Observed = native(&fixture, clean.as_path(), &arguments);
+    let ours: Observed = run(&fixture, repo.as_path(), &arguments);
+    assert_eq!((ours.code, theirs.code), (Some(0), Some(0)), "{}", String::from_utf8_lossy(&ours.stderr));
+    assert_eq!(String::from_utf8_lossy(&ours.stdout), String::from_utf8_lossy(&theirs.stdout), "output");
+    assert_eq!(String::from_utf8_lossy(&ours.stderr), String::from_utf8_lossy(&theirs.stderr), "diagnostics");
+    assert_eq!(std::fs::read_to_string(repo.join("f.txt")).expect("file"), "two\n", "the working tree followed the fetch");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1"]), "", "nothing is left modified");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), git_text(&fixture, clean.as_path(), &["rev-parse", "HEAD"]));
     remove_settled(&fixture);
 }
