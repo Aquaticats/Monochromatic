@@ -394,6 +394,55 @@ await describe({
           },
         }),
         it({
+          name: 'keeps at most one directory watch open however many times it looks again, so a long wait does not run out of watches',
+          fn: async () => {
+            await using directory = await gateDirectory('gate-watches-');
+            const options = gateOptions({
+              lockDirectory: directory.path,
+              noticeIntervalMs: 50,
+              pollIntervalMs: 50,
+              slotCount: 1,
+            });
+            const held = await takeAnySlot({ options });
+            if (held.kind !== 'taken')
+              throw new Error('The holder could not be set up.');
+            let open = 0;
+            let mostOpen = 0;
+            let looks = 0;
+            const waiting = runInSlot({
+              options,
+              runCommand: async () => 0,
+              write: () => {},
+              watchDirectory: (watched) => {
+                const watch = watchDirectoryChanges(watched);
+                looks += 1;
+                open += 1;
+                mostOpen = Math.max(
+                  mostOpen,
+                  open,
+                );
+                return {
+                  changed: watch.changed,
+                  close: () => {
+                    open -= 1;
+                    watch.close();
+                  },
+                  [Symbol.dispose]: () => {
+                    open -= 1;
+                    watch.close();
+                  },
+                };
+              },
+            });
+            await sleep(stillWaitingMs);
+            await held.claim.release();
+            await waiting;
+            expect(looks).toBeGreaterThan(3);
+            expect(mostOpen).toBe(1);
+            expect(open).toBe(0);
+          },
+        }),
+        it({
           name: 'wakes within the fallback re-check when the holder was killed, which makes no event',
           fn: async () => {
             await using directory = await gateDirectory('gate-killed-wake-');
