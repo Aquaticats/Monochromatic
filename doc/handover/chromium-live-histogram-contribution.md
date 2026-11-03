@@ -121,10 +121,53 @@ Human maintainer feedback requires a human reply.
   The [source assessment](../planning/browser-disk-responsiveness/chromium-metrics-patch.md)
   recommends initial local-memory allocation for reporting-ineligible unbranded processes,
   preserving forced-reporting and test overrides.
-  No C++ implementation or test result is claimed yet.
+  The C++ candidate and native policy/startup tests now exist in the isolated Chromium worktree.
+  Its commits are `512d4157b2` and `e18dcd1e5f`,
+  based on upstream `360d943d418b3d6645fea86766f5dcc4a7cc3b2e`.
+  The [retained candidate](../troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage.patch)
+  is not yet validated for attachment.
+  Native build and browser verification remain required.
 - The user approved the `HQP` readiness-check addition to the troubleshooting skill.
   It requires an attempted authorized fix prototype before a filing handoff,
   with explicit report-only scope or a concrete prototype blocker as the alternatives.
   The source rule is edited and generated copies are synchronized.
-  Markdown lint passed;
-  the first narrowly targeted skill-lint invocation checked no files and does not count.
+  Commit `27626b0968` saves the rule,
+  watcher record,
+  and completed reproduction verification record.
+  Markdown lint passed.
+  A corrected skill-lint invocation checked all `10` skills with no problems or warnings;
+  the first narrowly targeted invocation checked no files and does not count.
+
+## Native validation preparation at 2026-11-03T09:29:22-05:00
+
+The isolated build inputs live under `${HOME}/temp/agent/chromium-metrics-build-context`.
+The build reuses Chromium's own DEPS-pinned tools as checkout-local inputs inside the container.
+It does not install them into Monochromatic's toolchain or the user's PATH.
+The host wrapper uses a Node archive whose version and SHA-256 came from `toolchain.lock.json`.
+The selected CachyOS base uses `latest` and matches the host's verified x86-64-v4 support.
+
+The build container uses `28` CPUs,
+`44 GiB` memory,
+`4096` processes,
+and I/O weight `10`.
+It has no host repository,
+home,
+credentials,
+or desktop socket mounted.
+A dedicated build volume retains the checkout and logs after container exit.
+Native compilation,
+expected test-name verification,
+the startup regression's failing control,
+and actual browser mapping/sample checks remain queued.
+
+The image built successfully as
+`bc571a2fcbb237228b60f0d6beec4a51ec9be900add7a90eaffd6ee5b0c0e7a8`.
+The orchestration TypeScript check passed.
+The `chromium-metrics-native-build` container is starting dependency setup through the local `build` task.
+Its volume is `chromium-metrics-native-build-20261103`;
+logs are under `/work/logs` in that volume.
+The container has a `12h` ceiling and removes itself on exit.
+
+The Chromium clone has an intentionally disabled push URL.
+Its local branch now uses push remote `.` so the auto-push service can skip it.
+Do not enable upstream pushes from this prototype.
