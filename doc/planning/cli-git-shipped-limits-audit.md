@@ -1831,6 +1831,13 @@ with the options for the ones not decided, is `doc/planning/cli-git-no-unbounded
 - `LOCK_CEILING` 10 minutes and `CONNECTED_PUSH_QUIET_WINDOW` 150 seconds: unmeasured,
   labelled as the quiet windows are.
 - `PHASE_PATIENCE` 5 minutes: the limit of any test (`.config/nextest.toml`).
+- `PLUMBING_STEP_CEILING` 120 s, `OBJECT_STEP_CEILING` 600 s, `REFERENCE_STEP_CEILING` 60 s:
+  the longest one Git step runs, whatever it
+  shows (the coordinator's pick, under the owner's delegation, veto open). Measured:
+  longest read step 9,663 ms (`reads_ms`, 1,651
+  landings), longest client preparation 250,280 ms (`prepareMs`, 1,400 records), longest object step 1,358 ms,
+  longest reference
+  update 3,438 ms (`ref_ms`).
 - The data read on 2026-11-03: the timing log of this repository (1,329 records; `answerWaitMs` longest 308,267 ms,
   `totalMs` longest
   750,604 ms, `startWaitMs` longest 1,041 ms) and the service journal (715 logged holds, longest 119,721 ms;

@@ -133,7 +133,7 @@ Status words: "built" is built on this branch, "bounded" already had a bound, "e
 
 ### Child processes
 
-21. `src/native/child_watch.rs:396` `watch_loop` (Git steps of a commit):
+21. (Built, 2026-11-03.) `src/native/child_watch.rs:396` `watch_loop` (Git steps of a commit):
     a step is ended after the quiet window (60 s quick,
     300 s bulk, both labelled unmeasured) of no sign of work;
     a step that shows work is waited for however long it takes.
@@ -320,3 +320,38 @@ Covers entry 20. The work loop and the acceptor wait for events with no bound;
 the service exits at `IDLE_EXIT` (3 hours) when
 nothing is busy. Exempt by design; if the owner reads the rule as covering them too,
 the service's idle exit already bounds them.
+
+## Picks
+
+Picked by the coordinator under the owner's delegation, veto open, 2026-11-03:
+
+- A, not option B: every step class gets a service-side ceiling,
+  including steps that keep showing work and steps that are never
+  ended for being quiet. Under B a `never_stop` step that never returns would keep the service's landing thread for
+  good, so every
+  later commit on that repository would wait out `ANSWER_CEILING` and fail, which is a wait forever.
+  Ending a reference update or a
+  commit Git builds cannot half-write a reference (Git writes a lock file and renames it);
+  the residue is a lock the shipped
+  stale-lock removal clears once the holder is proven gone ("End Git, hold hooks" is the owner's earlier pick).
+  Each ceiling sits below
+  `ANSWER_CEILING`, so the service answers first. Built:
+  `PLUMBING_STEP_CEILING` 120 s (the longest read step of 1,651 landings
+  took 9,663 ms), `OBJECT_STEP_CEILING` 600 s (the longest client preparation of 1,400 records took 250,280 ms;
+  the service's
+  object step at most 1,358 ms), `REFERENCE_STEP_CEILING` 60 s (the longest of 1,651 reference updates took 3,438 ms).
+  After a
+  reference update is ended the branch is read: at the request's commit, the outcome is `Landed`;
+  otherwise the batch is withdrawn
+  exactly as at `LOCK_CEILING` (intent removed, commit kept on `refs/cli-git/kept/<batch>`, staging unchanged,
+  lock given up, and the
+  error names the step). Hooks are still never ended by the wrapper.
+- B: A, exempt: the wait for the person's own Git command and hooks is the person's, as with native Git.
+- C: B, 150 s as built.
+- D: A, the withdrawal at the lock ceiling as built.
+- E: exempt.
+- The owner's push answer ("Bound it, keep retrying") said the command says the push is queued:
+  a push ended for showing no
+  progress now prints "The push is queued: the commit service keeps it in its retry plan and tries it again."
+  (`PUSH_QUEUED_LINE`),
+  and a test reads that line from the output.

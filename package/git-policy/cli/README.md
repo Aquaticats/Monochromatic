@@ -1340,7 +1340,11 @@ wrapper never waits without saying so. Every bound is in `src/native/wait_ceilin
 and the list of
 every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
 A process that works is waited for however long it takes: a limit ends a wait for quiet, never for slowness.
-A lock holder is waited for until `LOCK_CEILING` (10 minutes),
+Every Git step the wrapper starts is ended at a ceiling of its class (reads 120 seconds, bulk steps 10 minutes,
+reference updates
+60 seconds) whatever it shows; a reference update ended after it renamed the branch reports the commit as landed,
+and one ended before
+it withdraws the commit as at the lock ceiling. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
 the commit service's answer until `ANSWER_CEILING` (20 minutes),
 a start until `START_CEILING` (60 seconds), the service's hold for a forwarded `git add` until `SERVICE_HOLD_CEILING`
 (10 minutes), and a push whose connection is open and silent until `CONNECTED_PUSH_QUIET_WINDOW` (150 seconds, then the

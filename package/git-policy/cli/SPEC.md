@@ -1499,6 +1499,12 @@ in `src/native/wait_ceilings.rs` with the measurement beside each:
   labelled as the other quiet windows (twice the longest whole push in the
   journal, 72.4 s): a push whose connection is open and that shows no sign of work for this long is ended as a stall.
 - `PHASE_PATIENCE` 5 minutes: the test marker compiled into the executable ends its pause at the limit of any test.
+- `PLUMBING_STEP_CEILING` 120 seconds, `OBJECT_STEP_CEILING` 10 minutes and `REFERENCE_STEP_CEILING` 60 seconds:
+  the longest one Git
+  step runs, whatever it shows and whether or not it may be ended for being quiet (the longest read step of the
+  service's
+  landings, 9.7 s; the longest client preparation, 250 s; the longest reference update, 3.4 s).
+  All are below `ANSWER_CEILING`.
 
 What happens at the bound, on the commit path:
 
@@ -1524,6 +1530,15 @@ What happens at the bound, on the commit path:
   so it will not land later by itself."
   A service that does not answer within `WITHDRAW_CEILING` leaves the outcome unknown, and the message says so and gives
   `git log -1` and `git status`.
+- A Git step of the landing that reaches its ceiling is ended.
+  A reference update ended at its ceiling is followed by a read of the
+  branch: if it is at the request's commit the outcome is `Landed` (the update renamed the reference before it was
+  ended);
+  otherwise the batch is withdrawn as at `LOCK_CEILING` (intent removed, commit kept on `refs/cli-git/kept/<batch>`,
+  lock given up,
+  failure `step-too-slow` with the step named). Any other step ended at its ceiling ends the landing the same way,
+  and an open
+  intent finishes a batch only when its branch has moved, so nothing lands later. Hooks are never ended by the wrapper.
 - A merge waits for a foreign `index.lock` until `LOCK_CEILING`; at the bound it names the holder and ends the wait,
   and Git's own
   refusal ends the merge non-zero with nothing changed.
@@ -1538,12 +1553,10 @@ What happens at the bound, on the commit path:
   left to the
   service's retry plan, which keeps the push and tries it again.
 
-Not decided, written as options for the coordinator in the inventory: Git steps that keep working or are never stopped
-(ceiling per class), the person's own Git and hooks, the value of the connected push window,
-and a person's `git commit` with an
-editor open when the bound passes. The withdrawal waits for the landing in progress,
-so it is answered within the landing's own
-bound; a service whose landing thread is stuck outside every bound is not covered until the step ceilings are decided.
+Decided by the coordinator under the owner's delegation, veto open (inventory, "Picks"): every step class has a ceiling; the person's
+own Git and hooks are exempt, as with native Git; the connected push window stays 150 seconds; the withdrawal at the lock ceiling
+stays. The withdrawal waits for the landing in progress, so it is answered within the landing's own bounds, and every step of a
+landing now has one.
 
 Kept from the delegated picks, now inside these bounds:
 
