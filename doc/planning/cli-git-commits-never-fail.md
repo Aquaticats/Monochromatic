@@ -211,7 +211,7 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### Normative state machine (revision 8)
+### Normative state machine (revision 9)
 
 This is the one operative statement of the protocol. The narrative subsections that follow explain it and add rationale and test
 requirements; where one of them reads differently, this section governs. Every transition names its preconditions (Pre), its durable
@@ -242,8 +242,9 @@ Lane transitions (the owner and its incarnation)
 - L5 spawn a child. Pre: L3 done. Do: start the child inside the incarnation's cgroup with the lock and gate descriptions closed at exec
   and the parent-death signal set. Crash: a child between fork and exec holds the lock description until it execs or dies (L1 waits for it).
 - L6 gate-shared. Pre: none. Do: take `lane/gate` shared before spawning any person's program (hook, filter, signer, helper) or any
-  ref-transaction child, and keep it until the whole execution tree of that invocation has no processes (its own cgroup is empty), not
-  until the immediate child exits. Crash: the kernel releases it; the program, if still running, was killed with the incarnation or
+  ref-transaction child; then read `lane/restart-intent` and, if it names this incarnation, admit nothing and exit (the check comes after
+  the shared gate is held and before the dispatch, so a restarter that already holds the gate exclusively cannot be raced); keep the gate
+  until the whole execution tree of that invocation has no processes (its own cgroup is empty), not until the immediate child exits. Crash: the kernel releases it; the program, if still running, was killed with the incarnation or
   is reaped by L2.
 - L7 restart a quiet owner (client-triggered; shipped only with the measured interval; same pid namespace only). Pre: the owner's
   recorded pid-namespace identity equals this process's; no progress for the measured interval. Do: (1) open a pidfd on the recorded
@@ -251,7 +252,10 @@ Lane transitions (the owner and its incarnation)
   `lane/incarnation`, abort if it changed; (4) create `lane/restart-intent` naming the incarnation (fsync); (5) end the owner through
   the pidfd; (6) hold the gate until the owner is dead. Crash: before (4) nothing happened; after (4) the owner, when it next reaches an
   admission point (L6) and finds the intent, admits nothing and exits, so the gate failing open cannot admit a program; a later
-  restarter may complete (5). No manager stop request is used, so no request can outlive the restarter.
+  restarter may complete (5). No manager stop request is used, so no request can outlive the restarter. There is no restart without the exclusive gate: a restarter
+  that cannot take it ends nothing, because a process-tree sample cannot show that no program will be dispatched a moment later. The
+  earlier pick that restarted anyway (owner question B, option B-restart) is withdrawn for option B-hand; a different admission interlock that could end an internal wedge without
+  ending a hook is open design work, not part of this machine.
 
 Capture and acceptance (client)
 - C1 capture. Pre: none. Do: read the branch tip `B` and the base closure from the immutable objects `B` names; read the lane generation
@@ -333,8 +337,8 @@ Maintenance (object-store-wide)
 
 Narrowed guarantees stated by the machine, plainly. Acceptance waits for the lane's short state updates (odd generations never span a
 person's program or a foreign lock) and never for a program. A quiet owner that holds the gate with no person's program running (wedged in
-our own code between L6 and the end of a ref transaction) is not restarted automatically; the command waits with a notice (owner
-question B). An owner wedged inside a person's program is never ended. L1 can wait for a child between fork and exec. G4 extends
+our own code between L6 and the end of a ref transaction) is not restarted automatically (owner question B, option B-hand, picked); the command prints how to
+restart the unit and waits, and the request is durable. An owner wedged inside a person's program is never ended. L1 can wait for a child between fork and exec. G4 extends
 retention at the cost of disk. The wait of a publication behind a person's `reference-transaction` hook is the person's.
 
 ### Rationale for the lane transitions L1 to L7 (explains; the state machine governs)
@@ -1441,36 +1445,36 @@ Two decisions the seventh review leaves to the owner, picked by the coordinator 
 A. A Git child that ignores the terminate signal and holds a ref lock.
    Case: the service runs `update-ref` for `main`; it creates `.git/refs/heads/main.lock`, then stalls and ignores the terminate signal; the person
    has no reference-transaction hook.
-   - Option A1, never kill it: the request stays pending with a notice naming the child and saying it ignored the signal; nothing is manufactured.
+   - Option A-keep, never kill it: the request stays pending with a notice naming the child and saying it ignored the signal; nothing is manufactured.
      Visible: the commit is saved and the command exits 0, `main` does not show it, and later requests behind it are pending too until the child
-     ends or the person ends it. The default of this revision.
-   - Option A2, kill it and leave its lock for the person to clear: the child ends; `main.lock` stays (the wrapper never removes a ref lock); the request
+     ends or the person ends it. The default of revision 8 (revision 9 follows the pick: A-kill).
+   - Option A-kill, kill it and leave its lock for the person to clear: the child ends; `main.lock` stays (the wrapper never removes a ref lock); the request
      and the requests behind it are pending behind a lock with no live holder, and the notice names the file and says to remove it if no Git runs.
      Visible: the same pending state, now with a lock file that needs a person's action, and the stuck child gone.
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): A2. The owner's "End Git, hold hooks (Recommended)" ends our
-     own stalled Git and redoes the step; A1 keeps a child the owner chose to end, with every later request behind it.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): A-kill. The owner's "End Git, hold hooks (Recommended)" ends our
+     own stalled Git and redoes the step; A-keep keeps a child the owner chose to end, with every later request behind it.
      The lock it leaves is then judged by the rule already shipped since 0.5.26 (`package/git-policy/cli/SPEC.md`, "Reference locks left by a Git
      that was killed"; `src/native/stale_ref_lock_judge.rs` and its siblings), which removes a lock only when its holder is proven gone and
      otherwise prints what it found and the command that clears it. That rule contradicts this revision's "the wrapper never removes a ref lock";
-     the eighth review is asked whether the shipped proof survives the seventh review's foreign-lock schedule. If it does not, A2 stands as
+     the eighth review is asked whether the shipped proof survives the seventh review's foreign-lock schedule. If it does not, A-kill stands as
      written (the notice names the file for the person), and the shipped rule is reopened too.
      Outcome of the eighth review (2026-11-03T11:33:50-05:00): the shipped rule does not survive (S-1, S-2; fixed separately on
-     `fix/git-policy-cli-never-removes-a-live-lock`), so A2 stands as an explicitly accepted narrowing: ending a stalled Git child that
+     `fix/git-policy-cli-never-removes-a-live-lock`), so A-kill stands as an explicitly accepted narrowing: ending a stalled Git child that
      ignores the terminate signal can leave a lock that only the person clears, and the request behind it stays pending, with the notice
      naming the file. This does not remove that exit by construction; it trades a stuck child for a named lock.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
-   - Option B1, do nothing automatic: the command prints how to restart the unit and waits; the request is durable. Visible: the command waits until
+   - Option B-hand, do nothing automatic: the command prints how to restart the unit and waits; the request is durable. Visible: the command waits until
      the person restarts the service; this conflicts with "never stuck" if such a wedge occurs.
-   - Option B2, restart anyway: the waiting command ends the owner without the gate and the manager restarts the service. Visible: the commit lands after
+   - Option B-restart, restart anyway: the waiting command ends the owner without the gate and the manager restarts the service. Visible: the commit lands after
      the restart, but if the owner was inside a ref transaction with a child, ending it can leave `main.lock` that the wrapper will not remove, with
-     the pending state of A2.
-   - Picked first (coordinator, 2026-11-03, under the owner's delegation): B2, withdrawn after the eighth review.
-     The eighth review (R8-1) showed B2 can end a person's hook: the restarter's correct "no program running" observation is followed by the
+     the pending state of A-kill.
+   - Picked first (coordinator, 2026-11-03, under the owner's delegation): B-restart, withdrawn after the eighth review.
+     The eighth review (R8-1) showed B-restart can end a person's hook: the restarter's correct "no program running" observation is followed by the
      owner dispatching a ref transaction whose hook starts, and the restart then reaps it. That breaks the owner's explicit
      "End Git, hold hooks (Recommended)" (a hook is never ended), which outranks the general "never leak internal things".
-   - Picked now (coordinator, under the delegation, veto open): B1. L7 keeps its gate requirement; a wedge of our own code inside the shared
+   - Picked now (coordinator, under the delegation, veto open): B-hand. L7 keeps its gate requirement; a wedge of our own code inside the shared
      gate is reported with how to restart the unit, and the request stays durable. A different admission and cancellation interlock that
      can end such a wedge without ending a hook is open design work for revision 9.
 
