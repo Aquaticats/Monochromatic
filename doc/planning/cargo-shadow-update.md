@@ -129,6 +129,9 @@ commit `c7b46ae`).
   An operational failure keeps warn-and-run-with-`--locked`.
   Which entries are checked follows `trustLockfile`:
   all of them when false (pnpm's default), the ones new since the base revision when true (the repository's setting).
+  Open: with the repository's setting and the default base `HEAD`, a merge that is already committed is part of the base,
+  so the local install sets nothing back; it fires for uncommitted changes or an explicit `CARGO_SHADOW_TRUST_BASE`.
+  Also open: the local install applies the release age to the versions new since the base, the frozen check applies trust only.
   The set-aside goes through the same transaction and ownership rules as the review findings below, so it never overwrites
   another writer's lockfile.
 - The crates.io database dump path is ported (`dump.rs`,

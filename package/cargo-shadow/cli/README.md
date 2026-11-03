@@ -83,6 +83,12 @@ The install step:
   a merge that brings `serde 1.0.230` published three hours ago under a one day limit gives `serde 1.0.229` in `Cargo.lock`,
   and a trust downgrade gives the earlier release with the earlier trust level.
   The refused release never runs; the older copy does.
+  Under `trustLockfile = true` this fires for a lockfile change that the base revision does not hold yet
+  (an uncommitted change, or a base set behind the merge with `CARGO_SHADOW_TRUST_BASE`);
+  once a merge is committed, `HEAD` already holds it and the local install sets nothing back.
+  Whether local runs should compare with something older than `HEAD` is an open question to the owner.
+  Also open: under `trustLockfile = true` the local install applies the release age to the versions new since the base,
+  while the frozen check applies trust only (the amendment of 2026-10-29 spoke of trust).
 - If no older release passes and fits,
   the refusal stands:
   nothing is left changed and your cargo command is not run.
