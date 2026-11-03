@@ -247,7 +247,8 @@ All through `node "${HOME}/temp/agent/gate-slot.ts"` with `GIT_POLICY_NATIVE_IMA
    8 decision files and others) cite
   deleted TypeScript paths and stay as written;
    four lane records carry an in-place note for tasks they name.
-- `doc/handover/cli-git-rust-implementation.md` still contains two sentences in the queue that are stale:
+- `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+  `e10b8186bc`] still contains two sentences in the queue that are stale:
    "Current
   production tools remain active until cutover."
    and "The first crates.io publication still needs explicit user
@@ -299,7 +300,8 @@ Listed read-only on 2026-10-14 with `ls -d` and `git check-ignore --verbose`;
 ## What remains
 
 - The queue item "retirement of the old TypeScript implementation is verified complete" in
-  `doc/handover/cli-git-rust-implementation.md` stays open until the trailing gates are recorded.
+  `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+  `e10b8186bc`] stays open until the trailing gates are recorded.
 
 ## Rerun commands
 

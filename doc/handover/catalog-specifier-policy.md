@@ -511,7 +511,11 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
   The CI step must land only after the lock names the new wrapper and every runner installs from that lock, because
   `git cli-git check --all --policy mono/catalog-specifiers` fails on a wrapper that predates the policy.
   The wrapper installs into the shared `~/.cargo/bin`, and a worktree whose lock pins an older wrapper downgrades it for every tree
-  on its next sync (`doc/handover/cli-git-rust-implementation.md`, "Shared install downgrade").
+  on its next sync (observed 2026-10-31;
+  the downgrade is now refused by `mpm-shadow`,
+  see
+  `package/mpm-shadow/cli/README.md`,
+  "Repository-published tools keep only the newest version").
   7a's queue holds nothing that touches policy registration.
 - `monochromatic-6e` confirmed 7a owns the cli-git work and added constraints: cli-git will pin `monochromatic-jsonc-edit =0.1.2`
   so that crate must be on crates.io before any new git-policy-cli publish; forbidden-strings releases before cli-git when both change;

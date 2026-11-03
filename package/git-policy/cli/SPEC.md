@@ -1163,6 +1163,89 @@ Owner rules (2026-11-03, verbatim):
 - "Manual merge should never fail too."
 - "Commits should never fail."
 
+Owner correction (2026-11-03,
+verbatim):
+"never fail doesn't primarily mean retries!"
+A failure that can happen is a design defect to remove by construction (one owner,
+durable hand-over,
+nothing to wait for).
+A retry is at most the last resort for a cause outside the system,
+and then the cause is named and why it cannot be
+designed out is said.
+
+What is outside our control (owner,
+question tool,
+2026-11-03;
+binding):
+the wrapper may stop with a clear message,
+or retry
+where the cause can clear by itself,
+and work already handed over stays on disk and the next run finishes it.
+- network down (no route,
+  DNS,
+  reset,
+  refused);
+- the remote refusing (login or auth,
+  a server hook,
+  GitHub's GH009,
+  branch protection);
+- disk full or quota;
+- disk I/O errors or a read-only remount;
+- a memory or process-count cap set by someone else;
+- a kill (the OOM killer,
+  a person),
+  power loss or a reboot;
+- a corrupt repository (missing objects,
+  a broken index) caused by a disk fault or another tool;
+- the person's signer failing (gpg or ssh-agent).
+
+Not outside,
+so designed out:
+a slow remote;
+other programs' locks (an IDE or `/usr/bin/git` holding `index.lock` or a ref
+lock);
+Git's own crashes or bugs;
+everything not listed above.
+
+Refusals that may still end a commit or merge with an error:
+policy errors at error severity,
+an empty message,
+and a content
+conflict no resolver settles (the merge stops with the conflict recorded).
+A commit that names a conflicted path is not a refusal:
+owner,
+verbatim,
+"Committing a conflicted path is fine.
+Warn and commit
+anyway,
+even if conflict markers will be committed."
+When the owner decides how an amend,
+a conclusion or a revert behaves on a head that other commits moved,
+the result is stacked
+on the new head (owner,
+2026-11-03:
+"Stack on the new head (Recommended)").
+
+Further owner answers of 2026-11-03 (question tool),
+quoted by their chosen labels:
+- a commit that meets a live foreign ref lock:
+  "Save on a side ref (Recommended)";
+- a live foreign `index.lock`:
+  "Same as the ref lock (Recommended)":
+  a commit lands on the branch and exits 0,
+  the index catches up when the lock is free,
+  and the command says so;
+  a merge saves its result on a side ref,
+  exits 0,
+  and finishes the checkout when the lock frees,
+  carrying edits made meanwhile forward;
+- the person's hooks and required filters count as allowed refusals:
+  "Allowed refusals (Recommended)";
+- a merge over unsaved edits:
+  "Carry edits forward (Recommended)";
+- a plain `git commit` with unmerged files lands as the merge commit with the markers and warns per file:
+  "Warn and finish the merge (Recommended)".
+
 The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
 for a `git merge` the person types, and for a `git commit`:
 nothing the machine or other processes do ends them with a nonzero status.
@@ -1771,7 +1854,8 @@ signing programs, credential helpers): the program it names is not reached by th
 (measured on Git 2.56.0, including with `hook.fsmonitor-watchman.enabled=false`), and the built-in monitor daemon keeps
 working.
 This is the owner's decision ("To stop the fsmonitor program - we don't need to.",
-recorded in `doc/handover/cli-git-rust-implementation.md`):
+recorded in `README.md`,
+"Git's own fsmonitor"):
 Git runs its monitor as the configuration says,
 and the wrapper neither stops it, starts it, nor works around it.
 The wrapper injects no hook of its own, so no event is an exception.

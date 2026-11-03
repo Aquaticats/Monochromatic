@@ -1,6 +1,8 @@
 # Wrapper sync attribution for one explicit-path commit (task 78)
 
-This answers task 78 in `doc/handover/cli-git-rust-implementation.md`: in one wrapped `git commit -m x -- file`,
+This answers task 78 in `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P
+and kept in commit `e10b8186bc`]:
+in one wrapped `git commit -m x -- file`,
 which sync calls come from the wrapper's own code and which from the child Git processes it starts.
 Nothing in the product was changed; this is a measurement and a reading of the code.
 
