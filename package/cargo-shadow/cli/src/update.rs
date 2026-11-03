@@ -111,7 +111,7 @@ use crate::cargo_run::{CargoOutcome, CargoRunner};
 /// ```ts
 /// import { CheckOutcome, check_release_age, check_trust } from 'crate/checks';
 /// ```
-use crate::checks::{CheckOutcome, check_policy};
+use crate::checks::CheckOutcome;
 /// What:
 /// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
 /// `read_locks` from another module of this crate so this file can name them unqualified.
@@ -129,16 +129,6 @@ use crate::checks::{CheckOutcome, check_policy};
 /// import { LockSnapshot, read_locks } from 'crate/crates';
 /// ```
 use crate::crates::{LockSnapshot, read_locks};
-/// What:
-/// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `RegistryError` is used by `other_message`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { RegistryError } from 'crate/http';
-/// ```
-use crate::http::RegistryError;
 /// What:
 /// `use crate::install::{LockBaseFactory, policy_findings};` imports `policy_findings` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -195,6 +185,8 @@ use crate::journal::{KeepAs, QUARANTINE_DIR, ReplaceOutcome, replace_keeping};
 /// import { LockedVersion, added_versions, parse_registry_versions, registry_versions } from 'crate/lockfile';
 /// ```
 use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};
+/// Imports the verification an install runs on the lockfiles it leaves.
+use crate::verify::{verify_added_since_base_outcome, verify_locked_entries_outcome};
 // What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
 // Why:      The code below names these items directly instead of spelling their full paths each time.
 //
@@ -203,7 +195,6 @@ use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, re
 // import { Name } from './module.ts';
 // ```
 /// Imports the check of the release a `--precise` names.
-use crate::precise_target::precise_targets;
 /// What:
 /// `use crate::prune::prune_excludes;` imports `prune_excludes` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -674,19 +665,6 @@ pub(crate) fn other_text(error: impl fmt::Display) -> UpdateError {
 }
 
 /// What:
-/// `fn other_message(error) -> UpdateError` wraps a registry error's message as the catch-all update error.
-/// Why:
-/// `.map_err(other_message)` turns a failed lookup into the error type the update returns.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const otherMessage = (error: RegistryError) => new UpdateError(error.message)
-/// ```
-fn other_message(error: RegistryError) -> UpdateError {
-    return other(error.message);
-}
-
-/// What:
 /// `fn is_precise_option(argument: &str) -> bool` tells whether one cargo argument is `--precise` in either spelling (`--precise x` or `--precise=x`).
 /// Why:
 /// An update that pins an exact version must not have another version set aside,
@@ -800,6 +778,27 @@ fn workspace_manifests(request: &UpdateRequest, crate_dir: &str) -> Result<Vec<P
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Borrow `&outcome.stdout`: lends the value without copying or giving it away.
     return Ok(manifests_from_metadata(&outcome.stdout));
+}
+
+/// What:
+/// `fn verify_update(request, snapshots) -> Result<CheckOutcome, UpdateError>` judges the lockfiles an update leaves.
+/// Why:
+/// Review finding (3c P1-2): under `trustLockfile` every version the base revision did not hold is judged, and otherwise every
+/// locked version is, exactly as an install judges them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function verifyUpdate(request: UpdateRequest, snapshots: LockSnapshot[]): CheckOutcome
+/// ```
+fn verify_update(request: &UpdateRequest, snapshots: &[LockSnapshot]) -> Result<CheckOutcome, UpdateError> {
+    if request.settings.trust_lockfile {
+        let Some(factory) = request.lock_base else {
+            return Err(other("trustLockfile is true in rust-catalog.toml, but no base-revision lockfile reader was given, so nothing can be trusted".to_string()));
+        };
+        let reader = factory().map_err(other)?;
+        return verify_added_since_base_outcome(snapshots, &*reader, request.settings, request.registry, request.now).map_err(other);
+    }
+    return verify_locked_entries_outcome(request.root, snapshots, request.settings, request.registry, request.now).map_err(other);
 }
 
 /// What:
@@ -936,28 +935,15 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // Borrow `&before_sources`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `added: Vec<LockedVersion>`.
-    let mut added: Vec<LockedVersion> = added_versions(&before_sources, &after).map_err(other)?;
-    // Review finding (2c 3): the release a `--precise` names is judged even when it was already locked.
-    if let UpdateKind::Targeted { cargo_args } = kind {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&after`: lends the value without copying or giving it away.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Typed binding: `locked: Vec<LockedVersion>`.
-        let locked: Vec<LockedVersion> = registry_versions(&after).map_err(other)?;
-        // Borrow `&locked`: lends the value without copying or giving it away.
-        for named in precise_targets(cargo_args, &locked) {
-            // Borrow `&named`: lends the value without copying or giving it away.
-            if !added.contains(&named) {
-                added.push(named);
-            }
-        }
-    }
+    let added: Vec<LockedVersion> = added_versions(&before_sources, &after).map_err(other)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&added`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `age: CheckOutcome`.
-    let outcome: CheckOutcome = check_policy(&added, settings, request.registry, request.now).map_err(other_message)?;
+    // Review finding (3c P1-2): the update is judged by the lockfiles it leaves, the way an install judges them, not by the
+    // version pairs it added: a refused version that was already locked, or an edge moved to one, is not new as a pair.
+    let outcome: CheckOutcome = verify_update(request, &after_snapshots)?;
     // `let mut`: a binding that may change.
     // Typed binding: `problems: Vec<String>`.
     let mut problems: Vec<String> = outcome.problems;

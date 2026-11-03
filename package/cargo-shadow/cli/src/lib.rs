@@ -188,10 +188,6 @@ pub mod update;
 /// split out of `update.rs`.
 pub mod update_resolve;
 
-/// The packages and release a `cargo update --precise` names,
-/// so an unchanged precise release is still checked.
-pub mod precise_target;
-
 /// The check of every locked entry against the policy,
 /// the default of a frozen install.
 pub mod verify;
@@ -344,10 +340,6 @@ mod bounded_run_tests;
 /// ```
 #[cfg(test)]
 mod git_refs_tests;
-
-/// The unit tests of the release a `cargo update --precise` names.
-#[cfg(test)]
-mod precise_target_tests;
 
 /// What:
 /// `#[cfg(test)] mod file_owner_tests;` declares the tests in `src/file_owner_tests.rs`;
