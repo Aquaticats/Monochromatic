@@ -227,9 +227,11 @@ or cross-vendor reviewer;
 never same-session self-review (`doc/agent/self-review.md`).
 
 IRW:
- Independent review means a reviewer from another model vendor than the author, or the user.
+ Independent review means a reviewer from another model vendor than the author,
+ or the user.
 A same-vendor subagent is a second pass:
- label it so, never as independent.
+ label it so,
+ never as independent.
 
 XIC:
  Similar or concurrent symptoms stay separate incidents until user-visible boundaries match.
