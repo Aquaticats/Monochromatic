@@ -269,3 +269,58 @@ fn a_compare_and_replace_that_finds_other_text_or_no_file_leaves_things_as_they_
     assert_eq!(replace_if_holds(&path, "expected", "new text", &|_path| {}).expect("answers"), ReplaceOutcome::LeftAlone);
     assert!(!path.exists());
 }
+
+fn plant_breaking_journal(root: &Path, original_lock: &str, original_manifest: &str) {
+    use crate::manifest_edit::ManifestEdit;
+    let manifest = root.join(CRATE_DIR).join("Cargo.toml");
+    begin(root, &[snapshot(original_lock)]).expect("begin");
+    crate::journal::add_manifests(root, &[ManifestEdit { path: manifest, before: original_manifest.to_string(), produced: None }]).expect("journals the manifest");
+    let ours = root.join(JOURNAL_DIR).join(std::process::id().to_string());
+    fs::rename(&ours, root.join(JOURNAL_DIR).join(DEAD_PID.to_string())).expect("pose as a killed process");
+}
+
+fn manifest(root: &Path) -> String {
+    return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.toml")).expect("read the manifest");
+}
+
+/// Delegated pick 8 (2026-11-03): a killed `--breaking` run is recovered for the manifests it rewrote. When the lockfile it left
+/// holds refused versions, the lockfile and the manifest both go back, and the text that was replaced is kept aside.
+#[test]
+fn a_killed_breaking_run_whose_lock_is_refused_gets_its_manifest_back_too() {
+    let root = repository("unchecked output of the killed run");
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
+    plant_breaking_journal(root.path(), "original", "manifest before");
+
+    recover(root.path(), &|_pid| { return false; }, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    assert_eq!(lock(root.path()), "original");
+    assert_eq!(manifest(root.path()), "manifest before");
+    let kept = fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.toml.refused")).expect("the replaced manifest is kept aside");
+    assert_eq!(kept, "edited by cargo");
+    assert!(!root.path().join(JOURNAL_DIR).join(DEAD_PID.to_string()).exists());
+}
+
+/// When the lockfile it left passes the policy, the manifest edit that goes with it is kept.
+#[test]
+fn a_killed_breaking_run_whose_lock_passes_keeps_its_manifest_edit() {
+    let root = repository("good output");
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
+    plant_breaking_journal(root.path(), "original", "manifest before");
+
+    recover(root.path(), &|_pid| { return false; }, &|_before, _live| { return Vec::new(); });
+
+    assert_eq!(lock(root.path()), "good output");
+    assert_eq!(manifest(root.path()), "edited by cargo");
+}
+
+/// A run killed before cargo wrote the lockfile but after it rewrote a manifest: the lockfile is unchanged, the manifest goes back.
+#[test]
+fn a_killed_breaking_run_that_only_rewrote_the_manifest_gets_it_back() {
+    let root = repository("original");
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.toml"), "edited by cargo").expect("the edit");
+    plant_breaking_journal(root.path(), "original", "manifest before");
+
+    recover(root.path(), &|_pid| { return false; }, &|_before, _live| { return vec!["never asked".to_string()]; });
+
+    assert_eq!(manifest(root.path()), "manifest before");
+}

@@ -112,6 +112,8 @@ use crate::constants::LOCKFILE_NAME;
 /// import { LockSnapshot, read_locks } from 'crate/crates';
 /// ```
 use crate::crates::{LockSnapshot, read_locks};
+/// Imports `ManifestEdit`, one manifest a `--breaking` run may rewrite.
+use crate::manifest_edit::ManifestEdit;
 
 /// Where journals live,
 /// relative to the repository root.
@@ -401,6 +403,37 @@ fn save_aside(target: &Path, text: &str) -> io::Result<PathBuf> {
 /// Where this process's journal lives.
 fn journal_path(root: &Path, pid: u32) -> PathBuf {
     return root.join(JOURNAL_DIR).join(pid.to_string());
+}
+
+/// The file in a journal directory that names the manifests a `--breaking` run may rewrite,
+/// one absolute path per line,
+/// in the order of the `m<position>.toml` files that hold their text before the run.
+const MANIFEST_INDEX_FILE: &str = "manifests.txt";
+
+/// What:
+/// `pub fn add_manifests(root, edits) -> io::Result<()>` records the manifests a `--breaking` run may rewrite in this process's
+/// journal, with their text before the run.
+/// Why:
+/// Delegated pick (2026-11-03): cargo's breaking update rewrites manifests as well as the lockfile, so a killed run must be
+/// able to put them back too. A path with a line feed cannot be listed one per line, so it stops the run before cargo runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function addManifests(root: string, edits: ManifestEdit[]): void  // throws when the journal cannot be written
+/// ```
+pub fn add_manifests(root: &Path, edits: &[ManifestEdit]) -> io::Result<()> {
+    let directory: PathBuf = journal_path(root, std::process::id());
+    let mut index: String = String::new();
+    for (position, edit) in edits.iter().enumerate() {
+        let path_text: String = edit.path.to_string_lossy().to_string();
+        if path_text.contains('\n') {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the manifest path {path_text:?} contains a line feed, which the journal cannot list")));
+        }
+        fs::write(directory.join(format!("m{position}.toml")), &edit.before)?;
+        index.push_str(&path_text);
+        index.push('\n');
+    }
+    return atomic_write(&directory.join(MANIFEST_INDEX_FILE), &index);
 }
 
 /// What:

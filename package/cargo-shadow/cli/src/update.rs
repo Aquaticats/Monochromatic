@@ -164,7 +164,7 @@ use crate::install::policy_findings;
 /// ```ts
 /// import { begin, finish, note_produced, process_exists, recover, restore_if_unchanged } from 'crate/journal';
 /// ```
-use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};
+use crate::journal::{add_manifests, begin, finish, note_produced, process_exists, recover, restore_if_unchanged};
 /// Imports the manifest transaction that `--breaking` needs: cargo rewrites `Cargo.toml` as well as the lockfile.
 use crate::manifest_edit::{ManifestEdit, record_manifest_output, restore_manifests, snapshot_manifests};
 /// Imports the manifest list of a `cargo metadata` answer.
@@ -924,6 +924,8 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                     let paths: Vec<PathBuf> = workspace_manifests(request, crate_dir)?;
                     snapshot_manifests(&paths, edits).map_err(other_text)?;
                 }
+                // Delegated pick (2026-11-03): the manifests are journaled, so a killed run is recovered for them too.
+                add_manifests(request.root, &edits.borrow()).map_err(other_text)?;
             }
             for crate_dir in request.crate_dirs {
                 if breaking {
