@@ -571,6 +571,17 @@ shellEmulator: false
 # Owner decision 2026-11-02 ("Set the shared store"); measurements in
 # doc/handover/cli-git-rust-implementation.md ("Snapshot route measured").
 storeDir: ${HOME}/.local/share/pnpm/store
+# Global virtual store: node_modules holds only links into one shared virtual
+# store at <storeDir>/links, so every worktree shares one tree per package
+# instead of its own node_modules/.pnpm. This is the setting the owner asked
+# for as `useGlobalVirtualStore` (2026-11-02); pnpm 12.16.1 has no key by that
+# name and ignores it, while `virtualStoreType: global` and its older spelling
+# `enableGlobalVirtualStore: true` both work (probed in a throwaway workspace).
+# An existing node_modules keeps its old layout until the next `pnpm install`.
+# Hoisted dependencies then resolve through NODE_PATH, which pnpm sets only for
+# processes it starts; a plain `node` run does not get it (pnpm docs,
+# https://pnpm.io/settings/node-modules#enableglobalvirtualstore).
+virtualStoreType: global
 strictPeerDependencies: true
 
 # Without multi-platform entries, the lockfile only records the optional

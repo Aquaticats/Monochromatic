@@ -9812,3 +9812,93 @@ by the coordinator at merge.
   add-explains-slow-route (`fix/git-policy-cli-add-explains-slow-route`: measure why the two adds fell back, print the
   reason, and a `doc/planning` proposal on snapshotting a dirty main for the owner), and the trash fixes. Each comes
   back for a container gate, merge, and one combined release.
+- Owner request: "Add useGlobalVirtualStore: true in my pnpm-workspace.yaml". pnpm 12.16.1 has no such key (0 hits in
+  its binary; a throwaway install with it stayed local); `enableGlobalVirtualStore: true` and `virtualStoreType:
+  global` both link into `<store>/v11/links`, and pnpm's docs call the former the older spelling of the latter.
+  Committed `virtualStoreType: global` (`70af0c823b`). Adding it to an existing install made no command refuse;
+  the next `pnpm install` relinks. Main's `node_modules` has not been reinstalled with it yet.
+- Owner requirements, verbatim: "Our wrapper must work with pnpm w/o a storeDir set, enableGlobalVirtualStore on or
+  off. Try not to degrade the end user experience in any situation." and "Compatibility with all pnpm configurations
+  is required."
+- Measured gap: a global-virtual-store `node_modules` holds relative links that climb to `/` and back down into the
+  store; copied verbatim two levels deeper they resolve to nothing (throwaway probe: source resolves, copy BROKEN).
+  The wrapper copies link targets verbatim (`worktree_copy_stage.rs:289`, `worktree_clone.rs:227`,
+  `worktree_copy_install_entry.rs:250`), and a snapshot keeps them too. So once main is reinstalled with the global
+  store, new worktrees from every rung would get dead `node_modules` links. Matrix probe of all pnpm configurations
+  under a verbatim copy running (`~/temp/agent/pnpm-matrix-probe.ts`, log `~/temp/agent/pnpm-matrix.log`).
+- QUEUED: a pnpm-compatibility agent (all five agent slots are busy) to fix the copy, clone, snapshot and conversion
+  paths so a copied link resolves to the same thing it did in the source (links that stay inside the tree stay
+  relative; links that leave it keep their absolute target), plus whatever the matrix shows for store and metadata
+  paths, with a real-pnpm compatibility matrix as its test.
+- pnpm matrix under a verbatim copy into a new subvolume (`~/temp/agent/pnpm-matrix-probe-2.ts`, log
+  `~/temp/agent/pnpm-matrix-2.log`; real pnpm 12.16.1, a workspace root plus one package, copies nested under
+  `.claude/worktrees/topic` and outside the tree at another depth). The first probe run was misleading: Node fell
+  back to the source's `node_modules` above a nested copy, so "resolves" hid dead links; the second checks each
+  tree's own entry and where resolution lands.
+  - Fine in every case (own entries resolve inside the copy; `pnpm run` and `pnpm install --offline
+    --frozen-lockfile` succeed in under 0.2 s): store set or unset, isolated virtual store, linker isolated, hoisted
+    or pnp; and global virtual store with no `storeDir` (pnpm then keeps it in `node_modules/.pnpm-store/v11/links`,
+    inside the tree). With no `storeDir` the copy's `.modules.yaml` still names the source's in-tree store; nothing
+    failed because of it, but later installs in the copy may write into the source's store (unmeasured).
+  - Broken: global virtual store with the store outside the tree (`storeDir` set, the current main config). Nested
+    copy: its own links are dead and resolution silently uses the main checkout's `node_modules` above it (wrong
+    versions whenever the branch's lockfile differs). Outside copy: dead, and `pnpm run` fails with
+    `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE` (`.modules.yaml` records `virtualStoreDir` as a relative path) until
+    `pnpm install --offline --frozen-lockfile`, which repairs it in about 50 ms.
+  - Suggested invariant for the fix: a copied link resolves to the corresponding place in the new worktree when its
+    target lies inside the source tree, and to the same place when it lies outside; then measure whether pnpm's
+    relative `virtualStoreDir` in `.modules.yaml` still needs handling. Applies to the copy, clone and snapshot
+    rungs; conversion keeps depth, so it is unaffected.
+- Owner decision, verbatim: "The wrapper may launch pnpm itself for worktree copying." Plan for the queued
+  pnpm-compatibility agent (suggestions, revisable): after any rung fills a new worktree that has `pnpm-lock.yaml`
+  and a copied `node_modules`, run the workspace's pnpm offline with the frozen lockfile in that worktree so pnpm
+  rewrites its own layout for the new location; keep the generic link rule (inside-tree links follow the copy,
+  outside-tree links keep their target) for non-pnpm tools; measure the added time on the real repository under
+  each configuration; when pnpm is missing, offline data is incomplete, or the lockfile does not match, keep the
+  copied worktree as it is and print one plain line saying what to run, never fail the add; respect `--quiet` and
+  `--no-checkout`. Real-pnpm matrix tests for every configuration in the matrix entry, nested and outside.
+- Owner requirements, verbatim: "Must be compatible with all configurations of all pkg managers we currently use. If
+  at any point you feel we're doing something in the wrong way, ask me." and, on Cargo, "That's probably because
+  caches are keyed by worktree path. I couldn't find a way to make it better. If you find a way, tell me."
+- Package managers in use (tracked manifests and `toolchain.lock.json`): pnpm (257 `package.json`, one lockfile),
+  Cargo (34 crates; cargo 1.101 nightly), Gradle (3 builds, Java pinned), plus pinned uv, Bun, npm and Zig whose
+  on-disk state is not yet measured. Correction 2026-11-03: mise was listed here by mistake; the owner: "But we're not
+  using Mise as a pkg manager." and "Mise isn't even a tool manager." (it runs tasks only). Missed at first and named
+  by the owner ("did you miss our mpm wrapper?"): `package/mpm-shadow/cli`, which owns `toolchain.plan.jsonc` and
+  `toolchain.lock.json`, installs the pinned tools, and shadows `mpm` (Meta Package Manager).
+- Cargo, measured (`~/temp/agent/cargo-*-probe.ts`; a two-crate workspace with a registry dependency, a build script
+  and `env!("CARGO_MANIFEST_DIR")`): `~/.cargo/config.toml` sets `build-dir =
+  "/var/mnt/encrypted/cargo-build/{workspace-path-hash}"`, so `target/` holds only final outputs and a new worktree
+  path gets an empty build dir: full rebuild, correct. Cloning the source's build dir to the new path's build dir
+  (found with `cargo metadata`) gives full reuse, but WRONG: `CARGO_MANIFEST_DIR` and build-script output keep the
+  source checkout's paths. Cargo's default layout (no `build-dir`) with `target/` copied as the wrapper copies it
+  today behaves the same, so the snapshot and clone rungs (which keep the source's file times) ship this bug for that
+  layout now. With fresh times on the worktree's own files, cargo reused the registry crate, rebuilt the workspace
+  crates and reran their build script, and every baked path named the copy, in both layouts, nested and outside.
+- Conversion fixes done (author): all six content and eight conversion findings; branch head `4386a08cff`, main
+  merged in as `030c29d85b`; host checks green (library 3202, binary 527); dry run 164 looked at, 98 subvolumes, 65
+  would convert, 1 real difference. Controls were written with the fix, not red first; guard removal showed each red.
+  Gate 69 and two cross-vendor re-reviews (`~/temp/agent/review-convert-2/`, `review-content-2/`) running; the real
+  conversion waits for both re-reviews.
+- Owner decisions 2026-11-03 (question tool): Cargo state in new worktrees "Reuse deps, rebuild own" (clone the
+  source workspace's Cargo build state, then force only the worktree's own crates to rebuild); how to force it "Run
+  cargo clean -p" (the wrapper runs `cargo clean -p <member>` per workspace member and `cargo metadata` for the build
+  directory); conflict-side refusals under a pathspec mode "Add the note" (name the mode and say the command without
+  it would be saved, then allowed). Assigned: the note to the conflict-side agent; pnpm and Cargo handling plus a
+  survey of uv, Bun, npm, Gradle and Zig state to a new package-manager agent
+  (`feat/git-policy-cli-package-manager-aware-worktree-copy`).
+- Conflict-side fixes done (`fix/git-policy-cli-conflict-side-review-findings`, head `fc02164802`): finding 1 already
+  refused by the layout reader (pinned with tests), findings 2 to 4 fixed with red controls; host 3163 and 532 pass.
+  Sent back: the same option-value scan in `restores_index_only` (`command_discard.rs`), `conflict_sides.rs` over 300
+  lines, and the pathspec note.
+- Owner decision, verbatim: "I'm widening the pnpm spawning exemption during worktree copy ops to all pkg managers."
+  So during worktree copy operations the wrapper may launch any package manager the repository uses (pnpm, Cargo,
+  uv, Bun, npm, Gradle, Zig, and the `mpm-shadow` toolchain wrapper), not only pnpm. Relayed to the
+  package-manager agent. (An earlier wording listed mise here; corrected the same day, see the package-manager list.)
+- `mpm-shadow` state in worktrees, measured: each worktree has `.cache/toolchain-bin` (links with absolute targets
+  under `~/.local/share`, which resolve after a copy), `.cache/toolchain-launchers`, `toolchain.env.json` and
+  `toolchain.guard`. In the new worktree `.claude/worktrees/remove-path-review-findings`, five copied launchers
+  (`pnpm-shadow`, `mpm-shadow`, `file-enforcer`, `monochromatic-lint`, `search-shadow`) name main's
+  `/var/home/user/Monochromatic/toolchain.lock.json`, not the worktree's own: a branch that changes the toolchain lock
+  would still run main's tool versions and guard. Sent to the package-manager agent to repair with `mpm-shadow`'s own
+  install after the copy.
