@@ -229,6 +229,7 @@ fn reach(
     let mut last_asked: Instant = started;
     let mut failed_answers: u32 = 0;
     let mut cannot_ask: bool = false;
+    let mut last_start_request: Option<Instant> = None;
     loop {
         trace.tries += 1;
         match connect(&config.address) {
@@ -271,6 +272,16 @@ fn reach(
                 if last_asked.elapsed() >= watch.every {
                     last_asked = Instant::now();
                     let answer: Option<String> = (watch.state)(watch.bus.as_path(), watch.unit.as_str());
+                    // A unit still `inactive` after the start wait, with the client's connection waiting on its socket, is one the
+                    //  manager did not start; it is asked to, again after each further start wait, and the client goes on waiting.
+                    // A unit that is `activating` is being started and is left alone.
+                    if answer.as_deref() == Some("inactive")
+                        && started.elapsed() >= config.start_wait
+                        && last_start_request.is_none_or(|at| { return at.elapsed() >= config.start_wait; })
+                    {
+                        let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
+                        last_start_request = Some(Instant::now());
+                    }
                     cannot_ask = answer.is_none();
                     failed_answers = if answer.as_deref() == Some("failed") { failed_answers + 1 } else { 0 };
                 }

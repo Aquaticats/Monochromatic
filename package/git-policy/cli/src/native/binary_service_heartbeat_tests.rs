@@ -252,7 +252,6 @@ fn an_inactive_unit_is_asked_to_start_after_the_start_wait_and_an_activating_one
     START_REQUESTS.store(0, Ordering::SeqCst);
     MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);
     MANAGER_SAYS_INACTIVE.store(false, Ordering::SeqCst);
-    let service: UnixListener = listen(name.as_str());
     let waiting = client(watched(name.as_str()));
     // Activating for several start waits: the manager is starting the unit itself, so the client does not ask.
     std::thread::sleep(OLD_START_WAIT * 4);
@@ -264,7 +263,8 @@ fn an_inactive_unit_is_asked_to_start_after_the_start_wait_and_an_activating_one
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(!waiting.is_finished(), "asking the manager to start the unit ends no wait");
-    // The manager started the service: it greets and answers.
+    // The manager started the service: it listens, greets and answers.
+    let service: UnixListener = listen(name.as_str());
     let (stream, _) = service.accept().expect("the client connects");
     greet(&stream);
     read_request(&stream);
