@@ -643,3 +643,8 @@ pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOp
 #[cfg(test)]
 #[path = "worktree_convert_tests.rs"]
 mod tests;
+
+/// The cleanliness proof of the conversion by content stays out of the release executable.
+#[cfg(test)]
+#[path = "worktree_convert_content_tests.rs"]
+mod content_tests;
