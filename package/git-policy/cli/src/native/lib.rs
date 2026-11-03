@@ -1160,6 +1160,10 @@ pub mod repo_read_query;
 #[cfg(unix)]
 pub mod repo_read_query_refs;
 
+/// In-process repository reads: the exit status of `diff-index --cached --quiet`.
+#[cfg(unix)]
+pub mod repo_read_query_quiet;
+
 /// In-process repository reads: the two runner entry points that try the answers before starting Git.
 pub mod repo_read_hook;
 
