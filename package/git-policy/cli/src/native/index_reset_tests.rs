@@ -8,10 +8,10 @@ use crate::index_stat::StatData;
 use crate::index_untracked::{Untracked, UntrackedDir};
 
 /// The settings of a repository with no monitor.
-const PLAIN: IndexSettings = IndexSettings { monitor: false, untracked: UntrackedMode::Keep };
+const PLAIN: IndexSettings = IndexSettings { monitor: false, untracked: UntrackedMode::Keep, shared_repository: 0 };
 
 /// The settings of a repository whose fsmonitor is on.
-const MONITORED: IndexSettings = IndexSettings { monitor: true, untracked: UntrackedMode::Keep };
+const MONITORED: IndexSettings = IndexSettings { monitor: true, untracked: UntrackedMode::Keep, shared_repository: 0 };
 
 /// An entry with real-looking stat data.
 fn held(path: &str, id: u8, valid: bool) -> FullEntry {
@@ -113,7 +113,7 @@ fn forms_that_depend_on_more_than_the_tree_and_the_index_are_declined() {
     assert!(reset_paths(&mut long, &names, &tree, MONITORED, u32::MAX).is_none(), "bitmap past the entries");
     let mut absent: FullIndex = index_of(vec![held("a", 1, true)], false);
     absent.untracked = None;
-    let adding: IndexSettings = IndexSettings { monitor: false, untracked: UntrackedMode::Write };
+    let adding: IndexSettings = IndexSettings { monitor: false, untracked: UntrackedMode::Write, shared_repository: 0 };
     assert!(reset_paths(&mut absent, &names, &tree, adding, u32::MAX).is_none(), "untracked cache to add");
     let mut directory: FullIndex = index_of(vec![held("d/x", 1, true)], false);
     assert!(reset_paths(&mut directory, &[b"d".to_vec()], &[wanted("d", 7)], PLAIN, u32::MAX).is_none(), "file over directory");

@@ -11,7 +11,7 @@ fn entry(key: &str, value: Option<&str>) -> ListedEntry {
 /// No configuration: the monitor is off and the untracked cache is kept.
 #[test]
 fn an_empty_configuration_keeps_the_extensions_and_has_no_monitor() {
-    assert_eq!(read_settings(&[]), Some(IndexSettings { monitor: false, untracked: UntrackedMode::Keep }));
+    assert_eq!(read_settings(&[]), Some(IndexSettings { monitor: false, untracked: UntrackedMode::Keep, shared_repository: 0 }));
 }
 
 /// `core.fsmonitor` as a true value, a bare name and a hook path turns the monitor on; false and empty leave it off; the last
@@ -45,4 +45,30 @@ fn keys_the_update_does_not_reproduce_decline() {
         assert_eq!(read_settings(&[entry(key, Some("true"))]), None, "{key} true");
         assert!(read_settings(&[entry(key, Some("false"))]).is_some(), "{key} false");
     }
+}
+
+/// `core.sharedRepository` is read as `git_config_perm` reads it, and the values Git dies on or cannot be classified decline.
+#[test]
+fn core_sharedrepository_is_read_as_git_reads_it() {
+    for (value, expected) in [
+        (None, Some(0o660)),
+        (Some("group"), Some(0o660)),
+        (Some("all"), Some(0o664)),
+        (Some("world"), Some(0o664)),
+        (Some("everybody"), Some(0o664)),
+        (Some("umask"), Some(0)),
+        (Some("false"), Some(0)),
+        (Some("true"), Some(0o660)),
+        (Some("0"), Some(0)),
+        (Some("1"), Some(0o660)),
+        (Some("2"), Some(0o664)),
+        (Some("0640"), Some(-0o640)),
+        (Some("0666"), Some(-0o666)),
+        (Some("0477"), None),
+        (Some("sometimes"), None),
+    ] {
+        assert_eq!(shared_permission(value.map(str::as_bytes)), expected, "{value:?}");
+    }
+    let settings: IndexSettings = read_settings(&[entry("core.sharedrepository", Some("group"))]).expect("read");
+    assert_eq!(settings.shared_repository, 0o660);
 }

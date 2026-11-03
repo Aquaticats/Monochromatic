@@ -4,7 +4,7 @@
 //! `--no-refresh` is the comparison because the in-process update never refreshes: a refresh rewrites the stat data of the
 //! entries a copy's changed inode numbers made stale, which the landing does not want and the fallback command does not do.
 
-use super::support::{Edit, Plan, Scene, copy_of, finish, git_reset, git_with, index_bytes, listing, named, scene};
+use super::support::{Edit, Plan, Scene, copy_of, finish, git_reset, git_with, index_bytes, landing_reset, listing, named, scene};
 use super::*;
 use crate::test_support::{git, git_context, git_text};
 use std::path::PathBuf;
@@ -14,8 +14,7 @@ fn same_as_git(scene: &Scene, names: &[Vec<u8>], label: &str) {
     let copy: PathBuf = copy_of(scene);
     let before: Vec<u8> = index_bytes(scene.repo.as_path());
     git_reset(scene.repo.as_path(), scene.new.as_str(), names);
-    let index: PathBuf = copy.join(".git").join("index");
-    let done: bool = reset_index_file(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Named(names), index.as_path());
+    let done: bool = landing_reset(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Named(names));
     assert!(done, "{label}: the in-process update declined");
     let (git_bytes, our_bytes) = (index_bytes(scene.repo.as_path()), index_bytes(copy.as_path()));
     assert!(git_bytes != before, "{label}: the case changes nothing, so it proves nothing");
@@ -243,8 +242,7 @@ fn paths_derived_from_two_commits_equal_git() {
     let listed: String = git_text(scene.repo.as_path(), &["diff-tree", "-r", "--name-only", "--no-renames", scene.old.as_str(), scene.new.as_str()]);
     let names: Vec<Vec<u8>> = listed.lines().map(|line| { return line.as_bytes().to_vec(); }).collect();
     git_reset(scene.repo.as_path(), scene.new.as_str(), names.as_slice());
-    let index: PathBuf = copy.join(".git").join("index");
-    assert!(reset_index_file(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Derived { old: scene.old.as_str() }, index.as_path()));
+    assert!(landing_reset(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Derived { old: scene.old.as_str() }));
     assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()), "derived paths differ\n{}\n{}", listing(scene.repo.as_path()), listing(copy.as_path()));
     finish(scene);
 }
@@ -258,9 +256,8 @@ fn a_root_commit_resets_every_path_it_holds() {
     let listed: String = git_text(scene.repo.as_path(), &["ls-tree", "-r", "--name-only", scene.new.as_str()]);
     let names: Vec<Vec<u8>> = listed.lines().map(|line| { return line.as_bytes().to_vec(); }).collect();
     git_reset(scene.repo.as_path(), scene.new.as_str(), names.as_slice());
-    let index: PathBuf = copy.join(".git").join("index");
     let zero: String = "0".repeat(scene.new.len());
-    assert!(reset_index_file(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Derived { old: zero.as_str() }, index.as_path()));
+    assert!(landing_reset(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Derived { old: zero.as_str() }));
     assert!(index_bytes(scene.repo.as_path()) == index_bytes(copy.as_path()), "root commit differs\n{}\n{}", listing(scene.repo.as_path()), listing(copy.as_path()));
     finish(scene);
 }
@@ -292,4 +289,26 @@ fn an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it() {
     same_as_git(&scene, &named(&["e", "a"]), "empty intent-to-add");
     assert_eq!(&index_bytes(scene.repo.as_path())[4..8], &[0, 0, 0, 3], "Git's own result still carries the flag");
     finish(scene);
+}
+
+/// The index Git writes through its lock file takes the mode `core.sharedRepository` gives it (`adjust_shared_perm`); the
+/// published file has the same mode, under a umask that would otherwise differ.
+#[test]
+fn the_file_mode_with_a_shared_repository_equals_git() {
+    use std::os::unix::fs::PermissionsExt as _;
+    // Each test runs in a process of its own under nextest, so the umask change reaches no other test (and the Git started
+    //  below inherits it).
+    // SAFETY: `umask` only sets this process's file creation mask.
+    unsafe { libc::umask(0o077) };
+    for (value, expected) in [("group", 0o660), ("all", 0o664), ("0640", 0o640), ("umask", 0o600)] {
+        let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
+        let scene: Scene = scene(format!("index-reset-mode-{value}").as_str(), &Plan { files: &BASE, edits: edits.as_slice(), ..Plan::default() });
+        git(scene.repo.as_path(), &["config", "core.sharedRepository", value]);
+        same_as_git(&scene, &named(&["a"]), format!("shared repository {value}").as_str());
+        let copy: PathBuf = scene.root.join("copy");
+        let mode = |repo: &Path| -> u32 { return std::fs::metadata(repo.join(".git").join("index")).expect("index").permissions().mode() & 0o7777; };
+        assert_eq!(mode(scene.repo.as_path()), expected, "Git's mode for {value}");
+        assert_eq!(mode(copy.as_path()), expected, "the mode of the published file for {value}");
+        finish(scene);
+    }
 }

@@ -92,10 +92,12 @@ fn the_follow_up_starts_no_git_reset_and_no_git_diff_tree() {
             _ => IndexPaths::Derived { old: first.as_str() },
         };
         let index: PathBuf = repo.join(".git").join("index");
+        // The service builds the index while it holds the live index lock.
+        let held = crate::service_index_lock::try_acquire(index.as_path(), 1).expect("the lock is free");
         let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), paths, index.as_path(), 1).expect("built");
         let words: Vec<String> = recorded_starts(log.as_path()).iter().map(|start| { return start.split(' ').next().unwrap_or_default().to_string(); }).collect();
         assert!(!words.iter().any(|word| { return word == "reset" || word == "diff-tree"; }), "{form} started {words:?}");
-        std::fs::rename(built, index).expect("installed");
+        held.release_with(built.as_path()).expect("installed");
         assert!(!differs(repo.as_path(), second.as_str()), "{form} left the index behind the commit");
         remove(root.as_path());
     }

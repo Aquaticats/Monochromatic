@@ -1,7 +1,7 @@
 //! Controls for the forms the in-process reset leaves to Git: it returns `false`, leaves the index file as it was, and the
 //! landing's follow-up then runs `git reset --no-refresh` on the same file.
 
-use super::support::{Edit, Plan, Scene, finish, git_with, index_bytes, named, scene};
+use super::support::{Edit, Plan, Scene, finish, git_with, index_bytes, landing_reset, landing_reset_copy, named, scene};
 use super::*;
 use crate::recording_git::{recorded_starts, recording_context};
 use crate::repo_read_hook::SWITCH_VARIABLE;
@@ -19,8 +19,7 @@ fn changed_a(name: &str) -> Scene {
 
 /// Run the in-process update on the scene's repository for the path `a`.
 fn try_reset(scene: &Scene) -> bool {
-    let index: PathBuf = scene.repo.join(".git").join("index");
-    return reset_index_file(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"])), index.as_path());
+    return landing_reset(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"])));
 }
 
 /// The in-process update declines and changes neither the index file nor the directory around it.
@@ -96,8 +95,10 @@ fn a_post_index_change_hook_is_left_to_git() {
 fn a_racily_clean_entry_is_left_to_git() {
     let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
     let scene: Scene = scene("index-fallback-racy", &Plan { files: &FILES, edits: edits.as_slice(), fresh: true, ..Plan::default() });
-    age(scene.repo.join(".git").join("index").as_path());
-    declines(&scene, "racy");
+    // The update compares the entries' times with the private copy's, so the copy is the old file here.
+    let before: Vec<u8> = index_bytes(scene.repo.as_path());
+    assert!(!landing_reset_copy(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"])), true), "racy");
+    assert!(before == index_bytes(scene.repo.as_path()));
     follow_up_falls_back(&scene, "racy");
     finish(scene);
 }
@@ -119,8 +120,7 @@ fn a_file_where_the_index_has_a_directory_is_left_to_git() {
     let edits: Vec<Edit<'_>> = vec![Edit::Delete("d/x"), Edit::Put { path: "d", mode: "100644", content: b"now a file\n" }];
     let scene: Scene = scene("index-fallback-dir-file", &Plan { files: &FILES, edits: edits.as_slice(), ..Plan::default() });
     let before: Vec<u8> = index_bytes(scene.repo.as_path());
-    let index: PathBuf = scene.repo.join(".git").join("index");
-    assert!(!reset_index_file(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["d"])), index.as_path()));
+    assert!(!landing_reset(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["d"]))));
     assert!(before == index_bytes(scene.repo.as_path()));
     finish(scene);
 }
@@ -133,7 +133,7 @@ fn a_damaged_or_missing_index_and_the_off_switch_are_left_to_git() {
     let good: Vec<u8> = index_bytes(scene.repo.as_path());
     let mut off = git_context();
     off.overlay.push((std::ffi::OsString::from(SWITCH_VARIABLE), std::ffi::OsString::from("off")));
-    assert!(!reset_index_file(&off, scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"])), index.as_path()), "the off switch");
+    assert!(!landing_reset(&off, scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"]))), "the off switch");
     let mut damaged: Vec<u8> = good.clone();
     damaged[20] ^= 0xff;
     std::fs::write(&index, damaged).expect("write");
