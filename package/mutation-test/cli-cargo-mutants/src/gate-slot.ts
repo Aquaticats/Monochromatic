@@ -1,11 +1,14 @@
 /*
- No lock stays in this file (the repository rule is lock-free first; a lock that must stay covers the smallest unit and says
- why). A slot is one of a fixed number of host-wide permits, and the limit exists to bound the CPU all campaign launchers
- use together. Each slot is its own numbered claim series (`slot-<n>.owner.<generation>`, see `src/owner-claim.ts`), so a
- gate takes a free slot with one exclusive `link` and never waits for a file; a gate waits only while every slot is held by a
- live process, which is the purpose of the limiter, and it wakes when a slot is released (`src/directory-watch.ts`). The kernel
- locks on `slot-<n>.lock` that the earlier release took are probed once and without waiting, so a gate that started before
- the change is respected for as long as it runs (`src/legacy-flock.ts`).
+ One lock stays in this file's gate, kept only for compatibility (the repository rule is lock-free first; a lock that must stay
+ covers the smallest unit and says why). A slot is one of a fixed number of host-wide permits, and the limit exists to bound
+ the CPU all campaign launchers use together. Each slot is its own numbered claim series (`slot-<n>.owner.<generation>`, see
+ `src/owner-claim.ts`), so a gate takes a free slot with one exclusive `link` and never waits for a file; a gate waits only
+ while every slot is held by a live process, which is the purpose of the limiter, and it wakes when a slot is released
+ (`src/directory-watch.ts`). The unit of the one lock is a slot's `slot-<n>.lock` file. The earlier release held a kernel lock
+ on it, and a gate of that release that is still waiting polls `flock --nonblock` on it without reading a claim, so a gate of
+ this release keeps that lock for as long as its claim (taken once, without waiting, after the claim), and respects a lock a
+ gate of the earlier release holds (`src/legacy-flock.ts`). Nothing waits on the lock; it goes away with the compatibility
+ once no gate of the earlier release, nor a checkout of its source, can run.
  */
 import {
   join,

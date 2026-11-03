@@ -4,7 +4,9 @@
 
  Each slot is a numbered claim series (`src/owner-claim.ts`), so a free slot is taken with one exclusive `link` and a slot
  whose holder died is taken over by the next generation without a person. The cap is the slot count: a gate holds exactly one
- slot's claim for as long as its command runs. When all slots are held the gate says so, naming the holders, and waits for a
+ slot's claim for as long as its command runs, and the kernel lock on that slot's `slot-<n>.lock` file too, taken once without
+ waiting after the claim and given back before it, so a waiting gate of the earlier release (which polls that lock and reads no
+ claim) is refused (`src/legacy-flock.ts`). When all slots are held the gate says so, naming the holders, and waits for a
  change in the slot directory (a release renames a file there) with a bounded re-check as the fallback, because a holder that
  was killed makes no event. The wait is never a tight poll: it ends at the next change, the next notice or the re-check,
  whichever is first.
