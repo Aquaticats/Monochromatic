@@ -9921,3 +9921,8 @@ by the coordinator at merge.
   ranking B (snapshot anyway, then `git read-tree --reset -u` and `git clean -f -d` from the snapshot's own index,
   proven in the stage, falling back on doubt) > A (keep refusing, now with the explanation) > D (a clean spare kept by
   the service) > C (hand-written restore) > E (commit or stash the person's work).
+- Owner decision 2026-11-03 (question tool): dirty main checkout "B: snapshot, then reset": snapshot anyway, then in
+  the new worktree `git read-tree --reset -u <commit>` and `git clean -f -d` from the snapshot's own index, proven in
+  the stage, falling back to the slow route on any doubt. Assigned to the slow-route agent on a new branch
+  (`feat/git-policy-cli-snapshot-dirty-main`), together with structured clean-check reasons; settling racily clean
+  entries by content waits for the content-check re-review.
