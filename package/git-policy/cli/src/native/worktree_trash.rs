@@ -23,7 +23,7 @@ use super::service_route::{Route, route_from_environment};
 use super::service_work::{Verdict, work_directory};
 use super::subvolume_remove::remove_tree;
 use super::transaction_git::{GitContext, GitRequest, run_git};
-use super::work_item::{WorkItem, WorkKind, enqueue};
+use super::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use super::worktree_clean::stored_stats;
 use super::worktree_copy_prune::Prune;
 use super::worktree_snapshot_source::SnapshotSource;
@@ -254,9 +254,16 @@ fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, name: &str, no
         debug(TAG, format!("the work item could not be written: {reason}").as_str());
         return false;
     }
-    let Some(Route { address, .. }) = router(real_git, git_dir) else { return false };
-    let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
-    return wake(&config, git_dir, None, notices).is_ok();
+    let reached: bool = router(real_git, git_dir).is_some_and(|Route { address, .. }| {
+        let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
+        return wake(&config, git_dir, None, notices).is_ok();
+    });
+    if !reached {
+        // The caller empties the trash here, so the record this call wrote must not outlive it as work for a service to find.
+        let record: PathBuf = state_directory(work_directory(git_dir).as_path(), PENDING).join(item.id());
+        let _ignored: std::io::Result<()> = std::fs::remove_file(record);
+    }
+    return reached;
 }
 
 /// What:

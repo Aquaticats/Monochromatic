@@ -459,8 +459,9 @@ bit its index entry recorded and is older than the index file, and `git ls-files
 nothing.
 A source is also refused for a sparse checkout, for any worktree-scope configuration entry, and for `core.sparseCheckout`.
 
-Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and no nested linked worktree
-that is an ordinary directory.
+Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and, for a source that is a
+linked worktree, no nested linked worktree that is an ordinary directory; a snapshot of the main checkout sets such a
+worktree aside instead (see "Leaving out of a snapshot of the main checkout").
 Real Git runs with `--no-checkout` added after `add`.
 The wrapper then reads the new `HEAD`, refuses a subject Git would have to print or `.gitattributes` files that differ
 between the source's tree and the new tree, claims a stage name beside the destination in the settlement journal root,
@@ -474,6 +475,37 @@ The directory real Git made, now at the stage name, is settled without a recursi
 directory go, and anything another process added to it meanwhile stays there and is named in a warning.
 Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet` was given.
 The snapshot carries the whole ignored state of the source, so the ignored-state copy skips that destination.
+
+Leaving out of a snapshot of the main checkout:
+before the stage is made private and its stubs removed, the wrapper prunes a snapshot whose source is the main checkout
+with the main-checkout rule of `src/native/worktree_copy_prune.rs`.
+First it unlinks the `.git` file of every nested linked worktree that is an ordinary directory and of every other directory
+that holds a `.git` file, because a copied pointer names another worktree's administrative directory.
+Then it moves each such directory, and each directory the rule names as a cache or a run record, into a trash directory
+`.claude/cli-git-trash/<forty hexadecimal digits>` inside the stage, by rename.
+A directory above a tracked file is never moved.
+The place is used only when Git ignores it (one `git check-ignore --no-index` on the source); otherwise the directories are
+removed in the foreground.
+After the swap, each trash directory is handed to the commit service as a work item of kind `trash` in the new worktree's
+Git directory, and the service is woken through its socket; the service verifies the name, that the path is a real directory
+and that the worktree still has a `.git` file, and removes it.
+When no route to the service exists, or the wake fails, the work item is withdrawn and the wrapper removes the trash
+itself before the command returns.
+A trash that no one has emptied yet lies under an ignored path, so it is no untracked file.
+
+Converting a nested worktree:
+`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)` converts a registered linked worktree
+that is an ordinary directory into a subvolume at the same path, one at a time.
+It refuses when the worktree is locked, has an `index.lock`, has an operation in progress, has a modified tracked file, has a
+process with its working directory or an open file inside it, has a worktree registered inside it, or when its converting
+name exists without a journal.
+It writes a journal `cli-git-convert` in the administrative directory, takes `index.lock` with a token, creates
+`<path>.cli-git-converting` as a subvolume, copies the worktree into it with cloned data, runs a second pass that must find
+nothing to copy, exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root with the same
+`.git` bytes, rewrites the index stat fields, removes the old tree only when it is the directory whose device and inode the
+journal recorded, and drops the journal and the lock.
+A rerun completes an unfinished conversion in place whatever phase it stopped at, including a stop between the exchange and
+its journal line; `--abandon` destroys only the subvolume the journal says this command created, and only before the exchange.
 A refusal before the swap destroys the stage, only while the stage name still holds the directory the wrapper made, and
 completes the worktree with `git reset --hard --no-recurse-submodules` (`--quiet` when given), whose status is then the
 command's.

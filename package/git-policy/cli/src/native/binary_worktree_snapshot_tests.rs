@@ -174,7 +174,10 @@ fn a_dirty_source_falls_to_gits_checkout() {
     let (created, _control) = add_pair(&fixture, repo.as_path(), "plain", "plaincontrol", &["-b", "NAME", "../NAME"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let plain: PathBuf = fixture.root.join("plain");
-    assert!(!carries_ignored_state(plain.as_path()), "no snapshot, and a main checkout hands over no ignored state");
+    // No snapshot served it (a snapshot prints `copied 0` because it carries the ignored state itself); the ignored-state copy of
+    //  the main checkout brought the ignored state after Git's checkout.
+    assert!(!stderr_of(&created).contains("copied 0 ignored"), "{}", stderr_of(&created));
+    assert!(carries_ignored_state(plain.as_path()), "the main checkout hands over its ignored state by copy");
     assert!(is_subvolume_root(plain.as_path()).expect("probe"), "Git filled a subvolume");
     assert_eq!(std::fs::read(plain.join("shared.txt")).expect("committed content"), b"second, longer\n");
     assert_eq!(tracked_content(&fixture, plain.as_path()), tracked_content(&fixture, fixture.root.join("plaincontrol").as_path()));
@@ -195,7 +198,8 @@ fn differing_attributes_decline_the_snapshot() {
     let (created, _control) = add_pair(&fixture, repo.as_path(), "attr", "attrcontrol", &["--detach", "../NAME", "HEAD~1"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let attr: PathBuf = fixture.root.join("attr");
-    assert!(!carries_ignored_state(attr.as_path()));
+    assert!(!stderr_of(&created).contains("copied 0 ignored"), "no snapshot served it: {}", stderr_of(&created));
+    assert!(carries_ignored_state(attr.as_path()), "the main checkout hands over its ignored state by copy");
     assert!(!attr.join(".gitattributes").exists());
     assert_eq!(tracked_content(&fixture, attr.as_path()), tracked_content(&fixture, fixture.root.join("attrcontrol").as_path()));
     remove(&fixture);
@@ -268,7 +272,7 @@ fn a_snapshot_worktree_is_a_source_in_turn() {
 }
 
 /// A destination inside the source (an ignored `.claude-wt` directory) gets no copy of itself, and the source stays
-///  clean; a nested worktree that is an ordinary directory declines the snapshot.
+///  clean; a nested worktree that is an ordinary directory is set aside in the snapshot of the main checkout.
 #[test]
 fn a_destination_inside_the_source_is_not_carried_into_itself() {
     let fixture: Fixture = fixture("snapshot-nested");
@@ -287,12 +291,57 @@ fn a_destination_inside_the_source_is_not_carried_into_itself() {
     assert!(!inside_root.join(".claude-wt").exists() || std::fs::read_dir(inside_root.join(".claude-wt")).expect("listing").count() == 0, "no copy of the destination in itself");
     assert_eq!(git(&fixture, repo.as_path(), &["status", "--porcelain=v1"]).stdout, b"");
     assert_eq!(git(&fixture, inside_root.as_path(), &["status", "--porcelain=v1"]).stdout, b"");
-    // The ordinary directory worktree now inside the source declines the snapshot for the next add.
+    // The ordinary directory worktree now inside the main checkout no longer declines the snapshot: it is set aside in the copy.
     std::fs::remove_dir_all(inside_root.as_path()).ok();
     git(&fixture, repo.as_path(), &["worktree", "prune"]);
     git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "ordinary", ".claude-wt/ordinary"]);
     let declined: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "after", "../after"]);
     assert_eq!(declined.code, Some(0), "{}", stderr_of(&declined));
-    assert!(!carries_ignored_state(fixture.root.join("after").as_path()), "an ordinary nested worktree declines the snapshot");
+    let after: PathBuf = fixture.root.join("after");
+    assert!(carries_ignored_state(after.as_path()), "the snapshot carried the ignored state");
+    assert!(!after.join(".claude-wt/ordinary").exists(), "the ordinary nested worktree was set aside, not carried");
+    assert_eq!(git(&fixture, repo.join(".claude-wt/ordinary").as_path(), &["status", "--porcelain=v1"]).stdout, b"", "the real nested worktree is untouched");
+    assert_eq!(git(&fixture, after.as_path(), &["status", "--porcelain=v1"]).stdout, b"");
+    remove(&fixture);
+}
+
+/// A snapshot of the main checkout leaves out what the rule names: the ordinary nested worktree (its pointer unlinked), the
+///  caches and the run records are set aside under an ignored path and emptied; what a new worktree needs stays, and both
+///  worktrees are clean.
+#[test]
+fn a_snapshot_of_main_sets_aside_what_the_rule_leaves_out() {
+    let fixture: Fixture = fixture("snapshot-trash");
+    if !on_btrfs_or_acknowledged(&fixture, "snapshot-trash") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = subvolume_repository(&fixture);
+    tracked(repo.as_path(), ".gitignore", b"ignored/\n.claude/\nnode_modules/\n");
+    commit_all(&fixture, repo.as_path(), "ignore the places the rule works on");
+    for (path, bytes) in [("node_modules/pkg/index.js", b"module\n".as_slice()), ("node_modules/.cache/jiti/x.js", b"cache\n"), ("node_modules/.monochromatic/log.jsonl", b"log\n")] {
+        let full: PathBuf = repo.join(path);
+        std::fs::create_dir_all(full.parent().expect("parent")).expect("directories");
+        std::fs::write(full, bytes).expect("ignored file");
+    }
+    std::fs::create_dir_all(repo.join(".claude/worktrees")).expect("worktrees directory");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "ordinary", ".claude/worktrees/ordinary"]);
+    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    let topic: PathBuf = fixture.root.join("topic");
+    assert!(is_subvolume_root(topic.as_path()).expect("probe"));
+    assert_eq!(std::fs::read(topic.join("node_modules/pkg/index.js")).expect("dependency"), b"module\n");
+    assert!(carries_ignored_state(topic.as_path()));
+    for gone in ["node_modules/.cache", "node_modules/.monochromatic", ".claude/worktrees/ordinary"] {
+        assert!(std::fs::symlink_metadata(topic.join(gone)).is_err(), "{gone} was left out");
+    }
+    // The fixture has no session bus and no service for the new worktree yet, so no route to a service exists and the trash is
+    //  emptied before the command returns; the record written for the service is withdrawn. The hand-over itself is controlled
+    //  with an injected route (`worktree_trash_tests.rs`).
+    assert!(!topic.join(".claude/cli-git-trash").exists(), "the trash is gone when the command returns");
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    let leftover: usize = std::fs::read_dir(admin.join("cli-git/work/pending")).map_or(0, |listing| { return listing.flatten().count(); });
+    assert_eq!(leftover, 0, "no work item outlives the foreground emptying");
+    assert_eq!(git(&fixture, topic.as_path(), &["status", "--porcelain=v1"]).stdout, b"");
+    assert_eq!(git(&fixture, repo.join(".claude/worktrees/ordinary").as_path(), &["status", "--porcelain=v1"]).stdout, b"", "the real nested worktree is untouched");
     remove(&fixture);
 }

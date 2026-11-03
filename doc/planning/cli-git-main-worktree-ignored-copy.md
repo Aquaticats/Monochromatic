@@ -613,6 +613,119 @@ store and main's `node_modules` were only read.
   their next
   install.
 
+## Conversion tool and the snapshot route (implemented on `feat/git-policy-cli-main-snapshot-worktree`)
+
+Owner decisions, 2026-11-02: "Convert once + snapshot (Recommended)" and "Set the shared store (Recommended)".
+The branch starts at `btrfs-worktree-ladder` (head `38e01bcd33` when I merged) with `main-ignored-copy` merged in; the
+reflink
+copy stays as the fallback rung, because a main-sourced add that is not served by a snapshot still goes through the
+lifecycle
+copy.
+
+### What was built
+
+- `git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)`
+  (`worktree_convert.rs`, `worktree_convert_command.rs`, `worktree_convert_arguments.rs`): quiesce, copy with cloned
+  data into
+  `<path>.cli-git-converting`, prove with a second pass, exchange with `renameat2`, refresh the index stat fields,
+  remove the
+  old tree only when it is the directory the journal recorded.
+  The journal `cli-git-convert` lives in the worktree's administrative directory.
+  A rerun completes after a kill at any phase, including between the exchange and its journal line (the old tree's
+  recorded
+  device and inode say where it is); `--abandon` destroys only the subvolume the journal says it created, before the
+  exchange.
+  It uses no Git process: the cleanliness check is the ladder's own in-process one without its untracked-file step
+  (`check_clean_tracked`, split out of `check_clean`), because untracked files are copied along.
+- A snapshot of the main checkout now serves the add even with ordinary nested worktrees (`worktree_trash.rs`): it
+  unlinks the
+  copied `.git` pointers, moves the nested ordinary worktrees, other checkouts, caches and run records into
+  `.claude/cli-git-trash/<40 hex>` inside the stage by rename, and after the swap hands that directory to the commit
+  service
+  as a work item of the new kind `trash` (`work_item.rs`, `service_work.rs`: a default `trash` handler method, one
+  partition in
+  the drain loop). The place is used only if Git ignores it; otherwise, and when no route to the service exists or the
+  wake
+  fails, the wrapper removes the directories itself before returning, and withdraws the work item it wrote.
+
+### Edits inside the ladder's files (for the merge with its recovery rework)
+
+- `worktree_snapshot_source.rs`: a new field `SnapshotSource.trash_ignored`, computed in `common_source` for a main
+  checkout
+  (one `git check-ignore`); `snapshot_blocker` returns nothing for a main-checkout source after its through-a-link
+  check.
+  Its test `btrfs_each_condition_that_rules_a_source_out_is_refused_with_its_reason` now asserts that the main
+  checkout is not
+  blocked and a linked source still is.
+- `worktree_snapshot.rs`, `take_snapshot`: one call, `worktree_trash::prune_snapshot(stage, source)`, between making
+  the stage
+  private and `remove_stubs`.
+- `worktree_ladder_finish.rs`, `serve_snapshot`: one call, `worktree_trash::dispose_pending_trash(...)`, after the
+  swap and
+  `settle_displaced`.
+- Five binary tests changed because a main-sourced add now prints the copy's summary line and copies the ignored state
+  when no
+  snapshot serves it (`binary_worktree_ladder_tests.rs`, `binary_worktree_clone_tests.rs`,
+  `binary_worktree_snapshot_tests.rs`).
+- Not in the ladder's files but touching its seams: `entry.rs`, `worktree_copy_forward.rs`,
+  `worktree_copy_registry.rs` and
+  `worktree_copy.rs` (the main checkout is an applicable source for every creating command; the named-paths plumbing
+  is gone,
+  and `observe_copy_source_for` with its `serves_add` flag was folded into `observe_copy_source`).
+- The ladder's rule "recovery never deletes what it cannot prove it created" is kept: the trash directory is made by
+  `prune_snapshot` with a name of forty hexadecimal digits, the handler verifies the name, a real directory at the one
+  place
+  and a `.git` file in the worktree, and the conversion removes only the directory whose device and inode its journal
+  recorded.
+  A stage that a crash leaves with a trash inside is the stage the ladder's recovery already owns; this module adds
+  nothing it
+  would have to delete.
+
+### Measured on a fixture
+
+The fixture is a main-like subvolume with a copy of main's `.git`, 693 thousand ignored entries, and four ordinary and four
+subvolume nested worktrees of 22.3 thousand entries each; release build, scope `CPUQuota=800%`, load average 6 to 10.
+
+- Conversion, real binary, `--dry-run --all` over eight worktrees: 0.86 s. The real `--all`: 16.65 s for the four
+  ordinary
+  worktrees, 4.2 s each (the copy, the proving pass and the old-tree removal); about 200 s for the 48 on the real
+  checkout, run
+  once.
+- A main-sourced add with four ordinary nested worktrees present: the snapshot rung served it; 5.7 s to the end of the
+  leave-out,
+  then, with no route to the service, 31 s of removal in the foreground (37.7 s in all).
+- The same add after the conversion: 3.4 s from the command to the point where the trash is handed over; the removal,
+  which
+  the service does in the background (13.9 s measured here as the foreground fallback), is no longer in the command.
+  The new worktree: `git status` 0.06 s and clean, `node_modules`, `target/` and `.cache/` present,
+  `node_modules/.cache`,
+  `.monochromatic` and `target/debug/incremental` absent, `.claude/worktrees` empty.
+- Limit: the hand-over to the real service was controlled with an injected route; the end-to-end runs had no route,
+  because
+  a service is looked up by the new worktree's own Git directory and the fixture has no session bus. In production the
+  route
+  finder returns the managed address and the wake starts the service.
+
+### Guards shown red
+
+Each change was made after committing the tests and then restored: the exchange not reconciled with the journal
+(`abandon_undoes_before_the_swap_and_refuses_after`), the old tree removed without the identity check
+(`a_directory_that_is_not_the_recorded_old_tree_is_never_removed`), no proving pass
+(`a_change_during_the_copy_is_caught_before_the_swap`), the copied `.git` pointer not unlinked and tracked directories
+not
+protected (`btrfs_a_snapshot_of_main_sets_aside_exactly_what_the_rule_leaves_out`), the ordinary nested worktree
+blocking the
+main checkout again (two tests), and the handler following a link at the trash name
+(`the_handler_empties_only_the_trash_it_is_told_about`).
+
+### Order for the owner
+
+1. Merge this branch (it contains the ladder and the copy) after the ladder's recovery rework lands; release.
+2. Stop sessions inside the nested worktrees; run `git cli-git convert-worktree-to-subvolume --dry-run --all` from the
+   main
+   checkout and read the skip reasons; then run it without `--dry-run`, worktree by worktree or with `--all`.
+3. Apply the shared pnpm store (section "Applying the shared pnpm store").
+
 ## Assumptions and limits
 
 - The fixture is `git clone --shared` of the main checkout in `/var/home/user/.cache/main-ignored-copy`, with the main

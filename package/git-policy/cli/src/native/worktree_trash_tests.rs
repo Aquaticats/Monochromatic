@@ -117,8 +117,7 @@ fn btrfs_a_linked_source_sets_nothing_aside() {
     remove(root.as_path());
 }
 
-/// Without a route to the service the trash is emptied in the foreground, and the work item stays for the service to find
-///  already done.
+/// Without a route to the service the trash is emptied in the foreground, and the work item written for it is withdrawn.
 #[test]
 fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
     let root: PathBuf = fixture("trash-fallback");
@@ -134,7 +133,7 @@ fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
     assert!(!worktree.join(TRASH_PARENT).join(&name).exists(), "emptied in the foreground");
     assert!(!worktree.join(TRASH_PARENT).exists(), "and its parent goes with the last one");
     let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(pending.exists(), "the work item was written before the route was tried");
+    assert!(!pending.exists(), "the work item written before the route was tried is withdrawn when the trash is emptied here");
     remove(root.as_path());
 }
 
