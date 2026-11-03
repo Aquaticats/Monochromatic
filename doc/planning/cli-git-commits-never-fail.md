@@ -502,6 +502,46 @@ our own code between L6 and the end of a ref transaction) is not restarted autom
 restart the unit and waits, and the request is durable. An owner wedged inside a person's program is never ended. L1 can wait for a child between fork and exec. G4 extends
 retention at the cost of disk. The wait of a publication behind a person's `reference-transaction` hook is the person's.
 
+### Revision 9 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
+
+Naming. Transition names are stable where the meaning holds. New names: B3, M3, Q1, E1, MG1 to MG6 and the unnamed rule S and the
+"Publication target" rule. Owner-question options are now A-keep, A-kill, B-hand and B-restart (they were A1, A2, B1 and B2) so that no
+option can be read as the transitions B1 and B2; C-class and H and M are new questions with their own letters. The models below use F1
+to F9 of the verification plan; "new" is a model to add. Each schedule goes red under revision 8 and green under revision 9.
+- L7 and L6 (R8-1; model F3). Schedule: the restarter samples a quiet owner with no person's program, the owner then dispatches a
+  `reference-transaction` hook, the restarter ends the owner. Red under 8 (restart without the gate ends a hook); green under 9 (L7
+  needs the exclusive gate, so it aborts while the hook holds the shared gate). Also L7 step (5): an owner that ignores the terminate
+  signal; red under 8 (survives), green under 9 (pidfd SIGKILL). Option B-restart is withdrawn in favour of B-hand.
+- Named entities, L4 (R8-2 and the L4 model finding; model new "two lanes, one repairer" and F6). Schedule: lane X appends to a shared
+  ledger while lane Y repairs the torn tail. Red under 8 (Y truncates X's append in progress); green under 9 (one ledger per lane,
+  repair of the own ledger only). Schedule for F6: kill L4 after it released one mutation and before the generation was even; red under
+  8 (even generation shows half a mutation); green under 9 (odd first).
+- C2, C3, C4 (R8-3 and the F7 model finding; model F7 and new "visible but not durable"). Schedules: two writers, same identity, same
+  content; resend after adoption and after retirement; a resend that reads a record visible in `inbox/` that power loss then removes.
+  Red under 8 (a shared candidate directory is written by two writers; an answer from a non-durable record); green under 9 (private
+  candidate directories, routing by identity state, the C4 fsyncs redone before the answer).
+- Rule S, C0, C1, C5, P1, M1 marker (R8-4; model F6 extended). Schedule: the reviewer's `x=0`, `x=1`, `x=2` with a logical-head and
+  consumption-map mutation between two reads; a dead odd generation with no owner; a branch that keeps moving during capture. Red under
+  8 (mixed state; capture invalid for ever; starvation); green under 9 (one atomic document, C0 recovery route, tip not re-read).
+- X1 (R8-5; models F4 and F3). Schedule: a stalled `update-ref`, a `reference-transaction` hook installed after classification and
+  before Git's dispatch. Red under 8 (a spawn-time classification calls it unprotected and cancels it, ending the hook); green under 9
+  (classified by command kind, `update-ref` exempt). The shipped-lock input (S-1, S-2) is a stated dependency; no transition removes a lock.
+- M2, M3 (new), B3 (new), C1 (R8-6; models F9, F6 and new "superseded version"). Schedules: the foreign-successor schedule followed by a
+  plain commit of `y` (red under 8: `x=A` returns as staging; green under 9: suppression holds); a held version superseded by an
+  amendment whose hook completes later (red under 8: no terminal outcome, entries and spool undefined; green under 9: `superseded` in the
+  ledger, entries re-keyed).
+- T1 and G1 (R8-7; model F8 extended). Schedule: T1 observes no open run, G1 publishes a reservation, G2 starts a prune, T1 releases.
+  Red under 8 (scope-based predicate; no boundary); green under 9 (G3 terminal predicate, release intent, reachability: a closure released by
+  T1 is reachable from the tip, so the late prune cannot take it).
+- L2, L3 (fresh lane), B1 (`ready`, `hook-ok`), B2 (success without a second hook), P2 (wording), P4 (one foreground try), Q1 (new), E1
+  (new), M1 (crash recovery by journaled identity, per-path outcomes), Publication target (new), Client result (new), MG1 to MG6 (new)
+  (R8-8; models new "M1 crash boundaries" and "merge refusal"). Schedules: kill M1 at each of the six boundaries including after the rename and
+  before the release (red under 8: a stranded `index.lock` or an unreleased entry; green under 9: identity-based L4); a merge whose
+  hook refuses after the checkout while an editor saves a merged file (red under 8: no restoration; green under 9: MG6); a lost swap after a
+  checkout (green under 9: MG5); a held hook that succeeds and the tip moves (red under 8: held, success, replay, held; green: `hook-ok`).
+- R4 (model finding on F1). Schedule: the post-anchor reflog lines erased after a `swap-failed`. Red under 8 (silent replay); green under 9
+  (R4 requires an intact reflog, otherwise class R5, which lands with a notice).
+
 ### Rationale for the lane transitions L1 to L7 (explains; the state machine governs)
 
 Why one lock, one gate. The lane of a worktree is whoever holds the exclusive advisory lock on `lane/owner`. The repository's rule is lock-free
@@ -1754,6 +1794,13 @@ same-content resend, a different-content resend, and a partial binding that cann
 process-group escape, and release racing the run; the seqlock with a hook that waits for ever during P2; the immediate follow-up after a completed
 switch; a held request completed after its amendment, with the consumption entries across deferred materialization; a failed swap followed by the
 identical commit installed and removed by another writer.
+Models added from the eighth review (each starts as a failing control with the revision 9 changelog's schedule): a restarter racing hook
+dispatch with no gate, and an owner that ignores the terminate signal; two lanes with a ledger tail repair; a same-identity resend that reads a
+non-durable record; a dead odd generation, a moving tip and a mutation of the logical head between the two reads of capture; a classification
+race for `update-ref` against a hook installed after it; the foreign-successor schedule followed by a plain commit of an unrelated path; a
+held version superseded by an amendment; maintenance admission racing the final release of T1; each crash boundary of M1 and each per-path
+outcome; a merge refused by a hook after its checkout with a concurrent editor, a lost swap after a checkout; the post-anchor reflog erased.
+
 Properties to check at minimum: no foreign lock is removed; no replacement or healthy owner is targeted; a protected running program is not cancelled;
 every accepted identity stays recoverable to its immutable request or terminal outcome; no recovery copy is released while relevant destructive
 execution can still occur; stale index entries are not silently reintroduced into unrelated commits; a superseded version cannot publish. Liveness is
