@@ -10038,3 +10038,13 @@ by the coordinator at merge.
   19 min 26 s although the worktree was proven at 61.3 s. The branch started from `692dcb9f48`, before the trash
   fixes merged in `14601b28d3`, so whether current main still does this is not yet known; measure after main is
   merged in. Also: a restore that rewrites an LFS file needs `git-lfs` on `PATH`.
+- Merge-code source, 2026-11-03: the planning doc `doc/planning/cli-git-merge-auto-resolution.md` is committed
+  (`39cd8a9b37`, `a1d096e4a8`). Correction to what the owner was first offered: published `jj-core` 0.46.0 does
+  not expose Jujutsu's merge; published `jj-lib` 0.46.0 does (`src/lib.rs:46` `pub mod files`, `src/files.rs:305`
+  `pub fn try_merge`; 36 required dependencies); Jujutsu's diff is its own `core/src/diff.rs` (1804 lines; with
+  `core/src/files.rs` 1132 lines at Jujutsu `08edabb3be`), not `similar` or `imara-diff`. Also corrected: in the
+  README conflict both sides inserted lines after the same sentence and one also extended it. Re-asked with four
+  options (port Jujutsu's code; link `jj-lib`; own merge on `similar`; wait for a `jj-core` release); the owner
+  answered, verbatim: "Do the measurements first then ask." An agent is measuring A, B and C on the same fixtures
+  (correctness against `jj` 0.46.0, port size, crates added, build time, binary size, start cost and merge time with
+  spread, licence duties), report to `~/temp/agent/merge-code-options/report.md`. Then ask again.
