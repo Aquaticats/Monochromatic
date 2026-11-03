@@ -245,6 +245,38 @@ fn a_divergent_branch_is_published_as_a_merge_and_the_worktree_is_not_touched() 
     remove(&s.root);
 }
 
+/// The reconcile's fetch runs without a low-speed abort of the wrapper's own: like the push, it waits while its connection is
+///  open (owner, 2026-11-03: "Wait while connected (Recommended)"; pick 5 of the shipped-limits audit, the coordinator's under
+///  the owner's delegation). A stand-in for Git records the two variables the fetch is started with, then runs the real Git.
+#[test]
+fn the_reconcile_fetch_sets_no_low_speed_abort() {
+    let s = scenario("ar-fetch-no-low-speed");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let record = s.root.join("fetch-environment.txt");
+    let stand_in = s.root.join("git-stand-in");
+    std::fs::write(
+        &stand_in,
+        format!(
+            "#!/bin/sh\nfor word in \"$@\"; do\n[ \"$word\" = fetch ] && echo \"$GIT_HTTP_LOW_SPEED_LIMIT|$GIT_HTTP_LOW_SPEED_TIME\" >> '{}'\ndone\nexec /usr/bin/git \"$@\"\n",
+            record.display()
+        ),
+    )
+    .expect("stand-in");
+    std::fs::set_permissions(&stand_in, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    let mut coordinator = push_git(&s.local);
+    coordinator.real_git = stand_in;
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&coordinator, "refs/heads/main", &landed, &mut err).expect("auto-push");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(&err));
+    assert_eq!(
+        std::fs::read_to_string(&record).expect("the fetch ran"),
+        "|\n",
+        "neither variable is set for the fetch"
+    );
+    remove(&s.root);
+}
+
 /// A conflicting merge publishes nothing, names the paths and does not recommend a push that cannot work.
 #[test]
 fn a_conflicting_merge_is_kept_unpublished_with_the_conflicting_paths() {

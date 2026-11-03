@@ -192,11 +192,11 @@ fn watched_step_leaves_no_lock(kind: Holder, name: &str) {
     remove(stage.root.as_path());
 }
 
-/// A push stopped on no progress, under a ceiling, leaves no lock either.
+/// A push stopped on no progress leaves no lock either.
 #[test]
 fn a_stall_stop_of_an_unresponsive_holder_leaves_no_lock() {
     let stage: Stage = stage("stop-lock-push-stall");
-    let patience: Patience = Patience::Progress { stall: HOLD_DEADLINE, ceiling: Duration::from_secs(120) };
+    let patience: Patience = Patience::Progress { stall: HOLD_DEADLINE };
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), patience, SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped on no progress");
     assert_clean_after_stop(&stage, Holder::Unresponsive, "stalled run");

@@ -123,7 +123,7 @@ pub fn run_bounded_query(
             stop_push(child, grace, locks);
             Err(match cause {
                 // A query waits under a fixed deadline, so only a deadline reaches here; the others are the same wait.
-                StopCause::Deadline | StopCause::Stalled(_) | StopCause::Ceiling(_) => SingleFlightError::TimedOut {
+                StopCause::Deadline | StopCause::Stalled(_) => SingleFlightError::TimedOut {
                     arguments: arguments.to_owned(),
                     seconds: deadline.as_secs(),
                 },

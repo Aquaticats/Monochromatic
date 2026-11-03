@@ -22,15 +22,3 @@ fn a_program_that_is_not_the_service_gets_the_terminal_advice() {
     assert_eq!(extend_clause(), extend_clause_for(false));
     assert_eq!(limit_clause(), limit_clause_for(false));
 }
-
-/// The ceiling has its own variable in both programs, and the service text never tells a person to set it in a terminal.
-#[test]
-fn the_ceiling_advice_names_the_ceiling_variable_in_both_programs() {
-    let terminal: String = extend_ceiling_clause_for(false);
-    assert_eq!(terminal, format!("set {PUSH_CEILING_VARIABLE} to allow longer"));
-    let service: String = extend_ceiling_clause_for(true);
-    assert!(service.contains(format!("systemctl --user set-environment {PUSH_CEILING_VARIABLE}=").as_str()), "{service}");
-    assert!(service.contains(RESTART_COMMAND), "{service}");
-    assert!(!service.contains(PUSH_DEADLINE_VARIABLE), "the stall window is not the remedy for a ceiling: {service}");
-    assert_eq!(extend_ceiling_clause(), terminal);
-}
