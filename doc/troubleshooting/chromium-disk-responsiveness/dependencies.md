@@ -1,4 +1,4 @@
-# Chromium runtime dependency disk audit at 2026-11-03T08:30:00+00:00
+# Chromium runtime dependency disk audit at 2026-11-03T08:40:07+00:00
 
 This extends the source audit of Chromium `156.0.8078.73`,
 commit `2f9a11097447f226133bc1a31c787291a5eeab98`.
@@ -27,7 +27,9 @@ Additional wrapper patterns cover Skia,
 LevelDB,
 and ICU file helpers.
 A separate native-library-loading pass found `191` matching lines in `87` files.
-Do not add its line count to the first pass without deduplicating shared locations.
+After checking for shared locations,
+the combined artifact contains
+`17,943` distinct matching lines across `2,634` files.
 
 - V8:
   `19,826` regular files,
@@ -77,9 +79,15 @@ The complete matches,
 patterns,
 inventories,
 and summaries are retained in
-`${HOME}/temp/agent/chromium-disk-audit-dependency-results/`.
+[the committed dependency evidence](dependencies/summary.json).
 The loader pass is in that directory's `loaders/` child.
 The scanner is `${HOME}/temp/agent/chromium-dependency-disk-scan.ts`.
+The combined artifact is `dependencies-candidates.jsonl.gz`,
+measuring `298,922` bytes;
+`dependency-audit-summary.json` retains per-dependency totals.
+`known-source-controls.json` confirms that the scanner retained the inspected Skia/PDFium mappings,
+WebRTC file writer,
+and ANGLE/Dawn loader calls.
 
 ## Browser UI fonts use synchronous Skia file access under a shared manager lock
 
@@ -175,8 +183,10 @@ Font callbacks provide the concrete synchronous path here.
 
 ## Stopping an enabled AEC dump waits for file writes on renderer main
 
-This is a diagnostic-feature path,
-not a claim about ordinary calls with AEC dumping disabled.
+This path requires renderer-side audio processing and enabled diagnostic AEC dumping.
+`third_party/blink/renderer/modules/mediastream/processed_local_audio_source.cc:243-276`
+has distinct audio-service and renderer-side processing branches.
+It is not a claim about every microphone session or calls with AEC dumping disabled.
 [`MediaStreamAudioProcessor::Stop` and `OnStopDump`][aec-main]
 at `third_party/blink/renderer/modules/mediastream/media_stream_audio_processor.cc:91-114`
 assert the main-thread runner and call `audio_processor_->OnStopDump()`.
@@ -278,7 +288,7 @@ the upstream `Env` implementation alone does not identify the affected UI surfac
 SQLite contains direct file operations and duplicates them in generated amalgamations.
 `sql/statement.cc:133` enters `sqlite3_step` on its caller,
 and `sql/database.cc:2446-2456` controls mapping size per database.
-The parent's storage and persistent-cache call-chain analysis determines which synchronous database uses matter.
+The [overview's storage and persistent-cache call-chain analysis](../chromium-disk-responsiveness.md) determines which synchronous database uses matter.
 The scan does not classify every SQLite call as a UI stall.
 
 WebRTC's regular dump writes are queued.
@@ -299,8 +309,23 @@ browser performance experiments,
 or synthetic host load were performed.
 The acquisition's surviving Git fsmonitor daemons were identified in its cgroup and stopped.
 Both scan scopes also reached inactive state.
-Source-selection browser checks will be recorded in
-`${HOME}/temp/agent/chromium-dependency-link-checks.json`.
+All `21` cited selections passed browser verification:
+exact URL,
+selected anchor,
+anchor in the viewport,
+and source text matching the pinned local checkout.
+The checks are recorded in [the source-selection record](dependency-link-checks.json).
+GitHub layout readiness was awaited before extracting `textContent`;
+immediate `innerText` reads had produced empty strings while source text existed in the DOM.
+The initial checks are retained in `chromium-dependency-link-checks-before-scroll.json`.
+The probe's later navigation returned `agent-browser` diagnostic `outcome_unknown`
+with `Resource temporarily unavailable (os error 11)`.
+Its final close succeeded;
+`doctor --offline --quick` then reported no failures,
+and the complete pass with viewport readiness waits succeeded.
+No cause is attributed to that transient transport failure.
+The named `chromium-audit-dependency-links` browser closed,
+and its final scope is inactive with no tasks remaining.
 
 [ui-font]: https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/ui/gfx/platform_font_skia.cc#L59-L84
 [font-manager]: https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/skia/ext/font_utils.cc#L91-L130

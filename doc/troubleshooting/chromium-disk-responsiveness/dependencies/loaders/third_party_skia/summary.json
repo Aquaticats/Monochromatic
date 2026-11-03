@@ -1,0 +1,23 @@
+{
+  "dependency": "third_party/skia",
+  "revision": "a65b5cc03a5131808aec172085b7074fc66625b9",
+  "date": "2026-11-03T08:26:36.653Z",
+  "trackedEntries": 12432,
+  "regularFilesScanned": 12431,
+  "omitted": [
+    {
+      "mode": "120000",
+      "sha": "73b549bfaea891a9d50ae49a2cb45b006ec3eb25",
+      "path": "src/ports/fontations/Cargo.toml"
+    }
+  ],
+  "matches": 27,
+  "originalPatternMatches": 27,
+  "wrapperMatches": 0,
+  "matchedFiles": 13,
+  "productionLooking": 23,
+  "searchedBytes": 189687034,
+  "perFamily": {
+    "native-library": 27
+  }
+}

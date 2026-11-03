@@ -1,0 +1,1 @@
+\b(?:LoadLibrary(?:Ex)?[AW]?|dlopen|dlmopen|LoadNativeLibrary|OpenNativeLibrary|OpenSystemLibrary(?:AndGetError)?|OpenSharedLibrary(?:AndGetError)?)\s*\(
