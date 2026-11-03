@@ -9079,3 +9079,14 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   (`ERR_PNPM_NO_OFFLINE_TARBALL`); `--store-dir <main>/.pnpm-store` works. Not merged until the cost is put to the owner.
 - Three cross-vendor reviews timed out at 3600 s with no output (planted-control round 8, conflict-side attempt 3, and the
   earlier two); checking the reviewer's health before relaunching.
+- DECIDED BY THE OWNER (2026-11-02, question tool): "Hold until snapshot measured". `main-ignored-copy` stays unmerged.
+  The research agent measures the snapshot route on fixtures only: snapshot of a main-like subvolume, removal of the
+  skipped sets (foreground and after the add returns), a one-time migration of the 48 ordinary nested worktrees into
+  subvolumes (design and fixture measurement only; needs owner approval before touching real worktrees), and a pnpm
+  store setting for subvolume worktrees (proposal only). Results go to
+  `doc/planning/cli-git-main-worktree-ignored-copy.md`, then back to the owner.
+- Reviewer health: a trivial prompt answers in 5 s, so the timeouts come from long reasoning on large inputs; I keep at
+  most three reviews running and split large ones. Running now: ladder round 3 part A (recovery and rollback, whole files,
+  the 235 KB diff dropped), the ladder remove path, and conflict-side as one narrow question. Queued: ladder round 3
+  part B (`fs_beneath.rs`, clone, index install), planted-control round 8, `bound-supervisor-r2`, the lease-claim product
+  change.
