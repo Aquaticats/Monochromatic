@@ -104,6 +104,32 @@ thread_local! {
     static TRACE: std::cell::RefCell<Option<Vec<PathBuf>>> = const { std::cell::RefCell::new(None) };
 }
 
+// What:     a second per-thread cell holding an optional plain function (`fn(&str)`), the fault point callback. `fn(&str)` is a
+//           function pointer (TS: a function value); it carries no captured variable, so a test shares state with it through
+//           statics (a `Barrier`), not through a closure.
+// Why:      A race test must stop one writer exactly at the existence or link decision so the unsafe schedule always runs; the
+//           callback is called by name at those decisions and is `None`, doing nothing, in production.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// let faultPoint: ((name: string) => void) | undefined; // per worker thread
+// ```
+thread_local! {
+    static FAULT: std::cell::Cell<Option<fn(&str)>> = const { std::cell::Cell::new(None) };
+}
+
+/// Sets, on this thread, the function called at each named fault point of the durable-record components (`None` clears it).
+pub fn set_fault_point(callback: Option<fn(&str)>) {
+    FAULT.with(|cell| { cell.set(callback); });
+}
+
+/// Calls this thread's fault point callback, if any, with the name of the decision point reached; a no-op otherwise.
+pub fn fault_point(name: &str) {
+    if let Some(callback) = FAULT.with(|cell| { return cell.get(); }) {
+        callback(name);
+    }
+}
+
 /// Starts recording, on this thread, the directories that `sync_directory` syncs, in order.
 pub fn start_sync_trace() {
     TRACE.with(|trace| { *trace.borrow_mut() = Some(Vec::new()); });
@@ -221,6 +247,7 @@ pub fn bind(root: &Path, id: &str, hash: &str) -> Result<Bound, IdentityError> {
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
     file.write_all(format!("{}\n", hash).as_bytes())?;
     file.sync_all()?;
+    fault_point("bind:before-link");
     let linked: io::Result<()> = fs::hard_link(&temporary, &path);
     fs::remove_file(&temporary)?;
     match linked {

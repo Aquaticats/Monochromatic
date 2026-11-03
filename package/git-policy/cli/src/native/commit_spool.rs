@@ -16,7 +16,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, sync_chain, sync_directory, temporary_name};
+use super::commit_identity::{create_dir_all_durable, fault_point, sync_chain, sync_directory, temporary_name};
 use super::commit_integrity::{is_identity, sha256_hex};
 use super::commit_request::Request;
 
@@ -84,6 +84,7 @@ fn link_complete(target: &Path, bytes: &[u8]) -> Result<(), SpoolError> {
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
     file.write_all(bytes)?;
     file.sync_all()?;
+    fault_point("spool:before-link");
     let linked: io::Result<()> = fs::hard_link(&temporary, target);
     fs::remove_file(&temporary)?;
     match linked {

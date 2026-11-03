@@ -542,3 +542,64 @@ fn spool_refuses_a_manifest_that_swaps_the_new_and_old_records() {
     std::fs::write(&manifest, format!("{}end {}\n", escaping, sha256_hex(escaping.as_bytes()))).expect("forge");
     assert!(matches!(verify_spool(&root, &original.id), Err(SpoolError::Mismatch(_))));
 }
+
+/// The barriers of the fault-point tests. Each test has its own pair, because the statics are shared by the whole test process.
+static BIND_ARRIVED: std::sync::Barrier = std::sync::Barrier::new(2);
+/// Releases the writer paused at the bind fault point.
+static BIND_RELEASE: std::sync::Barrier = std::sync::Barrier::new(2);
+/// Marks that the writer paused at the publish fault point.
+static PUBLISH_ARRIVED: std::sync::Barrier = std::sync::Barrier::new(2);
+/// Releases the writer paused at the publish fault point.
+static PUBLISH_RELEASE: std::sync::Barrier = std::sync::Barrier::new(2);
+
+/// Pauses the calling writer at the bind decision point until the test releases it.
+fn pause_at_bind(point: &str) {
+    if point == "bind:before-link" {
+        BIND_ARRIVED.wait();
+        BIND_RELEASE.wait();
+    }
+}
+
+/// Pauses the calling writer at the publish decision point until the test releases it.
+fn pause_at_publish(point: &str) {
+    if point == "publish:before-link" {
+        PUBLISH_ARRIVED.wait();
+        PUBLISH_RELEASE.wait();
+    }
+}
+
+/// Re-review P3, deterministic: writer A has written and synced its temporary binding and stops just before the link; writer B
+/// binds the same identity to other content and finishes; A then resumes. The unsafe schedule always runs, and A is refused.
+#[test]
+fn a_writer_paused_before_the_link_loses_to_one_that_finished_first() {
+    let root: PathBuf = scratch("fault-bind");
+    let id: String = identity('7');
+    let (a_root, a_id) = (root.clone(), id.clone());
+    let paused = std::thread::spawn(move || {
+        git_policy_cli::commit_identity::set_fault_point(Some(pause_at_bind));
+        return bind(&a_root, &a_id, &sha256_hex(b"first")).expect("bind");
+    });
+    BIND_ARRIVED.wait();
+    assert_eq!(bind(&root, &id, &sha256_hex(b"second")).expect("bind"), Bound::Created);
+    BIND_RELEASE.wait();
+    assert_eq!(paused.join().expect("join"), Bound::DifferentContent(sha256_hex(b"second")));
+    assert_eq!(std::fs::read_to_string(binding_path(&root, &id).expect("path")).expect("read"), format!("{}\n", sha256_hex(b"second")));
+}
+
+/// The same for the record: writer A stops before linking `inbox/<id>`, writer B publishes other content and finishes, A resumes
+/// and finds a conflict; the acknowledged record is B's and unchanged.
+#[test]
+fn a_publisher_paused_before_the_link_finds_the_other_record_in_place() {
+    let root: PathBuf = scratch("fault-publish");
+    let inbox: PathBuf = root.join("inbox");
+    let (a_root, a_inbox) = (root.clone(), inbox.clone());
+    let paused = std::thread::spawn(move || {
+        git_policy_cli::commit_identity::set_fault_point(Some(pause_at_publish));
+        return publish(&a_root, &a_inbox, &request('c', "first"));
+    });
+    PUBLISH_ARRIVED.wait();
+    assert_eq!(publish(&root, &inbox, &request('c', "second")).expect("publish"), Published::Created);
+    PUBLISH_RELEASE.wait();
+    assert!(matches!(paused.join().expect("join"), Err(RequestError::Conflict)));
+    assert_eq!(decode(&std::fs::read(inbox.join(identity('c'))).expect("read")).expect("decode"), request('c', "second"));
+}
