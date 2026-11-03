@@ -9725,3 +9725,15 @@ by the coordinator at merge.
   `mise` waited for its end. Stopped by PID. That worktree lacks `fixture-reaper.ts`, which `1a49aa2254` added on main
   to end fixture process groups with their test; main's version was not rerun against this hang. Its processes were
   two of the 7 "busy" worktrees in the conversion dry run.
+- `fault_trace` follow-up-commit flakes diagnosed and fixed in the test fixture
+  (`fix/git-policy-cli-fault-trace-follow-up-commit`: `aaca11b8f7` red repro, `a34eb9f539`, `4c50555da4`; main merged
+  in as `76de7fc56b`). Cause: `stop_all` waited only for its direct child, which under a tracer is `strace`; the
+  traced service outlived it and still answered on its socket, so the next fixture service hit
+  `cannot listen: Address already in use`, exited 3, and `FixtureService::serve` reported it listening because its
+  `connect()` reached the dying listener. Both failures in the agent's earlier run each contain one such line. Fix:
+  `wait_until_nothing_listens` after the kill and before each spawn (60 s bound, loud panic). Production is not
+  affected (the manager owns and passes the socket). The kill sweep (`a_service_killed_at_any_call_...`) spent
+  10 s per case waiting out `START_WAIT` for a restart that no fixture manager made; a stand-in manager now restarts
+  ended services for `Effect::Kill` and a guard requires one commit through a restarted service. Host runs: library
+  3122 of 3122, binary 525 of 525, no SLOW; the three tests 20 s, 20 s, 28 s (was 87 s). Unverified: the exact
+  dying-tracee timing was not reproduced without load. Gate 67 running.
