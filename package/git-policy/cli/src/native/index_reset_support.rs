@@ -231,7 +231,7 @@ pub(crate) fn landing_reset_copy(context: &crate::transaction_git::GitContext, r
 pub(crate) fn commit_with_raw_entry(scene: &Scene, name: &str, mode: &str, content: &[u8]) -> String {
     let blob: String = String::from_utf8(git_with(scene.repo.as_path(), &[], &["hash-object", "-w", "--stdin"], Some(content)).stdout).expect("UTF-8").trim().to_string();
     let mut tree: Vec<u8> = format!("{mode} {name}\0").into_bytes();
-    for pair in blob.as_bytes().chunks_exact(2) {
+    for pair in blob.as_bytes().as_chunks::<2>().0 {
         tree.push(u8::from_str_radix(std::str::from_utf8(pair).expect("hex"), 16).expect("hex digit pair"));
     }
     let made: Output = git_with(scene.repo.as_path(), &[], &["hash-object", "-t", "tree", "-w", "--literally", "--stdin"], Some(tree.as_slice()));

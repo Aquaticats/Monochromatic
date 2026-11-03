@@ -159,11 +159,11 @@ fn a_failed_installation_keeps_the_index_and_a_replaced_lock_is_left_alone() {
     std::fs::remove_file(lock_path_of(index.as_path())).expect("removed");
     std::fs::remove_file(&built).expect("built removed");
     // A rename that fails: the live index path holds a directory, so the copy cannot take its place; the lock goes with the error.
-    let held = try_acquire(index.as_path(), 5).expect("the lock is free");
-    let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &held, 5).expect("built");
+    let second_hold = try_acquire(index.as_path(), 5).expect("the lock is free");
+    let second_built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &second_hold, 5).expect("built");
     std::fs::remove_file(&index).expect("index removed");
     std::fs::create_dir_all(index.join("occupied")).expect("a directory where the index goes");
-    assert!(held.release_with(built.as_path()).is_err());
+    assert!(second_hold.release_with(second_built.as_path()).is_err());
     assert!(!lock_path_of(index.as_path()).exists(), "the lock is removed with the failure");
     assert!(index.join("occupied").is_dir());
     remove(root.as_path());

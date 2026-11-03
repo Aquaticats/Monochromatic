@@ -4,7 +4,6 @@
 use super::*;
 use crate::test_support::{fixture, remove};
 use std::cell::RefCell;
-use std::os::unix::fs::PermissionsExt as _;
 
 /// A directory with a live index file and a private copy beside it.
 fn directory(name: &str) -> (PathBuf, PathBuf, PathBuf) {
@@ -74,10 +73,10 @@ fn the_mode_is_set_before_any_byte_is_written() {
         };
         let steps: Steps<'_> = Steps { write: &write, chmod: &chmod, umask: &umask_022, ..SYSTEM };
         publish_with(&steps, built.as_path(), b"index bytes", shared).expect("published");
-        let seen = seen.into_inner();
+        let order = seen.into_inner();
         // At the change of mode the file is empty and owner-only; at the first write it already has the final mode.
-        assert_eq!(seen[0], ("chmod", 0o600, 0), "shared {shared:o}");
-        assert_eq!(seen[1], ("write", expected, 0), "shared {shared:o}");
+        assert_eq!(order[0], ("chmod", 0o600, 0), "shared {shared:o}");
+        assert_eq!(order[1], ("write", expected, 0), "shared {shared:o}");
         assert_eq!(mode_of(built.as_path()), expected, "shared {shared:o}");
         remove(root.as_path());
     }
@@ -102,7 +101,10 @@ fn every_failed_step_leaves_the_target_and_no_temporary_file() {
     let calls: RefCell<u32> = RefCell::new(0);
     let fails_after_a_while = |file: &mut std::fs::File, part: &[u8]| -> std::io::Result<usize> {
         *calls.borrow_mut() += 1;
-        if *calls.borrow() > 2 { Err(broken()) } else { (SYSTEM.write)(file, &part[..part.len().min(5)]) }
+        if *calls.borrow() > 2 {
+            return Err(broken());
+        }
+        return (SYSTEM.write)(file, &part[..part.len().min(5)]);
     };
     let takes_nothing = |_: &mut std::fs::File, _: &[u8]| -> std::io::Result<usize> { return Ok(0); };
     let no_chmod = |_: &std::fs::File, _: u32| -> std::io::Result<()> { return Err(broken()); };

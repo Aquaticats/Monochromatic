@@ -2831,13 +2831,18 @@ so the next acquisition reclaims it and a wrapped command says the service no lo
 The built index is written without a Git process (`index_reset_file.rs`, called from `build_index` in `service_land_follow.rs`;
 the ported rules are in `doc/planning/cli-git-main-commit-within-native-plus-five.md`, "The landing's index update and the
 index check in process").
-It runs only for the landing that holds the live index lock: the private copy `index.cli-git-<batch>` is made from the live
-index while the lock is held, the update first checks that the live lock's marker names this
-process and this batch (`holds_the_lock` in `index_reset_publish.rs`), and the lock's release renames the copy over the live
-index (`IndexLock::release_with`).
+It runs only for the landing that holds the live index lock, and the type system says so: `reset_index_file` and `build_index`
+take a borrow of the held `IndexLock`, so only the holder can call them, and they work on the one file `private_index_path` names
+for that lock's index and batch (`index.cli-git-<batch>` beside the live index), never on another file in the directory.
+The private copy is made from the live index while the lock is held, and the lock's release renames the copy over the live index
+(`IndexLock::release_with`).
+The only caller is `follow_up` in `service_land.rs`, which owns the lock; it is reached from the landing with the lock that
+`acquire_noting_wait` gave, and from the restart with the lock that `try_acquire` gave.
 So a foreign `git add` finds the lock taken from the copy to the installation, and what it staged before is in the copy.
-The result goes to a temporary file made exclusively beside the copy, with Git's index file mode (`core.sharedRepository`
-through `adjust_shared_perm`), flushed to the disk, and renamed over the copy; a run removes only the file it made.
+The result goes to a temporary file made exclusively beside the copy, owner-only when `core.sharedRepository` is set and then
+given Git's index file mode before any byte is written (the mode `adjust_shared_perm` gives Git's lock file, from the process
+mask in `/proc/self/status`), flushed to the disk, and renamed over the copy; a run removes only the file it made.
+An entry another session staged in the same second as the copy is racily clean to Git, so the update leaves that landing to Git.
 Whatever the update does not reproduce (the list is in the planning section) is left to `git reset --no-refresh` on the same
 private file, so Git's `core.fsync` governs only that fallback; the in-process write always flushes the file, as Git's default does.
 The rename that installs the copy has the durability native Git's has, by default and when the user opts in.
