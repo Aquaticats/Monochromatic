@@ -211,56 +211,81 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### One owner per worktree, enforced by the kernel
+### One owner per worktree: the lock, the incarnation and the lifecycle authority
 
-The lane of a worktree (the process that publishes its requests and materializes them) is whoever holds an exclusive advisory
-lock on `lane/owner` in the worktree's private service directory (an open-file-description lock).
-There is no epoch, no fence ref, no takeover of a live owner, no signal sent to anyone before the lock is held, and no watchdog.
+Revision 7 states one operative rule for each of: cancellation, inline-owner lifetime, optional index locking, background re-signing and
+the attachment guard. Earlier sections of this record that say otherwise are history and are marked so.
 
-- Every child the lane starts inherits the lock's open file description (not close-on-exec) and is started with the parent-death
-  signal set from a thread that lives as long as the owner. When the owner dies its children die with it, the kernel releases the
-  lock, and the next owner simply acquires it. Descendants of a hook are children of a child and inherit the description too.
-  Inheritance is not itself a lifetime proof; the implementation obligations are controls for: exec boundaries, hooks and their
-  descendants, cancellation of the owner, and an inline owner (below).
-- The lock covers the smallest unit (one worktree) and exists for exactly the owner's life. The reason it is needed (the
-  repository's rule is lock-free first): no lock-free claim can tell a new owner that the previous owner and all its children are gone.
-- Acquisition blocks with a notice that names the current owner; it never terminates the owner. A process-start-time match
-  identifies a process, it does not give authority to end it.
-- Inline ownership. A client that finds no owner takes the lock and acts as the owner only for as long as its own command lives:
-  it drains the requests adopted before its own, publishes its own, retires it, and exits, leaving later arrivals in `inbox/` for the
-  service. It is the person's foreground command, so the person can interrupt it (the request is already durable and the next owner
-  finishes it).
-- Descendant containment. Parent-death handling covers only the processes the lane starts. A hook can create descendants that close
-  inherited descriptors or outlive their parent, so containment is a cgroup, not a descriptor:
-  - a service owner runs in its unit's cgroup, which the manager ends on stop or restart;
-  - an inline client owner moves itself into a transient scope created through the manager's bus interface the wrapper already speaks
-    (`systemd_dbus.rs`) and starts every child inside it;
-  - a descendant that keeps the lock description keeps the lane unavailable until it exits, but it is safe, because no new owner
-    can mutate while it lives; a descendant that closed the description is contained by the cgroup;
-  - a scope left by a dead inline owner holds only orphans (the owner process, recorded with its start time, is dead); the next owner
-    stops that scope after checking that the recorded owner is dead, which is authority over a dead owner's leftovers and never
-    over a live one;
-  - where the manager is unavailable, an inline owner is allowed only while no hook is configured for the operation (no
-    `reference-transaction` hook), so no unknown descendant can exist; otherwise the request stays handed over for the service.
-  Controls: a hook that leaves a descendant holding the description, and one that closes it, with the owner killed at each phase.
-- A wedged owner. No process takes over a live owner by identity, and the unit has no watchdog or limit (owner decision, recorded
-  in `SPEC.md`). What remains is the owner's own rule for stuck steps (decision 1): a Git child with no progress for the measured
-  interval is ended and redone, and a hook is never ended. A quiet owner of our own making is a separate case, put to the owner
-  below.
+The lane of a worktree (the process that publishes its requests and materializes them) is whoever holds an exclusive advisory lock on
+`lane/owner` in the worktree's private service directory (an open-file-description lock).
+There is no epoch, no fence ref and no unit watchdog. There is exactly one external supervisor, the client-triggered restart of
+"Restarting a quiet owner" below, and it acts only through the gate.
 
-One lock per worktree, and no other lock added, meets "Use as few locks as possible".
-A service-only lane would remove even that lock by relying on the manager for single-instance and descendant lifetime; the reviewer
-judged this an implementation choice, so it is not put to the owner.
+Inline-owner lifetime (the operative rule).
+- The owner process alone holds the lock. Every child it starts has the lock description closed (close-on-exec), so no descendant can
+  keep the lane locked and acquisition is never blocked by an orphan. The owner starts children with the parent-death signal set from a
+  thread that lives as long as the owner.
+- Before it launches any child, the owner writes `lane/incarnation` (fsync): a fresh incarnation id, its process identity (pid and
+  start time), and the scope it will use. A service owner's scope is its unit's cgroup, which the manager ends with the unit. An
+  inline client owner first creates a transient scope through the manager's bus interface (`systemd_dbus.rs`), moves itself into it,
+  and launches every child inside it.
+- A client that finds no owner takes the lock and acts as the owner for as long as its own command lives: it drains the requests
+  adopted before its own, publishes its own, retires it and exits, leaving later arrivals for the service. It is the person's
+  foreground command, so the person can interrupt it; the request is already durable.
+- Lifecycle authority. A new owner acquires the lock. Acquisition proves the previous owner process is dead, because only that process
+  held the lock. Holding the lock, it reads `lane/incarnation`, and if the recorded scope still exists it terminates it
+  (`cgroup.kill`) and waits until the scope reports no processes. Only then does it write its own incarnation and begin any mutation.
+  It never targets a live owner and never a scope that is not the recorded previous incarnation's. Until termination completes the new
+  owner mutates nothing, which closes the case where a descendant that closed the description is still writing after the lock is free.
+  The case where a hook-made descendant kept the lock description cannot arise, since children do not inherit it.
+- Containment limit, stated: a hook can ask the manager to start another unit, and cgroup membership does not confine that work. That is
+  outside the wrapper's control. Where the manager is unavailable an inline owner is allowed only when the operation can start no
+  arbitrary child program at all: no configured hook, no clean or smudge filter, no signer or signing helper, no credential or
+  other helper that the operation would run. Otherwise the request stays handed over for the service.
+- Controls: a hook descendant that survives its owner and is in the scope; one outside it; the owner killed at every phase; a service
+  starting while a healthy inline owner lives (it waits and signals nobody); an owner whose scope cannot be terminated.
+
+The lock covers the smallest unit (one worktree) and exists for exactly the owner's life. The reason it is needed (the repository's
+rule is lock-free first): no lock-free claim can tell a new owner that the previous owner is gone. One lock per worktree and the gate
+below are the only locks added; "Use as few locks as possible" is met by the smallest set that gives these two kernel-atomic facts.
+
+Restarting a quiet owner (question 2, picked A under the owner's delegation, and shipped only with the measured interval).
+A waiting command may end a quiet owner, under these rules, which also state what "the person's hook is never ended" requires:
+- The hook gate. A second advisory lock, `lane/gate`, is held shared by the owner for the whole time a person's program runs (a hook,
+  a filter, a signer or other helper) and for the whole time a ref transaction is in flight (below). A restarter may end the owner only
+  while holding the gate exclusively, taken without waiting; if it cannot take it, a person's program or a publication is running and
+  nothing is ended. The owner takes the shared gate before it dispatches such a program, so a dispatch after the restarter's check
+  blocks on the gate while the restarter holds it, and the owner is then ended without having started the program.
+- Incarnation. The restarter reads `lane/incarnation`, opens a pidfd for the recorded process and checks its start time, takes the
+  gate, reads `lane/incarnation` again and aborts if the incarnation changed, then ends the owner through the pidfd. A pidfd names that
+  process for good, so a delayed request cannot reach a replacement owner. It holds the gate until the owner is dead.
+- The manager's kill of the rest of the unit follows the owner's death (control-group kill mode); an inline owner's scope is reaped by
+  the next owner (lifecycle authority above).
+- Restart is not available while a ref transaction is in flight, because ending the owner then could leave a wrapper-made lock (see
+  cancellation); a quiet owner in that phase is handled by cancelling the Git child, not by restart.
 
 ### Durable acceptance needs no ref write
 
 A command is accepted when its immutable request is durable in the worktree's service directory:
 1. read the branch tip `B` (reading refs takes no lock) and read the base content the replay needs from `B` into the spool; if an
    object is missing because a foreign rewrite and a prune raced the read, read the tip again (nothing was handed over yet);
-2. read the worktree and the real index and write the captured bytes into the spool;
+2. capture under the seqlock of "Capture consistency" below, reading the worktree and the real index, and write the captured bytes
+   into the spool;
 3. fsync each spool file, fsync the spool directory;
-4. write the request record to a temporary name, fsync it, rename it into `inbox/<id>`, fsync `inbox/` and its parent;
-5. answer that the request is handed over.
+4. bind the identity to its content, permanently and without overwrite: create `ids/<xx>/<id>` in the repository-owned location below
+   with `O_EXCL`, containing the hash of the immutable request, and fsync it and its directory; if it already exists, read it: the same
+   hash means this is a resend (answer from the record or the ledger), a different hash is rejected with a message and nothing is
+   accepted;
+5. write the request record to a temporary name, fsync it, then publish it into `inbox/<id>` with `renameat2(RENAME_NOREPLACE)` (or a
+   hard link, which cannot overwrite), fsync `inbox/` and its parent;
+6. answer that the request is handed over.
+The binding file of step 4 is never removed and never overwritten, so the comparison across the inbox, the queue and the ledger is one
+lookup that survives adoption moving the record and retirement removing it. Two clients that use the same identity with different
+content cannot both be accepted: only the one that created `ids/<xx>/<id>` proceeds.
+
+Repository-owned location. Binding files and the ledger live in `$GIT_COMMON_DIR/cli-git/` (the common directory, shared by
+linked worktrees and untouched by `git worktree remove`), keyed by the worktree's instance, with lookups by identity alone (the
+identity is random and global). A worktree removal retires its lane with a final ledger line and leaves these files.
 
 ### Adoption order, recovery and the logical head
 
@@ -268,55 +293,100 @@ A command is accepted when its immutable request is durable in the worktree's se
 `inbox/<id>` to `queue/<id>`.
 - After a durable `adopt <id>` the request is adopted even if its record still lies in `inbox/`; recovery completes the move and
   never appends a second `adopt`.
-- A record in `inbox/` with no `adopt` line is adopted next, in the order of its capture time and id.
-- Each line is self-framing (length-free fixed text with a checksum); recovery ignores a torn last line.
+- A record in `inbox/` with no `adopt` line is adopted next, in the order of its capture time and id (a convention, not causal order).
+- Each line is self-framing with a checksum; recovery truncates a torn last line to the last valid line before any append.
 - The lane is the only writer, so there is no allocator to go obsolete.
 
+Capture consistency (a seqlock; this replaces "read the state version twice").
+`lane/state` carries a generation `g`. The lane writes the in-progress generation before any mutation that a reader's view depends on,
+and the stable generation after it:
+- writer: journal the intent of the mutation (fsync); write `g` odd, meaning in progress (fsync); perform the mutation; write the new
+  state with `g` even and larger (fsync). The mutations are every transition of the logical head or the consumption map and every
+  externally visible effect on the real index or the refs: adoption, supersession by an amendment, publication, materialization,
+  voiding, retirement, and each map update;
+- reader (capture): read `g`; if it is odd, wait for the lane (a notice names the phase); read the logical head, the map, the refs and
+  the real index; read `g` again; accept only an unchanged even `g`, otherwise start again;
+- interrupted writer: a new owner finding an odd `g` completes or rolls back the journaled mutation (every mutation is journaled
+  before the in-progress mark and is idempotent), then writes an even generation;
+- foreign writers of refs and the index do not take part, so capture also re-reads the tips and the index's entries for the paths it
+  used and starts again if they changed; a foreign change that leaves them as read is undetectable and is not claimed.
+This closes the reviewer's execution, in which the lane's own materializer installed `x=1` and a plain commit read a stable-looking
+version: the materializer wrote `g` odd before touching the index, so the reader either waited or saw a changed generation.
+Starvation, stated: capture waits for the lane's short mutations and starts again when one completes during its reads; sustained lane
+activity delays a capture and the command waits on its own lane with a notice. It is not wait-free, and it never waits on a foreign
+program.
+
 Capture against the logical head.
-A request records the logical head it was captured against (the newest pending commit as published in the lane's state, or the
-branch tip when none is pending) and the delta (paths, new bytes, deletions, modes) relative to that base. At adoption the lane
-replays the delta onto the actual logical tail by the three-way replay below. A base is never substituted under an unchanged tree.
+A request records the logical head it was captured against (the newest published-or-pending, non-held commit, or the branch tip when
+none is pending) and the delta (paths, new bytes, deletions, modes) relative to that base. The delta is computed once, at capture; at
+adoption the lane replays it onto the actual logical tail by the three-way replay below and never reinterprets it against another
+map. A base is never substituted under an unchanged tree.
 
 The logical index (staged changes while requests are pending).
-Pending requests are not materialized, so the real index keeps whatever it held, including entries the person staged for an earlier
-pending request. The lane therefore keeps a consumption map, per path, of the real-index entry that an adopted request has already
-consumed (for a named-path request, its pre-commit entry). A plain commit's staged change is the set of paths whose real-index
-entry differs from the consumption map where one exists and from the physical head's tree otherwise.
+Pending requests are not materialized, so the real index keeps whatever it held. The lane keeps a consumption map, per path, of the
+real-index entry that an adopted request has already consumed (for a named-path request, its pre-commit entry). A plain commit's staged
+change is the set of paths whose real-index entry differs from the consumption map where one exists and from the physical head's tree
+otherwise. The entry for a path is cleared when the request that set it is materialized or voided.
 Reviewer's sequence: the person stages `x=1` and plain request R1 becomes pending (consumed: `x=1`); named-path request R2 captures
-worktree `x=2` (its pre-entry is `x=1`, consumed: `x=1`); the person stages only `y`; plain request R3 sees `x=1` equal to the
-consumed entry, so `x` is not in R3's change, and R3 is `y` alone. If the person later stages `x=3` it differs from the consumed
-entry and joins the change. The map entry of a path is cleared when the request that set it is materialized or voided.
-The limit, stated: while requests are pending, staging a path back to exactly its consumed entry cannot express a revert of a
-pending commit.
+worktree `x=2` (its pre-entry is `x=1`, consumed: `x=1`); the person stages only `y`; R3 sees `x=1` equal to the consumed entry, so R3
+is `y` alone.
+The limit, stated before it can surprise (question 1, picked A): while requests are pending, staging a path back to exactly its
+consumed entry is not captured by a plain commit; a notice on a plain commit with pending requests says so, a plain commit whose
+captured delta is empty ends as nothing to commit and never as a new failure, `commit -a` obeys its own rule (it captures tracked
+worktree content explicitly, the settled conflicted-file behavior included), and a named-path commit undoes the pending change.
+Optional later improvement, not part of this protocol: versioned restaging events. While requests are pending the wrapper, which forwards
+`git add`, `git rm`, `git restore --staged` and `git update-index`, could record the resulting staged entry or deletion of each explicit
+restage as a versioned, consumable event, written with the staging in a way a crash cannot invent or lose it, so that a plain commit
+captures an explicit restage to the consumed entry. The sixth review's cases are the requirements, and the bare record of paths is
+withdrawn as a candidate because each case breaks it:
+- `git add x` with unchanged index content must still count (an index before/after diff misses it);
+- `git add .`, `-A`, `-p`, `-N`, `--refresh` and dry runs: pathspecs are not the entries actually restaged, rejected hunks and stat-only
+  operations are not content intent;
+- `git restore --staged` records the resulting entry or deletion and its source, not worktree bytes;
+- native Git, libgit2 and IDE staging produce no event and fall back to the limit above (no claim to detect all deliberate staging);
+- editors that change only worktree bytes are not staging events;
+- `git stash` and `stash pop --index` change the staged state without the four commands, and treating every internal index change as
+  intent invents intent;
+- `git commit -a` captures tracked worktree content as an explicit staging operation;
+- ordinary aliases are normalized before classification; shell aliases and absolute native invocations are bypasses;
+- an unconsumed event (an explicit restage of `x=1` used by `R3`, then a named request capturing `x=3`, then a plain commit for `y`) must
+  not return `x` to `1`: events are consumed by the request that uses them;
+- crash ordering: record first and crash before staging invents an operation, stage first and crash before recording loses it; an
+  intent-then-effect-then-confirm journal with a recovery rule is required, especially for unchanged-content staging.
 
 Pending requests are immutable versions.
-An amendment is a new immutable request that names its target request and that request's commit `D1`. The one sequential lane
-adopts it between steps:
-- target unpublished: the amendment replaces it (the old version is dropped, the new one keeps its place);
-- target published and still the tip: an amend of the tip;
-- target published but no longer the tip (successors were published before the amendment was adopted): the amendment is stacked
-  as a new commit on the tip, its change being the amend's tree relative to `D1` (the owner's moved-head rule), and it never
-  amends an unrelated successor.
+An amendment is a new immutable request that names its target request and that request's commit `D1`. The one sequential lane adopts it
+between steps: target unpublished, the amendment replaces it (the old version is dropped, the new one keeps its place); target
+published and still the tip, an amend of the tip; target published but no longer the tip, the amendment is stacked as a new commit on
+the tip, its change being the amend's tree relative to `D1`, and it never amends an unrelated successor.
 
-A branch switch while a request is pending.
-The request records the worktree's attachment at capture (the branch, or detached). Publication is to the branch the commit was
-made on, and is a compare-and-swap whatever the worktree has checked out now. Before any materialization the lane reads the
-worktree's current `HEAD`: if it is no longer attached to that branch (switched, detached, branch deleted, worktree removed), the
-materialization is voided, nothing is written to the current index, and a line says where the commit went and that the index of
-the current branch was not touched. The materialization generation of the worktree (a counter in `lane/state` that changes on a
-checkout of another branch observed by the lane) is recorded with the intent, and an intent from an older generation is voided.
+A request held by a person's hook (owner decision 1, with the ordering exception the sixth review asks for).
+A request whose commit build is held by a hook is `held`: it has no commit yet, and it is not part of the logical tail. A request `R2`
+behind it may publish ahead of it only if its changed-path set is disjoint from `R1`'s (adds, edits, deletions, modes, and the
+directory-versus-file conflicts of every path), and it is neither a conclusion nor an amendment of anything held. `R2` then publishes
+by replaying its own delta onto the actual tip, so it never carries `R1`'s change and `R1` is not exposed before its hook can refuse.
+`R2` overlapping `R1` is set aside too, with a notice that it waits for `R1`'s hook; its captured worktree content includes `R1`'s
+edits, so publishing it first would expose them.
+Afterwards: `R1`'s hook succeeds, so `R1` re-enters at the tail, builds, and publishes by replaying its delta on the tip that already
+holds `R2` (order `R2` then `R1`, an exception to adoption order, stated in the notice); `R1`'s hook refuses, so `R1` ends with the
+hook's own message and changes nothing, `R2` having been unaffected. The consumption map keeps `R1`'s entries until it is published,
+voided or refused. An amendment of a held request supersedes the held version, and the new version runs its hook again.
 
-Signed commits.
-A signature cannot survive a changed parent, so the replayed commit is signed again. Adopted (above): the service re-signs it in
-the background with the configured signer, as it does for the auto-push's reconcile merges. If the signer fails, which is on the owner's
-outside list, the request stays pending with a clear message and the work stays on disk.
+The attachment guard (the operative rule; there is no attachment generation).
+A request records the worktree's attachment at capture (the branch, or detached). Publication is to the branch the commit was made on,
+by compare-and-swap, whatever the worktree has checked out now. Before a deferred index follow-up the lane, holding `index.lock`, reads
+the worktree's `HEAD` before and after reading the index; it declines the follow-up (nothing written, a line says where the commit
+went) unless `HEAD` is attached to that branch in both reads. This is a guard against the usual cases and not a fence: `HEAD`
+can change after the last read without the index lock, and a change away and back is invisible. The reflog length is no condition: an
+ordinary commit, including the publication being materialized, can grow `logs/HEAD`, so growth is neither a complete switch detector
+nor evidence of a switch. The residue is the accepted unwanted staging of question 4 (picked A): only the index is changed, content is
+preserved, the staging is reported and `git restore --staged` undoes it, and the concession is not reused to justify any worktree
+mutation.
 
-Capture consistency.
-A request records, atomically with its capture, the lane's state version, the logical head, the consumption map it was computed
-against, the physical head and the index it read. The lane's state carries a version number that changes on every adoption and
-every materialization; capture reads it before and after reading the index and starts again if it changed. The delta is a set of
-paths and bytes computed at capture; adoption never reinterprets it against a different map, it replays it. Capture time orders
-requests by convention only and is not causal order between clients; tests assume no more than the protocol says.
+Signed commits (the operative rule).
+A signature cannot survive a changed parent, so the replayed commit is signed again in the background with the configured signer, as the
+service does for the auto-push's reconcile merges. A failing signer is on the owner's outside list: the request stays pending with a
+clear message and the work stays on disk. The older rule of waiting for the person to sign again is withdrawn.
 
 ### Publication and recovery
 
