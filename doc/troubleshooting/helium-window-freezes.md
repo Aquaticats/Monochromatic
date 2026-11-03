@@ -140,6 +140,81 @@ other storage-related freezes remain possible,
 but no Electron freeze was attributed to the Helium metrics mechanism here.
 Do not apply the metrics-directory workaround to an Electron app solely because it embeds Chromium.
 
+### Firefox comparison qualified at 2026-11-03T02:58:32-05:00
+
+The checked Glean counter path separates metric recording from the worker's storage work.
+The corresponding Firefox ESR `153.6.0` release source is
+`FIREFOX_153_6_0esr_RELEASE`,
+Git commit `a34c4160e3f75ab9918fbe4669ff7ae56f1977c8`.
+Installed `platform.ini` reports version `153.6.0`,
+build `20261022211647`,
+and Mercurial source stamp `d63de7b9609253a860fbb0050f678700f4cdc492`.
+The source check uses the matching release tag,
+not an asserted equivalence between the Git and Mercurial hashes.
+
+The vendored Glean counter's
+[`third_party/rust/glean-core/src/metrics/counter.rs:113-116`][firefox-counter]
+queues the update:
+
+```rust
+// firefox/third_party/rust/glean-core/src/metrics/counter.rs
+pub fn add(&self, amount: i32) {
+    let metric = self.clone();
+    crate::launch_with_glean(move |glean| metric.add_sync(glean, amount))
+}
+```
+
+[`third_party/rust/glean-core/src/lib.rs:180-183`][firefox-dispatch]
+forwards that work to the dispatcher:
+
+```rust
+// firefox/third_party/rust/glean-core/src/lib.rs
+fn launch_with_glean(callback: impl FnOnce(&Glean) + Send + 'static) {
+    dispatcher::launch(|| core::with_glean(callback));
+}
+```
+
+[`third_party/rust/glean-core/src/dispatcher/mod.rs:281-310`][firefox-worker]
+creates the worker that receives and invokes queued tasks:
+
+```rust
+// firefox/third_party/rust/glean-core/src/dispatcher/mod.rs
+let worker = crate::thread::spawn("glean.dispatcher", move || {
+```
+
+This is a narrower design finding than an audit of every Firefox telemetry or I/O path.
+It supports crediting the checked counter path for deferring its work,
+without claiming that all Firefox diagnostics are nonblocking.
+
+The syscall capture also records Firefox main-thread storage waits.
+Each completed fresh-profile run had `34` main-thread `fsync` calls,
+with a longest call of `1,352.868 ms` and `2,262.376 ms`,
+respectively.
+Every one preceded the local page's first ready marker.
+The later idle and storage-exercise phases had no recorded main-thread flush calls;
+their flushes ran on worker threads.
+The startup main-thread calls provide a positive control for that same thread-specific filter.
+The incomplete attempt also had `34` main-thread flushes before readiness,
+but remains excluded from completed-run comparisons.
+
+This does not measure all main-thread reads,
+mapped-file faults,
+lock waits,
+or interactive latency.
+The fast stack observer had an additional coverage error:
+its name filter included `firefox` and `firefox-esr` but omitted the actual `firefox-bin` name.
+Silence from that observer is not evidence of Firefox responsiveness.
+The separate syscall recorder used executable identity,
+did include `firefox-bin`,
+and captured its main and worker threads.
+Its slower process sampler also recorded Firefox main-thread storage wait channels.
+
+The retrospective audit is retained at
+`${HOME}/temp/agent/helium-freeze-source-files/firefox-audit.json`.
+Phase attribution uses each syscall's monotonic start time and the recorded page markers.
+The user reported better Firefox responsiveness in normal use;
+the experiments do not establish an overall responsiveness ranking.
+
 ### Chromium creates mapped metrics before feature flags
 
 The installed Chromium revision is `2f9a11097447f226133bc1a31c787291a5eeab98`.
@@ -457,3 +532,6 @@ Do not claim an end-to-end freeze-rate reduction from the mapping check alone.
 [electron-delegate]: https://github.com/electron/electron/blob/f81ca3d4f09f57667238120adacb01239d5ecd89/shell/app/electron_main_delegate.h#L24-L28
 [electron-entry]: https://github.com/electron/electron/blob/f81ca3d4f09f57667238120adacb01239d5ecd89/shell/app/electron_main_linux.cc#L61-L65
 [electron-blocking]: https://github.com/electron/electron/blob/f81ca3d4f09f57667238120adacb01239d5ecd89/docs/tutorial/performance.md#L236-L275
+[firefox-counter]: https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/glean-core/src/metrics/counter.rs#L113-L116
+[firefox-dispatch]: https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/glean-core/src/lib.rs#L180-L183
+[firefox-worker]: https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/third_party/rust/glean-core/src/dispatcher/mod.rs#L281-L310
