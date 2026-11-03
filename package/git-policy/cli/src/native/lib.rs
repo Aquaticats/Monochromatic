@@ -45,6 +45,9 @@ pub mod config_rules_file;
 /// Typed settings and their defaults.
 pub mod config_schema;
 
+/// Whether the checkout of a new worktree may be given Git's parallel checkout, and the option that does it.
+pub mod checkout_workers;
+
 /// One `git config --list` read, parsed, and the lookups the commit path makes against it.
 pub mod config_snapshot;
 

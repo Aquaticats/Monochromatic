@@ -533,6 +533,10 @@ Snapshot of a main checkout with uncommitted changes:
 a main checkout whose only trouble is an ordinary change (a staged change, an edited, deleted, renamed or mode-changed
 tracked file, an untracked file that no ignore rule covers, a tracked file the stat data cannot vouch for) is snapshotted
 all the same, and the new worktree is restored to what `git worktree add` makes from a clean checkout.
+Git's status listing nothing is an answer, not a failure: a main checkout whose index was written in the same second as its
+files (a merge, a pull or a landed commit just did that) or whose tracked file was touched without a change is snapshotted
+and restored like any other, and says nothing about left-out changes because there are none.
+Only a status run that ends with a nonzero exit code or cannot start refuses, and the line names the run, its exit code and what Git said.
 Every other refusal stays: an operation in progress or a held `index.lock`; any unmerged, intent-to-add, skip-worktree or
 assume-unchanged entry, or a submodule, found anywhere in the index (not only at the first refusal); a `.gitattributes`
 file among the changes or untracked anywhere; a sparse checkout; a source that is a linked worktree, whose index lies outside
@@ -632,6 +636,23 @@ A snapshot of the main checkout does not print the copy summary, because no copy
 line to standard error saying the worktree was made as a snapshot of the main checkout and that nested worktrees, caches and
 run records were left out.
 
+Parallel checkout of the new worktree:
+when Git's own checkout makes the new worktree (the person's `git worktree add` run as Git's checkout, and the `git reset --hard`
+that completes a worktree after a snapshot or clone attempt failed), the wrapper puts `-c checkout.workers=0` (one worker per
+logical CPU) before the subcommand, after the global options already there, only when nothing the person controls sets
+`checkout.workers`.
+Anything counts as setting it: an entry of any scope in the configuration Git reads (system, global, local, worktree, `include`d
+files), a `GIT_CONFIG_KEY_<n>` or `GIT_CONFIG_PARAMETERS` variable that names the key, and a `-c` or `--config-env` the person
+typed before the subcommand, whatever the value.
+Then nothing is added and Git uses the person's value.
+The files are read through the one configuration read the wrapper makes for the add (answered in process where the readers
+know the command line); a configuration that cannot be read adds nothing.
+The snapshot and clone rungs run no Git checkout of the whole tree and are not changed.
+Owner decision, 2026-11-03 (question tool, chosen against the coordinator's recommendation): "Pass only if unset".
+Basis: Git's parallel checkout made a 20,000-file checkout faster in all three paired runs another agent measured
+(36.9 s to 4.5 s, 3.1 to 2.3, 7.2 to 1.75).
+`core.fsmonitor` and its daemon are left alone, as everywhere in the wrapper.
+
 Telling why an add was not made as a snapshot:
 when a `git worktree add` that the ladder serves succeeds without being made as a snapshot, and the person could change
 the cause, the wrapper writes one line to standard error unless `--quiet` is given, after Git's own words and before the
@@ -644,8 +665,10 @@ lists, and the first of them, with control characters shown as `?`; the remedy i
 a running Git command in the source (its `index.lock` exists; the remedy is to add again when it has finished);
 an unfinished operation (a merge, cherry-pick, revert, bisect or rebase mark exists; the remedy is to finish or abort it);
 an index entry no reset can undo (skip-worktree, assume-unchanged, intent-to-add, unmerged or a submodule);
-an index that cannot yet vouch for its files although Git lists no change (a file as new as the index, or a size, time or
-inode that differs; the remedy is `git status` once);
+an index that cannot yet vouch for its files although Git lists no change, in a source that is not restored by a snapshot
+(a file as new as the index, or a size, time or inode that differs; the remedy is `git status` once);
+a Git status that failed (the run, its exit code and what Git said; the remedies are to run `git -C <source> status`
+and fix what it names, or to wait for a Git command that is running there);
 a btrfs source that is no subvolume (the remedy is `git cli-git migrate-to-subvolume` for the main checkout and
 `git cli-git convert-worktree-to-subvolume` for a linked worktree);
 a destination on another btrfs filesystem than the source;
@@ -656,7 +679,7 @@ A source or destination that is not on btrfs gets no line, because nothing the p
 A failed add gets no line either; Git's refusal is the thing to read.
 The same words go to the journal as one entry of priority `warning` under the `SYSLOG_IDENTIFIER` `cli-git`, with the
 fields `CLI_GIT_WORKTREE` (the destination), `CLI_GIT_SLOW_CAUSE` (`uncommitted-changes`, `git-running`,
-`operation-unfinished`, `not-restorable`, `stale-index`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
+`operation-unfinished`, `not-restorable`, `stale-index`, `status-failed`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
 and `CLI_GIT_SLOW_DETAIL` (the check's reason as the debug log prints it), also under `--quiet`.
 The entry is one datagram on the journal's native socket, sent without waiting; a journal that is absent or full costs the
 command nothing, and `journalctl --identifier=cli-git` lists the entries.

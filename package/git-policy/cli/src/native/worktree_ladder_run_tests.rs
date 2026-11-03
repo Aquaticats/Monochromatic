@@ -95,7 +95,7 @@ fn btrfs_a_dirty_subvolume_source_is_snapshotted_and_a_merging_one_keeps_its_rea
     assert_eq!(ladder.slow, None, "a snapshot has nothing to explain");
     let Rung::Snapshot(source, _claim) = &ladder.rung else { panic!("the snapshot rung is expected") };
     let changed = source.dirty.as_ref().expect("the changes are listed");
-    assert_eq!(changed.first, "shared.txt");
+    assert_eq!(changed.first.as_deref(), Some("shared.txt"));
     let mut runner = no_runner();
     ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink());
     let head: String = String::from_utf8_lossy(&crate::test_support::git(repo.as_path(), &["rev-parse", "HEAD"]).stdout).trim().to_string();

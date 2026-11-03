@@ -130,3 +130,28 @@ fn unsupported_features_and_failures_are_told_in_the_checks_words() {
         assert!(!line.to_lowercase().contains("rung"), "{line}");
     }
 }
+
+/// A Git status that failed is told with the run, its exit code, what Git said, and both remedies (read its error, or wait for a
+///  running command); with a stale index and a failing status the sentence names the failure and never "out of date".
+#[test]
+fn a_failed_status_is_told_with_its_error_and_the_remedies() {
+    let root: PathBuf = crate::test_support::fixture("slow-status-failed");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let identity: WorktreeIdentity = main_identity(repo.as_path());
+    let stub: PathBuf = root.join("failing-git");
+    crate::test_support::executable(stub.as_path(), b"#!/bin/sh\necho 'fatal: index file corrupt' >&2\nexit 128\n");
+    let failing = crate::transaction_git::GitContext { real_git: stub, ..git_context() };
+    let failed: Refusal = Refusal { reason: String::from("`git status` ended with exit code 128: fatal: index file corrupt"), kind: RefusalKind::StatusFailed };
+    let route: SlowRoute = explain_refusal(&failing, &identity, &failed).expect("a sentence");
+    assert_eq!(route.word(), "status-failed");
+    let line: String = route.line();
+    assert!(line.contains("the main checkout (`git status` ended with exit code 128: fatal: index file corrupt)"), "{line}");
+    assert!(line.contains(format!("Run `git -C {} status` to read its error", repo.display()).as_str()) && line.contains("wait if another Git command is running"), "{line}");
+    // The unclean sentence reads Git's status itself, and a status that fails there is told the same way.
+    let racy: Refusal = Refusal { reason: String::from("a.txt is as new as the index, so its stat fields prove nothing"), kind: RefusalKind::Unclean(CleanRefusalKind::Racy) };
+    let from_unclean: SlowRoute = explain_refusal(&failing, &identity, &racy).expect("a sentence");
+    assert_eq!(from_unclean.word(), "status-failed");
+    assert!(from_unclean.line().contains("exit code 128"), "{}", from_unclean.line());
+    assert!(!from_unclean.line().contains("out of date"), "{}", from_unclean.line());
+    remove(root.as_path());
+}

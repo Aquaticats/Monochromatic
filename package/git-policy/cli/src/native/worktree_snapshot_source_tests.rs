@@ -79,3 +79,43 @@ fn a_nested_worktree_reached_through_a_link_is_found() {
     assert_eq!(nested_through_link(&[real.join("moved/wt"), real.join("gone/wt")]), None);
     crate::test_support::remove(root.as_path());
 }
+
+/// A worktree whose every file equals its commit by content has an answer, not a failure: nothing is listed, whether the stat
+///  data of a tracked file is stale or the index is older than the files; a real edit is listed with its path.
+#[test]
+fn changed_paths_lists_nothing_for_files_the_stat_data_cannot_vouch_for_and_one_path_for_an_edit() {
+    let root: PathBuf = crate::test_support::fixture("changed-paths-empty");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    tracked(repo.as_path(), "shared.txt", b"first\n");
+    commit_all(repo.as_path(), "first");
+    let context = git_context();
+    let listed = changed_paths(&context, repo.as_path()).expect("a clean worktree has an answer");
+    assert_eq!((listed.count, listed.first.clone(), listed.attributes_changed), (0, None, false), "positive control: clean");
+    // The same bytes with another modification time than the index entry records.
+    let file = std::fs::File::options().write(true).open(repo.join("shared.txt")).expect("open");
+    file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(30)).expect("touch");
+    let touched = changed_paths(&context, repo.as_path()).expect("a touched file has an answer");
+    assert_eq!((touched.count, touched.first.clone()), (0, None), "a touched file of the same bytes is no change");
+    assert!(!touched.has_changes());
+    std::fs::write(repo.join("shared.txt"), b"edited\n").expect("edit");
+    let edited = changed_paths(&context, repo.as_path()).expect("an edit has an answer");
+    assert_eq!((edited.count, edited.first.as_deref()), (1, Some("shared.txt")));
+    assert!(edited.has_changes());
+    remove(root.as_path());
+}
+
+/// Git failing is a failure with its words: the run, the exit code and what Git said, so the person can read the same error.
+#[test]
+fn changed_paths_names_the_run_the_exit_code_and_what_git_said_when_git_fails() {
+    let root: PathBuf = crate::test_support::fixture("changed-paths-failure");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let stub: PathBuf = root.join("failing-git");
+    crate::test_support::executable(stub.as_path(), b"#!/bin/sh\necho 'fatal: index file corrupt' >&2\nexit 128\n");
+    let failing = crate::transaction_git::GitContext { real_git: stub.clone(), ..git_context() };
+    let reason: String = changed_paths(&failing, repo.as_path()).expect_err("Git failed");
+    assert!(reason.contains("`git status`") && reason.contains("exit code 128") && reason.contains("fatal: index file corrupt"), "{reason}");
+    let missing = crate::transaction_git::GitContext { real_git: root.join("no-such-git"), ..git_context() };
+    let unstarted: String = changed_paths(&missing, repo.as_path()).expect_err("Git did not start");
+    assert!(unstarted.contains("`git status`") && unstarted.contains("could not be started"), "{unstarted}");
+    remove(root.as_path());
+}
