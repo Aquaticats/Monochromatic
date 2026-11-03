@@ -474,6 +474,44 @@ submodule entry), every tracked file has the size, modification time, change tim
 bit its index entry recorded and is older than the index file, and `git ls-files --others --exclude-standard` lists
 nothing.
 A source is also refused for a sparse checkout, for any worktree-scope configuration entry, and for `core.sparseCheckout`.
+The clean check reports why it refused as a kind and a reason: an operation in progress (with the name of the mark), an
+index or object database the readers cannot read, an entry no reset can undo (unmerged, intent-to-add, skip-worktree,
+assume-unchanged, submodule), a staged change, a changed tracked file, an index entry the stat data cannot vouch for, or an
+untracked file.
+Callers and the sentence for the person decide by the kind, never by the words of the reason.
+
+Snapshot of a main checkout with uncommitted changes:
+a main checkout whose only trouble is an ordinary change (a staged change, an edited, deleted, renamed or mode-changed
+tracked file, an untracked file that no ignore rule covers, a tracked file the stat data cannot vouch for) is snapshotted
+all the same, and the new worktree is restored to what `git worktree add` makes from a clean checkout.
+Every other refusal stays: an operation in progress or a held `index.lock`; any unmerged, intent-to-add, skip-worktree or
+assume-unchanged entry, or a submodule, found anywhere in the index (not only at the first refusal); a `.gitattributes`
+file among the changes or untracked anywhere; a sparse checkout; a source that is a linked worktree, whose index lies outside
+its directory and so is not in the snapshot; and the clone rung, which is only for clean sources.
+The restore reads the index inside the snapshot before the snapshot's `.git` is replaced by the new worktree's pointer, and
+installs that index as it is (stat data kept, `UNTR` and `FSMN` dropped), so the index and the files are one instant and the
+stat data still marks every file that was edited.
+Then, in the stage only and before it is swapped in, two real-Git steps run under the new worktree's Git directory and the
+stage as work tree: `git read-tree --reset -u <new commit>` (the index and the tracked files become the new commit's tree,
+rewriting exactly the paths whose files or entries differ) and `git clean --force -d --quiet` (untracked files that no
+ignore rule covers, and empty untracked directories, go; ignored files stay).
+These two steps and nothing else are run for the restore.
+They are started as real Git children by the lifecycle's runner, the same path as the `git read-tree -m -u` of a clean
+snapshot, so the wrapper's own guards of a person's `reset` and `clean` do not apply to them: they act on the wrapper's own
+new snapshot, never on a checkout of the person, and they refuse to start when the stage is the source's directory or the
+Git directory is the source's.
+The stage is then proven: `git diff-index --cached --quiet <new commit>` (the index equals the commit's tree),
+`git ls-files --others --exclude-standard --directory --no-empty-directory` lists nothing, and `git diff-files --quiet`
+finds no tracked file different from its entry.
+A failed step or a failed proof ends the rung: the stage is destroyed and Git's own checkout makes the worktree, with the
+sentence of "Telling why an add was not made as a snapshot" naming the reason.
+The main checkout is read to be snapshotted and listed (`git --no-optional-locks status` and `ls-files`), and is never written:
+no step runs in it, and its files and index are what they were.
+Unless `--quiet` is given, a second line follows the snapshot note: the uncommitted changes of the main checkout (their number
+of paths) were left out of the new worktree, which holds what Git's own checkout holds.
+Changes made to the main checkout while the snapshot is taken or restored are out of scope, as for every rung: using the
+command is accepting that risk, and no step defends against it.
+`core.fsmonitor` is left as configured, as everywhere in the wrapper.
 
 Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and, for a source that is a
 linked worktree, no nested linked worktree that is an ordinary directory; a snapshot of the main checkout sets such a
@@ -522,10 +560,11 @@ copy summary.
 The line starts with `cli-git: this worktree was not made as a snapshot, so it took longer, because `, then the cause in
 plain words, then what makes the next add quick, and it names no internal step.
 The causes it tells are:
-uncommitted changes in the source (the number of paths `git --no-optional-locks status --porcelain=v1 --untracked-files=normal`
+uncommitted changes in a source that is not restored by a snapshot (a linked worktree; the number of paths `git --no-optional-locks status --porcelain=v1 --untracked-files=normal`
 lists, and the first of them, with control characters shown as `?`; the remedy is to commit or stash);
 a running Git command in the source (its `index.lock` exists; the remedy is to add again when it has finished);
 an unfinished operation (a merge, cherry-pick, revert, bisect or rebase mark exists; the remedy is to finish or abort it);
+an index entry no reset can undo (skip-worktree, assume-unchanged, intent-to-add, unmerged or a submodule);
 an index that cannot yet vouch for its files although Git lists no change (a file as new as the index, or a size, time or
 inode that differs; the remedy is `git status` once);
 a btrfs source that is no subvolume (the remedy is `git cli-git migrate-to-subvolume` for the main checkout and
@@ -538,7 +577,7 @@ A source or destination that is not on btrfs gets no line, because nothing the p
 A failed add gets no line either; Git's refusal is the thing to read.
 The same words go to the journal as one entry of priority `warning` under the `SYSLOG_IDENTIFIER` `cli-git`, with the
 fields `CLI_GIT_WORKTREE` (the destination), `CLI_GIT_SLOW_CAUSE` (`uncommitted-changes`, `git-running`,
-`operation-unfinished`, `stale-index`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
+`operation-unfinished`, `not-restorable`, `stale-index`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
 and `CLI_GIT_SLOW_DETAIL` (the check's reason as the debug log prints it), also under `--quiet`.
 The entry is one datagram on the journal's native socket, sent without waiting; a journal that is absent or full costs the
 command nothing, and `journalctl --identifier=cli-git` lists the entries.

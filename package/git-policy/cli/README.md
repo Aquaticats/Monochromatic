@@ -190,6 +190,12 @@ Read-only commands,
      new `HEAD` applied by `git read-tree -m -u`, and is swapped into place with `RENAME_EXCHANGE`.
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included), so the ignored-state copy is skipped for it.
+     A main checkout with uncommitted changes (staged, edited, deleted, renamed, mode-changed or untracked files) is
+     snapshotted too: in the new worktree only, `git read-tree --reset -u` and `git clean --force -d` make it equal to what
+     `git worktree add` makes from a clean checkout, the result is proven before the worktree is handed over, and the
+     changes stay in the main checkout, which is never written. A failed proof falls to Git's own checkout and says why.
+     A merge or other operation in progress, a held `index.lock`, a skip-worktree or assume-unchanged entry, a submodule
+     and a changed `.gitattributes` file still send the add the slow way, and so does a dirty linked worktree.
   2. Clones (`FICLONE`) of every tracked file of a clean worktree, with its index, on btrfs, XFS with reflink and
      overlayfs. It shares disk but takes about as long as Git's checkout.
   3. Git's own checkout, then the ignored-state copy.

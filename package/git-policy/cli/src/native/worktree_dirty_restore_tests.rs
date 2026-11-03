@@ -7,6 +7,9 @@ use crate::worktree_copy::{GitStatus, GitStep};
 use crate::worktree_copy_error::WorktreeCopyError;
 use std::path::PathBuf;
 
+/// The words every step starts with: `-C` and the stage.
+const LEADING_WORDS: usize = 2;
+
 /// A target for the commit `HEAD` names in `repo`, whose Git directory is its own.
 fn target_of(repo: &Path) -> Target {
     let commit: String = String::from_utf8_lossy(&git(repo, &["rev-parse", "HEAD"]).stdout).trim().to_string();
@@ -70,12 +73,14 @@ fn the_restore_runs_exactly_the_two_steps_in_the_stage() {
         dirty: None,
     };
     restore_dirty(&source, &target, stage.as_path(), None, &mut runner, &git_context()).expect("the proof holds for a worktree that equals its commit");
-    assert_eq!(seen.len(), 2, "{seen:?}");
-    let words = |step: &Vec<String>| -> Vec<String> { return step[2..].to_vec(); };
-    assert_eq!(words(&seen[0]), ["read-tree", "--reset", "-u", target.commit.as_str()]);
-    assert_eq!(words(&seen[1]), ["clean", "--force", "-d", "--quiet"]);
+    let words = |step: &Vec<String>| -> Vec<String> { return step[LEADING_WORDS..].to_vec(); };
+    let expected: Vec<Vec<String>> = vec![
+        ["read-tree", "--reset", "-u", target.commit.as_str()].map(String::from).to_vec(),
+        ["clean", "--force", "-d", "--quiet"].map(String::from).to_vec(),
+    ];
+    assert_eq!(seen.iter().map(words).collect::<Vec<Vec<String>>>(), expected, "exactly these two steps, in this order");
     for (arguments, environment) in seen.iter().zip(&environments) {
-        assert_eq!(&arguments[..2], ["-C", stage.to_string_lossy().as_ref()]);
+        assert_eq!(&arguments[..LEADING_WORDS], ["-C", stage.to_string_lossy().as_ref()]);
         assert!(environment.contains(&(String::from("GIT_DIR"), target.admin.to_string_lossy().into_owned())), "{environment:?}");
         assert!(environment.contains(&(String::from("GIT_WORK_TREE"), stage.to_string_lossy().into_owned())), "{environment:?}");
     }
@@ -137,7 +142,7 @@ fn a_failed_step_or_a_failed_proof_is_an_error() {
 fn the_note_counts_paths() {
     let one = ChangedPaths { count: 1, first: String::from("a"), attributes_changed: false };
     let many = ChangedPaths { count: 3, first: String::from("a"), attributes_changed: false };
-    assert!(left_out_note(&one).contains("(1 path)"), "{}", left_out_note(&one));
-    assert!(left_out_note(&many).contains("(3 paths)"), "{}", left_out_note(&many));
+    assert!(left_out_note(&one).contains(format!("({} path)", one.count).as_str()), "{}", left_out_note(&one));
+    assert!(left_out_note(&many).contains(format!("({} paths)", many.count).as_str()), "{}", left_out_note(&many));
     assert!(left_out_note(&one).ends_with('\n'));
 }
