@@ -306,11 +306,18 @@ fn the_journal_records_that_changes_were_left_out_even_when_quiet() {
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let mut buffer: Vec<u8> = vec![0; 65_536];
-    let length: usize = receiver.recv(buffer.as_mut_slice()).expect("an entry reached the journal stand-in");
-    let entry: BTreeMap<String, String> = String::from_utf8_lossy(&buffer[..length])
-        .lines()
-        .filter_map(|line: &str| { return line.split_once('=').map(|(field, value): (&str, &str)| { return (field.to_string(), value.to_string()); }); })
-        .collect();
+    // The wrapper's `clean` of the stage also makes an entry (the words of a run that carries no `--quiet`, `inner_git_words.rs`),
+    //  so the entries are read until the one about the left-out changes arrives.
+    let entry: BTreeMap<String, String> = loop {
+        let length: usize = receiver.recv(buffer.as_mut_slice()).expect("the entry about the left-out changes reached the journal stand-in");
+        let read: BTreeMap<String, String> = String::from_utf8_lossy(&buffer[..length])
+            .lines()
+            .filter_map(|line: &str| { return line.split_once('=').map(|(field, value): (&str, &str)| { return (field.to_string(), value.to_string()); }); })
+            .collect();
+        if read.get("MESSAGE").is_some_and(|message: &String| { return message.contains(LEFT_OUT_MARK); }) {
+            break read;
+        }
+    };
     let listed: usize = git(&fixture, repo.as_path(), &["status", "--porcelain=v1", "--no-renames"]).stdout.split(|byte: &u8| { return *byte == b'\n'; }).filter(|line: &&[u8]| { return !line.is_empty(); }).count();
     assert_eq!(entry.get("PRIORITY").map(String::as_str), Some("6"), "the ordinary level: {entry:?}");
     assert_eq!(entry.get("CLI_GIT_DIRTY_PATHS"), Some(&listed.to_string()), "{entry:?}");
