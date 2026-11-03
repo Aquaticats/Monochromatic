@@ -1764,7 +1764,8 @@ Candidates are reference locks of the Git directory and the common Git directory
 has its own protocol in this document).
 A candidate is judged without starting Git, from the file system and `/proc`, in this order, and the first answer wins:
 
-1. A candidate that is not a regular file, or that is younger than the margin (two seconds), is left and not mentioned.
+1. A candidate that is not a regular file, or that is younger than the margin (`MARGIN`, four seconds: the whole second above the 3,438 ms
+   longest live reference step of a service journal), is left and not mentioned.
    The margin covers a lock that a live Git has just created and not yet filled, whose pid file is not yet written.
 2. A candidate on a file system that is not local (anything not on a fixed list of disk and memory file systems:
    `btrfs`, `ext4`, `xfs`, `f2fs`, `tmpfs`, `overlay`, `zfs`, `bcachefs`) is unproven, because a Git on another machine is
@@ -1828,7 +1829,8 @@ file after the lock was looked for and found absent has no live maker, and it is
   system must be on the fixed local list.
 - A clock that steps: the margin, the boot proof and the start time of a process read file times against the current clock.
   A forward step after boot moves `btime` forward, so a lock a live Git made in the first seconds could look older than the
-  boot; the proof therefore needs a lock older than the boot by more than an hour, is used only when no pid file exists, and is
+  boot; the proof therefore needs a lock older than the boot by more than an hour plus the margin
+  (`BOOT_SLACK`; `chronyd` stepped this host by -3599.507590 s on 2026-11-01), is used only when no pid file exists, and is
   defeated only by a step larger than that across the whole life of a live lock, which Git holds for moments.
   For a reused number a step can only make a process look newer, and the second sign (not a Git) must still agree.
 - Two wrappers removing the same stale lock: handled by setting aside with a rename and checking identity (above).
