@@ -142,11 +142,13 @@ jobs:
             exit 1
           fi
       # The frozen lockfile gate: pnpm's `install --frozen-lockfile` in CI, the counterpart for Cargo.lock files. It fails naming
-      # every first-party Cargo.lock that no longer satisfies its manifests and writes nothing, and, like pnpm 12.16.1, it
-      # re-validates every registry version the lockfiles hold against rust-catalog.toml's minimumReleaseAge and trustPolicy
-      # (package/cargo-shadow/cli/README.md). It replaces the former `rust:install` and `rust:verify` mise tasks; the cache keeps
-      # crates.io histories and the digests of lockfiles that passed, so only a changed lockfile costs registry requests. The
-      # database dump (about 2 GB, read once) fills a cold cache.
+      # every first-party Cargo.lock that no longer satisfies its manifests and writes nothing. With `trustLockfile = true` in
+      # rust-catalog.toml, the counterpart of pnpm's `trustLockfile: true` (owner's decision of 2026-10-29,
+      # doc/decision/rust-dependency-catalog.md), it then checks only the registry versions that no Cargo.lock held at the base
+      # revision, the pushed range's previous commit or the pull request's base; only that commit is fetched. Without the setting
+      # it re-validates every locked entry, as pnpm does by default (package/cargo-shadow/cli/README.md). It replaces the former
+      # `rust:install` and `rust:verify` mise tasks; the cache keeps crates.io histories and the digests of lockfiles that
+      # passed. The database dump (about 2 GB, read once) fills a cold cache.
       - name: Install the pinned Rust toolchain
         id: rust_toolchain
         continue-on-error: true
@@ -162,16 +164,23 @@ jobs:
           key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
           restore-keys: |
             rust-catalog-trust-
-      # A full cold check of all 1388 locked versions took 914 s and 187 API requests with the dump on 2026-10-29,
-      # so the 25-minute budget covers even a branch that relocks everything.
+      # A full cold check of all 1388 locked versions took 914 s with the dump on 2026-10-29, so the 25-minute budget covers
+      # even a branch that relocks everything.
       - name: Rust lockfile frozen install
         id: rust_install
         continue-on-error: true
         timeout-minutes: 25
         shell: bash
+        env:
+          VERIFY_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
         run: |
           set -euo pipefail
-          cargo-shadow install --frozen-lockfile
+          base="${VERIFY_BASE}"
+          if [ -z "${base}" ]; then
+            base="$(git rev-parse HEAD~1)"
+          fi
+          git fetch --no-tags --depth=1 origin "${base}"
+          CARGO_SHADOW_TRUST_BASE="${base}" cargo-shadow install --frozen-lockfile
       - name: Save Rust trust cache
         if: always()
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
