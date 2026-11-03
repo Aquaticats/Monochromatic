@@ -10679,3 +10679,34 @@ by the coordinator at merge.
   overlaps task #114's word-level branch, so check that branch first); cross-vendor review of cargo-shadow
   before its first publish; the first hand-publish of `monochromatic-cargo-shadow` 0.1.0, its plan entry and
   `toolchain:update`; the 0.5.26 gate once the integration branch builds (add stale-ref-locks if done).
+- 2026-11-03T07:06:00-05:00: Git wrapper 0.5.25 PUBLISHED (crates.io 2026-11-03T11:59:55Z) and installed by
+  `upgrade-wrapper.ts`: lock commit `fff41f0544`; `git --version` names "monochromatic-git-policy-cli 0.5.25";
+  that commit took 1629 ms in all with the service upgrade (0.5.24 retired on the client's request, 0.5.25
+  started in 0.6 s, landing 57 ms).
+  CORRECTION to the 07:01:29 entry: the 22 cargo-shadow trust refusals are no owner question. The owner's
+  amendment of 2026-10-29 in `doc/decision/rust-dependency-catalog.md` (lines 89-95) says the CI check covers
+  only registry versions that no `Cargo.lock` held at a base revision, "the counterpart of pnpm's
+  `trustLockfile: true`". The agent's "re-validate every locked entry" contradicted it (my brief did not
+  quote the decision). Sent back: add pnpm's `trustLockfile` setting to the catalog settings, set it true in
+  `rust-catalog.toml`, and have the frozen install check only versions new since the base revision when it
+  is true. Its data: 19 of the 21 distinct versions are refused only by the repository's own heuristics
+  (publisher identity, declared repository), which pnpm's `no-downgrade` does not have (it ranks attestation
+  evidence only); 2 are Trusted Publishing drops (`cpufeatures@0.3.1`, `io-uring@0.7.15`); the catalog already
+  sets `trustPolicyIgnoreAfter = 525600` and `trustPolicyExcludePrune = true`. Full table:
+  `~/temp/agent/refused-report.txt`.
+  Owner answers (question tool), recorded as decisions:
+  - Lock probe: "PID-only probe (Recommended)": the stale-ref-locks agent kills only its probe's own PIDs;
+    the granted `pkill -KILL -x git` string is not run.
+  - Push retry (D3): "Login failures final": offline, stalls, the ceiling and held locks are retried;
+    authentication failures and server hook declines are final like a conflict and wait for the next
+    commit. Sent to the retry-plan agent (classify from Git's own message texts, cited; unknown texts stay
+    retried).
+  - Inner `--quiet`: "Drop it everywhere (Recommended)": no `--quiet` on any Git run the wrapper starts
+    (maintenance, auto-push fetch, fast-forward merges, reset, clean, init), not only the person's commands.
+  - Slow server check: "Wait while connected (Recommended)": count bytes on the push's network socket as
+    progress (TCP counters; `push_progress.rs:14` says `rchar`/`wchar` miss `send`/`recv`), and once the
+    pack is sent keep waiting while the connection is open, with a line naming the wait. Git's
+    `receive.keepAlive` default is 5 s (installed `git help config`); whether GitHub sends keepalives is
+    unknown.
+  QUEUED (all five agent slots busy): the inner `--quiet` removal, red tests first; the slow-server change,
+  red tests first, deterministic with a fixture remote whose hook sleeps silently.
