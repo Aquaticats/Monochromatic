@@ -266,11 +266,13 @@ const testRunEnv = () => {
   env.MONOCHROMATIC_LOG_DIRECTORY = runLogDirectory
   return env
 }
-// A control group counts threads as well as processes in `pids.max` (systemd `TasksMax=`), and a Node process holds a dozen,
-// so the processor count alone can start more test files than the limit allows. The numbers mirror
-// package/mutation-test/cli-cargo-mutants/src/process-limits.ts: a test file's own tasks (16) plus one heavy case (30),
-// planned at 80 percent of the nearest limit.
-// `String.fromCharCode(10)` below: a newline escape would be consumed by TOML before JavaScript sees it.
+// Optional cap on concurrent test files, for a package whose test files start many processes. A control group counts threads
+// as well as processes in `pids.max` (systemd `TasksMax=`), and a Node process holds a dozen, so the processor count alone can
+// start more files than a limit allows. The package's own task sets MONOCHROMATIC_TEST_FILE_TASKS, the tasks one test file
+// needs at the least; with it and a finite limit, at most 80 percent of the nearest limit is planned, divided by that number.
+// Without it the runner is bounded by availableParallelism() alone. `String.fromCharCode(10)` below: a newline escape would
+// be consumed by TOML before JavaScript sees it.
+const plannedShare = 0.8
 const nearestPidsLimit = (directory) => {
   if (!directory.startsWith('/sys/fs/cgroup')) { return undefined }
   let limit = Number.NaN
@@ -284,17 +286,24 @@ const ownPidsLimit = () => {
     return line === undefined ? undefined : nearestPidsLimit(`/sys/fs/cgroup${line.slice(3)}`)
   } catch (error) { if (error.code !== 'ENOENT') { console.error(`Cannot read /proc/self/cgroup: ${String(error)}`) } return undefined }
 }
-const fileWorkerLimit = (fileCount) => {
+const fileWorkerPlan = (fileCount) => {
   const processors = Math.max(1, Math.min(availableParallelism(), fileCount))
+  const fileTasks = Number(process.env.MONOCHROMATIC_TEST_FILE_TASKS)
   const limit = ownPidsLimit()
-  return limit === undefined ? processors : Math.max(1, Math.min(processors, Math.floor(limit * 0.8 / (16 + 30))))
+  if (!(fileTasks > 0) || limit === undefined) { return { workers: processors } }
+  const budget = Math.floor(limit * plannedShare)
+  return { workers: Math.max(1, Math.min(processors, Math.floor(budget / fileTasks))), budget }
 }
 const runTestFiles = async (files, nodeArgs) => {
   if (files.length === 0) { return }
   const env = testRunEnv()
-  const limit = fileWorkerLimit(files.length)
-  // Tells the test files how wide the run is, so that they can size what each starts to the process limit.
-  env.MONOCHROMATIC_TEST_FILE_WORKERS = String(limit)
+  const plan = fileWorkerPlan(files.length)
+  const limit = plan.workers
+  if (plan.budget !== undefined) {
+    // Tells the test files how wide the run is and how many tasks it may hold, so that each can size what it starts.
+    env.MONOCHROMATIC_TEST_FILE_WORKERS = String(limit)
+    env.MONOCHROMATIC_TEST_TASK_BUDGET = String(plan.budget)
+  }
   const failures = []
   const running = new Set()
   // A killed run leaves no test file behind: the runner passes its end on to every file it started.
