@@ -9849,3 +9849,11 @@ by the coordinator at merge.
     target lies inside the source tree, and to the same place when it lies outside; then measure whether pnpm's
     relative `virtualStoreDir` in `.modules.yaml` still needs handling. Applies to the copy, clone and snapshot
     rungs; conversion keeps depth, so it is unaffected.
+- Owner decision, verbatim: "The wrapper may launch pnpm itself for worktree copying." Plan for the queued
+  pnpm-compatibility agent (suggestions, revisable): after any rung fills a new worktree that has `pnpm-lock.yaml`
+  and a copied `node_modules`, run the workspace's pnpm offline with the frozen lockfile in that worktree so pnpm
+  rewrites its own layout for the new location; keep the generic link rule (inside-tree links follow the copy,
+  outside-tree links keep their target) for non-pnpm tools; measure the added time on the real repository under
+  each configuration; when pnpm is missing, offline data is incomplete, or the lockfile does not match, keep the
+  copied worktree as it is and print one plain line saying what to run, never fail the add; respect `--quiet` and
+  `--no-checkout`. Real-pnpm matrix tests for every configuration in the matrix entry, nested and outside.
