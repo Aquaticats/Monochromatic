@@ -18,7 +18,7 @@ use super::service_head::head_names;
 use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
 use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
-use super::service_index_lock::{Announce, IndexLock, acquire_noting_wait, remove_stale, try_acquire};
+use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait, remove_stale, try_acquire};
 use super::service_timing::{LandTiming, wait_line};
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
 use super::service_protocol::{CommitRequest, FailureCode, is_zero_object};
@@ -355,11 +355,17 @@ pub fn land_batch_timed(
         //  not before it. A lock that is not given up here (a refusal, a failure) is removed when it goes out of scope, and
         //  the index stays as it was.
         let waiting_since: Instant = Instant::now();
-        let taken = acquire_noting_wait(first.index.as_path(), seq, context.index_wait, announce, &mut timing.lock_notes);
-        timing.lock_wait += waiting_since.elapsed();
-        timing.lock_holder.clone_from(&timing.lock_notes.holder);
+        let mut notes: WaitNotes = WaitNotes::default();
+        let taken = acquire_noting_wait(first.index.as_path(), seq, context.index_wait, announce, &mut notes);
+        let waited: std::time::Duration = waiting_since.elapsed();
+        timing.lock_wait += waited;
+        // A pass over the batch that found the lock free has nothing to add to what an earlier pass found held.
+        if notes.looks > 0 || timing.attempts == 1 {
+            timing.lock_holder.clone_from(&notes.holder);
+            timing.lock_notes = notes.clone();
+        }
         // The wait is written down when it ends, not with the answer, so a landing that fails later still leaves it.
-        if let Some(line) = wait_line(seq, timing.lock_wait, &timing.lock_notes, taken.is_ok()) {
+        if let Some(line) = wait_line(seq, waited, &notes, taken.is_ok()) {
             // A lock that was refused fails the commit, so the line stands out from a wait that ended in the lock.
             let priority: Priority = if taken.is_ok() { Priority::Info } else { Priority::Error };
             crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);
