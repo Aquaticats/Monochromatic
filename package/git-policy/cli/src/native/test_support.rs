@@ -183,6 +183,7 @@ impl Drop for ThreadFixtures {
         }
         let keep: bool = std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some();
         for root in self.roots.borrow().iter() {
+            end_processes_working_in(root.as_path());
             settle_fixture(root.as_path(), keep);
         }
     }
@@ -328,7 +329,7 @@ pub(crate) use fixture_executable::executable;
 mod test_alive;
 
 #[cfg(unix)]
-pub(crate) use test_alive::while_test_lives;
+pub(crate) use test_alive::{end_processes_working_in, while_test_lives};
 
 /// What:
 ///  Variables that isolate a Git child started through the production runners from the

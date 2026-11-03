@@ -64,7 +64,8 @@ impl Hook {
     fn script(self, root: &Path) -> String {
         let lives: String = while_test_lives(root);
         return match self {
-            Hook::Silent => format!("#!/bin/sh\nwhile {lives}; do sleep {TICK}; done\n"),
+            // One process that starts none: a loop would start a `sleep` each turn, and the meter counts that as work.
+            Hook::Silent => String::from("#!/bin/sh\nexec sleep 600\n"),
             Hook::ProgressThenAccept => format!("#!/bin/sh\ni=0\nwhile [ $i -lt 20 ]; do echo tick >&2; sleep {TICK}; i=$((i+1)); done\nexit 0\n"),
             Hook::TrickleForever => format!("#!/bin/sh\nwhile {lives}; do echo tick >&2; sleep {TICK}; done\n"),
         };

@@ -70,11 +70,12 @@ fn stage(name: &str) -> Stage {
 fn holder(stage: &Stage, kind: Holder) -> Command {
     let lock: PathBuf = stage.repo.join(".git").join(format!("{HELD_REF}.lock"));
     let target: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]);
-    // Both waits end with the test, so a failed test leaves neither the holder nor the lock it was about to take.
+    // The wait for the lock ends with the test; the hold after it is one `sleep`, because the stop under test walks the holder's
+    //  processes once, and a loop would start new ones after the walk. The fixture ends the sleeper when its test is over.
     let lives: String = while_test_lives(stage.root.as_path());
     let script: String = format!(
         "( printf 'start\\nupdate %s %s\\nprepare\\n' \"$HELD_REF\" \"$TARGET\"; \
-         while [ ! -e \"$LOCK\" ] && {lives}; do sleep 0.05; done; : > \"$READY\"; while {lives}; do sleep 0.05; done ) \
+         while [ ! -e \"$LOCK\" ] && {lives}; do sleep 0.05; done; : > \"$READY\"; sleep 600 ) \
          | /usr/bin/git update-ref --stdin"
     );
     let mut command: Command = Command::new("sh");
