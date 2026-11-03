@@ -277,14 +277,16 @@ export const environmentNameCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkl
 export const containerStartedFile = 'container-started.json';
 
 /**
- Name of the file, in a campaign's evidence directory, that says the directory was created by a runner that writes
- {@link containerStartedFile} before every start. Where it is there, a pass directory with an attempt and no started marker
- holds no container that started; where it is not (a directory of an older runner, or one a newer runner resumed), that
- absence proves nothing.
+ Name of the file, inside an attempt's directory, that says the attempt was made by a runner that writes
+ {@link containerStartedFile} before every container start. It is written when the attempt directory is made, long before
+ a launch. Where it is there, an attempt with no started marker holds no container that started; an attempt without it may
+ belong to an older runner (or to a newer one killed before it wrote the file), and its missing marker proves nothing. The
+ record is per attempt, never per campaign: an older runner can resume a directory a newer one began, and its attempts must
+ not be vouched for by the newer one's.
  */
-export const campaignProtocolFile = 'campaign-protocol.json';
+export const attemptProtocolFile = 'attempt-protocol.json';
 
 /**
- Version recorded in {@link campaignProtocolFile}: the started marker is written before every container start.
+ Version recorded in {@link attemptProtocolFile}: the started marker is written before every container start.
  */
 export const startedMarkerProtocolVersion = 1;

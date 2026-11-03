@@ -102,7 +102,7 @@
   ],
   "evidenceFiles": [
     [
-      "verification/native-mutation-<ID>/campaign-protocol.json",
+      "verification/native-mutation-<ID>/attempt-001/attempt-protocol.json",
       "{\n  \"version\": 1\n}\n"
     ],
     [

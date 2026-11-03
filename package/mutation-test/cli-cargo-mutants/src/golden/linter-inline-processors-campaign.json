@@ -108,6 +108,10 @@
   ],
   "evidenceFiles": [
     [
+      "verification/processors-mutation-<ID>/attempt-001/attempt-protocol.json",
+      "{\n  \"version\": 1\n}\n"
+    ],
+    [
       "verification/processors-mutation-<ID>/attempt-001/mutants.out/caught.txt",
       "m1\nm2\nm3\nm4\nm5\n"
     ],
@@ -142,10 +146,6 @@
     [
       "verification/processors-mutation-<ID>/attempt-001/mutants.out/previously_caught.txt",
       ""
-    ],
-    [
-      "verification/processors-mutation-<ID>/campaign-protocol.json",
-      "{\n  \"version\": 1\n}\n"
     ],
     [
       "verification/processors-mutation-<ID>/campaign.json",

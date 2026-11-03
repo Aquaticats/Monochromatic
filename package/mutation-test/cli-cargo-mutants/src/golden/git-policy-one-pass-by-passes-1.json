@@ -98,6 +98,10 @@
   ],
   "evidenceFiles": [
     [
+      "verification/native-mutation-<ID>/attempt-001/attempt-protocol.json",
+      "{\n  \"version\": 1\n}\n"
+    ],
+    [
       "verification/native-mutation-<ID>/attempt-001/mutants.out/caught.txt",
       "m1\nm2\n"
     ],
@@ -120,10 +124,6 @@
     [
       "verification/native-mutation-<ID>/attempt-001/mutants.out/previously_caught.txt",
       ""
-    ],
-    [
-      "verification/native-mutation-<ID>/campaign-protocol.json",
-      "{\n  \"version\": 1\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/campaign.json",
