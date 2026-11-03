@@ -1851,30 +1851,25 @@ in-process reader can) gives every value of the multi-valued keys.
   where the request waits and the kill wins) cannot,
   and neither can one whose signal arrives between creating a lock and registering it for removal
   (`tempfile.c` of Git 2.56.0, `create_tempfile_mode` and `activate_tempfile`).
-  Once the child and everything it started are gone, the wrapper removes the lock files that child left,
-  and only these:
-  a lock whose `~pid.lock` file (Git writes it beside every lock under `core.lockfilePid`, which the wrapper turns on for
-  every Git it starts, the commit service's pushes and steps included) names a process of the stopped tree that has ended,
-  together with that pid file;
-  and an empty lock with no pid file that was born after the child started and is still empty after a settle time
-  of one second, while the whole stopped tree has ended.
-  The second kind exists because a child can die between creating a lock and writing its pid file,
-  and an empty file holds nothing;
-  the settle time exists because Git makes a ref lock empty and fills it a moment later,
-  so a lock that a live process just made is not taken for a left one.
-  A lock whose pid file names any other process, a lock with content and no pid file, a lock older than the child,
-  a lock that is filled during the settle time and a lock while any process of the tree still runs are left alone.
+  Once the child and everything it started are gone, the wrapper judges the reference locks of the child's repository
+  with the judgement of "Reference locks left by a Git that was killed" below: a lock is removed only when its holder is
+  proven gone, and otherwise the wrapper says what it found and prints the command that clears it.
+  Releases 0.5.23 to 0.5.26 also removed an empty lock with no pid file that was born after the child started and was
+  still empty after a settle time of one second, and a lock whose pid file named an ended member of the stopped tree.
+  Both are gone: a cross-vendor review (2026-11-03T11:33:50-05:00, finding S-1) showed that a live writer of another Git,
+  which writes no pid file, holds an empty lock with no descriptor open for as long as its transaction lasts, so neither
+  the lifetime of the stopped child, the birth time of the lock nor its being empty ties the lock to that child, and a pid
+  file older than the lock names an earlier holder.
+  A lock the child left with a pid file that names it is removed by the same proof as any other (the process is gone), once
+  it is older than the margin; a younger one is judged by the next fetch or push of the repository, which judges first.
+  A lock without a pid file is left, and the notice names it with the command that clears it.
+  Only reference locks are looked at: `index.lock`, `shallow.lock`, object and pack locks are neither removed nor mentioned.
   The repository is the one of the child's working directory or its `GIT_DIR`; a step that names its repository with
-  `-C` or `--git-dir` arguments, or a lock outside the Git directories (a private `GIT_INDEX_FILE`), is not swept,
-  which leaves a lock where one was left and never removes a wrong one.
-  Both the Git directory and the common Git directory are searched, except `hooks` and the loose-object directories.
+  `-C` or `--git-dir` arguments, or a lock outside the Git directories (a private `GIT_INDEX_FILE`), is not looked at.
   A child that the kernel does not release within the grace after the kill, or a stopped tree that has not all ended by
   then (a loaded or stalled host has not yet run the killed processes), is waited for on a thread of its own,
-  and its locks are removed when the whole tree has ended; the push is reported at its deadline and does not wait for it.
-  The removal takes no lock of its own: it looks at files the stopped child created and removes only those.
-  The one case the rules cannot tell apart is a Git that writes no pid files (not started by the wrapper)
-  holding an empty lock for longer than the settle time while a stopped tree ends:
-  its lock is taken for a left one, and that process then fails loudly when it renames its lock.
+  and its locks are judged when the whole tree has ended; the push is reported at its deadline and does not wait for it.
+  The judgement takes no lock of its own.
   A push whose output grows past 4 MiB (`MAX_PUSH_OUTPUT`) is stopped the same way, and only the first 4 MiB are kept.
   Citation of the 4 MiB: none; the owner decided "Keep all lines" for push output and no
   measurement of the size of a push's output is logged; an open question for the owner.
@@ -1951,12 +1946,12 @@ open divergence.
 
 ### Reference locks left by a Git that was killed
 
-Release 0.5.23 removes the lock files of a Git child that the wrapper itself stopped (the push deadline entry of
-"Auto-push" holds those rules).
+Release 0.5.23 judged the lock files of a Git child that the wrapper itself stopped (the push deadline entry of
+"Auto-push" holds those rules; since the fix of finding S-1 it uses the judgement below and removes nothing of its own).
 A lock that any other killed Git leaves (a terminal closed mid-fetch, the out-of-memory killer, a reboot, a release before
 0.5.23) blocked every later `git fetch` and `git push` of the same reference with "Unable to create ... File exists"
 until someone deleted the file by hand.
-This entry extends the same code (`src/native/stopped_git_locks.rs` for the pid-file reader, `src/native/git_directory_roots.rs`
+This entry extends the same code (`src/native/stopped_git_locks.rs` for the pid-file reader and the sweep after a stop, `src/native/git_directory_roots.rs`
 for the Git directories it shares, `src/native/stale_ref_locks.rs` and the `stale_ref_lock_*` modules for the judgement) to those
 locks, with one rule: a lock is removed only when its holder is
 **proven** gone, and otherwise the wrapper says what it found and prints the command that clears it.
@@ -2016,7 +2011,7 @@ The handover proposal of the 0.5.23 entry (an empty lock with no pid file, past 
 is rejected for the same reason.
 The open descriptor is kept as one **veto** (a lock that a process has open is held, whatever else is known), never as proof.
 
-#### The rule: a lock is removed only on one of two proofs
+#### The rule: a lock is removed only on a proof about its holder
 
 Candidates are reference locks of the Git directory and the common Git directory: `packed-refs.lock`, `HEAD.lock` and every
 `*.lock` under `refs/`.
@@ -2043,21 +2038,46 @@ A candidate is judged without starting Git, from the file system and `/proc`, in
      the holder ended, and the lock stale;
    - any other running process is taken for the holder, and the lock is **held**: a Git, or a program under another name that
      started before the lock (a copied Git binary, a launcher), so the two signs must agree to delete.
-   This proof exists only when the wrapper itself runs in the initial PID namespace (the link `/proc/self/ns/pid` names
-   `pid:[4026531836]`), where an absent number is absent from the whole kernel.
-   Anywhere else (a container) the number may belong to a namespace this process cannot see, and the lock is unproven.
-5. A lock born before the current boot of the kernel (its birth time and modification time both earlier than `btime` of
-   `/proc/stat` by more than one hour), with no usable pid file, is stale: no process of this boot can have created it.
-   `btime` is the wall clock minus the uptime, so a step of the clock after boot moves it; the hour keeps the usual step
-   of a hardware clock a few minutes off from making a lock of the first seconds of this boot look older than it.
+   A pid file holds the number its writer had in the writer's own PID namespace, and Git records no namespace.
+   This proof therefore holds only when both of these are true:
+   - The wrapper runs in the initial PID namespace (the link `/proc/self/ns/pid` names `pid:[4026531836]`) and `/proc` has
+     no `hidepid` option, so that the table lists every process of the machine.
+     Anywhere else (a container, a hidden table) the number may belong to a namespace this process cannot see, and the lock
+     is unproven.
+   - No process of the table has the pid file's number as its number inside a PID namespace nested in the wrapper's.
+     The kernel lists every number of a process, outermost first, on the `NSpid` line of `/proc/<pid>/status`
+     (`proc_pid_status(5)`); a process that has the number in any later column may be the writer.
+     A gone or reused number is then unproven, with the process named in the reason, and so is a table whose `status` files
+     cannot all be read.
+     The search is made only when the other signs would have removed the lock.
+5. A lock whose times are earlier than the boot of the kernel is **not** a proof.
+   `btime` of `/proc/stat` is the wall clock minus the uptime, so a forward correction of the clock after the boot moves
+   `btime` and the times of every file alike; a lock that a live Git made before the correction then looks older than the
+   boot, and a margin only moves the size of the correction that fools it.
+   No second sign that is independent of the clock exists (no file carries a boot identifier), so this proof, which
+   releases 0.5.23 to 0.5.26 had, is removed.
+   The notice for a lock that looks older than the boot says so and says why it does not prove anything, beside the
+   command that clears it; a lock that a reboot left with a pid file is still removed by item 4, because the number is
+   gone.
 6. Anything else is unproven: the lock is left, and the wrapper says what it found.
 
-The removal itself takes no lock of the wrapper's own (`Use as few locks as possible.`).
-It sets the lock aside with one `rename` to a private name in the Git directory, reads the identity of what it moved (device,
-inode and size), removes it only if that is the file that was judged, and otherwise puts it back with a hard link.
+The removal itself takes no lock of the wrapper's own (`Use as few locks as possible.`), and no file is ever removed by
+its path after a separate look at it, because the path may name a different file by the time of the removal.
+Each file goes through one step:
+the identity it had while it was judged (device, inode, size, birth time and modification time) is compared once more
+just before the move, and a file that already differs is not touched;
+then one `renameat2` with `RENAME_NOREPLACE` moves it to a private name in the Git directory itself (a name under `refs/`
+would be read as a reference), so the private name is never written over;
+the identity of what was moved is compared with the judged one;
+a match is removed, and a difference is put back with a hard link, which fails instead of replacing a lock that has been
+created at the path since (that file is then left under its private name and the wrapper says so).
 Two wrappers that judge the same lock at the same time therefore cannot remove a lock that a live Git created between them.
+The one cost is that a file that was not the judged one is missing from its path for the moment between the move and the
+put back; a Git that tries to rename that lock into place in that moment fails loudly, and loses nothing.
 The pid file, and for `packed-refs.lock` the staging file `packed-refs.new` that Git creates with `O_EXCL` while it holds that
-lock (`refs/packed-backend.c:1398`), are removed after the lock has been set aside.
+lock (`refs/packed-backend.c:1398`), are looked at before the lock is judged and go through the same step after the lock has
+been removed, each against that earlier look, so a pid file or staging file that a live Git made at the same paths in
+between is left.
 A killed Git leaves the staging file too, and a later packed-references update fails on it ("unable to create file
 packed-refs.new: File exists") exactly as on the lock, so a lock is cleared together with it, and the command given for a lock
 that is not cleared names it.
@@ -2070,9 +2090,8 @@ file after the lock was looked for and found absent has no live maker, and it is
 
 - A holder that wrote its lock, closed the file and has not yet renamed it: its pid file names a live Git (held), and where
   there is none the lock is unproven, never stale, because the descriptor scan sees nothing.
-- A holder that is killed between creating the lock and its pid file: there is no pid file, so the lock is unproven unless it
-  predates the boot.
-  Such a lock is reported with the command that clears it.
+- A holder that is killed between creating the lock and its pid file: there is no pid file, so the lock is unproven.
+  Such a lock is reported with the command that clears it, and a live foreign writer's lock cannot be told from it.
 - An older pid file in front of a live holder (above): ignored because it is older than the lock.
 - A process number reused by another process: a running non-Git process proves the reuse, and a running Git is held.
   A Git that is not the holder is kept apart from the holder only by its start time, which is not used because the wall
@@ -2080,23 +2099,29 @@ file after the lock was looked for and found absent has no live maker, and it is
 - Another account's process: it cannot be read, but a lock it holds has its pid file naming that process, which a running
   number never proves stale.
   A lock with no pid file stays unproven, and the descriptors it cannot see are said in the message.
-- A Git in another PID namespace or mount namespace (a container with the repository mounted in): the pid number means
-  something else here, so the pid-file proof needs the initial PID namespace, and a writer in a sibling container that is
-  visible from the host still writes numbers of its own namespace.
-  This is a limit of the pid-file proof that cannot be closed from the host; the veto of an open descriptor and the margin are
-  the only protection, and the SPEC records it as accepted.
+- A Git in another PID namespace (a container with the repository mounted in, or a nested namespace on the host):
+  the pid file holds a number of that namespace.
+  A wrapper outside the initial namespace, or with a hidden `/proc`, proves nothing from a pid file.
+  A wrapper in the initial namespace searches the table for a process that has the number as its number inside a nested
+  namespace (`NSpid` of `/proc/<pid>/status`), and a gone or reused number is unproven while one is found, or while the
+  table cannot be read completely.
+  A writer in a sibling namespace that is not a descendant of the wrapper's own (the wrapper in a container) is outside the
+  table and is not seen, which is why a wrapper outside the initial namespace proves nothing.
+  The veto of an open descriptor and the margin are the only protection beyond that.
 - A Git on NFS or another network or user-space file system (including a virtual machine's shared directory): the file
   system must be on the fixed local list.
-- A clock that steps: the margin, the boot proof and the start time of a process read file times against the current clock.
-  A forward step after boot moves `btime` forward, so a lock a live Git made in the first seconds could look older than the
-  boot; the proof therefore needs a lock older than the boot by more than an hour plus the margin
-  (`BOOT_SLACK`; `chronyd` stepped this host by -3599.507590 s on 2026-11-01), is used only when no pid file exists, and is
-  defeated only by a step larger than that across the whole life of a live lock, which Git holds for moments.
+- A clock that steps: the margin and the start time of a process read file times against the current clock, and the boot
+  comparison is only worded, never a proof (item 5).
+  A forward step makes a young lock look old to the margin, which only lets the judgement look at it; what it concludes
+  rests on the pid file and the process table, not on any time.
   For a reused number a step can only make a process look newer, and the second sign (not a Git) must still agree.
 - Two wrappers removing the same stale lock: handled by setting aside with a rename and checking identity (above).
 - A removal that is raced by a new lock at the same path: the file that was set aside is checked, and put back if it is not
   the judged one; if the path has been taken again by then, it is left set aside under its private name and the wrapper
   says so, because deleting it could lose a live holder's update.
+  The same holds for the pid file and the staging file, which release 0.5.26 removed by their paths.
+- A foreign writer that writes no pid file and keeps its lock empty with the descriptor closed (finding S-1): nothing
+  proves it gone, so its lock is left and reported, whether it was born before or during the life of a stopped child.
 
 #### Where it applies
 
@@ -2105,6 +2130,8 @@ file after the lock was looked for and found absent has no live maker, and it is
   Every repetition of a push starts through it too, so the service's repetitions after a refused tracking reference
   (`PUSH_LOCK_RETRIES`) clear again before each one; no repetition of its own was added, and nothing waits.
   These are the commands that run unattended, so a lock that blocks them is repaired with nobody present.
+- The sweep after a stopped child (the push deadline entry of "Auto-push") judges the same locks once the child's tree has
+  ended, removes the provably stale ones, and logs the notice of the rest; it removes nothing the judgement does not prove.
 - A plain forwarded `git fetch` or `git push` replaces the wrapper process with Git, so there is no "after" to look at: the
   wrapper judges and clears before it hands over, and the notice (standard error) precedes Git's own words
   (`src/native/forwarded_lock_notice.rs`, called from `stack_if_push` in `entry.rs`).
@@ -2134,22 +2161,25 @@ pasted and a terminal escape in a file name is never printed raw.
 cli-git: removed the reference lock /r/.git/refs/remotes/origin/gone.lock, left by a Git that is gone: process 2629996, named by the pid file beside it, has ended.
 # A lock whose pid number now belongs to a program that is not Git.
 cli-git: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.
-# A lock from before the boot, with no pid file.
-cli-git: removed the reference lock /r/.git/refs/heads/c.lock, left by a Git that is gone: it was made before this boot of the machine, so no process that exists now can hold it.
 # A lock a running Git holds.
 cli-git: the reference lock /r/.git/packed-refs.lock is in use: process 2630147 (git), which the pid file beside it names, is running; it was left alone.
 # A lock nothing proves stale.
 cli-git: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open.
 cli-git: it is 0 bytes, made 2026-11-03T11:57:55.882Z (2 seconds ago). If no Git process is running in this repository, clear it with:
 cli-git:   rm -- /r/.git/refs/remotes/origin/gone.lock
+# A lock whose times are earlier than the boot, with no pid file: the times are said, and prove nothing.
+cli-git: left the reference lock /r/.git/refs/heads/c.lock alone: no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open; its times are earlier than the start of this boot, which a reboot would explain, but so would a correction of the clock, so the times alone prove nothing.
 cli-git: Git writes a process number beside its locks only when `core.lockfilePid` is on. The wrapper turns it on for the Git it starts; `git config --global core.lockfilePid true` does it for the rest, so the next lock can be proven.
 ```
 
 For `packed-refs.lock` the `rm` line also names `packed-refs.new` and the pid file when they exist.
 Git's own refusal follows these lines unchanged, because the wrapper becomes Git.
-In a process that is not in the initial PID namespace the reason of a lock with a pid file is "the pid file beside it names process
-N, but this process runs in a PID namespace of its own and cannot see every process of the machine, so it cannot tell whether N is
-gone", and the lock is left with the same `rm` line.
+In a process that is not in the initial PID namespace, or whose `/proc` hides processes, the reason of a lock with a pid file is "the
+pid file beside it names process N, but this process runs in a PID namespace of its own, or cannot see every process of the machine,
+so it cannot tell whether N is gone".
+Where a process of a nested namespace has the number, it is "the pid file beside it names process N, and process M is process N of a
+PID namespace of its own, so the writer may be that process".
+The lock is left with the same `rm` line in each case.
 
 #### Measured while this entry was written (see the commit time of the entry)
 

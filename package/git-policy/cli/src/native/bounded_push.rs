@@ -254,7 +254,7 @@ fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// void child.exited.then(() => locks.sweep(tree));
+/// void child.exited.then(() => locks.sweep());
 /// ```
 pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<std::thread::JoinHandle<()>> {
     return std::thread::Builder::new()
@@ -266,7 +266,7 @@ pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedg
             while tree.iter().any(still_running) {
                 std::thread::sleep(POLL_PAUSE);
             }
-            locks.sweep(tree.as_slice());
+            locks.sweep();
         })
         .inspect_err(|error| {
             debug(TAG, &format!("could not start the thread that sweeps a stopped push's locks: {error}"));
@@ -278,7 +278,7 @@ pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedg
 ///  Stop a running push: ask politely,
 ///  wait the grace,
 ///  then kill and collect it,
-///  and remove the lock files it could not remove itself.
+///  and judge the reference locks it may have left.
 /// Why:
 ///   Git's own signal handling ends the helpers it started and removes its lock files,
 ///  and a push that ignores the request cannot outlive the kill.
@@ -287,7 +287,7 @@ pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedg
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep(tree);
+/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep();
 /// ```
 pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
     // Read before the push is signalled: once it has exited, its helpers and hooks no longer point to it.
@@ -341,13 +341,13 @@ pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (collected && allEnded(tree)) { locks.sweep(tree); return undefined; } return sweepAfterExit(child, tree, locks);
+/// if (collected && allEnded(tree)) { locks.sweep(); return undefined; } return sweepAfterExit(child, tree, locks);
 /// ```
 pub fn settle_locks(child: Child, collected: bool, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<std::thread::JoinHandle<()>> {
     if collected {
         wait_for_tree(tree.as_slice(), grace);
         if tree.iter().all(|member| { return !still_running(member); }) {
-            locks.sweep(tree.as_slice());
+            locks.sweep();
             return None;
         }
     }
