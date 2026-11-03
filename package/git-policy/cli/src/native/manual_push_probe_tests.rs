@@ -229,8 +229,8 @@ fn a_failure_without_gits_words_stays_a_failure_of_the_probe() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-no-refusal");
     let mut silent = git_for(&repo);
     silent.real_git = PathBuf::from("/usr/bin/false");
-    let error = probe_manual_push_updates(&silent, &[], &post(&["origin", "main"])).expect_err("a silent failure");
-    assert_eq!(error.refusal, None, "{error}");
+    let silent_error = probe_manual_push_updates(&silent, &[], &post(&["origin", "main"])).expect_err("a silent failure");
+    assert_eq!(silent_error.refusal, None, "{silent_error}");
     let mut garbled = git_for(&repo);
     garbled.real_git = PathBuf::from("/usr/bin/echo");
     let error = probe_manual_push_updates(&garbled, &[], &post(&["origin", "main"])).expect_err("an unreadable report");
