@@ -56,6 +56,11 @@ pub struct Pack {
     cached_bytes: std::cell::Cell<usize>,
     /// How many reads of the index file the lookups made; a stand-in for the system calls a lookup costs.
     index_reads: std::cell::Cell<u64>,
+    /// The names of each first byte already read from the index, by that byte, so a second lookup in the same bucket reads
+    ///  nothing: the lookups of one commit are many and spread over every first byte.
+    buckets: std::cell::RefCell<std::collections::HashMap<u8, std::rc::Rc<Vec<u8>>>>,
+    /// The bytes held in `buckets`; once it passes `CACHE_BYTE_LIMIT` no bucket is added.
+    bucket_bytes: std::cell::Cell<usize>,
 }
 
 /// Read exactly `length` bytes at `position`, or `None`.
@@ -178,7 +183,7 @@ impl Pack {
         if &pack_header[..4] != b"PACK" || !matches!(pack_header[7], 2 | 3) || pack_header[4..7] != [0, 0, 0] || u64::from(pack_count) != count {
             return None;
         }
-        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0), index_reads: std::cell::Cell::new(0) });
+        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0), index_reads: std::cell::Cell::new(0), buckets: std::cell::RefCell::default(), bucket_bytes: std::cell::Cell::new(0) });
     }
 
     /// How many entries of this pack were decoded (inflated, with their delta applied) since it was opened.
@@ -209,8 +214,20 @@ impl Pack {
             return None;
         }
         // The names that share the first byte lie side by side, so one read brings all of them and the search below
-        //  runs in memory; probing name by name cost a system call for each step of the search.
-        let bucket: Vec<u8> = self.read_index(FANOUT_END + low * self.hash_length as u64, ((high - low) as usize) * self.hash_length)?;
+        //  runs in memory; probing name by name cost a system call for each step of the search. The bucket is kept, because
+        //  the next lookup of the commit lands in one of 256 buckets and the same one again soon.
+        let kept: Option<std::rc::Rc<Vec<u8>>> = self.buckets.borrow().get(&name[0]).map(std::rc::Rc::clone);
+        let bucket: std::rc::Rc<Vec<u8>> = match kept {
+            Some(found) => found,
+            None => {
+                let read: std::rc::Rc<Vec<u8>> = std::rc::Rc::new(self.read_index(FANOUT_END + low * self.hash_length as u64, ((high - low) as usize) * self.hash_length)?);
+                if self.bucket_bytes.get() + read.len() <= CACHE_BYTE_LIMIT {
+                    self.bucket_bytes.set(self.bucket_bytes.get() + read.len());
+                    self.buckets.borrow_mut().insert(name[0], std::rc::Rc::clone(&read));
+                }
+                read
+            }
+        };
         let mut left: usize = 0;
         let mut right: usize = bucket.len() / self.hash_length;
         while left < right {

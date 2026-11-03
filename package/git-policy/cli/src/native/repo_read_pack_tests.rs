@@ -87,10 +87,14 @@ fn a_lookup_reads_the_index_a_few_times() {
         assert!(pack.find(name.as_slice()).is_some(), "a name of the pack is found");
         assert!(pack.index_reads() - before <= 2, "a found name costs at most two reads of the index");
     }
+    // The names of one first byte are read once however many lookups land in them: every lookup reads its own offset, and
+    // each distinct first byte adds one read of its bucket.
+    let buckets: std::collections::HashSet<u8> = names.iter().map(|name| { return name[0]; }).collect();
+    assert_eq!(pack.index_reads(), (names.len() + buckets.len()) as u64, "one read of the offset per name and one per bucket");
     let mut absent: Vec<u8> = names[0].clone();
     absent[19] ^= 1;
     let before = pack.index_reads();
     assert!(pack.find(absent.as_slice()).is_none(), "a name the pack does not hold is not found");
-    assert!(pack.index_reads() - before <= 1, "an absent name costs one read of the index");
+    assert_eq!(pack.index_reads() - before, 0, "an absent name whose bucket was read costs no read of the index");
     crate::test_support::remove(root.as_path());
 }
