@@ -144,7 +144,7 @@ pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: I
 /// Fixtures for the differential controls; never part of the release executable.
 #[cfg(test)]
 #[path = "index_reset_support.rs"]
-mod support;
+pub(crate) mod support;
 
 /// Differential controls against `git reset`; never part of the release executable.
 #[cfg(test)]

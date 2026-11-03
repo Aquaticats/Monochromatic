@@ -4,6 +4,7 @@
 use super::*;
 use crate::recording_git::{recorded_starts, recording_context};
 use crate::repo_read_hook::SWITCH_VARIABLE;
+use crate::index_reset_file::support::git_with;
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
@@ -313,5 +314,50 @@ fn the_record_is_made_between_the_installation_and_the_unlock_and_a_failed_recor
     assert!(lock.exists(), "the lock stays for the restart to reclaim");
     assert!(!differs(repo.as_path(), second.as_str()), "the installed index stays");
     std::fs::remove_file(&lock).expect("the restart reclaims the lock");
+    remove(root.as_path());
+}
+
+/// The landing's private copy is a file of its own: when the live index is itself named like a private copy (a client's
+/// `GIT_INDEX_FILE`), the live index is neither removed nor taken for the copy, and nothing staged in it is lost.
+#[test]
+fn a_live_index_named_like_a_private_copy_is_not_taken_for_one() {
+    use crate::service_index_lock::try_acquire;
+    let files: Vec<Vec<u8>> = vec![b"top.txt".to_vec()];
+    let (root, repo, _first, second) = index_behind("service-follow-alias-live", files.as_slice());
+    std::fs::write(repo.join("unselected.txt"), b"staged\n").expect("write");
+    crate::test_support::age(repo.join("unselected.txt").as_path());
+    git(repo.as_path(), &["add", "unselected.txt"]);
+    let live: PathBuf = repo.join(".git").join("index.cli-git-7");
+    std::fs::copy(repo.join(".git").join("index"), &live).expect("a client's index named like a private copy");
+    let before: Vec<u8> = std::fs::read(&live).expect("live");
+    let mut context = git_context();
+    context.common_dir = Some(repo.join(".git"));
+    let held = try_acquire(live.as_path(), 7).expect("the lock is free");
+    let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &held, 7).expect("built");
+    assert_ne!(built, live, "the private copy is not the live index");
+    assert_eq!(std::fs::read(&live).expect("the live index stays until the installation"), before);
+    held.release_with(built.as_path()).expect("installed");
+    let output = git_with(repo.as_path(), &[("GIT_INDEX_FILE", live.as_os_str().to_os_string())], &["diff", "--cached", "--name-only", second.as_str()], None);
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "unselected.txt", "the unselected stage is still in the client's index");
+    remove(root.as_path());
+}
+
+/// Another client's index that happens to have the name of the private copy is not overwritten or removed.
+#[test]
+fn another_clients_file_with_the_private_name_is_left_alone() {
+    use crate::service_index_lock::try_acquire;
+    let files: Vec<Vec<u8>> = vec![b"top.txt".to_vec()];
+    let (root, repo, _first, second) = index_behind("service-follow-alias-other", files.as_slice());
+    let index: PathBuf = repo.join(".git").join("index");
+    let other: PathBuf = repo.join(".git").join("index.cli-git-7");
+    std::fs::write(&other, b"another client's index").expect("other");
+    let mut context = git_context();
+    context.common_dir = Some(repo.join(".git"));
+    let held = try_acquire(index.as_path(), 7).expect("the lock is free");
+    let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &held, 7).expect("built");
+    assert_ne!(built, other);
+    held.release_with(built.as_path()).expect("installed");
+    assert_eq!(std::fs::read(&other).expect("other"), b"another client's index".to_vec());
+    assert!(!differs(repo.as_path(), second.as_str()));
     remove(root.as_path());
 }
