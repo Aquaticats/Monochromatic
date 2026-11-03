@@ -15,11 +15,13 @@
 //! const clean = await checkClean({ root, gitDir, commonDir }); // { headCommit, headTree } or throws a reason
 //! ```
 
+use super::repo_read_config_scan::ScopeEnvironment;
 use super::repo_read_index::{IndexEntry, parse_index};
 use super::repo_read_layout::ObjectFormat;
 use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_refs::{Refs, RefValue};
 use super::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree, parse_commit};
+use super::worktree_clean_content::ContentJudge;
 use super::subvolume_index::{StatFields, StoredStat, be32, walk_entries};
 use super::subvolume_index_files::{fields_of, matches_stored, repository_hash_length};
 use super::transaction_git::{GitContext, GitRequest, run_git};
@@ -187,36 +189,74 @@ fn file_differs_from_entry(root: &Path, entry: &StatEntry, index_seconds: u32) -
 }
 
 /// What:
-///  The reason a file whose metadata is `metadata` differs from its index entry, or nothing when the two agree.
+///  What the stat data of an index entry says about a file.
+/// Why:
+///   A file the data cannot vouch for (a racily clean entry, a stale stat) is not the same as a file that certainly changed:
+///  Git settles the first by content, so a caller that can compare content takes the two apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StatVerdict = { kind: 'agrees' } | { kind: 'unproven'; reason: string } | { kind: 'differs'; reason: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum StatVerdict {
+    /// Size, times, inode, type and mode all equal the entry.
+    Agrees,
+    /// The stat data proves nothing either way; the content decides.
+    Unproven(String),
+    /// The file certainly differs: missing type, mode or assume-unchanged mark.
+    Differs(String),
+}
+
+/// What:
+///  What the stat data of the entry says about a file whose metadata is `metadata`.
 /// Why:
 ///   The comparison takes the metadata of an inode already in hand, so a caller that holds a descriptor judges the file it
-///  holds, not whatever the path names a moment later.
+///  holds, not whatever the path names a moment later. Type and executable bit come before the time checks: they differ
+///  whatever the content is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function metadataVerdict(entry: StatEntry, metadata: Stats, indexSeconds: number): StatVerdict;
+/// ```
+pub fn metadata_verdict(entry: &StatEntry, metadata: &std::fs::Metadata, index_seconds: u32) -> StatVerdict {
+    let StatEntry { path, flags, mode, stored }: &StatEntry = entry;
+    let shown: String = String::from_utf8_lossy(path).into_owned();
+    if flags & ASSUME_VALID != 0 {
+        return StatVerdict::Differs(format!("{shown} is marked assume-unchanged"));
+    }
+    let symbolic: bool = *mode & 0o170_000 == 0o120_000;
+    if symbolic != metadata.file_type().is_symlink() || (!symbolic && !metadata.file_type().is_file()) {
+        return StatVerdict::Differs(format!("{shown} changed its type"));
+    }
+    if !symbolic && (*mode & 0o100 != 0) != (metadata.mode() & 0o100 != 0) {
+        return StatVerdict::Differs(format!("{shown} changed its executable bit"));
+    }
+    if stored.mtime_seconds >= index_seconds {
+        return StatVerdict::Unproven(format!("{shown} is as new as the index, so its stat fields prove nothing"));
+    }
+    let now: StatFields = fields_of(metadata);
+    if !matches_stored(&now, stored) {
+        return StatVerdict::Unproven(format!("{shown} differs from its index entry by size, times or inode"));
+    }
+    return StatVerdict::Agrees;
+}
+
+/// What:
+///  The reason a file whose metadata is `metadata` differs from its index entry, or nothing when the two agree.
+/// Why:
+///   Callers that rely on the stat data alone (the snapshot and clone rungs) treat a file the data cannot vouch for like a
+///  file that changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function metadataDiffersFromEntry(entry: StatEntry, metadata: Stats, indexSeconds: number): string | undefined;
 /// ```
 pub fn metadata_differs_from_entry(entry: &StatEntry, metadata: &std::fs::Metadata, index_seconds: u32) -> Option<String> {
-    let StatEntry { path, flags, mode, stored }: &StatEntry = entry;
-    let shown: String = String::from_utf8_lossy(path).into_owned();
-    if flags & ASSUME_VALID != 0 {
-        return Some(format!("{shown} is marked assume-unchanged"));
-    }
-    if stored.mtime_seconds >= index_seconds {
-        return Some(format!("{shown} is as new as the index, so its stat fields prove nothing"));
-    }
-    let symbolic: bool = *mode & 0o170_000 == 0o120_000;
-    if symbolic != metadata.file_type().is_symlink() || (!symbolic && !metadata.file_type().is_file()) {
-        return Some(format!("{shown} changed its type"));
-    }
-    if !symbolic && (*mode & 0o100 != 0) != (metadata.mode() & 0o100 != 0) {
-        return Some(format!("{shown} changed its executable bit"));
-    }
-    let now: StatFields = fields_of(metadata);
-    if !matches_stored(&now, stored) {
-        return Some(format!("{shown} differs from its index entry by size, times or inode"));
-    }
-    return None;
+    return match metadata_verdict(entry, metadata, index_seconds) {
+        StatVerdict::Agrees => None,
+        StatVerdict::Unproven(reason) | StatVerdict::Differs(reason) => Some(reason),
+    };
 }
 
 /// What:
@@ -231,6 +271,43 @@ pub fn metadata_differs_from_entry(entry: &StatEntry, metadata: &std::fs::Metada
 /// ```
 pub fn tree_differs_from_index(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
     return entries.iter().find_map(|entry: &StatEntry| { return file_differs_from_entry(root, entry, index_seconds); });
+}
+
+/// What:
+///  The first reason a tracked file of `root` differs from its index entry, deciding by content where the stat data cannot
+///  vouch for the file.
+/// Why:
+///   Git hashes a racily clean entry and an entry whose stat data is stale; this does the same in process, so a clean
+///  worktree that was copied, cloned or written in the same second as its index is not refused. A file that really differs,
+///  or one a content conversion could change, still is, with the reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function treeDiffersFromIndexByContent(judge: ContentJudge, root: string, entries: StatEntry[], ids: Uint8Array[], indexSeconds: number): string | undefined;
+/// ```
+fn tree_differs_from_index_by_content(judge: &mut ContentJudge<'_>, root: &Path, entries: &[StatEntry], indexed: &[IndexEntry], index_seconds: u32) -> Option<String> {
+    if entries.len() != indexed.len() {
+        return Some(String::from("the index entries and their stat data are not the same files"));
+    }
+    for (entry, committed) in entries.iter().zip(indexed) {
+        if entry.path != committed.path {
+            return Some(String::from("the index entries and their stat data are not the same files"));
+        }
+        let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
+        let Ok(metadata) = std::fs::symlink_metadata(root.join(OsStr::from_bytes(entry.path.as_slice()))) else {
+            return Some(format!("{shown} is missing from the worktree"));
+        };
+        match metadata_verdict(entry, &metadata, index_seconds) {
+            StatVerdict::Agrees => {}
+            StatVerdict::Differs(reason) => return Some(reason),
+            StatVerdict::Unproven(_reason) => {
+                if let Err(reason) = judge.agrees(entry, committed.id.as_slice()) {
+                    return Some(reason);
+                }
+            }
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -318,6 +395,27 @@ fn untracked_file(context: &GitContext, root: &Path) -> Result<Option<String>, S
 /// function checkCleanTracked(root: string, gitDir: string, commonDir: string): CleanSource; // throws the reason
 /// ```
 pub fn check_clean_tracked(root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, String> {
+    return check_tracked(root, git_dir, common_dir, None);
+}
+
+/// What:
+///  `check_clean_tracked` that settles an entry the stat data cannot vouch for by comparing the file with the committed
+///  blob in process, under the configuration `scope`.
+/// Why:
+///   The conversion copies the whole worktree and rewrites the index afterwards, and an entry it could not prove keeps its old
+///  stat data, so Git hashes it at the first status; the snapshot and clone rungs install the index they proved and use the
+///  stat-only check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkCleanTrackedByContent(root: string, gitDir: string, commonDir: string, scope: ScopeEnvironment): CleanSource; // throws the reason
+/// ```
+pub fn check_clean_tracked_by_content(root: &Path, git_dir: &Path, common_dir: &Path, scope: &ScopeEnvironment) -> Result<CleanSource, String> {
+    return check_tracked(root, git_dir, common_dir, Some(scope));
+}
+
+/// The checks of `check_clean_tracked`, by stat data alone or, given a `scope`, by content where the stat data is not enough.
+fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, scope: Option<&ScopeEnvironment>) -> Result<CleanSource, String> {
     if let Some(name) = operation_in_progress(git_dir) {
         return Err(format!("{name} exists in {}", git_dir.display()));
     }
@@ -345,7 +443,11 @@ pub fn check_clean_tracked(root: &Path, git_dir: &Path, common_dir: &Path) -> Re
         .filter(|entry: &&FlatEntry| { return entry.path == b".gitattributes" || entry.path.ends_with(b"/.gitattributes"); })
         .map(|entry: &FlatEntry| { return (entry.path.clone(), entry.id.clone()); })
         .collect();
-    if let Some(reason) = tree_differs_from_index(root, stats.as_slice(), index_seconds) {
+    let differs: Option<String> = match scope {
+        None => tree_differs_from_index(root, stats.as_slice(), index_seconds),
+        Some(found) => tree_differs_from_index_by_content(&mut ContentJudge::new(root, git_dir, common_dir, found, format), root, stats.as_slice(), entries.as_slice(), index_seconds),
+    };
+    if let Some(reason) = differs {
         return Err(reason);
     }
     return Ok(CleanSource { head_commit: commit, head_tree: commit_fields.tree, tracked: entries.len(), index_seconds, hash_length, attribute_blobs, index_bytes: bytes });

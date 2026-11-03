@@ -23,7 +23,7 @@ use super::subvolume_lock::{acquire, is_ours};
 use super::subvolume_platform::Platform;
 use super::subvolume_remove::remove_tree;
 use super::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
-use super::worktree_clean::check_clean_tracked;
+use super::worktree_clean::check_clean_tracked_by_content;
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
@@ -219,7 +219,7 @@ pub fn refusals(platform: &dyn Platform, candidate: &Candidate) -> Vec<String> {
             }
         }
     }
-    if let Err(reason) = check_clean_tracked(candidate.path.as_path(), candidate.admin.as_path(), candidate.common.as_path()) {
+    if let Err(reason) = check_clean_tracked_by_content(candidate.path.as_path(), candidate.admin.as_path(), candidate.common.as_path(), &platform.config_scope()) {
         reasons.push(format!("it is not quiet and unmodified: {reason}"));
     }
     let scan = processes_using(&UseTarget::Inside(candidate.path.as_path()));

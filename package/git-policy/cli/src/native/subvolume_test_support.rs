@@ -75,6 +75,10 @@ impl PlainPlatform {
 
 /// The five operations on plain directories.
 impl Platform for PlainPlatform {
+    fn config_scope(&self) -> super::repo_read_config_scan::ScopeEnvironment {
+        return super::repo_read_config_scan::ScopeEnvironment { no_system: true, ..super::repo_read_config_scan::ScopeEnvironment::default() };
+    }
+
     fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {
         let (_, real_free) = super::fs_kind::filesystem_facts(path)?;
         return Ok((self.kind, self.free.unwrap_or(real_free)));

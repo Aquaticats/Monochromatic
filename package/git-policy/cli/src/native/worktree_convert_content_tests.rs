@@ -147,11 +147,14 @@ fn a_symbolic_link_is_compared_by_its_target() {
 /// A checkout whose tree also holds `.gitattributes` lines and the files they name, with a settled detached worktree `attr`.
 fn attributed_worktree(name: &str, attributes: &str) -> (PathBuf, PathBuf) {
     let (parent, root) = checkout_with_worktree(name);
-    std::fs::write(root.join(".gitattributes"), attributes).expect("attributes");
+    // The files are committed before the attributes are written, so the blob of `crlf.txt` keeps its carriage returns.
     std::fs::write(root.join("data.dat"), b"data\n").expect("data");
     std::fs::write(root.join("crlf.txt"), b"one\r\ntwo\r\n").expect("crlf");
-    git(root.as_path(), &["add", ".gitattributes", "data.dat", "crlf.txt"]);
-    git(root.as_path(), &["-c", "core.autocrlf=false", "commit", "--quiet", "--message=attributes"]);
+    git(root.as_path(), &["add", "data.dat", "crlf.txt"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=files"]);
+    std::fs::write(root.join(".gitattributes"), attributes).expect("attributes");
+    git(root.as_path(), &["add", ".gitattributes"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=attributes"]);
     git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "attr"]);
     let worktree: PathBuf = std::fs::canonicalize(root.join("attr")).expect("canonical worktree");
     settle(worktree.as_path());
@@ -175,7 +178,7 @@ fn a_filtered_path_refuses_and_an_unfiltered_one_converts() {
 ///  so does a macro that sets one.
 #[test]
 fn every_attribute_that_can_change_bytes_refuses() {
-    for (label, attributes) in [("ident", "*.dat ident\n"), ("encoding", "*.dat working-tree-encoding=UTF-16\n"), ("macro", "[attr]scrambled filter=scrambler\n*.dat scrambled\n")] {
+    for (label, attributes) in [("ident", "*.dat ident\n"), ("encoding", "*.dat working-tree-encoding=ISO-8859-1\n"), ("macro", "[attr]scrambled filter=scrambler\n*.dat scrambled\n")] {
         let (parent, worktree) = attributed_worktree(format!("content-attribute-{label}").as_str(), attributes);
         std::fs::write(worktree.join("data.dat"), b"data\n").expect("same bytes, new times");
         let reasons: String = refusal_reasons(worktree.as_path());
@@ -200,5 +203,80 @@ fn line_ending_attributes_do_not_refuse_a_file_without_a_carriage_return() {
     let (parent, worktree) = attributed_worktree("content-eol", "* text=auto eol=lf\n");
     std::fs::write(worktree.join("data.dat"), b"data\n").expect("same bytes, new times");
     assert_converts(worktree.as_path());
+    remove(parent.as_path());
+}
+
+/// Attributes set outside the tracked root file refuse as well: `info/attributes`, the file `core.attributesFile` names, and a
+///  `.gitattributes` in the directory of the file; a relative `core.attributesFile` cannot be ruled out and refuses.
+#[test]
+fn attributes_from_every_other_source_refuse() {
+    let (parent, worktree) = attributed_worktree("content-sources", "# nothing converts here\n");
+    let root: PathBuf = std::fs::canonicalize(parent.join("checkout")).expect("canonical root");
+    std::fs::write(worktree.join("data.dat"), b"data\n").expect("same bytes, new times");
+    assert_converts(worktree.as_path());
+    // The repository's own file.
+    std::fs::create_dir_all(root.join(".git/info")).expect("info");
+    std::fs::write(root.join(".git/info/attributes"), "*.dat filter=scrambler\n").expect("info attributes");
+    let reasons: String = refusal_reasons(worktree.as_path());
+    assert!(reasons.contains("data.dat") && reasons.contains("info/attributes"), "{reasons}");
+    std::fs::remove_file(root.join(".git/info/attributes")).expect("remove");
+    // A global file named by an absolute path.
+    let global: PathBuf = parent.join("global-attributes");
+    std::fs::write(&global, "data.dat ident\n").expect("global attributes");
+    git(root.as_path(), &["config", "core.attributesFile", global.to_str().expect("UTF-8")]);
+    let from_global: String = refusal_reasons(worktree.as_path());
+    assert!(from_global.contains("data.dat") && from_global.contains(global.to_str().expect("UTF-8")), "{from_global}");
+    // A relative path cannot be ruled out.
+    git(root.as_path(), &["config", "core.attributesFile", "relative-attributes"]);
+    let from_relative: String = refusal_reasons(worktree.as_path());
+    assert!(from_relative.contains("core.attributesFile") && from_relative.contains("not an absolute path"), "{from_relative}");
+    git(root.as_path(), &["config", "--unset", "core.attributesFile"]);
+    assert_converts(worktree.as_path());
+    remove(parent.as_path());
+}
+
+/// A `.gitattributes` in a subdirectory applies to the files below it only.
+#[test]
+fn a_nested_attributes_file_applies_below_its_directory() {
+    let (parent, root) = checkout_with_worktree("content-nested");
+    std::fs::write(root.join("src/.gitattributes"), "*.rs filter=scrambler\n").expect("nested attributes");
+    git(root.as_path(), &["add", "src/.gitattributes"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=nested attributes"]);
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "nested"]);
+    let worktree: PathBuf = std::fs::canonicalize(root.join("nested")).expect("canonical worktree");
+    settle(worktree.as_path());
+    std::fs::write(worktree.join("README.md"), b"readme\n").expect("same bytes, new times");
+    assert_converts(worktree.as_path());
+    std::fs::write(worktree.join("src/main.rs"), b"fn main() {}\n").expect("same bytes, new times");
+    let reasons: String = refusal_reasons(worktree.as_path());
+    assert!(reasons.contains("src/main.rs") && reasons.contains("src/.gitattributes"), "{reasons}");
+    remove(parent.as_path());
+}
+
+/// A file larger than the limit is refused with that reason instead of being read into memory.
+#[test]
+fn a_file_larger_than_the_limit_refuses() {
+    let (parent, _root, worktree) = settled_worktree("content-large");
+    let large = std::fs::OpenOptions::new().write(true).open(worktree.join("README.md")).expect("open");
+    large.set_len(crate::worktree_clean_content::CONTENT_LIMIT + 1).expect("sparse growth");
+    drop(large);
+    let reasons: String = refusal_reasons(worktree.as_path());
+    assert!(reasons.contains("README.md is larger than"), "{reasons}");
+    remove(parent.as_path());
+}
+
+/// A change to the mode or the type is refused whatever the content, also when the entry is racy.
+#[test]
+fn a_mode_or_type_change_is_not_settled_by_content() {
+    let (parent, _root, worktree) = settled_worktree("content-mode");
+    make_every_entry_racy(worktree.as_path());
+    std::fs::set_permissions(worktree.join("README.md"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("chmod");
+    let reasons: String = refusal_reasons(worktree.as_path());
+    assert!(reasons.contains("README.md changed its executable bit"), "{reasons}");
+    std::fs::set_permissions(worktree.join("README.md"), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("chmod back");
+    std::fs::remove_file(worktree.join("link")).expect("remove link");
+    std::fs::write(worktree.join("link"), b"src/main.rs").expect("a file in place of the link");
+    let type_reasons: String = refusal_reasons(worktree.as_path());
+    assert!(type_reasons.contains("link changed its type"), "{type_reasons}");
     remove(parent.as_path());
 }

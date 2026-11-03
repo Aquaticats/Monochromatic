@@ -1215,6 +1215,7 @@ pub mod worktree_subvolume;
 /// Whether a worktree is clean enough to copy from or to remove without asking Git, proven in process.
 #[cfg(target_os = "linux")]
 pub mod worktree_clean;
+pub mod worktree_clean_content;
 
 /// The plan of a `git worktree remove` that names one directory and no option.
 #[cfg(unix)]
