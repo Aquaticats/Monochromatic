@@ -64,6 +64,8 @@ async function startOldHolder(path: string): Promise<OldHolder> {
       `echo held; exec sleep ${String(holderSeconds)}`,
     ],
     {
+      // A group of its own: `flock` runs the command as a child and the child holds the lock, so both must be killed.
+      detached: true,
       stdio: [
         'ignore',
         'pipe',
@@ -71,8 +73,16 @@ async function startOldHolder(path: string): Promise<OldHolder> {
       ],
     },
   );
-  if (child.stdout === null)
-    throw new Error('The holder has no standard output.');
+  /**
+   The holder's process ID, which is also its group.
+   */
+  const { pid } = child;
+  if ((child.stdout === null) || (pid === undefined))
+    throw new Error('The holder has no standard output or process ID.');
+  /**
+   The group to kill, known now.
+   */
+  const group: number = pid;
   await once(
     child.stdout,
     'data',
@@ -83,7 +93,10 @@ async function startOldHolder(path: string): Promise<OldHolder> {
   async function kill(): Promise<void> {
     if ((child.exitCode !== null) || (child.signalCode !== null))
       return;
-    child.kill('SIGKILL');
+    process.kill(
+      -group,
+      'SIGKILL',
+    );
     await once(
       child,
       'close',
