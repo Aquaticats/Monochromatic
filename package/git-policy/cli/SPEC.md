@@ -1837,8 +1837,8 @@ Each commit passes through three phases:
     the hold had a median of 24 ms and a 95th percentile of 68 ms when the lock was taken first
     (the sum of every phase after the wait),
     and a median of 5 ms and a 95th percentile of 6 ms as `lock_hold_ms` when it is taken after the intent.
-    The median paired delta of the commit scenario against native Git was 39.7 to 40.2 ms for the unchanged release
-    (six runs, a spread of 0.5 ms) and 38.9 to 39.8 ms for the new one (three runs, a spread of 0.9 ms);
+    The median paired delta of the commit scenario against native Git was 39.5 to 40.2 ms for the unchanged release
+    (six runs, a spread of 0.7 ms) and 38.9 to 39.8 ms for the new one (three runs, a spread of 0.9 ms);
     the commit path was not made slower.
     A foreign commit that moves the branch while the service waits for the lock makes the compare-and-swap fail,
     and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
