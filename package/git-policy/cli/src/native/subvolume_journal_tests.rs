@@ -156,3 +156,76 @@ fn the_start_time_is_the_recorded_one_and_a_fresh_journal_has_its_own() {
     assert_eq!(Journal::load(path.as_path()).expect("reload").started(), recorded, "a resumed run keeps the start time");
     remove(parent.as_path());
 }
+
+/// The fixed sibling name that releases up to 0.5.20 wrote the journal through: the journal's path with `.tmp` appended.
+fn old_fixed_sibling(journal: &Path) -> PathBuf {
+    let mut name: std::ffi::OsString = journal.as_os_str().to_os_string();
+    name.push(".tmp");
+    return PathBuf::from(name);
+}
+
+/// A leftover of a killed run in the shape the writer names its temporary files: the journal's path, `.tmp.`, a process
+///  number and a clock reading.
+fn leftover_sibling(journal: &Path, process: &str, clock: &str) -> PathBuf {
+    let mut name: std::ffi::OsString = journal.as_os_str().to_os_string();
+    name.push(format!(".tmp.{process}.{clock}"));
+    return PathBuf::from(name);
+}
+
+/// Red until the write is exclusive: a symbolic link planted at the old fixed sibling name must not be followed, so the
+///  file it points at keeps its bytes and the journal still lands.
+#[test]
+fn a_link_planted_at_the_old_sibling_name_is_not_written_through() {
+    let (parent, path) = journal_path("journal-planted-link");
+    let victim: PathBuf = parent.join("victim.txt");
+    let precious: &[u8] = b"user data that no journal write may touch";
+    std::fs::write(victim.as_path(), precious).expect("victim");
+    let planted: PathBuf = old_fixed_sibling(path.as_path());
+    std::os::unix::fs::symlink(victim.as_path(), planted.as_path()).expect("plant the link");
+    let mut journal: Journal = Journal::load(path.as_path()).expect("load");
+    journal.mark("copy", "started").expect("the journal is written beside the planted link");
+    assert_eq!(std::fs::read(victim.as_path()).expect("victim"), precious, "the planted link was written through");
+    assert_eq!(std::fs::read_link(planted.as_path()).expect("the link is left where it was"), victim);
+    assert!(Journal::load(path.as_path()).expect("reload").has_begun("copy"));
+    remove(parent.as_path());
+}
+
+/// Red until the write is exclusive: a dangling link planted at the old fixed sibling name must not make the write create
+///  the file it points at.
+#[test]
+fn a_dangling_link_planted_at_the_old_sibling_name_creates_nothing() {
+    let (parent, path) = journal_path("journal-dangling-link");
+    let aimed_at: PathBuf = parent.join("created-through-the-link.txt");
+    let planted: PathBuf = old_fixed_sibling(path.as_path());
+    std::os::unix::fs::symlink(aimed_at.as_path(), planted.as_path()).expect("plant the link");
+    let mut journal: Journal = Journal::load(path.as_path()).expect("load");
+    journal.mark("copy", "started").expect("the journal is written beside the planted link");
+    assert!(std::fs::symlink_metadata(aimed_at.as_path()).is_err(), "the write created the file the link names");
+    assert!(Journal::load(path.as_path()).expect("reload").has_begun("copy"));
+    remove(parent.as_path());
+}
+
+/// Red until leftovers are swept: the plain files a killed run left under the writer's own temporary names are removed once
+///  a later write lands, while a file under any other name, a directory under a temporary name and a link under one stay.
+#[test]
+fn leftovers_of_a_killed_run_are_swept_and_nothing_else_is() {
+    let (parent, path) = journal_path("journal-leftovers");
+    let leftover: PathBuf = leftover_sibling(path.as_path(), "4242", "1700000000000000000");
+    let old_fixed: PathBuf = old_fixed_sibling(path.as_path());
+    std::fs::write(leftover.as_path(), b"half a journal").expect("leftover");
+    std::fs::write(old_fixed.as_path(), b"half a journal").expect("old leftover");
+    let notes: PathBuf = leftover_sibling(path.as_path(), "notes", "by-hand");
+    std::fs::write(notes.as_path(), b"somebody's notes").expect("notes");
+    let directory: PathBuf = leftover_sibling(path.as_path(), "4243", "1700000000000000001");
+    std::fs::create_dir(directory.as_path()).expect("directory under a temporary name");
+    let link: PathBuf = leftover_sibling(path.as_path(), "4244", "1700000000000000002");
+    std::os::unix::fs::symlink(notes.as_path(), link.as_path()).expect("link under a temporary name");
+    let mut journal: Journal = Journal::load(path.as_path()).expect("load");
+    journal.mark("copy", "started").expect("mark");
+    assert!(std::fs::symlink_metadata(leftover.as_path()).is_err(), "the leftover plain file stayed");
+    assert!(std::fs::symlink_metadata(old_fixed.as_path()).is_err(), "the old fixed sibling stayed");
+    assert_eq!(std::fs::read(notes.as_path()).expect("notes"), b"somebody's notes");
+    assert!(directory.is_dir(), "a directory is never swept");
+    assert!(std::fs::symlink_metadata(link.as_path()).expect("link").file_type().is_symlink(), "a link is never swept");
+    remove(parent.as_path());
+}
