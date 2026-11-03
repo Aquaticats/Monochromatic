@@ -25,6 +25,8 @@ and which crash-retention guarantees should regression coverage preserve?
 At `2026-11-03T09:44:15.429Z`,
 the browser main thread was blocked in `folio_wait_writeback` through `btrfs_page_mkwrite`.
 The latest write-fault instruction pointer exactly matched its sampled current instruction pointer.
+Both captured faulting instructions resolve to `base::SampleVectorBase::Accumulate(int, int)`.
+Disassembly identifies the faulting instruction as `lock xadd %r12d,(%rax)`.
 The fault address was offset `0x2d678` inside its live `4194304`-byte `rw-s` mapping of
 `<disposable-profile>/BrowserMetrics/<active-file>.pma (deleted)`.
 The recovery observation followed in a sampled blocked span of `104 ms`.

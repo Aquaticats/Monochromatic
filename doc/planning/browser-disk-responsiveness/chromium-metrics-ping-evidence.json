@@ -420,8 +420,17 @@
       "slowestFinishedAt": "2026-11-03T09:46:54.268Z",
       "interpretation": "Round-trip browser window command time. The slowest command falls inside a sampled blocked span containing a correlated metrics write fault; sparse samples do not prove the entire delay was spent in that fault. Not input-to-presentation latency."
     },
-    "limits": "Intermittent reproduction under existing host activity; no synthetic host load or controlled storage delay. Sampled blocked spans are not exact fault durations. User-space instruction was not symbolized. Histogram counts were also verified in rendered chrome://histograms with subprocess imports disabled.",
-    "sanitization": "Removed PIDs, absolute addresses, private paths, unique file and target identifiers, tracefs instance, CPU identities, inode and device identifiers, and monotonic uptime. Preserved relative map offsets, equality checks, UTC timestamps, kernel symbols, hashes, and measurements."
+    "limits": "Intermittent reproduction under existing host activity; no synthetic host load or controlled storage delay. Sampled blocked spans are not exact fault durations. Function symbol and instruction were resolved; source line information was unavailable. Histogram counts were also verified in rendered chrome://histograms with subprocess imports disabled.",
+    "sanitization": "Removed PIDs, absolute addresses, private paths, unique file and target identifiers, tracefs instance, CPU identities, inode and device identifiers, and monotonic uptime. Preserved relative map offsets, equality checks, UTC timestamps, kernel symbols, hashes, and measurements.",
+    "symbolization": {
+      "moduleFileOffset": "0xce43e00",
+      "elfVirtualAddress": "0xce44e00",
+      "codeSegmentAddressDelta": "0x1000",
+      "symbol": "base::SampleVectorBase::Accumulate(int, int)",
+      "sourceFile": "sample_vector.cc",
+      "sourceLine": null,
+      "instruction": "lock xadd %r12d,(%rax)"
+    }
   },
   "historicalHelium": {
     "description": "Sanitized historical observations, not a deterministic reproduction or exact fault-latency measurement.",

@@ -5,3 +5,15 @@ run = [
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/browser-responsiveness-chromium.html" chromium-upstream.md',
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/browser-responsiveness-firefox.html" firefox-upstream.md',
 ]
+
+[tasks."verify:metrics-ping"]
+description = "Render the Chromium metrics contribution and its verification records"
+run = [
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-ping.html" chromium-metrics-ping.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-route.html" chromium-metrics-ping-route.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-reproduction.html" ../../troubleshooting/chromium-disk-responsiveness/live-histogram-reproduction.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-handover.html" ../../handover/chromium-live-histogram-contribution.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/codex-browser-disabled.html" ../../troubleshooting/codex-in-app-browser-unavailable.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-agents.html" ../../../AGENTS.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-claude.html" ../../../CLAUDE.md',
+]

@@ -116,7 +116,9 @@ The policy's separate self-review requirement applies to code and documentation 
 Do not transform that clause into an unsupported universal approval requirement for initial bug filing.
 
 The current contribution is an evidence-bearing owner ping.
-Fresh upstream reproduction is in progress in the main task at the user's explicit direction.
+The main task completed a fresh upstream reproduction in Chromium `159.0.8141.0`.
+The [public report](chromium-metrics-ping.md)
+and [sanitized evidence](chromium-metrics-ping-evidence.json) contain the result.
 The deterministic regression fixture remains a separate deliverable;
 do not substitute a static call-chain analysis for the running-browser result.
 The incident captured Helium's browser main thread writing through a regular-file-backed `BrowserMetrics` mapping;
@@ -148,6 +150,10 @@ not a permanently latest build.
 The selected archive is
 <https://storage.googleapis.com/chromium-browser-snapshots/Linux_x64/1733707/chrome-linux.zip>.
 The guide warns that snapshots are best effort builds from arbitrary revisions and lack symbols.
+The tested Linux binary nevertheless retained function symbols:
+`addr2line` resolved the captured instruction to `base::SampleVectorBase::Accumulate(int, int)`
+and `sample_vector.cc`,
+without a source line number.
 
 The selected build already has a browser-main recording entry point without a source patch.
 Its [API availability declaration][api-availability] exposes `chrome.metricsPrivate`

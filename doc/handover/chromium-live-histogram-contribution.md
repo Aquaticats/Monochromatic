@@ -1,6 +1,6 @@
 # Chromium live histogram upstream contribution
 
-## Active work at 2026-11-03T09:40:00+00:00
+## Reproduction verified at 2026-11-03T10:03:12+00:00
 
 The user requested:
 "Lets do the 'Chromium's live histogram map ping' upstream contribution now.
@@ -11,20 +11,25 @@ No upstream message has been sent.
 
 ## Work items
 
-- Fresh Chromium reproduction:
-  downloaded official Linux snapshot `1733707`,
+- Fresh Chromium reproduction completed:
+  official Linux snapshot `1733707`,
   Chromium `159.0.8141.0`,
   source revision `986947eb4afc18471e51b7cb473f7c2f779f62bf`.
-  Run a headed browser with a disposable Btrfs profile and correlate browser-main write faults
-  with that process's live `BrowserMetrics` mapping.
-  A safe native recording route was source-checked and smoke-tested in a separate older test browser:
+  A headed browser with a disposable Btrfs profile produced matching browser-main write faults
+  in its live `BrowserMetrics` mapping.
+  Both faulting instructions symbolize to `base::SampleVectorBase::Accumulate(int, int)`,
+  specifically `lock xadd %r12d,(%rax)`.
+  The current build recorded `60` ordinary and `60` sparse samples through
   `chrome.metricsPrivate.recordBoolean` and `recordSparseValue` from `chrome://settings/`.
-  That smoke test is not the fresh-build reproduction.
+  Rendered counts matched with subprocess imports disabled.
+  Sampled blocked spans were `104 ms` and `1484 ms`;
+  a browser-window command took `1159.963 ms` within the latter span.
+  These are not exact fault durations or input-to-presentation latency.
 - Upstream message:
   [draft](../planning/browser-disk-responsiveness/chromium-metrics-ping.md)
   and [sanitized historical evidence](../planning/browser-disk-responsiveness/chromium-metrics-ping-evidence.json)
   were committed in `364e8a8bb9`.
-  Replace the missing-reproduction wording with actual fresh-build findings after the run.
+  Commit `58f62c8c92` replaced the missing-reproduction wording with fresh-build evidence.
   The source-checked route is `Internals>Metrics`,
   component `1456863`,
   through <https://issues.chromium.org/new>.
@@ -33,7 +38,7 @@ No upstream message has been sent.
 - Submission access:
   the user explicitly declined signing into a testing browser,
   citing concern for their Google Account.
-  Close the isolated sign-in window.
+  The isolated sign-in window was closed.
   Do not ask them to authenticate in a testing browser again.
   Prepare the verified report for their normal browser.
   A human maintainer reply must receive a human reply under Chromium's policy.
@@ -58,6 +63,8 @@ distinguishes current mapped-read and sparse-lock changes from the live-write ca
 
 The downloaded snapshot lives under `${HOME}/temp/agent/chromium-live-repro-1733707`.
 The bounded collector is `${HOME}/temp/agent/chromium-live-fault-trace.ts`.
+The [retained reproduction clients](../troubleshooting/chromium-disk-responsiveness/live-histogram-reproduction.md)
+preserve the executed source and its timing/isolation limits.
 Only disposable state may be mutated for verification.
 Synthetic host load remains prohibited.
 Source research uses a same-vendor subagent,

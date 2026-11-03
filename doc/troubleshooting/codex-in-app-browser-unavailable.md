@@ -1,6 +1,6 @@
 # Codex Browser 26.930.21537 URL selection fails with no available browser
 
-## Disabled by user request at 2026-11-03T09:40:00+00:00
+## Disabled by user request at 2026-11-03T09:41:51+00:00
 
 During the Chromium upstream contribution task,
 `agent.browsers.getForUrl('https://issues.chromium.org/')` returned
