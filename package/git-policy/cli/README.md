@@ -138,6 +138,11 @@ Read-only commands,
    in the common Git directory
    (`"reason":"not-ahead"` and the like),
    so a push that did not happen can be explained from the file.
+   The file is shared by every worktree, so each line names its `worktree`, `gitDir` and `instance`,
+   and the branch when it is known;
+   a failed command's line carries the branch and the tip it was at before the command.
+   `level` is `warn` for a step that could not decide or a hand-over that failed and `info` otherwise,
+   and the userinfo of a URL in `detail` is masked.
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
@@ -554,11 +559,31 @@ Write each conflicted file by its own name after `--`;
  `restore --staged` are not covered and stay rejected.
 A conflicted path that is deleted in your worktree has nothing to copy, and the command runs.
 When a copy cannot be written (no space, no permission), the command is rejected and says why.
-The copies are never removed by the wrapper; delete `cli-git/discarded` when you no longer need them.
+The folder is bounded, because it would otherwise grow for as long as the repository lives,
+ and the copies are the only remaining content of replaced files.
+ When a new copy has been written and synced, the wrapper removes the saves older than 30 days,
+ then, while the folder is over 1 GiB, the oldest saves first.
+ A save younger than 24 hours is never removed by either limit, and neither is the save just written.
+ Only directories named like the wrapper's own (`2026-11-02T14-01-07`) are touched.
+ No lock is taken and no commit waits for this.
+ Each removed save leaves one line in `cli-git-audit.jsonl`
+ (`"outcome":"pruned"`, with the time, `path`, `bytes`, `reason` `age` or `size`,
+ the `limit` it was judged against and the names of the copies in it).
+ The limits are the `discardedCopies` section of `cli-git.config.jsonc`:
+
+ ```jsonc
+ // cli-git.config.jsonc: keep saves for 90 days and the folder under 256 MiB
+ { "discardedCopies": { "maxAgeDays": 90, "maxSize": "256m" } }
+ ```
+
+ A value that is no limit (zero, a fraction, text that is not a size) is a configuration failure that names the key;
+ to keep copies longer, set a large number.
+ `git cli-git doctor` reports the folder's size, the number of copies and saves, and the oldest save, once it holds any.
 
 Each decision about a discarding form (rejected, run in a clean worktree, run in an exempt cache, or run with the
  escape) is appended as one JSON line to `cli-git-audit.jsonl` in the common Git directory,
- with the time, the process and its parent, the worktree kind, the form, the working directory and the arguments
+ with the time (`time` and `timeMillis`), a `level` (`warn` for a rejection), the release, the process and its parent,
+ the worktree kind and the worktree's Git directory (`gitDir`), the form, the working directory and the arguments
  (a decision that saved conflicted files also lists where each copy went).
 When uncommitted work disappears, `git rev-parse --git-common-dir` locates the file;
  a line that says `allowed` or `hatch` near the time of the loss names the command that was let through.
@@ -864,6 +889,22 @@ A rule added to the scanner after a file entered history is applied to that file
 
 A `warn` setting reports findings without blocking.
 A policy whose protection `warn` would remove produces a configuration warning event when the file sets it to `warn`.
+
+### Discarded copies
+
+- `discardedCopies.maxAgeDays`:
+   positive integer,
+   default `30`.
+  Saves of conflicted files older than this many days are removed when a new save is written.
+- `discardedCopies.maxSize`:
+   a number of bytes above zero or a string such as `"256m"`
+   (`k`, `m` and `g`, powers of 1024, as Git's integer settings),
+   default `"1g"`.
+  While the folder holds more than this, the oldest saves are removed.
+
+Neither limit reaches a save younger than 24 hours.
+Zero, a negative or fractional number, and text that is not a size are configuration failures that name the key.
+See "Discarding commands" for the pass.
 
 ### Concurrency
 
@@ -1295,8 +1336,11 @@ run the same task with the same options on the same gate image and it continues 
 only mutants that no earlier run scored, whether they were caught, missed, timed out or unviable.
 For `native:mutation:parallel`, start the same launcher command again; each file resumes its own campaign.
 
-The campaign's results are in `target/verification/native-mutation-<key>/`, where the key names the gate image and the
-exact options.
+The campaign's results are in `target/verification/native-mutation-<key>/`,
+where the key names the gate image,
+the exact options,
+the digest of the planted controls and the identity of the code that runs and judges them,
+so a changed control table or runner rescores.
 While a campaign runs, `attempt-NNN/mutants.out/` there holds the outcomes scored so far in `caught.txt`, `missed.txt`,
 `timeout.txt` and `unviable.txt`.
 When it ends, `mutants.out/` holds the same four files as the union of every attempt, with `outcomes.json`, `log/`
@@ -1356,10 +1400,34 @@ or one whose planted source did not compile,
 leaves no record.
 `--cpus` is recorded but not compared,
 because fewer CPUs only slow the suite.
-The digest covers the control table and not the code that judges a run (`bin/native-planted-controls-outcome.ts`),
-so after changing the judge,
-move the old campaign directories away or the old records still count.
-
+The record also holds `harnessId`,
+the `plantedHarnessId` literal in `bin/native-planted-controls-harness.ts`:
+the digest of the sources that run and judge the controls
+(`bin/native-planted-controls.ts`,
+`bin/native-planted-controls-outcome.ts` and `bin/native-verification-process.ts`).
+It is part of the loaded code,
+not hashed from disk afterwards,
+so an edit between loading and writing cannot publish a record for code that never ran,
+and it is content-derived,
+so two branches that change the judge differently cannot share an identity the way a counter would.
+A unit test asserts that the literal equals the digest of the sources and prints the digest to write,
+so editing any of them without updating the literal fails the test,
+and a record of another identity is not proof.
+Limits are not parsed as Podman parses a command line.
+The runners write only `--rm`,
+`--init`,
+`--network=none`,
+`--cpus=` and one `--memory=` and one `--pids-limit=`,
+so a recorded argument list with anything else
+(a repeated bound,
+a split or attached short option,
+a cluster,
+an option whose value looks like a bound,
+a trailing bare option)
+was not written by a runner and gives no proof,
+whatever it would mean to Podman.
+A zero or unlimited value (`--pids-limit=-1`) is no bound a campaign can be compared with either.
+The same reading applies to the gate's `passed.json` proof.
 Campaigns take no lock for this.
 Two campaigns started together over one image,
 with no record yet,
@@ -1369,13 +1437,117 @@ because waiting would serialize work that is independent.
 The cost is that both pay the 24 minutes,
 so start one first and the rest after its record exists.
 `NATIVE_MUTATION_SKIP_PLANTED=1` still skips without any record
-(a person's claim that another campaign ran them),
-and a resumed campaign still skips because an earlier attempt of it scored mutants.
-`native:mutation:parallel` sets that variable for every unit it starts,
-so its units never read the records;
-run one campaign by itself first,
-or unset the variable there,
-to get the record check.
+(a person's claim that another campaign ran them).
+A resumed campaign is held to the same rule as a new one,
+and a changed control table or a changed runner or judge rescores:
+the digest of the controls and the runner and judge identity are part of the campaign key,
+so a campaign run after either changed is another directory that keeps no scored results.
+
+`native:mutation:parallel` runs the controls beside the file units,
+never before them (`bin/native-mutation-parallel.ts`,
+`bin/native-planted-parallel.ts`).
+Before it starts anything it resolves the image ID of every unit's tag,
+and looks for a proving record with the reader above,
+at the memory and process limit the units will run with.
+With a record,
+no extra unit starts,
+and each file unit logs the record it found.
+Without one,
+it starts one more capped unit per distinct image,
+named `<unit prefix>-<label>-planted-<first 12 of the ID>`,
+through the same slot limiter.
+That unit runs only `native:mutation:planted`,
+and writes the record into a `native-mutation-planted-*` evidence directory.
+The file units start at the same moment and do not wait.
+Each skips the controls,
+because `NATIVE_MUTATION_PLANTED_UNITS` names the unit for its image,
+and logs `Planted controls skipped here, without proof`,
+with the unit and the image.
+That skip is not a pass:
+the results of those campaigns hold only once the controls unit ends with a `planted-controls-passed.json` for the image.
+The launcher prints the controls unit,
+its log and that rule,
+and puts the unit first in the `systemctl` wait hint.
+The controls unit's log ends with `Planted controls passed; recorded in <record>`,
+or with `Planted controls FAILED over image <ID>`,
+followed by the controls that were not noticed,
+and the unit then shows as failed.
+If systemd refuses the controls unit,
+or a tag does not resolve to an image,
+the launcher says so,
+and the file units of that image plant the controls themselves,
+as `native:mutation:scoped` does alone.
+`--setenv NATIVE_MUTATION_SKIP_PLANTED=1` after the `--` still skips without proof,
+and no controls unit starts.
+The controls unit runs the full image ID the launcher inspected (`--image`),
+never the tag,
+which may be moved while the unit waits for a slot.
+The launcher inspects with the environment a unit gets
+(the tag,
+the `--setenv` entries,
+and its own `TMPDIR`,
+`PATH` and `HOME` last)
+and nothing inherited from its shell but `XDG_RUNTIME_DIR`,
+so it looks in the container storage the units will use,
+and it refuses a `--setenv` of the image tag variable or of `NATIVE_MUTATION_PLANTED_UNITS`,
+which it sets itself,
+because an override would run another image than the one inspected.
+The controls unit gets the same extra environment as the file units,
+with the launcher's own `TMPDIR`,
+`PATH` and `HOME` last.
+It succeeds only when it published a matching record or found one,
+so a record that could not be written fails the unit.
+A campaign that deferred keeps its obligations in its manifest as the list `plantedControlsDeferred`.
+Each holds the image,
+the limits the campaign ran with,
+the digest and names of the controls,
+the runner and judge identity,
+and the controls unit with its systemd invocation ID and its log.
+The launcher names the invocation it started in the coordination entry,
+so a campaign defers only to that invocation and never to a later unit that took the name.
+Whether an obligation is met is asked on demand and never kept:
+a matching record exists,
+found with the same reader and by the saved keys,
+not by the asking process's own table or code,
+or it does not.
+Finalization and `native:mutation:reconcile` run that lookup and print the record path,
+or "no record yet" with the unit,
+its invocation and its log.
+With no record,
+an obligation is pending while that very invocation runs,
+and unvalidated once it ended,
+after one more look for a record published in between.
+Unvalidated fails the campaign's finalization,
+so a campaign whose controls failed never passes.
+So does a manifest that is unreadable,
+holds an incomplete obligation,
+is missing after the campaign finished (`exit.json` without `manifest.json`),
+or no longer holds an obligation the running process itself decided to keep.
+A campaign's key includes the controls digest,
+the runner and judge identity,
+and the memory and process limit (the memory normalized to bytes),
+and `campaign.json` records those key parts in full so that a clash of the shortened key is refused,
+so a resumed campaign has the same controls,
+runner and limits as the attempt that deferred,
+and a proof or a local run in a resume pays that obligation by construction.
+An attempt that proves or runs the controls writes a manifest without the field,
+and a person's skip does the same.
+The two passes of a two-pass campaign share the key and each directory is validated by its own manifest.
+A pass that runs the controls itself while the first pass is still waiting for a record must publish its own,
+and fails the campaign with the reason when it cannot,
+because a debt in another directory is paid only by a record the lookup finds.
+A directory in which a container ran
+(an `attempt-*` holds `mutants.out`)
+and that has no manifest is invalid,
+finished or interrupted;
+a controls-only directory,
+an attempt that never started,
+and the aggregate root of a two-pass campaign whose pass 2 never ran have none and are exempt.
+The controls unit's name carries a token unique to the launch,
+so no other launch's unit can be taken for it.
+A file unit that starts after the controls unit is gone and left no record runs the controls itself.
+`mise run //package/git-policy/cli:native:mutation:reconcile` looks up the obligation of every campaign under `target/verification` later,
+and exits nonzero unless all are validated.
 
 `--passes 2` runs each file's campaign in two passes.
 Pass 1 runs only the tests that can reach the mutated file: the tests of its module and of every module that imports
@@ -1488,7 +1660,12 @@ The fields,
 all durations in whole milliseconds taken from the monotonic clock:
 
 - `startMillis` is the wall-clock start (milliseconds since the Unix epoch),
-  for finding the commit in the journal.
+  and `time` is when the line was written, in the form of every other record of the wrapper.
+  `requestId` is the identity of the commit's request,
+  the same text as `request="<id>"` on the service's `answered` line and as the journal field `CLI_GIT_REQUEST_ID`,
+  so the two records join on a key and not on a time;
+  it is null for a commit that never made a request.
+  `level` is `warn` for a command that `stopped` and `info` otherwise.
   `instance`,
   `gitDir`,
   `branch`,
@@ -1539,6 +1716,10 @@ all durations in whole milliseconds taken from the monotonic clock:
   `positions` lists the queue positions the service reported,
   `waitingNotices` counts its notices that it was waiting for
   another program,
+  `lockHolderKind` says what the last of them said of that program
+  (`proven-alive` for a process proven to hold the lock,
+  `unproven` for an owner nobody could prove alive,
+  null when there was none),
   `reconnects` counts connections that broke and `sends` counts requests written.
 - `handoffMs` is one figure:
   leaving the work records and waking the service,
@@ -1573,8 +1754,38 @@ Read the unit around the commit's `startMillis`:
 journalctl --user --unit="cli-git@<instance>.service" --since="2026-11-01 22:52:00" --until="2026-11-01 22:54:00"
 ```
 
+Or find the service's entry for one commit by the `requestId` of its timing line:
+
+```sh
+# sh: the service's entry for one request, with its fields
+journalctl --user --output=json-pretty CLI_GIT_REQUEST_ID=30cbb78e-677f-41ff-b059-87d9f49d3409
+# sh: only what failed or did not go as intended
+journalctl --user --unit="cli-git@<instance>.service" --priority=warning
+```
+
+The service sends each line to the journal's native socket when its standard error is the journal
+(the service manager's `JOURNAL_STREAM` names the very stream the process has as standard error).
+The journal then dates the line by the moment it was sent, not by the moment it got round to reading it,
+which on a loaded machine could be seconds later and out of order with the manager's own lines.
+A line carries its priority (`err` for something the service needed and could not do,
+`warning` for something that did not go as intended or a request that failed,
+`info` for the rest) and fields to filter on:
+`CLI_GIT_RELEASE`,
+`CLI_GIT_INSTANCE`,
+`CLI_GIT_AT_MS` (the time of the event),
+and on some lines `CLI_GIT_REQUEST_ID`,
+`CLI_GIT_BRANCH`,
+`CLI_GIT_OUTCOME`,
+`CLI_GIT_BATCH` and `CLI_GIT_OID`.
+When the journal is not listening or the machine's socket queue is full,
+the line goes to standard error instead,
+prefixed with its priority as `<n>` for the stream to read,
+and a service run by hand writes plain lines to the terminal.
+Every line ends with `at_ms=<milliseconds since the epoch>`, the time of its event, on both paths.
+The userinfo of any URL in a line is replaced by `<credentials>`.
+
 The lines,
-each prefixed `cli-git-service:`:
+each prefixed `cli-git-service:` on standard error and identified as `cli-git-service` in the journal:
 
 - `started release="<release>" protocol=<n> pid=<pid> instance=<instance>` comes first on every start,
   then `ready`.
@@ -1595,9 +1806,27 @@ each prefixed `cli-git-service:`:
   `landing_ms` and `answer_ms`;
   `total_ms` is the whole stay
   from the connection being accepted.
-  `landing_ms` is the sum of `lock_wait_ms` (waiting for a foreign hold on the index,
+  `landing_ms` is the sum of `lock_wait_ms` (taking the index lock:
+  flushing the marker to storage,
+  `lock_stage_ms`,
+  with `lock_stage_kind=pre` when the marker was made while the service was idle and `cold` when the commit made it,
+  and waiting for a hold on the index,
+  `lock_place_ms`,
   with `lock_holder="Process <pid>"`
-  when the evidence names one),
+  when the evidence names one,
+  `lock_looks` for how many times the lock was found held,
+  and `lock_found` and `lock_last` for what the first and the last look found:
+  `service seq=.. pid=.. state=running|gone|unknown age_ms=..` for a lock with the service's marker,
+  `foreign no-marker size=.. age_ms=..` for any other,
+  with `open_by=[pid (comm)]` when a process has it open:
+  the program's name,
+  at most fifteen bytes,
+  never its arguments or environment;
+  the scan for them is made once,
+  with the evidence for the waiting notice,
+  and stops after a quarter of a second;
+  the marker's birth identity,
+  boot ID and PID namespace are not in the line),
   `reads_ms` (the branch reads and comparisons),
   `objects_ms`,
   `journal_ms`,
@@ -1608,6 +1837,19 @@ each prefixed `cli-git-service:`:
   so a sum can fall short of its total by less than one per term.
   The line never holds the commit's message,
   its author or its address.
+- `waited for the index lock batch=<n> result=taken|refused lock_wait_ms=.. lock_stage_ms=.. ...` comes when the lock was
+  found held or when flushing the marker or waiting took a second or more,
+  at the moment the wait ends;
+  it carries the same `lock_*` fields as the `answered` line,
+  and stays when the landing fails afterwards.
+  A slow commit with a long `lock_stage_ms` and no `lock_looks` lost its time to the disk and not to another program.
+- `pushed branch="<ref>" oid=<oid> items=<n> outcome=done|failed|skipped push_ms=<n>` comes once for each push
+  the service ran for a branch after commits
+  (a failed push is a `warning` and carries Git's words, credentials masked, after a colon),
+  `automatic maintenance ran maintenance_ms=<n>` and `the review of <oid> is done review_ms=<n>`
+  say the other work ran,
+  and `settled the batch an earlier service left open batch=<n> decision=finish|drop` (a `warning`)
+  comes for each batch a restart found open.
 - `retire requested by a client; this service is release "<release>" and exits after its batch` comes once for each retire
   request the service reads,
   and a client sends one in every round while the old service is still there,

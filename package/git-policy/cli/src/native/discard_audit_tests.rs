@@ -11,7 +11,7 @@
 
 /// The record, its line and the writer.
 use super::{
-    AUDIT_FILE, AuditOutcome, AuditRecord, ROTATE_AT_BYTES, append_line, audit_line, audit_place,
+    AUDIT_FILE, AuditOutcome, AuditRecord, ROTATE_AT_BYTES, append_line, audit_line, audit_place, move_aside_if_still_named,
     parent_process, record_audit,
 };
 use crate::command_test_support::{fixture, os_arguments, remove};
@@ -40,6 +40,7 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
         form: GuardedCommand::RestoreWorktree,
         outcome: AuditOutcome::Rejected,
         place: &place,
+        git_dir: Path::new("/r/.git/worktrees/w"),
         directory: Path::new("/r/sub"),
         arguments: arguments.as_slice(),
         dirty: Some(true),
@@ -50,6 +51,10 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
     let value: serde_json::Value = serde_json::from_str(line.trim_end()).expect("JSON");
     assert_eq!(value["schemaVersion"], 1);
     assert_eq!(value["timeMillis"], "1700000000123");
+    assert_eq!(value["time"], "2023-11-14T22:13:20.123Z", "the time in the form every other record uses");
+    assert_eq!(value["release"], crate::service_protocol::RELEASE);
+    assert_eq!(value["gitDir"], "/r/.git/worktrees/w", "the worktree's own Git directory, which the kind word does not name");
+    assert_eq!(value["level"], "warn", "a refusal stands out");
     assert_eq!(value["pid"], 42);
     assert_eq!(value["parentPid"], 7);
     assert_eq!(value["worktree"], "main");
@@ -65,6 +70,7 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
         form: GuardedCommand::Stash,
         outcome: AuditOutcome::Hatch,
         place: &place,
+        git_dir: Path::new("/r/.git/worktrees/w"),
         directory: Path::new("/r"),
         arguments: &[],
         dirty: None,
@@ -73,6 +79,7 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
     let unasked_value: serde_json::Value = serde_json::from_str(unasked.trim_end()).expect("JSON");
     assert_eq!(unasked_value["dirty"], serde_json::Value::Null);
     assert_eq!(unasked_value["outcome"], "hatch");
+    assert_eq!(unasked_value["level"], "info");
 }
 
 /// The four outcomes have four distinct words.
@@ -93,6 +100,7 @@ fn each_outcome_has_its_own_word() {
             form: GuardedCommand::Clean,
             outcome,
             place: &place,
+        git_dir: Path::new("/r/.git/worktrees/w"),
             directory: Path::new("/r"),
             arguments: &[],
             dirty: None,
@@ -161,7 +169,9 @@ fn records_append_in_order_and_the_directory_is_never_created() {
 fn a_full_file_moves_aside() {
     let root: PathBuf = fixture("audit-rotate");
     let target: PathBuf = root.join(AUDIT_FILE);
-    std::fs::write(&target, vec![b'x'; ROTATE_AT_BYTES as usize - 1]).expect("nearly full");
+    let mut filler: Vec<u8> = vec![b'x'; ROTATE_AT_BYTES as usize - 1];
+    filler[ROTATE_AT_BYTES as usize - 2] = b'\n';
+    std::fs::write(&target, filler).expect("nearly full");
     append_line(target.as_path(), b"next\n").expect("append");
     assert!(!root.join(format!("{AUDIT_FILE}.1")).exists());
     assert_eq!(std::fs::metadata(&target).expect("metadata").len(), ROTATE_AT_BYTES + 4);
@@ -187,4 +197,94 @@ fn the_parent_is_the_process_that_started_this_one() {
     let parent: u32 = parent_process();
     assert_eq!(parent, std::os::unix::process::parent_id());
     assert!(parent > 1, "parent {parent}");
+}
+
+/// A write a full disk or a signal cut short leaves a last line without its newline; the next record starts on a line of its
+/// own, so the torn line is lost alone and the record after it still parses.
+#[test]
+fn a_torn_last_line_does_not_swallow_the_next_record() {
+    let root: PathBuf = fixture("audit-torn");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    std::fs::write(&target, b"{\"ok\":1}\n{\"torn\":").expect("a torn tail");
+    append_line(target.as_path(), b"{\"next\":2}\n").expect("append");
+    append_line(target.as_path(), b"{\"last\":3}\n").expect("append");
+    let text: String = std::fs::read_to_string(&target).expect("file");
+    let parsed: Vec<bool> = text.lines().map(|line| { return serde_json::from_str::<serde_json::Value>(line).is_ok(); }).collect();
+    assert_eq!(parsed, vec![true, false, true, true], "{text}");
+    assert_eq!(text.lines().last(), Some("{\"last\":3}"), "a whole file adds nothing extra");
+    remove(root.as_path());
+}
+
+/// A writer that saw a full file but lost the race to another writer's rotation must not move the new, small file over
+/// the history that is already in `.1`.
+#[test]
+fn a_second_rotation_does_not_replace_the_history_with_the_new_file() {
+    let root: PathBuf = fixture("audit-rotate-race");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    let aside: PathBuf = root.join(format!("{AUDIT_FILE}.1"));
+    std::fs::write(&target, b"the full history\n").expect("the full file");
+    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    // Another writer rotates first and starts the new file.
+    std::fs::rename(&target, &aside).expect("the other writer's rotation");
+    std::fs::write(&target, b"{\"new\":1}\n").expect("the new file");
+    move_aside_if_still_named(target.as_path(), &seen_full).expect("no error");
+    assert_eq!(std::fs::read(&aside).expect("aside"), b"the full history\n", "the history is still there");
+    assert_eq!(std::fs::read(&target).expect("target"), b"{\"new\":1}\n", "the new file stays");
+    // The same writer, when the path still names its file, does move it.
+    let current: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    move_aside_if_still_named(target.as_path(), &current).expect("moved");
+    assert!(!target.exists());
+    assert_eq!(std::fs::read(&aside).expect("aside"), b"{\"new\":1}\n");
+    remove(root.as_path());
+}
+
+/// Writers in several threads each append whole lines: none is lost, torn or joined to another.
+#[test]
+fn concurrent_appenders_lose_no_line_and_tear_none() {
+    let root: PathBuf = fixture("audit-concurrent");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    let writers: usize = 6;
+    let each: usize = 60;
+    std::thread::scope(|scope| {
+        for writer in 0..writers {
+            let path: &Path = target.as_path();
+            scope.spawn(move || {
+                for number in 0..each {
+                    let line: String = format!("{{\"writer\":{writer},\"number\":{number},\"pad\":\"{}\"}}\n", "p".repeat(200));
+                    append_line(path, line.as_bytes()).expect("append");
+                }
+            });
+        }
+    });
+    let text: String = std::fs::read_to_string(&target).expect("file");
+    let mut seen: std::collections::BTreeSet<(u64, u64)> = std::collections::BTreeSet::new();
+    // A writer that reads the last byte while another one is half-way through a page-crossing write sees no newline and
+    //  starts its line on a fresh one: the result is an empty line between records, which every reader of the file skips.
+    for line in text.lines().filter(|line| { return !line.is_empty(); }) {
+        let value: serde_json::Value = serde_json::from_str(line).unwrap_or_else(|error| { panic!("a torn line {line:?}: {error}") });
+        seen.insert((value["writer"].as_u64().expect("writer"), value["number"].as_u64().expect("number")));
+    }
+    assert_eq!(seen.len(), writers * each);
+    remove(root.as_path());
+}
+
+/// A file the user may write but not read still gets its records: the check of the last byte is skipped, not the record.
+#[test]
+fn a_file_that_cannot_be_read_is_still_appended_to() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("audit-write-only");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    std::fs::write(&target, b"{\"first\":1}\n").expect("file");
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o200)).expect("write only");
+    append_line(target.as_path(), b"{\"second\":2}\n").expect("appended without read permission");
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).expect("readable again");
+    assert_eq!(std::fs::read_to_string(&target).expect("file"), "{\"first\":1}\n{\"second\":2}\n");
+    remove(root.as_path());
+}
+
+/// A disk that is full is an error the caller can see, in one call, with nothing retried.
+#[test]
+fn a_full_disk_is_an_error_not_a_second_write() {
+    let error = append_line(Path::new("/dev/full"), b"{\"x\":1}\n").expect_err("the device refuses every write");
+    assert_eq!(error.raw_os_error(), Some(libc::ENOSPC), "{error:?}");
 }

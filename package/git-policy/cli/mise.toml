@@ -11,8 +11,16 @@ description = "Plant guard removals and run cargo-mutants for `-- --file <glob>`
 run = "node bin/mutate-native-container.ts"
 
 [tasks."native:mutation:parallel"]
-description = "Start one capped systemd unit per file for `-- [options] <label> <file.rs>...` (files relative to src/native), each running native:mutation:scoped through the shared slot limiter; the shared launcher's options such as --timeout, --build-timeout, --examine <regex> (repeatable, for every file), --memory, --cpus, --unit-memory-max and --unit-cpu-quota follow the same --"
-run = "node ../../mutation-test/cli-cargo-mutants/bin/mutation-parallel.ts --task //package/git-policy/cli:native:mutation:scoped --tag-env GIT_POLICY_NATIVE_IMAGE_TAG --setenv NATIVE_MUTATION_SKIP_PLANTED=1 --scope-prefix src/native/ --unit-prefix cli-git-mutpar"
+description = "Start one capped systemd unit per file for `-- [options] <label> <file.rs>...` (files relative to src/native), each running native:mutation:scoped through the shared slot limiter; the shared launcher's options such as --timeout, --build-timeout, --examine <regex> (repeatable, for every file), --memory, --cpus, --unit-memory-max and --unit-cpu-quota follow the same --. Where no campaign evidence proves the planted controls for an image, one more unit runs only the controls beside the file units, which skip them and name that unit; `--setenv NATIVE_MUTATION_SKIP_PLANTED=1` skips them without proof"
+run = "node bin/native-mutation-parallel.ts --task //package/git-policy/cli:native:mutation:scoped --tag-env GIT_POLICY_NATIVE_IMAGE_TAG --scope-prefix src/native/ --unit-prefix cli-git-mutpar"
+
+[tasks."native:mutation:planted"]
+description = "Run only the planted controls over the last gate image and record their pass in target/verification/native-mutation-planted-*; `-- --memory <size> --cpus <count> --pids-limit <count>` override the defaults. native:mutation:parallel starts this as its own unit"
+run = "node bin/native-planted-controls-only.ts"
+
+[tasks."native:mutation:reconcile"]
+description = "Look up the planted-controls obligation of campaigns that deferred their controls to a controls unit: prints the record that validates each, or \"no record yet\" with the unit and its log, and exits nonzero unless all are validated (a controls invocation that ended without a matching record fails)"
+run = "node bin/native-planted-controls-reconcile.ts"
 
 [tasks."native:mutation:list"]
 description = "List the mutants cargo-mutants finds in the native wrapper without building or running anything; `-- <options>` are passed on"

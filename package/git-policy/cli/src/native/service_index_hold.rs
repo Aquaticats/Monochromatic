@@ -42,14 +42,48 @@ pub struct IndexLock {
     held: std::fs::File,
     /// Asks whether the lock is still the holder's.
     inspect: fn(&Path, &std::fs::File, &str) -> Ownership,
+    /// Removes the lock the holder owns.
+    remove: fn(&Path) -> std::io::Result<()>,
     armed: bool,
 }
 
 impl IndexLock {
     /// A hold on `lock`,
     /// which was made from the file `held` and carries `marker`.
-    pub(super) fn placed(lock: PathBuf, index: &Path, marker: String, held: std::fs::File, inspect: fn(&Path, &std::fs::File, &str) -> Ownership) -> IndexLock {
-        return IndexLock { lock, index: index.to_path_buf(), marker, held, inspect, armed: true };
+    pub(super) fn placed(
+        lock: PathBuf,
+        index: &Path,
+        marker: String,
+        held: std::fs::File,
+        calls: (fn(&Path, &std::fs::File, &str) -> Ownership, fn(&Path) -> std::io::Result<()>),
+    ) -> IndexLock {
+        return IndexLock { lock, index: index.to_path_buf(), marker, held, inspect: calls.0, remove: calls.1, armed: true };
+    }
+
+    /// What:
+    ///  Removes the lock the holder owns.
+    /// Why:
+    ///   A lock that is already gone is removed.
+    /// Any other failure leaves a lock that names this live process,
+    /// which no later acquisition reclaims,
+    /// so it is said in the log and counted as unsettled:
+    /// the service ends after the batch and the restart reclaims the lock.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// try { await rm(lock) } catch (e) { if (e.code !== 'ENOENT') { log(e); unsettled++ } }
+    /// ```
+    fn remove_owned(&self) -> std::io::Result<()> {
+        return match (self.remove)(&self.lock) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                crate::service_error!("the index lock {} is this service's and cannot be removed ({error}); it stays, and the service ends after this batch so that the restart reclaims it",
+                    self.lock.display()
+                );
+                note_unsettled();
+                Err(error)
+            }
+            _ => Ok(()),
+        };
     }
 
     /// Whether the lock is still the holder's.
@@ -112,7 +146,7 @@ impl IndexLock {
                     "the index lock {} is no longer the file this service placed: another program removed or replaced it, so the index was not replaced and the lock was left to that program",
                     self.lock.display()
                 );
-                eprintln!("cli-git-service: {message}");
+                crate::service_error!("{message}");
                 return Err(std::io::Error::other(message));
             }
             Ownership::Unreadable(error) => {
@@ -120,7 +154,7 @@ impl IndexLock {
                     "the index lock {} could not be checked ({error}), so the index was not replaced and the lock was left in place for the restart to reclaim",
                     self.lock.display()
                 );
-                eprintln!("cli-git-service: {message}");
+                crate::service_error!("{message}");
                 return Err(std::io::Error::other(message));
             }
         }
@@ -128,7 +162,7 @@ impl IndexLock {
         if built.exists() {
             std::fs::rename(built, &self.index)?;
         }
-        std::fs::remove_file(&self.lock)?;
+        self.remove_owned()?;
         self.armed = false;
         return Ok(());
     }
@@ -141,12 +175,11 @@ impl Drop for IndexLock {
         }
         match self.ownership() {
             Ownership::Owned => {
-                let _removed = std::fs::remove_file(&self.lock);
+                let _removed = self.remove_owned();
             }
             Ownership::Replaced => {}
             Ownership::Unreadable(error) => {
-                eprintln!(
-                    "cli-git-service: the index lock {} could not be checked ({error}) and stays; the service ends after this batch so that the restart reclaims it",
+                crate::service_error!("the index lock {} could not be checked ({error}) and stays; the service ends after this batch so that the restart reclaims it",
                     self.lock.display()
                 );
                 note_unsettled();

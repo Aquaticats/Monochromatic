@@ -559,6 +559,16 @@ runtimeOnFail: ignore
 savePrefix: ''
 saveWorkspaceProtocol: false
 shellEmulator: false
+# One content-addressable store for every worktree. pnpm cannot hard link from
+# the home store into a worktree that is its own Btrfs subvolume, so by default
+# it makes a separate store inside that worktree's node_modules (a full
+# download per worktree). With this shared store, pnpm clones packages into
+# each worktree, and a new worktree installs offline in about a second.
+# Changing the store makes the next install in an existing worktree relink its
+# node_modules. pnpm expands ${HOME} here; it does not expand ~.
+# Owner decision 2026-11-02 ("Set the shared store"); measurements in
+# doc/handover/cli-git-rust-implementation.md ("Snapshot route measured").
+storeDir: ${HOME}/.local/share/pnpm/store
 strictPeerDependencies: true
 
 # Without multi-platform entries, the lockfile only records the optional

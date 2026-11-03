@@ -27,7 +27,7 @@ pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref
 /// ```
 pub fn reach(point: &str) {
     if std::env::var(FAULT_VARIABLE).is_ok_and(|armed| { return armed == point; }) {
-        eprintln!("cli-git-service: test fault at {point}");
+        crate::service_log!("test fault at {point}");
         #[cfg(unix)]
         // SAFETY: `kill` takes no pointers; the process ends itself.
         unsafe {

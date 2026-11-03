@@ -26,13 +26,16 @@ pub const WRAPPER: &str = env!("CARGO_BIN_EXE_cli-git-native");
 /// The real Git 2.56.0 executable installed in the verification image.
 pub const REAL_GIT: &str = "/usr/bin/git";
 
-/// Seconds after which a test kills a wrapped command: a hang guard of the test harness, not a requirement on the
+/// The wall-clock backstop, in seconds, of the shared bound: a hang guard of the test harness, not a requirement on the
 ///  wrapper, which has no time limit on a wrapped command;
 ///  the one latency requirement is that a commit made through the wrapper takes less than 5 seconds longer than the
 ///  same commit made with native Git.
-/// Real commands here finish in milliseconds.
-/// The bound is short so a mutant that loops fails every affected control quickly.
-pub const TIME_BOUND_SECONDS: &str = "5";
+/// Real commands here finish in milliseconds. The bound that fails a hung command quickly is not this one but the
+///  supervisor's (`binary_supervisor.rs`): it ends a command whose process tree shows no progress for five seconds or has
+///  used ten seconds of processor time, and it does not count time spent waiting for the disk or for the processor, which
+///  other sessions on a shared host stretch without limit. A mutant that loops or deadlocks still fails every affected
+///  control within seconds.
+pub const TIME_BOUND_SECONDS: &str = super::supervisor::SHARED_BACKSTOP_SECONDS;
 
 /// The signal that ends `timeout --signal=KILL` itself when the bound was hit:
 ///  it kills
@@ -600,6 +603,10 @@ pub fn wrapper_first_path(fixture: &Fixture) -> OsString {
 /// A command for `program` (a wrapper path) under the given PATH,
 ///  killed after `seconds`.
 pub fn bounded_for(fixture: &Fixture, program: &Path, path: &OsStr, seconds: &str) -> Command {
+    if seconds == TIME_BOUND_SECONDS {
+        // The shared bound is the supervisor's; its thread finds the command among the test's children once it runs.
+        super::supervisor::ensure_monitor();
+    }
     let mut command: Command = Command::new("/usr/bin/timeout");
     command.arg("--signal=KILL").arg(seconds).arg(program);
     hermetic(&mut command, fixture, path);
@@ -786,13 +793,14 @@ fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
 pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
     match shared_bound_misuse(command) {
         Some(SharedBoundMisuse::CommitTransaction) => panic!(
-            "a commit under the shared {TIME_BOUND_SECONDS}-second bound: it starts 40 Git processes and makes 36 \
-             sync calls, so run it with `run_commit` (the {}-second bound of binary_commit_tests.rs)",
+            "a commit under the shared bound: the work of a landed commit happens in the commit service, outside the command's \
+             process tree, so the supervisor would see a tree that waits and end it; run it with `run_commit` (the {}-second \
+             wall-clock bound of binary_commit_tests.rs)",
             super::commit::COMMIT_BOUND_SECONDS
         ),
         Some(SharedBoundMisuse::ManualPage) => panic!(
-            "a `--help` under the shared {TIME_BOUND_SECONDS}-second bound renders a manual page through man and groff \
-             (9 process starts); put an executable `man` stub in the fixture's bin directory first (`stub_manual_viewer`)"
+            "a `--help` under the shared bound renders a manual page through man and groff (9 process starts) that is Git's \
+             work and the host's `man`; put an executable `man` stub in the fixture's bin directory first (`stub_manual_viewer`)"
         ),
         None => {}
     }
@@ -802,17 +810,22 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
         .stderr(Stdio::piped())
         .spawn()
         .expect("process starts");
+    let child_id: u32 = child.id();
     // A child that exits without reading its input closes the pipe; that is not a test failure.
     let _ = child.stdin.take().expect("piped stdin").write_all(input);
     let output: Output = child.wait_with_output().expect("process finishes");
     if let Some(directory) = command.get_current_dir() {
         settle_service_work(directory);
     }
+    // The supervisor ended it: a loop or a deadlock, with the reason and the tasks of the tree in the message.
+    if let Some(message) = super::supervisor::take_kill(child_id) {
+        panic!("{message}\nthe command: {:?} in {:?}", command.get_args().collect::<Vec<&OsStr>>(), command.get_current_dir());
+    }
     assert_ne!(
         output.status.signal(),
         Some(TIMED_OUT_SIGNAL),
         // Built only on failure: a bound hit under host load must name the command that stalled.
-        "the command hit the {TIME_BOUND_SECONDS}-second bound: {:?} in {:?}",
+        "the command hit its wall-clock bound: {:?} in {:?}",
         command.get_args().collect::<Vec<&OsStr>>(),
         command.get_current_dir()
     );

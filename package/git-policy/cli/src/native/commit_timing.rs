@@ -30,6 +30,7 @@
 
 use super::diagnostic_log::debug;
 use super::discard_audit::append_line;
+use super::iso_time::now_iso;
 use super::json_record::{quote, string_array};
 use super::service_instance::instance_of;
 use super::service_protocol::RELEASE;
@@ -100,6 +101,20 @@ impl ReachTrace {
 }
 
 /// What:
+///  What a waiting notice of the service says of the holder of the index lock.
+/// Why:
+///   The notice is the only thing about the holder that reaches the client,
+/// and the record should say whether the wait was for a process proven to hold the lock or for one nobody could prove alive.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holderKindOf(text) // 'proven-alive' | 'unproven'
+/// ```
+pub fn holder_kind_of(text: &str) -> &'static str {
+    return if text.contains("cannot be proven alive") { "unproven" } else { "proven-alive" };
+}
+
+/// What:
 ///  What the client did to hand one request to the service and get its answer.
 /// Why:
 ///   The queue wait,
@@ -109,7 +124,7 @@ impl ReachTrace {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type SubmitTrace = { total: number; reach: ReachTrace; answerWait: number; positions: number[]; waitingNotices: number };
+/// type SubmitTrace = { total: number; reach: ReachTrace; answerWait: number; positions: number[]; waitingNotices: number; holderKind?: string };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SubmitTrace {
@@ -127,6 +142,10 @@ pub struct SubmitTrace {
     pub positions: Vec<usize>,
     /// Notices the service sent while it waited for another program's hold on the index.
     pub waiting_notices: usize,
+    /// What the last of those notices said of the holder:
+    /// `proven-alive` when it named a process proven to hold the lock,
+    /// `unproven` when it said the owner could not be proven alive.
+    pub holder_kind: Option<&'static str>,
     /// Times the connection broke before an answer and the same request was sent again.
     pub reconnects: usize,
     /// Requests written.
@@ -224,6 +243,9 @@ pub struct CommitTiming {
     place: Option<Place>,
     /// The branch (or `HEAD`) the first preparation found.
     pub reference: Option<String>,
+    /// The identity the commit's request carries, which the service's `answered` line states as `request` and as the
+    /// journal field `CLI_GIT_REQUEST_ID`; the key that joins this record to the service's.
+    pub request: Option<String>,
     /// How the command ended:
     /// `landed`,
     /// `ended` (blocked or declined,
@@ -275,6 +297,7 @@ impl CommitTiming {
             start_millis,
             place: None,
             reference: None,
+            request: None,
             outcome: "stopped",
             attempts: 0,
             prepare: Duration::ZERO,
@@ -315,15 +338,18 @@ impl CommitTiming {
         let place: Option<&Place> = self.place.as_ref();
         let branch: String = self.reference.as_deref().map_or_else(null_word, quote);
         let answered_by: String = self.submit.reach.answered_by.as_deref().map_or_else(null_word, quote);
+        let request: String = self.request.as_deref().map_or_else(null_word, quote);
+        let level: &str = if self.outcome == "stopped" { "warn" } else { "info" };
         let positions: Vec<String> = self.submit.positions.iter().map(usize::to_string).collect();
         return format!(
-            "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
-             \"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"totalMs\":{},\
+            "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"time\":{},\"level\":\"{level}\",\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
+             \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"totalMs\":{},\
              \"prepareMs\":{},\"attempts\":{},\"buildMs\":{},\"provisionMs\":{},\
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
              \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
-             \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"reconnects\":{},\
+             \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
              \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"otherMs\":{}}}\n",
+            quote(now_iso().as_str()),
             self.start_millis,
             std::process::id(),
             quote(RELEASE),
@@ -346,6 +372,7 @@ impl CommitTiming {
             self.submit.answer_wait.as_millis(),
             positions.join(","),
             self.submit.waiting_notices,
+            self.submit.holder_kind.map_or_else(null_word, quote),
             self.submit.reconnects,
             self.after_landing.as_millis(),
             self.gate.as_millis(),

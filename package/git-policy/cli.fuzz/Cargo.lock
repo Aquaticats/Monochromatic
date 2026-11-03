@@ -1169,7 +1169,7 @@ dependencies = [
 
 [[package]]
 name = "monochromatic-git-policy-cli"
-version = "0.5.11"
+version = "0.5.15"
 dependencies = [
  "forbidden-strings",
  "getrandom 0.4.2",

@@ -208,6 +208,24 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64) -> (bool, 
 /// ```
 #[cfg(unix)]
 pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid: u32) -> HolderEvidence {
+    return scan_proc_fd_holders_until(proc_root, device, inode, self_pid, None);
+}
+
+/// What:
+///  `scan_proc_fd_holders`,
+/// stopping at `deadline` when one is given.
+/// Why:
+///   The commit service scans while commits queue behind it,
+/// and a host with many processes must not hold them up beyond a bound:
+/// the processes not reached are said in the evidence's partial reasons,
+/// and the holders found so far are kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await scanProcFdHolders({ device, inode, procRoot, selfPid, deadline });
+/// ```
+#[cfg(unix)]
+pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, self_pid: u32, deadline: Option<std::time::Instant>) -> HolderEvidence {
     let mut evidence: HolderEvidence = HolderEvidence {
         method: "proc-fd",
         holders: Vec::new(),
@@ -228,7 +246,11 @@ pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid:
             pids.push(name);
         }
     }
-    for pid in &pids {
+    for (reached, pid) in pids.iter().enumerate() {
+        if deadline.is_some_and(|limit| { return std::time::Instant::now() >= limit; }) {
+            evidence.partial.push(format!("stopped at the time bound after {reached} of {} processes", pids.len()));
+            break;
+        }
         let (holds, partial) = scan_process(proc_root, pid.as_str(), device, inode);
         if holds && let Ok(number) = pid.parse::<i64>() {
             let command: Option<String> = std::fs::read_to_string(proc_root.join(pid).join("comm"))
@@ -265,6 +287,24 @@ pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid:
 #[cfg(unix)]
 fn trimmed(text: String) -> String {
     return String::from(super::js_text::trim_javascript(text.as_str()));
+}
+
+/// How long the commit service's scan for the processes that have a lock open may take.
+pub const SERVICE_SCAN_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// The scan for open holders that the commit service makes:
+/// the host's,
+/// bounded in time where the host's is `/proc`.
+pub fn scan_platform_holders_bounded(lock_path: &Path, device: u64, inode: u64) -> HolderEvidence {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = lock_path;
+        return scan_proc_fd_holders_until(Path::new("/proc"), device, inode, std::process::id(), Some(std::time::Instant::now() + SERVICE_SCAN_BUDGET));
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        return scan_platform_holders(lock_path, device, inode);
+    }
 }
 
 /// What:

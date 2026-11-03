@@ -67,6 +67,7 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
         answer_wait: Duration::from_millis(ANSWER_WAIT_MS),
         positions: vec![2, 1],
         waiting_notices: 4,
+        holder_kind: Some("proven-alive"),
         reconnects: 1,
         sends: 2,
     };
@@ -116,6 +117,7 @@ fn the_line_states_each_phase_and_what_reached_the_service() {
     assert_eq!(value["answerWaitMs"], ANSWER_WAIT_MS);
     assert_eq!(value["positions"], serde_json::Value::from(vec![2_u64, 1]));
     assert_eq!(value["waitingNotices"], 4);
+    assert_eq!(value["lockHolderKind"], "proven-alive");
     assert_eq!(value["reconnects"], 1);
     assert_eq!(value["afterLandingMs"], AFTER_LANDING_MS);
     assert_eq!(value["gateMs"], GATE_MS);
@@ -261,4 +263,57 @@ fn whole_milliseconds_drop_the_part_of_a_millisecond() {
     let part: Duration = Duration::from_micros(999);
     assert_eq!(whole_milliseconds(Duration::from_millis(kept) + part), u128::from(kept));
     assert_eq!(whole_milliseconds(part), 0);
+}
+
+/// A waiting notice that names a process proven to hold the lock is `proven-alive`;
+/// one that says the owner cannot be proven alive is `unproven`.
+/// A record of a commit that did not wait states null.
+#[test]
+fn the_holder_kind_follows_what_the_notice_says() {
+    use super::holder_kind_of;
+    let proven: String = crate::index_lock_evidence::proven_holder_line(42, true, Some("git"), Path::new("/r/.git/index.lock"), 1800);
+    assert_eq!(holder_kind_of(proven.as_str()), "proven-alive");
+    assert_eq!(
+        holder_kind_of("cli-git: waiting for /r/.git/index.lock, whose owner cannot be proven alive, after 3 seconds; giving up after 1800 seconds.\n"),
+        "unproven"
+    );
+    let root: PathBuf = fixture("timing-holder-null");
+    let (mut timing, covered) = filled(root.as_path());
+    timing.submit.holder_kind = None;
+    let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
+    assert!(value["lockHolderKind"].is_null(), "{value}");
+    remove(root.as_path());
+}
+
+/// The record carries the identity the commit's request carries, the key that joins it to the service's
+/// `answered` line (`request=<id>`) and to the journal field `CLI_GIT_REQUEST_ID`; a commit that never made a request says null.
+#[test]
+fn the_line_carries_the_request_identity_that_joins_it_to_the_service() {
+    let root: PathBuf = fixture("timing-request");
+    let (mut timing, covered) = filled(root.as_path());
+    timing.request = Some(String::from("30cbb78e-677f-41ff-b059-87d9f49d3409"));
+    let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
+    assert_eq!(value["requestId"], "30cbb78e-677f-41ff-b059-87d9f49d3409");
+    timing.request = None;
+    let without: serde_json::Value = parsed(timing.line(covered, 0).as_str());
+    assert!(without["requestId"].is_null(), "{without}");
+    remove(root.as_path());
+}
+
+/// The record states when it was written, in the form every other record of the wrapper uses, and a level so that a
+/// command that stopped stands out from one that landed or ended.
+#[test]
+fn the_line_states_its_end_time_and_a_level() {
+    let root: PathBuf = fixture("timing-time-level");
+    let (mut timing, covered) = filled(root.as_path());
+    let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
+    let time: &str = value["time"].as_str().expect("a time");
+    assert_eq!(time.len(), "2026-11-02T19:48:24.367Z".len(), "{time}");
+    assert!(time.ends_with('Z') && time.as_bytes()[10] == b'T', "{time}");
+    assert_eq!(value["level"], "info");
+    timing.outcome = "ended";
+    assert_eq!(parsed(timing.line(covered, 1).as_str())["level"], "info");
+    timing.outcome = "stopped";
+    assert_eq!(parsed(timing.line(covered, 2).as_str())["level"], "warn");
+    remove(root.as_path());
 }

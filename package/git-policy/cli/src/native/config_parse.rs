@@ -23,6 +23,7 @@
 /// import { ConfigError } from './config-error.ts';
 /// ```
 use super::config_error::ConfigError;
+use super::config_discarded::{SECTION, parse_discarded_copies};
 use super::config_policies::parse_policies;
 use super::config_schema::{CliGitConfig, ConcurrencyConfig};
 use super::config_values::{boolean, member_keys, member_path, safe_integer, wrong_kind};
@@ -49,7 +50,7 @@ use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
 /// ```ts
 /// const ACCEPTED_KEYS = 'policies, hooks, indexLock, landing';
 /// ```
-const ACCEPTED_KEYS: &str = "policies, hooks, indexLock, landing";
+const ACCEPTED_KEYS: &str = "policies, hooks, indexLock, landing, discardedCopies";
 
 /// What:
 ///  Explain a top-level key the schema does not accept.
@@ -223,6 +224,8 @@ pub fn parse_config(source: &str) -> Result<CliGitConfig, ConfigError> {
             config.policies = parse_policies(value)?;
         } else if key == "hooks" || key == "indexLock" || key == "landing" {
             config.concurrency = apply_concurrency(config.concurrency, key.as_str(), value)?;
+        } else if key == SECTION {
+            config.discarded = parse_discarded_copies(value)?;
         } else {
             return Err(unknown_top_level_key(key.as_str()));
         }

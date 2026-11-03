@@ -268,3 +268,8 @@ export const imageTagCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrs
 export const environmentNameCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_';
 
 //endregion Accepted characters
+
+/**
+ Name of the file, in a pass's evidence directory, that says a container was started there.
+ */
+export const containerStartedFile = 'container-started.json';

@@ -33,7 +33,8 @@ use std::path::Path;
 /// the process's own birth identity,
 /// the setting of a watch on the lock's directory,
 /// the flush of the staged marker to storage,
-/// and the question whether a lock is still the holder's.
+/// the question whether a lock is still the holder's,
+/// and the removal of a lock the holder owns.
 /// Why:
 ///   A filesystem with neither atomic placement,
 /// a stale lock that cannot be unlinked,
@@ -65,6 +66,9 @@ pub struct Platform<'a> {
     pub sync: &'a dyn Fn(&std::fs::File) -> std::io::Result<()>,
     /// Whether the lock at a path is still the file the holder placed.
     pub inspect: fn(&Path, &std::fs::File, &str) -> Ownership,
+    /// The removal of the lock the holder owns,
+    /// at its release or when it goes out of scope.
+    pub release: fn(&Path) -> std::io::Result<()>,
 }
 
 /// The operating system's own calls.
@@ -76,9 +80,10 @@ pub const SYSTEM: Platform<'static> = Platform {
     watch: &Watch::on,
     sync: &sync_file,
     inspect: inspect_ownership,
+    release: unlink_file,
 };
 
-fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
+pub fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
     return file.sync_all();
 }
 
@@ -205,7 +210,7 @@ pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io:
 /// ```
 pub fn log_placement_failure(lock: &Path, error: &std::io::Error) {
     if let Some(text) = placement_failure_text(lock, error) {
-        eprintln!("{text}");
+        crate::service_error!("{text}");
     }
 }
 
@@ -226,7 +231,7 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
         return None;
     }
     if error.kind() != std::io::ErrorKind::Unsupported {
-        return Some(format!("cli-git-service: cannot take the index lock {}: {error}", lock.display()));
+        return Some(format!("cannot take the index lock {}: {error}", lock.display()));
     }
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let filesystem: String = match read_mount_facts(directory) {
@@ -235,7 +240,7 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
         Err(reason) => format!("the filesystem of {} ({reason})", directory.display()),
     };
     return Some(format!(
-        "cli-git-service: cannot take the index lock {}: {filesystem} can neither rename a file without replacing another nor make a hard link ({error}), \
+        "cannot take the index lock {}: {filesystem} can neither rename a file without replacing another nor make a hard link ({error}), \
          so the lock cannot be created with its marker in one step, and the service takes no lock that a kill could leave empty. \
          Keep this repository's Git directory on a filesystem that supports one of the two (ext4, xfs, btrfs, tmpfs and overlayfs do), or update the kernel.",
         lock.display()
@@ -253,8 +258,7 @@ pub fn reclaim(platform: &Platform, lock: &Path) -> bool {
         Ok(()) => true,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
         Err(error) => {
-            eprintln!(
-                "cli-git-service: the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
+            crate::service_error!("the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
                  remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays",
                 lock.display()
             );

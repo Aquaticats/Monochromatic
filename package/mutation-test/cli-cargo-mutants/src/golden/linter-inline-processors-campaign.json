@@ -148,6 +148,10 @@
       "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"180\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/work/processor-mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--jobserver-tasks\",\n    \"2\",\n    \"--file\",\n    \"src/processors_prepare.rs\",\n    \"--file\",\n    \"src/processors_projection.rs\",\n    \"--file\",\n    \"src/processors_rewrite.rs\",\n    \"--re\",\n    \"replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\\\(\\\\(\\\\)\\\\)|String::new\\\\(\\\\)|Ok\\\\(String::new\\\\(\\\\)\\\\))$\",\n    \"--cargo-test-arg=processors\",\n    \"--caught\"\n  ]\n}\n"
     ],
     [
+      "verification/processors-mutation-<ID>/container-started.json",
+      "{\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"\n}\n"
+    ],
+    [
       "verification/processors-mutation-<ID>/exit.json",
       "{\n  \"status\": 0,\n  \"signal\": null,\n  \"reportCopied\": true,\n  \"attempt\": 1,\n  \"skippedMutants\": 0\n}\n"
     ],

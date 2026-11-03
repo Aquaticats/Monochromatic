@@ -140,6 +140,8 @@ pub fn service_commit<F: RepositoryFacts>(
     timing.place_at(git_dir.as_path());
     let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
+    // The identity is the key that joins this commit's timing record to the service's journal entry for it.
+    timing.request = Some(id.clone());
     let standard_input: Option<Vec<u8>> = standard_input_for(invocation)?;
     let mut provisioned: bool = false;
     // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.

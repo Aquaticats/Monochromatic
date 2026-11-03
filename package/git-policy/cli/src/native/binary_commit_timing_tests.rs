@@ -21,6 +21,7 @@ use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
 use super::service_landing_lock::foreign_commit;
 use super::service_landing_selection::base_repository;
+use super::strace::{strace_available, strace_program};
 use super::support::{Fixture, fixture, observe};
 use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::service_client::ask_to_retire;
@@ -71,6 +72,11 @@ struct Places {
 /// Starts a service at `places.socket` with its standard error in `places.log`,
 /// once it listens.
 fn spawn_service(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str]) -> Held {
+    return spawn_service_with_environment(root, places, idle_seconds, extra, &[]);
+}
+
+/// `spawn_service` with more variables in the service's otherwise empty environment.
+fn spawn_service_with_environment(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str], environment: &[(&str, String)]) -> Held {
     std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
     let log = std::fs::OpenOptions::new().create(true).append(true).open(&places.log).expect("service log");
     let child: Child = Command::new(SERVICE)
@@ -86,6 +92,7 @@ fn spawn_service(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
         .env("CLI_GIT_LOCK_WAIT_SECONDS", "60")
+        .envs(environment.iter().map(|(name, value)| { return (*name, value.as_str()); }))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::from(log))
@@ -156,7 +163,10 @@ fn number(record: &serde_json::Value, name: &str) -> u64 {
 /// One wrapped commit of `a.txt` through the service at `runtime`,
 /// observed.
 fn commit_a(fixture: &Fixture, repo: &Path, runtime: &Path) -> super::support::Observed {
-    std::fs::write(repo.join("a.txt"), format!("edit by {}\n", std::process::id())).expect("a.txt");
+    // A different text each time, so a second commit in one control has something to commit.
+    static ROUND: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let round: usize = ROUND.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    std::fs::write(repo.join("a.txt"), format!("edit {round} by {}\n", std::process::id())).expect("a.txt");
     let mut command: Command = wrapped_commit(fixture, repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime);
     return observe(&mut command, b"");
@@ -270,6 +280,43 @@ fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
         assert!(number(record, other) < number(record, "answerWaitMs"), "{other} is not what the time went to: {record}");
     }
     assert!(number(record, "waitingNotices") >= 1, "the service told the wrapper it was waiting: {record}");
+    assert_eq!(record["lockHolderKind"], "proven-alive", "the record says what kind of holder the wait was for: {record}");
+    // The wait is written down when it ends, with what it found: the foreign commit has the lock open.
+    let waited: Vec<String> = lines_of(&places.log, "waited for the index lock");
+    assert_eq!(waited.len(), 1, "{waited:?}");
+    println!("SERVICE WAIT (held index): {}", waited[0]);
+    assert!(waited[0].contains(" result=taken ") && ms_of(waited[0].as_str(), "lock_looks") >= 1, "{}", waited[0]);
+    // Native `git commit` keeps its lock without a descriptor through its hooks, so the holder is proven by its PID file and
+    //  the lock is described as one with no service marker.
+    assert!(waited[0].contains("lock_found=\"foreign no-marker"), "the holder is described: {}", waited[0]);
+    assert!(ms_of(waited[0].as_str(), "lock_place_ms") >= hold_ms / 2, "the wait for the holder is timed apart from the flush: {}", waited[0]);
+    assert!(line.contains("lock_found=") && line.contains(" lock_stage_ms="), "the answer carries it too: {line}");
+    remove_settled(&fixture);
+}
+
+/// Every line the service writes states its own time at its end,
+/// so a journal that receives it late does not move the event.
+/// The time is the wall clock of the event:
+/// between the moments before and after the commit.
+#[test]
+fn every_service_line_states_the_time_of_its_event() {
+    let fixture: Fixture = fixture("timing-stamps");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-stamps-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let before: u128 = git_policy_cli::service_timing::wall_millis();
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let after: u128 = git_policy_cli::service_timing::wall_millis();
+    let text: String = std::fs::read_to_string(&places.log).expect("service log");
+    let lines: Vec<&str> = text.lines().filter(|line| { return line.starts_with(git_policy_cli::service_timing::LOG_PREFIX); }).collect();
+    assert!(lines.len() >= 3, "started, ready, answered: {text}");
+    for line in lines {
+        let stamp: u128 = line.rsplit_once(" at_ms=").unwrap_or_else(|| { panic!("no time at the end of {line}") }).1.parse::<u128>().unwrap_or_else(|_| { panic!("no number in {line}") });
+        assert!(stamp >= before && stamp <= after, "{stamp} is not between {before} and {after}: {line}");
+    }
     remove_settled(&fixture);
 }
 
@@ -325,6 +372,149 @@ fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_
     assert!(exits[0].contains("reason=retire"), "{}", exits[0]);
     assert_eq!(lines_of(&current_log, "answered").len(), 1, "the current release landed it");
     assert_eq!(lines_of(&places.log, "answered").len(), 0, "the old release landed nothing");
+    remove_settled(&fixture);
+}
+
+/// The command `inner` run under `strace`,
+/// which writes the calls that create,
+/// link,
+/// rename or remove a file to `trace`,
+/// in the environment and directory of `inner`.
+fn traced_for_files(inner: &Command, trace: &Path) -> Command {
+    let mut outer: Command = Command::new(strace_program().expect("strace is installed"));
+    outer
+        .arg("--follow-forks")
+        .arg("--quiet")
+        .arg("--quiet")
+        .arg("--string-limit=4096")
+        .arg("--no-abbrev")
+        .arg(format!("--output={}", trace.display()))
+        .arg("--trace=openat,open,creat,link,linkat,rename,renameat,renameat2,unlink,unlinkat")
+        .arg(inner.get_program())
+        .args(inner.get_args());
+    outer.env_clear();
+    for (name, setting) in inner.get_envs() {
+        if let Some(text) = setting {
+            outer.env(name, text);
+        }
+    }
+    if let Some(directory) = inner.get_current_dir() {
+        outer.current_dir(directory);
+    }
+    return outer;
+}
+
+/// The upgrade path a real install takes:
+/// a service of release N is retired by a client of release N+1,
+/// and the new service
+/// lands the commit.
+/// The client,
+/// with every program it starts,
+/// never creates,
+/// links,
+/// renames or removes the worktree's real `index.lock`,
+/// so it holds no lock of its own across the upgrade;
+/// and the service that lands the commit finds the lock free at its first
+/// placement (no look at a held lock),
+/// so the wait for the lock in an upgrade round is another program's,
+/// or the disk's.
+/// This is the control for the 5.6 s `lock_wait_ms` of the 0.5.13 upgrade commit.
+#[test]
+fn a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free() {
+    if !strace_available() {
+        eprintln!("skipped: strace is not installed, so no file call was traced");
+        return;
+    }
+    let fixture: Fixture = fixture("timing-upgrade-lock");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-upgrade-lock-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let current_log: PathBuf = fixture.root.join("current.log");
+    let instance: String = instance_argument(&repo);
+    let retiring: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str(), "--release", OTHER_RELEASE]);
+    let successor = {
+        let socket: PathBuf = places.socket.clone();
+        let root: PathBuf = fixture.root.clone();
+        let argument: String = instance.clone();
+        let log: PathBuf = current_log.clone();
+        std::thread::spawn(move || {
+            let mut old: Held = retiring;
+            let status = exit_of(&mut old, PATIENCE);
+            let next: Held = spawn_service(root.as_path(), &Places { socket, log }, SAFETY_IDLE_SECONDS, &["--instance", argument.as_str()]);
+            return (status, next);
+        })
+    };
+    std::fs::write(repo.join("a.txt"), format!("edit by {}\n", std::process::id())).expect("a.txt");
+    let mut inner: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    inner.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()));
+    let trace: PathBuf = fixture.root.join("client.trace");
+    let served = observe(&mut traced_for_files(&inner, trace.as_path()), b"");
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let (_old_status, _current): (std::process::ExitStatus, Held) = successor.join().expect("the successor thread");
+    let text: String = std::fs::read_to_string(&trace).expect("the trace");
+    let real_lock: String = format!("{}/.git/index.lock\"", repo.display());
+    let touching: Vec<&str> = text.lines().filter(|line| { return line.contains(real_lock.as_str()); }).collect();
+    // The positive control: the same trace and the same filter see a program that does take the lock.
+    let control_trace: PathBuf = fixture.root.join("control.trace");
+    let mut taker: Command = Command::new("/bin/sh");
+    taker.arg("-c").arg("echo held > \"$0/.git/index.lock\" && rm \"$0/.git/index.lock\"").arg(&repo);
+    let control = traced_for_files(&taker, control_trace.as_path()).output().expect("the control runs");
+    assert!(control.status.success(), "{}", String::from_utf8_lossy(&control.stderr));
+    let control_text: String = std::fs::read_to_string(&control_trace).expect("the control's trace");
+    assert!(control_text.lines().any(|line| { return line.contains(real_lock.as_str()); }), "the filter sees a program that takes the lock: {control_text}");
+    assert!(touching.is_empty(), "the client touched the real index lock: {touching:?}");
+    let answered: Vec<String> = lines_of(&current_log, "answered");
+    assert_eq!(answered.len(), 1, "the current release landed it");
+    println!("SERVICE ANSWER (upgrade): {}", answered[0]);
+    assert!(!answered[0].contains(" lock_looks="), "the new service found the lock held: {}", answered[0]);
+    assert!(lines_of(&current_log, "waited for the index lock").len() <= 1);
+    remove_settled(&fixture);
+}
+
+/// The marker files of the lock that sit in the repository's Git directory.
+fn marker_files(repo: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(repo.join(".git"))
+        .expect("the git directory")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .filter(|name| { return name.starts_with("index.lock.cli-git-marker"); })
+        .collect();
+    names.sort();
+    return names;
+}
+
+/// The first commit of a service stages its marker itself and the service then makes the next batch's while it is idle:
+/// the second commit's lock is placed from that file (`lock_stage_kind=pre`),
+/// one file at most waits in the Git directory between commits,
+/// and none is left when the service retires.
+#[test]
+fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires() {
+    let fixture: Fixture = fixture("timing-prestage");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-prestage-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let runtime: PathBuf = runtime_for(name.as_str());
+    for round in 0..3 {
+        let served = commit_a(&fixture, &repo, runtime.as_path());
+        assert_eq!(served.code, Some(0), "round {round}: {}", String::from_utf8_lossy(&served.stderr));
+        // The marker of the next batch is made after the answer, while the service is idle.
+        let began: Instant = Instant::now();
+        while marker_files(&repo).len() != 1 {
+            assert!(began.elapsed() < Duration::from_secs(10), "round {round}: {:?}", marker_files(&repo));
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+    let answered: Vec<String> = lines_of(&places.log, "answered");
+    assert_eq!(answered.len(), 3, "{answered:?}");
+    println!("SERVICE ANSWERS (prestage): {answered:#?}");
+    assert!(answered[0].contains(" lock_stage_kind=cold "), "the first commit has nothing made ahead: {}", answered[0]);
+    assert!(answered[1].contains(" lock_stage_kind=pre ") && answered[2].contains(" lock_stage_kind=pre "), "{answered:?}");
+    ask_to_retire(places.socket.as_path());
+    let status = exit_of(&mut service, PATIENCE);
+    assert!(status.success(), "{status:?}");
+    assert!(marker_files(&repo).is_empty(), "the marker made ahead is removed when the service ends: {:?}", marker_files(&repo));
     remove_settled(&fixture);
 }
 
@@ -384,5 +574,119 @@ fn a_service_stopped_by_a_signal_says_so_and_still_dies_of_it() {
     println!("SERVICE EXIT (signal): {}", exits.join("\n"));
     assert_eq!(exits.len(), 1, "{exits:?}");
     assert!(exits[0].contains(format!("reason=signal-{}", libc::SIGTERM).as_str()), "{}", exits[0]);
+    remove_settled(&fixture);
+}
+
+/// A receiving socket on a fresh abstract name standing for the journal, and the settings that make a service started with
+/// its standard error in `places.log` believe the log is the journal's stream: `$JOURNAL_STREAM` names the log's device and
+/// inode, and the test-only variable names the receiver.
+fn native_journal(places: &Places, name: &str) -> (std::os::unix::net::UnixDatagram, Vec<(&'static str, String)>) {
+    use std::os::linux::net::SocketAddrExt;
+    use std::os::unix::fs::MetadataExt;
+    let abstract_name: String = format!("cli-git-test-journal-binary-{}-{name}", std::process::id());
+    let address = std::os::unix::net::SocketAddr::from_abstract_name(abstract_name.as_bytes()).expect("an abstract address");
+    let receiver = std::os::unix::net::UnixDatagram::bind_addr(&address).expect("bind the journal stand-in");
+    receiver.set_read_timeout(Some(Duration::from_millis(200))).expect("a read timeout");
+    // The service opens the log in append mode when it starts; the file exists once created here.
+    std::fs::OpenOptions::new().create(true).append(true).open(&places.log).expect("the log");
+    let log = std::fs::metadata(&places.log).expect("log metadata");
+    let environment: Vec<(&'static str, String)> = vec![
+        (git_policy_cli::journald_native::STREAM_VARIABLE, format!("{}:{}", log.dev(), log.ino())),
+        (git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@{abstract_name}")),
+    ];
+    return (receiver, environment);
+}
+
+/// Every entry the stand-in has received so far, as `NAME=value` maps, waiting up to `patience` for the first and a moment
+/// for the rest.
+fn entries_received(receiver: &std::os::unix::net::UnixDatagram, until: impl Fn(&[std::collections::BTreeMap<String, String>]) -> bool) -> Vec<std::collections::BTreeMap<String, String>> {
+    let began: Instant = Instant::now();
+    let mut found: Vec<std::collections::BTreeMap<String, String>> = Vec::new();
+    let mut buffer: Vec<u8> = vec![0; 65_536];
+    while !until(found.as_slice()) && began.elapsed() < PATIENCE {
+        if let Ok(length) = receiver.recv(buffer.as_mut_slice()) {
+            let text: String = String::from_utf8_lossy(&buffer[..length]).into_owned();
+            found.push(text.lines().filter_map(|line| { return line.split_once('=').map(|(name, value)| { return (name.to_string(), value.to_string()); }); }).collect());
+        }
+    }
+    return found;
+}
+
+/// A service whose standard error is the journal sends its entries on the native socket with a priority and fields, writes
+/// nothing of them to standard error, and the request identity in the `answered` entry is the one in the client's record,
+/// so the two join on a key and not on a time.
+#[test]
+fn a_service_on_the_journal_stream_sends_native_entries_that_join_the_clients_record() {
+    let fixture: Fixture = fixture("timing-native");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-native-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let (receiver, environment) = native_journal(&places, "send");
+    let before: u128 = git_policy_cli::service_timing::wall_millis();
+    let _service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()], environment.as_slice());
+    let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let after: u128 = git_policy_cli::service_timing::wall_millis();
+    let entries = entries_received(&receiver, |found| { return found.iter().any(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("answered "); }); }); });
+    let record: serde_json::Value = records(&repo).remove(0);
+    let answered = entries.iter().find(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("answered "); }); }).expect("an answered entry");
+    assert_eq!(Some(answered["CLI_GIT_REQUEST_ID"].as_str()), record["requestId"].as_str(), "the key that joins the client's record to the service's entry");
+    assert!(record["requestId"].as_str().is_some_and(|id| { return !id.is_empty(); }), "{record}");
+    assert_eq!(answered["PRIORITY"], "6");
+    assert_eq!(answered["SYSLOG_IDENTIFIER"], "cli-git-service");
+    assert_eq!(answered["CLI_GIT_OUTCOME"], "landed");
+    assert_eq!(answered["CLI_GIT_RELEASE"], RELEASE);
+    assert_eq!(answered["CLI_GIT_INSTANCE"], instance.as_str());
+    assert!(answered["MESSAGE"].contains(format!("request=\"{}\"", answered["CLI_GIT_REQUEST_ID"]).as_str()), "{answered:?}");
+    let stamp: u128 = answered["CLI_GIT_AT_MS"].parse().expect("a number");
+    assert!(stamp >= before && stamp <= after, "{stamp} is not between {before} and {after}");
+    let words: Vec<&str> = entries.iter().filter_map(|entry| { return entry.get("MESSAGE").and_then(|message| { return message.split(' ').next(); }); }).collect();
+    assert!(words.contains(&"started") && words.contains(&"ready"), "the life of the service is in the journal: {words:?}");
+    assert_eq!(std::fs::read_to_string(&places.log).expect("log"), "", "nothing is also written to standard error");
+    remove_settled(&fixture);
+}
+
+/// The signal handler dates the exit of a service that is stopped by sending it on the native socket, and the line is not
+/// also written to standard error.
+#[test]
+fn a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket() {
+    let fixture: Fixture = fixture("timing-native-signal");
+    let name: String = format!("timing-native-signal-{}", std::process::id());
+    let places: Places = Places { socket: runtime_for(name.as_str()).join("cli-git/native-signal.sock"), log: fixture.root.join("native-signal.log") };
+    let (receiver, environment) = native_journal(&places, "signal");
+    let mut service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
+    let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
+    let before: u128 = git_policy_cli::service_timing::wall_millis();
+    // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    let status = exit_of(&mut service, PATIENCE);
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
+    let entries = entries_received(&receiver, |found| { return found.iter().any(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("exiting "); }); }); });
+    let exit = entries.iter().find(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.starts_with("exiting "); }); }).expect("an exiting entry");
+    assert!(exit["MESSAGE"].starts_with(format!("exiting reason=signal-{} ", libc::SIGTERM).as_str()), "{exit:?}");
+    assert_eq!(exit["PRIORITY"], "6");
+    let stamp: u128 = exit["CLI_GIT_AT_MS"].parse().expect("a number");
+    assert!(stamp >= before && stamp <= git_policy_cli::service_timing::wall_millis(), "{stamp} against {before}");
+    assert!(!std::fs::read_to_string(&places.log).expect("log").contains("exiting"), "the exit is in the journal once");
+    remove_settled(&fixture);
+}
+
+/// A journal that is not listening costs no line: the service writes it to standard error, with the priority prefix the
+/// journal's stream reads, and it still starts and answers.
+#[test]
+fn a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority() {
+    let fixture: Fixture = fixture("timing-native-gone");
+    let name: String = format!("timing-native-gone-{}", std::process::id());
+    let places: Places = Places { socket: runtime_for(name.as_str()).join("cli-git/gone.sock"), log: fixture.root.join("gone.log") };
+    let (receiver, mut environment) = native_journal(&places, "gone");
+    drop(receiver);
+    // The abstract name is free again once the receiver is gone, so the service finds nobody to send to.
+    environment.retain(|(variable, _)| { return *variable != git_policy_cli::journald_native::TEST_SOCKET_VARIABLE; });
+    environment.push((git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@cli-git-test-journal-nobody-{}", std::process::id())));
+    let _service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
+    let text: String = std::fs::read_to_string(&places.log).expect("log");
+    assert!(text.lines().any(|line| { return line.starts_with("<6>cli-git-service: ready"); }), "{text}");
+    assert!(text.lines().all(|line| { return line.starts_with("<6>") && line.contains(" at_ms="); }), "{text}");
     remove_settled(&fixture);
 }

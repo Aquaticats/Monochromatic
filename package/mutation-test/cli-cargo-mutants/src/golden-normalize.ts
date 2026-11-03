@@ -138,6 +138,44 @@ function maskSuffix({
 }
 
 /**
+ Marker of the product conditions in `campaign.json`, whose values (a digest of the checks, the identity of the code that
+ runs them, the limits) change with the product's sources and are not what a golden outcome pins.
+ */
+const keyPartsMarker = '"keyParts": [';
+
+/**
+ Replace the product conditions of a campaign identity with a placeholder.
+
+ @param text - text to rewrite
+
+ @returns the text with each list of key parts replaced
+
+ @example
+ ```ts
+ maskKeyParts('{ "keyParts": [ "a", "b" ] }');
+ ```
+ */
+function maskKeyParts(text: string): string {
+  /**
+   Position of the first marker.
+   */
+  const at = text.indexOf(keyPartsMarker);
+  /**
+   Position of the bracket that closes the list.
+   */
+  const close = at === (-1) ? (-1) : text.indexOf(
+    ']',
+    at,
+  );
+  return close === (-1)
+    ? text
+    : `${text.slice(
+      0,
+      at + keyPartsMarker.length,
+    )}"<KEY PARTS>"${maskKeyParts(text.slice(close))}`;
+}
+
+/**
  Paths a run reports in two spellings, to be replaced by placeholders.
  */
 export type PathReplacements = readonly (readonly [
@@ -205,7 +243,7 @@ function normalizeText({
 }): string {
   if ((!text.includes(' ')) && text.includes(contextMarker))
     return '<CONTEXT>';
-  return randomSuffixMarkers.reduce(
+  return maskKeyParts(randomSuffixMarkers.reduce(
     function mask(
       current,
       marker
@@ -240,7 +278,7 @@ function normalizeText({
         text,
       ),
     ),
-  );
+  ));
 }
 
 /**
