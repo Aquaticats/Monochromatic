@@ -410,3 +410,27 @@ fn a_launcher_that_leads_back_to_the_shadow_is_skipped_by_the_install_step_and_t
     let runs: u32 = std::fs::read_to_string(&count).unwrap_or_default().trim().parse().unwrap_or(0);
     assert!(runs <= 6, "the launcher ran {runs} times: the install step must not lead back into the shadow");
 }
+
+/// Review finding (recursion guard kind): `cargo add` and `cargo remove` are started as a child
+/// (the shadow stays alive to warn afterwards), so the guard it leaves must be the spawn kind.
+/// With the exec kind a launcher that execs the shadow again has a different process id than the
+/// guard names, the guard is ignored, the hop count restarts, and the chain never reaches the cap.
+#[test]
+fn a_launcher_that_leads_back_to_the_shadow_is_skipped_for_add_which_the_shadow_starts_as_a_child() {
+    let world = make_world();
+    write_lock(&world, SATISFIED);
+    let (launcher_directory, _count) = write_launcher(&world);
+    let path: String = path_of(&[&world.shadow_directory, &launcher_directory, &world.fake_directory]);
+    let mut command = Command::new(world.shadow_directory.join("cargo"));
+    command
+        .args(["add", "serde"])
+        .current_dir(world.repository.join(CRATE_DIR))
+        .env("PATH", path)
+        .env("CI", "")
+        .env("FAKE_CARGO_LOG", &world.log);
+
+    let output = output_within(&mut command, 20).expect("the command timed out: the shadow keeps leading back into the launcher");
+
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} add serde"));
+}
