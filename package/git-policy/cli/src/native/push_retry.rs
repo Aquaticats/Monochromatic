@@ -15,6 +15,8 @@
 
 /// The positive-seconds reading shared by the wait limits.
 use super::bounded_push::positive_seconds;
+/// The plan on disk.
+use super::push_retry_store::{StoredPlan, load, remove, save};
 /// What the retry pushes again.
 use super::work_item::WorkItem;
 use std::path::{Path, PathBuf};
@@ -169,6 +171,8 @@ pub struct PushRetries {
     first: Duration,
     /// The waiting pushes, one per branch of a Git directory.
     waiting: Vec<Waiting>,
+    /// The directory the plan is kept in, so that a restarted service rebuilds it; nothing for a list kept in memory only.
+    store: Option<PathBuf>,
 }
 
 /// Methods over the list.
@@ -180,13 +184,32 @@ impl PushRetries {
 
     /// A list with this first pause.
     pub fn with_first_pause(first: Duration) -> Self {
-        return Self { first, waiting: Vec::new() };
+        return Self { first, waiting: Vec::new(), store: None };
     }
 
-    /// A list for a service that starts now, whose plan is kept in `directory` and rebuilt from it.
+    /// What:
+    ///  A list for a service that starts now, whose plan is kept in `directory`: the plan the service that stopped before this one
+    ///  left there is rebuilt, each branch due after its pause counted from now.
+    /// Why:
+    ///   A pause that was running when the service stopped starts again, so a service restarted in a loop does not push every few
+    ///  seconds; the try number is kept, so the pauses go on growing.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const retries = new PushRetries(first, dir); for (const saved of await load(dir)) retries.plan(saved, now + pauseBefore(saved.attempt, first));
+    /// ```
     pub fn restored(first: Duration, directory: &Path) -> Self {
-        let _unused = directory;
-        return Self::with_first_pause(first);
+        let mut list: Self = Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()) };
+        let now: Instant = Instant::now();
+        for saved in load(directory) {
+            list.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due: now + pause_before(saved.attempt, first) });
+        }
+        return list;
+    }
+
+    /// A list for a service that starts now, with the first pause the variable gives or the default.
+    pub fn restored_from_environment(directory: &Path) -> Self {
+        return Self::restored(first_pause_from(std::env::var_os(RETRY_VARIABLE).as_deref()), directory);
     }
 
     /// The pause before the first new try.
@@ -203,13 +226,21 @@ impl PushRetries {
 
     /// Plan try number `attempt` of the branch of `item` for `due`, replacing any plan for the same branch.
     fn plan(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant) {
-        self.forget(git_dir, item.branch_ref.as_str());
+        self.waiting.retain(|entry| { return !(entry.git_dir == git_dir && entry.item.branch_ref == item.branch_ref); });
         self.waiting.push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due });
+        if let Some(directory) = self.store.as_deref()
+            && let Err(reason) = save(directory, &StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt })
+        {
+            crate::service_warn!("the plan to push {:?} again could not be kept for a restart: {reason}", item.branch_ref);
+        }
     }
 
     /// Drop the plan of a branch: its push landed, or the person must act.
     pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
         self.waiting.retain(|entry| { return !(entry.git_dir == git_dir && entry.item.branch_ref == branch_ref); });
+        if let Some(directory) = self.store.as_deref() {
+            remove(directory, git_dir, branch_ref);
+        }
     }
 
     /// Apply what the workers of a round asked, in the order they asked it.

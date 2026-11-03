@@ -23,7 +23,7 @@ use super::private_storage::remove_tree;
 use super::service_instance::instance_of;
 use super::claim_time::ClaimTime;
 use super::service_retry::RetrySchedule;
-use super::push_retry::PushRetries;
+use super::push_retry::{PLAN_DIRECTORY, PushRetries};
 use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
@@ -567,7 +567,9 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
-    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::from_environment()); });
+    // The plan of the pushes waiting for a new try is kept in this instance's own journal, so a restarted service rebuilds it.
+    let plan_directory: PathBuf = context.journal.join(PLAN_DIRECTORY);
+    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path())); });
     let announced_release: String = settings.release.clone();
     let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     let instance: Option<String> = settings.instance.clone();

@@ -827,6 +827,9 @@ pub mod index_holder_wait;
 /// The service's own retry of a push it stopped or that failed: the pauses, the waiting branches, the final failure.
 pub mod push_retry;
 
+/// The retry plan on disk, in the service instance's journal, so that a restarted service keeps trying the pushes it was trying.
+pub mod push_retry_store;
+
 /// Waiting for a foreign index.lock under the classification rules and Git's backoff schedule.
 pub mod index_lock_wait;
 
