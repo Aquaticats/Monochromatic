@@ -93,6 +93,14 @@ impl Refs {
 
     /// The packed lines as `(name, object name)`, or `None` when the file is not a plain `packed-refs`.
     fn packed(&self) -> Option<Vec<(String, String)>> {
+        return self.packed_named(false);
+    }
+
+    /// The packed lines as `(name, object name)`; with `skip_unplain` a well-formed line whose name is outside the plain
+    ///  alphabet (a tag like `@scope/package@1.0.0`) is left out instead of making the whole file unreadable.
+    /// Why: a lookup of one plain name cannot be answered by a line it leaves out, and a repository with scoped tags would
+    ///  otherwise have no branch the in-process reader can resolve. A line with a damaged object name still ends the read.
+    fn packed_named(&self, skip_unplain: bool) -> Option<Vec<(String, String)>> {
         let bytes: Vec<u8> = match read_regular_file(self.directory.join("packed-refs").as_path(), PACKED_LIMIT) {
             Ok(bytes) => bytes,
             Err(super::private_storage::ReadRefusal::Missing) => return Some(Vec::new()),
@@ -117,11 +125,17 @@ impl Refs {
                 continue;
             }
             let (object, name) = line.split_once(' ')?;
-            if !self.is_name(object) || !is_plain_ref_name(name) {
+            if !self.is_name(object) || name.is_empty() || name.bytes().any(|byte| { return byte < 0x20 || byte == 0x7f; }) {
+                return None;
+            }
+            after_ref = true;
+            if !is_plain_ref_name(name) {
+                if skip_unplain {
+                    continue;
+                }
                 return None;
             }
             packed.push((name.to_string(), object.to_string()));
-            after_ref = true;
         }
         return Some(packed);
     }
@@ -154,7 +168,7 @@ impl Refs {
             Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => {}
             Err(_) => return Lookup::Unsure,
         }
-        let Some(packed) = self.packed() else {
+        let Some(packed) = self.packed_named(true) else {
             return Lookup::Unsure;
         };
         return match packed.into_iter().find(|(candidate, _)| { return candidate == name; }) {
