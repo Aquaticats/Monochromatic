@@ -908,8 +908,10 @@ files as unchanged and hide the edits, so this option must not reuse that step.
   the first commit showed no difference, and `git write-tree` printed the same tree as that worktree.
 - Wall time of that step was 1.03 s with 0.00 s of CPU. The cause is in the trace: the user's global configuration has
   `core.fsmonitor=true`, so the first Git command in a new snapshot started `git fsmonitor--daemon` and waited for it.
-  The wrapper's own Git runs must pin `core.fsmonitor=false` for this step; I did not check that they do, and it matters
-  because each snapshot would otherwise leave a daemon behind (my fixtures left one per snapshot until I stopped them).
+  The wrapper's own Git runs do not pin it today: `src/native/hooks_off.rs` says `core.fsmonitor` "is left as configured".
+  So a Git run of the shipped snapshot rung in a new worktree can pay the same start and leave a daemon behind (my fixtures
+  left one per snapshot until I stopped them); I did not measure that on the shipped rung.
+  This step should pin `core.fsmonitor=false`.
 - On the real main checkout, read only: `git --no-optional-locks status --porcelain=v1 -z --untracked-files=normal` took
   26 ms and `git clean -n -d` 57 ms, with 20445 tracked files.
   So the dirty-set discovery is cheap here; the cost that remains is rewriting the changed files.
