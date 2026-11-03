@@ -94,3 +94,19 @@ fn a_quoted_line_keeps_all_its_tokens() {
     assert!(lines[0].quoted);
     assert!(lines[0].tokens.iter().any(|token: &Vec<u8>| { return token.as_slice() == b"ident"; }));
 }
+
+/// How many bytes the pattern of the work-budget control has.
+const LONG_PATTERN_BYTES: usize = 100_000;
+
+/// How many bytes the path of the work-budget control has.
+const LONG_PATH_BYTES: usize = 4_000;
+
+/// A pattern and a path whose comparison would take more work than the budget say the pattern may apply, at once.
+#[test]
+fn work_past_the_budget_answers_may_apply() {
+    let mut pattern: Vec<u8> = b"a/".to_vec();
+    pattern.extend(std::iter::repeat_n(b'x', LONG_PATTERN_BYTES));
+    let path: Vec<u8> = std::iter::repeat_n(b'y', LONG_PATH_BYTES).collect();
+    assert!(may_apply(pattern.as_slice(), b"", path.as_slice()), "past the budget the answer is yes, never a no that was not worked out");
+    assert!(!may_apply(b"a/x", b"", b"b/x"), "within the budget the answer is still exact");
+}
