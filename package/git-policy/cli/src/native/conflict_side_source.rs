@@ -14,7 +14,7 @@
 //! ```
 
 use super::diagnostic_log::debug;
-use super::fs_beneath::{identity_at, identity_of, open_directory_at, open_file_at, read_link_at, entry_metadata_at};
+use super::fs_beneath::{ObjectId, entry_metadata_at, identity_at, identity_of, open_directory_at, open_file_at, read_link_at};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{Read, Write};
@@ -106,7 +106,10 @@ fn open_parent(root: &Path, relative: &[u8]) -> Result<Option<(File, OsString)>,
                 let reason: String = match error.raw_os_error() {
                     Some(libc::ELOOP) => String::from("is a symbolic link"),
                     Some(libc::ENOTDIR) => String::from("is a file, not a directory"),
-                    Some(libc::EXDEV) => String::from("is on another mount"),
+                    Some(libc::EXDEV) => {
+                        // Git writes through a mount; only this wrapper does not read across one.
+                        return Err(SaveFailure::io(subject, String::from("is on another mount, which the wrapper does not read across")));
+                    }
                     _ => format!("cannot be opened without following a link ({error})"),
                 };
                 return Err(SaveFailure::of_kind(FailureKind::Ancestor, subject, reason));
@@ -206,15 +209,15 @@ fn copy_link(located: &Located, before: &std::fs::Metadata, destination: &Path) 
 pub fn copy_located(located: &Located, destination: &Path, between: &mut dyn FnMut()) -> Result<(), SaveFailure> {
     let shown: String = String::from_utf8_lossy(located.relative.as_slice()).into_owned();
     let io_failure = |error: std::io::Error| -> SaveFailure { return SaveFailure::io(shown.clone(), error.to_string()); };
-    let metadata: std::fs::Metadata = entry_metadata_at(&located.parent, located.name.as_os_str()).map_err(&io_failure)?;
+    let metadata: std::fs::Metadata = entry_metadata_at(&located.parent, located.name.as_os_str()).map_err(io_failure)?;
     if metadata.file_type().is_symlink() {
         return copy_link(located, &metadata, destination);
     }
     if !metadata.file_type().is_file() {
         return Err(SaveFailure::io(shown.clone(), String::from("it is neither a file nor a symbolic link")));
     }
-    let mut from: File = open_file_at(&located.parent, located.name.as_os_str()).map_err(&io_failure)?;
-    let opened: std::fs::Metadata = from.metadata().map_err(&io_failure)?;
+    let mut from: File = open_file_at(&located.parent, located.name.as_os_str()).map_err(io_failure)?;
+    let opened: std::fs::Metadata = from.metadata().map_err(io_failure)?;
     if !opened.file_type().is_file() {
         return Err(SaveFailure::io(shown.clone(), String::from("it is neither a file nor a symbolic link")));
     }
@@ -222,20 +225,20 @@ pub fn copy_located(located: &Located, destination: &Path, between: &mut dyn FnM
     if before != Stamp::of(&metadata) {
         return Err(changed(located, "changed between the look at its name and the open"));
     }
-    let mut to: File = std::fs::OpenOptions::new().write(true).create_new(true).mode_600().open(destination).map_err(&io_failure)?;
+    let mut to: File = std::fs::OpenOptions::new().write(true).create_new(true).mode_600().open(destination).map_err(io_failure)?;
     let written: Result<(), SaveFailure> = (|| -> Result<(), SaveFailure> {
         let mut buffer: Vec<u8> = vec![0; 1 << 16];
         let mut copied: u64 = 0;
         loop {
-            let count: usize = from.read(buffer.as_mut_slice()).map_err(&io_failure)?;
+            let count: usize = from.read(buffer.as_mut_slice()).map_err(io_failure)?;
             if count == 0 {
                 break;
             }
-            to.write_all(&buffer[..count]).map_err(&io_failure)?;
+            to.write_all(&buffer[..count]).map_err(io_failure)?;
             copied += u64::try_from(count).unwrap_or(u64::MAX);
             between();
         }
-        let after: Stamp = Stamp::of(&from.metadata().map_err(&io_failure)?);
+        let after: Stamp = Stamp::of(&from.metadata().map_err(io_failure)?);
         if after != before {
             debug(TAG, &format!("{}: stamp before the copy {before:?}, after {after:?}", String::from_utf8_lossy(located.relative.as_slice())));
             return Err(changed(located, "changed while it was copied"));
@@ -244,13 +247,13 @@ pub fn copy_located(located: &Located, destination: &Path, between: &mut dyn FnM
             return Err(changed(located, format!("gave {copied} bytes where it had {}", before.size).as_str()));
         }
         // The name must still lead, below the same directories and without a link, to the object that was read.
-        let named_now = open_parent(located.root.as_path(), located.relative.as_slice())?
+        let named_now: Option<ObjectId> = open_parent(located.root.as_path(), located.relative.as_slice())?
             .and_then(|(parent, name)| { return identity_at(&parent, name.as_os_str()).ok(); });
         if named_now != identity_of(&from).ok() {
             return Err(changed(located, "no longer holds the file that was copied"));
         }
-        to.set_permissions(<std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(before.mode & 0o777)).map_err(&io_failure)?;
-        return to.sync_all().map_err(&io_failure);
+        to.set_permissions(<std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(before.mode & 0o777)).map_err(io_failure)?;
+        return to.sync_all().map_err(io_failure);
     })();
     if let Err(error) = written {
         // A cut-short file named like a copy would pass for the whole file; the command is rejected, so none is left.

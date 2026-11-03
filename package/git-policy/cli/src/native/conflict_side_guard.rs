@@ -133,6 +133,9 @@ pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], millis
         return SideVerdict::NotApplicable;
     };
     let Some(layout) = read_layout(context.global_prefix.as_slice(), context.overlay.as_slice()) else {
+        // A global option other than `-C` (a pathspec mode such as `--icase-pathspecs` among them) or a `GIT_` variable the
+        // layout reader does not tolerate (such as `GIT_ICASE_PATHSPECS`) lands here: what a pathspec names is then not known.
+        debug(TAG, "not applicable: the layout reader declined this invocation (a global option other than -C, a GIT_ variable it does not tolerate, or a layout it does not read), so the usual rejection stands");
         return SideVerdict::NotApplicable;
     };
     let Some(operation): Option<Operation> = operation_in_progress(layout.git_dir.as_path()) else {
