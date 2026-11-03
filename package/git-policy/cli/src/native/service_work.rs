@@ -282,8 +282,8 @@ fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, i
 /// ```ts
 /// for (const due of request.due.filter((d) => d.gitDir === gitDir)) await settleRetry(await handlers.push([due.item]));
 /// ```
-fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, due: &[Due], replanning: &mut Replanning) {
-    for due in due.iter().filter(|candidate| { return candidate.git_dir == git_dir; }) {
+fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, candidates: &[Due], replanning: &mut Replanning) {
+    for due in candidates.iter().filter(|candidate| { return candidate.git_dir == git_dir; }) {
         let branch: &str = due.item.branch_ref.as_str();
         let commit: &str = due.item.oid.as_str();
         if !is_acceptable(&due.item, git_dir) {

@@ -140,8 +140,8 @@ pub fn drain_directories<H: WorkHandlers + Sync>(request: &RoundDrain<'_, H>) ->
         },
         on_event: &mut |event: Event<'_, (Option<Duration>, Vec<RetryChange>)>| {
             if let Event::End(index, (wait, changes)) = event {
-                if let Some(wait) = wait {
-                    answer.waits.push((directories[index].directory.clone(), wait));
+                if let Some(lease_wait) = wait {
+                    answer.waits.push((directories[index].directory.clone(), lease_wait));
                 }
                 answer.changes.extend(changes);
             }
