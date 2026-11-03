@@ -140,7 +140,7 @@ impl fmt::Display for InstallError {
             InstallError::Cargo { crate_dir, command, output } => {
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Macro `writeln!`: builds or prints text (or a list) from a template.
-                writeln!(formatter, "`{command}` failed in {crate_dir}; every lockfile was restored.")?;
+                writeln!(formatter, "`{command}` failed in {crate_dir}; every lockfile this run changed was put back (a file another process wrote meanwhile is kept and named in the warnings).")?;
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Macro `writeln!`: builds or prints text (or a list) from a template.
                 writeln!(formatter, "Cargo output:\n{}", output.trim())?;
@@ -158,7 +158,7 @@ impl fmt::Display for InstallError {
             }
             InstallError::Registry { message } => {
                 // Macro `write!`: builds or prints text (or a list) from a template.
-                return write!(formatter, "A registry lookup failed; every lockfile was restored: {message}");
+                return write!(formatter, "A registry lookup failed; every lockfile this run changed was put back (a file another process wrote meanwhile is kept and named in the warnings): {message}");
             }
             InstallError::Refused { message } => {
                 // Macro `write!`: builds or prints text (or a list) from a template.

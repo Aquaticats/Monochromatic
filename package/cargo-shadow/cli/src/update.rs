@@ -417,7 +417,7 @@ impl fmt::Display for UpdateError {
                 // console.error(text);   // eprintln!
                 // [a, b]            // vec![a, b]
                 // ```
-                writeln!(formatter, "`{command}` failed in {crate_dir}; every lockfile was restored.")?;
+                writeln!(formatter, "`{command}` failed in {crate_dir}; every lockfile this run changed was put back (a file another process wrote meanwhile is kept and named in the warnings).")?;
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Macro `writeln!`: builds or prints text (or a list) from a template.
                 writeln!(formatter, "Cargo output:\n{}", output.trim())?;

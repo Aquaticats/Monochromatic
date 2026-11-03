@@ -254,7 +254,7 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
                 // ```
                 eprintln!("{text}");
                 // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                eprintln!("cargo-shadow: the command was not run because the install step refused a release (a local run first tries to set a refused release aside for an older one in range, a frozen check cannot change the lockfile)");
+                eprintln!("cargo-shadow: the command was not run: the install step stopped it, for the reason given above");
                 return INSTALL_FAILED_EXIT_CODE;
             }
             Preflight::Failed(text) => text,

@@ -187,11 +187,17 @@ a `GIT_DIR`,
 `GIT_ALTERNATE_OBJECT_DIRECTORIES`,
 `GIT_REPLACE_REF_BASE`,
 `GIT_NO_REPLACE_OBJECTS` or `GIT_REF_PARANOIA` variable,
+a symbolic-link `HEAD` or reference (`core.preferSymlinkRefs`),
 a reference outside `refs/heads`,
 `refs/remotes` and `refs/tags` (worktree-private references),
 an invalid,
-negative or unusual fetch refspec of the remote,
-a branch key written without a value,
+negative or unusual fetch refspec of any remote,
+a `remote.*` or `branch.*` key written without a value,
+a missing upstream of the remote `.` (Git expands such names),
+a repository or `.git` directory that another user owns (Git's own safe-directory decision),
+a system configuration in another place a Git build reads (`/usr/local/etc`,
+`/opt/homebrew/etc`,
+`/usr/etc` and `/etc/git`),
 a symbolic reference where a commit is expected,
 an object that is not seen to be a commit stored whole (a tag,
 a missing object,
@@ -203,15 +209,18 @@ and a short name that a tag or branch shadows (`origin/main`),
 or that also resolves through `refs/remotes/<name>/HEAD`.
 The system configuration is assumed to be `/etc/gitconfig`,
 as distribution builds of Git read it.
-A Git built for another prefix reads its system configuration elsewhere,
-and this reader does not see that file;
-finding the path needs a git start,
-so it is a known limit and not fixed.
+A Git built for another prefix reads its system configuration elsewhere;
+the reader declines when a file exists in a place it knows of,
+but a place it does not know of is a known limit and not fixed
+(finding the path needs a git start).
 The reader is tested against git itself
 (`src/git_differential_tests.rs`:
 each case builds a disposable repository with an isolated home,
 asks `/usr/bin/git` which base it chooses,
-and requires the reader to decline or to agree).
+and requires the reader to decline or to agree;
+`src/git_fallback_tests.rs` runs the whole choice, fallback included, with the same Git and home).
+When the batched start stops before every candidate was answered,
+each candidate is asked on its own, so an unanswered query is never read as a missing revision.
 Measured on 2026-11-03 (a throwaway repository with an upstream,
 `cargo metadata --offline` through the release binaries,
 4 arms alternated per round,
@@ -577,67 +586,73 @@ and an HTTP 429 is retried after its `Retry-After`.
 - Linux only,
   by the owner's word ("Ignore Win and mac until I say so."):
   the crate does not compile elsewhere,
-  because the journal reads `/proc/<pid>` to tell a killed run from a running one.
-  A reused process id reads as alive,
-  which only delays a recovery.
-- Lockfile writes are lock-free,
+  because the replace protocol uses `renameat2` with `RENAME_EXCHANGE` and the journal uses `flock`.
+- Lockfile writes use as few locks as possible,
   as the owner asked ("never discard user data",
-  "use as few locks as possible").
+  "Use as few locks as possible.").
   The pinned nightly has no `--lockfile-path` (checked 2026-11-03),
   so cargo writes the live lockfile.
-  Whether a file is this run's cargo output is decided by the kernel's inode change time (`ctime`),
-  which a writer cannot set and which also moves on a rename:
-  a file that differs from its snapshot and whose `ctime` lies inside the window of the cargo call
-  (from 10 ms before it started to just after it returned) is this run's output;
-  one changed later is another writer's and is never restored over (`src/file_owner.rs`).
-  A writer that publishes within about one scheduler tick of the cargo call,
-  or during it,
-  cannot be told apart from cargo itself;
-  the restore keeps every file it displaces,
-  so that blind spot loses no data.
-  A restore replaces a lockfile only if it still holds what this run's cargo wrote,
-  with `renameat2` and `RENAME_EXCHANGE` (through `rustix`) of an exclusively created,
-  synced temporary file:
-  the file that came out is read through its descriptor,
-  and when it is the expected one it is hard-linked to a surviving name
-  (`.cache/cargo-shadow/displaced/` or beside the target as `.displaced`) before the temporary file is removed;
-  when it is not,
-  the exchange is undone,
-  and a file edited in place after the exchange is kept,
-  not deleted.
-  A filesystem that cannot exchange fails the restore visibly and overwrites nothing.
-  The protocol preserves data;
-  it is not an atomic conditional replacement,
-  and a file written through a descriptor opened before the exchange lands in the kept file.
+  What decides the outcome is not attribution.
+  A restore never unlinks an inode that was live at a path:
+  the file it displaces, and the replacement it exchanged in, each get a surviving name first
+  (`.cache/cargo-shadow/displaced/` or beside the target),
+  so a write through a descriptor opened earlier still lands in a named file,
+  and a file that was misattributed is moved aside with a warning, not lost.
+  The inode change time (`ctime`) of a file against the window of the cargo call
+  (a window that ends before it starts counts as the call's)
+  only chooses between "put the snapshot back and keep the displaced file" and "leave the file alone";
+  it is a hint, not proof of authorship, and a clock step or a coarse file system can make it wrong in either direction.
+  Wrong one way, a foreign file is kept under a named copy.
+  Wrong the other way, cargo's output stays live and the step stops the command (`Unsettled`) instead of building it.
+  A filesystem that cannot exchange fails the restore visibly and overwrites nothing;
+  a file that vanished after the comparison stays vanished.
   A lockfile or manifest that cannot be read as text is an error and is left alone,
   never an empty file.
-  Each lockfile is recorded as this run's output the moment its cargo call returned (even a failing one),
-  so a failure halfway never guesses;
-  a failed step whose rollback cannot complete stops the command,
+  Each lockfile is recorded as this run's output the moment its cargo call returned (even a failing one);
+  a rollback that cannot complete stops the command whether cargo failed or its output was refused,
   so the `--locked` fallback never builds it.
-  The snapshots are journaled under `.cache/cargo-shadow/journal/` and synced to disk;
-  the index is written last as the commit record,
-  with the owner's pid and process start time,
-  and a journal that cannot be started stops the run before cargo runs.
-  If a run is killed,
-  the next run claims the journal by an atomic rename
-  (a claim of a dead claimer can be claimed again;
-  the claim is released on any failure,
-  so the journal is kept)
-  and decides per root:
+  Every run keeps a journal under `.cache/cargo-shadow/journal/<unique name>/`,
+  created exclusively (a journal is never reused or truncated),
+  with the snapshots synced and a `ready` record written last that lists every file with its length.
+  The run holds an exclusive `flock` on a file in the journal for as long as it lives;
+  the kernel releases it when the run dies.
+  A recovery tries for that lock without waiting:
+  held means the owner lives (or another recovery is at work), so the journal is left alone;
+  free means the owner is gone, and the recovery confirms that the locked file is the one at the journal's path.
+  This is one lock per run, a pick open to the owner's veto.
+  No `/proc` lookup, process id or clock decides who lives.
+  A recovery decides every root of the journal:
   it keeps the leftover lockfile when its new versions pass the policy,
-  and otherwise saves it as `Cargo.lock.refused` (or the first free `Cargo.lock.refused.N`,
-  so an earlier copy is never replaced) before putting the snapshot back.
-  The manifests of a killed `--breaking` run are recorded in the journal (lossless path bytes,
-  a versioned record)
-  and follow their own root's decision.
-  The journal is deleted only when every root it lists was settled;
-  an unreadable journal,
-  lockfile or manifest index and a failed step keep it.
+  and otherwise saves it as `Cargo.lock.refused` (or the first free `Cargo.lock.refused.N`)
+  before putting the snapshot back.
+  A root a live transaction covers, a root that failed and a root with no decision are never restored,
+  so a lockfile and its manifests are never split.
+  A `--breaking` run's manifests are in the journal (lossless path bytes, a versioned record, required by the ready record):
+  a ready journal with a missing or short file is kept.
+  A journal that never became ready changed nothing and is removed.
+  A finished journal is renamed to `.done` (the completion marker), then removed;
+  a removal that stopped partway is finished by the next recovery.
+  Data is synced before it is relied on:
+  the displaced file, each new directory with its parent, the kept outputs.
   Power-loss behavior depends on the filesystem honoring `fsync` and is not tested by fault injection.
-  The owner of a journal is recognized by its pid and `/proc/<pid>/stat` start time;
-  where `/proc` is unusable the owner is assumed alive,
-  which only delays a recovery.
+- Nothing waits forever
+  (owner rule of 2026-11-03: "nothing should ever wait forever or indefinitely").
+  Locks are tried, never waited for.
+  Every child process runs under a bound that ends in an error naming the call and the command to run again,
+  with every file kept:
+  a cargo call 30 minutes,
+  a Git call 60 seconds,
+  `file-enforcer write` 5 minutes.
+  A registry request has its own timeout, a pause for an HTTP 429 is at most 2 minutes
+  (a longer `Retry-After` ends the call), and the dump download ends after an hour.
+  These are chosen limits, not measurements.
+  The one exemption is the user's own command that the shim starts after the checks (`cargo build`, `cargo run` and the like):
+  it runs as long as the user lets it, and cargo-shadow does nothing while it runs.
+- `cargo add` and `cargo remove` run cargo first and then only warn about dependencies that skip the catalog.
+  They run no code of the dependency,
+  and the policy is enforced by the install step of the next command that resolves or builds,
+  which checks the lockfile they left.
+  The policy is not applied at the moment of the edit; that is a decision, not an oversight.
 - Until the checks pass,
   cargo's output is in the live lockfile,
   so a plain cargo that is not the shadow can build on it.

@@ -53,11 +53,11 @@ pub mod http;
 /// Runs the repository-wide catalog commands for the CLI.
 pub mod commands;
 
-/// Compare-before-replace for lockfile restores,
-/// and the journal that recovers a killed run.
+/// The restore of lockfiles after a run and the recording side of the journal that recovers a killed run.
 pub mod journal;
 
-/// The atomic compare-and-replace of one file (an exchange that is undone when another writer's file came out).
+/// The preservation protocol that replaces one file (an exchange; every inode that was live keeps a name; not an atomic
+/// conditional replace).
 pub mod journal_replace;
 
 /// The recovery of a run that was killed,

@@ -326,6 +326,41 @@ What changed:
   finding it needs a git start, so this is a stated limit and not fixed.
   Power-loss durability is not tested with fault injection.
 
+## Review findings of the third cross-vendor review (started 2026-11-03T17:33:52Z)
+
+The third review found the replace protocol and the journal still failing on the same schedules, so the protocol changed instead of
+getting another comparison.
+Where an earlier section of this record says a finding was "fixed" and this section says otherwise, this section is current.
+
+- Ownership is no longer what protects data.
+  A restore never unlinks an inode that was live at a path (the displaced file and the replacement each get a surviving name first),
+  a file that vanished stays vanished, and `ctime` only chooses between "restore and keep the displaced file" and "leave alone".
+  Misattribution moves a foreign file aside with a warning, or leaves cargo's output live, which stops the command (`Unsettled`).
+  This is the design the coordinator preferred on 2026-11-03: correctness that does not depend on attribution.
+- Liveness is a lock, not a guess (delegated pick, open to the owner's veto).
+  Every run holds one exclusive `flock` on a file in its own uniquely named journal; a recovery tries for it without waiting.
+  The owner's rule "Use as few locks as possible." allows one per run; it replaces the process-id directory name, the `/proc` start
+  time and the claim rename, which the review showed fail open (reuse, unreadable `/proc`, directory-name reuse, overlapping live runs).
+  A recovery skips roots a live journal covers.
+  A `ready` record, written last, lists every journal file with its length.
+- Durability: file data before it is relied on, each new directory with its parent, kept outputs before the journal goes, a `.done`
+  marker before removal.
+  There is still no fault-injection test, so no power-loss guarantee is claimed.
+- The owner's rule of 2026-11-03, "nothing should ever wait forever or indefinitely", is applied to every wait: locks are tried,
+  child processes run under bounds that end in an error naming the call and the command to run again (cargo 30 minutes, Git 60
+  seconds, `file-enforcer write` 5 minutes, a pause for HTTP 429 at most 2 minutes, the dump download an hour), with every file kept.
+  These are chosen limits, not measurements, and they are delegated picks open to veto.
+  The one exemption is the user's own command after the checks.
+- An update verifies the lockfiles it leaves the way an install does (every locked version, or every version the base did not hold
+  under `trustLockfile`); a rollback that cannot complete stops the command even when the policy report is the reason;
+  the stand-in lockfile is kept before its name is removed; an owners lookup failure leaves a provisional finding unreported;
+  a local pass with a warning is not remembered; a recording error around the sync still puts the catalog back.
+- The Git reader sees symbolic-link references, the remote `.` mapping, exact path text, whole objects and all remote configuration,
+  declines for repositories another user owns and for system configurations in other known places, and every Git call is bounded
+  and reaped.
+  Not fixed: a system configuration in a place no list knows of.
+- `cargo add` and `cargo remove` are an explicit exclusion: the policy is enforced by the install step of the next command.
+
 ## Delegated picks of 2026-11-03
 
 The owner is away for about 8 hours and delegated the open questions of the review work:
