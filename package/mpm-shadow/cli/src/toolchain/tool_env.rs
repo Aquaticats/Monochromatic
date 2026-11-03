@@ -25,7 +25,7 @@ use std::collections::BTreeMap;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `PathBuf` from `std::path`.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Imports `Context` from `super::context`.
 use super::context::Context;
@@ -58,22 +58,144 @@ pub struct ToolEnvOutcome {
 }
 
 /// What:
+/// The refusal for one variable of one tool:
+/// names the tool and variable,
+/// the value,
+/// why it is refused and what to change.
+/// Why:
+/// The person reading it has only this line:
+/// a refused value stops the fragment from being written,
+/// so the message must say that and where to fix it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refusal(toolId: string, name: string, value: string, reason: string): Error
+/// ```
+fn refusal(tool_id: &str, name: &str, value: &str, reason: &str) -> ToolchainError {
+    return ToolchainError::failure(format!(
+        "tool `{tool_id}` declares the environment variable `{name}` = {value:?}, which cannot be exported to mise: {reason}. \
+         The generated mise fragment was not rewritten (an earlier one stays as it was); fix the `env` block of `{tool_id}` in \
+         toolchain.plan.jsonc, run `mpm-shadow install --lockfile-only`, then `mpm-shadow install` again"
+    ));
+}
+
+/// What:
+/// Whether `name` is a plain environment variable name:
+/// an ASCII letter or underscore, then ASCII letters, digits or underscores.
+/// Why:
+/// The name is written as a TOML bare key;
+/// anything else could end the key, start a new line or a table.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isPlainName(name: string): boolean  // /^[A-Za-z_][A-Za-z0-9_]*$/
+/// ```
+fn is_plain_name(name: &str) -> bool {
+    let mut characters = name.chars();
+    let Some(first) = characters.next() else {
+        return false;
+    };
+    if !(first.is_ascii_alphabetic() || first == '_') {
+        return false;
+    }
+    return characters.all(|character| return character.is_ascii_alphanumeric() || character == '_');
+}
+
+/// What:
+/// Checks that a relative value stays below the toolchain root:
+/// every `/`-separated segment is a real name,
+/// never empty (a leading `/` makes an absolute path that replaces the root),
+/// `.` or `..`.
+/// Why:
+/// `Path::join` with an absolute value discards the root,
+/// and `..` climbs out of it;
+/// the person asked for a path inside the toolchain root and no more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function staysInside(value: string): boolean  // value.split('/').every(s => s !== '' && s !== '.' && s !== '..')
+/// ```
+fn stays_inside_root(value: &str) -> bool {
+    for segment in value.split('/') {
+        if segment.is_empty() || segment == "." || segment == ".." {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+/// The characters mise would act on or a line could not hold:
+/// the first one in `text`,
+/// with the reason.
+/// Why:
+/// Mise reads every value as a Tera template (`{{ }}`,
+/// `{% %}`,
+/// `{# #}`) and expands `$NAME`;
+/// a control character (a newline above all) ends the TOML line.
+/// The lock has no value that needs any of them,
+/// so refusing is safer than escaping a dialect this program does not own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unsafeCharacter(text: string): string | undefined
+/// ```
+fn unsafe_character(text: &str) -> Option<&'static str> {
+    for character in text.chars() {
+        if character.is_control() {
+            return Some("it contains a control character (a newline or tab would end the TOML line)");
+        }
+        if character == '{' || character == '}' {
+            return Some("it contains a brace, which mise reads as the start of a template (`{{ }}`, `{% %}`, `{# #}`)");
+        }
+        if character == '$' {
+            return Some("it contains `$`, which mise expands as an environment variable");
+        }
+    }
+    return None;
+}
+
+/// What:
 /// A value of a lock's `env` block as the process sees it:
 /// a value with a `/` is relative to the toolchain root and becomes absolute,
 /// any other value is a literal.
 /// Why:
 /// The plan writes `android-sdk/{version}` so no machine path is committed;
 /// `RUSTUP_TOOLCHAIN` is a channel name, not a path.
+/// Refused when the name or value would be misread (see the checks above).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function resolveValue(toolchainRoot: string, value: string): string
+/// function resolveValue(toolchainRoot: string, toolId: string, name: string, value: string): string  // throws
 /// ```
-fn resolve_value(toolchain_root: &std::path::Path, value: &str) -> String {
-    if value.contains('/') {
-        return toolchain_root.join(value).to_string_lossy().to_string();
+fn resolve_value(toolchain_root: &Path, tool_id: &str, name: &str, value: &str) -> Result<String, ToolchainError> {
+    if !is_plain_name(name) {
+        return Err(refusal(tool_id, name, value, "the name is not a plain identifier (ASCII letters, digits and underscores, not starting with a digit)"));
     }
-    return value.to_string();
+    let mut resolved: String = value.to_string();
+    if value.contains('/') {
+        if !stays_inside_root(value) {
+            return Err(refusal(
+                tool_id,
+                name,
+                value,
+                "a value with `/` is relative to the toolchain root and must not be absolute, empty-segmented, or contain `.` or `..`",
+            ));
+        }
+        if !toolchain_root.is_absolute() {
+            return Err(refusal(
+                tool_id,
+                name,
+                value,
+                &format!("the toolchain root {} is not an absolute path, so the value cannot be made absolute", toolchain_root.display()),
+            ));
+        }
+        resolved = toolchain_root.join(value).to_string_lossy().to_string();
+    }
+    if let Some(reason) = unsafe_character(&resolved) {
+        return Err(refusal(tool_id, name, &resolved, reason));
+    }
+    return Ok(resolved);
 }
 
 /// The TOML basic string for `value`:
@@ -127,12 +249,28 @@ pub fn render_fragment(variables: &BTreeMap<String, String>) -> String {
 /// ```
 pub fn write_tool_env(ctx: &Context) -> Result<ToolEnvOutcome, ToolchainError> {
     let mut variables: BTreeMap<String, String> = BTreeMap::new();
+    // Which tool declared each name first, so a second tool with another value is named in the refusal.
+    let mut owners: BTreeMap<String, String> = BTreeMap::new();
     for tool in ctx.tools {
         if !applies_to_family(&tool.declaration.os, ctx.host.family) {
             continue;
         }
+        let tool_id: &str = &tool.declaration.id;
         for (name, value) in &tool.declaration.env {
-            variables.insert(name.clone(), resolve_value(&ctx.scope.toolchain_root, value));
+            let resolved: String = resolve_value(&ctx.scope.toolchain_root, tool_id, name, value)?;
+            if let Some(existing) = variables.get(name)
+                && *existing != resolved
+            {
+                let owner: &str = owners.get(name).map(String::as_str).unwrap_or("another tool");
+                return Err(refusal(
+                    tool_id,
+                    name,
+                    &resolved,
+                    &format!("tool `{owner}` already declares it as {existing:?}, and one name cannot hold two values"),
+                ));
+            }
+            owners.insert(name.clone(), tool_id.to_string());
+            variables.insert(name.clone(), resolved);
         }
     }
     let file: PathBuf = ctx.scope.mise_env_file.clone();

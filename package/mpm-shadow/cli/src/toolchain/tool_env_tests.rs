@@ -165,6 +165,14 @@ fn a_value_that_leaves_the_root_or_that_mise_would_template_or_expand_is_refused
 }
 
 #[test]
+fn a_relative_toolchain_root_cannot_make_a_value_absolute_and_is_refused() {
+    let mut rig = rig_exporting(&[("ANDROID_HOME", "android-sdk/23.0")]);
+    rig.scope.toolchain_root = std::path::PathBuf::from("relative/root");
+    let error = write_tool_env(&rig.context()).expect_err("the root is relative");
+    assert!(error.message.contains("not an absolute path"), "{error}");
+}
+
+#[test]
 fn a_refused_value_leaves_the_fragment_of_the_last_good_run_in_place() {
     let mut rig = rig_exporting(&[("ANDROID_HOME", "android-sdk/23.0")]);
     write_tool_env(&rig.context()).expect("the fragment is written");
