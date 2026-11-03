@@ -227,7 +227,8 @@ than one appender: a binding or a registry entry is a file created once by `link
 
 Request states: `drafted` (client only) -> `bound` -> `accepted` -> `adopted` -> (`held` | `ready`) -> `publishing` -> (`published` |
 `pending` | `landing` | `rewritten-away`) -> (`materialized` | `voided`) -> `retired`; a hook may end a request as `refused`. A request
-that a client abandons before `accepted` is removed by the lane after the client's process identity is gone.
+that a client abandons before `bound` is removed by the lane after the client's process identity is gone; a `bound` request is never removed
+as abandoned, because C3's recovery obligation is to complete it.
 
 Lane transitions (the owner and its incarnation)
 - L1 acquire. Pre: none. Do: open `lane/owner` (a file created once and never replaced) with close-on-exec, wait for the exclusive lock.
@@ -266,15 +267,24 @@ Capture and acceptance (client)
   `g` (wait for the lane if it is odd); read the logical head, the consumption map, the worktree and the real index; re-read `g` and the
   foreign inputs (the branch tip, and the index entries used); accept only an unchanged even `g` and unchanged foreign inputs, else
   repeat. Crash: nothing durable.
-- C2 spool. Pre: C1. Do: write the spool files and the request record into `incoming/<id>.<hash>/`, fsync each, fsync the directory.
-  Crash: an `incoming` directory with no binding belongs to a dead client and is removed by the lane after the client's identity is gone.
-- C3 bind. Pre: C2. Do: write the binding content (hash of the immutable request and the path of `incoming/<id>.<hash>`) to a temporary
-  file, fsync, then `link` it to `ids/<xx>/<id>` (atomic: complete or absent); if the name exists, read it (always complete): the same
-  hash means resend, go to C4 if the request is not yet in the inbox, else answer from its state; a different hash is rejected with a
-  message. Crash: a binding with a durable `incoming` request and no inbox entry is a reserved request: any same-content resend, or the
-  lane at L4, completes C4.
-- C4 accept. Pre: C3. Do: publish the record into `inbox/<id>` with a no-replace rename or hard link, fsync `inbox/` and its parent,
-  answer `handed over`. Crash: repeated by C4 from the binding.
+- C2 spool. Pre: C1. Do: create a private candidate directory `incoming/<id>.<hash>.<nonce>/` with an exclusive `mkdir` (the nonce is
+  random, so two writers of the same identity never share a directory), write the spool files and the request record into it, fsync each,
+  fsync the directory. The candidate is never opened for writing again after this fsync. Crash: a candidate with no binding belongs to a
+  dead client and is removed by the lane after the client's identity is gone; a candidate that a binding names is never removed here.
+- C3 bind. Pre: C2. Do: write the binding content (hash of the immutable request and the path of this candidate) to a temporary file,
+  fsync, then `link` it to `ids/<xx>/<id>` (atomic: complete or absent). If the name exists, read it (always complete) and route by the
+  identity's state, which the binding, the inbox, the queue and the named lane's ledger together define:
+  - different hash: reject with a message; nothing is accepted;
+  - same hash and this writer lost the race: discard this candidate and use the winner's candidate named in the binding;
+  - reserved (bound, no record in `inbox/`, `queue/` or the ledger): go to C4 from the candidate;
+  - accepted (the record is in `inbox/`): redo the C4 fsyncs (the record, `inbox/`, its parent) before answering, because the record may be
+    visible without being durable, and power loss would remove it; only then answer `handed over`;
+  - adopted (an `adopt` line in the named lane's order file, or the record in `queue/`): answer that it is handed over and adopted;
+  - terminal (a line in the named lane's ledger): answer the recorded outcome.
+  Crash: a binding with a durable candidate and no inbox record is a reserved request: any same-content resend, or the lane at L4, completes C4.
+- C4 accept. Pre: C3. Do: publish the record into `inbox/<id>` from the candidate with a no-replace hard link (the candidate stays where it is
+  and remains the spool the record points to), fsync `inbox/` and its parent, answer `handed over`. Crash: repeated by C4 from the candidate;
+  a request that C5 has adopted is not repeated.
 - C5 adopt (lane). Pre: accepted, no `adopt <id>` yet, L4 done. Do: journal the state change; write generation odd; append
   `adopt <id> <crc>` to `lane/order`; move the record to `queue/`; update the logical tail and consumption map; write generation even.
   Crash: L4 completes the move and the state update; a second `adopt` is never appended.
