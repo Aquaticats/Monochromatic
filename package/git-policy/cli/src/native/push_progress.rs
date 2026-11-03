@@ -1,16 +1,28 @@
 //! What:
-//!  The progress of a push: the bytes read and written by the push and everything it started, sampled at a small interval,
-//!  and the clock that stops it on a stall (no bytes for the stall window) or at a ceiling (running that long in all).
+//!  The progress of a push: whether the push and everything it started are at work, sampled at a small interval, and the
+//!  clock that stops it on a stall (no sign of work for the stall window) or at a ceiling (running that long in all).
 //! Why:
-//!  A fixed deadline stops a slow push that is still moving data and lets a stuck push take its whole deadline. The
-//!  counters are `rchar` and `wchar` of `/proc/<pid>/io`, summed over the push's process tree, chosen by measurement on
-//!  2026-11-03: a 30 MB push to a local bare remote moved 94 MB of `rchar` and 156 MB of `wchar` over its four processes while
-//!  `read_bytes` was 64 KB and `write_bytes` came in delayed bursts from the receiving side's disk writes, so the block-layer
-//!  counters see neither pipes nor sockets and lag behind the transfer. `rchar` and `wchar` count `read` and `write` calls,
-//!  which is how Git moves a pack between its processes (pipes), how `ssh` and Go programs (`git-lfs`) move it to a socket,
-//!  and how `git-remote-https` receives it from `git push`. They do not count `send` and `recv` (measured: 102 bytes of `rchar`
-//!  for 100000 bytes through `send`/`recv`, 100102 through `read`), so a curl-only stretch is seen through the pipe that feeds
-//!  or drains it, which backs up as soon as the socket stops moving.
+//!  A fixed deadline stops a slow push that is still working and lets a stuck push take its whole deadline. A process shows
+//!  that it works in three ways, each read from `/proc`, and only a tree that shows none of them is stalled:
+//!       bytes moved: `rchar` plus `wchar` of `/proc/<pid>/io`, summed over the tree;
+//!       processor time: `utime` plus `stime` of `/proc/<pid>/stat` growing;
+//!       a task able to run or waiting for the disk: state `R` or `D` in `/proc/<pid>/task/<tid>/stat`.
+//!  Measured on 2026-11-03, which decided the three:
+//!       a 30 MB push to a local bare remote moved 94 MB of `rchar` and 156 MB of `wchar` over its four processes while
+//!       `read_bytes` was 64 KB and `write_bytes` came late and in bursts, so the block-layer counters see neither pipes nor
+//!       sockets and lag behind the transfer;
+//!       `rchar` and `wchar` count `read` and `write` calls, not `send` and `recv` (102 bytes for 100000 bytes through
+//!       `send`/`recv`, 100102 through `read`), so a stretch that only curl performs shows through the pipe that feeds it;
+//!       a `dd` of 64 MB with `conv=fsync` was in state `D` in six of seven looks and used 0 processor ticks (a tick is 10 ms),
+//!       so a wait for the disk shows in neither bytes nor processor time, only in the state;
+//!       a parent in `vfork` is in state `D` with 0 ticks, the way the controls hold a tree in disk wait exactly;
+//!       a process reading a silent socket and a `sleep` are in state `S` with a constant tick count, so a wait on a server
+//!       that says nothing is a stall.
+//!  What each costs: bytes miss work that moves none; processor time makes a process that spins or polls look alive, and its
+//!  resolution is a tick; state `D` makes a process wedged for ever in the kernel (a dead network file system) look alive, and
+//!  state `R` one that is only waiting for a processor; the ceiling bounds all three. None of them sees a server that checks the
+//!  push before it answers: that tree is in state `S`, indistinguishable from a dead peer, so a check longer than the stall
+//!  window is stopped, and raising the window is the remedy, which the stop message names.
 //!  Where `/proc/<pid>/io` does not exist (no `/proc`, or a kernel without task I/O accounting) nothing is measured and the
 //!  stall window is a fixed deadline, as before.
 //!
@@ -63,6 +75,66 @@ fn bytes_moved_by(_pid: i32) -> Option<u64> {
     return None;
 }
 
+/// What:
+///  The state letter and the processor ticks (`utime` plus `stime`) of a `/proc/<pid>/stat` line.
+/// Why:
+///   The command name sits in parentheses and may hold spaces and parentheses, so the fields are read after the last
+///  closing parenthesis; the state is the first of them and the two times are the twelfth and thirteenth.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [state, , , , , , , , , , , utime, stime] = text.slice(text.lastIndexOf(')') + 2).split(' ');
+/// ```
+fn parse_activity(stat: &str) -> Option<(char, u64)> {
+    let after_name: &str = stat.get(stat.rfind(')')? + 2..)?;
+    let fields: Vec<&str> = after_name.split(' ').collect();
+    let state: char = fields.first()?.chars().next()?;
+    let user: u64 = fields.get(11)?.parse().ok()?;
+    let system: u64 = fields.get(12)?.parse().ok()?;
+    return Some((state, user.saturating_add(system)));
+}
+
+/// Whether a state letter is one of a task that is at work: able to run (`R`) or waiting for the disk (`D`).
+fn is_working(state: char) -> bool {
+    return state == 'R' || state == 'D';
+}
+
+/// What:
+///  A process's processor ticks, and whether any of its tasks is able to run or waiting for the disk.
+/// Why:
+///   A thread that waits for the disk (an `fsync`) is in state `D` while the process's own state may be `S`, so every task
+///  is read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// { cpu: parse(`/proc/${pid}/stat`).utime + stime, working: tasks(pid).some((task) => 'RD'.includes(task.state)) }
+/// ```
+#[cfg(target_os = "linux")]
+fn activity_of(pid: i32) -> Option<(u64, bool)> {
+    let text: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let (state, ticks): (char, u64) = parse_activity(text.as_str())?;
+    let mut working: bool = is_working(state);
+    if !working && let Ok(tasks) = std::fs::read_dir(format!("/proc/{pid}/task")) {
+        for task in tasks.flatten() {
+            if let Ok(line) = std::fs::read_to_string(task.path().join("stat"))
+                && let Some((task_state, _)) = parse_activity(line.as_str())
+                && is_working(task_state)
+            {
+                working = true;
+                break;
+            }
+        }
+    }
+    return Some((ticks, working));
+}
+
+/// Only Linux reads what a process is doing; elsewhere nothing is.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(target_os = "linux"))]
+fn activity_of(_pid: i32) -> Option<(u64, bool)> {
+    return None;
+}
+
 /// Whether this system counts the bytes of a process at all.
 ///
 /// In TS you'd write (pseudocode):
@@ -74,20 +146,21 @@ fn system_measures() -> bool {
 }
 
 /// What:
-///  The bytes the tree under a root has moved so far, and whether a sample saw more than the one before.
+///  The work of the tree under a root so far, and whether a sample saw any sign of work since the one before.
 /// Why:
-///   A process that ends takes its counters with it, so the total of the live processes can fall; each process is
-///  remembered by its number and start time, and only what it moved since it was last seen is added.
+///   A process that ends takes its counters with it, so each process is remembered by its number and start time, and only
+///  what it moved or used since it was last seen is added; a task able to run or waiting for the disk is a sign of work at
+///  the sample that finds it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class Meter { moved = 0; sample(rootPid): boolean | undefined }
+/// class Meter { moved = 0; sample(rootPid): boolean }
 /// ```
 #[derive(Debug, Default)]
 pub struct Meter {
-    /// What each process of the tree had moved when it was last seen.
-    seen: HashMap<(i32, u64), u64>,
-    /// Everything the tree has moved since the first sample.
+    /// What each process of the tree had moved and used when it was last seen: bytes, then processor ticks.
+    seen: HashMap<(i32, u64), (u64, u64)>,
+    /// Every byte the tree has moved since the first sample.
     moved: u64,
 }
 
@@ -97,26 +170,34 @@ impl Meter {
         return Self::default();
     }
 
-    /// Everything the tree has moved so far.
+    /// Every byte the tree has moved so far.
     pub fn moved(&self) -> u64 {
         return self.moved;
     }
 
-    /// Read the counters of the root and everything below it; true when any of them moved bytes since the last sample.
-    ///  A root that cannot be read (it ended) shows nothing.
+    /// Take one look at one process: true when it moved bytes or used processor time since the last look, or is at work now.
+    fn observe(&mut self, key: (i32, u64), bytes: u64, ticks: u64, working: bool) -> bool {
+        let (bytes_before, ticks_before): (u64, u64) = self.seen.insert(key, (bytes, ticks)).unwrap_or((0, 0));
+        let moved_now: u64 = bytes.saturating_sub(bytes_before);
+        self.moved = self.moved.saturating_add(moved_now);
+        return moved_now > 0 || ticks > ticks_before || working;
+    }
+
+    /// Read the counters and the states of the root and everything below it; true when any of them shows work since the last
+    ///  sample. A root that cannot be read (it ended) shows nothing.
     pub fn sample(&mut self, root: i32) -> bool {
         let mut members: Vec<TreeMember> = member_of(root).into_iter().collect();
         members.extend(descendants_of(root));
         let mut progressed: bool = false;
         for member in members {
-            let Some(total) = bytes_moved_by(member.pid) else {
+            let bytes: Option<u64> = bytes_moved_by(member.pid);
+            let activity: Option<(u64, bool)> = activity_of(member.pid);
+            if bytes.is_none() && activity.is_none() {
                 continue;
-            };
-            let before: u64 = self.seen.insert((member.pid, member.started), total).unwrap_or(0);
-            let delta: u64 = total.saturating_sub(before);
-            if delta > 0 {
+            }
+            let (ticks, working): (u64, bool) = activity.unwrap_or((0, false));
+            if self.observe((member.pid, member.started), bytes.unwrap_or(0), ticks, working) {
                 progressed = true;
-                self.moved = self.moved.saturating_add(delta);
             }
         }
         return progressed;

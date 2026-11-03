@@ -258,7 +258,9 @@ fn disk_wait_probe() {
 
 /// The command that runs the probe: this test binary, the probe only, holding for `hold`, then `then`.
 pub(crate) fn disk_wait_command(hold: Duration, then: &str) -> Command {
-    let mut command: Command = Command::new(std::env::current_exe().expect("this test binary"));
+    #[allow(clippy::disallowed_methods, reason = "identifies the running test binary so the control can start the probe test of it as a process of its own")]
+    let test_binary: std::path::PathBuf = std::env::current_exe().expect("this test binary");
+    let mut command: Command = Command::new(test_binary);
     command
         .args(["--exact", PROBE_NAME, "--nocapture", "--test-threads", "1"])
         .env(PROBE_HOLD_VARIABLE, hold.as_millis().to_string())
@@ -317,4 +319,38 @@ fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
         report.elapsed
     );
     end(child);
+}
+
+/// A `/proc/<pid>/stat` line is read after its last parenthesis: the state, and the user and system ticks added.
+#[test]
+fn a_stat_line_gives_its_state_and_its_processor_ticks() {
+    let line: &str = "4242 (a (odd) name) D 1 4242 4242 0 -1 4194560 100 0 0 0 7 5 0 0 20 0 1 0 12345 1000 10 18446744073709551615";
+    assert_eq!(parse_activity(line), Some(('D', 12)));
+    assert_eq!(parse_activity("1 (x) S 0 1"), None, "a line cut short gives nothing");
+    assert_eq!(parse_activity("no parenthesis"), None);
+    assert!(is_working('R') && is_working('D'));
+    for resting in ['S', 'T', 't', 'Z', 'I'] {
+        assert!(!is_working(resting), "{resting}");
+    }
+}
+
+/// Each sign of work counts alone, at the look that finds it, and a process that shows none is idle: bytes, processor ticks,
+///  a task able to run or waiting for the disk.
+#[test]
+fn each_sign_of_work_counts_alone_and_nothing_counts_for_nothing() {
+    let key: (i32, u64) = (100, 1);
+    let mut meter: Meter = Meter::new();
+    assert!(!meter.observe(key, 0, 0, false), "a process that has done nothing is idle at its first look");
+    assert!(!meter.observe(key, 0, 0, false));
+    assert!(meter.observe(key, 10, 0, false), "bytes");
+    assert_eq!(meter.moved(), 10);
+    assert!(!meter.observe(key, 10, 0, false), "the same bytes are not new work");
+    assert!(meter.observe(key, 10, 1, false), "one processor tick");
+    assert!(!meter.observe(key, 10, 1, false));
+    assert!(meter.observe(key, 10, 1, true), "a task able to run or waiting for the disk, at every look it is found");
+    assert!(meter.observe(key, 10, 1, true));
+    assert!(!meter.observe(key, 10, 1, false), "and idle when it is not");
+    assert_eq!(meter.moved(), 10, "processor time and states are not bytes");
+    assert!(meter.observe((200, 1), 0, 3, false), "a new process that has already used time");
+    assert!(!meter.observe(key, 5, 1, false), "a counter that fell (a number reused) is not work");
 }

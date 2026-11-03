@@ -29,9 +29,12 @@ use std::time::{Duration, Instant};
 /// The stall window of the controls: several sampling intervals, short enough to wait for.
 const STALL: Duration = Duration::from_millis(2000);
 
-/// The stall window of the control that keeps moving: twenty ticks, so a loaded host that delays a few lines does not make
-///  the push stall, and the hook below runs longer than this window.
-const PROGRESS_STALL: Duration = Duration::from_millis(5000);
+/// The stall window of the control that keeps moving: a dozen ticks, so a loaded host that delays a few lines does not make
+///  the push stall, and both phases below run longer than this window.
+const PROGRESS_STALL: Duration = Duration::from_millis(3000);
+
+/// How long the `post-receive` hook of the control that keeps moving waits for its disk, longer than the stall window.
+const POST_PHASE_HOLD: Duration = Duration::from_millis(4500);
 
 /// How long a loaded host may take over a stop beyond its limit and the grace.
 const STOP_SLACK: Duration = Duration::from_secs(30);
@@ -61,7 +64,7 @@ impl Hook {
     fn script(self) -> String {
         return match self {
             Hook::Silent => String::from("#!/bin/sh\nexec sleep 600\n"),
-            Hook::ProgressThenAccept => format!("#!/bin/sh\ni=0\nwhile [ $i -lt 28 ]; do echo tick >&2; sleep {TICK}; i=$((i+1)); done\nexit 0\n"),
+            Hook::ProgressThenAccept => format!("#!/bin/sh\ni=0\nwhile [ $i -lt 20 ]; do echo tick >&2; sleep {TICK}; i=$((i+1)); done\nexit 0\n"),
             Hook::TrickleForever => format!("#!/bin/sh\nwhile :; do echo tick >&2; sleep {TICK}; done\n"),
         };
     }
@@ -73,6 +76,8 @@ struct Stage {
     root: PathBuf,
     /// The working repository.
     repo: PathBuf,
+    /// Variables the push gets besides the wrapper's: the settings of the `post-receive` probe, if the stage has one.
+    extra_environment: Vec<(String, String)>,
 }
 
 /// Build the stage.
@@ -85,7 +90,26 @@ fn stage(name: &str, hook: Hook) -> Stage {
     std::fs::write(script.as_path(), hook.script()).expect("hook");
     std::fs::set_permissions(script.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook mode");
     git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
-    return Stage { root, repo };
+    return Stage { root, repo, extra_environment: Vec::new() };
+}
+
+/// Make the remote's `post-receive` hook hold a thread in disk wait for `hold` after the push was accepted: the phase after
+///  the hook is shaped exactly, where it would otherwise be whatever the disk under the test makes of the ref update.
+fn hold_disk_wait_after_hook(stage: &mut Stage, hold: Duration) {
+    let probe: Command = disk_wait_command(hold, "exit");
+    let line: String = std::iter::once(probe.get_program().to_string_lossy().into_owned())
+        .chain(probe.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }))
+        .map(|word| { return format!("'{word}'"); })
+        .collect::<Vec<String>>()
+        .join(" ");
+    let script: PathBuf = stage.root.join("remote.git").join("hooks").join("post-receive");
+    std::fs::write(script.as_path(), format!("#!/bin/sh\nexec {line}\n")).expect("hook");
+    std::fs::set_permissions(script.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook mode");
+    for (name, setting) in probe.get_envs() {
+        if let Some(value) = setting {
+            stage.extra_environment.push((name.to_string_lossy().into_owned(), value.to_string_lossy().into_owned()));
+        }
+    }
 }
 
 /// The push of the stage, with the environment the wrapper gives its pushes.
@@ -101,6 +125,9 @@ fn push_command(stage: &Stage) -> Command {
         .env("GIT_CONFIG_COUNT", "1")
         .env("GIT_CONFIG_KEY_0", "core.lockfilePid")
         .env("GIT_CONFIG_VALUE_0", "true");
+    for (name, value) in &stage.extra_environment {
+        command.env(name, value);
+    }
     return command;
 }
 
@@ -111,12 +138,14 @@ fn run(stage: &Stage, patience: Patience) -> (PushAttempt, Duration) {
     return (attempt, started.elapsed());
 }
 
-/// A push that keeps moving data past the stall window is not stopped, and finishes.
+/// A push that keeps moving data past the stall window, then waits for its disk past it again (the phase after the hook is shaped
+/// by a probe, so it is exact), is not stopped, and finishes.
 #[test]
 fn a_push_that_keeps_moving_data_past_the_stall_window_is_not_stopped() {
-    let stage: Stage = stage("patience-progress", Hook::ProgressThenAccept);
+    let mut stage: Stage = stage("patience-progress", Hook::ProgressThenAccept);
+    hold_disk_wait_after_hook(&mut stage, POST_PHASE_HOLD);
     let (attempt, elapsed): (PushAttempt, Duration) = run(&stage, Patience::Progress { stall: PROGRESS_STALL, ceiling: Duration::from_secs(120) });
-    assert!(elapsed > PROGRESS_STALL, "the hook runs longer than the stall window: {elapsed:?}");
+    assert!(elapsed > PROGRESS_STALL + POST_PHASE_HOLD, "both phases run, and the second is longer than the window alone: {elapsed:?}");
     assert_eq!(attempt.exit_code, 0, "a push that moves data finishes: {}", attempt.output);
     remove(stage.root.as_path());
 }
@@ -201,7 +230,7 @@ fn a_push_sleeping_on_a_silent_socket_is_stopped_after_the_stall_window() {
     let root: PathBuf = fixture("patience-silent-socket");
     let repo: PathBuf = repository(root.as_path(), "repo");
     git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{port}/silent.git").as_str()]);
-    let stage: Stage = Stage { root, repo };
+    let stage: Stage = Stage { root, repo, extra_environment: Vec::new() };
     let (attempt, elapsed): (PushAttempt, Duration) = run(&stage, Patience::Progress { stall: STALL, ceiling: Duration::from_secs(120) });
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "{}", attempt.output);
     assert!(attempt.output.contains("limit=stall"), "{}", attempt.output);
