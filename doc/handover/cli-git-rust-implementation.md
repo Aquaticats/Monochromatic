@@ -118,6 +118,27 @@ Agent on `perf/git-policy-cli-follow-up-index-in-process` writes the committed e
 as `builtin/commit.c` does for a partial commit,
 and answers the merge's `diff-index` check in process,
 with differential tests against real Git and a measured before and after.
+Found 2026-11-03T08:38:42-05:00 to 08:40:51-05:00 (open, being observed):
+plain `/usr/bin/git` on main runs `diff-index --cached --quiet HEAD --` in 12 ms and
+`--no-optional-locks status --porcelain=v1 -z --untracked-files=no` in 10 ms,
+both inside and outside the shared Bash cgroup
+(`~/temp/agent/tools/main-git-timing.ts`),
+so the 40 s and 30 s wrapped runs are not Git's own work.
+Index 2.8 MB with 20,720 entries;
+3 packs and 8,506 loose objects.
+Main's commit service cgroup
+(`cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a.service`,
+started 08:26:19)
+had hit its `MemoryMax=1G` (`src/native/service_units/cli-git@.service`) 274,736 times,
+with 16,125,924 major page faults;
+the service slice as a whole 582,767 and 29,926,443.
+Inference until observed:
+the service's Git children thrash against the 1 GiB cap.
+The client-side slow steps ran in `claude-code-bash`,
+which never hit its cap (50,897 major faults),
+so they need another explanation.
+Git's `builtin/reset.c` lines 500-504 refresh the whole index unless `--no-refresh`,
+and its "It took N seconds to refresh the index" advice (line 507) is suppressed by `-q`.
 Remaining after that:
 measure commits and merges on the real main checkout against native Git,
 under the load there is,
