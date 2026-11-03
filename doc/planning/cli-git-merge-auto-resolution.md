@@ -1733,3 +1733,77 @@ Scratch scripts, not in the repository: `${HOME}/temp/agent/wlmp/merge-perf.ts` 
 8. A commit through the new executable is about 1.7 ms slower in the median (see "Measurements"); the owner's bound
    (five seconds longer than native Git) holds by three orders of magnitude, but the cause of the 1.7 ms is not isolated.
 9. The corpus holds 41 of the 44 measured inputs and no random-edit comparison against the `jj` binary (see "What was built").
+
+## 2026-11-03T04:16:06-05:00: the finish like a clean run, pull, the attribute tree precedence, Git's bounds, the service's identifier
+
+Follow-ups the owner asked for after the first implementation, on the same branch (merged with
+`integrate/git-policy-cli-conversion-and-lock-free-add` at `9f44842b11` first, with no conflict).
+The red controls came first (`ab31df93c5`: with the finish disabled 11 of the 19 binary controls failed); the code is `2373ad42bc`
+and `d5f0bae69a`.
+
+### Finish like a clean merge
+
+The owner chose "Finish like a clean merge (Recommended)" on 2026-11-03: when every conflicted file resolves, the operation ends
+as Git ends it after a clean run, `--no-commit`, `--squash`, `--edit` and similar stop as Git would, and the continuing step goes
+through the wrapper's own command path.
+The Git 2.56.0 source says what a clean run does (file and line, in `SPEC.md`, "Word-level second merge pass"):
+a merge commits at `builtin/merge.c` line 1828 or, with `--no-commit`/`--squash`, prints "Automatic merge went well; stopped before
+committing as requested" and exits 0 (lines 1867 to 1873); cherry-pick and revert commit with the original message, edit only on
+request (and a revert on a terminal), and Git's own `--continue` is `git commit --no-edit --cleanup=strip` for a conflicted pick
+(`sequencer.c` lines 5354 to 5378); a rebase continues with `git rebase --continue`, which edits the message of the conflicted pick
+(`commit_staged_changes`, line 5381) where a clean pick does not.
+Built in `src/native/merge_second_pass_finish.rs`, called from `resolve_after` in `merge_second_pass_worktree.rs`:
+the continuing command is `run_process` of the same process (`entry.rs`), so a later conflicting pick of a rebase gets the pass again
+(controls: a rebase with two conflicting picks; a cherry-pick range) and the commit goes through the policies (control: a
+`forbidden-strings` policy rejects the ending commit and leaves the merge in progress).
+Findings from the work:
+- A plain `git commit` in a rebase conflict loses the original author (measured), so the rebase is continued with `git rebase --continue`
+  and its editor switched off by an in-process variable (`CLI_GIT_CHILD_SET_GIT_EDITOR`, `child_environment.rs`); a todo list with
+  `reword`, `squash` or `fixup -c` is not finished, because the same setting would switch off the editor those steps want.
+- The hint `# Conflicts:` that Git appends to `MERGE_MSG` is cut before a merge commit (`without_conflicts_hint`).
+- A concluding `git commit` runs `pre-commit` where a clean merge runs `pre-merge-commit`; external hooks are switched off in the
+  wrapper's Git starts either way (`external-hooks-unsupported`).
+- What Git printed when it stopped (`CONFLICT ...`, "Automatic merge failed") is already out; the final status and output are the
+  finishing command's, plus one line per part.
+- Options are read by exact spelling (Git takes abbreviations); an unknown option, `--autostash`, a `branch.<name>.mergeOptions` setting
+  or a nesting deeper than 64 finishes (this implementation's choice) leaves the operation stopped with the files staged, as before.
+
+### Pull
+
+`git pull` is covered: it is an index writer the wrapper already stays alive around, its merge or rebase is a child of Git
+(`builtin/pull.c` lines 525 and 750) that the wrapper never sees, and the state files left after its exit tell which one stopped.
+Impossible or declined modes, from the source: `--autostash` and `branch.<name>.mergeOptions` (the finish cannot see `--no-commit` or
+`--squash` in a setting); a pull whose options this reader does not know exactly.
+
+### The attribute tree
+
+Git's precedence is `--attr-source`, then `GIT_ATTR_SOURCE`, then the configuration `attr.tree`, and an `attr.tree` that is no tree is
+ignored (`attr.c` lines 1202 to 1231). The wrapper names the first side's tip only when none of the three applies
+(`attribute_tree_variables`). The configuration is read in process; the in-process readers decline an environment that holds a `GIT_*`
+variable they do not know (`GIT_EDITOR` is one), and then Git is asked once for `attr.tree`.
+
+### The bounds
+
+- The binary probe is Git's `FIRST_FEW_BYTES`, 8000 (`xdiff-interface.c` line 197).
+- Git's size limit is `MAX_XDIFF_SIZE`, 1023 MiB (`xdiff-interface.h` line 14, `merge-ll.c` lines 117 to 122). It cannot bound this pass: texts that
+  share no line took 0.08 s and 45 MB at 1 MiB, 0.73 s and 352 MB at 8 MiB, 4.12 s and 1320 MB at 32 MiB (release build, one core).
+  The pass takes the smaller of Git's limit and 8 MiB, which is this implementation's choice backed by that measurement.
+
+### The service's journal identifier
+
+The auto-push runs inside `cli-git-service`; its entries carry `cli-git-service`. The commit replay and a push a person typed run
+in the wrapper and keep `cli-git`.
+
+### Tests and guards
+
+Full library suite 3442 passed and 5 skipped, full binary suite 595 passed and 1 skipped, Clippy clean, each run once.
+Guards removed in turn, each failing at least one control: unknown options, `--no-commit`/`--squash` stop, the rebase editor,
+the todo list that wants an editor, the conflict hint cut, the rest of a sequence, the `mergeOptions` decline, the nesting limit, the three
+attribute-tree precedences, the service identifier, the pull rebase state, and `--no-commit` of a pick.
+
+### Needs the owner's decision
+
+1. The ending commit of a merge runs through `git commit`, so `pre-commit` is the hook name where a clean merge runs `pre-merge-commit`.
+2. The 8 MiB bound and the 64 nesting levels are this implementation's choices (measured for the first, not for the second).
+3. One extra Git start for `attr.tree` in an environment the in-process readers decline.
+4. Declining the finish for `pull --autostash` and for `branch.<name>.mergeOptions`.
