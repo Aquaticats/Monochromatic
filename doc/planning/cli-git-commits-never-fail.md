@@ -1617,6 +1617,42 @@ first build; the live protocol is not ready. This revision builds nothing.
   one; (7) Item 6's stale owner-question language is replaced by the outside list plus coordination. Closure: closed.
 - Step 1 expressive power and properties: adopted in "Verification plan and build order".
 
+## Answers to the eighth review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-8.txt`, with a closure line (closed in the model means: closed in the revision 9
+state machine and owed an executable model in step 1; nothing is built). The revision 9 changelog names every changed transition.
+
+- R8-1 (P1), restart without the gate: accepted. L7 requires the exclusive gate and ends nothing without it; L6 reads the restart intent after
+  the shared gate is held; the pick of B-restart is withdrawn for B-hand. An internal wedge that holds the gate is therefore not restarted
+  automatically; the command says how to restart the unit. Closure: closed in the model; red control: restart versus hook dispatch.
+- R8-2 (P1), shared ledger and tail repair: accepted. One ledger per lane with a single appender; L4 repairs only the own ledger; a reader of
+  another lane's ledger treats a torn tail as not yet written. Closure: closed in the model; red control: two lanes, one repairer.
+- R8-3 (P1), shared candidate directory, same-identity writers: accepted. Private candidate directories with a random nonce; C3 routes by
+  the identity's state; the record's fsyncs are redone before any answer; a bound request is never removed as abandoned (the F7 model finding).
+  Closure: closed in the model; red controls: same content from two writers, resend after adoption and retirement, resend of a visible record.
+- R8-4 (P1), capture mixes state: accepted. One atomic `lane/state` document (rule S); the marker only around effects outside it; C0 routes a
+  client out of a dead odd generation; a moving tip does not invalidate capture. Closure: closed in the model; red control: `x=0`, `x=1`,
+  `x=2` with a logical-head mutation between two reads.
+- R8-5 (P1), protection classification races dispatch: accepted. Classification by command kind, not by configuration read at spawn; the
+  alternatives are the C-class owner question. Closure: closed in the model; red control: a hook installed after classification.
+  S-1 and S-2 (the shipped sweeper and judge): accepted. The design depends on neither; it works with zero removals and states what it needs
+  from `fix/git-policy-cli-never-removes-a-live-lock`; A-keep and A-kill are recorded as an accepted narrowing, not as a removal by construction.
+- R8-6 (P2), consumption release after voiding: accepted. Voiding ends installation authority and keeps a suppression; release is by
+  observable state (M3); a superseded held version gets a durable outcome (B3). Closure: closed in the model; red control: the foreign
+  successor followed by a plain commit of `y`, and a superseded held version.
+- R8-7 (P2), T1 and the terminal predicate: accepted. T1 uses G3's predicate and a release intent; later admissions are covered by the
+  reachability argument, with the residue stated (a person rewriting the branch after the check and then pruning). Closure: closed in the
+  model for the stated boundary; red control: admission racing the final release.
+- R8-8 (P2), completeness: accepted in full. The lifetime owner lock is exempt from the "nothing but L6" wording; the fresh lane skips L2;
+  B1 records `ready`; `hook-ok` makes a hook run once per version (the H question); Q1 resumes pending and landing; the foreground makes
+  one try and background attempts are Q1; E1 classifies every P2 exit; M1 recovers by journaled lock identity and names every per-path
+  outcome; detached and unborn targets are defined; the client result has three facts; MG1 to MG6 carry the merge. Closure: closed in
+  the model; red controls: every M1 crash boundary, merge refusal with a concurrent editor, lost swap after checkout.
+- Owner picks A2 and B2 (now A-keep, A-kill, B-hand, B-restart): A-kill stays as an explicitly accepted narrowing and the record does not claim a proof
+  the shipped rule lacks; B-restart is withdrawn for B-hand and the two questions are no longer coupled through lock cleanup.
+- Not a defect: none of the eight findings was rejected. One reading was refined: the review's phrase "the lane-lock lifetime" is answered by an
+  exemption in P2's wording, not by releasing `lane/owner`, because releasing it would let a second owner reap a live incarnation.
+
 ## Exits that stay nonzero
 
 - Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
