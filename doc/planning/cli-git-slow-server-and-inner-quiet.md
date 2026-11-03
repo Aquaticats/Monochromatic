@@ -171,6 +171,15 @@ dead peer, so a server check longer than the window ends in a stop and a retry.
   output, and it keeps checking. The silence of a wait does not count against the window, so when the connection is no longer
   open (no tree process holds an established socket) the stall window runs again from that moment. The ceiling (30 minutes
   by default) still bounds the push.
+- Superseded in part (2026-11-03, after this decision was built): pick 5 of `cli-git-shipped-limits-audit.md`,
+  "Push stall window, ceiling and Git's low-speed abort", option A, "Wait while connected" whole,
+  made by the coordinator under the owner's delegation and open to the owner's veto,
+  removes three things this decision kept.
+  The pack-sent test is gone: an open connection is waited for in every phase, including before the first answer.
+  The ceiling and its variable are gone.
+  The scope is the push, the reconcile fetch and the LFS upload, and none of them gets a low-speed abort.
+  What remains is the stall window for a tree with no open connection.
+  `SPEC.md`, "Wait while connected", is the current text.
 
 ### What Git 2.56.0 does after the pack is sent
 

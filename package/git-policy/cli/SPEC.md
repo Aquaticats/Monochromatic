@@ -1300,7 +1300,7 @@ A push the service stopped or that failed is tried again by the service on its o
 The person must act for a conflict, for a login the service does not have, and for a hook on the server that declined the push
 (owner decision, 2026-11-03: "Offline is retried, but auth and server hook declines stop until your next commit."):
 these stop the retry until the person's next commit, and the failure record says in plain words which one it was.
-Being offline, a stall, the ceiling and a held lock are tried again.
+Being offline, a stall, an HTTP 5xx answer of the LFS server and a held lock are tried again.
 A rejection by the server with a reason no rule names is tried again, and the journal names its line.
 The classification reads Git's own words, which are cited beside the rules in `src/native/push_retry.rs`.
 The plan is owned by the service's work loop alone: a round takes what is due for each repository out of it before the
@@ -1511,15 +1511,15 @@ in-process reader can) gives every value of the multi-valued keys.
   which would repeat a push that cannot succeed.
   When the branch could not be fast-forwarded it stays behind the remote,
   and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
-- No step of the push waits without a bound.
-  The push is stopped on no progress, under a ceiling.
+- No push without a connection waits without a bound, and no push with an open connection is stopped for time.
+  The push is stopped on no progress and no open connection, and under no ceiling.
   A push is at work, and not stalled, when the push or any process it started shows one of three signs,
   each read from `/proc` twice a second (`SAMPLE_INTERVAL` in `push_progress.rs`):
   it moved bytes, which is `rchar` plus `wchar` of `/proc/<pid>/io` growing;
   it used processor time, which is `utime` plus `stime` of `/proc/<pid>/stat` growing;
   or a task of it is able to run (state `R`) or waiting for the disk (state `D`) at the look,
   read per task in `/proc/<pid>/task/<tid>/stat`, because a thread waits in an `fsync` while the process itself sleeps.
-  Only a tree that shows none of them for the stall window is stalled.
+  Only a tree that shows none of them for the stall window, and holds no open connection to a remote, is stalled.
   The three were chosen by measurement on 2026-11-03:
   a 30 MB push to a local bare remote moved 94 MB of `rchar` and 156 MB of `wchar` over its four processes,
   while `read_bytes` was 64 KB and `write_bytes` arrived late and in bursts from the receiver's disk writes,
@@ -1534,28 +1534,46 @@ in-process reader can) gives every value of the multi-valued keys.
   bytes alone stop a push that is busy on a slow disk, as a gate saw (an `fsync` of 5 seconds after the hook, 13 seconds in all);
   processor time makes a process that spins or polls look alive, at a resolution of one tick;
   state `D` makes a process wedged for ever in the kernel look alive, and state `R` one that only waits for a processor;
-  the ceiling bounds all of these.
+  no total time bounds them (see "Wait while connected" below).
   A server that checks the push after the pack arrived (GitHub's pre-receive hooks) is in state `S` with nothing moving.
-  Owner decision (2026-11-03), verbatim: "Wait while connected (Recommended)", meaning that bytes on the push's network socket
-  count as progress, and that once the pack is sent the push keeps waiting while the connection to the remote is open,
-  with a line naming the wait; the owner accepted that a connection that dies without a reset is noticed only when TCP gives up.
+  Wait while connected.
+  Owner decision (2026-11-03), verbatim: "Wait while connected (Recommended)", meaning that bytes on the push's network
+  socket count as progress, and that the push keeps waiting while the connection to the remote is open,
+  with a line naming the wait; the owner accepted that a connection that dies without a reset is noticed only when
+  TCP gives up.
+  Pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`, "Push stall window, ceiling and Git's low-speed abort",
+  option A, "Wait while connected" whole, is the coordinator's under the owner's delegation
+  ("Pick options as if I had picked them and invite veto when I say I'm back", 2026-11-03)
+  and is open to the owner's veto:
+  no stall window for a connected push, no ceiling, no low-speed abort.
   The sources are the kernel's socket diagnostics, read in the process (`tcp_sockets.rs`, `NETLINK_SOCK_DIAG`,
   `man 7 sock_diag`): for each connected socket of the machine its state, its inode, and `tcpi_bytes_acked` plus
-  `tcpi_bytes_received` of its `struct tcp_info` (`include/uapi/linux/tcp.h`); the push's sockets are the `socket:[<inode>]`
-  links in `/proc/<pid>/fd` of the push and of each process below it.
+  `tcpi_bytes_received` of its `struct tcp_info` (`include/uapi/linux/tcp.h`);
+  the push's sockets are the `socket:[<inode>]` links in `/proc/<pid>/fd` of the push and of each process below it.
   Growth of those bytes is a fourth sign of work, and counts in `bytes_moved`.
-  The pack is sent, and the push waits instead of stalling, when the stall window runs out and all of these hold:
-  a process of the tree holds a socket in state `ESTABLISHED` (the connection is open);
-  no process of the tree runs `git pack-objects` (the pack is not being made);
-  and either a `git pack-objects` was seen at an earlier look or `git send-pack` is below the push
-  (what `git-remote-http` starts once the remote's refs are known; a push over `git://` or `ssh` has the first sign only).
-  A connection with neither sign is still waiting for the remote's first answer, and is a stall as before.
-  Only `git push` waits this way; a fetch, an LFS upload and every other bounded run keep the stall rule as it was.
-  The wait begins once the stall window has run out with these signs, and is said once, as a line that starts with
-  `cli-git: git push is waiting for the server` in the push's output and in the diagnostic log.
-  Silence during the wait is not counted against the window, so when the connection closes (no process of the tree holds an
-  established socket) the stall window runs again from that moment, and the push is stopped as before.
-  The ceiling, 30 minutes by default, still bounds the wait, and then says `most of it waiting for the server`.
+  What the code observes as "connected" is exactly this: a process of the tree holds a socket in state `ESTABLISHED`.
+  The phase of the push is not consulted
+  (making the pack, pack sent, the server's checks, no answer yet to the first request),
+  because an open connection is a remote that has not closed it, whatever it is doing.
+  What the code cannot observe: a remote that died, or a network that dropped, without a reset or a close leaves the
+  socket `ESTABLISHED` until TCP gives up.
+  TCP gives up by retransmission for unacknowledged data and by keepalive probes for an idle connection;
+  Git's HTTP client turns the probes on (`CURLOPT_TCP_KEEPALIVE`, `http.c` of Git 2.56.0),
+  and `ssh` and `git://` leave them to the kernel's default.
+  No number is invented to tell a dead remote from a slow one.
+  Where the kernel's socket list cannot be read, the connection cannot be seen, and the stall window applies.
+  The wait begins once a tree with an open connection has shown nothing for the stall window,
+  and is said once, as a line that starts with `cli-git: <program> <subcommand> is waiting for the server`
+  (`git push`, `git fetch` or `git-lfs push`) in the run's output and in the diagnostic log.
+  Silence during the wait is not counted against the window, so when the connection closes
+  (no process of the tree holds an established socket) the stall window runs again from that moment,
+  and the run is stopped as before.
+  The rule covers every network run of the auto-push: the push, the reconcile fetch and the Git LFS upload.
+  That scope is the choice of the agent that built the pick, not the coordinator's and not the owner's:
+  the owner's answer named the push, the audit's low-speed entry names the fetch,
+  and the upload runs through the same clock.
+  It is flagged for the coordinator; a second patience without the connected branch, handed to the fetch and the upload,
+  undoes it in a few lines.
   Measured on 2026-11-03 over HTTP to Git's own `http-backend` with `receive.keepAlive` at 0 ("set to 0 to disable keepalives
   entirely") and a `pre-receive` hook that sleeps four stall windows: the push is stopped at the first window before this change
   and lands on its first try after it.
@@ -1563,37 +1581,48 @@ in-process reader can) gives every value of the multi-valued keys.
   payload) every `receive.keepAlive` seconds, default 5, once the hook phase begins; `send-pack.c` waits in `receive_status`
   with the demultiplexer reading the sideband after `pack_objects` has returned; `http.c` sets `CURLOPT_TCP_KEEPALIVE` always.
   Whether GitHub sends keepalives is unknown.
-  Over HTTP the wrapper used to set `GIT_HTTP_LOW_SPEED_LIMIT` (1000 bytes per second) and `GIT_HTTP_LOW_SPEED_TIME` (60 seconds)
-  for the push unless the person set them, and libcurl's `Curl_speedcheck` fails a transfer "Operation too slow" when the speed
-  stays under the limit for the time, which keepalives of five bytes every five seconds do not prevent: a silent check longer than
-  60 seconds ended in a failed push (measured on 2026-11-03: "curl 28 Operation too slow. Less than 1000 bytes/sec transferred
-  the last 60 seconds").
-  Decision of the coordinator, on the owner's answer and its accepted con: a `git push` of the wrapper now sets neither variable.
-  Git sets neither itself (`http.c`, Git 2.56.0: configuration at lines 453 to 460, environment at 1477 and 1478, libcurl only
-  when both are positive at 1218 to 1223), so the wait ends when the server answers, the connection closes or TCP gives up.
-  A limit and time the person set in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime` reach Git unchanged
-  and still apply (`push_slow_server_tests.rs` shows a 2 second setting ending a silent wait).
-  The auto-push's fetch and the LFS upload keep the defaults they had.
+  Over HTTP the wrapper used to set `GIT_HTTP_LOW_SPEED_LIMIT` (1000 bytes per second)
+  and `GIT_HTTP_LOW_SPEED_TIME` (60 seconds) for the push and for the reconcile fetch unless the person set them.
+  libcurl's `Curl_speedcheck` fails a transfer "Operation too slow" when the speed stays under the limit for the time,
+  which keepalives of five bytes every five seconds do not prevent:
+  a silent check longer than 60 seconds ended in a failed push
+  (measured on 2026-11-03: "curl 28 Operation too slow. Less than 1000 bytes/sec transferred the last 60 seconds").
+  The wrapper now sets neither variable for any run it starts.
+  Git sets neither itself (`http.c`, Git 2.56.0: configuration at lines 453 to 460, environment at 1477 and 1478,
+  libcurl only when both are positive at 1218 to 1223),
+  so the wait ends when the remote answers, the connection closes or TCP gives up.
+  A limit and time the person set in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime`
+  reach Git unchanged and still apply (`push_slow_server_tests.rs` shows a 2 second setting ending a silent wait).
   A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before.
-  The ceiling bounds the opposite case as well, a push that never stalls.
-  Two limits apply, each in whole seconds and each ignored when zero, negative, fractional or non-numeric:
+  There is no ceiling: no total time ends a run that shows progress or holds an open connection (pick 5, above).
+  The cost, which the pick accepts: a process that spins or polls, or sits in state `D` for good,
+  shows a sign of work for ever and holds the service's push of its repository;
+  nothing the code can observe tells that from work.
+  One limit applies, in whole seconds and ignored when zero, negative, fractional or non-numeric:
   the stall window, `CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 by default (`DEFAULT_PUSH_DEADLINE`),
-  is how long the push may show no sign of work;
+  is how long a tree with no open connection may show no sign of work;
   the variable keeps its name, so a setting made for the old fixed deadline now sets the stall window,
   and it is not an alias of anything else.
-  The ceiling, `CLI_GIT_PUSH_CEILING_SECONDS`, 1800 by default (`DEFAULT_PUSH_CEILING`),
-  is how long the push may run in all, however much it moves, so a trickle that never stalls cannot hold the service for good.
+  Citation of the 30 seconds: none determines it.
+  The owner decided the rule ("Stop only on no progress (Recommended)"), not the number.
+  The journal of the commit service (read-only, 2026-10-20 to 2026-11-03: 794 pushes that landed)
+  holds whole-push times of p50 3.5 s, p99 26.4 s and maximum 72.4 s,
+  which include connected time and so do not measure the silence of a push that has no connection;
+  no such silence is logged.
+  It stays an open question for the owner, recorded in the audit.
+  The variable `CLI_GIT_PUSH_CEILING_SECONDS` no longer exists.
   A stop reports the limit that was hit:
   `limit=stall` with `made no progress for <window> seconds`,
-  or `limit=ceiling` with `was still running after <ceiling> seconds, though it kept moving data`
-  (`most of it waiting for the server` instead of the last words when the push waited),
-  and in both `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output, which the service journals.
+  and `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output, which the service journals.
   Where `/proc/<pid>/io` cannot be read (a system without `/proc`, such as macOS, or a kernel without task I/O accounting)
   nothing is measured: the stall window is then a fixed deadline for the whole push, as it was before,
-  the ceiling is not consulted, and the line says `limit=deadline`.
+  an open connection cannot be waited for, and the line says `limit=deadline`.
   Read-only Git queries have no transfer to measure and keep a fixed bound.
   Past a limit the push is asked to end with `SIGTERM` (its helpers and hooks too),
-  killed after a five second grace,
+  killed after a five second grace (`STOP_GRACE`; citation,
+  partial: the helpers of a stopped push were measured on 2026-11-03
+  to outlive it for 60 seconds, a `git-lfs` that never answers for good, and empty tracking-ref locks appeared about 37
+  seconds after a stop, which justify the kill and the sweep and not five seconds; an open question for the owner),
   and reported as failed with exit code 124.
   The same stop (a catchable request, five seconds, then the kill) ends every Git child the wrapper stops:
   the push, its read-only queries, the reconcile fetch, the Git LFS upload and a Git step of a commit
@@ -1629,12 +1658,11 @@ in-process reader can) gives every value of the multi-valued keys.
   The one case the rules cannot tell apart is a Git that writes no pid files (not started by the wrapper)
   holding an empty lock for longer than the settle time while a stopped tree ends:
   its lock is taken for a left one, and that process then fails loudly when it renames its lock.
-  A push whose output grows past 4 MiB is stopped the same way, and only the first 4 MiB are kept.
+  A push whose output grows past 4 MiB (`MAX_PUSH_OUTPUT`) is stopped the same way, and only the first 4 MiB are kept.
+  Citation of the 4 MiB: none; the owner decided "Keep all lines" for push output and no
+  measurement of the size of a push's output is logged; an open question for the owner.
   The commit stays saved.
-  Git's low-speed abort is added to the push's environment
-  (`GIT_HTTP_LOW_SPEED_LIMIT=1000`, `GIT_HTTP_LOW_SPEED_TIME=60`)
-  for each variable the invocation's environment does not set,
-  which also overrides `http.lowSpeedLimit` and `http.lowSpeedTime` from Git configuration.
+  No low-speed abort of the wrapper's own is added to any run it starts (see "Wait while connected" above).
   Each read-only Git query before the push
   (`config`,
   `for-each-ref`,
@@ -1642,8 +1670,11 @@ in-process reader can) gives every value of the multi-valued keys.
   `remote get-url`,
   `merge-base`)
   stops at the push deadline or 120 seconds,
-  whichever is shorter,
+  whichever is shorter (`QUERY_CEILING`),
   and a stopped query is a failure that names it.
+  Citation of the 120 seconds: none; "queries read local repository state and finish in milliseconds" is a rationale
+  and no figure is logged.
+  It is an open question for the owner, and the kill of a query belongs to the audit's question on Git child steps.
 - A push that lost a race on a pending reference lock (`cannot lock ref` in a push that otherwise delivered)
   is repeated up to three times with growing pauses, because the two worktrees' services share the references.
 - A failed push is reported with its complete output and the note
@@ -2043,13 +2074,23 @@ The step:
   The child's standard error goes to a private anonymous file; the wrapper reads it back after each run and relays it
   with the user and password of every `scheme://userinfo@host` URL replaced by `<credentials>` (standard output stays
   the caller's). When that file cannot be made, the push is refused with the ways forward.
-  A run that fails with a server error is run again at most twice, after 2 seconds and after 5 seconds
-  (`RETRY_DELAYS` in `lfs_server_retry.rs`; `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` replaces them in tests). A server
-  error is a line of `git-lfs` with its `Fatal error: ` prefix, which `lfshttp/errors.go` gives only to HTTP 5xx answers
-  other than 501, 507 and 509 (`git-lfs` never repeats them; the text after the prefix is the server's own JSON `message`
-  or `Server error: <url>` or `Server error <url> from HTTP 5xx`), with no line naming a refused credential, a
-  missing or corrupt local object, a client error or locked files. Everything else, a signal and a stop by deadline
-  included, ends the step at once.
+  A run that fails is never run again by the wrapper, whatever the cause:
+  the step ends at once with the program's status and the explanation.
+  An HTTP 5xx answer of the LFS server is classed as outside our control, a server fault like "Network down"
+  (pick 12 of `doc/planning/cli-git-shipped-limits-audit.md`, "LFS server-error retry",
+  the coordinator's under the owner's delegation and open to the owner's veto),
+  and is retried by the commit service's push retry plan alone.
+  A 5xx answer is a line of `git-lfs` with its `Fatal error: ` prefix,
+  which `lfshttp/errors.go` gives only to 5xx answers other than 501, 507 and 509;
+  the text after the prefix is the server's own JSON `message`,
+  or `Server error: <url>`, or `Server error <url> from HTTP 5xx`.
+  The plan tries again every push whose failure it cannot read as final, and nothing in the words of a 5xx is final
+  (`push_retry.rs`, `final_failure`; `an_lfs_server_error_is_tried_again_by_the_plan`).
+  The earlier in-place retries, after 2 seconds and after 5 seconds,
+  and the variable `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` that replaced them in tests, are gone,
+  so there is one retry mechanism.
+  A typed `git push` has no plan: it ends at the first 5xx with `git-lfs`'s own words and the explanation,
+  and the person pushes again.
 - What is uploaded.
   The destinations and refs come from the push's own arguments, read with the same option table as the rest of the
   wrapper, and from the configuration Git would read for what the arguments leave out. The configuration entries

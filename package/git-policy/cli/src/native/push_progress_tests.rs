@@ -3,7 +3,7 @@
 //! Why:
 //!  The stop on no progress is only as exact as the bytes it counts and the limits it keeps, so each is pinned on both sides:
 //!  bytes of the root and of what it started count, an idle tree counts nothing, a moving tree never stalls, a stalled tree
-//!  stops at its window, a trickle stops at its ceiling, and where nothing is measured the window is a fixed deadline.
+//!  stops at its window, no total time stops a moving tree, and where nothing is measured the window is a fixed deadline.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -152,7 +152,7 @@ fn a_fixed_patience_stops_at_its_limit() {
 fn a_tree_that_moves_nothing_stalls_at_its_window() {
     let child: Child = spawn_owned(Command::new("sleep").arg("60")).expect("sleep");
     let stall: Duration = Duration::from_millis(1200);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling: Duration::from_secs(600) });
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall });
     let began: Instant = Instant::now();
     let cause: StopCause = loop {
         if let Some(cause) = clock.check() {
@@ -168,26 +168,21 @@ fn a_tree_that_moves_nothing_stalls_at_its_window() {
     end(child);
 }
 
-/// A tree that keeps moving never stalls, and a trickle stops at the ceiling with the ceiling in the report.
+/// A tree that keeps moving is not stopped for time at all: no total bound ends a push that shows progress.
 #[test]
-fn a_tree_that_keeps_moving_stops_only_at_the_ceiling() {
-    let root: std::path::PathBuf = fixture("progress-ceiling");
+fn a_tree_that_keeps_moving_is_never_stopped_for_time() {
+    let root: std::path::PathBuf = fixture("progress-no-ceiling");
     let child: Child = shell("while :; do echo x >> log; sleep 0.1; done", root.as_path());
     let stall: Duration = Duration::from_millis(1500);
-    let ceiling: Duration = Duration::from_millis(4000);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling });
+    let watched: Duration = stall * 3;
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall });
     let began: Instant = Instant::now();
-    let cause: StopCause = loop {
-        if let Some(cause) = clock.check() {
-            break cause;
-        }
-        assert!(began.elapsed() < PATIENCE);
+    let mut stopped: Option<StopCause> = None;
+    while stopped.is_none() && began.elapsed() < watched {
+        stopped = clock.check();
         std::thread::sleep(LOOK);
-    };
-    let StopCause::Ceiling(report) = cause else { panic!("the ceiling, not a stall") };
-    assert_eq!(report.limit, ceiling);
-    assert!(report.elapsed >= ceiling, "the stall window of {stall:?} passed with data moving and nothing stopped it");
-    assert!(report.moved > 0);
+    }
+    assert!(stopped.is_none(), "data kept moving, so nothing stops the tree");
     end(child);
     remove(root.as_path());
 }
@@ -266,7 +261,7 @@ fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
     let root: std::path::PathBuf = fixture("progress-unmeasured");
     let child: Child = shell("while :; do echo x >> log; sleep 0.1; done", root.as_path());
     let stall: Duration = Duration::from_millis(600);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling: Duration::from_secs(600) }).unmeasured();
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).unmeasured();
     let began: Instant = Instant::now();
     let cause: StopCause = loop {
         if let Some(cause) = clock.check() {
@@ -371,7 +366,7 @@ fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
     probe.stdout(Stdio::null()).stderr(Stdio::null());
     let child: Child = spawn_owned(&mut probe).expect("start the probe");
     let stall: Duration = Duration::from_millis(1500);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling: Duration::from_secs(600) });
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall });
     // The probe's own start-up counts as work; the hold begins after it and lasts well past the window.
     let began: Instant = Instant::now();
     let cause: StopCause = loop {

@@ -358,9 +358,6 @@ fn the_real_upload_precedes_the_auto_push_of_a_commit() {
     remove_settled(&fixture);
 }
 
-/// The retry delays the controls inject: a millisecond each, so no control waits for the real ones.
-const FAST_RETRIES: (&str, &str) = (git_policy_cli::lfs_server_retry::RETRY_DELAYS_VARIABLE, "1,1");
-
 /// How many batch requests the server has seen.
 fn batches(server: &LfsServer) -> usize {
     return server.state.lock().expect("state").batches;
@@ -436,46 +433,26 @@ fn a_remote_with_a_push_url_keeps_the_full_scan() {
     remove_settled(&fixture);
 }
 
-/// A server that answers HTTP 503 twice and then works: the push is run again, the object arrives once, the pointer follows.
-#[test]
-fn a_brief_server_error_is_retried_and_the_push_succeeds() {
-    let fixture: Fixture = fixture("lfs-real-retry");
-    let Some((repo, origin, server, content)) = lfs_world(&fixture) else {
-        return;
-    };
-    use_credentialed_url(&fixture, repo.as_path(), &server);
-    server.state.lock().expect("state").fail_batches = 2;
-    let pushed: Observed = push_main(&fixture, repo.as_path(), &[FAST_RETRIES]);
-    let stderr: String = stderr_of(&pushed);
-    assert_eq!(pushed.code, Some(0), "{stderr}");
-    assert_eq!(batches(&server), 3, "two refused batch requests and the one that worked: {stderr}");
-    let uploads: Vec<Upload> = server.uploads();
-    assert_eq!(uploads.len(), 1, "{stderr}");
-    assert_eq!(uploads[0].bytes, content);
-    assert_eq!(uploads[0].origin_main, "absent");
-    assert!(stderr.contains("retry 1 of 2") && stderr.contains("retry 2 of 2"), "{stderr}");
-    assert!(stderr.contains("Fatal error: Server error http://<credentials>@127.0.0.1"), "git-lfs's own words are relayed, masked: {stderr}");
-    assert!(stderr.contains("from HTTP 503"), "{stderr}");
-    assert!(!stderr.contains("secret"), "the token never reaches the caller: {stderr}");
-    assert_ne!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
-    drop(server);
-    remove_settled(&fixture);
-}
+/// How long the service waits before its first new try of a push in the control that must see no new try: far past the control.
+const NO_NEW_TRY_SECONDS: &str = "600";
 
-/// A server error that outlasts the allowance stops the push after the first run and two retries, with the explanation.
+/// A typed push whose server answers HTTP 503 fails on the first answer: the wrapper does not run `git-lfs push` again (pick 12
+///  of the shipped-limits audit, the coordinator's under the owner's delegation), the program's words are relayed with the
+///  credentials hidden, the explanation follows, and nothing is published.
 #[test]
-fn a_server_error_that_lasts_stops_after_two_retries() {
-    let fixture: Fixture = fixture("lfs-real-retry-spent");
+fn a_server_error_ends_a_typed_push_at_once() {
+    let fixture: Fixture = fixture("lfs-real-server-error-once");
     let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
         return;
     };
     use_credentialed_url(&fixture, repo.as_path(), &server);
-    server.state.lock().expect("state").fail_batches = 99;
-    let pushed: Observed = push_main(&fixture, repo.as_path(), &[FAST_RETRIES]);
+    server.state.lock().expect("state").fail_batches = 2;
+    let pushed: Observed = push_main(&fixture, repo.as_path(), &[]);
     let stderr: String = stderr_of(&pushed);
     assert_ne!(pushed.code, Some(0), "{stderr}");
-    assert_eq!(batches(&server), 3, "{stderr}");
-    assert!(stderr.contains("`git-lfs push` exited with status") && stderr.contains("nothing was published"), "{stderr}");
+    assert_eq!(batches(&server), 1, "one refused batch request and no second run: {stderr}");
+    assert!(!stderr.contains("retry 1"), "{stderr}");
+    assert!(stderr.contains("from HTTP 503") && stderr.contains("nothing was published"), "{stderr}");
     assert!(!stderr.contains("secret"), "{stderr}");
     assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
     assert!(server.uploads().is_empty());
@@ -483,10 +460,12 @@ fn a_server_error_that_lasts_stops_after_two_retries() {
     remove_settled(&fixture);
 }
 
-/// The auto-push of a commit rides out a brief server error the same way, and what it records has no credentials.
+/// The auto-push of a commit whose upload meets HTTP 503 is left to the service's push retry plan alone: the push fails once,
+///  the person's record says the service tries again by itself, and no second run happens in place.
 #[test]
-fn the_auto_push_retries_a_brief_server_error() {
-    let fixture: Fixture = fixture("lfs-real-auto-retry");
+fn an_auto_push_that_meets_a_server_error_is_left_to_the_services_retry_plan() {
+    let fixture: Fixture = fixture("lfs-real-auto-plan");
+    super::support::give_service_environment(&fixture, "CLI_GIT_PUSH_RETRY_SECONDS", NO_NEW_TRY_SECONDS);
     let Some((repo, origin, server, content)) = lfs_world(&fixture) else {
         return;
     };
@@ -499,46 +478,15 @@ fn the_auto_push_retries_a_brief_server_error() {
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     server.state.lock().expect("state").fail_batches = 1;
     let mut commit = super::commit::wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "second.bin"]);
-    commit.env(FAST_RETRIES.0, FAST_RETRIES.1);
-    let landed: Observed = observe(&mut commit, b"");
-    let stderr: String = stderr_of(&landed);
-    assert_eq!(landed.code, Some(0), "{stderr}");
-    assert!(!stderr.contains("auto-push to origin failed"), "{stderr}");
-    assert_eq!(server.uploads().len(), 2, "{stderr}");
-    assert_eq!(batches(&server), 2, "one refused batch request and the one that worked: {stderr}");
-    assert!(!stderr.contains("secret"), "{stderr}");
-    assert_ne!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
-    drop(server);
-    remove_settled(&fixture);
-}
-
-/// The auto-push whose server error lasts fails with the program's words and the explanation, credentials hidden.
-#[test]
-fn the_auto_push_reports_a_lasting_server_error_without_credentials() {
-    let fixture: Fixture = fixture("lfs-real-auto-retry-spent");
-    // The upload runs in the service's environment, so its retry timing is given there.
-    super::support::give_service_environment(&fixture, FAST_RETRIES.0, FAST_RETRIES.1);
-    let Some((repo, _origin, server, content)) = lfs_world(&fixture) else {
-        return;
-    };
-    use_credentialed_url(&fixture, repo.as_path(), &server);
-    std::fs::write(repo.join("second.bin"), [content.as_slice(), b"second"].concat()).expect("second.bin");
-    let added: Observed = observe(
-        &mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["add", "--", "second.bin"]),
-        b"",
-    );
-    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
-    server.state.lock().expect("state").fail_batches = 99;
-    let mut commit = super::commit::wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "second.bin"]);
-    commit.env(FAST_RETRIES.0, FAST_RETRIES.1);
     let landed: Observed = observe(&mut commit, b"");
     let stderr: String = stderr_of(&landed);
     assert_eq!(landed.code, Some(0), "the commit stays saved: {stderr}");
     let report: String = super::support::push_report(repo.as_path(), &stderr);
-    assert_eq!(batches(&server), 3, "{report}");
-    assert!(report.contains(super::support::push_failed_words()), "{report}");
+    assert_eq!(batches(&server), 1, "one refused batch request, and the new try is the plan's, far off: {report}");
+    assert!(report.contains("tries this push again by itself"), "{report}");
     assert!(report.contains("http://<credentials>@127.0.0.1"), "{report}");
     assert!(!report.contains("secret"), "{report}");
+    assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{report}");
     drop(server);
     remove_settled(&fixture);
 }

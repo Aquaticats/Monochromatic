@@ -32,6 +32,9 @@ use std::time::Duration;
 
 /// The longest a query may run whatever the push deadline is:
 ///  queries read local repository state and finish in milliseconds.
+///  Citation: none. That sentence is a rationale and no figure is logged; neither a measurement nor an owner decision
+///  determines 120 seconds, and the audit (`doc/planning/cli-git-shipped-limits-audit.md`, "Limits that remain beside the
+///  push, with no citation") keeps it as an open question for the owner.
 pub const QUERY_CEILING: Duration = Duration::from_secs(120);
 
 /// What:
@@ -123,7 +126,7 @@ pub fn run_bounded_query(
             stop_push(child, grace, locks);
             Err(match cause {
                 // A query waits under a fixed deadline, so only a deadline reaches here; the others are the same wait.
-                StopCause::Deadline | StopCause::Stalled(_) | StopCause::Ceiling(_) => SingleFlightError::TimedOut {
+                StopCause::Deadline | StopCause::Stalled(_) => SingleFlightError::TimedOut {
                     arguments: arguments.to_owned(),
                     seconds: deadline.as_secs(),
                 },

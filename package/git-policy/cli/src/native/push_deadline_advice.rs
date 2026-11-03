@@ -11,15 +11,12 @@
 //! const advice = inService ? 'run `systemctl --user set-environment ...` and then `systemctl --user restart ...`' : 'set VARIABLE';
 //! ```
 
-use super::bounded_push::{PUSH_CEILING_VARIABLE, PUSH_DEADLINE_VARIABLE};
+use super::bounded_push::PUSH_DEADLINE_VARIABLE;
 use super::service_messages::RESTART_COMMAND;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// The stall window the service advice gives as its example, in seconds.
 pub const EXAMPLE_SECONDS: u32 = 120;
-
-/// The ceiling the service advice gives as its example, in seconds.
-pub const EXAMPLE_CEILING_SECONDS: u32 = 3600;
 
 /// Whether this process is the resident commit service, which says so once at its start.
 static IN_SERVICE: AtomicBool = AtomicBool::new(false);
@@ -73,29 +70,6 @@ pub fn limit_clause_for(service: bool) -> String {
         return extend_clause_for(true);
     }
     return format!("{PUSH_DEADLINE_VARIABLE} sets the limit");
-}
-
-/// What:
-///  The clause that says how to allow a push that keeps moving data more total time, for the given program.
-/// Why:
-///   The ceiling has its own variable, and the service reads it from the user manager like the stall window.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// extendCeilingClause(inService)
-/// ```
-pub fn extend_ceiling_clause_for(service: bool) -> String {
-    if service {
-        return format!(
-            "run `systemctl --user set-environment {PUSH_CEILING_VARIABLE}={EXAMPLE_CEILING_SECONDS}` and then `{RESTART_COMMAND}` to allow longer (a variable set in a terminal never reaches the commit service)"
-        );
-    }
-    return format!("set {PUSH_CEILING_VARIABLE} to allow longer");
-}
-
-/// The clause for allowing a push that keeps moving data more total time, in the program that is running.
-pub fn extend_ceiling_clause() -> String {
-    return extend_ceiling_clause_for(runs_in_service());
 }
 
 /// The clause for allowing a push longer, in the program that is running.

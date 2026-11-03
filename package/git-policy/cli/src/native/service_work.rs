@@ -57,7 +57,7 @@ pub enum Verdict {
     Failed(String),
     /// Nothing was done and nothing is left to retry, but the person should be told why; the text is what they are told.
     Skipped(String),
-    /// The push failed for a reason that can pass (a stall, the ceiling, the network, a held lock, a remote that advanced again);
+    /// The push failed for a reason that can pass (a stall, the network, an LFS server error, a held lock, a remote that advanced again);
     /// the text is what the person should be told, and the service tries the push again on its own, with growing pauses.
     Retry(String),
 }
@@ -790,7 +790,7 @@ impl WorkHandlers for GitHandlers {
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
             Ok(result) if result.exit_code == 0 => Verdict::Done,
             // A conflict, a login the service does not have and a server hook's decline need the person; every other failure can pass
-            //  (a stall, the ceiling, the network, a held lock).
+            //  (a stall, the network, an LFS server error, a held lock).
             Ok(result) => match final_failure(result.shown.as_str()) {
                 Some(cause) => Verdict::Failed(match plain_words(cause) {
                     Some(words) => format!("{words}\n{}", result.shown),

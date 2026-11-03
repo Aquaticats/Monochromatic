@@ -1,14 +1,14 @@
-//! Controls for the push clock's wait on a slow server, on probe processes that hold a real TCP connection to a listener the
-//!  test controls and that stand in for a push by the processes below them (`send-pack`, `pack-objects`).
+//! Controls for the push clock's wait on a slow remote, on probe processes that hold a real TCP connection to a listener the
+//!  test controls, some with a process below them under the name of a Git subcommand (`send-pack`, `pack-objects`).
 //! Why:
-//!  After the pack is sent a push waits for the server's checks and shows nothing to `/proc/<pid>/io`, the processor or the
-//!  process state. The clock must keep waiting while the connection to the remote is open and the pack is sent, count the
-//!  bytes of the socket as progress, and stop as before when the connection is closed, when no pack was sent, when the pack is
-//!  still being made, and when there is no connection at all. Each case is a real process and a real connection.
+//!  A push whose remote has not answered shows nothing to `/proc/<pid>/io`, the processor or the process state. The clock must
+//!  keep waiting while the connection to the remote is open, whatever phase the push is in and however long it takes, count the
+//!  bytes of the socket as progress, and stop as before when the connection is closed and when there is no connection at all.
+//!  Each case is a real process and a real connection.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const clock = new Clock(probe.pid, { kind: 'push', stallMs, ceilingMs }); expect(drive(clock, 3 * stallMs)).toBeUndefined();
+//! const clock = new Clock(probe.pid, { kind: 'progress', stallMs }); expect(drive(clock, 3 * stallMs)).toBeUndefined();
 //! ```
 #![cfg(unix)]
 
@@ -155,9 +155,9 @@ fn listening() -> (TcpListener, u16) {
     return (listener, port);
 }
 
-/// A push clock with the window of the controls and a ceiling far past them.
+/// A push clock with the window of the controls.
 fn push_clock(pid: u32) -> Clock {
-    return Clock::start(pid, Patience::Push { stall: STALL_WINDOW, ceiling: Duration::from_secs(600) });
+    return Clock::start(pid, Patience::Progress { stall: STALL_WINDOW });
 }
 
 /// Ask the clock until it stops the process or `span` passes.
@@ -197,8 +197,8 @@ fn the_bytes_of_a_socket_are_progress_when_nothing_else_moves() {
     assert!(meter.socket_bytes() > 0);
 }
 
-/// A push that has sent its pack (a `send-pack` below it, no `pack-objects`) and holds its connection is waiting for the server:
-///  the clock does not stop it, however many windows pass, and it reports the wait.
+/// A push that holds its connection (a `send-pack` below it) is waiting for the remote: the clock does not stop it, however many
+///  windows pass, and it reports the wait.
 #[test]
 fn a_push_that_sent_its_pack_and_holds_its_connection_is_waiting_not_stalled() {
     let (listener, port): (TcpListener, u16) = listening();
@@ -206,7 +206,7 @@ fn a_push_that_sent_its_pack_and_holds_its_connection_is_waiting_not_stalled() {
     let _held: TcpStream = accepted(&listener);
     let mut clock: Clock = push_clock(probe.pid());
     let stopped: Option<StopCause> = drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED);
-    assert!(stopped.is_none(), "the connection is open and the pack is sent: the push waits");
+    assert!(stopped.is_none(), "the connection is open: the push waits");
     let waited = clock.wait_report().expect("the wait is reported once the window has run out");
     assert!(waited.silent >= STALL_WINDOW, "{waited:?}");
 }
@@ -226,28 +226,39 @@ fn a_wait_ends_when_the_connection_closes_and_the_stall_window_runs_again() {
     assert!(closed.elapsed() + SAMPLE_INTERVAL >= STALL_WINDOW, "a full window after the close, not before: {:?}", closed.elapsed());
 }
 
-/// A connection with no pack sent (no `send-pack`, no `pack-objects`: a server that never answered the first request) is a stall.
+/// A connection that has not yet seen a pack sent (no `send-pack`, no `pack-objects`: a server that has not answered the first
+///  request) is an open connection all the same: the push waits for the remote and is not stopped for time.
 #[test]
-fn a_connection_before_any_pack_was_sent_is_a_stall() {
+fn a_connected_push_is_waited_for_before_any_pack_was_sent() {
     let (listener, port): (TcpListener, u16) = listening();
     let probe: Owned = start_probe(port, "connected", None);
     let _held: TcpStream = accepted(&listener);
     let mut clock: Clock = push_clock(probe.pid());
-    let began: Instant = Instant::now();
-    let cause: Option<StopCause> = drive(&mut clock, PATIENCE);
-    assert_stalled_at_the_window(cause, began);
+    let stopped: Option<StopCause> = drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED);
+    assert!(stopped.is_none(), "the connection is open: the push waits for the remote");
 }
 
-/// A pack still being made (a `pack-objects` below the push) is not a pack sent: the push is stopped on a stall, as before.
+/// A pack still being made (a `pack-objects` below the push) with the connection open is waited for as well: what the code can
+///  observe is the open connection, not the phase of the push.
 #[test]
-fn a_pack_still_being_made_is_a_stall() {
+fn a_connected_push_is_waited_for_while_its_pack_is_made() {
     let (listener, port): (TcpListener, u16) = listening();
     let probe: Owned = start_probe(port, "connected", Some("pack-objects"));
     let _held: TcpStream = accepted(&listener);
     let mut clock: Clock = push_clock(probe.pid());
-    let began: Instant = Instant::now();
-    let cause: Option<StopCause> = drive(&mut clock, PATIENCE);
-    assert_stalled_at_the_window(cause, began);
+    let stopped: Option<StopCause> = drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED);
+    assert!(stopped.is_none(), "the connection is open: the push waits");
+}
+
+/// A connected push that has waited far past the stall window is not stopped for time: there is no total bound.
+#[test]
+fn a_connected_push_is_not_stopped_for_time_however_long_it_waits() {
+    let (listener, port): (TcpListener, u16) = listening();
+    let probe: Owned = start_probe(port, "connected", Some("send-pack"));
+    let _held: TcpStream = accepted(&listener);
+    let mut clock: Clock = push_clock(probe.pid());
+    let stopped: Option<StopCause> = drive(&mut clock, STALL_WINDOW * WINDOWS_WAITED * 2);
+    assert!(stopped.is_none(), "an open connection is waited for however long it takes");
 }
 
 /// A tree with no connection at all (a push to a local path, whose hook is a child) is a stall, as before.
