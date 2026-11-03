@@ -77,7 +77,7 @@ pub struct ClientConfig {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ManagerWatch = { bus: string; unit: string; every: number; hasFailed: (bus: string, unit: string) => boolean };
+/// type ManagerWatch = { bus: string; unit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean };
 /// ```
 #[derive(Clone, Debug)]
 pub struct ManagerWatch {
@@ -87,19 +87,26 @@ pub struct ManagerWatch {
     pub unit: String,
     /// How often the manager is asked while the greeting has not come.
     pub every: Duration,
-    /// Whether the manager reports the unit as failed now; nothing when the manager cannot be asked, which leaves the wait
-    ///  to the start wait.
-    pub has_failed: fn(&std::path::Path, &str) -> Option<bool>,
+    /// The unit's `ActiveState` now (`active`, `activating`, `inactive`, `failed`, ...); nothing when the manager cannot be
+    ///  asked, which leaves the wait to the start wait.
+    pub state: fn(&std::path::Path, &str) -> Option<String>,
+    /// Asks the manager to start the unit; whether the manager took the request.
+    pub start: fn(&std::path::Path, &str) -> bool,
 }
 
 /// How often the service manager is asked whether the service unit failed, while a start is waited for.
 pub const MANAGER_ASK_EVERY: Duration = START_NOTICE_GRACE;
 
-/// Whether the manager reports `unit` as failed: nothing when the bus or the unit cannot be asked about.
-fn unit_has_failed(bus: &std::path::Path, unit: &str) -> Option<bool> {
+/// The manager's `ActiveState` of `unit`: nothing when the bus or the unit cannot be asked about.
+fn unit_state(bus: &std::path::Path, unit: &str) -> Option<String> {
     let mut connection: Bus = Bus::connect(bus, EXCHANGE_WAIT).ok()?;
-    let state: Option<String> = connection.active_state(unit).ok()?;
-    return Some(state.as_deref() == Some("failed"));
+    return connection.active_state(unit).ok()?;
+}
+
+/// Asks the manager to start `unit`; whether the request was taken.
+fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
+    return connection.start_unit(unit).is_ok();
 }
 
 /// What:
@@ -112,7 +119,7 @@ fn unit_has_failed(bus: &std::path::Path, unit: &str) -> Option<bool> {
 /// const watch = managerWatchFor(host)
 /// ```
 pub fn manager_watch_for(host: &ProvisionHost) -> ManagerWatch {
-    return ManagerWatch { bus: host.bus.clone(), unit: service_unit_instance(host.instance.as_str()), every: MANAGER_ASK_EVERY, has_failed: unit_has_failed };
+    return ManagerWatch { bus: host.bus.clone(), unit: service_unit_instance(host.instance.as_str()), every: MANAGER_ASK_EVERY, state: unit_state, start: start_unit };
 }
 
 /// What the client heard from the service in one read.
@@ -243,9 +250,9 @@ fn reach(
             Some(watch) => {
                 if last_asked.elapsed() >= watch.every {
                     last_asked = Instant::now();
-                    let answer: Option<bool> = (watch.has_failed)(watch.bus.as_path(), watch.unit.as_str());
+                    let answer: Option<String> = (watch.state)(watch.bus.as_path(), watch.unit.as_str());
                     cannot_ask = answer.is_none();
-                    failed_answers = if answer == Some(true) { failed_answers + 1 } else { 0 };
+                    failed_answers = if answer.as_deref() == Some("failed") { failed_answers + 1 } else { 0 };
                 }
                 // One answer of "failed" can be the unit's last run, before the connection made the manager start it again.
                 if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) {
