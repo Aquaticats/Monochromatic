@@ -379,6 +379,20 @@ fn hostile_input_is_refused_and_the_service_keeps_serving() {
     remove_settled(&fixture);
 }
 
+/// A notice sink the control can read while the client is still writing to it.
+struct SharedNotices(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl Write for SharedNotices {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().expect("notices").extend_from_slice(bytes);
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
 /// A service that starts a moment after the client asks is waited for, with one notice; a service that never starts is
 ///  reported in plain words; where nothing can start it the client says so at once.
 #[test]
@@ -392,20 +406,25 @@ fn a_late_service_is_waited_for_and_an_absent_one_is_reported_plainly() {
     // A client that waited for a service it cannot start would sit out this wait, so a result is the proof that it did not.
     let uninstalled = ClientConfig { activation: Activation::Unsupported(Platform::LinuxWithoutUserServices), start_wait: Duration::from_secs(3600), ..config(name.as_str()) };
     assert_eq!(submit_quietly(&uninstalled, &sent), Err(ClientFailure::NoActivation(Platform::LinuxWithoutUserServices)));
+    let notices: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let started_late = std::thread::spawn({
         let client: ClientConfig = config(name.as_str());
         let for_thread: CommitRequest = sent.clone();
-        move || {
-            let mut notices: Vec<u8> = Vec::new();
-            let answered = submit(&client, &for_thread, &mut notices);
-            return (answered, String::from_utf8(notices).expect("UTF-8"));
-        }
+        let mut sink: SharedNotices = SharedNotices(std::sync::Arc::clone(&notices));
+        move || { return submit(&client, &for_thread, &mut sink); }
     });
-    std::thread::sleep(git_policy_cli::service_client::START_NOTICE_GRACE + Duration::from_millis(500));
+    // The service starts once the client has said that it is waiting for one: the notice is what the client prints after its
+    //  grace, so no clock in this control decides whether the client has waited that long.
+    let began: Instant = Instant::now();
+    while !String::from_utf8_lossy(notices.lock().expect("notices").as_slice()).contains(STARTING_NOTICE) {
+        assert!(began.elapsed() < Duration::from_secs(60), "the client never said that it waits for the service");
+        std::thread::sleep(Duration::from_millis(10));
+    }
     let service: Service = start_service(&fixture, name.as_str(), None);
-    let (answered, notices) = started_late.join().expect("client thread");
+    let answered = started_late.join().expect("client thread");
+    let said: String = String::from_utf8(notices.lock().expect("notices").clone()).expect("UTF-8");
     assert!(matches!(answered, Ok(Submitted::Landed { .. })), "{answered:?}");
-    assert_eq!(notices.matches(STARTING_NOTICE).count(), 1, "{notices:?}");
+    assert_eq!(said.matches(STARTING_NOTICE).count(), 1, "{said:?}");
     stop(service);
     remove_settled(&fixture);
 }
@@ -637,15 +656,20 @@ fn an_amend_among_plain_commits_neither_refuses_them_nor_lands_stale() {
     let amend: CommitRequest = amend_request(&fixture, &repo, "among-amend", "amended.txt", "amended\n");
     requests.insert(plain / 2, amend);
     let mut handles: Vec<std::thread::JoinHandle<Result<Submitted, ClientFailure>>> = Vec::new();
+    let mut first_answer: Option<Result<Submitted, ClientFailure>> = None;
     for (position, sent) in requests.into_iter().enumerate() {
         let client: ClientConfig = config(name.as_str());
-        handles.push(std::thread::spawn(move || { return submit_quietly(&client, &sent); }));
+        let handle = std::thread::spawn(move || { return submit_quietly(&client, &sent); });
         if position == 0 {
-            // The first lands alone while the rest queue behind it, so the rest form one batch.
-            std::thread::sleep(Duration::from_millis(15));
+            // The first lands before the rest are sent, so the branch has moved when the amend arrives, on any host: the
+            //  amend was prepared on the tip before it, and the rest reach the service together behind a landing that is over.
+            first_answer = Some(handle.join().expect("client thread"));
+        } else {
+            handles.push(handle);
         }
     }
-    let answers: Vec<Result<Submitted, ClientFailure>> = handles.into_iter().map(|handle| { return handle.join().expect("client thread"); }).collect();
+    let mut answers: Vec<Result<Submitted, ClientFailure>> = vec![first_answer.expect("the first answer")];
+    answers.extend(handles.into_iter().map(|handle| { return handle.join().expect("client thread"); }));
     for (position, answer) in answers.iter().enumerate() {
         if position == plain / 2 {
             assert_eq!(answer, &Ok(Submitted::Moved), "the amend");

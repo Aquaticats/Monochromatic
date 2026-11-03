@@ -211,9 +211,6 @@ fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: 
 /// How long a control waits for a state it started, far beyond what a healthy run needs.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// How long a wrapped command that waits for the service is watched before the stalled landing is released.
-const WATCHED: Duration = Duration::from_millis(1500);
-
 /// A Git for the service that stops the landing at its branch move, with the index held, until the control releases it:
 ///  it creates `entered` when the move starts and goes on once `release` exists.
 fn stalling_git(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
@@ -253,15 +250,30 @@ fn an_index_writer_waits_for_the_service_to_finish_landing_and_says_so() {
     assert!(std::fs::read_to_string(&index_lock).is_ok_and(|text| { return text.starts_with("cli-git-service"); }), "the service holds the index while it lands");
     let mut adding: Command = served(&fixture, &repo, name.as_str(), &["add", "b.txt"]);
     adding.env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
-    let mut adding_child: Child = adding.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the add starts");
-    std::thread::sleep(WATCHED);
+    let mut adding_child: Child = adding.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().expect("the add starts");
+    let adding_stderr = adding_child.stderr.take().expect("piped standard error");
+    let (noticed, notice) = std::sync::mpsc::channel::<()>();
+    let reader = std::thread::spawn(move || {
+        let mut all: String = String::new();
+        for line in std::io::BufRead::lines(std::io::BufReader::new(adding_stderr)).map_while(Result::ok) {
+            if line.contains("commit service") {
+                let _told = noticed.send(());
+            }
+            all.push_str(&line);
+            all.push('\n');
+        }
+        return all;
+    });
+    // The landing is released once the add has said that it waits for the service: the notice is the add's own report that it
+    //  met the held index and did not give up, so no clock in this control decides whether the add has reached the wait.
+    notice.recv_timeout(PATIENCE).expect("the add said that it waits for the service");
     let early: Option<std::process::ExitStatus> = adding_child.try_wait().expect("the add can be watched");
     std::fs::write(&release, b"").expect("release");
-    let added: Output = adding_child.wait_with_output().expect("the add ends");
+    let added_status: std::process::ExitStatus = adding_child.wait().expect("the add ends");
     let landed: Output = landing_child.wait_with_output().expect("the commit ends");
-    let stderr: String = String::from_utf8_lossy(&added.stderr).into_owned();
+    let stderr: String = reader.join().expect("the add's standard error is read");
     assert_eq!(early, None, "the add did not give up while the service held the index: {stderr}");
-    assert!(added.status.success(), "the add succeeded after the wait: {stderr}");
+    assert!(added_status.success(), "the add succeeded after the wait: {stderr}");
     assert!(landed.status.success(), "{}", String::from_utf8_lossy(&landed.stderr));
     assert!(stderr.contains("commit service") && stderr.contains("git add"), "the wait is named: {stderr}");
     assert!(!stderr.contains("index.lock"), "no internal file name reaches the person: {stderr}");
