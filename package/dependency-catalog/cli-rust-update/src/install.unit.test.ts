@@ -1,5 +1,5 @@
 /**
- Tests for the lock-only reconcile, on disposable repositories.
+ Tests for the lockfile install (the counterpart of `pnpm install`), on disposable repositories.
 
  The real-cargo test builds a miniature of this repository's layout under a temporary directory:
  standalone crate roots, a `.fuzz` sidecar beside its subject, a virtual workspace, a path crate whose version moves,
@@ -30,9 +30,15 @@ import {
   type RunCargo,
   spawnCargo,
 } from './cargo.ts';
-import { parseMode, } from './cli.ts';
+import {
+  isContinuousIntegration,
+  parseMode,
+} from './cli.ts';
 import type { VersionRecord, } from './policy.ts';
-import { reconcileRustLockfiles, } from './reconcile.ts';
+import {
+  installRustLockfiles,
+  StaleLockfilesError,
+} from './install.ts';
 import type { Registry, } from './registry.ts';
 
 //region Fixtures
@@ -216,7 +222,7 @@ function disposableRoot(root: string,): AsyncDisposable & { readonly root: strin
  */
 const PRIVATE_CARGO_HOME = await mkdtemp(join(
   scratchRoot(),
-  'rust-catalog-reconcile-cargo-home-',
+  'rust-catalog-install-cargo-home-',
 ),);
 process.env.CARGO_HOME = PRIVATE_CARGO_HOME;
 
@@ -291,7 +297,7 @@ async function makeFakeRepo(): Promise<AsyncDisposable & { readonly root: string
    */
   const root = await mkdtemp(join(
     scratchRoot(),
-    'rust-catalog-reconcile-fake-',
+    'rust-catalog-install-fake-',
   ),);
   await writeFileIn(
     join(
@@ -347,7 +353,7 @@ type FakeBehavior = {
 };
 
 /**
- Fake cargo that records every call and answers the reconcile's three commands.
+ Fake cargo that records every call and answers the install's three commands.
 
  A `--locked` update fails in a stale crate; a plain update rewrites the lockfile; metadata always passes.
 
@@ -621,7 +627,7 @@ async function makeStaleRepo(): Promise<AsyncDisposable & { readonly root: strin
    */
   const root = await mkdtemp(join(
     scratchRoot(),
-    'rust-catalog-reconcile-real-',
+    'rust-catalog-install-real-',
   ),);
   /**
    Directory source that replaces crates.io.
@@ -681,10 +687,10 @@ function lockedVersion({ lockText, name, }: { readonly lockText: string; readonl
 //endregion Real cargo
 
 await describe({
-  name: reconcileRustLockfiles.name,
+  name: installRustLockfiles.name,
   children: [
     it({
-      name: 'regenerates the lockfile of every workspace a catalog bump leaves stale, with minimal movement, under real cargo',
+      name: 'updates the lockfile of every workspace a catalog bump leaves stale, with minimal movement, under real cargo',
       skip: CARGO_SKIP_REASON === '' ? false : CARGO_SKIP_REASON,
       fn: async () => {
         /**
@@ -697,7 +703,7 @@ await describe({
         const { root, } = repo;
         for (const dir of CHANGED_DIRS) {
           /**
-           Whether cargo accepts this crate's lockfile before the reconcile.
+           Whether cargo accepts this crate's lockfile before the install.
            */
           // oxlint-disable-next-line no-await-in-loop -- cargo serializes on its package cache lock anyway.
           const consistent = await lockIsConsistent(join(root, dir,),);
@@ -709,24 +715,24 @@ await describe({
         const steadyConsistent = await lockIsConsistent(join(root, DIRS.steady,),);
         expect(steadyConsistent,).toBe(true,);
         /**
-         Steady crate's lockfile before the reconcile.
+         Steady crate's lockfile before the install.
          */
         const steadyBefore = await readFile(join(root, DIRS.steady, LOCKFILE,), 'utf8',);
         /**
-         Standalone crate's lockfile before the reconcile.
+         Standalone crate's lockfile before the install.
          */
         const standaloneBefore = await readFile(join(root, DIRS.standalone, LOCKFILE,), 'utf8',);
         /**
-         Reconcile outcome.
+         Install outcome.
          */
-        const report = await reconcileRustLockfiles({ root, dryRun: false, now: NOW, runCargo: createSpawnCargo({ toolchain: '', },), registry: fakeRegistry(TRUSTED_HISTORY,), },);
+        const report = await installRustLockfiles({ root, frozenLockfile: false, dryRun: false, now: NOW, runCargo: createSpawnCargo({ toolchain: '', },), registry: fakeRegistry(TRUSTED_HISTORY,), },);
         expect(report.problems,).toEqual([],);
         expect(report.written,).toBe(true,);
-        expect(report.reconciled,).toEqual(CHANGED_DIRS,);
+        expect(report.stale,).toEqual(CHANGED_DIRS,);
         expect(report.added,).toEqual([{ name: RAISED_CRATE, version: VERSIONS.leafNew, },],);
         for (const dir of Object.values(DIRS,)) {
           /**
-           Whether cargo accepts this crate's lockfile after the reconcile.
+           Whether cargo accepts this crate's lockfile after the install.
            */
           // oxlint-disable-next-line no-await-in-loop -- cargo serializes on its package cache lock anyway.
           const consistent = await lockIsConsistent(join(root, dir,),);
@@ -734,7 +740,7 @@ await describe({
         }
         expect(await readFile(join(root, DIRS.steady, LOCKFILE,), 'utf8',),).toBe(steadyBefore,);
         /**
-         Standalone crate's lockfile after the reconcile.
+         Standalone crate's lockfile after the install.
          */
         const standaloneAfter = await readFile(join(root, DIRS.standalone, LOCKFILE,), 'utf8',);
         expect(lockedVersion({ lockText: standaloneBefore, name: RAISED_CRATE, },),).toBe(VERSIONS.leafOld,);
@@ -759,11 +765,11 @@ await describe({
          */
         const before = await readFile(join(root, DIRS.sidecar, LOCKFILE,), 'utf8',);
         /**
-         Reconcile outcome.
+         Install outcome.
          */
-        const report = await reconcileRustLockfiles({ root, dryRun: true, now: NOW, runCargo: createSpawnCargo({ toolchain: '', },), registry: fakeRegistry(TRUSTED_HISTORY,), },);
+        const report = await installRustLockfiles({ root, frozenLockfile: false, dryRun: true, now: NOW, runCargo: createSpawnCargo({ toolchain: '', },), registry: fakeRegistry(TRUSTED_HISTORY,), },);
         expect(report.written,).toBe(false,);
-        expect(report.reconciled,).toEqual(CHANGED_DIRS,);
+        expect(report.stale,).toEqual(CHANGED_DIRS,);
         expect(await readFile(join(root, DIRS.sidecar, LOCKFILE,), 'utf8',),).toBe(before,);
         /**
          Whether cargo accepts the sidecar's lockfile, which the dry run restored.
@@ -788,10 +794,10 @@ await describe({
          */
         const cargo = fakeCargo({ staleDirs: [], failingUpdateDir: '', newVersion: VERSIONS.leafNew, },);
         /**
-         Reconcile outcome.
+         Install outcome.
          */
-        const report = await reconcileRustLockfiles({ root, dryRun: false, now: NOW, runCargo: cargo.runCargo, registry: fakeRegistry(TRUSTED_HISTORY,), },);
-        expect(report.reconciled,).toEqual([],);
+        const report = await installRustLockfiles({ root, frozenLockfile: false, dryRun: false, now: NOW, runCargo: cargo.runCargo, registry: fakeRegistry(TRUSTED_HISTORY,), },);
+        expect(report.stale,).toEqual([],);
         expect(report.written,).toBe(true,);
         expect(cargo.calls.every(function isCheck(call: string,): boolean {
           return call.includes('--locked',);
@@ -814,7 +820,7 @@ await describe({
          Cargo that finds the first crate stale.
          */
         const cargo = fakeCargo({ staleDirs: [FAKE_DIRS[0],], failingUpdateDir: '', newVersion: VERSIONS.leafNew, },);
-        await reconcileRustLockfiles({ root, dryRun: false, now: NOW, runCargo: cargo.runCargo, registry: fakeRegistry(TRUSTED_HISTORY,), },);
+        await installRustLockfiles({ root, frozenLockfile: false, dryRun: false, now: NOW, runCargo: cargo.runCargo, registry: fakeRegistry(TRUSTED_HISTORY,), },);
         expect(cargo.calls,).toEqual([
           `${FAKE_DIRS[0]} update --workspace --locked --offline`,
           `${FAKE_DIRS[0]} update --workspace --offline`,
@@ -838,7 +844,7 @@ await describe({
          Cargo whose second update fails after the first rewrote its lockfile.
          */
         const cargo = fakeCargo({ staleDirs: [...FAKE_DIRS,], failingUpdateDir: FAKE_DIRS[1], newVersion: VERSIONS.leafNew, },);
-        await expect(reconcileRustLockfiles({ root, dryRun: false, now: NOW, runCargo: cargo.runCargo, registry: fakeRegistry(TRUSTED_HISTORY,), },),).rejects.toThrow(FAKE_DIRS[1],);
+        await expect(installRustLockfiles({ root, frozenLockfile: false, dryRun: false, now: NOW, runCargo: cargo.runCargo, registry: fakeRegistry(TRUSTED_HISTORY,), },),).rejects.toThrow(FAKE_DIRS[1],);
         for (const dir of FAKE_DIRS)
           // oxlint-disable-next-line no-await-in-loop -- two small files.
           expect(await readFile(join(root, dir, LOCKFILE,), 'utf8',),).toBe(lock(VERSIONS.leafOld,),);
@@ -860,9 +866,9 @@ await describe({
          */
         const cargo = fakeCargo({ staleDirs: [FAKE_DIRS[0],], failingUpdateDir: '', newVersion: VERSIONS.leafNew, },);
         /**
-         Reconcile outcome.
+         Install outcome.
          */
-        const report = await reconcileRustLockfiles({ root, dryRun: false, now: NOW, runCargo: cargo.runCargo, registry: fakeRegistry(DOWNGRADED_HISTORY,), },);
+        const report = await installRustLockfiles({ root, frozenLockfile: false, dryRun: false, now: NOW, runCargo: cargo.runCargo, registry: fakeRegistry(DOWNGRADED_HISTORY,), },);
         expect(report.written,).toBe(false,);
         expect(report.problems.length,).toBe(1,);
         expect(await readFile(join(root, FAKE_DIRS[0], LOCKFILE,), 'utf8',),).toBe(lock(VERSIONS.leafOld,),);
@@ -872,16 +878,125 @@ await describe({
 },);
 
 await describe({
+  name: `${installRustLockfiles.name} with --frozen-lockfile`,
+  children: [
+    it({
+      name: 'fails naming every stale root and writes nothing, as pnpm install --frozen-lockfile does',
+      fn: async () => {
+        /**
+         Repository whose manifests were bumped.
+         */
+        await using repo = await makeStaleRepo();
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        /**
+         Lockfile before the install.
+         */
+        const before = await readFile(join(root, DIRS.sidecar, LOCKFILE,), 'utf8',);
+        /**
+         Failure the frozen install raises, undefined if it did not fail.
+         */
+        let failure: unknown = undefined;
+        try {
+          await installRustLockfiles({ root, frozenLockfile: true, dryRun: false, now: NOW, runCargo: createSpawnCargo({ toolchain: '', },), registry: fakeRegistry(TRUSTED_HISTORY,), },);
+        } catch (error) {
+          failure = error;
+        }
+        expect(failure,).toBeInstanceOf(StaleLockfilesError,);
+        expect(failure instanceof StaleLockfilesError ? failure.staleDirs : [],).toEqual(CHANGED_DIRS,);
+        expect(String(failure,),).toContain(DIRS.sidecar,);
+        expect(await readFile(join(root, DIRS.sidecar, LOCKFILE,), 'utf8',),).toBe(before,);
+      },
+      skip: CARGO_SKIP_REASON === '' ? false : CARGO_SKIP_REASON,
+    },),
+    it({
+      name: 'passes, running only read-only checks, when every lockfile satisfies its manifests',
+      fn: async () => {
+        /**
+         Repository with consistent lockfiles.
+         */
+        await using repo = await makeFakeRepo();
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        /**
+         Cargo that finds every lockfile consistent.
+         */
+        const cargo = fakeCargo({ staleDirs: [], failingUpdateDir: '', newVersion: VERSIONS.leafNew, },);
+        /**
+         Install outcome.
+         */
+        const report = await installRustLockfiles({ root, frozenLockfile: true, dryRun: false, now: NOW, runCargo: cargo.runCargo, registry: fakeRegistry(TRUSTED_HISTORY,), },);
+        expect(report.stale,).toEqual([],);
+        expect(cargo.calls.length,).toBe(FAKE_DIRS.length,);
+        expect(cargo.calls.every(function isCheck(call: string,): boolean {
+          return call.includes('--locked',);
+        },),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'checks every root, then fails without any cargo update when a root is stale',
+      fn: async () => {
+        /**
+         Repository where the first crate is stale.
+         */
+        await using repo = await makeFakeRepo();
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        /**
+         Cargo that finds the first crate stale.
+         */
+        const cargo = fakeCargo({ staleDirs: [FAKE_DIRS[0],], failingUpdateDir: '', newVersion: VERSIONS.leafNew, },);
+        await expect(installRustLockfiles({ root, frozenLockfile: true, dryRun: false, now: NOW, runCargo: cargo.runCargo, registry: fakeRegistry(TRUSTED_HISTORY,), },),).rejects.toThrow(FAKE_DIRS[0],);
+        expect(cargo.calls,).toEqual([
+          `${FAKE_DIRS[0]} update --workspace --locked --offline`,
+          `${FAKE_DIRS[1]} update --workspace --locked --offline`,
+        ],);
+      },
+    },),
+  ],
+},);
+
+await describe({
   name: parseMode.name,
   children: [
     it({
-      name: 'selects the lock-only reconcile, alone or with --dry-run, and rejects other combinations',
+      name: 'selects install like pnpm install, with --frozen-lockfile, --no-frozen-lockfile and --dry-run, and rejects other combinations',
       fn: async () => {
-        expect(parseMode(['--reconcile',],).mode,).toBe('reconcile',);
-        expect(parseMode(['--reconcile', '--dry-run',],).mode,).toBe('reconcile-dry-run',);
-        expect(function combined() {
-          parseMode(['--reconcile', '--verify',],);
-        },).toThrow('--reconcile',);
+        expect(parseMode(['install',],),).toEqual({ mode: 'install', base: 'HEAD', frozenLockfile: undefined, dryRun: false, },);
+        expect(parseMode(['install', '--frozen-lockfile',],),).toEqual({ mode: 'install', base: 'HEAD', frozenLockfile: true, dryRun: false, },);
+        expect(parseMode(['install', '--no-frozen-lockfile', '--dry-run',],),).toEqual({ mode: 'install', base: 'HEAD', frozenLockfile: false, dryRun: true, },);
+        expect(function conflicting(): void {
+          parseMode(['install', '--frozen-lockfile', '--no-frozen-lockfile',],);
+        },).toThrow('install',);
+        expect(function unknown(): void {
+          parseMode(['install', '--verify',],);
+        },).toThrow('install',);
+        expect(function removedKeyword(): void {
+          parseMode(['--reconcile',],);
+        },).toThrow('unknown argument',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: isContinuousIntegration.name,
+  children: [
+    it({
+      name: 'is true for a CI variable other than empty, 0 or false, as pnpm defaults --frozen-lockfile in CI',
+      fn: async () => {
+        expect(isContinuousIntegration({ CI: 'true', },),).toBe(true,);
+        expect(isContinuousIntegration({ CI: '1', },),).toBe(true,);
+        expect(isContinuousIntegration({},),).toBe(false,);
+        expect(isContinuousIntegration({ CI: '', },),).toBe(false,);
+        expect(isContinuousIntegration({ CI: 'false', },),).toBe(false,);
+        expect(isContinuousIntegration({ CI: '0', },),).toBe(false,);
       },
     },),
   ],

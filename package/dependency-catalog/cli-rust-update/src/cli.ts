@@ -111,6 +111,22 @@ export class UsageError extends Error {
 //region Arguments
 
 /**
+ Stub: never reports a continuous integration environment.
+
+ @param env - environment variables
+
+ @returns false
+
+ @example
+ ```ts
+ isContinuousIntegration({ CI: 'true', }); // false until implemented
+ ```
+ */
+export function isContinuousIntegration(env: Readonly<Record<string, string | undefined>>,): boolean {
+  return Object.keys(env,).length < 0;
+}
+
+/**
  Mode the arguments select.
  */
 type Mode = 'update' | 'dry-run' | 'verify' | 'reconcile' | 'reconcile-dry-run' | 'help';
