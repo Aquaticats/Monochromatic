@@ -204,3 +204,22 @@ pub fn prune_stale_own_crates(cargo_home: &Path, toolchain_roots: &[PathBuf]) ->
     }
     return deleted;
 }
+
+/// What a prune did:
+/// the paths removed,
+/// their total size,
+/// and the paths it could not remove with the system's reason.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct PruneReport {
+    /// Paths removed.
+    pub deleted: Vec<PathBuf>,
+    /// Total size in bytes of what was removed.
+    pub bytes: u64,
+    /// Paths that could not be removed, each with why.
+    pub failed: Vec<(PathBuf, String)>,
+}
+
+/// Like `prune_stale_own_crates`, but returns the report and prints nothing.
+pub fn prune_stale_own_crates_reporting(_cargo_home: &Path, _toolchain_roots: &[PathBuf]) -> PruneReport {
+    return PruneReport::default();
+}

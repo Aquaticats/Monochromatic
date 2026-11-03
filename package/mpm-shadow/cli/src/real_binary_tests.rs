@@ -98,3 +98,79 @@ fn returns_none_when_nothing_is_found() {
     let path_variable: String = format!(":{}", empty.path().display());
     assert_eq!(find_in_path("mpm", &path_variable, Path::new("/nowhere")), None);
 }
+
+/// A launcher the way `install` makes one: an executable, a `.launch` record beside it naming the binary it starts,
+/// and an `mpm` link to it in `links`.
+fn write_launcher(directory: &Path, record_real: &Path, write_record_file: bool, record_text: Option<&str>) -> PathBuf {
+    use crate::toolchain::launcher::{LaunchRecord, record_path, render_record};
+    use crate::toolchain::scope::ScopeKind;
+    let launchers: PathBuf = directory.join("launchers");
+    fs::create_dir_all(&launchers).expect("make the launcher directory");
+    write_tool(&launchers, "mpm-shadow", 0o755);
+    let launcher: PathBuf = launchers.join("mpm-shadow");
+    if write_record_file {
+        let record = LaunchRecord {
+            tool_id: "mpm-shadow".to_string(),
+            lock_file: directory.join("toolchain.lock.json"),
+            real: record_real.to_path_buf(),
+            scope: ScopeKind::Repo,
+        };
+        let text: String = record_text.map(str::to_string).unwrap_or_else(|| render_record(&record));
+        fs::write(record_path(&launcher), text).expect("write the record");
+    }
+    let links: PathBuf = directory.join("links");
+    fs::create_dir_all(&links).expect("make the link directory");
+    std::os::unix::fs::symlink(&launcher, links.join("mpm")).expect("link the launcher as mpm");
+    return links;
+}
+
+/// The running shadow, a real `mpm`, and a PATH with the launcher's link before the real `mpm`.
+struct LauncherFixture {
+    _directory: tempfile::TempDir,
+    path_variable: String,
+    running: PathBuf,
+    real_mpm: PathBuf,
+    links: PathBuf,
+}
+
+fn launcher_fixture(record_names_the_running_binary: bool, write_record_file: bool, record_text: Option<&str>) -> LauncherFixture {
+    let directory = scratch();
+    let running_dir: PathBuf = directory.path().join("running");
+    fs::create_dir_all(&running_dir).expect("make the running directory");
+    write_tool(&running_dir, "mpm-shadow", 0o755);
+    let running: PathBuf = fs::canonicalize(running_dir.join("mpm-shadow")).expect("resolve the running binary");
+    let other_dir: PathBuf = directory.path().join("other");
+    fs::create_dir_all(&other_dir).expect("make the other directory");
+    write_tool(&other_dir, "mpm-shadow", 0o755);
+    let named: PathBuf = if record_names_the_running_binary { running.clone() } else { other_dir.join("mpm-shadow") };
+    let links: PathBuf = write_launcher(directory.path(), &named, write_record_file, record_text);
+    let real_dir: PathBuf = directory.path().join("real");
+    fs::create_dir_all(&real_dir).expect("make the real mpm directory");
+    write_tool(&real_dir, "mpm", 0o755);
+    let path_variable: String = format!("{}:{}", links.display(), real_dir.display());
+    return LauncherFixture { path_variable, running, real_mpm: real_dir.join("mpm"), links, _directory: directory };
+}
+
+#[test]
+fn skips_the_launcher_of_the_running_binary_because_it_starts_this_shadow_again() {
+    let fixture = launcher_fixture(true, true, None);
+    assert_eq!(find_in_path("mpm", &fixture.path_variable, &fixture.running), Some(fixture.real_mpm.clone()));
+}
+
+#[test]
+fn a_launcher_of_another_binary_is_not_skipped() {
+    let fixture = launcher_fixture(false, true, None);
+    assert_eq!(find_in_path("mpm", &fixture.path_variable, &fixture.running), Some(fixture.links.join("mpm")));
+}
+
+#[test]
+fn an_executable_with_no_record_beside_it_is_not_a_launcher_and_is_not_skipped() {
+    let fixture = launcher_fixture(true, false, None);
+    assert_eq!(find_in_path("mpm", &fixture.path_variable, &fixture.running), Some(fixture.links.join("mpm")));
+}
+
+#[test]
+fn an_unreadable_record_does_not_make_an_executable_a_launcher() {
+    let fixture = launcher_fixture(true, true, Some("not json"));
+    assert_eq!(find_in_path("mpm", &fixture.path_variable, &fixture.running), Some(fixture.links.join("mpm")));
+}
