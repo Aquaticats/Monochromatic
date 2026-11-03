@@ -264,7 +264,7 @@ fn a_real_conversion_makes_a_subvolume_and_clones_file_data() {
     remove(probe.as_path());
     let (parent, root, worktree) = quiet_worktree("convert-real");
     let git_file: Vec<u8> = std::fs::read(worktree.join(".git")).expect(".git");
-    let (verdict, lines) = run(&LinuxPlatform, worktree.as_path(), RUN, &Interrupt::never());
+    let (verdict, lines) = run(&LinuxPlatform::default(), worktree.as_path(), RUN, &Interrupt::never());
     assert_eq!(verdict.expect("converted"), Verdict::Converted, "{lines:#?}");
     assert_eq!(std::fs::metadata(&worktree).expect("new").ino(), crate::fs_kind::BTRFS_SUBVOLUME_ROOT_INODE);
     let copied: &String = lines.iter().find(|line: &&String| { return line.contains("copied "); }).expect("the copy line");

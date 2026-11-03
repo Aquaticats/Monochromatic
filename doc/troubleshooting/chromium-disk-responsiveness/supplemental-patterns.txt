@@ -1,0 +1,1 @@
+\bbase::File\b|\bFile::FLAG_[A-Z_]+|\b(?:read|write|readv|writev|Read|ReadAtCurrentPos|ReadAndCheck|Write|WriteAtCurrentPos|WriteAndCheck|Flush|SetLength)\s*\(|\bFileChannel\b|\.(?:exists|mkdirs|delete|commit|force)\s*\(

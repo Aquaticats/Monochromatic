@@ -113,6 +113,9 @@ mod management;
 /// `git cli-git migrate-to-subvolume` and the doctor's filesystem section through the executable.
 #[path = "binary_subvolume_tests.rs"]
 mod subvolume;
+/// `git cli-git convert-worktree-to-subvolume` started the way a person starts it, with no forward-target variable.
+#[path = "binary_convert_tests.rs"]
+mod convert;
 
 #[path = "binary_coordination_tests.rs"]
 mod coordination;
@@ -167,6 +170,14 @@ mod catalog_specifiers;
 /// The linked-worktree ignored-state copy: the rules file reaches new worktrees, and an interrupted copy recovers.
 #[path = "binary_worktree_copy_tests.rs"]
 mod worktree_copy;
+
+/// Worktree commands beside an add whose real Git still runs: none waits, and each new worktree gets exactly its own copy.
+#[path = "binary_worktree_copy_concurrent_tests.rs"]
+mod worktree_copy_concurrent;
+
+/// The copy for every form of `git worktree add` that Git accepts, and none for each form Git rejects.
+#[path = "binary_worktree_copy_forms_tests.rs"]
+mod worktree_copy_forms;
 
 /// The cheap-worktree ladder: new worktrees are subvolumes, a forwarded removal destroys them, other forms stay Git's.
 #[path = "binary_worktree_ladder_tests.rs"]
@@ -353,3 +364,7 @@ mod child_bound;
 /// What the person's terminal shows of a commit the service landed: warnings, one summary line, the waits.
 #[path = "binary_client_service_tests.rs"]
 mod client_service;
+
+/// The package-manager repair of a new worktree: pnpm, Cargo and the toolchain launchers work at the new location.
+#[path = "binary_package_repair_tests.rs"]
+mod package_repair;

@@ -259,7 +259,7 @@ pub mod command_config;
 /// Pure decision of the require-root policy.
 pub mod rule_require_root;
 
-/// Whether a `git worktree` invocation creates or moves a worktree.
+/// Whether a `git worktree` invocation changes worktree registrations (an add or a move).
 pub mod command_worktree;
 
 /// Wrapper-only control spellings,
@@ -596,9 +596,6 @@ pub mod pid_namespace;
 /// Process-birth identities in the incumbent's exact spelling.
 pub mod process_identity;
 
-/// The owner record inside every owner-lock directory.
-pub mod owner_lock_record;
-
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
 
@@ -625,6 +622,11 @@ pub mod lexical_path;
 #[cfg(test)]
 #[path = "hook_self_invocation_tests.rs"]
 mod hook_self_invocation_tests;
+
+/// The lock inventory of the service and its support modules: a lock stands only on the inventory, with its reason beside it.
+#[cfg(test)]
+#[path = "service_lock_inventory_tests.rs"]
+mod service_lock_inventory_tests;
 
 /// What `git cli-git doctor` reports from the configuration: configured hooks and the retired `hooks` key.
 pub mod doctor_config;
@@ -978,9 +980,9 @@ pub mod worktree_copy_install_log;
 #[cfg(unix)]
 pub mod worktree_copy_transaction;
 
-/// The settlement lock that serializes copy installation and recovery, its owner record, and inherited leases.
+/// The process that owns one item of a copy transaction, written into the item's name, and the proof that it still runs.
 #[cfg(unix)]
-pub mod worktree_copy_lock;
+pub mod worktree_copy_owner;
 
 /// Recovery of interrupted copies: registration checks, discards with notices, resumption, and the pending check.
 #[cfg(unix)]
@@ -990,7 +992,7 @@ pub mod worktree_copy_recovery;
 #[cfg(unix)]
 pub mod worktree_copy;
 
-/// Which forwarded invocations the copy applies to, and the child run that carries its settlement lease.
+/// Which forwarded invocations the copy applies to, and the child run that performs it.
 pub mod worktree_copy_forward;
 
 /// The system configuration file a real Git executable reads, learned once per executable identity.
@@ -1451,7 +1453,11 @@ pub mod worktree_convert;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_compare;
 
-/// The journal of a conversion and the lock that serializes conversions of one worktree.
+/// The numbered claim files that let exactly one command work on one worktree or checkout, without a lock.
+#[cfg(target_os = "linux")]
+pub mod single_owner_claim;
+
+/// The journal of a conversion and the retirement of the kernel lock file older releases left.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_journal;
 
@@ -1469,6 +1475,34 @@ pub mod worktree_convert_command;
 /// Setting aside what a snapshot of the main checkout leaves out, and having the commit service empty it.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash;
+
+/// Starting one package-manager program for a worktree repair: finding it, running it with a limit, saying how it ended.
+#[cfg(target_os = "linux")]
+pub mod package_repair_command;
+
+/// What a worktree repair prints: one line for success, one plain line per repair that could not finish.
+#[cfg(target_os = "linux")]
+pub mod package_repair_report;
+
+/// Cloning one directory tree with its modes, times and links, for the build state Cargo keeps outside a worktree.
+#[cfg(target_os = "linux")]
+pub mod package_repair_tree_clone;
+
+/// The pnpm repair of a new worktree: relink the copied `node_modules` offline against the frozen lockfile.
+#[cfg(target_os = "linux")]
+pub mod package_repair_pnpm;
+
+/// The Cargo repair of a new worktree: clone external build state, then clean the worktree's own crates.
+#[cfg(target_os = "linux")]
+pub mod package_repair_cargo;
+
+/// The toolchain repair of a new worktree: rebuild the links and launchers that name another checkout's lock.
+#[cfg(target_os = "linux")]
+pub mod package_repair_toolchain;
+
+/// The repair of a new worktree's package-manager state after a rung filled it and the ignored files were copied.
+#[cfg(target_os = "linux")]
+pub mod package_repair;
 
 /// Disposal of a snapshot's trash: the work item, the foreground fallback and the service's handler.
 #[cfg(target_os = "linux")]

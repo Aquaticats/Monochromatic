@@ -13,58 +13,70 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! recordLanded(commonDir, worktree, commit, captured);
-//! const known = remembered(commonDir, worktree); // what a commit sent back is told
+//! memory.recordLanded(commonDir, worktree, commit, captured);
+//! const known = memory.remembered(commonDir, worktree); // what a commit sent back is told
 //! ```
 
 use super::service_protocol::LandedCapture;
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
 
 /// How many landed commits are remembered for one worktree; older ones are forgotten, which makes them unknown.
 pub const REMEMBERED: usize = 128;
 
 type Key = (PathBuf, PathBuf);
 
-fn memory() -> &'static Mutex<HashMap<Key, VecDeque<LandedCapture>>> {
-    static MEMORY: OnceLock<Mutex<HashMap<Key, VecDeque<LandedCapture>>>> = OnceLock::new();
-    return MEMORY.get_or_init(|| { return Mutex::new(HashMap::new()); });
-}
-
 /// What:
-///  Remembers a landed commit and the stamp of the request that made it, when the stamp is known.
+///  The memory of landed captures, owned by the serve loop that lands the commits and answers the clients.
 /// Why:
-///   A request with no stamp (zero) cannot be ordered, so it is not remembered and its commit stays unknown.
+///   Only that one thread records a landed commit and reads the memory to answer a commit sent back, so the memory is a plain
+///  value it holds and passes down (`&mut` to record, `&` to read), not a process-wide table behind a lock: nothing waits for
+///  it and nothing else can reach it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// recordLanded(commonDir, worktree, commit, captured)
+/// const memory = new CaptureMemory(); memory.recordLanded(commonDir, worktree, commit, captured);
 /// ```
-pub fn record_landed(common_dir: &Path, worktree: &Path, commit: &str, captured: u64) {
-    if captured == 0 {
-        return;
-    }
-    let Ok(mut all) = memory().lock() else { return };
-    let entries: &mut VecDeque<LandedCapture> = all.entry((common_dir.to_path_buf(), worktree.to_path_buf())).or_default();
-    entries.push_back(LandedCapture { commit: commit.to_string(), captured });
-    while entries.len() > REMEMBERED {
-        entries.pop_front();
-    }
+#[derive(Debug, Default)]
+pub struct CaptureMemory {
+    /// The landed commits of each worktree, oldest first.
+    by_worktree: HashMap<Key, VecDeque<LandedCapture>>,
 }
 
-/// What:
-///  The commits landed for a worktree that the service remembers, oldest first.
-/// Why:
-///   The client matches them by name against the commits that changed a path since its base, so older ones do no harm.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// remembered(commonDir, worktree)
-/// ```
-pub fn remembered(common_dir: &Path, worktree: &Path) -> Vec<LandedCapture> {
-    let Ok(all) = memory().lock() else { return Vec::new() };
-    return all.get(&(common_dir.to_path_buf(), worktree.to_path_buf())).map(|entries| { return entries.iter().cloned().collect(); }).unwrap_or_default();
+/// Methods over the memory.
+impl CaptureMemory {
+    /// What:
+    ///  Remembers a landed commit and the stamp of the request that made it, when the stamp is known.
+    /// Why:
+    ///   A request with no stamp (zero) cannot be ordered, so it is not remembered and its commit stays unknown.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// memory.recordLanded(commonDir, worktree, commit, captured)
+    /// ```
+    pub fn record_landed(&mut self, common_dir: &Path, worktree: &Path, commit: &str, captured: u64) {
+        if captured == 0 {
+            return;
+        }
+        let entries: &mut VecDeque<LandedCapture> = self.by_worktree.entry((common_dir.to_path_buf(), worktree.to_path_buf())).or_default();
+        entries.push_back(LandedCapture { commit: commit.to_string(), captured });
+        while entries.len() > REMEMBERED {
+            entries.pop_front();
+        }
+    }
+
+    /// What:
+    ///  The commits landed for a worktree that the service remembers, oldest first.
+    /// Why:
+    ///   The client matches them by name against the commits that changed a path since its base, so older ones do no harm.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// memory.remembered(commonDir, worktree)
+    /// ```
+    pub fn remembered(&self, common_dir: &Path, worktree: &Path) -> Vec<LandedCapture> {
+        return self.by_worktree.get(&(common_dir.to_path_buf(), worktree.to_path_buf())).map(|entries| { return entries.iter().cloned().collect(); }).unwrap_or_default();
+    }
 }
 
 /// Capture memory controls stay out of the release executable.

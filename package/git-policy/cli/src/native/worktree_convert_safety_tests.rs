@@ -1,11 +1,11 @@
 //! Controls for the review findings on the conversion: the journal's files, the identity of the stage, what a late writer
-//!  loses, the lock that serializes commands, the pinned removal, nested registrations in any layout, refusals by kind, and a
+//!  loses, the pinned removal, nested registrations in any layout, refusals by kind, and a
 //!  failed index refresh.
 
 use super::*;
 use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_worktree};
 use crate::test_support::{git, remove};
-use crate::worktree_convert_journal::{LOCK_NAME, Phase as JournalPhase};
+use crate::worktree_convert_journal::Phase as JournalPhase;
 use crate::worktree_convert_remove::remove_recorded_old_tree_seamed;
 
 /// The options of a real run.
@@ -172,22 +172,6 @@ fn a_process_holding_the_old_tree_keeps_it() {
     child.kill().expect("kill");
     child.wait().expect("wait");
     assert_eq!(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect("finished"), Verdict::Resumed);
-    remove(parent.as_path());
-}
-
-/// A second command does not start while one holds the conversion lock, and writes nothing.
-#[test]
-fn a_second_command_does_not_start_while_the_lock_is_held() {
-    let (parent, _root, worktree) = quiet_worktree("safety-lock");
-    let platform: PlainPlatform = PlainPlatform::new();
-    let admin: PathBuf = admin_of(worktree.as_path());
-    let held = ConversionLock::acquire(admin.as_path()).expect("lock").expect("free");
-    let reasons: String = skipped(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
-    assert!(reasons.contains("another conversion") && reasons.contains(LOCK_NAME), "{reasons}");
-    assert!(!admin.join(JOURNAL_NAME).exists() && !admin.join("index.lock").exists(), "nothing was written");
-    assert!(ConversionLock::acquire(admin.as_path()).expect("lock").is_none(), "the lock is exclusive");
-    drop(held);
-    assert_eq!(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect("converted"), Verdict::Converted);
     remove(parent.as_path());
 }
 

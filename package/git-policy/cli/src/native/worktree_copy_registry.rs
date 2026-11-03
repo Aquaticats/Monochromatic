@@ -1,56 +1,42 @@
 //! What:
-//!  The linked worktrees a worktree-creating Git command registered:
-//!  the administrative identities before real Git ran,
-//!  the identities after it returned,
-//!  and the canonical root of each new one.
+//!  The linked worktree a `git worktree add` registered at the destination its command line names:
+//!  whether that destination was a registered worktree before real Git ran, and whether it is one registered by this
+//!  command after Git returned, with the canonical root of every registered worktree.
 //! Why:
+//!  The destination is read from the command line and its registration is found by following the pointer in its `.git`
+//!  file, so a concurrent add in the same repository can neither be mistaken for this one's worktree nor make this one wait
+//!  (the earlier comparison of the whole set of registrations needed a lock to keep other adds out of its window).
 //!  A worktree that Git registered before failing still receives the ignored files,
-//!  so the comparison runs after Git returns whatever its status was.
+//!  so the check runs after Git returns whatever its status was.
 //!  The main worktree is observed only through `observe_copy_source`, which the caller reaches only for a command that
-//!  creates or moves a worktree, so its other invocations cost no filesystem reads.
+//!  creates a worktree, so its other invocations cost no filesystem reads.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const observation = await observeWorktreeRepository({ args, gitPath });
-//! const { created, registeredRoots } = await findCreatedWorktrees({ observation, gitPath });
+//! const { created, registeredRoots } = await findCreatedWorktree({ observation, destination, registeredBefore, gitPath });
 //! ```
 
-use super::git_metadata::{path_from_git_bytes, strip_git_line};
+use super::git_metadata::path_from_git_bytes;
 use super::transaction_git::{GitContext, GitRequest, run_git};
-use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use super::worktree_add_binding::bind_registration;
+use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
 use super::worktree_copy_selection::CopySelection;
 use super::worktree_identity::WorktreeIdentity;
-use crate::json_record::quote;
-use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-
-/// What:
-///  The Git-file prefix that introduces a linked worktree's administrative path.
-/// Why:
-///   A `.git` file that does not start with it marks the main worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const GITDIR_PREFIX = 'gitdir: ';
-/// ```
-const GITDIR_PREFIX: &str = "gitdir: ";
 
 /// What:
 ///  The facts captured before real Git runs for an applicable invocation.
 /// Why:
-///   The comparison after Git needs the administrative directory, the identities that
-///  already existed and the roots that decide where copies land.
+///   The copy after Git needs the common directory that owns the journals, the source worktree and which of its ignored
+///  paths are taken; nothing of the repository's other worktrees is read, so a concurrent add is none of its business.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WorktreeCopyObservation = { adminRoot; beforeAdminIds; commonDir; effectiveCwd; sourceRoot? };
+/// type WorktreeCopyObservation = { commonDir; effectiveCwd; sourceRoot?; selection };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorktreeCopyObservation {
-    /// Common-directory location holding linked-worktree administration.
-    pub admin_root: PathBuf,
-    /// Linked-worktree administrative identities present before real Git ran.
-    pub before_admin_ids: BTreeSet<String>,
     /// Canonical common Git directory, which owns the journals.
     pub common_dir: PathBuf,
     /// Working directory the Git queries run in.
@@ -63,24 +49,22 @@ pub struct WorktreeCopyObservation {
 }
 
 /// What:
-///  One linked worktree registered while real Git ran.
+///  One linked worktree this command registered.
 /// Why:
-///   The administrative identity is stable across renames of the destination path.
+///   Its root is where the copy lands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CreatedWorktree = { adminId: string; root: string };
+/// type CreatedWorktree = { root: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreatedWorktree {
-    /// Basename of the linked administrative directory.
-    pub admin_id: String,
     /// Canonical created worktree root.
     pub root: PathBuf,
 }
 
 /// What:
-///  The created worktrees and every registered root that recursive copying must exclude.
+///  The worktree this command created, if any, and every registered root that recursive copying must exclude.
 /// Why:
 ///   A nested registered worktree is never copied into its parent's copy.
 ///
@@ -90,86 +74,14 @@ pub struct CreatedWorktree {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreatedWorktrees {
-    /// Newly registered linked worktrees, sorted by administrative identity.
+    /// The linked worktree registered at the destination, absent when this command registered none.
     pub created: Vec<CreatedWorktree>,
     /// Every registered root that exists on the filesystem.
     pub registered_roots: Vec<PathBuf>,
 }
 
 /// What:
-///  The linked worktrees Git currently lists, keyed by administrative identity.
-/// Why:
-///   The after-Git lookup maps each new identity to its root.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// { rootsByAdminId: Map<string, string>; roots: string[] }
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct RegisteredWorktrees {
-    /// Root of each linked worktree by administrative identity.
-    roots_by_admin_id: BTreeMap<String, PathBuf>,
-    /// Every existing registered root.
-    roots: Vec<PathBuf>,
-}
-
-/// What:
-///  The administrative directory names under a common worktree-administration root.
-/// Why:
-///   A missing directory means no linked worktree has ever been registered,
-///  so it is an empty set rather than a failure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function readAdminIds(adminRoot: string): Promise<ReadonlySet<string>>;
-/// ```
-pub fn read_admin_ids(admin_root: &Path) -> Result<BTreeSet<String>, WorktreeCopyError> {
-    // `match` separates a missing directory (empty) from every other failure (fatal).
-    match std::fs::read_dir(admin_root) {
-        Ok(entries) => {
-            let mut names: BTreeSet<String> = BTreeSet::new();
-            for entry in entries {
-                let listing: std::fs::DirEntry =
-                    entry.map_err(|error| return inspect_failure(admin_root, &error))?;
-                // `file_type` does not follow symbolic links, as the incumbent's `Dirent` does not.
-                let is_directory: bool = listing
-                    .file_type()
-                    .map_err(|error| return inspect_failure(admin_root, &error))?
-                    .is_dir();
-                if is_directory {
-                    names.insert(listing.file_name().to_string_lossy().into_owned());
-                }
-            }
-            return Ok(names);
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(BTreeSet::new());
-        }
-        Err(error) => {
-            return Err(inspect_failure(admin_root, &error));
-        }
-    }
-}
-
-/// What:
-///  The failure of reading linked-worktree administration.
-/// Why:
-///   Names the directory so the user can see which repository state could not be read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// new WorktreeCopyError(`cli-git: could not inspect linked-worktree administration at ${JSON.stringify(adminRoot)}.`, error)
-/// ```
-fn inspect_failure(admin_root: &Path, error: &std::io::Error) -> WorktreeCopyError {
-    let message: String = format!(
-        "cli-git: could not inspect linked-worktree administration at {}.",
-        quote(admin_root.to_string_lossy().as_ref())
-    );
-    return failure_with_cause(message.as_str(), Some(error));
-}
-
-/// What:
-///  Captures what the post-Git comparison needs for one repository identity.
+///  Captures what the copy after Git needs for one repository identity.
 /// Why:
 ///   The main worktree and a repository outside any worktree return `None` before any read,
 ///  so their invocations stay on the plain forwarding path.
@@ -182,38 +94,31 @@ pub fn observe_worktree_repository(
     identity: &WorktreeIdentity,
     effective_cwd: &Path,
 ) -> Result<Option<WorktreeCopyObservation>, WorktreeCopyError> {
-    // `match` decides applicability from the identity alone; only the two repository kinds reach a read.
+    // `match` decides applicability from the identity alone; only the two repository kinds are observed.
     match identity {
         WorktreeIdentity::OutsideWorktree | WorktreeIdentity::MainWorktree { .. } => {
             return Ok(None);
         }
         WorktreeIdentity::BareRepository { common_dir, .. } => {
-            return observation(
-                common_dir.as_path(),
-                None,
-                effective_cwd,
-                CopySelection::Ignored,
-            )
-            .map(Some);
+            return Ok(Some(observation(common_dir.as_path(), None, effective_cwd, CopySelection::Ignored)));
         }
         WorktreeIdentity::LinkedWorktree {
             common_dir,
             worktree_root,
             ..
         } => {
-            return observation(
+            return Ok(Some(observation(
                 common_dir.as_path(),
                 Some(worktree_root.as_path()),
                 effective_cwd,
                 CopySelection::Ignored,
-            )
-            .map(Some);
+            )));
         }
     }
 }
 
 /// What:
-///  The observation that also covers a main checkout, which takes part only when the caller's command creates or moves a worktree.
+///  The observation that also covers a main checkout, which takes part only when the caller's command creates a worktree.
 /// Why:
 ///   A main checkout hands over its ignored state under its leave-out rule, so a worktree added from it works at once;
 ///  the caller observes it only for a creating command, so the main checkout's other invocations cost no filesystem reads.
@@ -233,13 +138,12 @@ pub fn observe_copy_source(
             worktree_root,
             ..
         } => {
-            return observation(
+            return Ok(Some(observation(
                 common_dir.as_path(),
                 Some(worktree_root.as_path()),
                 effective_cwd,
                 CopySelection::MainCheckout,
-            )
-            .map(Some);
+            )));
         }
         _ => return observe_worktree_repository(identity, effective_cwd),
     }
@@ -248,87 +152,39 @@ pub fn observe_copy_source(
 /// What:
 ///  The observation of one repository with its optional source worktree.
 /// Why:
-///   Both repository kinds share the administrative read; only the source differs.
+///   Both repository kinds share it; only the source differs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// { adminRoot: join(commonDir, 'worktrees'), beforeAdminIds: await readAdminIds(adminRoot), commonDir, effectiveCwd, sourceRoot }
+/// { commonDir, effectiveCwd, sourceRoot, selection }
 /// ```
 fn observation(
     common_dir: &Path,
     source_root: Option<&Path>,
     effective_cwd: &Path,
     selection: CopySelection,
-) -> Result<WorktreeCopyObservation, WorktreeCopyError> {
-    let admin_root: PathBuf = common_dir.join("worktrees");
-    let before_admin_ids: BTreeSet<String> = read_admin_ids(admin_root.as_path())?;
-    return Ok(WorktreeCopyObservation {
-        admin_root,
-        before_admin_ids,
+) -> WorktreeCopyObservation {
+    return WorktreeCopyObservation {
         common_dir: common_dir.to_path_buf(),
         effective_cwd: effective_cwd.to_path_buf(),
         source_root: source_root.map(Path::to_path_buf),
         selection,
-    });
+    };
 }
 
 /// What:
-///  The linked-worktree administrative identity named by a root's `.git` file,
-///  or `None` for the main worktree.
+///  Whether `destination` is a registered worktree of the repository right now.
 /// Why:
-///   Only a linked worktree's `.git` is a file that names an administrative directory;
-///  a `.git` directory is the main worktree.
+///   It is asked before real Git runs: a destination already registered then is not this command's creation, whatever Git
+///  does with it. The answer follows the pointer in the destination's `.git` file and checks that the registration it names
+///  names the destination back, so no other worktree is read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function readLinkedAdminId(root: string): Promise<string | typeof MAIN_WORKTREE_ADMIN_ID>;
+/// function destinationIsRegistered(commonDir: string, destination: string): boolean;
 /// ```
-fn read_linked_admin_id(root: &Path) -> Result<Option<String>, WorktreeCopyError> {
-    let pointer_path: PathBuf = root.join(".git");
-    // `read` fails with `IsADirectory` for a main worktree's `.git` directory, which is not an error here.
-    match std::fs::read(pointer_path.as_path()) {
-        Ok(bytes) => {
-            let line: &[u8] = strip_git_line(bytes.as_slice());
-            let Some(gitdir) = line.strip_prefix(GITDIR_PREFIX.as_bytes()) else {
-                return Ok(None);
-            };
-            let raw_admin: PathBuf =
-                path_from_git_bytes(gitdir).ok_or_else(|| return identity_failure(root, None))?;
-            let admin_path: PathBuf = if raw_admin.is_absolute() {
-                raw_admin
-            } else {
-                root.join(raw_admin)
-            };
-            let canonical: PathBuf = std::fs::canonicalize(admin_path.as_path())
-                .map_err(|error| return identity_failure(root, Some(&error)))?;
-            return Ok(canonical
-                .file_name()
-                .map(|name| return name.to_string_lossy().into_owned()));
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::IsADirectory => {
-            return Ok(None);
-        }
-        Err(error) => {
-            return Err(identity_failure(root, Some(&error)));
-        }
-    }
-}
-
-/// What:
-///  The failure of resolving a registered root's linked identity.
-/// Why:
-///   Names the root so the user can find the worktree whose pointer could not be read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// new WorktreeCopyError(`cli-git: could not resolve worktree identity for ${JSON.stringify(root)}.`, error)
-/// ```
-fn identity_failure(root: &Path, cause: Option<&dyn std::fmt::Display>) -> WorktreeCopyError {
-    let message: String = format!(
-        "cli-git: could not resolve worktree identity for {}.",
-        quote(root.to_string_lossy().as_ref())
-    );
-    return failure_with_cause(message.as_str(), cause);
+pub fn destination_is_registered(common_dir: &Path, destination: &Path) -> bool {
+    return bind_registration(common_dir, destination).is_ok();
 }
 
 /// What:
@@ -351,19 +207,19 @@ fn canonical_registered_root(root: &Path) -> Result<Option<PathBuf>, WorktreeCop
 }
 
 /// What:
-///  The linked worktrees Git lists right now, keyed by administrative identity.
+///  The roots of the worktrees Git lists right now, those that exist.
 /// Why:
 ///   Git's porcelain listing with NUL separators is the one authority for registered roots,
 ///  so the copy never guesses a root from the administrative directory name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function readRegisteredWorktrees({ observation, gitPath }): Promise<{ rootsByAdminId; roots }>;
+/// async function readRegisteredRoots({ observation, gitPath }): Promise<string[]>;
 /// ```
-fn read_registered_worktrees(
+fn read_registered_roots(
     context: &GitContext,
     observation: &WorktreeCopyObservation,
-) -> Result<RegisteredWorktrees, WorktreeCopyError> {
+) -> Result<Vec<PathBuf>, WorktreeCopyError> {
     let request: GitRequest = GitRequest {
         cwd: observation.effective_cwd.clone(),
         arguments: vec![
@@ -384,7 +240,6 @@ fn read_registered_worktrees(
         )));
     }
     let mut roots: Vec<PathBuf> = Vec::new();
-    let mut listed: Vec<PathBuf> = Vec::new();
     // `filter_map` keeps only fields of the `worktree <path>` form.
     for path in output
         .stdout
@@ -392,77 +247,39 @@ fn read_registered_worktrees(
         .filter_map(|field| return field.strip_prefix(b"worktree "))
         .filter_map(path_from_git_bytes)
     {
-        listed.push(path);
-    }
-    for path in listed {
         if let Some(canonical) = canonical_registered_root(path.as_path())? {
             roots.push(canonical);
         }
     }
-    let mut roots_by_admin_id: BTreeMap<String, PathBuf> = BTreeMap::new();
-    for root in &roots {
-        // The main worktree is recognized by its root being the common directory of a non-bare repository.
-        let is_main: bool = observation.source_root.is_none() && root == &observation.common_dir;
-        if is_main {
-            continue;
-        }
-        if let Some(admin_id) = read_linked_admin_id(root.as_path())? {
-            roots_by_admin_id.insert(admin_id, root.clone());
-        }
-    }
-    return Ok(RegisteredWorktrees {
-        roots_by_admin_id,
-        roots,
-    });
+    return Ok(roots);
 }
 
 /// What:
-///  The worktrees newly registered since the observation, with every registered root.
+///  The worktree this command registered at `destination`, with every registered root.
 /// Why:
-///   Runs after real Git returned, whatever its status,
-///  so a worktree Git registered before failing still counts.
+///   Runs after real Git returned, whatever its status was, so a worktree Git registered before failing still counts.
+///  It is this command's when the destination was not registered before Git ran and is registered now: the destination is
+///  the one the command line named, so another add's worktree is never taken for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function findCreatedWorktrees({ observation, gitPath }): Promise<{ created; registeredRoots }>;
+/// async function findCreatedWorktree({ observation, destination, registeredBefore, gitPath }): Promise<{ created; registeredRoots }>;
 /// ```
-pub fn find_created_worktrees(
+pub fn find_created_worktree(
     context: &GitContext,
     observation: &WorktreeCopyObservation,
+    destination: &Path,
+    registered_before: bool,
 ) -> Result<CreatedWorktrees, WorktreeCopyError> {
-    let after_admin_ids: BTreeSet<String> = read_admin_ids(observation.admin_root.as_path())?;
-    let created_ids: Vec<String> = after_admin_ids
-        .difference(&observation.before_admin_ids)
-        .cloned()
-        .collect();
-    if created_ids.is_empty() {
+    if registered_before || !destination_is_registered(observation.common_dir.as_path(), destination) {
         return Ok(CreatedWorktrees {
             created: Vec::new(),
             registered_roots: Vec::new(),
         });
     }
-    let registered: RegisteredWorktrees = read_registered_worktrees(context, observation)?;
-    let mut created: Vec<CreatedWorktree> = Vec::new();
-    for admin_id in created_ids {
-        // A new identity whose root Git no longer lists cannot receive a copy, so the copy fails.
-        let Some(root) = registered.roots_by_admin_id.get(&admin_id) else {
-            return Err(failure_with_cause(
-                format!(
-                    "cli-git: linked worktree {} was registered but its root could not be resolved.",
-                    quote(admin_id.as_str())
-                )
-                .as_str(),
-                None,
-            ));
-        };
-        created.push(CreatedWorktree {
-            admin_id,
-            root: root.clone(),
-        });
-    }
     return Ok(CreatedWorktrees {
-        created,
-        registered_roots: registered.roots,
+        created: vec![CreatedWorktree { root: destination.to_path_buf() }],
+        registered_roots: read_registered_roots(context, observation)?,
     });
 }
 

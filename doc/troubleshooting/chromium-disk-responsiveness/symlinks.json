@@ -1,0 +1,107 @@
+[
+  {
+    "path": "ash/webui/camera_app_ui/resources/cca",
+    "isSymlink": true,
+    "target": "utils/cca.py"
+  },
+  {
+    "path": "chrome/test/data/ash/clipboard_history/icon128.png",
+    "isSymlink": true,
+    "target": "../images/icon128.png"
+  },
+  {
+    "path": "chrome/test/data/ash/clipboard_history/icon16.png",
+    "isSymlink": true,
+    "target": "../images/icon16.png"
+  },
+  {
+    "path": "chrome/test/data/ash/clipboard_history/icon2050.png",
+    "isSymlink": true,
+    "target": "../images/icon2050.png"
+  },
+  {
+    "path": "content/test/data/file_chooser/dir_with_dir_symlink/symlink",
+    "isSymlink": true,
+    "target": "../linked_dir/"
+  },
+  {
+    "path": "content/test/data/file_chooser/dir_with_symlink/symlink",
+    "isSymlink": true,
+    "target": "../linked_text_file.txt"
+  },
+  {
+    "path": "third_party/blink/renderer/core/GEMINI.md",
+    "isSymlink": true,
+    "target": "AGENTS.md"
+  },
+  {
+    "path": "third_party/enterprise_companion/chromium_linux64/3pp/fetch_lib.py",
+    "isSymlink": true,
+    "target": "../../fetch_lib.py"
+  },
+  {
+    "path": "third_party/enterprise_companion/chromium_mac_amd64/3pp/fetch_lib.py",
+    "isSymlink": true,
+    "target": "../../fetch_lib.py"
+  },
+  {
+    "path": "third_party/enterprise_companion/chromium_mac_amd64/3pp/install.sh",
+    "isSymlink": true,
+    "target": "../../install_mac.sh"
+  },
+  {
+    "path": "third_party/enterprise_companion/chromium_mac_arm64/3pp/fetch_lib.py",
+    "isSymlink": true,
+    "target": "../../fetch_lib.py"
+  },
+  {
+    "path": "third_party/enterprise_companion/chromium_mac_arm64/3pp/install.sh",
+    "isSymlink": true,
+    "target": "../../install_mac.sh"
+  },
+  {
+    "path": "third_party/enterprise_companion/chromium_win_x86/3pp/fetch_lib.py",
+    "isSymlink": true,
+    "target": "../../fetch_lib.py"
+  },
+  {
+    "path": "third_party/enterprise_companion/chromium_win_x86/3pp/install.sh",
+    "isSymlink": true,
+    "target": "../../install_win.sh"
+  },
+  {
+    "path": "third_party/enterprise_companion/chromium_win_x86_64/3pp/fetch_lib.py",
+    "isSymlink": true,
+    "target": "../../fetch_lib.py"
+  },
+  {
+    "path": "third_party/enterprise_companion/chromium_win_x86_64/3pp/install.sh",
+    "isSymlink": true,
+    "target": "../../install_win.sh"
+  },
+  {
+    "path": "third_party/libxslt/linux/COPYING",
+    "isSymlink": true,
+    "target": "../src/Copyright"
+  },
+  {
+    "path": "third_party/xcbproto/LICENSE",
+    "isSymlink": true,
+    "target": "src/COPYING"
+  },
+  {
+    "path": "third_party/zxcvbn-cpp/LICENSE",
+    "isSymlink": true,
+    "target": "LICENSE.txt"
+  },
+  {
+    "path": "tools/android/avd/proto/android_google_apis_x64.textpb",
+    "isSymlink": true,
+    "target": "android_36_google_apis_x64.textpb"
+  },
+  {
+    "path": "tools/android/avd/proto/android_google_apis_x64_local.textpb",
+    "isSymlink": true,
+    "target": "android_36_google_apis_x64_local.textpb"
+  }
+]

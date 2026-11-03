@@ -1,10 +1,10 @@
 //! What:
 //!  Running a forwarded Git command through the linked-worktree ignored-state copy:
-//!  which invocations the copy applies to, and the child-process run that carries the settlement lease.
+//!  which invocations the copy applies to, and the child-process run that performs it.
 //! Why:
-//!  A command that creates or moves worktrees must stay under the settlement lock while real Git runs and the
-//!  ignored state is copied, and a command run from a linked worktree must first recover an interrupted copy;
-//!  replacing the process with Git would drop both duties, so these invocations run Git as a child.
+//!  A command that creates a worktree must copy the ignored state once real Git returns, and a command run from a linked
+//!  worktree must first recover a copy a dead process left; replacing the process with Git would drop both duties, so
+//!  these invocations run Git as a child. No lock is held: concurrent commands never wait for one another.
 //!  The main checkout is a source only for the configured rules file, so it takes this path only when the
 //!  command creates a worktree and the configuration names that file.
 //!
@@ -33,12 +33,11 @@ use std::path::{Path, PathBuf};
 pub struct CopyFacts {
     /// The repository shape the invocation selects.
     pub identity: WorktreeIdentity,
-    /// Whether the command, after alias resolution, creates or moves worktrees.
-    pub creates_or_moves: bool,
-    /// The invocation's global options, replayed before the repository queries that ask for the identity again.
-    pub global_prefix: Vec<OsString>,
-    /// The environment the invocation inherited, which may carry an outer settlement's lease.
-    pub environment: Vec<(OsString, OsString)>,
+    /// Whether the command, after alias resolution, creates a worktree.
+    pub creates: bool,
+    /// The destination the creating command's line names, in the form Git records it; absent for every other command and for
+    ///  a form of `git worktree add` whose destination is not read.
+    pub destination: Option<PathBuf>,
     /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves; absent for every other
     ///  command and every form the ladder does not know.
     pub add_plan: Option<AddPlan>,
@@ -50,16 +49,16 @@ pub struct CopyFacts {
 /// What:
 ///  Whether the copy applies to an invocation.
 /// Why:
-///   Linked worktrees and bare repositories always take the lifecycle (recovery, lease check, creation);
+///   Linked worktrees and bare repositories always take the lifecycle (recovery, creation);
 ///  the main checkout only when it creates a worktree and has paths to hand over, so its other commands
 ///  keep their plain forwarding and cost no filesystem reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// identity.kind !== 'outside-worktree' && (identity.kind !== 'main-worktree' || (createsOrMoves && paths.length > 0))
+/// identity.kind !== 'outside-worktree' && (identity.kind !== 'main-worktree' || (creates && paths.length > 0))
 /// ```
-pub fn copy_applies(identity: &WorktreeIdentity, creates_or_moves: bool) -> bool {
-    return copy_applies_with(identity, creates_or_moves, false);
+pub fn copy_applies(identity: &WorktreeIdentity, creates: bool) -> bool {
+    return copy_applies_with(identity, creates, false);
 }
 
 /// What:
@@ -71,15 +70,15 @@ pub fn copy_applies(identity: &WorktreeIdentity, creates_or_moves: bool) -> bool
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// copyApplies(identity, createsOrMoves) || (servesLadder && identity.kind === 'main-worktree')
+/// copyApplies(identity, creates) || (servesLadder && identity.kind === 'main-worktree')
 /// ```
-pub fn copy_applies_with(identity: &WorktreeIdentity, creates_or_moves: bool, serves_ladder: bool) -> bool {
-    // `match` on the repository shape; the main checkout takes the lifecycle when the command creates or moves a worktree
+pub fn copy_applies_with(identity: &WorktreeIdentity, creates: bool, serves_ladder: bool) -> bool {
+    // `match` on the repository shape; the main checkout takes the lifecycle when the command creates a worktree
     // or the ladder serves it.
     match identity {
         WorktreeIdentity::OutsideWorktree => return false,
         WorktreeIdentity::MainWorktree { .. } => {
-            return serves_ladder || creates_or_moves;
+            return serves_ladder || creates;
         }
         WorktreeIdentity::LinkedWorktree { .. } | WorktreeIdentity::BareRepository { .. } => {
             return true;
@@ -235,7 +234,7 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
 /// What:
 ///  The settled run: the lifecycle with real Git as its runner and the process's standard error as its stream.
 /// Why:
-///   The runner receives the lease token to put into the child's environment while the settlement lock is held.
+///   Real Git runs as a child so the wrapper can copy the ignored state once it returns; no lock is held around it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -248,13 +247,10 @@ fn run_settled(
     overlay: &[(OsString, OsString)],
     facts: &CopyFacts,
 ) -> ForwardedRun {
-    use super::child_environment::environment_value;
     use std::io::Write;
-    use super::repository_facts::{RepositoryFacts, git_facts};
     use super::transaction_git::GitContext;
     use super::worktree_copy::{GitStatus, GitStep, Invocation, exit_code, run_with_worktree_copy};
     use super::worktree_copy_error::WorktreeCopyError;
-    use super::worktree_copy_lock::WORKTREE_COPY_LEASE_ENV;
 
     let context: GitContext = GitContext {
         real_git: real_git.to_path_buf(),
@@ -267,21 +263,19 @@ fn run_settled(
     let invocation: Invocation = Invocation {
         identity: facts.identity.clone(),
         effective_cwd: query_directory(&facts.identity),
-        creates_or_moves: facts.creates_or_moves,
+        creates: facts.creates,
+        destination: facts.destination.clone(),
         opted_out: false,
         short_circuit: false,
-        inherited_token: environment_value(facts.environment.as_slice(), WORKTREE_COPY_LEASE_ENV)
-            .map(|token| return token.to_string_lossy().into_owned()),
         context,
         add_plan: facts.add_plan.clone(),
+        #[cfg(target_os = "linux")]
+        repair: super::package_repair::RepairSwitch::from_arguments(arguments),
     };
     let mut stderr = std::io::stderr();
-    // The runner starts Git as a child with the lease token, so nested wrappers see the lock they are inside.
-    let mut run_git = |token: Option<&str>, step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> {
+    // The runner starts Git as a child, so the wrapper is still there to copy once Git returns.
+    let mut run_git = |step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> {
         let mut child_overlay: Vec<(OsString, OsString)> = overlay.to_vec();
-        if let Some(value) = token {
-            child_overlay.push((OsString::from(WORKTREE_COPY_LEASE_ENV), OsString::from(value)));
-        }
         let mut child_arguments: Vec<OsString> = arguments.to_vec();
         match step {
             GitStep::Person => {}
@@ -308,15 +302,7 @@ fn run_settled(
             }
         }
     };
-    // The identity is asked again once the lock is held, as the incumbent re-observes its repository.
-    let mut identity_after_lock = || -> Result<WorktreeIdentity, WorktreeCopyError> {
-        let mut facts_again = git_facts(real_git, facts.global_prefix.as_slice(), overlay);
-        match facts_again.location() {
-            Ok(location) => return Ok(location.identity),
-            Err(message) => return Err(WorktreeCopyError(format!("cli-git: {message}"))),
-        }
-    };
-    match run_with_worktree_copy(&invocation, &mut run_git, &mut identity_after_lock, &mut stderr) {
+    match run_with_worktree_copy(&invocation, &mut run_git, &mut stderr) {
         Ok(settlement) => {
             if let Some(failure) = &settlement.copy_failure {
                 // A closed standard error leaves nowhere to report the failure, and the exit status still carries it.

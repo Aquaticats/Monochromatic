@@ -5,8 +5,10 @@
 //!  A rerun after a kill at any instant resumes from it: a step marked `done` is skipped, a step marked `started` is
 //!  repeated (every step is idempotent), and a step with no entry has not begun. The file lives in the checkout's
 //!  parent directory (`.cli-git-migrate-<name>.journal.json`), outside the tree that is copied and exchanged, so it
-//!  survives the exchange. It is replaced by writing a sibling file and renaming it, so a kill never leaves half a
-//!  journal. `serde_json` is already a dependency of the crate.
+//!  survives the exchange. It is replaced by writing a sibling file, created exclusively under a name no other file has
+//!  (so nothing planted or left at a fixed name is truncated or followed), and renaming it, so a kill never leaves half a
+//!  journal. The plain files a killed run left under the writer's own temporary names are removed by the next write that
+//!  lands. `serde_json` is already a dependency of the crate.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,10 +20,62 @@ use super::subvolume_error::MigrateError;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 use std::io::Write;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 /// The journal format version this code writes and reads.
 const SCHEMA: u64 = 1;
+
+/// The permissions of the journal: its owner reads and writes it.
+const PRIVATE_FILE_MODE: u32 = 0o600;
+
+/// What follows the journal's file name in the name of a temporary file: releases up to 0.5.20 wrote exactly this suffix, and
+///  now a process number and a clock reading follow it.
+const TEMPORARY_SUFFIX: &str = ".tmp";
+
+/// What:
+///  Whether `candidate` is a name under which a writer of the journal `journal_name` leaves a temporary file: the journal's
+///  name, `.tmp`, and either nothing (the name of releases up to 0.5.20) or a dot, a process number, a dot and a clock reading.
+/// Why:
+///   Any other name beside the journal is not this writer's to remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const leftover = new RegExp(`^${escape(journalName)}\\.tmp(\\.\\d+\\.\\d+)?$`).test(candidate);
+/// ```
+fn is_leftover_name(candidate: &[u8], journal_name: &[u8]) -> bool {
+    let Some(after_name) = candidate.strip_prefix(journal_name) else { return false };
+    let Some(rest) = after_name.strip_prefix(TEMPORARY_SUFFIX.as_bytes()) else { return false };
+    if rest.is_empty() {
+        return true;
+    }
+    let Some(numbers) = rest.strip_prefix(b".") else { return false };
+    let mut parts = numbers.split(|byte: &u8| { return *byte == b'.'; });
+    let numeric = |part: Option<&[u8]>| -> bool { return part.is_some_and(|digits: &[u8]| { return !digits.is_empty() && digits.iter().all(u8::is_ascii_digit); }); };
+    let process: Option<&[u8]> = parts.next();
+    let clock: Option<&[u8]> = parts.next();
+    return numeric(process) && numeric(clock) && parts.next().is_none();
+}
+
+/// What:
+///  Write `bytes` to a file made for them alone at `path`: created exclusively, so a path that already exists (a plain file,
+///  a link, a dangling link) is refused and never truncated or followed; synchronized; removed again when the write fails.
+/// Why:
+///   A fixed temporary name that an earlier run or another user left or planted must not redirect the write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeFile(path, bytes, { flag: 'wx', mode: 0o600 }); // rejects with EEXIST on anything there, a link included
+/// ```
+fn write_exclusively(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(PRIVATE_FILE_MODE).open(path)?;
+    let written: std::io::Result<()> = file.write_all(bytes).and_then(|()| { return file.sync_all(); });
+    if let Err(error) = written {
+        let _removed: std::io::Result<()> = std::fs::remove_file(path);
+        return Err(error);
+    }
+    return Ok(());
+}
 
 /// What:
 ///  The records of one migration.
@@ -124,8 +178,9 @@ impl Journal {
     /// What:
     ///  Record a step's state and write the file.
     /// Why:
-    ///   The file is written to a sibling and renamed over the journal, with the data synced first, so a kill leaves
-    ///  either the old or the new journal.
+    ///   The file is written to a sibling created exclusively (under a name of its own, never one an earlier run or another
+    ///  user could have planted a link at) and renamed over the journal, with the data synced first, so a kill leaves either
+    ///  the old or the new journal.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -151,18 +206,54 @@ impl Journal {
         document.insert(String::from("started"), Value::String(self.started.clone()));
         document.insert(String::from("steps"), Value::Object(steps));
         let text: String = serde_json::to_string_pretty(&Value::Object(document)).unwrap_or_default();
-        let mut sibling: std::ffi::OsString = self.path.as_os_str().to_os_string();
-        sibling.push(".tmp");
-        let sibling_path: PathBuf = PathBuf::from(sibling);
+        let sibling_path: PathBuf = self.temporary_path();
         let write = || -> std::io::Result<()> {
-            let mut file: std::fs::File = std::fs::File::create(&sibling_path)?;
-            file.write_all(text.as_bytes())?;
-            file.sync_all()?;
-            return std::fs::rename(&sibling_path, &self.path);
+            write_exclusively(sibling_path.as_path(), text.as_bytes())?;
+            if let Err(error) = std::fs::rename(&sibling_path, &self.path) {
+                let _removed: std::io::Result<()> = std::fs::remove_file(&sibling_path);
+                return Err(error);
+            }
+            // The rename is made durable with the directory that holds the new name.
+            return match self.path.parent() {
+                Some(directory) => std::fs::File::open(directory).and_then(|held: std::fs::File| { return held.sync_all(); }),
+                None => Ok(()),
+            };
         };
         write().map_err(|error: std::io::Error| { return MigrateError::io("write the journal", self.path.as_path(), &error); })?;
         self.persisted = true;
+        self.remove_leftovers();
         return Ok(());
+    }
+
+    /// A name for this write's temporary file that no other file has: this process and the clock make it, and the
+    ///  creation is exclusive.
+    fn temporary_path(&self) -> PathBuf {
+        let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed: std::time::Duration| { return elapsed.as_nanos(); });
+        let mut name: std::ffi::OsString = self.path.as_os_str().to_os_string();
+        name.push(format!("{TEMPORARY_SUFFIX}.{}.{nanos}", std::process::id()));
+        return PathBuf::from(name);
+    }
+
+    /// What:
+    ///  Remove the plain files a killed run left beside the journal under the writer's own temporary names.
+    /// Why:
+    ///   Only the writer's own shapes are removed, and only plain files as the directory entry itself says (a link, a
+    ///  directory or any other name is somebody else's and stays), so nothing is followed and nothing foreign is discarded.
+    ///  One command at a time works on a checkout (a numbered claim file), so no live writer's temporary file is among them.
+    ///  A failure to list or remove is not an error: a leftover costs only space.
+    fn remove_leftovers(&self) {
+        let (Some(directory), Some(journal_name)) = (self.path.parent(), self.path.file_name()) else { return };
+        let Ok(listing) = std::fs::read_dir(directory) else { return };
+        for item in listing.flatten() {
+            let name: std::ffi::OsString = item.file_name();
+            if !is_leftover_name(name.as_encoded_bytes(), journal_name.as_encoded_bytes()) {
+                continue;
+            }
+            let is_plain_file: bool = item.file_type().is_ok_and(|kind: std::fs::FileType| { return kind.is_file(); });
+            if is_plain_file {
+                let _removed: std::io::Result<()> = std::fs::remove_file(item.path());
+            }
+        }
     }
 
     /// What:

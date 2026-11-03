@@ -62,7 +62,7 @@ function isDecimalUid(value: string,): boolean {
 }
 
 /**
- Resolves user whose `app.slice` contains Ghostty, Steam, Helium, Pale Moon, Firefox Nightly, ChatGPT,
+ Resolves user whose `app.slice` contains Ghostty, Steam, Helium, Pale Moon, Firefox, Firefox Nightly, ChatGPT,
  Interpreter, Qure, and OdyTTY.
  
  Explicit override wins over sudo identity. A capability-based non-root caller

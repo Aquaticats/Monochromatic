@@ -1,7 +1,7 @@
 //! What:
 //!  Git's own lock-retry schedule: the backoff position, its next step, and the jittered wait it prescribes.
 //! Why:
-//!  A caller that retries a lock the way Git retries its own (the worktree copy's settlement lock) waits on the same
+//!  A caller that retries a lock the way Git retries its own waits on the same
 //!  schedule, so it neither hammers the lock nor starves behind it. Waiting for a foreign `index.lock` is gone: a command
 //!  that cannot take Git's `index.lock` ends as native Git ends it, and the commit service's landing retries it a bounded
 //!  number of times itself (`src/index-lock/index-lock-wait.ts` is the incumbent of the schedule).

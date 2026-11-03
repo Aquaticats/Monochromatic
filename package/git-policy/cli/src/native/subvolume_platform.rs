@@ -17,7 +17,9 @@ use super::fs_clone_exchange::{clone_file, exchange_paths};
 use super::fs_kind::{FilesystemKind, filesystem_facts, is_subvolume_root};
 use super::fs_mount_options::read_mount_facts;
 use super::fs_primitive_error::PrimitiveError;
+use super::git_system_config::with_real_git;
 use super::worktree_clean_content::ConversionEnvironment;
+use std::ffi::OsString;
 use std::fs::File;
 use std::path::Path;
 
@@ -53,10 +55,11 @@ pub trait Platform {
     fn hard_link(&self, existing: &Path, new: &Path) -> std::io::Result<()> {
         return std::fs::hard_link(existing, new);
     }
-    /// Which configuration files and system attributes file Git reads here; a stand-in names none, so a control reads
-    ///  only the repository's own configuration.
+    /// Which configuration files and system attributes file Git reads here. The default names no Git and no variables, so the
+    ///  system files are unknown and a content decision that needs them refuses; a stand-in overrides it with what a control
+    ///  needs, and the real platform answers for the Git it forwards to.
     fn conversion_environment(&self) -> ConversionEnvironment {
-        return ConversionEnvironment::from_process();
+        return ConversionEnvironment::from_variables(&[]);
     }
 }
 
@@ -69,11 +72,37 @@ pub trait Platform {
 /// ```ts
 /// const linuxPlatform: Platform = { filesystemKind, isSubvolumeRoot, ... };
 /// ```
-#[derive(Clone, Copy, Debug, Default)]
-pub struct LinuxPlatform;
+#[derive(Clone, Debug, Default)]
+pub struct LinuxPlatform {
+    /// The environment of the Git this platform's command forwards to, with the forward-target variable naming that Git, so the
+    ///  facts about Git's files are learned from the Git that reads them and never from the wrapper's own environment, which
+    ///  does not carry the variable; empty where no Git is known.
+    pub git_environment: Vec<(OsString, OsString)>,
+}
+
+impl LinuxPlatform {
+    /// What:
+    ///  The platform of a command that forwards to the real Git `real_git`, from the environment the command was started in.
+    /// Why:
+    ///   The wrapper puts the forward-target variable only into its children's environment, so the command names the Git it
+    ///  resolved itself; without one (`None`) the environment is left as it is and the system files stay unknown.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const platform = linuxPlatform({ ...environment, [FORWARD_TARGET]: realGit });
+    /// ```
+    pub fn forwarding_to(environment: &[(OsString, OsString)], real_git: Option<&Path>) -> LinuxPlatform {
+        let named: Vec<(OsString, OsString)> = real_git.map_or_else(|| { return environment.to_vec(); }, |found: &Path| { return with_real_git(environment, found); });
+        return LinuxPlatform { git_environment: named };
+    }
+}
 
 /// The primitives, called as they are.
 impl Platform for LinuxPlatform {
+    fn conversion_environment(&self) -> ConversionEnvironment {
+        return ConversionEnvironment::from_variables(self.git_environment.as_slice());
+    }
+
     fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {
         return filesystem_facts(path);
     }
