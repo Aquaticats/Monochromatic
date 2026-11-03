@@ -15,6 +15,7 @@
 
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE};
 use super::subvolume_arguments::{MIGRATE_HELP, MigrateArguments, MigrateMode};
+use super::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
 use super::subvolume_error::{Interrupt, MigrateError};
 use super::subvolume_migrate::{MigrateOptions, Verdict, migrate};
 use super::subvolume_platform::{LinuxPlatform, Platform};
@@ -108,6 +109,26 @@ pub fn execute(platform: &dyn Platform, arguments: &MigrateArguments, root: &Pat
 
 /// The three modes, as a result so `execute` maps every error the same way.
 fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> Result<i32, MigrateError> {
+    let Some(layout) = layout_of(root) else {
+        return Err(MigrateError::Journal(format!("{} has no parent directory", root.display())));
+    };
+    // One command at a time works on a checkout, whatever its mode: a preview changes nothing and needs no claim. The claim
+    // is taken before the journal is read and given back when this function returns, however it returns.
+    let _claim: Option<OwnerClaim> = if arguments.dry_run {
+        None
+    } else {
+        match take_claim(layout.parent.as_path(), layout.claim_prefix.as_os_str())? {
+            ClaimOutcome::Held(held) => Some(held),
+            ClaimOutcome::Busy(owner) => {
+                let busy: Refusal = Refusal {
+                    cause: format!("another command (process {}) is working on {} right now (it owns {})", owner.pid, root.display(), owner.path.display()),
+                    remedy: String::from("Wait for it to finish, or stop it, then run this command again; a command that was killed owns nothing, so a leftover claim file needs no cleanup."),
+                };
+                say_refusals(say, std::slice::from_ref(&busy));
+                return Ok(REFUSED_EXIT_CODE);
+            }
+        }
+    };
     if arguments.mode == MigrateMode::Migrate {
         let options: MigrateOptions = MigrateOptions { dry_run: arguments.dry_run, nested_worktrees: arguments.nested_worktrees, refresh_indexes: arguments.refresh_indexes };
         let verdict: Verdict = migrate(platform, root, options, interrupt, &mut *say)?;
@@ -117,9 +138,6 @@ fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, 
         }
         return Ok(0);
     }
-    let Some(layout) = layout_of(root) else {
-        return Err(MigrateError::Journal(format!("{} has no parent directory", root.display())));
-    };
     let mut run: Run<'_> = Run::open(platform, &layout, interrupt, say)?;
     if arguments.dry_run {
         let what: &str = if arguments.mode == MigrateMode::Rollback { "restore the original directory" } else { "delete the original tree" };

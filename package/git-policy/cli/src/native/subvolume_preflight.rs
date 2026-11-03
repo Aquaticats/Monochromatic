@@ -48,7 +48,7 @@ pub const IN_PROGRESS_NAMES: [&str; 12] = [
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Layout = { root: string; parent: string; newPath: string; oldPath: string; journalPath: string; unreadablePath: string };
+/// type Layout = { root: string; parent: string; newPath: string; oldPath: string; journalPath: string; unreadablePath: string; claimPrefix: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Layout {
@@ -64,6 +64,9 @@ pub struct Layout {
     pub journal_path: PathBuf,
     /// `<parent>/.cli-git-migrate-<name>.unreadable.txt`.
     pub unreadable_path: PathBuf,
+    /// `.cli-git-migrate-<name>.owner`: the name, in the parent directory, of the numbered claim files that give one command
+    ///  at a time the migration of this checkout.
+    pub claim_prefix: std::ffi::OsString,
 }
 
 /// What:
@@ -97,6 +100,7 @@ pub fn layout_of(root: &Path) -> Option<Layout> {
         old_path: with_suffix(".before-subvolume"),
         journal_path: dotted(".journal.json"),
         unreadable_path: dotted(".unreadable.txt"),
+        claim_prefix: dotted(".owner").file_name().unwrap_or_default().to_os_string(),
     });
 }
 

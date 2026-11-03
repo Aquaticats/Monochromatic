@@ -24,7 +24,8 @@ use super::subvolume_lock::{acquire, is_ours};
 use super::subvolume_platform::Platform;
 use super::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use super::worktree_clean::check_clean_tracked_by_content;
-use super::worktree_convert_journal::{ConversionLock, Journal, is_recorded_object, read_plain_file, read_plain_text};
+use super::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
+use super::worktree_convert_journal::{CLAIM_PREFIX, Journal, is_recorded_object, legacy_lock_is_held, read_plain_file, read_plain_text};
 pub use super::worktree_convert_journal::{JOURNAL_NAME, Phase};
 use super::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use std::os::unix::ffi::OsStrExt;
@@ -395,6 +396,25 @@ fn require_complete(stats: &SyncStats, path: &Path) -> Result<(), MigrateError> 
     return Ok(());
 }
 
+/// Take Git's `index.lock` of the worktree with this conversion's token, or accept the one an earlier run of it took.
+fn hold_index_lock(job: &Job<'_>) -> Result<(), MigrateError> {
+    return acquire(job.candidate.admin.join("index.lock").as_path(), job.journal.token.as_str());
+}
+
+/// Remove Git's `index.lock` of the worktree when it holds this conversion's token; a lock that holds other text is a Git
+///  command's and stays.
+fn release_index_lock(job: &Job<'_>) -> Result<(), MigrateError> {
+    let lock: PathBuf = job.candidate.admin.join("index.lock");
+    if !is_ours(lock.as_path(), job.journal.token.as_str()) {
+        return Ok(());
+    }
+    return match std::fs::remove_file(&lock) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(MigrateError::io("release the index lock", lock.as_path(), &error)),
+    };
+}
+
 /// What:
 ///  The copy phase: create the subvolume if needed, copy with cloned data, and prove the copy equals the original.
 /// Why:
@@ -415,10 +435,18 @@ fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interrupt,
     let first: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None }, interrupt)?;
     require_complete(&first, job.candidate.path.as_path())?;
     say(format!("  copied {} entries ({} files, {} cloned)", first.entries, first.files_copied, first.cloned).as_str());
+    // Git's `index.lock` is taken only now: the long first copy ran without it, and the lock covers the span in which a Git
+    // writer could invalidate the proof, the swap or the index rewrite.
+    hold_index_lock(job)?;
     // The proof: a second pass that must find nothing to copy or delete, so the copy equals the original at this instant.
     let second: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { delete: true, update_only: false, excluded: &[], created_since: None }, interrupt)?;
-    require_complete(&second, job.candidate.path.as_path())?;
+    if let Err(error) = require_complete(&second, job.candidate.path.as_path()) {
+        release_index_lock(job)?;
+        return Err(error);
+    }
     if pass_changed(&second) {
+        // Nothing is swapped, so nothing needs the lock any more; Git commands may write the index again.
+        release_index_lock(job)?;
         return Err(MigrateError::Journal(format!(
             "{} changed while it was copied ({} file(s) copied and {} removed by the proving pass); nothing was swapped, run the command again",
             job.candidate.path.display(),
@@ -544,7 +572,8 @@ fn index_phase(job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn FnMut(&st
     }
     interrupt.check("refreshed")?;
     job.reach(Phase::Refreshed)?;
-    return Ok(());
+    // The rewrite is the last thing that needs the lock; the removal of the old tree can take long and writes no index.
+    return release_index_lock(job);
 }
 
 /// What:
@@ -590,10 +619,7 @@ fn removal_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interru
 
 /// Release the lock and drop the journal, the last step of a finished conversion.
 fn finish(job: &Job<'_>) -> Result<(), MigrateError> {
-    let lock: PathBuf = job.candidate.admin.join("index.lock");
-    if is_ours(lock.as_path(), job.journal.token.as_str()) {
-        std::fs::remove_file(&lock).map_err(|error: std::io::Error| { return MigrateError::io("release the index lock", lock.as_path(), &error); })?;
-    }
+    release_index_lock(job)?;
     let journal: PathBuf = job.candidate.admin.join(JOURNAL_NAME);
     return std::fs::remove_file(&journal).map_err(|error: std::io::Error| { return MigrateError::io("remove the conversion journal", journal.as_path(), &error); });
 }
@@ -638,13 +664,30 @@ pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOp
         Ok(found) => found,
         Err(reason) => return Ok(Verdict::Skipped(vec![reason])),
     };
-    // A dry run changes nothing, so it needs no lock; every other mode holds it to the end.
-    let _lock: Option<ConversionLock> = if options.dry_run {
+    // A dry run changes nothing, so it needs no claim; every other mode owns the conversion to the end. The claim is taken
+    // before the journal is read, so two commands never read, write or resume one journal.
+    let _claim: Option<OwnerClaim> = if options.dry_run {
         None
     } else {
-        match ConversionLock::acquire(candidate.admin.as_path())? {
-            Some(held) => Some(held),
-            None => return Ok(Verdict::Skipped(vec![format!("another conversion of {} is running (it holds {}), so this one did not start", candidate.path.display(), candidate.admin.join(super::worktree_convert_journal::LOCK_NAME).display())])),
+        match take_claim(candidate.admin.as_path(), std::ffi::OsStr::new(CLAIM_PREFIX))? {
+            ClaimOutcome::Held(held) => {
+                if legacy_lock_is_held(candidate.admin.as_path())? {
+                    return Ok(Verdict::Skipped(vec![format!(
+                        "another conversion of {} is running (a command of release 0.5.20 or older holds {}), so this one did not start",
+                        candidate.path.display(),
+                        candidate.admin.join(super::worktree_convert_journal::LOCK_NAME).display()
+                    )]));
+                }
+                Some(held)
+            }
+            ClaimOutcome::Busy(owner) => {
+                return Ok(Verdict::Skipped(vec![format!(
+                    "another conversion of {} is running (process {} owns it through {}), so this one did not start",
+                    candidate.path.display(),
+                    owner.pid,
+                    owner.path.display()
+                )]));
+            }
         }
     };
     let mut journal: Option<Journal> = Journal::load(candidate.admin.as_path())?;
@@ -712,13 +755,15 @@ pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOp
         // The journal first, made exclusively: the lock and the subvolume exist only after the journal names them.
         job.journal.create_new(candidate.admin.as_path())?;
     }
-    acquire(candidate.admin.join("index.lock").as_path(), job.journal.token.as_str())?;
     if job.journal.phase < Phase::Exchanged {
         copy_phase(platform, &mut job, interrupt, say)?;
         swap_phase(platform, &mut job, interrupt)?;
     }
     verify_swap(platform, &job)?;
     if job.journal.phase < Phase::Refreshed {
+        // A run that stopped after the swap still owes the index rewrite, which needs the lock; a release up to 0.5.20 left it
+        // in place from the start of the conversion, and taking it again is accepted when it holds this token.
+        hold_index_lock(&job)?;
         index_phase(&mut job, interrupt, say)?;
     }
     if job.journal.phase < Phase::Removed {

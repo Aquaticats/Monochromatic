@@ -1439,7 +1439,11 @@ pub mod worktree_convert;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_compare;
 
-/// The journal of a conversion and the lock that serializes conversions of one worktree.
+/// The numbered claim files that let exactly one command work on one worktree or checkout, without a lock.
+#[cfg(target_os = "linux")]
+pub mod single_owner_claim;
+
+/// The journal of a conversion and the retirement of the kernel lock file older releases left.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_journal;
 
