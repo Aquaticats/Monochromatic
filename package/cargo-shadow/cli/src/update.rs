@@ -126,6 +126,16 @@ use crate::checks::{CheckOutcome, check_release_age, check_trust};
 /// ```
 use crate::crates::{LockSnapshot, read_locks};
 /// What:
+/// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `RegistryError` is used by `other_message`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { RegistryError } from 'crate/http';
+/// ```
+use crate::http::RegistryError;
+/// What:
 /// `use crate::install::policy_findings;` imports `policy_findings` from another module of this crate so this file can name it unqualified.
 /// Why:
 /// `policy_findings` is used by `update_rust_lockfiles`.
@@ -446,7 +456,7 @@ fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Res
         // ```ts
         // try { ... } catch (error) { throw new MyError(String(error)); }
         // ```
-        .map_err(|message| { return UpdateError::Other { message }; })?;
+        .map_err(other)?;
     if !outcome.ok {
         // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
         // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
@@ -579,7 +589,7 @@ fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Resu
     // Borrow `&request.root.join`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `first: CargoOutcome`.
-    let first: CargoOutcome = request.runner.run(&request.root.join(crate_dir), &constrained).map_err(|message| { return UpdateError::Other { message }; })?;
+    let first: CargoOutcome = request.runner.run(&request.root.join(crate_dir), &constrained).map_err(other)?;
     if first.ok {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(false);
@@ -643,7 +653,7 @@ fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, Upd
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `snapshots: Vec<LockSnapshot>`.
-        let snapshots: Vec<LockSnapshot> = read_locks(request.root, std::slice::from_ref(crate_dir)).map_err(|error| { return UpdateError::Other { message: error.to_string() }; })?;
+        let snapshots: Vec<LockSnapshot> = read_locks(request.root, std::slice::from_ref(crate_dir)).map_err(other_text)?;
         // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
         // Borrow `&str`: lends the value without copying or giving it away.
         // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
@@ -668,7 +678,7 @@ fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, Upd
         // Borrow `&request.settings.minimum_release_age_exclu...`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `specs: Vec<String>`.
-        let specs: Vec<String> = excluded_update_specs(source, &request.settings.minimum_release_age_exclude).map_err(|message| { return UpdateError::Other { message }; })?;
+        let specs: Vec<String> = excluded_update_specs(source, &request.settings.minimum_release_age_exclude).map_err(other)?;
         if !specs.is_empty() {
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `let mut`: a binding that may change.
@@ -723,6 +733,33 @@ fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
 /// ```
 fn other(message: String) -> UpdateError {
     return UpdateError::Other { message };
+}
+
+/// What:
+/// `fn other_text(error) -> UpdateError` wraps any displayable error as the catch-all update error (`impl Display`:
+/// any type that prints with `{}`).
+/// Why:
+/// `.map_err(other_text)` converts the I/O and parse errors of the update steps without a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const otherText = (error: unknown) => new UpdateError(String(error))
+/// ```
+fn other_text(error: impl fmt::Display) -> UpdateError {
+    return other(error.to_string());
+}
+
+/// What:
+/// `fn other_message(error) -> UpdateError` wraps a registry error's message as the catch-all update error.
+/// Why:
+/// `.map_err(other_message)` turns a failed lookup into the error type the update returns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const otherMessage = (error: RegistryError) => new UpdateError(error.message)
+/// ```
+fn other_message(error: RegistryError) -> UpdateError {
+    return other(error.message);
 }
 
 /// What:
@@ -836,7 +873,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `after_snapshots: Vec<LockSnapshot>`.
-    let after_snapshots: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(|error| { return other(error.to_string()); })?;
+    let after_snapshots: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(other_text)?;
     // What cargo produced, taken before the slow registry checks: a restore later replaces a lockfile only if it still holds this.
     *produced = Some(after_snapshots.clone());
     // Borrow `&after_snapshots`: lends the value without copying or giving it away.
@@ -852,13 +889,13 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // Borrow `&added`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `age: CheckOutcome`.
-    let age: CheckOutcome = check_release_age(&added, settings, request.registry, request.now).map_err(|error| { return other(error.message); })?;
+    let age: CheckOutcome = check_release_age(&added, settings, request.registry, request.now).map_err(other_message)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&added`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `trust: Vec<String>`.
-    let trust: Vec<String> = check_trust(&added, settings, request.registry, request.now).map_err(|error| { return other(error.message); })?;
+    let trust: Vec<String> = check_trust(&added, settings, request.registry, request.now).map_err(other_message)?;
     // `let mut`: a binding that may change.
     // Typed binding: `problems: Vec<String>`.
     let mut problems: Vec<String> = age.problems;
@@ -877,7 +914,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `source: String`.
-        let source: String = fs::read_to_string(request.catalog_path).map_err(|error| { return other(error.to_string()); })?;
+        let source: String = fs::read_to_string(request.catalog_path).map_err(other_text)?;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&after`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
@@ -893,7 +930,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             // Borrow `&result.source`: lends the value without copying or giving it away.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            fs::write(request.catalog_path, &result.source).map_err(|error| { return other(error.to_string()); })?;
+            fs::write(request.catalog_path, &result.source).map_err(other_text)?;
         }
         pruned = result.removed;
     }
@@ -914,7 +951,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `source: String`.
-        let source: String = fs::read_to_string(request.catalog_path).map_err(|error| { return other(error.to_string()); })?;
+        let source: String = fs::read_to_string(request.catalog_path).map_err(other_text)?;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&source`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
@@ -925,7 +962,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             // Borrow `&raised_source`: lends the value without copying or giving it away.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            fs::write(request.catalog_path, &raised_source).map_err(|error| { return other(error.to_string()); })?;
+            fs::write(request.catalog_path, &raised_source).map_err(other_text)?;
             // Closure `|change|`: an anonymous function, like a TS arrow function.
             // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
             // Adapter `.map(`: transforms or selects items with a closure.
@@ -978,7 +1015,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `before: Vec<LockSnapshot>`.
-    let before: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(|error| { return other(error.to_string()); })?;
+    let before: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(other_text)?;
     // Macro `eprintln!`: builds or prints text (or a list) from a template.
     eprintln!("cargo-shadow: snapshotted {} lockfiles", before.len());
     // Borrow `&before`: lends the value without copying or giving it away.
@@ -1024,7 +1061,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
         // Borrow `&before`: lends the value without copying or giving it away.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        restore_warnings = restore_if_unchanged(request.root, &before, &state).map_err(|error| { return other(error.to_string()); })?;
+        restore_warnings = restore_if_unchanged(request.root, &before, &state).map_err(other_text)?;
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
         for warning in &restore_warnings {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.

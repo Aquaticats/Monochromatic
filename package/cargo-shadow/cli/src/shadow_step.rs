@@ -237,6 +237,26 @@ use crate::toolchain::cargo_toolchain;
 /// import { find_cargo_root, find_catalog_root } from 'crate/workspace';
 /// ```
 use crate::workspace::{find_cargo_root, find_catalog_root};
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `prepare`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
+/// What:
+/// `use crate::adapt::millis_of;` imports `millis_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `millis_of` is used by `now_millis`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { millis_of } from 'crate/adapt';
+/// ```
+use crate::adapt::millis_of;
 
 /// What:
 /// `pub fn start_dir(arguments: &[OsString], current: &Path) -> PathBuf` is where cargo will look for its manifest:
@@ -337,7 +357,7 @@ pub fn now_millis() -> i64 {
     // ```ts
     // // TS has one type for this: number
     // ```
-    return SystemTime::now().duration_since(UNIX_EPOCH).map(|elapsed| { return elapsed.as_millis() as i64; }).unwrap_or(0);
+    return SystemTime::now().duration_since(UNIX_EPOCH).map(millis_of).unwrap_or(0);
 }
 
 /// What the steps around a cargo command need,
@@ -495,7 +515,7 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `document: CatalogDocument`.
-    let document: CatalogDocument = parse_catalog(&catalog_text, CATALOG_MARKER).map_err(|error| { return error.to_string(); })?;
+    let document: CatalogDocument = parse_catalog(&catalog_text, CATALOG_MARKER).map_err(text_of)?;
     // Borrow `&std`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `in_ci: bool`.

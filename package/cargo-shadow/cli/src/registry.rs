@@ -331,7 +331,7 @@ fn string_field(object: &Value, key: &str) -> String {
     // ```ts
     // list.map(f).filter(g)
     // ```
-    return object.get(key).and_then(|value| { return value.as_str(); }).unwrap_or("").to_string();
+    return object.get(key).and_then(Value::as_str).unwrap_or("").to_string();
 }
 
 /// Reads an id that crates.io writes as a number and the cache writes as text.
@@ -443,7 +443,7 @@ pub fn parse_index_pubtimes(text: &str) -> Result<BTreeMap<String, String>, Regi
     for record in index_lines(text)? {
         // Closure `|value|`: an anonymous function, like a TS arrow function.
         // Adapter `.and_then(`: transforms or selects items with a closure.
-        if record.get("vers").and_then(|value| { return value.as_str(); }).is_some() {
+        if record.get("vers").and_then(Value::as_str).is_some() {
             // Borrow `&record`: lends the value without copying or giving it away.
             times.insert(string_field(&record, "vers"), string_field(&record, "pubtime"));
         }
@@ -511,7 +511,7 @@ pub fn parse_version_history(text: &str) -> Result<Vec<VersionRecord>, RegistryE
     // Borrow `&empty`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Adapter `.and_then(`: transforms or selects items with a closure.
-    for version in body.get("versions").and_then(|value| { return value.as_array(); }).unwrap_or(&empty) {
+    for version in body.get("versions").and_then(Value::as_array).unwrap_or(&empty) {
         // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
         // Why:      The collection stays usable after the walk and no item is copied until it must be.
         //
@@ -558,7 +558,7 @@ pub fn parse_owner_ids(text: &str) -> Result<BTreeSet<String>, RegistryError> {
     // Borrow `&empty`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Adapter `.and_then(`: transforms or selects items with a closure.
-    for user in body.get("users").and_then(|value| { return value.as_array(); }).unwrap_or(&empty) {
+    for user in body.get("users").and_then(Value::as_array).unwrap_or(&empty) {
         if string_field(user, "kind") == "user" {
             // Typed binding: `id: String`.
             let id: String = id_field(user, "id");

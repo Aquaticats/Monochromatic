@@ -86,6 +86,56 @@ pub struct LockSnapshot {
     pub source: String,
 }
 
+/// What:
+/// `impl LockSnapshot { ... }` attaches three read-only accessors to the snapshot struct (a TS class body).
+/// Why:
+/// Iterator steps name `LockSnapshot::source_text` instead of repeating a closure that reaches into the field.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class LockSnapshot { sourceText(): string { return this.source; } }
+/// ```
+impl LockSnapshot {
+    /// What:
+    /// `pub fn source_text(&self) -> String` returns an owned copy of the lockfile text.
+    /// Why:
+    /// The lockfile diff and the journal take plain texts and keep them after the snapshots go out of scope.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// sourceText(): string { return this.source; }
+    /// ```
+    pub fn source_text(&self) -> String {
+        return self.source.clone();
+    }
+
+    /// What:
+    /// `pub fn source_str(&self) -> &str` lends the lockfile text without copying it.
+    /// Why:
+    /// Reading one snapshot's text to parse it needs no ownership.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// sourceStr(): string { return this.source; }
+    /// ```
+    pub fn source_str(&self) -> &str {
+        return self.source.as_str();
+    }
+
+    /// What:
+    /// `pub fn crate_dir_text(&self) -> String` returns an owned copy of the repo-relative crate directory.
+    /// Why:
+    /// Recovery builds the list of crate roots to re-read from the journal's snapshots.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// crateDirText(): string { return this.crateDir; }
+    /// ```
+    pub fn crate_dir_text(&self) -> String {
+        return self.crate_dir.clone();
+    }
+}
+
 /// Collects the repo-relative directories exactly `depth` levels below `base` that hold a lockfile.
 fn collect_at_depth(root: &Path, relative: &str, depth: usize, found: &mut Vec<String>) -> io::Result<()> {
     if depth == 0 {

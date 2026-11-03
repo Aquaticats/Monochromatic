@@ -28,6 +28,9 @@ pub mod constants;
 /// Release-age and trust checks over newly locked versions.
 pub mod checks;
 
+/// Small named conversions for error mappers and time arithmetic.
+pub mod adapt;
+
 /// Warns about dependencies that do not use the workspace catalog.
 pub mod catalog_warning;
 

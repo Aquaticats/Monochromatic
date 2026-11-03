@@ -104,6 +104,16 @@ use crate::lockfile::LockedVersion;
 /// import { compare_texts } from 'crate/version_order';
 /// ```
 use crate::version_order::compare_texts;
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `raise_floors`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
 
 /// What:
 /// `pub trait Syncer { fn sync(&self, root: &Path) -> Result<String, String>; }` renders the catalog into the manifests.
@@ -203,10 +213,10 @@ pub fn raised_names(before: &[LockedVersion], after: &[LockedVersion]) -> BTreeS
 /// export function raiseFloors({ source, locked, changed }): { source: string; changes: string[] }
 /// ```
 pub fn raise_floors(source: &str, locked: &[LockedVersion], changed: &BTreeSet<String>) -> Result<(String, Vec<String>), String> {
-    let mut document: DocumentMut = source.parse::<DocumentMut>().map_err(|error| { return error.to_string(); })?;
+    let mut document: DocumentMut = source.parse::<DocumentMut>().map_err(text_of)?;
     let highest: BTreeMap<String, String> = highest_by_name(locked);
     let mut changes: Vec<String> = Vec::new();
-    let catalog = match document.get_mut("catalog").and_then(|item| { return item.as_table_mut(); }) {
+    let catalog = match document.get_mut("catalog").and_then(Item::as_table_mut) {
         Some(found) => found,
         None => return Ok((source.to_string(), changes)),
     };

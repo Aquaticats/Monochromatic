@@ -399,7 +399,7 @@ pub fn manifests_from_metadata(metadata_json: &str) -> Vec<PathBuf> {
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         // Adapter `.map(`: transforms or selects items with a closure.
         // Typed binding: `has_source: bool`.
-        let has_source: bool = !package.get("source").map(|value| { return value.is_null(); }).unwrap_or(true);
+        let has_source: bool = !package.get("source").map(Value::is_null).unwrap_or(true);
         if has_source {
             continue;
         }

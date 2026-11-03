@@ -260,7 +260,7 @@ pub fn recover(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[Loc
                 continue;
             }
         };
-        let dirs: Vec<String> = before.iter().map(|snapshot| { return snapshot.crate_dir.clone(); }).collect();
+        let dirs: Vec<String> = before.iter().map(LockSnapshot::crate_dir_text).collect();
         let live: Vec<LockSnapshot> = match read_locks(root, &dirs) {
             Ok(found) => found,
             Err(_) => {

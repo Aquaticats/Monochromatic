@@ -63,6 +63,16 @@ use std::path::Path;
 /// import { TOOLCHAIN_LOCK_NAME } from 'crate/constants';
 /// ```
 use crate::constants::TOOLCHAIN_LOCK_NAME;
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `rust_toolchain_from_lock`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
 
 /// What:
 /// `pub fn rust_toolchain_from_lock(text: &str) -> Result<String, String>` reads `.tools.rust.version`.
@@ -75,7 +85,7 @@ use crate::constants::TOOLCHAIN_LOCK_NAME;
 /// export function rustToolchainFromLock(text: string): string  // throws SyntaxError
 /// ```
 pub fn rust_toolchain_from_lock(text: &str) -> Result<String, String> {
-    let parsed: serde_json::Value = serde_json::from_str(text).map_err(|error| { return error.to_string(); })?;
+    let parsed: serde_json::Value = serde_json::from_str(text).map_err(text_of)?;
     let version = parsed.get("tools").and_then(|tools| { return tools.get("rust"); }).and_then(|rust| { return rust.get("version"); });
     return match version.and_then(|value| { return value.as_str(); }) {
         Some(found) => Ok(found.to_string()),

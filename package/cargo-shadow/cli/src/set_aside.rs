@@ -170,6 +170,26 @@ use crate::time_text::parse_rfc3339_millis;
 /// import { caret_compatible, compare_texts, is_prerelease_text } from 'crate/version_order';
 /// ```
 use crate::version_order::{caret_compatible, compare_texts, is_prerelease_text};
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `set_aside_until_clean`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
+/// What:
+/// `use crate::adapt::message_of;` imports `message_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `message_of` is used by `set_aside_until_clean`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { message_of } from 'crate/adapt';
+/// ```
+use crate::adapt::message_of;
 
 /// How many rounds of moving refused crates are tried.
 pub const SET_ASIDE_ROUNDS: usize = 5;
@@ -574,7 +594,7 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
         // try { ... } catch (error) { throw new MyError(String(error)); }
         // ```
         // Typed binding: `current: Vec<LockSnapshot>`.
-        let current: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(|error| { return error.to_string(); })?;
+        let current: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(text_of)?;
         // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
         // `.clone()`: an independent owned copy.
         // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
@@ -598,12 +618,12 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // `let mut`: a binding that may change.
         // Typed binding: `pending: Vec<TrustRefusal>`.
-        let mut pending: Vec<TrustRefusal> = age_refusals(&added, request).map_err(|error| { return error.message; })?;
+        let mut pending: Vec<TrustRefusal> = age_refusals(&added, request).map_err(message_of)?;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Closure `|error|`: an anonymous function, like a TS arrow function.
         // Borrow `&added`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        for refusal in trust_refusals(&added, request.settings, request.registry, request.now).map_err(|error| { return error.message; })? {
+        for refusal in trust_refusals(&added, request.settings, request.registry, request.now).map_err(message_of)? {
             // Closure `|known|`: an anonymous function, like a TS arrow function.
             // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
             if !pending.iter().any(|known| { return known.name == refusal.name && known.version == refusal.version; }) {
@@ -635,7 +655,7 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
             // Borrow `&rejected`: lends the value without copying or giving it away.
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Typed binding: `candidates: Vec<String>`.
-            let candidates: Vec<String> = set_aside_candidates(refusal, request, &rejected).map_err(|error| { return error.message; })?;
+            let candidates: Vec<String> = set_aside_candidates(refusal, request, &rejected).map_err(message_of)?;
             if candidates.is_empty() {
                 // Macro `eprintln!`: builds or prints text (or a list) from a template.
                 eprintln!("cargo-shadow: no older release can replace {key}; its finding stands");
@@ -646,7 +666,7 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Typed binding: `snapshots: Vec<LockSnapshot>`.
-            let snapshots: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(|error| { return error.to_string(); })?;
+            let snapshots: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(text_of)?;
             // Borrow `&snapshots`: lends the value without copying or giving it away.
             for crate_dir in crates_locking(&snapshots, &key) {
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.

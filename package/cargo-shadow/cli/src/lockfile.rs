@@ -38,6 +38,28 @@ use std::collections::BTreeSet;
 /// import { DocumentMut } from 'toml_edit';
 /// ```
 use toml_edit::DocumentMut;
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `parse_registry_versions`,
+/// `direct_dependency_names`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
+/// What:
+/// `use toml_edit::Item;` imports `Item` from the external crate `toml_edit` so this file can name it unqualified.
+/// Why:
+/// `Item` is used by `parse_registry_versions`,
+/// `direct_dependency_names`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Item } from 'toml_edit';
+/// ```
+use toml_edit::Item;
 
 /// The start of a `source` value for a crates.io-style registry package.
 const REGISTRY_SOURCE_PREFIX: &str = "registry+";
@@ -81,16 +103,16 @@ impl LockedVersion {
 /// export function parseRegistryVersions(source: string): LockedVersion[]  // throws on invalid TOML
 /// ```
 pub fn parse_registry_versions(source: &str) -> Result<Vec<LockedVersion>, String> {
-    let document: DocumentMut = source.parse::<DocumentMut>().map_err(|error| { return error.to_string(); })?;
+    let document: DocumentMut = source.parse::<DocumentMut>().map_err(text_of)?;
     let mut versions: Vec<LockedVersion> = Vec::new();
-    let packages = match document.get("package").and_then(|item| { return item.as_array_of_tables(); }) {
+    let packages = match document.get("package").and_then(Item::as_array_of_tables) {
         Some(found) => found,
         None => return Ok(versions),
     };
     for package in packages.iter() {
-        let name: Option<&str> = package.get("name").and_then(|item| { return item.as_str(); });
-        let version: Option<&str> = package.get("version").and_then(|item| { return item.as_str(); });
-        let source_text: &str = package.get("source").and_then(|item| { return item.as_str(); }).unwrap_or("");
+        let name: Option<&str> = package.get("name").and_then(Item::as_str);
+        let version: Option<&str> = package.get("version").and_then(Item::as_str);
+        let source_text: &str = package.get("source").and_then(Item::as_str).unwrap_or("");
         if let (Some(found_name), Some(found_version)) = (name, version)
             && source_text.starts_with(REGISTRY_SOURCE_PREFIX)
         {
@@ -126,7 +148,7 @@ pub fn registry_versions(sources: &[String]) -> Result<Vec<LockedVersion>, Strin
 /// export function addedVersions({ before, after }): LockedVersion[]
 /// ```
 pub fn added_versions(before: &[String], after: &[String]) -> Result<Vec<LockedVersion>, String> {
-    let previous: BTreeSet<String> = registry_versions(before)?.iter().map(|version| { return version.key(); }).collect();
+    let previous: BTreeSet<String> = registry_versions(before)?.iter().map(LockedVersion::key).collect();
     let mut added: Vec<LockedVersion> = Vec::new();
     for version in registry_versions(after)? {
         if !previous.contains(&version.key()) {
@@ -154,9 +176,9 @@ pub fn added_versions(before: &[String], after: &[String]) -> Result<Vec<LockedV
 /// export function directDependencyNames(source: string): Set<string>
 /// ```
 pub fn direct_dependency_names(source: &str) -> Result<BTreeSet<String>, String> {
-    let document: DocumentMut = source.parse::<DocumentMut>().map_err(|error| { return error.to_string(); })?;
+    let document: DocumentMut = source.parse::<DocumentMut>().map_err(text_of)?;
     let mut names: BTreeSet<String> = BTreeSet::new();
-    let packages = match document.get("package").and_then(|item| { return item.as_array_of_tables(); }) {
+    let packages = match document.get("package").and_then(Item::as_array_of_tables) {
         Some(found) => found,
         None => return Ok(names),
     };
@@ -164,7 +186,7 @@ pub fn direct_dependency_names(source: &str) -> Result<BTreeSet<String>, String>
         if package.get("source").is_some() {
             continue;
         }
-        let dependencies = match package.get("dependencies").and_then(|item| { return item.as_array(); }) {
+        let dependencies = match package.get("dependencies").and_then(Item::as_array) {
             Some(found) => found,
             None => continue,
         };

@@ -163,6 +163,16 @@ use crate::stamp::{is_fresh, manifests_from_metadata, record, stamp_file};
 /// import { find_cargo_root, find_catalog_root } from 'crate/workspace';
 /// ```
 use crate::workspace::{find_cargo_root, find_catalog_root};
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `read_catalog`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
 
 /// What the install step did.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -337,7 +347,7 @@ fn read_catalog(catalog_root: &Path) -> Result<CatalogDocument, String> {
     // String(value)  // JS strings are always owned values
     // ```
     // `.map_err(...)`: converts the callee's error into this function's error type.
-    return parse_catalog(&text, CATALOG_MARKER).map_err(|error| { return error.to_string(); });
+    return parse_catalog(&text, CATALOG_MARKER).map_err(text_of);
 }
 
 /// Records the stamp after a pass:

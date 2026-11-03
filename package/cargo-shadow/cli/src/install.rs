@@ -482,6 +482,46 @@ pub struct InstallRequest<'a> {
     pub lock_base: Option<&'a dyn Fn(&str) -> String>,
 }
 
+/// What:
+/// `fn io_error(error) -> InstallError` wraps any displayable error as the `Io` variant of the install error.
+/// Why:
+/// `.map_err(io_error)` converts file and parse errors of the install steps without a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ioError = (error: unknown) => new InstallError("io", String(error))
+/// ```
+fn io_error(error: impl fmt::Display) -> InstallError {
+    return InstallError::Io { message: error.to_string() };
+}
+
+/// What:
+/// `fn io_message(message) -> InstallError` wraps a message text as the `Io` variant.
+/// Why:
+/// Helpers that already return text (`Result<_, String>`) convert with `.map_err(io_message)`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ioMessage = (message: string) => new InstallError("io", message)
+/// ```
+fn io_message(message: String) -> InstallError {
+    return InstallError::Io { message };
+}
+
+/// What:
+/// `fn registry_error(message) -> InstallError` wraps a message text as the `Registry` variant.
+/// Why:
+/// A failed policy lookup is reported as a registry failure,
+/// so the user knows the lockfiles were restored because crates.io could not be asked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const registryError = (message: string) => new InstallError("registry", message)
+/// ```
+fn registry_error(message: String) -> InstallError {
+    return InstallError::Registry { message };
+}
+
 /// Runs cargo in a crate root;
 /// a start failure is an `Io` error.
 fn run_cargo(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result<CargoOutcome, InstallError> {
@@ -497,7 +537,7 @@ fn run_cargo(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result
         // ```ts
         // try { ... } catch (error) { throw new MyError(String(error)); }
         // ```
-        .map_err(|message| { return InstallError::Io { message }; });
+        .map_err(io_message);
 }
 
 /// Whether a crate root's lockfile no longer satisfies its manifests,
@@ -555,7 +595,7 @@ fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
     // `.collect()`: runs the iterator and gathers the items into the bound collection type.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     // Adapter `.map(`: transforms or selects items with a closure.
-    return snapshots.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
+    return snapshots.iter().map(LockSnapshot::source_text).collect();
 }
 
 /// The crate roots whose lockfile is stale,
@@ -635,7 +675,7 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
         // Closure `|error|`: an anonymous function, like a TS arrow function.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        read_locks(request.root, request.crate_dirs).map_err(|error| { return InstallError::Io { message: error.to_string() }; })?;
+        read_locks(request.root, request.crate_dirs).map_err(io_error)?;
     // What cargo produced, taken before the slow registry checks: a restore later replaces a lockfile only if it still holds this.
     *produced = Some(after.clone());
     // Borrow `&sources_of`: lends the value without copying or giving it away.
@@ -766,7 +806,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             // Closure `|error|`: an anonymous function, like a TS arrow function.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            read_locks(request.root, request.crate_dirs).map_err(|error| { return InstallError::Io { message: error.to_string() }; })?;
+            read_locks(request.root, request.crate_dirs).map_err(io_error)?;
         // `trustLockfile = true` (the owner's decision of 2026-10-29): committed lockfiles are trusted, so only the versions no
         // lockfile held at the base revision are checked. With it false, pnpm's default: every lockfile entry is re-validated
         // against the release-age and trust policy, and a lockfile that passed before is remembered by its digest (verify.rs).
@@ -791,14 +831,14 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Closure `|message|`: an anonymous function, like a TS arrow function.
                 // `.map_err(...)`: converts the callee's error into this function's error type.
-                .map_err(|message| { return InstallError::Registry { message }; })?
+                .map_err(registry_error)?
         } else {
             // Borrow `&locks`: lends the value without copying or giving it away.
             verify_locked_entries(request.root, &locks, request.settings, request.registry, request.now)
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Closure `|message|`: an anonymous function, like a TS arrow function.
                 // `.map_err(...)`: converts the callee's error into this function's error type.
-                .map_err(|message| { return InstallError::Registry { message }; })?
+                .map_err(registry_error)?
         };
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `.to_vec()`: copies the slice into a new owned `Vec`.
@@ -819,7 +859,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // Closure `|error|`: an anonymous function, like a TS arrow function.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        read_locks(request.root, request.crate_dirs).map_err(|error| { return InstallError::Io { message: error.to_string() }; })?;
+        read_locks(request.root, request.crate_dirs).map_err(io_error)?;
     // Macro `eprintln!`: builds or prints text (or a list) from a template.
     eprintln!("cargo-shadow: snapshotted {} lockfiles", before.len());
     // Borrow `&before`: lends the value without copying or giving it away.
@@ -872,7 +912,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // Borrow `&before`: lends the value without copying or giving it away.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        restore_warnings = restore_if_unchanged(request.root, &before, &state).map_err(|error| { return InstallError::Io { message: error.to_string() }; })?;
+        restore_warnings = restore_if_unchanged(request.root, &before, &state).map_err(io_error)?;
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
         for warning in &restore_warnings {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.

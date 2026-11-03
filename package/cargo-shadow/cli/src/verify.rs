@@ -146,6 +146,17 @@ use crate::lockfile::{LockedVersion, added_versions, registry_versions};
 /// import { Registry } from 'crate/registry';
 /// ```
 use crate::registry::Registry;
+/// What:
+/// `use crate::adapt::message_of;` imports `message_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `message_of` is used by `verify_locked_entries`,
+/// `verify_added_since_base`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { message_of } from 'crate/adapt';
+/// ```
+use crate::adapt::message_of;
 
 /// Where passing digests are remembered,
 /// relative to the repository root.
@@ -215,8 +226,8 @@ pub fn verify_locked_entries(
     let sources: Vec<String> = pending.iter().map(|snapshot| { return snapshot.source.clone(); }).collect();
     let versions: Vec<LockedVersion> = registry_versions(&sources)?;
     eprintln!("cargo-shadow: verifying {} locked versions from {} lockfiles", versions.len(), pending.len());
-    let mut problems: Vec<String> = check_release_age(&versions, settings, registry, now).map_err(|error| { return error.message; })?.problems;
-    problems.extend(check_trust(&versions, settings, registry, now).map_err(|error| { return error.message; })?);
+    let mut problems: Vec<String> = check_release_age(&versions, settings, registry, now).map_err(message_of)?.problems;
+    problems.extend(check_trust(&versions, settings, registry, now).map_err(message_of)?);
     if problems.is_empty() {
         for snapshot in pending {
             let path: PathBuf = cache_file(root, snapshot, settings);
@@ -265,5 +276,5 @@ pub fn verify_added_since_base(
     if versions.is_empty() {
         return Ok(Vec::new());
     }
-    return check_trust(&versions, settings, registry, now).map_err(|error| { return error.message; });
+    return check_trust(&versions, settings, registry, now).map_err(message_of);
 }

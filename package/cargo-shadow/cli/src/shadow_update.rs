@@ -184,6 +184,26 @@ use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfil
 /// import { UpdatePlan, plan_update } from 'crate/update_plan';
 /// ```
 use crate::update_plan::{UpdatePlan, plan_update};
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `check_direct`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
+/// What:
+/// `use crate::crates::LockSnapshot;` imports `LockSnapshot` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `LockSnapshot` is used by `check_direct`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { LockSnapshot } from 'crate/crates';
+/// ```
+use crate::crates::LockSnapshot;
 
 /// The lockfile text that stands in for a missing lockfile while a full update creates it.
 const EMPTY_LOCK: &str = "version = 4\n";
@@ -439,7 +459,7 @@ fn check_direct(root: &Path, crate_dir: &str, names: &[String]) -> Result<(), St
     // ```ts
     // try { ... } catch (error) { throw new MyError(String(error)); }
     // ```
-    let snapshots = read_locks(root, &[crate_dir.to_string()]).map_err(|error| { return error.to_string(); })?;
+    let snapshots = read_locks(root, &[crate_dir.to_string()]).map_err(text_of)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
     // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
@@ -457,7 +477,7 @@ fn check_direct(root: &Path, crate_dir: &str, names: &[String]) -> Result<(), St
     // ```ts
     // list.map(f).filter(g)
     // ```
-    let direct = direct_dependency_names(snapshots.first().map(|snapshot| { return snapshot.source.as_str(); }).unwrap_or(""))?;
+    let direct = direct_dependency_names(snapshots.first().map(LockSnapshot::source_str).unwrap_or(""))?;
     for name in names {
         if !direct.contains(name) {
             // `Err(...)`: builds the success or the failure variant of a `Result`.

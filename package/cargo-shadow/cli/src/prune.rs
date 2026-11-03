@@ -70,6 +70,16 @@ use crate::lockfile::LockedVersion;
 /// import { prune_selectors } from 'crate/selectors';
 /// ```
 use crate::selectors::prune_selectors;
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `prune_excludes`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
 
 /// The result of pruning.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -88,7 +98,7 @@ pub fn prune_excludes(source: &str, settings: &Settings, locked: &[LockedVersion
         ("minimumReleaseAgeExclude", settings.minimum_release_age_exclude_prune, &settings.minimum_release_age_exclude),
         ("trustPolicyExclude", settings.trust_policy_exclude_prune, &settings.trust_policy_exclude),
     ];
-    let mut document: DocumentMut = source.parse::<DocumentMut>().map_err(|error| { return error.to_string(); })?;
+    let mut document: DocumentMut = source.parse::<DocumentMut>().map_err(text_of)?;
     let mut removed: Vec<String> = Vec::new();
     for (key, enabled, before) in lists {
         if !enabled {

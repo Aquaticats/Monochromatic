@@ -75,7 +75,7 @@ pub struct Literal {
 /// Whether one dependency value uses the catalog or needs none.
 fn is_catalog_or_local(item: &Item) -> bool {
     if let Some(table) = item.as_table_like() {
-        return table.get("workspace").and_then(|value| { return value.as_bool(); }) == Some(true)
+        return table.get("workspace").and_then(Item::as_bool) == Some(true)
             || table.contains_key("path")
             || table.contains_key("git");
     }
@@ -112,14 +112,14 @@ pub fn literal_dependencies(manifest_text: &str) -> Vec<Literal> {
     };
     let mut found: Vec<Literal> = Vec::new();
     for name in DEPENDENCY_TABLES {
-        if let Some(table) = document.get(name).and_then(|item| { return item.as_table(); }) {
+        if let Some(table) = document.get(name).and_then(Item::as_table) {
             collect(name, table, &mut found);
         }
     }
-    if let Some(targets) = document.get("target").and_then(|item| { return item.as_table(); }) {
+    if let Some(targets) = document.get("target").and_then(Item::as_table) {
         for (target, target_item) in targets.iter() {
             for name in DEPENDENCY_TABLES {
-                if let Some(table) = target_item.get(name).and_then(|item| { return item.as_table(); }) {
+                if let Some(table) = target_item.get(name).and_then(Item::as_table) {
                     collect(&format!("target.'{target}'.{name}"), table, &mut found);
                 }
             }

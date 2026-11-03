@@ -213,6 +213,16 @@ use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfil
 /// import { find_catalog_root } from 'crate/workspace';
 /// ```
 use crate::workspace::find_catalog_root;
+/// What:
+/// `use crate::adapt::millis_of;` imports `millis_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `millis_of` is used by `now_millis`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { millis_of } from 'crate/adapt';
+/// ```
+use crate::adapt::millis_of;
 
 /// Prints findings under a heading,
 /// with the pointer to the settings.
@@ -370,7 +380,7 @@ fn now_millis() -> i64 {
     // ```ts
     // // TS has one type for this: number
     // ```
-    return SystemTime::now().duration_since(UNIX_EPOCH).map(|elapsed| { return elapsed.as_millis() as i64; }).unwrap_or(0);
+    return SystemTime::now().duration_since(UNIX_EPOCH).map(millis_of).unwrap_or(0);
 }
 
 /// What:
