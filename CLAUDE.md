@@ -1424,6 +1424,12 @@ MGN:
  or the relation under test,
  so a legitimate change breaks nothing.
 
+LQM:
+ Shipped resource limits (unit caps,
+ timeouts,
+ size bounds) cite a workload measurement or owner decision beside the value;
+ agent-command cgroup rules never size shipped code.
+
 GFP:
  A guard test proves nothing until shown to fail:
  commit it,
