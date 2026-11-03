@@ -278,12 +278,65 @@ before it spends a run:
 a crate that is not in the registry,
 versions that are not release versions or are equal,
 and a note that cannot be a commit subject for the crate's scope.
-Then it runs `gh workflow run crate-release.yml` with the inputs as `--raw-field` arguments,
+Then it checks that origin holds the local commits (see "Unpushed commits"),
+and only then runs `gh workflow run crate-release.yml` with the inputs as `--raw-field` arguments,
 shows what `gh` printed,
 and ends with `RELEASE STARTED <run URL>`.
 The branch is the default branch of the repository.
 When `gh` prints no run address,
 the closing line says so and shows `gh run list --workflow=crate-release.yml --limit=1`.
+
+### Unpushed commits
+
+The workflow builds the default branch of the repository on GitHub,
+not this checkout.
+Auto-push can lag or stop,
+and a release of a crate version cannot be taken back from crates.io,
+so a dispatch made while the local default branch holds commits origin does not have
+would publish old source under the new version.
+Before it calls `gh`,
+the command therefore
+
+1.  asks origin for its default branch with `git ls-remote --symref origin HEAD`,
+    which names the branch `gh workflow run` builds when it gets no branch,
+    so no branch name is written into the tool;
+2.  fetches that branch into `refs/remotes/origin/<branch>` with `git fetch`;
+3.  runs `git merge-base --is-ancestor refs/heads/<branch> refs/remotes/origin/<branch>`:
+    status zero means origin holds the local branch.
+
+It refuses, exits with status 1 and never calls `gh` when
+
+- origin lacks commits.
+  The message gives how many local commits origin lacks,
+  the short hash and subject of the newest,
+  and the two ways out:
+  wait for auto-push, or run `git push origin <branch>`;
+  then run the same release command again.
+- a step gave no answer (offline, no credentials, no `origin`, no local branch of that name).
+  The message names the `git` call that failed and shows Git's own message,
+  because publishing unchecked is irreversible.
+  Fix the cause and run the same release command again.
+
+Each `git` call is printed as a `$` line first.
+A `--dry-run` is refused the same way:
+it builds origin's branch too,
+so a dry run on old source would prove nothing about the release.
+
+The check covers the whole default branch,
+not only the directory of the crate (`crateDir`).
+A check of the crate directory would pass while a shared input the release reads was unpushed:
+a `Cargo.lock` of a `lockDirs` entry,
+a pinned manifest,
+the `Cargo.lock` of a workspace,
+or `.github/workflows/crate-release.yml` and `cargo-publish.yml` themselves.
+Listing those inputs would need the same registry data and the same rules as the push command's path comparison,
+and would fail open when the list is out of date,
+while "origin holds every local commit" has no list to keep.
+The price is that an unrelated unpushed commit blocks a release until it is pushed,
+which auto-push does within moments in normal use.
+
+The check compares with the remote named `origin`.
+A dispatch with `--repo` for a repository other than `origin` still compares with `origin`.
 
 ## Await command
 
@@ -489,6 +542,7 @@ the hash is never placed in a `gh --jq` program.
   `push-options.ts`,
   `await-options.ts`,
   `wait-options.ts`).
+- `origin-containment.ts` builds the `git` calls of the origin check, parses origin's default branch and writes the refusals.
 - `release-run.ts`,
   `dispatch-run.ts`,
   `push-run.ts`,
