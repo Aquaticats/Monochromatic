@@ -10145,3 +10145,10 @@ by the coordinator at merge.
   MemoryMax 8G, IOWeight 10, the shell's PATH). QUEUED: diagnose and fix the `list_config` `None` for this
   repository, then convert the 18. The subvolume-tools lock agent was told the run uses 0.5.20 and leaves
   `cli-git-convert.lock` files and 0.5.20 journals behind.
+- 2026-11-03T02:25:17-05:00: the package-manager gate's one failure (no pnpm in the test image) is fixed on its branch
+  (`c68770ddb3` red, `666ee0b9ef`, `a60b5318bb`): the image gets the `pnpm` row of `toolchain.lock.json` (archive and
+  sha256 checked on the host, `/opt/pnpm` on `PATH`; the locked pnpm 12.16.1 is standalone, so no Node); in an
+  image built with the network off, the `package_repair` tests ran 58 of 58. Full gate
+  `gpc-gate-package-repair-pnpm-in-image-20261103T022517-0500` running. That branch is 130 commits ahead of its
+  remote copy because its auto-pushes keep stopping at the 30 s LFS push deadline (input for the deadline agent).
+  The queued second-pass merge work started on `feat/git-policy-cli-word-level-second-merge-pass`.
