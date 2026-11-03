@@ -254,6 +254,20 @@ reads it past the adopt line of a request being resumed (the document names each
 rotation (a new file started after the document records the old file as closed), so recovery reads one bounded file. The measurement gate: commit cost is
 flat against ledger length (step 1, "state document size independent of history").
 
+Rule D, durable before reliance (revision 10; one rule for every link-before-directory-fsync boundary). A name that a process created and has
+not yet made durable (the link is done, the directory fsync is not) is visible to other processes, so the creator's own fsync is not a promise
+to an observer. Whoever relies on a name it did not itself make durable, whether it saw the name or its own `link` returned `EEXIST`, makes that
+name durable before it answers, acts or decides on it: it fsyncs the directory that contains the name and, for a name inside a directory that the
+same exchange may have created, that directory's parent. The durable dependency chain of a request is, in this order (each step is fsynced
+by its creator and again by any relier): the candidate files, then the candidate directory (its entries), then `incoming/` (the candidate's
+entry), then the binding temporary file, then the binding link in `ids/<xx>/`, then `ids/<xx>/` and, when `<xx>` was created, `ids/`, then the
+`inbox/` link and `inbox/` with its parent, then the `queue/` link and the `adopt` line of `lane/order` (a file fsync), then the ledger line (a
+file fsync, which a reader does through a read-only descriptor). A relier on `ids/<xx>/<id>` therefore fsyncs `ids/<xx>/` (and `ids/` if
+needed) and also the candidate directory the binding names and `incoming/`, because the binding is only as durable as the request it names.
+The inbox case of this rule is C4 on `EEXIST` (the step-1 variant `NineFsyncOnExists`: fsync `inbox/` and its parent when the link finds the
+name taken); the binding case is C3 on `EEXIST`; the order and ledger cases are the answers `adopted` and `terminal` of C3. The cost is paid only
+by a resend, which is rare, and an fsync of an already durable directory is cheap.
+
 Lane transitions (the owner and its incarnation)
 - L1 acquire. Pre: none. Do: open `lane/owner` (a file created once and never replaced) with close-on-exec, wait for the exclusive lock.
   Crash: nothing to recover. Note: the wait ends when the previous owner and any child still between fork and exec have gone; a child
@@ -314,18 +328,22 @@ Capture and acceptance (client)
   fsync the directory. The candidate is never opened for writing again after this fsync. Crash: a candidate with no binding belongs to a
   dead client and is removed by the lane after the client's identity is gone; a candidate that a binding names is never removed here.
 - C3 bind. Pre: C2. Do: write the binding content (hash of the immutable request and the path of this candidate) to a temporary file,
-  fsync, then `link` it to `ids/<xx>/<id>` (atomic: complete or absent). If the name exists, read it (always complete) and route by the
+  fsync, then `link` it to `ids/<xx>/<id>` (atomic: complete or absent) and fsync `ids/<xx>/` (and `ids/` if `<xx>` was created). If the name exists,
+  apply rule D to the binding and to the candidate it names before using either, read it (always complete) and route by the
   identity's state, which the binding, the inbox, the queue and the named lane's ledger together define:
   - different hash: reject with a message; nothing is accepted;
   - same hash and this writer lost the race: discard this candidate and use the winner's candidate named in the binding;
   - reserved (bound, no record in `inbox/`, `queue/` or the ledger): go to C4 from the candidate;
-  - accepted (the record is in `inbox/`): redo the C4 fsyncs (the record, `inbox/`, its parent) before answering, because the record may be
+  - accepted (the record is in `inbox/`): apply rule D to the record, `inbox/` and its parent before answering, because the record may be
     visible without being durable, and power loss would remove it; only then answer `handed over`;
-  - adopted (an `adopt` line in the named lane's order file, or the record in `queue/`): answer that it is handed over and adopted;
-  - terminal (a line in the named lane's ledger): answer the recorded outcome.
+  - adopted (an `adopt` line in the named lane's order file, or the record in `queue/`): apply rule D to that line (fsync of the order file) and to `queue/`, then
+    answer that it is handed over and adopted;
+  - terminal (a line in the named lane's ledger): apply rule D to that line, then answer the recorded outcome (a `superseded` line is followed to the request
+    that replaced it, see B3).
   Crash: a binding with a durable candidate and no inbox record is a reserved request: any same-content resend, or the lane at L4, completes C4.
 - C4 accept. Pre: C3. Do: publish the record into `inbox/<id>` from the candidate with a no-replace hard link (the candidate stays where it is
-  and remains the spool the record points to), fsync `inbox/` and its parent, answer `handed over`. Crash: repeated by C4 from the candidate;
+  and remains the spool the record points to), fsync `inbox/` and its parent, answer `handed over`; when the link finds the name taken (`EEXIST`, another writer or an earlier run of this step), the record is read
+  and rule D is applied to it before the answer, so a record that is visible but not durable is never acknowledged. Crash: repeated by C4 from the candidate;
   a request that C5 has adopted is not repeated.
 - C5 adopt (lane). Pre: accepted, no `adopt <id>` yet, L4 done. Do: journal the intent; append `adopt <id> <crc>` to `lane/order` (this
   line is the authority); link the record into `queue/`; S1 replacement adding the request to the logical tail and the map. Crash: L4
