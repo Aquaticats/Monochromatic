@@ -143,3 +143,17 @@ fn a_damaged_or_missing_index_and_the_off_switch_are_left_to_git() {
     assert!(git_with(scene.repo.as_path(), &[], &["status", "--short"], None).status.success());
     finish(scene);
 }
+
+/// Another run's temporary file is not this run's to remove or publish: a file already at the name an earlier version used for
+/// every run stays untouched, and the target still gets the complete result.
+#[test]
+fn another_runs_temporary_file_is_left_alone() {
+    let scene: Scene = changed_a("index-fallback-decoy");
+    let index: PathBuf = scene.repo.join(".git").join("index");
+    let decoy: PathBuf = scene.repo.join(".git").join("index.cli-git-reset");
+    std::fs::write(&decoy, b"another run's partial file").expect("decoy");
+    assert!(try_reset(&scene));
+    assert_eq!(std::fs::read(&decoy).expect("the decoy stays"), b"another run's partial file".to_vec());
+    assert!(crate::index_full::parse_full_index(index_bytes(scene.repo.as_path()).as_slice(), 20).is_some());
+    finish(scene);
+}

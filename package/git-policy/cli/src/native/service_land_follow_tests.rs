@@ -100,3 +100,36 @@ fn the_follow_up_starts_no_git_reset_and_no_git_diff_tree() {
         remove(root.as_path());
     }
 }
+
+/// The in-process update runs only for a landing that holds the live index lock, and the lock is held from the copy of the live
+/// index to its replacement: without the lock the follow-up asks Git (which takes the lock itself or fails), with it no Git
+/// starts, a foreign `git add` finds the lock taken until the built index is in place, and what it staged before is kept.
+#[test]
+fn the_in_process_update_runs_only_under_the_live_index_lock() {
+    use crate::service_index_lock::{lock_path_of, try_acquire};
+    let files: Vec<Vec<u8>> = vec![b"top.txt".to_vec(), b"dir/inner.txt".to_vec()];
+    let (root, repo, _first, second) = index_behind("service-follow-lock", files.as_slice());
+    let (mut context, log) = recording_context(root.as_path());
+    context.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
+    context.common_dir = Some(repo.join(".git"));
+    let index: PathBuf = repo.join(".git").join("index");
+    let paths: Vec<Vec<u8>> = files.clone();
+    // Without the lock Git's own command runs.
+    let unlocked: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&paths), index.as_path(), 1).expect("built");
+    let words: Vec<String> = recorded_starts(log.as_path()).iter().map(|start| { return start.split(' ').next().unwrap_or_default().to_string(); }).collect();
+    assert!(words.iter().any(|word| { return word == "reset"; }), "an unlocked update must ask Git, saw {words:?}");
+    std::fs::remove_file(unlocked).expect("removed");
+    // With the lock no Git starts, and the lock stays until the built index is installed.
+    let before: usize = recorded_starts(log.as_path()).len();
+    let held = try_acquire(index.as_path(), 2).expect("the lock is free");
+    assert!(lock_path_of(index.as_path()).exists());
+    let staged_elsewhere: std::process::Output = git_output(repo.as_path(), &["add", "--all"]);
+    assert!(!staged_elsewhere.status.success(), "a foreign git add must find the lock taken");
+    let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&paths), index.as_path(), 2).expect("built");
+    assert_eq!(recorded_starts(log.as_path()).len(), before, "no Git started under the lock");
+    assert!(lock_path_of(index.as_path()).exists(), "the lock is still held after the build");
+    held.release_with(built.as_path()).expect("installed");
+    assert!(!lock_path_of(index.as_path()).exists());
+    assert!(!differs(repo.as_path(), second.as_str()));
+    remove(root.as_path());
+}
