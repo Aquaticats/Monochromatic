@@ -2225,6 +2225,9 @@ P. A merge that touches a path the person has staged (restated in revision 11 un
      before the bound rule; the machine keeps P-wait as written in MG1 until the pick is re-made.
    - Earlier pick (coordinator, 2026-11-03, before the bound rule, veto open): P-wait, because of "never discard user data"; the wait was on a decision only the
      person can make, and Git itself refuses this merge. Re-opened by the bound rule.
+   - Owner's decision (question tool, 2026-11-03 at about 13:00-05:00): "Merge anyway, unstage x", that is P-carry. The option read: "Your staged x becomes an
+     unstaged edit merged onto the result, so nothing is lost and the merge completes." It needs its own differential controls against Git; MG1 changes
+     from P-wait to P-carry.
 W. The attachment concession for merge file writes (restated in revision 11; for the coordinator to pick).
    Case: `git switch topic` finishes its index write and has not yet updated `HEAD` (`builtin/checkout.c:927` commits the index, `:1261` updates the refs
    after); the lane's merge for `main` takes `index.lock` in that instant, reads `HEAD` as `main` and installs files; or the switch resumes after
@@ -2240,6 +2243,9 @@ W. The attachment concession for merge file writes (restated in revision 11; for
      person; the residue of W-detect is why this is an approval question and not a technical one.
    - Earlier pick (coordinator, 2026-11-03, before the tenth review, veto open): W-detect, because of "Auto merging should never fail." The tenth review does not
      approve W-detect as specified in revision 10; revision 11 repairs it and the residue above needs the owner's explicit approval.
+   - Owner's decision (question tool, 2026-11-03 at about 13:00-05:00): "Allow the rare leftover", that is W-detect with the residue approved. The option read:
+     "Merges keep completing by themselves; in the rare instant above, the merge's files can show up as changes in your new branch until the wrapper's next
+     check restores them from saved copies." The option also named the cost: "a `git commit -a` in that window could commit them to the wrong branch."
 G. Retention against late maintenance (restated in revision 11; for the coordinator to pick).
    Case: T1 sees no open maintenance run; a run is admitted and takes its reachability view while the branch is temporarily elsewhere; the branch moves
    back; T1 releases the recovery copy; the run deletes by its earlier view. The tenth review showed that a hold root created at adoption does not cover
@@ -2257,6 +2263,7 @@ G. Retention against late maintenance (restated in revision 11; for the coordina
      person; G-root beats G-handshake because it adds no wait to maintenance.
    - Earlier pick (coordinator, 2026-11-03, before the tenth review, veto open): G-root, because of "You should (almost) never be waiting."; the machine now
      carries G-order with the root as extra protection, and the pick is for the coordinator to re-make.
+   - Picked (coordinator, 2026-11-03, after the tenth review, under the owner's delegation, veto open): G-order, for the ranking's reason; it adds no wait.
 N. The retry of a live owner after a proven store failure (new in revision 11; for the coordinator to pick).
    Case: P2a failed because a branch lock is held; the live owner records it and retries on the trigger; meanwhile another writer could in principle have
    installed the abandoned commit by its id and removed it again, and the erased reflog would show nothing. The tenth review (R10-8) asks that this
@@ -2268,6 +2275,7 @@ N. The retry of a live owner after a proven store failure (new in revision 11; f
      appears on every ordinary held-lock retry, which teaches the person to ignore it.
    - Ranking: N-silent > N-notice. N-silent beats N-notice because the far-fetched history needs another program to read a private object and install it by id,
      while the notice would be noise in the common case.
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): N-silent, for the ranking's reason; it is recorded as a concession.
 H2. Reruns of a hook after owner deaths (new in revision 11, refines H; for the coordinator to pick).
    Case: a hook performs an external effect, the owner dies before a durable result exists, the next owner runs the hook again, and dies again before a durable result.
    - Option H-episode, one new invocation for each recovery episode that lacks a durable result, with a notice each time. Pros: the request still completes
@@ -2276,6 +2284,7 @@ H2. Reruns of a hook after owner deaths (new in revision 11, refines H; for the 
      commit is kept for a retry. Pros: at most one repeat of an external effect. Cons: a second outside kill makes the commit fail with an error.
    - Ranking: H-episode > H-total. H-episode beats H-total because "Commits should never fail." and the outside-cause rule treat a kill as the outside's act,
      and a hook that is not idempotent is already covered by Git's own contract that a hook "may thus get called multiple times".
+   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): H-episode, for the ranking's reason.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
