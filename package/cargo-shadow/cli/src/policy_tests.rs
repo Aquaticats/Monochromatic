@@ -179,3 +179,34 @@ fn a_version_missing_from_the_history_cannot_be_checked_and_is_reported() {
     assert_eq!(problems.len(), 1);
     assert!(problems[0].contains("is not in the crates.io version list"));
 }
+
+/// Review finding (invalid publish timestamps): a record whose `created_at` cannot be read must not look old enough to
+/// skip the trust check when `trustPolicyIgnoreAfter` is set.
+#[test]
+fn a_release_with_an_unreadable_publish_time_never_gets_the_ignore_after_exemption() {
+    let mut with_ignore_after: Settings = settings();
+    with_ignore_after.trust_policy_ignore_after = Some(60);
+    let history: Vec<VersionRecord> = vec![
+        record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r", REPO),
+        record("1.0.1", "not a timestamp", "9", "", REPO),
+    ];
+
+    let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &with_ignore_after, now(), &BTreeSet::new());
+
+    assert!(!problems.is_empty(), "an unknown publish time granted the age exemption");
+}
+
+/// The same for a missing value.
+#[test]
+fn a_release_with_an_empty_publish_time_never_gets_the_ignore_after_exemption() {
+    let mut with_ignore_after: Settings = settings();
+    with_ignore_after.trust_policy_ignore_after = Some(60);
+    let history: Vec<VersionRecord> = vec![
+        record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r", REPO),
+        record("1.0.1", "", "9", "", REPO),
+    ];
+
+    let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &with_ignore_after, now(), &BTreeSet::new());
+
+    assert!(!problems.is_empty(), "a missing publish time granted the age exemption");
+}

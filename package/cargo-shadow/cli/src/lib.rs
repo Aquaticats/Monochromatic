@@ -172,6 +172,21 @@ mod test_scratch;
 mod catalog_warning_tests;
 
 /// What:
+/// `#[cfg(test)] mod checks_tests;` declares the tests in `src/checks_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the release-age and trust checks over newly locked versions."
+/// so the behavior of `checks` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // checks_tests.test.ts, run by the test runner only
+/// ```
+#[cfg(test)]
+mod checks_tests;
+
+/// What:
 /// `#[cfg(test)] mod cli_tests;` declares the tests in `src/cli_tests.rs`;
 /// the attribute compiles it only for test builds (a TS test file that production code never imports).
 /// Why:

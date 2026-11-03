@@ -64,3 +64,23 @@ fn direct_dependencies_are_the_names_the_sourceless_packages_depend_on() {
 
     assert_eq!(names, vec!["dep".to_string(), "twice".to_string()]);
 }
+
+/// Review finding (registry identity): a package from any registry other than crates.io must be refused by name, because
+/// every lookup goes to crates.io and would approve an unrelated crate of the same name and version.
+#[test]
+fn a_package_from_another_registry_is_refused_naming_the_package_and_its_source() {
+    let text: String = lock(&[("dep", "1.0.0", "registry+https://registry.example.invalid/index")]);
+
+    let result = parse_registry_versions(&text);
+
+    let message: String = result.expect_err("an unsupported registry must not be read as crates.io");
+    assert!(message.contains("dep") && message.contains("registry.example.invalid"), "{message}");
+}
+
+/// The sparse spelling of an alternative registry is the same case.
+#[test]
+fn a_sparse_registry_package_is_refused_too() {
+    let text: String = lock(&[("dep", "1.0.0", "sparse+https://registry.example.invalid/index/")]);
+
+    assert!(parse_registry_versions(&text).is_err());
+}
