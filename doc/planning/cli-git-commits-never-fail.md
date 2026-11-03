@@ -363,10 +363,23 @@ Materialization and retirement
   success or refusal, is read and thrown away (the invocation is the person's program and is not ended; the gate is released when its
   execution tree is empty, as in L6). The spool of `v` is released by the T1 rule after the ledger line and after that execution tree is
   empty. Crash: repeated; a second ledger line for the same (id, version) is a no-op.
-- T1 retire. Pre: published (materialized or voided) or terminal otherwise, and no overlapping open maintenance entry whose scope is
-  non-empty, and a connectivity check passed. Do: append the terminal line to this lane's own ledger (this lane is the only appender), then release the retention of a request that
-  is not promised as saved. Crash: the ledger line exists, the release is completed; retention is never released first.
-
+- T1 retire. Pre: published (materialized or voided) or terminal otherwise, and every entry of the maintenance registry that overlaps the
+  request's lifetime is `terminal` by G3 (an entry that is not `terminal` blocks, whatever its scope: an entry with an empty or absent scope
+  and a live launcher is not terminal, because that launcher may still launch), and a connectivity check passed. Do, in this order:
+  (1) write `releases/<instance>/<id>` (the release intent) by the link method of C3 and fsync; (2) re-read the registry and, if any
+  entry created after the Pre observation is not `terminal`, withdraw the intent and keep the retention (a later T1 repeats from the
+  Pre); (3) re-run the connectivity check from the tip; (4) append the terminal line to this lane's own ledger (this lane is the only
+  appender); (5) release the retention of a request that is not promised as saved; (6) remove the intent. Crash: the intent names an
+  unfinished release; L4 repeats from step (2); the ledger line exists before the release, so retention is never released first.
+  Why an admission after step (2) cannot threaten the released closure, stated as an argument and not as an ordering of two locks: the
+  release only happens for a request whose commit the step (3) check found reachable from the branch tip, and no request that is saved
+  (`landing`, `pending`, `rewritten-away`, `voided` without publication) is ever released by T1, so the released closure is reachable
+  from `refs/heads/<branch>`; `git prune` removes only objects not reachable from the refs, and only those older than its expiry
+  (`builtin/prune.c:36,98,172`). The residue that remains is a person rewriting the branch after step (3) and then pruning with an
+  expiry in the past; that is the person's destructive act on a published commit, outside this design's list, and the reflog entry written
+  by the swap keeps the object for the person's own reflog expiry. A handshake that makes the registry and the intent visible to each other
+  (G1 reads the intents after publishing its reservation and defers while one is open; T1 withdraws on seeing a reservation) was considered and not
+  adopted: it makes an automatic maintenance run wait on a dead lane's intent.
 Cancellation
 - X1 cancel a stalled child. Pre: the child makes no progress for the measured interval, and its command kind is incapable of dispatching
   a protected program (a hook, a filter, a signer or a helper): the classification is by the kind of command, fixed in the retained-child
@@ -384,7 +397,8 @@ Cancellation
 
 Maintenance (object-store-wide)
 - G1 reserve. Pre: a destructive run is to be started by the wrapper (a forwarded `gc`, `prune` or `maintenance` command, or the
-  service's automatic maintenance) and a manager is available. Do: create a transient scope `S` named by the run id and place the
+  service's automatic maintenance) and a manager is available. Admission is never conditional on a lane: G1 writes the reservation before
+  any destructive process exists and does not read `releases/`. Do: create a transient scope `S` named by the run id and place the
   launcher in it; write `maintenance/<run>` (state `reserved`, naming `S` and the launcher's identity) by the link method of C3; the
   launcher inside `S` is the launch authority. Crash: see G3.
 - G2 run. Pre: G1. Do: the launcher, inside `S`, starts the destructive process; entry state `running`. Crash: see G3.
@@ -619,6 +633,13 @@ outlive the retained recovery copy.
   keeps the recovery copy of every overlapping request until the person disposes of it explicitly: disk is spent, nothing is claimed.
 - Maintenance another tool runs is outside the wrapper's control: a loss after recovery data is released is a corrupt repository
   caused by another tool, which is on the owner's outside list. The wrapper reports the missing object when it next reads it.
+
+Answer to R8-7 (revision 9). One predicate: T1 uses the terminal predicate of G3, not a scope test, so a reservation whose scope is empty
+but whose launcher is alive blocks. The boundary between T1's observation and a new admission is covered by an explicit argument, and the
+release is bracketed by a durable intent so L4 can finish or withdraw it. The schedule that fails under revision 8 and passes under
+revision 9: T1 observes no open entry and checks connectivity; G1 publishes a reservation; G2 starts `prune`; T1 releases the copy.
+Under revision 9 the released closure is reachable from the tip (the check of step (3)) so `prune` cannot remove it; a copy that is not
+reachable from the tip (saved, pending, rewritten-away) is never released by T1, so the late run cannot take it either.
 
 ### Installing into the current index (rationale for M1 and M2; the state machine governs)
 
