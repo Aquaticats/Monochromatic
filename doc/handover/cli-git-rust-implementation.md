@@ -156,6 +156,37 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   which the review checks for false statements).
 - Step 1 of the commits-never-fail build (models and crash fixtures),
   branch `feat/git-policy-cli-commit-protocol-models`.
+- Design revision 8 (normative state machine),
+  the design agent on `fix/git-policy-cli-commits-never-fail`.
+- Done and merged into the 0.5.28 base (`fc19017f67`,
+  audit doc conflict resolved by keeping both agents' sections):
+  shipped-limits pick 1 and the measured citations 7,
+  8,
+  13,
+  14,
+  15,
+  `fix/git-policy-cli-limits-cite-measurements` `9b65660e95`
+  (free space from the entry count,
+  about 1 KiB of btrfs metadata per entry measured;
+  ref-lock `MARGIN` 4 s from the longest journal `ref_ms` 3438 ms;
+  `BOOT_SLACK` 3604 s;
+  `REPOSITORY_MEMORY` and `ENTRY_MEMORY` 128 MiB;
+  35 constants classed exempt;
+  `MAX_BATCH` and `CLAIM_LEASE` have no data).
+  Its follow-up questions,
+  picked under the delegation (recorded in the audit doc,
+  "Picked for these follow-ups"):
+  measure the batch size and claim lease against a throwaway service;
+  keep the 3 h idle exit;
+  8 concurrent local queries and 4 remote;
+  measure the copy-stage and install thresholds on the real stage;
+  patience 1 h now,
+  derived again when the index-lock wait pick lands;
+  lock margin 7 s (twice the sample maximum);
+  the preflight as built.
+  Those follow-ups are queued for the next free slot (resume that agent).
+  The gate owes its `native_binary` run:
+  `binary_stale_ref_lock_tests.rs:151` now sleeps the margin plus 0.5 s.
 - Not an agent:
   the cross-vendor re-review of the in-process index fixes (`pi`,
   output `~/temp/agent/reviews/follow-up-index-sol-2.txt`);
@@ -656,7 +687,34 @@ a permanent `ids/<xx>/<id>` binding created with `O_EXCL` under `$GIT_COMMON_DIR
 one maintenance registry per object store;
 held requests out of the logical tail);
 no new owner questions.
-Seventh cross-vendor review running (`~/temp/agent/reviews/commits-never-fail-sol-7.txt`).
+Seventh review returned 2026-11-03T11:00:08-05:00 (`~/temp/agent/reviews/commits-never-fail-sol-7.txt`):
+"step 1 remains the right first build.
+R7 is not ready for the live protocol,
+and passing step 1's models alone would not make it ready."
+New P1s from revision 7's own mechanisms:
+reaping a recorded service cgroup that may hold the replacement owner (it kills itself);
+deleting a lock born inside a stalled child's life (it can be a foreign writer's;
+"Do not implement this deletion rule.");
+an `O_EXCL` identity binding that can be partial,
+or complete with no request published;
+an empty or absent maintenance scope counted as finished,
+and process-group escape by `setsid`;
+the capture seqlock's odd generation held across a hook that may wait for ever;
+the gate's restarter dying with an asynchronous stop outstanding,
+a wedged shared holder,
+and a PID read across namespaces.
+Also:
+F1 positive evidence must outrank a recorded `swap-failed`;
+F5 immediate materialization needs the attachment guard;
+F9 one materialization-aware consumption release and versioned completion for superseded held requests;
+seven operative contradictions (its section 3).
+Its section 4 lists what the models must express and the properties they check.
+Revision 8 running:
+the design agent writes one compact normative state machine with named transitions,
+removes the birth-time deletion rule,
+and states narrowed guarantees plainly where only waiting on something outside our control would close them,
+with any real owner choice as a question.
+The step 1 agent has the seventh review's schedules as additional red controls.
 Step 1 building:
 branch `feat/git-policy-cli-commit-protocol-models` from the 0.5.28 base `5e8c96de21`,
 worktree `.claude/worktrees/commit-protocol-models`;
