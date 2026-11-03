@@ -130,7 +130,7 @@ fn a_reused_number_is_not_signalled() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_leaf_has_no_descendants() {
-    let mut sleeper: Child = Command::new("sleep").arg("600").stdin(Stdio::null()).spawn().expect("sleep starts");
+    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("sleep starts");
     assert_eq!(descendants_of(i32::try_from(sleeper.id()).expect("a process number")), Vec::<TreeMember>::new());
     sleeper.kill().expect("sleep is killed");
     sleeper.wait().expect("sleep is collected");

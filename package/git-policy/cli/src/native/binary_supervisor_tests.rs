@@ -16,7 +16,7 @@
 //! is held by the test or by a signal,
 //! or has finished must not be.
 
-use super::support::{Fixture, bounded, bounded_for, executable, fixture, remove, supervised_wait, wrapper_first_path};
+use super::support::{Fixture, bounded, bounded_for, executable, fixture, own_group, remove, spawn_owned, supervised_wait, wrapper_first_path};
 use super::supervisor::{
     CPU_BUDGET, Judge, Limits, NO_PROGRESS_WINDOW, POLL, Reason, SHARED, SHARED_BACKSTOP_SECONDS, UNCLAIMED_EXIT_STATUS, UNCLAIMED_GRACE,
     disk_wait_looks, end_command, hold_idle_judgment, is_shared, is_shared_command_line, is_watching, kill_recorded, looks_of, plant_kill, take_kill,
@@ -205,7 +205,10 @@ fn start(made: &Fixture, script: &str) -> Child {
     let mut command: Command = Command::new(path);
     command.current_dir(&made.root).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     std::os::unix::process::CommandExt::process_group(&mut command, 0);
-    return command.spawn().expect("the script starts");
+    let child: Child = command.spawn().expect("the script starts");
+    // Owned, so a script that loops or sleeps does not outlive a control that failed before it ended it.
+    own_group(&child);
+    return child;
 }
 
 /// The process ID of a child as the readers take it.
@@ -630,7 +633,7 @@ const SLOW_ENDING_EXTRA: Duration = Duration::from_millis(500);
 fn the_grace_to_claim_a_kill_starts_when_the_ending_is_over() {
     let mut command: Command = Command::new("/bin/sleep");
     command.arg("60");
-    let mut child: Child = command.spawn().expect("sleep starts");
+    let mut child: Child = spawn_owned(&mut command).expect("sleep starts");
     let pid: i32 = i32::try_from(child.id()).expect("fits");
     let started: u64 = stat_of(pid).expect("the child runs").started;
     let pin: Pin = Pin::open(pid, started).expect("the child can be pinned");

@@ -99,7 +99,7 @@ impl Write for LineSignal {
 #[test]
 fn a_wait_past_the_bound_is_announced_then_the_child_is_stopped() {
     let sink: SharedSink = SharedSink::default();
-    let mut child: Child = Command::new("sleep").arg("30").spawn().expect("sleeper");
+    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
     let watch: ChildWatch = ChildWatch::start("the sleeper", child.id(), terms(Duration::from_millis(450), &sink));
     watch.begin();
     let status = child.wait().expect("the stopped child is collected");
@@ -122,7 +122,7 @@ fn a_wait_past_the_bound_is_announced_then_the_child_is_stopped() {
 #[test]
 fn a_wait_that_ends_inside_the_grace_prints_nothing() {
     let sink: SharedSink = SharedSink::default();
-    let mut child: Child = Command::new("sleep").arg("30").spawn().expect("sleeper");
+    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
     let watch: ChildWatch = ChildWatch::start(
         "the sleeper",
         child.id(),
@@ -151,7 +151,7 @@ fn a_wait_that_ends_inside_the_grace_prints_nothing() {
 fn a_wait_that_has_ended_is_announced_no_more() {
     let shared: SharedSink = SharedSink::default();
     let (sender, receiver) = std::sync::mpsc::channel::<()>();
-    let mut child: Child = Command::new("sleep").arg("30").spawn().expect("sleeper");
+    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
     let watch: ChildWatch = ChildWatch::start(
         "the sleeper",
         child.id(),
@@ -183,7 +183,7 @@ fn a_wait_that_has_ended_is_announced_no_more() {
 fn each_wait_is_announced_from_its_own_start() {
     let shared: SharedSink = SharedSink::default();
     let (sender, receiver) = std::sync::mpsc::channel::<()>();
-    let mut child: Child = Command::new("sleep").arg("30").spawn().expect("sleeper");
+    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("sleeper");
     let watch: ChildWatch = ChildWatch::start(
         "the sleeper",
         child.id(),
@@ -281,7 +281,7 @@ fn helper_is_running(pid: i32) -> bool {
 /// and this makes it deterministic.
 #[test]
 fn a_killed_process_that_is_not_yet_reaped_is_not_running() {
-    let mut child: std::process::Child = Command::new("sleep").arg("30").stdin(Stdio::null()).spawn().expect("a process");
+    let mut child: std::process::Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30").stdin(Stdio::null())).expect("a process");
     let pid: i32 = i32::try_from(child.id()).expect("a process ID");
     assert!(helper_is_running(pid), "a sleeping process runs");
     // SAFETY: `kill` takes two integers and touches no memory of this process.

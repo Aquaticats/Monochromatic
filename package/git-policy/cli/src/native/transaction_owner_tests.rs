@@ -96,9 +96,7 @@ fn dead_owners_are_dead() {
         classify_transaction_owner(i64::from(i32::MAX), "linux:1").expect("gone"),
         OwnerLiveness::Dead
     );
-    let mut child: std::process::Child = std::process::Command::new("sleep")
-        .arg("60")
-        .spawn()
+    let mut child: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("60"))
         .expect("sleeper");
     let pid: i64 = i64::from(child.id());
     let identity: String = crate::process_identity::process_birth_identity(pid)

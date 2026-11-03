@@ -165,7 +165,7 @@ fn a_process_holding_the_old_tree_keeps_it() {
     let platform: PlainPlatform = PlainPlatform::new();
     let converting: PathBuf = converting_path(worktree.as_path());
     assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("refreshed", 0)).0.is_err());
-    let mut child: std::process::Child = std::process::Command::new("sleep").arg("30").current_dir(&converting).spawn().expect("sleep");
+    let mut child: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30").current_dir(&converting)).expect("sleep");
     let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
     assert!(message.contains("kept because process"), "{message}");
     assert!(converting.join("README.md").exists());

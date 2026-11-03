@@ -172,6 +172,50 @@ pub fn restrict_to_one_cpu() -> std::io::Result<()> {
     return Ok(());
 }
 
+/// The process groups the helper processes of one test thread lead, killed when the thread ends however its test ended.
+struct OwnedGroups {
+    /// The group numbers, which are the numbers of the group leaders.
+    groups: std::cell::RefCell<Vec<libc::pid_t>>,
+}
+
+/// A panic unwinds the test thread, and a thread that ends runs this.
+impl Drop for OwnedGroups {
+    fn drop(&mut self) {
+        for group in self.groups.borrow().iter() {
+            // SAFETY: `killpg` takes a group number and a signal and touches no memory; a group with no member is `ESRCH`.
+            unsafe { libc::killpg(*group, libc::SIGKILL) };
+        }
+    }
+}
+
+thread_local! {
+    /// The helper groups of the running test thread.
+    static OWNED_GROUPS: OwnedGroups = const { OwnedGroups { groups: std::cell::RefCell::new(Vec::new()) } };
+}
+
+/// What:
+///  Make the process group a child leads die with the test thread that started it, whether the test passes, fails or panics.
+/// Why:
+///   `Child` does not kill on drop, so a helper that a failing assertion never reached the end of (a service whose idle exit is
+///  hours away, a shell loop) kept running after its test. The child must lead a group of its own already (`process_group(0)`
+///  before the start), so what it starts is killed with it.
+pub fn own_group(child: &Child) {
+    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
+    OWNED_GROUPS.with(|owned| { owned.groups.borrow_mut().push(group); });
+}
+
+/// What:
+///  Start a helper process in a group of its own that dies with the test thread that started it.
+/// Why:
+///   The same reason as `own_group`, for a child started here.
+pub fn spawn_owned(command: &mut Command) -> std::io::Result<Child> {
+    use std::os::unix::process::CommandExt as _;
+    command.process_group(0);
+    let child: Child = command.spawn()?;
+    own_group(&child);
+    return Ok(child);
+}
+
 /// The commit services of one fixture, one per worktree as in production, stopped with the fixture.
 pub struct FixtureService {
     /// The running service of each worktree, by the worktree's own Git directory.

@@ -6,7 +6,7 @@ use std::process::{Child, Command, Stdio};
 /// A live child of this process is not reported: only Linux lists processes, so the tree is empty elsewhere.
 #[test]
 fn no_descendant_is_found_without_proc() {
-    let mut sleeper: Child = Command::new("sleep").arg("30").stdin(Stdio::null()).spawn().expect("sleep starts");
+    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30").stdin(Stdio::null())).expect("sleep starts");
     let own: i32 = i32::try_from(std::process::id()).expect("a process number");
     assert_eq!(descendants_of(own), Vec::<TreeMember>::new());
     sleeper.kill().expect("sleep is killed");

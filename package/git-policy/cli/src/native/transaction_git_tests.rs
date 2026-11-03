@@ -311,6 +311,63 @@ fn slow_run(root: &Path, release: &Path) -> (GitContext, GitRequest) {
     return (context, request);
 }
 
+/// How long the control below waits for the fake Git to be gone, so a script that never ends fails it and never holds it.
+const SCRIPT_GONE_PATIENCE: Duration = Duration::from_secs(20);
+
+/// How often the control below looks at the fake Git.
+const SCRIPT_GONE_LOOK: Duration = Duration::from_millis(50);
+
+/// What:
+///  A fake Git that waits for a release file ends by itself once the test that started it is gone, however the test ended.
+/// Why:
+///   Product code starts these scripts, so the test cannot kill them with a guard of its own; one that waited for a release a
+///  failed test never wrote ran on after the test, in a fixture that was already removed. The script watches its test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pid = await startThatThrows(() => { startFakeGit({ release }); throw new Error('the test fails'); });
+/// await waitUntil(() => !isRunning(pid));
+/// ```
+#[test]
+fn a_fake_git_waiting_for_a_release_ends_when_its_test_is_gone() {
+    let (sender, receiver) = std::sync::mpsc::channel::<u32>();
+    let handle = std::thread::spawn(move || {
+        let root: PathBuf = fixture("transaction-git-script-dies");
+        let release: PathBuf = root.join("release");
+        let (context, request) = slow_run(root.as_path(), release.as_path());
+        let mut command: std::process::Command = std::process::Command::new(&context.real_git);
+        command.envs(request.environment.iter().map(|(name, value)| { return (name, value); })).current_dir(&root);
+        let child: std::process::Child = command.spawn().expect("the fake Git starts");
+        // The premise: the script is inside its wait loop when the test fails. Until the interpreter has started it, the process
+        //  is still being executed and a removed fixture would take the script file from it, which is not the leak under test.
+        let waiting = |number: u32| -> bool {
+            return std::fs::read_to_string(format!("/proc/{number}/stat")).is_ok_and(|text| { return text.contains(") S "); });
+        };
+        let started: std::time::Instant = std::time::Instant::now();
+        while !waiting(child.id()) {
+            assert!(started.elapsed() < SCRIPT_GONE_PATIENCE, "the fake Git never reached its wait loop");
+            std::thread::sleep(SCRIPT_GONE_LOOK);
+        }
+        sender.send(child.id()).expect("send the pid");
+        panic!("the test fails before it releases the fake Git");
+    });
+    assert!(handle.join().is_err(), "the thread panics on purpose");
+    let pid: u32 = receiver.recv().expect("the pid");
+    // A zombie that nothing reaped (the test thread dropped its handle) has exited and runs nothing.
+    let runs = |number: u32| { return std::fs::read_to_string(format!("/proc/{number}/stat")).is_ok_and(|text| { return !text.contains(") Z "); }); };
+    let began: std::time::Instant = std::time::Instant::now();
+    while runs(pid) && began.elapsed() < SCRIPT_GONE_PATIENCE {
+        std::thread::sleep(SCRIPT_GONE_LOOK);
+    }
+    let left: bool = runs(pid);
+    if left {
+        // Tidy up the leak this control exists to catch, so a red run leaves nothing behind either.
+        // SAFETY: `kill` takes a pid and a signal and touches no memory.
+        unsafe { libc::kill(libc::pid_t::try_from(pid).expect("pid"), libc::SIGKILL) };
+    }
+    assert!(!left, "the fake Git of process {pid} outlived the test that started it");
+}
+
 /// Terms of a limit, a quick cadence and the given sink.
 fn quick_terms(limit: Duration, notices: Box<dyn std::io::Write + Send>) -> WatchTerms {
     return WatchTerms {

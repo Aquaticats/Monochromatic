@@ -250,7 +250,7 @@ fn the_nested_worktree_switch_keeps_worktrees_ordinary() {
 #[test]
 fn a_process_inside_the_checkout_is_named_in_the_warning() {
     let (parent, root) = checkout_with_worktree("migrate-process-warning");
-    let mut child: std::process::Child = std::process::Command::new("sleep").arg("60").current_dir(root.as_path()).spawn().expect("sleep");
+    let mut child: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("60").current_dir(root.as_path())).expect("sleep");
     let platform: PlainPlatform = PlainPlatform::new();
     let arguments: MigrateArguments = MigrateArguments { dry_run: true, ..migrate_arguments() };
     let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
