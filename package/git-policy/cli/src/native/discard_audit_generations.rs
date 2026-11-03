@@ -58,7 +58,17 @@ fn numbered(target: &Path, number: u64) -> PathBuf {
     return PathBuf::from(name);
 }
 
-/// A regular file of the log's directory that belongs to the log at `target`.
+/// What:
+///  A regular file of the log's directory that belongs to the log at `target`.
+///  A `struct` is a record with named fields.
+/// Why:
+///   The pass needs each file's number, size and identity together, and a struct keeps the listing and the choice
+///  of what to remove readable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Piece = { path: string; number: number | undefined; length: number; identity: [bigint, bigint] };
+/// ```
 struct Piece {
     /// The path.
     path: PathBuf,

@@ -6,8 +6,9 @@ installed as `git` and `cli-git-service`) can make a person hit, and says for ea
 decision is written beside the value.
 It changes no product code and decides nothing; the questions at the end are for the owner.
 Two entries and their questions carry outcomes added later on
-`feat/git-policy-cli-saved-copies-and-audit-generations-measured`: "Saved copies of conflicted files" (delegated pick 10,
-no number could be set) and "Audit log rotation" (delegated pick 11, implemented).
+`feat/git-policy-cli-saved-copies-and-audit-generations-measured`:
+"Saved copies of conflicted files" (delegated pick 10, no number could be set) and
+"Audit log rotation" (delegated pick 11, implemented).
 Each says it was the coordinator's pick under the owner's delegation and is open to the owner's veto.
 
 Audited commit: `d48d0a66f4` (main).
@@ -1152,8 +1153,8 @@ Once the caps are removed, the round width is set by the host's CPUs less one in
     That is fewer than one a day, and some may not have been
     conflicts; it says nothing about the size of a file or a save.
   - Verdict: there is no growth to measure, so no age or size can be derived from it.
-    The constants stay at their earlier values with this measurement written beside them (`discarded_prune.rs`), and the
-    open question below carries the options.
+    The constants stay at their earlier values with this measurement written beside them (`discarded_prune.rs`),
+    and the question "Defaults for saved conflict copies" under "Questions for the owner" carries the options.
 - Only-copy finding: yes, a saved copy can be the only copy of a person's work.
   `save_copies` (`src/native/conflict_sides.rs`) copies the worktree file as it is when the person runs
   `git checkout --theirs` or `--ours` (or `git restore` with them) on a conflicted path.
@@ -1162,17 +1163,20 @@ Once the caps are removed, the round width is set by the host's CPUs less one in
   stages, and no commit holds the merged text.
   After the command the file is replaced by one side, so the copy is the only place those bytes are, until a person
   commits or stages the same bytes.
-  This is the case "never discard user data" (`SPEC.md:1645`) names, and it collides with the owner's recorded
+  This is the case "never discard user data" (`SPEC.md:1645`) names, and the owner decided it knowingly: the handover
+  section the owner answered says the copies are "the only remaining content of a file the command replaced" and that
+  "pruning user data is the owner's decision" (`doc/handover/cli-git-logging.md:85` to `87`), and the owner chose
   "Prune by both age and size." (`doc/handover/cli-git-logging.md:269`).
   The coordinator's brief for this work says age and size limits must never delete such a copy; the code is unchanged,
-  because honoring that would reverse the owner's recorded rule for
-  every save, and that is a choice for the coordinator and the owner
-  (see the open question).
+  because honoring that would reverse an informed owner decision for every save, and that is a choice for the
+  coordinator and the owner, not for the number-setting this pick asked for
+  (see "Defaults for saved conflict copies" under "Questions for the owner").
 
 ### Audit log rotation, 1 MiB and one generation
 
-- Note: the first bullets below describe the audited commit; the measurement and "Outcome of the delegated pick 11" that
-  follow them supersede the one-generation history for the audit file.
+- Note: the bullets from "Where" to "Citation" describe the audited commit.
+  The bullets "Measurement, 2026-11-03T14:55Z" and "Outcome of the delegated pick 11" supersede their account of a
+  one-generation history for the audit file.
 - Where: `src/native/discard_audit.rs:27` and `28` (`ROTATE_AT_BYTES`), check `278`, move aside `348` to `372`.
 On `fix/git-policy-cli-audit-rotation-race` (`2eb2cf1bfc`) the same bound is at its lines 27 and 28 and the rotation
   is at
@@ -1222,8 +1226,9 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
     emptied then; the rate is the only thing measured.
 - Outcome of the delegated pick 11, option C (the coordinator's pick under the owner's delegation, open to the owner's
   veto): implemented in `src/native/discard_audit.rs` and `src/native/discard_audit_generations.rs`.
-  - Each rotation of the audit file keeps its file under the next free number (`.1`, `.2`, and on; the highest number is
-    the newest), claimed with a hard link so that two writers never take one number and nothing is replaced.
+  - Each rotation of the audit file keeps its file under the next free number
+    (`.1`, `.2`, and on; the highest number is the newest), claimed with a hard link
+    so that two writers never take one number and nothing is replaced.
   - After a rotation, a pass removes the oldest generations
     until the generations that name no saved copy on disk, and the
     files a killed rotation left at a private name, total at most `AUDIT_HISTORY_BYTES` (4 MiB).
@@ -1701,18 +1706,19 @@ see the measurement in the entry for the limit.
 No number was invented: `DEFAULT_MAX_AGE_DAYS`, `DEFAULT_MAX_BYTES` and `YOUNG_FLOOR_MILLISECONDS` are unchanged and
 each carries the measurement beside it.
 
-The measurement also shows that any saved copy can be the only copy of a person's work (see "Only-copy finding" in the
-entry), which makes the numbers secondary.
+The measurement also confirms what the owner already knew when choosing the rule:
+any saved copy can be the only copy of a person's work (see "Only-copy finding" in the entry for the limit),
+which makes the numbers secondary.
 Options for the coordinator to pick, with the owner's veto open:
 
-- O1. Suspend age and size pruning of saves until explicit disposal; measure growth meanwhile and re-enable pruning with
-  numbers from the data.
+- O1. Suspend age and size pruning of saves until explicit disposal;
+  measure growth meanwhile and re-enable pruning with numbers from the data.
   Visible result: nothing is ever removed; `git cli-git doctor` reports the folder's size so growth can be watched.
   Pro: cannot lose the only copy; costs almost nothing now,
   because zero saves exist; matches "never discard user data" and
   the adopted rule that saved copies of carried edits are kept until explicit disposal.
-  Con: reverses the owner's recorded "Prune by both age and size." for now; a folder that grows has no bound and no
-  disposal command exists yet.
+  Con: asks the owner to reverse an informed decision ("Prune by both age and size.") for now; a folder that grows has
+  no bound and no disposal command exists yet.
 - O2. Keep pruning, but never remove a save unless every file
   in it is byte-identical to a blob in the repository's object
   database.
@@ -1731,12 +1737,13 @@ Options for the coordinator to pick, with the owner's veto open:
   Pro: satisfies the rule's wording at once.
   Con: the numbers have no basis and still delete possibly-only copies.
 
-Ranking: O1 > O2 > O3 > O4, because O1 cannot lose the only
-copy and costs nothing while no saves exist, whereas O2 adds an
-object lookup and still leaves the folder unbounded; O2 > O3
-because O3 deletes possibly-only copies while it waits for data;
-O3 > O4 because O4 cites numbers with no basis.
+Ranking: O3 > O1 > O2 > O4, because the owner chose pruning with the only-copy fact in front of them, so under the
+delegation standard ("what I would have picked most likely") O3 keeps that decision and gets the basis the question
+asked for, while O1 asks the owner to reverse an informed decision, although it is the safer option for the data;
+O1 > O2 because O1 loses nothing and needs no object lookup, whereas O2 adds the lookup and still leaves the folder
+unbounded; O2 > O4 because O4 cites numbers with no basis and keeps deleting possibly-only copies.
 O1 and O2 depart from the owner's recorded rule; O3 and O4 keep it.
+If the coordinator reads "never discard user data" as the stronger rule, the order is O1 > O2 > O3 > O4.
 
 ### The audit and timing logs' history
 
