@@ -29,21 +29,21 @@ fn read_dir<'a>(bytes: &'a [u8], count: &mut usize, depth: usize) -> Option<(Unt
     if depth > DEPTH_LIMIT {
         return None;
     }
-    let (untracked_count, rest) = decode_varint(bytes)?;
-    let (dirs_count, rest) = decode_varint(rest)?;
-    let (name, mut rest) = take_text(rest)?;
+    let (untracked_count, after_files) = decode_varint(bytes)?;
+    let (dirs_count, after_dirs) = decode_varint(after_files)?;
+    let (name, mut rest) = take_text(after_dirs)?;
     let mut untracked: Vec<Vec<u8>> = Vec::new();
     for _ in 0..untracked_count {
-        let (file, after) = take_text(rest)?;
+        let (file, following) = take_text(rest)?;
         untracked.push(file.to_vec());
-        rest = after;
+        rest = following;
     }
     *count += 1;
     let mut dirs: Vec<UntrackedDir> = Vec::new();
     for _ in 0..dirs_count {
-        let (child, after) = read_dir(rest, count, depth + 1)?;
+        let (child, following) = read_dir(rest, count, depth + 1)?;
         dirs.push(child);
-        rest = after;
+        rest = following;
     }
     let dir: UntrackedDir = UntrackedDir {
         name: name.to_vec(),
@@ -95,6 +95,52 @@ struct Flags<'a> {
     hash_length: usize,
 }
 
+/// The fixed part of the extension: what comes before the directories.
+struct Header {
+    /// The machine identification.
+    ident: Vec<u8>,
+    /// Stat data and object name of `.git/info/exclude`.
+    info_exclude: (StatData, Vec<u8>),
+    /// Stat data and object name of the excludes file.
+    excludes_file: (StatData, Vec<u8>),
+    /// The directory flags.
+    dir_flags: u32,
+    /// The per-directory ignore file name.
+    exclude_per_dir: Vec<u8>,
+}
+
+impl Header {
+    /// The cache these fields start, with `root` as its directories.
+    fn with_root(self, root: Option<UntrackedDir>) -> Untracked {
+        return Untracked {
+            ident: self.ident,
+            info_exclude: self.info_exclude,
+            excludes_file: self.excludes_file,
+            dir_flags: self.dir_flags,
+            exclude_per_dir: self.exclude_per_dir,
+            root,
+        };
+    }
+}
+
+/// The fixed part of `body` and the bytes after it.
+fn read_header(body: &[u8], hash_length: usize) -> Option<(Header, &[u8])> {
+    let (ident_length, after_length) = decode_varint(body)?;
+    let ident: &[u8] = after_length.get(..usize::try_from(ident_length).ok()?)?;
+    let fixed: &[u8] = &after_length[ident.len()..];
+    let ids_at: usize = 2 * CACHE_STAT_LENGTH + 4;
+    let header_end: usize = ids_at + 2 * hash_length;
+    let (exclude_per_dir, after_name) = take_text(fixed.get(header_end..)?)?;
+    let header: Header = Header {
+        ident: ident.to_vec(),
+        info_exclude: (StatData::from_cache_bytes(fixed.get(..CACHE_STAT_LENGTH)?)?, fixed.get(ids_at..ids_at + hash_length)?.to_vec()),
+        excludes_file: (StatData::from_cache_bytes(fixed.get(CACHE_STAT_LENGTH..2 * CACHE_STAT_LENGTH)?)?, fixed.get(ids_at + hash_length..header_end)?.to_vec()),
+        dir_flags: be32(fixed, 2 * CACHE_STAT_LENGTH)?,
+        exclude_per_dir: exclude_per_dir.to_vec(),
+    };
+    return Some((header, after_name));
+}
+
 /// The extension from its bytes, or `None` for anything outside the layout Git writes (Git would drop such a cache; the
 /// caller lets Git answer instead).
 pub fn read_untracked(data: &[u8], hash_length: usize) -> Option<Untracked> {
@@ -102,62 +148,38 @@ pub fn read_untracked(data: &[u8], hash_length: usize) -> Option<Untracked> {
     if *last != 0 {
         return None;
     }
-    let (ident_length, rest) = decode_varint(body)?;
-    let ident: &[u8] = rest.get(..usize::try_from(ident_length).ok()?)?;
-    let rest: &[u8] = &rest[ident.len()..];
-    let info_stat: StatData = StatData::from_cache_bytes(rest.get(..CACHE_STAT_LENGTH)?)?;
-    let excludes_stat: StatData = StatData::from_cache_bytes(rest.get(CACHE_STAT_LENGTH..2 * CACHE_STAT_LENGTH)?)?;
-    let dir_flags: u32 = be32(rest, 2 * CACHE_STAT_LENGTH)?;
-    let ids_at: usize = 2 * CACHE_STAT_LENGTH + 4;
-    let info_id: Vec<u8> = rest.get(ids_at..ids_at + hash_length)?.to_vec();
-    let excludes_id: Vec<u8> = rest.get(ids_at + hash_length..ids_at + 2 * hash_length)?.to_vec();
-    let (exclude_per_dir, rest) = take_text(rest.get(ids_at + 2 * hash_length..)?)?;
-    let make = |root: Option<UntrackedDir>| -> Untracked {
-        return Untracked {
-            ident: ident.to_vec(),
-            info_exclude: (info_stat, info_id.clone()),
-            excludes_file: (excludes_stat, excludes_id.clone()),
-            dir_flags,
-            exclude_per_dir: exclude_per_dir.to_vec(),
-            root,
-        };
-    };
+    let (header, mut rest) = read_header(body, hash_length)?;
     // A cache no status run has filled ends after the ignore-file name (Git then reads it without directories).
     if rest.is_empty() {
-        return Some(make(None));
+        return Some(header.with_root(None));
     }
-    let (directory_count, rest) = decode_varint(rest)?;
+    let (directory_count, after_count) = decode_varint(rest)?;
+    rest = after_count;
     if directory_count == 0 {
-        return if rest.is_empty() { Some(make(None)) } else { None };
+        return if rest.is_empty() { Some(header.with_root(None)) } else { None };
     }
     let mut count: usize = 0;
-    let (mut root, rest) = read_dir(rest, &mut count, 0)?;
+    let (mut root, after_dirs) = read_dir(rest, &mut count, 0)?;
+    rest = after_dirs;
     if u64::try_from(count).ok()? != directory_count {
         return None;
     }
-    let (valid, used) = Ewah::read(rest)?;
-    let rest: &[u8] = &rest[used..];
-    let (check_only, used) = Ewah::read(rest)?;
-    let rest: &[u8] = &rest[used..];
-    let (has_id, used) = Ewah::read(rest)?;
-    let rest: &[u8] = &rest[used..];
-    let valid_bits: Vec<usize> = valid.bits();
-    let has_id_bits: Vec<usize> = has_id.bits();
+    let mut bitmaps: Vec<Ewah> = Vec::new();
+    for _ in 0..3 {
+        let (bitmap, used) = Ewah::read(rest)?;
+        bitmaps.push(bitmap);
+        rest = &rest[used..];
+    }
+    let valid_bits: Vec<usize> = bitmaps[0].bits();
+    let has_id_bits: Vec<usize> = bitmaps[2].bits();
     let stats_length: usize = valid_bits.len().checked_mul(CACHE_STAT_LENGTH)?;
     // The three areas must fill the rest exactly, as Git's final `next != end` test demands.
     if rest.len() != stats_length.checked_add(has_id_bits.len().checked_mul(hash_length)?)? {
         return None;
     }
-    let flags: Flags<'_> = Flags {
-        valid: valid_bits,
-        check_only: check_only.bits(),
-        has_id: has_id_bits,
-        stats: &rest[..stats_length],
-        ids: &rest[stats_length..],
-        hash_length,
-    };
+    let flags: Flags<'_> = Flags { valid: valid_bits, check_only: bitmaps[1].bits(), has_id: has_id_bits, stats: &rest[..stats_length], ids: &rest[stats_length..], hash_length };
     assign(&mut root, &mut 0, &flags, &mut (0, 0))?;
-    return Some(make(Some(root)));
+    return Some(header.with_root(Some(root)));
 }
 
 /// What the writer collects while it walks the directories in preorder.

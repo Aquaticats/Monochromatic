@@ -41,10 +41,10 @@ fn read_one<'a>(bytes: &'a [u8], hash_length: usize, depth: usize) -> Option<(Ve
     }
     let nul: usize = bytes.iter().position(|byte| { return *byte == 0; })?;
     let name: Vec<u8> = bytes[..nul].to_vec();
-    let (entry_count, rest) = parse_number(&bytes[nul + 1..])?;
-    let rest: &[u8] = rest.strip_prefix(b" ")?;
-    let (subtree_count, rest) = parse_number(rest)?;
-    let mut rest: &[u8] = rest.strip_prefix(b"\n")?;
+    let (entry_count, after_count) = parse_number(&bytes[nul + 1..])?;
+    let after_space: &[u8] = after_count.strip_prefix(b" ")?;
+    let (subtree_count, after_subtrees) = parse_number(after_space)?;
+    let mut rest: &[u8] = after_subtrees.strip_prefix(b"\n")?;
     let mut id: Vec<u8> = Vec::new();
     if entry_count >= 0 {
         id = rest.get(..hash_length)?.to_vec();

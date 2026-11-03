@@ -26,7 +26,7 @@ fn has_extended(entry: &FullEntry) -> bool {
 }
 
 /// Append one entry (`ce_write_entry`); `previous` is the path before it when the file is version 4.
-fn write_entry(out: &mut Vec<u8>, entry: &FullEntry, previous: Option<&mut Vec<u8>>) {
+fn write_entry(out: &mut Vec<u8>, entry: &FullEntry, earlier: Option<&mut Vec<u8>>) {
     let extended: bool = has_extended(entry);
     for value in [entry.stat.ctime_sec, entry.stat.ctime_nsec, entry.stat.mtime_sec, entry.stat.mtime_nsec, entry.stat.dev, entry.stat.ino, entry.mode, entry.stat.uid, entry.stat.gid, entry.stat.size] {
         out.extend_from_slice(&value.to_be_bytes());
@@ -37,7 +37,7 @@ fn write_entry(out: &mut Vec<u8>, entry: &FullEntry, previous: Option<&mut Vec<u
     if extended {
         out.extend_from_slice(&(entry.extended & (INTENT_TO_ADD | SKIP_WORKTREE)).to_be_bytes());
     }
-    let Some(previous) = previous else {
+    let Some(previous) = earlier else {
         // The entry, its name and padding fill a multiple of eight bytes, with at least one NUL after the name.
         let fixed: usize = 40 + entry.id.len() + if extended { 4 } else { 2 };
         out.extend_from_slice(entry.path.as_slice());

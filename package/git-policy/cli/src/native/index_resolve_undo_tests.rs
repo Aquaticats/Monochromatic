@@ -19,10 +19,10 @@ fn recorded_sides_round_trip_in_git_form() {
     let bytes: Vec<u8> = undo.write();
     let mut expected: Vec<u8> = Vec::new();
     expected.extend_from_slice(b"a\0");
-    expected.extend_from_slice(b"0\0100644\00\0");
+    expected.extend_from_slice(b"0\x00100644\x000\x00");
     expected.extend_from_slice(name(2).as_slice());
     expected.extend_from_slice(b"b\0");
-    expected.extend_from_slice(b"100644\00\0100755\0");
+    expected.extend_from_slice(b"100644\x000\x00100755\x00");
     expected.extend_from_slice(name(1).as_slice());
     expected.extend_from_slice(name(3).as_slice());
     assert_eq!(bytes, expected);
@@ -32,7 +32,7 @@ fn recorded_sides_round_trip_in_git_form() {
 /// A mode that is not octal text, and a record cut short, are what Git calls invalid resolve-undo information.
 #[test]
 fn damaged_records_are_not_read() {
-    assert_eq!(ResolveUndo::read(b"a\0zz\00\00\0", 20), None);
-    assert_eq!(ResolveUndo::read(b"a\0100644\00\0", 20), None);
-    assert_eq!(ResolveUndo::read(b"a\0100644\00\00\0short", 20), None);
+    assert_eq!(ResolveUndo::read(b"a\x00zz\x000\x000\x00", 20), None);
+    assert_eq!(ResolveUndo::read(b"a\x00100644\x000\x00", 20), None);
+    assert_eq!(ResolveUndo::read(b"a\x00100644\x000\x000\x00short", 20), None);
 }

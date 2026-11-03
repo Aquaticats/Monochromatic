@@ -75,8 +75,8 @@ impl Ewah {
     }
 
     /// Add `number` empty words of `value` bits (`add_empty_words`).
-    fn add_empty_words(&mut self, value: bool, number: u64) {
-        let mut number: u64 = number;
+    fn add_empty_words(&mut self, value: bool, count: u64) {
+        let mut number: u64 = count;
         let current: u64 = self.buffer[self.rlw];
         let size: u64 = running_len(current) + literal_words(current);
         if run_bit(current) != value && size == 0 {
@@ -210,8 +210,12 @@ impl Ewah {
         let count: usize = u32::from_be_bytes(bytes.get(4..8)?.try_into().ok()?) as usize;
         let words_end: usize = 8usize.checked_add(count.checked_mul(8)?)?;
         let mut buffer: Vec<u64> = Vec::with_capacity(count.min(1 << 20));
-        for chunk in bytes.get(8..words_end)?.chunks_exact(8) {
-            buffer.push(u64::from_be_bytes(chunk.try_into().ok()?));
+        let (chunks, leftover) = bytes.get(8..words_end)?.as_chunks::<8>();
+        if !leftover.is_empty() {
+            return None;
+        }
+        for chunk in chunks {
+            buffer.push(u64::from_be_bytes(*chunk));
         }
         let rlw: usize = u32::from_be_bytes(bytes.get(words_end..words_end + 4)?.try_into().ok()?) as usize;
         if buffer.is_empty() || rlw >= buffer.len() {

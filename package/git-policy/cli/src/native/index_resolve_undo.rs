@@ -43,19 +43,19 @@ impl ResolveUndo {
             let (path, after) = split_nul(rest)?;
             rest = after;
             let mut sides: Sides = paths.remove(path).unwrap_or_default();
-            for stage in 0..3 {
-                let (text, after) = split_nul(rest)?;
+            for mode in &mut sides.mode {
+                let (text, following) = split_nul(rest)?;
                 let digits: &str = std::str::from_utf8(text).ok()?;
                 // `strtoul` also takes a sign or a space; only the plain octal digits Git writes are read here.
                 if digits.is_empty() || !digits.bytes().all(|byte| { return (b'0'..=b'7').contains(&byte); }) {
                     return None;
                 }
-                sides.mode[stage] = u32::from_str_radix(digits, 8).ok()?;
-                rest = after;
+                *mode = u32::from_str_radix(digits, 8).ok()?;
+                rest = following;
             }
-            for stage in 0..3 {
-                if sides.mode[stage] != 0 {
-                    sides.id[stage] = rest.get(..hash_length)?.to_vec();
+            for (mode, id) in sides.mode.iter().zip(sides.id.iter_mut()) {
+                if *mode != 0 {
+                    *id = rest.get(..hash_length)?.to_vec();
                     rest = &rest[hash_length..];
                 }
             }
@@ -84,9 +84,9 @@ impl ResolveUndo {
                 out.extend_from_slice(format!("{mode:o}").as_bytes());
                 out.push(0);
             }
-            for stage in 0..3 {
-                if sides.mode[stage] != 0 {
-                    out.extend_from_slice(sides.id[stage].as_slice());
+            for (mode, id) in sides.mode.iter().zip(sides.id.iter()) {
+                if *mode != 0 {
+                    out.extend_from_slice(id.as_slice());
                 }
             }
         }
