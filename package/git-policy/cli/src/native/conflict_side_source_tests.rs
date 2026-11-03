@@ -9,7 +9,7 @@
 //! // expect(locate(root, 'a.rs')).toBeDefined(); expect(locate(root, 'gone.rs')).toBeUndefined();
 //! ```
 
-use super::{SaveFailure, copy_located, locate};
+use super::{FailureKind, SaveFailure, copy_located, locate};
 use crate::test_support::{fixture, remove};
 
 /// A file that is there is found and copied whole; a path with nothing there is not found.
@@ -43,6 +43,7 @@ fn an_ancestor_that_is_a_link_or_a_file_is_a_failure_naming_it() {
     ] {
         let failure: SaveFailure = locate(base.as_path(), relative.as_bytes()).expect_err(relative);
         assert_eq!(failure.subject, subject, "{relative}: {failure:?}");
+        assert_eq!(failure.kind, FailureKind::Ancestor, "{relative}: {failure:?}");
         assert!(!failure.reason.is_empty(), "{relative}: {failure:?}");
     }
     assert!(locate(base.as_path(), b"absent/file").expect("a missing ancestor").is_none());
@@ -51,7 +52,7 @@ fn an_ancestor_that_is_a_link_or_a_file_is_a_failure_naming_it() {
 }
 
 /// Copy `path` below `base` to `base/copy`, running `change` once, after the first chunk was written.
-fn copy_while_changing(base: &std::path::Path, path: &str, change: &dyn Fn()) -> std::io::Result<()> {
+fn copy_while_changing(base: &std::path::Path, path: &str, change: &dyn Fn()) -> Result<(), SaveFailure> {
     let located = locate(base, path.as_bytes()).expect("lookup").expect("present");
     let mut changed: bool = false;
     return copy_located(&located, base.join("copy").as_path(), &mut || {
@@ -126,7 +127,7 @@ fn a_source_that_changes_during_the_copy_is_a_failure_and_leaves_no_copy() {
         let base = fixture(format!("source-changes-{round}").as_str());
         large_source(base.as_path());
         let error = copy_while_changing(base.as_path(), "a.rs", &|| { change(base.as_path()); }).expect_err(label);
-        assert!(!error.to_string().is_empty(), "{label}");
+        assert!(!error.reason.is_empty() && error.kind == FailureKind::Changed, "{label}: {error:?}");
         assert!(!base.join("copy").exists(), "{label}: no cut-short or stale copy stays");
         remove(base.as_path());
     }

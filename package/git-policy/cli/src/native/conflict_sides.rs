@@ -158,7 +158,7 @@ pub fn decide_sides(tokens: &[OsString], prefix: &[u8], root: &Path, conflicted:
     return SideDecision::Refuse(others);
 }
 
-pub use super::conflict_side_source::SaveFailure;
+pub use super::conflict_side_source::{FailureKind, SaveFailure};
 
 /// One saved file.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -215,13 +215,13 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
             Some(existing) => existing.clone(),
             None => {
                 let created: PathBuf = fresh_directory(saved_root.as_path(), stamp(milliseconds).as_str())
-                    .map_err(|error| { return SaveFailure { subject: saved_root.display().to_string(), reason: error.to_string() }; })?;
+                    .map_err(|error| { return SaveFailure::io(saved_root.display().to_string(), error.to_string()); })?;
                 directory = Some(created.clone());
                 created
             }
         };
         let destination: PathBuf = base.join(OsString::from_vec(path.clone()));
-        let failed = |error: std::io::Error| -> SaveFailure { return SaveFailure { subject: shown.clone(), reason: error.to_string() }; };
+        let failed = |error: std::io::Error| -> SaveFailure { return SaveFailure::io(shown.clone(), error.to_string()); };
         if let Some(parent) = destination.parent() {
             create_private_directory_all(parent).map_err(failed)?;
             let mut up: Option<&Path> = Some(parent);
@@ -233,7 +233,7 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
                 up = each.parent();
             }
         }
-        copy_located(&located, destination.as_path(), &mut || {}).map_err(failed)?;
+        copy_located(&located, destination.as_path(), &mut || {})?;
         copies.push(SavedCopy { path: shown, saved_to: Some(destination) });
     }
     if directory.is_some() {
@@ -241,11 +241,11 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
         let mut ordered: Vec<&PathBuf> = written_directories.iter().collect();
         ordered.sort_by_key(|each| { return std::cmp::Reverse(each.components().count()); });
         for each in ordered {
-            sync_directory(each.as_path()).map_err(|error| { return SaveFailure { subject: each.display().to_string(), reason: error.to_string() }; })?;
+            sync_directory(each.as_path()).map_err(|error| { return SaveFailure::io(each.display().to_string(), error.to_string()); })?;
         }
         let parent: PathBuf = common_dir.join("cli-git");
         for each in [saved_root.as_path(), parent.as_path()] {
-            sync_directory(each).map_err(|error| { return SaveFailure { subject: each.display().to_string(), reason: error.to_string() }; })?;
+            sync_directory(each).map_err(|error| { return SaveFailure::io(each.display().to_string(), error.to_string()); })?;
         }
     }
     return Ok(copies);

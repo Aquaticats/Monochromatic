@@ -2786,6 +2786,10 @@ Every other line keeps the rejection: a force, a patch, a path list read from a 
 before the paths, an index-only `restore --staged`, and any `reset`, `merge --abort` or other guarded command.
 A path is read by its literal spelling below the working directory.
 A directory, a trailing slash, a wildcard, pathspec magic or a path outside the worktree is not a conflicted file.
+A global pathspec mode changes which files a pathspec names (`--icase-pathspecs` and `GIT_ICASE_PATHSPECS` match `A.rs`
+for `a.rs`; the glob, noglob and literal forms change the reading of the characters), so a line under one keeps the
+rejection: the layout reader declines every global option except `-C` and every `GIT_` variable it does not tolerate,
+and `core.ignorecase` does not widen a pathspec.
 A line that names a path that is not conflicted is rejected whole, with the rejection text of the form
 followed by a sentence that names every such path.
 A path that Git resolves in the index as the command runs (`checkout <tree-ish> -- <path>` stages it) stops being conflicted,
@@ -2812,6 +2816,22 @@ regular file nor a symbolic link),
 the command is rejected with a finding that names the path or place and the system's reason,
 no cut-short copy is left,
 and nothing is changed.
+
+The file is found without following a symbolic link.
+Each directory in front of the name is opened one component at a time below the worktree's top level,
+and a symbolic link or a regular file in front of the name stops the command:
+Git writes `dir/file` by replacing whatever stands at `dir` with a real directory,
+so that link or file would be lost unsaved.
+The finding names the directory (`dir`) and what it is, and says to move it out of the way or save it first.
+A directory in front of the name that does not exist means there is nothing to copy.
+The copy is read from the opened file.
+Its device, inode, size, modification time and change time are compared before and after the read,
+the byte count must equal the size,
+and the name must still lead, without a link, to the object that was read.
+Any difference (an atomic save over the path, an append, a truncation or a rewrite in place) removes the copy,
+rejects the command with a finding that names the file and says to run it again once nothing is writing to it,
+and changes nothing.
+A write that lands after the last comparison and before Git starts cannot be seen from outside Git.
 
 The folder is bounded after each save that wrote at least one copy,
 once the copy is complete and synced (so a kill while copying costs no older copy),

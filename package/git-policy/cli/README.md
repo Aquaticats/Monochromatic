@@ -588,6 +588,12 @@ Write each conflicted file by its own name after `--`;
  so `git restore --source -W --staged -- f` (a tag can be named `-W`) is an index-only restore and stays rejected.
 A conflicted path that is deleted in your worktree has nothing to copy, and the command runs.
 When a copy cannot be written (no space, no permission), the command is rejected and says why.
+ A symbolic link or a file where a directory in front of the name should be (`dir` for `dir/file`) is never followed:
+ Git would replace it with a real directory and it would be lost unsaved, so the command is rejected, names `dir`
+ and says to move it out of the way or save it first.
+ A file that changes while it is being copied (an editor's atomic save, an append, a rewrite in place) is not reported saved:
+ the copy is removed, the command is rejected, and running it again once nothing writes to the file goes through.
+ A pathspec mode (`--icase-pathspecs`, `GIT_ICASE_PATHSPECS` and the glob, noglob and literal forms) keeps the rejection.
 The folder is bounded, because it would otherwise grow for as long as the repository lives,
  and the copies are the only remaining content of replaced files.
  When a new copy has been written and synced, the wrapper removes the saves older than 30 days,

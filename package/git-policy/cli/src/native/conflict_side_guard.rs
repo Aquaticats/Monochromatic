@@ -15,9 +15,10 @@
 
 use super::command_conflict_side::{SideRequest, conflict_side_request};
 use super::conflict_sides::{
-    Operation, SAVED_DIRECTORY, SaveFailure, SavedCopy, SideDecision, clean_paths_note, conflicted_paths, decide_sides, operation_in_progress,
+    FailureKind, Operation, SAVED_DIRECTORY, SaveFailure, SavedCopy, SideDecision, clean_paths_note, conflicted_paths, decide_sides, operation_in_progress,
     save_copies, saved_notice,
 };
+use super::diagnostic_log::debug;
 use super::discarded_prune::{Limits, Problem, directory_name_of, prune};
 use super::global_arguments::command_tokens;
 use super::private_storage::read_regular_file;
@@ -25,6 +26,9 @@ use super::repo_read_index::{IndexEntry, parse_index};
 use super::repo_read_layout::{RepoLayout, read_layout};
 use super::transaction_git::GitContext;
 use std::ffi::OsString;
+
+/// Module tag for diagnostics.
+const TAG: &str = "judgeConflictSides";
 
 /// The largest index file this reads.
 const INDEX_LIMIT_BYTES: u64 = 1 << 30;
@@ -47,14 +51,29 @@ pub enum SideVerdict {
     CopyFailed(String),
 }
 
-/// The sentence for a copy that could not be written.
+/// The sentence for a copy that could not be written, with the advice that fits what went wrong.
 fn copy_failed_text(failure: &SaveFailure) -> String {
-    return format!(
-        "cli-git: this command would replace a conflicted file, and your copy of it could not be saved first ({}: {}), so it is \
-         rejected and nothing was changed. Free the space or fix the permissions of the Git directory and run it again, or \
-         save the file yourself and pass `--no-enforce-worktree` directly after the subcommand.",
-        failure.subject, failure.reason
-    );
+    return match failure.kind {
+        FailureKind::Io => format!(
+            "cli-git: this command would replace a conflicted file, and your copy of it could not be saved first ({}: {}), so it is \
+             rejected and nothing was changed. Free the space or fix the permissions of the Git directory and run it again, or \
+             save the file yourself and pass `--no-enforce-worktree` directly after the subcommand.",
+            failure.subject, failure.reason
+        ),
+        FailureKind::Ancestor => format!(
+            "cli-git: this command would replace a conflicted file, but `{}` in front of it {}. Git would replace `{}` with a real \
+             directory to write the file, and nothing of it would be saved first, so the command is rejected and nothing was \
+             changed. Move `{}` out of the way or save it yourself and run the command again, or pass `--no-enforce-worktree` \
+             directly after the subcommand to go ahead without a copy.",
+            failure.subject, failure.reason, failure.subject, failure.subject
+        ),
+        FailureKind::Changed => format!(
+            "cli-git: the conflicted file `{}` {}, so the copy that was being made may be stale or cut short and was not kept. The \
+             command is rejected and nothing was changed. Run it again once nothing is writing to the file (an editor or a build may \
+             be), or save the file yourself and pass `--no-enforce-worktree` directly after the subcommand.",
+            failure.subject, failure.reason
+        ),
+    };
 }
 
 /// The conflicted paths of the index at `layout`, or the sentence that says why they cannot be read in process.
@@ -121,18 +140,32 @@ pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], millis
     };
     let conflicted = match read_conflicts(&layout) {
         Ok(found) => found,
-        Err(note) => return SideVerdict::Refused(note),
+        Err(note) => {
+            debug(TAG, &format!("refused during {operation:?}: the conflicted paths cannot be read in process:{note}"));
+            return SideVerdict::Refused(note);
+        }
     };
     match decide_sides(request.paths.as_slice(), layout.prefix.as_slice(), layout.worktree_root.as_path(), &conflicted) {
-        SideDecision::Refuse(others) => return SideVerdict::Refused(clean_paths_note(others.as_slice(), operation)),
+        SideDecision::Refuse(others) => {
+            debug(TAG, &format!("refused during {operation:?}: {others:?} are not conflicted files among {} conflicted", conflicted.len()));
+            return SideVerdict::Refused(clean_paths_note(others.as_slice(), operation));
+        }
         SideDecision::Allow(paths) => {
             match save_copies(layout.worktree_root.as_path(), layout.common_dir.as_path(), paths.as_slice(), milliseconds) {
                 Ok(copies) => {
                     let unpruned: String = prune_after_save(&layout, copies.as_slice(), milliseconds, limits);
                     return SideVerdict::Allowed { notice: format!("{}{unpruned}", saved_notice(copies.as_slice())), copies };
                 }
-                Err(failure) => return SideVerdict::CopyFailed(copy_failed_text(&failure)),
+                Err(failure) => {
+                    debug(TAG, &format!("copy failed during {operation:?}, command rejected: {failure:?}"));
+                    return SideVerdict::CopyFailed(copy_failed_text(&failure));
+                }
             }
         }
     }
 }
+
+/// The sentences for a copy that could not be made.
+#[cfg(test)]
+#[path = "conflict_side_guard_tests.rs"]
+mod tests;
