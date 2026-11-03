@@ -52,3 +52,16 @@ the candidate does not promise an absence of all metrics-related disk activity.
 
 No passing result is claimed for these pending checks.
 The candidate is retained so implementation and its limits remain reviewable while validation proceeds.
+
+## Build preparation verified at 2026-11-03T17:40:12+00:00
+
+The exact target revision was fetched using a verified public-source cache as input.
+Dependency synchronization,
+patch application,
+dependency hooks,
+and GN generation passed in the isolated CachyOS container.
+Native compilation started at `2026-11-03T17:40:12.725Z`.
+The build retains its logs in the named container volume;
+the [handover](../../handover/chromium-live-histogram-contribution.md)
+records the resource bounds and acquisition evidence.
+Compilation and behavioral verification remain pending.

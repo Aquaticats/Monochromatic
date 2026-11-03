@@ -283,3 +283,29 @@ and verifies that revision again after dependency synchronization.
 The cached older snapshot is input reuse,
 not the version on which the patch will be validated.
 The updated orchestration type check passed.
+
+## Native compilation reached at 2026-11-03T17:40:12+00:00
+
+The seeded source fetch completed in `88387 ms`.
+Checkout,
+dependency synchronization,
+dependency revision capture,
+patch applicability,
+patch application,
+dependency hooks,
+and GN generation all exited successfully.
+The verified source remains `360d943d418b3d6645fea86766f5dcc4a7cc3b2e`.
+The build started compiling `chrome`,
+`chrome/test:unit_tests`,
+and `chrome/test:browser_tests` at `2026-11-03T17:40:12.725Z`.
+This resolves the source-acquisition obstruction for this attempt;
+it does not establish the cause of the previous transfer failures.
+
+The next work is to finish compilation,
+run the native policy and startup tests,
+exercise the compiled browser with the mapped positive control first,
+then prove that reverting only the startup storage choice makes the regression fail.
+The candidate must be restored and rebuilt after that control.
+The test driver must check the intended failed assertion,
+not merely a nonzero exit.
+No native test pass or patch efficacy is yet claimed.
