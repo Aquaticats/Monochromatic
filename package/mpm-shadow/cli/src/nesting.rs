@@ -18,11 +18,14 @@ pub const NESTING_ENV: &str = "MPM_SHADOW_NESTING";
 pub const MAX_NESTING: u32 = 4;
 
 /// The depth a value of `NESTING_ENV` names; absent or unreadable text names none.
-pub fn nesting_depth(_value: Option<&str>) -> u32 {
-    return 0;
+pub fn nesting_depth(value: Option<&str>) -> u32 {
+    let Some(text) = value else {
+        return 0;
+    };
+    return text.parse::<u32>().unwrap_or(0);
 }
 
 /// Whether a shadow at `depth` must refuse to start the program it found.
-pub fn must_refuse(_depth: u32) -> bool {
-    return false;
+pub fn must_refuse(depth: u32) -> bool {
+    return depth >= MAX_NESTING;
 }

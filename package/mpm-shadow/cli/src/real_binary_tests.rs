@@ -115,7 +115,7 @@ fn write_launcher(directory: &Path, record_real: &Path, write_record_file: bool,
             real: record_real.to_path_buf(),
             scope: ScopeKind::Repo,
         };
-        let text: String = record_text.map(str::to_string).unwrap_or_else(|| render_record(&record));
+        let text: String = record_text.map(str::to_string).unwrap_or_else(|| return render_record(&record));
         fs::write(record_path(&launcher), text).expect("write the record");
     }
     let links: PathBuf = directory.join("links");

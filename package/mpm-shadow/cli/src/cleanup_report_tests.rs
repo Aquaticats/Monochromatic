@@ -20,7 +20,7 @@ fn sizes_use_the_largest_binary_unit_above_one_with_one_decimal() {
     assert_eq!(format_size(KIBIBYTE - 1), "1023 B");
     assert_eq!(format_size(KIBIBYTE), "1.0 KiB");
     assert_eq!(format_size(KIBIBYTE + KIBIBYTE / 2), "1.5 KiB");
-    assert_eq!(format_size(12 * MEBIBYTE + MEBIBYTE / 4), "12.3 MiB");
+    assert_eq!(format_size(12 * MEBIBYTE + MEBIBYTE * 3 / 10), "12.3 MiB");
     assert_eq!(format_size(3 * MEBIBYTE * KIBIBYTE), "3.0 GiB");
 }
 

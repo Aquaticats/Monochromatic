@@ -27,14 +27,48 @@ pub struct RetryReport {
     pub paused: Duration,
 }
 
-/// Runs `start` until it is not refused for lack of processes, pausing between tries within `budget`.
+/// The first pause after a refusal.
+const FIRST_PAUSE: Duration = Duration::from_millis(10);
+
+/// The longest single pause; the pauses double until they reach it.
+const LONGEST_PAUSE: Duration = Duration::from_millis(500);
+
+/// What:
+/// Runs `start` until it is not refused for lack of processes,
+/// pausing between tries so that the pauses total at most `budget`.
+/// Why:
+/// Only a refusal is retried;
+/// every other error is the caller's at once.
+/// The pause is injected so a test drives the whole budget without waiting.
+/// The report says how often the system refused and how long was paused, for the message the caller prints.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function retryRefusedStart<T>(budgetMs: number, pause: (ms: number) => void, start: () => T): [Result<T>, RetryReport]
+/// ```
 pub fn retry_refused_start_with<T>(
-    _budget: Duration,
-    _pause: &mut dyn FnMut(Duration),
+    budget: Duration,
+    pause: &mut dyn FnMut(Duration),
     start: &mut dyn FnMut() -> Result<T>,
 ) -> (Result<T>, RetryReport) {
-    let outcome: Result<T> = start();
-    return (outcome, RetryReport::default());
+    let mut report: RetryReport = RetryReport::default();
+    let mut delay: Duration = FIRST_PAUSE;
+    loop {
+        let error: Error = match start() {
+            Ok(started) => return (Ok(started), report),
+            Err(error) => error,
+        };
+        if !is_refusal(&error) {
+            return (Err(error), report);
+        }
+        report.refusals += 1;
+        if report.paused + delay > budget {
+            return (Err(error), report);
+        }
+        pause(delay);
+        report.paused += delay;
+        delay = (delay * 2).min(LONGEST_PAUSE);
+    }
 }
 
 /// The production entry: pauses for real.

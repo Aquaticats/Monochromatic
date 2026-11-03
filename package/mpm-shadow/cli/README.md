@@ -1380,8 +1380,34 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   the newest across them wins,
   so a stale legacy file cannot keep an old version or delete a newer cached archive.
   A version directory without a record is an unfinished install and names nothing.
-- Reports each deletion on standard error as `mpm-shadow: deleted stale <path>`.
-- Skips every candidate that resolves to its own executable when it looks for the real `mpm`.
+- Reports the cleanup as one summary line on standard error,
+  `mpm-shadow: post-run cleanup after the mpm command (not part of it): removed <n> superseded cached copies ... (<size>) under <cargo home>/registry`,
+  so it cannot be read as part of the mpm command that ran before it.
+  Nothing is printed when nothing was removed.
+  `MPM_SHADOW_VERBOSE=1` adds one `mpm-shadow: deleted stale <path>` line per removed path after the summary.
+  A path that could not be removed is always listed, with the system's reason,
+  and the summary line counts it.
+- Skips every candidate that resolves to its own executable when it looks for the real `mpm`,
+  and every launcher whose record names its own executable.
+  `install` links `mpm` to a per-tree launcher (a copy or hard link of this binary with a `.launch` record beside it), which starts the installed binary under the name `mpm`;
+  the launcher is another file, so skipping only the binary's own path took the launcher for the real `mpm`,
+  started it, and the chain repeated until the host refused new processes (issue 6259).
+- Counts the shadows that started it in the `MPM_SHADOW_NESTING` environment variable,
+  passes the count plus one to the program it starts,
+  and refuses to start a program from the fourth level on (exit status 126, with a message that says why).
+  A chain of shadows is never intended; the bound turns a runaway chain into a short, explained failure.
+- Starts the real `mpm` again, with pauses that double up to half a second and total at most five seconds,
+  when the system refuses the start for lack of processes (`EAGAIN`, "Resource temporarily unavailable").
+  A refused start started nothing, so starting again is safe.
+  After a start that needed retries it says so once on standard error.
+- Explains a start that fails for good, instead of one bare line:
+  the command that was run,
+  the program it tried,
+  the stage,
+  the cause in plain words (a process limit, missing permission, a missing program or interpreter, or the system's own words),
+  what to do,
+  the exit status (126) and why the command reports it,
+  and what had completed (nothing of the command ran, and the post-run cleanup does not run).
 - Shows that it is a shadow in the two places a person looks,
   after mpm's own output and only after a successful run:
   a top-level `mpm --version` prints mpm's version text,
@@ -1443,7 +1469,8 @@ The toolchain plan links it as `mpm` into a gitignored directory that comes firs
   a bad command line,
   or a plan or lock file that cannot be read.
 - `126`:
-  (shadow mode) the real `mpm` was found but could not be started.
+  (shadow mode) the real `mpm` was found but could not be started,
+  or the shadow refused to start it because too many shadows were nested.
 - `127`:
   (shadow mode) no real `mpm` on `PATH`.
 - Anything else in shadow mode:

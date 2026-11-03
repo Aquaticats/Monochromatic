@@ -214,7 +214,8 @@ pub fn help_section(real_mpm: &Path) -> String {
          This `mpm` is a shadow of mpm, run by mpm-shadow (shadowing the real mpm at {path}).\n  \
          It passes your arguments, the standard streams and mpm's exit status through unchanged.\n  \
          After every run it deletes the superseded cached versions of this repository's own `monochromatic-` crates\n  \
-         from cargo's registry, and reports each on standard error as `mpm-shadow: deleted stale <path>`.\n  \
+         from cargo's registry, and reports that post-run cleanup as one summary line on standard error;\n  \
+         `MPM_SHADOW_VERBOSE=1` adds one `mpm-shadow: deleted stale <path>` line per path.\n  \
          The toolchain commands (install, update, outdated, list, bin) belong to `mpm-shadow --help`.\n",
         version = shadow_version(),
         path = real_mpm.display()

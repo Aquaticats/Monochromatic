@@ -90,3 +90,23 @@ fn the_command_line_is_quoted_so_an_argument_with_a_space_stays_one_argument_and
     let bare = message(&[], &Error::from(ErrorKind::NotFound), no_retry(), 0);
     assert!(bare.contains("`mpm`"), "{bare}");
 }
+
+#[test]
+fn the_nesting_refusal_names_the_command_the_program_the_level_the_limit_the_cause_the_remedy_and_the_status() {
+    use crate::nesting::MAX_NESTING;
+    use crate::start_failure::describe_nesting_refusal;
+    let arguments: Vec<OsString> = words(&["i", "-g"]);
+    let text = describe_nesting_refusal(&arguments, Path::new(PROGRAM), MAX_NESTING);
+    for expected in [
+        "mpm i -g",
+        PROGRAM,
+        &format!("nesting level {MAX_NESTING}"),
+        &format!("limit {MAX_NESTING}"),
+        "started by another mpm-shadow",
+        "command -v -a mpm",
+        &EXEC_FAILED_EXIT_CODE.to_string(),
+        "post-run cleanup did not run",
+    ] {
+        assert!(text.contains(expected), "{expected}: {text}");
+    }
+}
