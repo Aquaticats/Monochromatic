@@ -275,3 +275,47 @@ fn the_exit_code_of_mpm_passes_through_and_a_failed_version_gets_no_line() {
     assert_eq!(String::from_utf8_lossy(&output.stdout), "broken\n");
     assert_eq!(output.status.code(), Some(7));
 }
+
+/// A version no real machine has installed,
+/// so a test that sees it can only have read the disposable data directory it planted it in.
+const PLANTED_NEWER_VERSION: &str = "9.9.9";
+
+/// A newer version of the stale crate recorded the way `install` records it
+/// (a version directory with its own `.crates.toml` under the toolchain root of the disposable data home),
+/// and its archive cached.
+fn write_toolchain_record(root: &Path) {
+    let version_dir: std::path::PathBuf =
+        root.join("data/monochromatic-dev/toolchain/cargo/monochromatic-lint").join(PLANTED_NEWER_VERSION);
+    fs::create_dir_all(&version_dir).expect("make the version directory");
+    fs::write(
+        version_dir.join(".crates.toml"),
+        format!(
+            "[v1]\n\"monochromatic-lint {PLANTED_NEWER_VERSION} (registry+https://github.com/rust-lang/crates.io-index)\" = [\"monochromatic-lint\"]\n"
+        ),
+    )
+    .expect("write the version-keyed record");
+    fs::write(
+        root.join("cargo/registry/cache/index.crates.io-fixture").join(format!("monochromatic-lint-{PLANTED_NEWER_VERSION}.crate")),
+        "",
+    )
+    .expect("write the newer archive");
+}
+
+/// The shadow reads the toolchain roots under the data home it is given,
+/// never the machine's own,
+/// so a newer recorded version there is the one kept and the older caches go.
+#[test]
+fn reads_the_toolchain_roots_of_the_data_home_it_is_given_and_never_the_machines_own() {
+    let root = fixture_root();
+    write_fake_mpm(&root.path().join("real"), "#!/bin/sh\nexit 0\n");
+    write_stale_copies(root.path());
+    write_toolchain_record(root.path());
+
+    let output: Output = start_shadow(root.path(), &["list"]);
+
+    assert_eq!(output.status.code(), Some(0));
+    let cache: std::path::PathBuf = root.path().join("cargo/registry/cache/index.crates.io-fixture");
+    assert!(cache.join(format!("monochromatic-lint-{PLANTED_NEWER_VERSION}.crate")).exists());
+    assert!(!cache.join("monochromatic-lint-0.4.0.crate").exists());
+    assert!(!cache.join("monochromatic-lint-0.1.0.crate").exists());
+}
