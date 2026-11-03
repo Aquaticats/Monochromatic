@@ -199,16 +199,23 @@ impl Pack {
             return None;
         }
         let first: usize = usize::from(name[0]);
-        let mut low: u64 = if first == 0 { 0 } else { u64::from(self.fanout[first - 1]) };
-        let mut high: u64 = u64::from(self.fanout[first]);
-        let names_at: u64 = FANOUT_END;
-        while low < high {
-            let middle: u64 = low + (high - low) / 2;
-            let candidate: Vec<u8> = self.read_index(names_at + middle * self.hash_length as u64, self.hash_length)?;
-            match candidate.as_slice().cmp(name) {
-                std::cmp::Ordering::Equal => return self.offset_of(middle),
-                std::cmp::Ordering::Less => low = middle + 1,
-                std::cmp::Ordering::Greater => high = middle,
+        let low: u64 = if first == 0 { 0 } else { u64::from(self.fanout[first - 1]) };
+        let high: u64 = u64::from(self.fanout[first]);
+        if low >= high {
+            return None;
+        }
+        // The names that share the first byte lie side by side, so one read brings all of them and the search below
+        //  runs in memory; probing name by name cost a system call for each step of the search.
+        let bucket: Vec<u8> = self.read_index(FANOUT_END + low * self.hash_length as u64, ((high - low) as usize) * self.hash_length)?;
+        let mut left: usize = 0;
+        let mut right: usize = bucket.len() / self.hash_length;
+        while left < right {
+            let middle: usize = left + (right - left) / 2;
+            let candidate: &[u8] = &bucket[middle * self.hash_length..(middle + 1) * self.hash_length];
+            match candidate.cmp(name) {
+                std::cmp::Ordering::Equal => return self.offset_of(low + middle as u64),
+                std::cmp::Ordering::Less => left = middle + 1,
+                std::cmp::Ordering::Greater => right = middle,
             }
         }
         return None;
