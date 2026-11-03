@@ -55,6 +55,12 @@ path = "src/native/binary_tests.rs"
 name = "native_candidates"
 path = "src/native/candidate_consumer_tests.rs"
 
+# Executable models of the commits-never-fail protocol (`doc/planning/cli-git-commits-never-fail.md`, step 1 of
+# "Verification plan and build order"): verification code that ships nothing and starts no live protocol.
+[[test]]
+name = "native_models"
+path = "src/native/model_tests.rs"
+
 [dependencies]
 # Both native tools use the already adopted comment-preserving JSONC foundation.
 monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }
