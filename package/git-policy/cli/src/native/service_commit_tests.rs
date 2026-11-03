@@ -15,7 +15,7 @@ fn the_activation_units_match_the_wrapper_and_the_resource_rules() {
     assert!(SERVICE_UNIT.contains("Requires=cli-git@%i.socket") && SERVICE_UNIT.contains("After=cli-git@%i.socket"));
     assert!(SERVICE_UNIT.contains("--instance %i"), "the service learns which worktree it is for");
     assert!(SERVICE_UNIT.contains("--journal %S/cli-git/service/%i"), "each instance keeps its own journal");
-    for property in ["MemoryMax=", "TasksMax=", "CPUQuota=", "IOWeight="] {
+    for property in ["TasksMax=", "CPUQuota=", "IOWeight="] {
         assert!(SERVICE_UNIT.lines().any(|line| { return line.starts_with(property); }), "{property}");
     }
     let weight: u32 = SERVICE_UNIT
@@ -25,6 +25,32 @@ fn the_activation_units_match_the_wrapper_and_the_resource_rules() {
         .expect("a numeric IOWeight");
     assert!(weight <= 50, "the owner's rule: never above 50");
     assert!(SERVICE_UNIT.contains("@SERVICE_BINARY@") && SERVICE_UNIT.contains("@GIT@"), "the installer fills these in");
+}
+
+/// What:     a test that the service template sets no `MemoryMax=` line, so systemd puts no memory cap of the
+///           wrapper's own on the service or on the Git processes it starts.
+/// Why:      the cap of 1 GiB had no measurement behind it; the service's Git children read the repository's packs and
+///           index through the page cache, which a cap charges to the unit, so on the main checkout the unit hit the
+///           cap 274,736 times (`memory.events` max) with 16,125,924 major page faults by 2026-11-03T08:40:51-05:00,
+///           and a commit's `git reset` took 59 s that plain Git does in milliseconds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('the service unit sets no memory cap of its own', () => {
+///   assert(!SERVICE_UNIT.split('\n').some((line) => line.startsWith('MemoryMax=')));
+/// });
+/// ```
+#[test]
+fn the_service_unit_sets_no_memory_cap_of_its_own() {
+    // What:     `.lines()` walks the template line by line; `.any(|line| ...)` is `Array.prototype.some` with a Rust
+    //           closure (`|line| { ... }` is `(line) => { ... }`); `!` negates the result.
+    // Why:      the template must not carry the line at all, whatever value it would hold.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // assert(!SERVICE_UNIT.split('\n').some((line) => line.startsWith('MemoryMax=')), SERVICE_UNIT);
+    // ```
+    assert!(!SERVICE_UNIT.lines().any(|line| { return line.starts_with("MemoryMax="); }), "{SERVICE_UNIT}");
 }
 
 /// Both templates carry the marker that lets the wrapper recognize its own units, on the first line.
