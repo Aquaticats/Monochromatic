@@ -23,7 +23,8 @@ use super::lfs_output_mask::mask_userinfo_text;
 use super::manual_push_cause::ManualPushCause;
 use super::manual_push_porcelain::{PorcelainUpdate, RemoteBefore, parse_porcelain};
 /// The push's own reading of its destination.
-use super::command_push::push_shape;
+use super::command_options::{Boundary, DEFAULT_MODE, parse_options};
+use super::command_push::{PUSH_TABLE, push_shape};
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
 
@@ -127,7 +128,7 @@ pub struct PushUpdate {
 
 /// What:
 ///  The probe's Git arguments: the invocation's global options, the switches that keep every hook and full object
-///  names, then `push` with `--dry-run --porcelain` placed before any `--` terminator.
+///  names, then `push` with `--dry-run --porcelain` placed before any `--` or `--end-of-options` terminator.
 /// Why:
 ///   The `--` terminator is the user's; the options Git interprets must stay before it. The probe publishes nothing and
 ///  must not run the upload hook of the caller's configuration, so configured `pre-push` hooks are off and the
@@ -138,9 +139,17 @@ pub struct PushUpdate {
 /// probeArgs({ globalPrefix, args });
 /// ```
 pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString]) -> Vec<OsString> {
-    let separator = post_subcommand.iter().position(|argument| {
-        return argument.as_os_str() == "--";
-    });
+    // The separator is the one Git reads: a `--` that is the value of an option such as `--receive-pack` is not it. A region
+    //  Git refuses has no reading, and the probe then stops at the first `--`, where Git refuses it as well.
+    let separator = match parse_options(post_subcommand, PUSH_TABLE, DEFAULT_MODE, &[]) {
+        Ok(parsed) => match parsed.boundary {
+            Boundary::DashDash(at) | Boundary::EndOfOptions(at) => Some(at),
+            Boundary::End | Boundary::NonOption(_) => None,
+        },
+        Err(_) => post_subcommand.iter().position(|argument| {
+            return argument.as_os_str() == "--";
+        }),
+    };
     let insertion = separator.unwrap_or(post_subcommand.len());
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
     for setting in [
