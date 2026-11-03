@@ -237,6 +237,111 @@ Tradeoff:
 waiting does not recover an instance that remains alive indefinitely.
 Confirm process age and repeat the launcher probe before choosing this path.
 
+## Automatic recovery launcher installed on 2026-11-02
+
+The user requested that each desktop launch terminate the current or stuck IDEA processes
+and start a fresh IDE instance.
+This explicitly changes the shortcut from activating an existing window to restarting IDEA,
+including when the existing instance is healthy.
+The installed version is IDEA 2026.3 RC,
+build `263.7307.112`,
+as recorded in the local Toolbox installation's `product-info.json`.
+The historical shutdown diagnosis in this document has not been reproduced on that build.
+
+The local recovery implementation lives in
+`$HOME/.local/share/intellij-recovery/restart.ts`
+and `$HOME/.local/share/intellij-recovery/processes.ts`.
+It records actions in `$HOME/.local/state/intellij-recovery/recovery.log`.
+It targets current-user processes whose executable or script belongs to the Toolbox IDEA installation
+or an IDEA cache directory,
+plus their descendants.
+It sends `SIGTERM`,
+allows 8 seconds for shutdown,
+then sends `SIGKILL` to survivors and allows 3 seconds for exit.
+It checks process start times before signalling,
+refuses to kill its own caller,
+and refuses a new instance if matching processes remain.
+It preserves settings,
+plugins,
+indexes,
+coordination files,
+and Local History.
+
+The original Toolbox desktop entry invokes this wrapper.
+A separate `intellij-idea-recover.desktop` entry preserves access if Toolbox rewrites its generated shortcut.
+Its application-menu name is **IntelliJ IDEA (Recover and Restart)**.
+A backup of the unmodified entry is
+`$HOME/.local/state/intellij-recovery/original-launcher-1793681275733.desktop`.
+A nonblocking `flock` serializes recovery,
+with a 5-second hold after launch to absorb double-clicks.
+Recovery runs with `CPUQuota=100%`,
+`MemoryMax=512M`,
+`TasksMax=128`,
+and `IOWeight=25`.
+The new IDEA process runs in a separate user service with `CPUQuota=2800%`,
+`MemoryMax=40G`,
+`TasksMax=8192`,
+and `IOWeight=50`.
+The host reports 32 online CPUs and 63144 MiB RAM;
+the recovery shell itself reports a 2-CPU allocation.
+
+Tradeoffs:
+each launch interrupts IDE tasks and can lose unsaved edits.
+Descendant terminals and agents close too.
+An uninterruptible process can prevent recovery;
+the wrapper reports surviving process IDs instead of deleting locks or launching against a live owner.
+The Toolbox application's own launch button still uses its own launcher.
+
+The disposable harness is `$HOME/temp/agent/test-intellij-recovery.ts`.
+It verified graceful termination,
+forced termination of a process that ignores `SIGTERM`,
+descendant cleanup,
+preservation of an unrelated process,
+caller protection,
+rejection of shell-command text containing an IDEA path,
+rejection of a remembered PID with a different start time,
+desktop URI/path forwarding,
+double-click exclusion,
+and replacement through the unmodified wrapper into a running systemd service.
+Fixture cleanup reported no remaining matching processes.
+Desktop entries passed `desktop-file-validate`.
+The changed original desktop entry was then launched through `gio launch`.
+The recovery log recorded termination of the old root PID `2448935`
+and creation of `intellij-idea-recovered-1793681333401.service`.
+The old root PID disappeared;
+`systemctl --user show` reported the service active with main PID `3235452`.
+A KWin D-Bus script confirmed an IDEA window belonging to that new PID:
+
+```text
+# KWin journal output, 2026-11-02 America/New_York
+IDEA_RECOVERY_20261102 count=1
+IDEA_RECOVERY_20261102 pid=3235452 minimized=false active=false
+```
+
+The KWin verification script was unloaded after inspection.
+The live restart completed with `SIGTERM`;
+the forced termination path was exercised by the disposable resistant process.
+The documentation passed scoped `mise run lint:monochromatic-lint`
+and a rendered check with `glow`.
+
+The fixture initially expected GIO to forward a `file:` URL verbatim;
+the measured argument was its decoded filesystem path.
+The corrected assertion checks that path and separately checks a `jetbrains:` link.
+Another failed assertion tested the desktop lock after the child had already exited:
+the harness captured inherited output pipes with `execFileSync`.
+Using ignored output handles allowed the harness to test the lock while the child was still alive.
+The resulting live-lock assertion passed.
+Both wrapper invocations use `systemd-run --expand-environment=no`
+to preserve literal dollar expressions in arguments.
+The desktop test forwarded a link containing `$HOME` and a semicolon unchanged.
+A separate verification command that omitted this option emitted
+`Referenced but unset environment variable evaluates to an empty string: started`;
+rerunning that command with expansion disabled preserved its JavaScript template expression.
+
+This is a requested local launch policy,
+not new evidence identifying an upstream shutdown defect.
+The existing upstream filing decision therefore remains unchanged.
+
 ## What does not work
 
 - **Repeatedly starting IDEA.**

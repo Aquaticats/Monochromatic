@@ -544,16 +544,57 @@ that is an ordinary directory into a subvolume at the same path, one at a time.
 It refuses when the worktree is locked, has an `index.lock`, has an operation in progress, has a modified tracked file, has a
 process with its working directory or an open file inside it, has a worktree registered inside it, or when its converting
 name exists without a journal.
-It writes a journal `cli-git-convert` in the administrative directory, takes `index.lock` with a token, creates
-`<path>.cli-git-converting` as a subvolume, copies the worktree into it with cloned data, runs a second pass that must find
-nothing to copy, exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root with the same
-`.git` bytes, rewrites the index stat fields, removes the old tree only when it is the directory whose device and inode the
-journal recorded, and drops the journal and the lock.
+A tracked file counts as unmodified when its index entry's size, times and inode match it.
+An entry those fields cannot vouch for (as new as the index file, or a stale stat in a copied or cloned worktree) is settled
+by content in process, without a Git process: the file is hashed as a blob (a symbolic link by its target) and compared with the
+entry's object name.
+Content cannot settle a path that a `filter`, `ident` or `working-tree-encoding` attribute may apply to, a file with a carriage
+return, a file over 32 MiB, or a difference of type, executable bit or assume-unchanged mark; each is refused with its reason,
+naming the path.
+The attribute sources are the tracked `.gitattributes` files from the root down to the file, `info/attributes`, the file
+`core.attributesFile` names or the default global file, and the system file, which is where the Git executable says it is
+(`git var GIT_ATTR_SYSTEM`, learned once per executable and cached) and is off under `GIT_ATTR_NOSYSTEM`; it is never derived from
+the system configuration path, and when its place cannot be established the worktree is refused.
+Attribute lines, patterns and paths are read as bytes: only space, tab, carriage return and line feed separate tokens, a NUL ends
+the text of a line, a byte order mark on the first line is skipped, `?` is one byte and only ASCII letters fold; a spelling the
+matcher does not model counts as applying.
+Every tracked file and every `.gitattributes` below the worktree is opened below a held root without following a link (a
+directory replaced by a link is refused); the type and mode of a file are judged on its open handle, its state is compared
+before and after the read, and the read is bounded at the limit plus one byte, so the bytes that were hashed are the bytes of
+the one file that was judged.
+The rungs of the add keep the stat-only check.
+A real run holds an exclusive kernel lock (`cli-git-convert.lock` in the administrative directory, left in place) from before it
+reads the journal until it ends, so two commands never read, write or resume one journal; a command that finds the lock held
+skips the worktree and says so.
+It creates the journal `cli-git-convert` exclusively, through a temporary file created exclusively under a unique name, takes
+`index.lock` with a token, creates `<path>.cli-git-converting` as a subvolume and records its identity (device, inode and birth
+time) in the journal right after.
+A directory at the converting name that the journal has no identity for is foreign: it is refused, never synced into,
+exchanged or destroyed, and the abandon leaves it.
+It copies the worktree into the stage with cloned data and runs a second pass that must find nothing to copy; `Synced` only
+records that this once held, so every resume before the swap copies and proves again.
+It exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root, is the subvolume whose identity
+the journal recorded and holds the same `.git` bytes, and rewrites the index stat fields; a refresh that did not install the new
+index stops the conversion with the old tree kept.
+Before it removes the old tree it copies anything newer from the old tree into the worktree (an update-only pass, which never
+deletes), reads the process table again for anything holding the old tree, and keeps the old tree for that run, with a message,
+when it carried anything over or found a holder.
+It removes the old tree only when the directory at the name is the one whose device and inode the journal recorded, pinned by a
+descriptor opened below its parent, deleting beneath that descriptor and removing the name last only while it still names that
+object.
+Then it drops the journal and the lock.
+Nested registrations are read from the common directory whatever it is called (a bare repository included), and the refusals have
+kinds: only the `index.lock` that holds this command's token and the stage whose identity the journal recorded are exempt, never a
+refusal because of its words.
 A rerun completes an unfinished conversion in place whatever phase it stopped at, including a stop between the exchange and
-its journal line; `--abandon` destroys only the subvolume the journal says this command created, and only before the exchange.
-A refusal before the swap destroys the stage, only while the stage name still holds the directory the wrapper made, and
-completes the worktree with `git reset --hard --no-recurse-submodules` (`--quiet` when given), whose status is then the
-command's.
+its journal line; `--abandon` destroys only the subvolume whose identity the journal recorded, and only before the exchange.
+
+What keeps a writer out between the proof and the deletion: nothing excludes one while the old tree is still the worktree.
+The proof, the copy and the second pass see the tree at their instants; the process table is read before the swap and again before
+the removal, a write that lands in between is found by the update-only pass after the exchange (the old tree is then reachable by
+no name anyone uses), and the old tree is kept, never removed, whenever that pass carried anything over or a process still holds it.
+A process that wrote and exited between the second pass and the exchange is the case the update-only pass exists for; a write
+that keeps the size and modification time of the copy is the case it cannot see.
 
 Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the destination in one clone domain.
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links
