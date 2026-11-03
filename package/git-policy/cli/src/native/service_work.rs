@@ -401,7 +401,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, r
         }
         // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow
         //  reviews: freeing them is a bounded, local job.
-        for item in still_held(&held, trashes) {
+        for item in still_held(&held, work_dir.as_path(), trashes) {
             match handlers.trash(&item.item) {
                 Verdict::Done => settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE),
                 Verdict::Failed(reason) => {
