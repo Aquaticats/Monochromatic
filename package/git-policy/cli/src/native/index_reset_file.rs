@@ -140,6 +140,8 @@ pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: I
     }
     let built: PathBuf = copy.path().to_path_buf();
     let done: bool = guarded(|| { return reset_file(git, repository, new, paths, built.as_path()); }).is_some();
+    // `publish` flushes the new bytes before it renames them onto the copy, and nothing writes to the copy after it returns.
+    copy.set_flushed(done);
     debug("indexResetFile", format!("in-process reset of {}: {}", built.display(), if done { "done" } else { "declined, Git answers" }).as_str());
     return done;
 }

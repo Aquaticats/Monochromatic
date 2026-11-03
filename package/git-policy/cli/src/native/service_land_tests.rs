@@ -1185,3 +1185,24 @@ pub(super) fn git_with_index(repository: &Path, index: &Path, arguments: &[&str]
     assert!(output.status.success(), "git {arguments:?}: {}", String::from_utf8_lossy(&output.stderr));
     return String::from_utf8_lossy(&output.stdout).trim().to_string();
 }
+
+/// The index Git's own `reset` wrote is flushed by the release; the one the in-process update wrote is not flushed twice, because
+/// that update flushes its file before it renames it into place and nothing writes to it after.
+#[test]
+fn the_release_flushes_a_copy_git_wrote_and_not_one_the_update_already_flushed() {
+    let mut world: World = world("service-land-flush-once");
+    world.context.git.overlay.extend(crate::repo_read_hook::switch_off());
+    crate::service_fault::hooks::take_events();
+    let by_git: CommitRequest = request(&world, "by-git", "by-git.txt", "x\n");
+    land_batch(&world.context, 1, &[by_git]).expect("landed");
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
+    let at = |name: &str| -> usize { return events.iter().position(|event| { return event == name; }).unwrap_or(usize::MAX); };
+    assert!(at("sync-built-index") < at("sync-index-dir"), "Git's file is flushed by the release, before its directory entry: {events:?}");
+    world.context.git.overlay.retain(|(name, _)| { return name != crate::repo_read_hook::SWITCH_VARIABLE; });
+    let in_process: CommitRequest = request(&world, "in-process", "in-process.txt", "x\n");
+    land_batch(&world.context, 2, &[in_process]).expect("landed");
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
+    assert!(events.iter().any(|event| { return event == "sync-index-dir"; }), "the landing installed an index: {events:?}");
+    assert!(!events.iter().any(|event| { return event == "sync-built-index"; }), "the update's own flush is not repeated: {events:?}");
+    remove(world.root.as_path());
+}

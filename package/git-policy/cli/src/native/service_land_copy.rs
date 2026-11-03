@@ -116,12 +116,26 @@ pub struct PrivateCopy {
     /// The directory, open and held exclusively with `flock` for as long as the value lives: the kernel releases the hold when
     ///  the owner dies, and a sweep removes only a directory it can hold. Nothing when the file system cannot hold one.
     _hold: Option<std::fs::File>,
+    /// Whether the bytes at `path` are already on the disk and nothing has written to them since: the in-process update flushes
+    ///  the file it renames onto the copy, so the release need not flush it again.
+    flushed: std::cell::Cell<bool>,
 }
 
 impl PrivateCopy {
     /// Where the copy is.
     pub fn path(&self) -> &Path {
         return self.path.as_path();
+    }
+
+    /// Whether the copy is known to be on the disk as it is.
+    pub fn is_flushed(&self) -> bool {
+        return self.flushed.get();
+    }
+
+    /// Says what is known of the copy's bytes: that they are on the disk (the update that wrote them flushed them before it
+    ///  renamed them into place), or that something wrote to them after.
+    pub fn set_flushed(&self, flushed: bool) {
+        self.flushed.set(flushed);
     }
 
     /// The directory the copy lives in, beside the live index.
@@ -149,7 +163,7 @@ impl PrivateCopy {
         let parent: &Path = live.parent().ok_or(FailureCode::Unavailable)?;
         sweep_leftovers(parent);
         let (directory, held) = Self::make_directory(parent)?;
-        let copy: PrivateCopy = PrivateCopy { path: directory.join(COPY_FILE), directory, _hold: held };
+        let copy: PrivateCopy = PrivateCopy { path: directory.join(COPY_FILE), directory, _hold: held, flushed: std::cell::Cell::new(false) };
         let marker_text: String = format!("{MARKER_HEAD}\npid={}\nbatch={seq}\n", std::process::id());
         write_new(copy.directory.join(MARKER_FILE).as_path(), marker_text.as_bytes()).map_err(|error| { return storage_failure(&error); })?;
         match std::fs::File::open(live) {

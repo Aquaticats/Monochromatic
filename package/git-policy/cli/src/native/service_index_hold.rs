@@ -165,7 +165,25 @@ impl IndexLock {
     /// # Errors
     ///
     /// As `release_with`, and the error of `record`, with the lock left in place.
-    pub fn release_with_record(mut self, built: &Path, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
+    pub fn release_with_record(self, built: &Path, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
+        return self.release_flushed_with_record(built, false, record);
+    }
+
+    /// What:
+    ///  `release_with_record` for a `built` the caller knows is already on the disk as it is.
+    /// Why:
+    ///   The in-process update flushes its file before it renames it into place, and nothing writes to it after. Flushing it
+    ///  again would cost a flush on the landing's path for no guarantee.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// lock.releaseFlushedWithRecord(built, alreadyFlushed, record)
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// As `release_with_record`.
+    pub fn release_flushed_with_record(mut self, built: &Path, flushed: bool, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
         match self.ownership() {
             Ownership::Owned => {}
             Ownership::Replaced => {
@@ -193,15 +211,17 @@ impl IndexLock {
         //  completion that is recorded durably never certifies an index whose contents are not on the disk. A flush that fails
         //  installs nothing, as a rename that fails does.
         if built.exists() && !same_index(built, &self.index) {
-            let flushed: std::io::Result<()> = if crate::service_fault::fails("sync-built-index") {
-                Err(std::io::Error::other("the flush of the new index was made to fail by a control"))
-            } else {
-                std::fs::File::open(built).and_then(|file| { return file.sync_all(); })
-            };
-            crate::service_fault::note("sync-built-index");
-            if let Err(error) = flushed {
-                crate::service_error!("the new index {} could not be flushed to the disk ({error}), so the index was not replaced", built.display());
-                return Err(error);
+            if !flushed {
+                let synced: std::io::Result<()> = if crate::service_fault::fails("sync-built-index") {
+                    Err(std::io::Error::other("the flush of the new index was made to fail by a control"))
+                } else {
+                    std::fs::File::open(built).and_then(|file| { return file.sync_all(); })
+                };
+                crate::service_fault::note("sync-built-index");
+                if let Err(error) = synced {
+                    crate::service_error!("the new index {} could not be flushed to the disk ({error}), so the index was not replaced", built.display());
+                    return Err(error);
+                }
             }
             std::fs::rename(built, &self.index)?;
         }
