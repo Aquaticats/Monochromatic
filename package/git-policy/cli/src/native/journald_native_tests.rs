@@ -10,7 +10,7 @@
 //! expect(parseDatagram(datagram('info', 'a\nPRIORITY=0', []))).toEqual({ PRIORITY: '6', MESSAGE: 'a PRIORITY=0' });
 //! ```
 
-use super::{CUT_MARK, Delivery, FIELD_LIMIT, FIELD_NAME_LIMIT, LOST_FIELD, cut, IDENTIFIER, MESSAGE_LIMIT, Priority, Sink, StreamWriter, Target, datagram, raw_address, one_line, stream_matches, valid_field_name};
+use super::{PIPE_CHUNK, send_without_waiting, CUT_MARK, Delivery, FIELD_LIMIT, FIELD_NAME_LIMIT, LOST_FIELD, cut, IDENTIFIER, MESSAGE_LIMIT, Priority, Sink, StreamWriter, Target, datagram, raw_address, one_line, stream_matches, valid_field_name};
 use std::collections::BTreeMap;
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixDatagram};
@@ -459,4 +459,35 @@ fn counting_the_same_dropped_entries_twice_stops_at_zero() {
     sink.forgive(3);
     sink.forgive(3);
     assert_eq!(sink.lost.load(Ordering::Relaxed), 0);
+}
+
+/// The send that a signal handler uses takes at most a page into a pipe with room, refuses a full pipe with `EAGAIN` at once,
+/// and does the same for a stream socket.
+#[test]
+fn the_send_without_waiting_takes_a_page_and_refuses_a_full_pipe_and_a_full_socket() {
+    use std::os::fd::AsRawFd;
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    // SAFETY: `ends` is valid for the two descriptors `pipe` writes.
+    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0);
+    let big: Vec<u8> = vec![b'p'; PIPE_CHUNK * 3];
+    assert_eq!(send_without_waiting(ends[1], big.as_slice()), Ok(PIPE_CHUNK), "a page at most, whatever is offered");
+    let mut taken: usize = PIPE_CHUNK;
+    while let Ok(count) = send_without_waiting(ends[1], big.as_slice()) {
+        taken += count;
+        assert!(taken < 1 << 24, "the pipe never filled");
+    }
+    assert_eq!(send_without_waiting(ends[1], b"x"), Err(libc::EAGAIN), "a full blocking pipe is refused, not waited for");
+    // SAFETY: both descriptors are open and closed once.
+    unsafe {
+        libc::close(ends[0]);
+        libc::close(ends[1]);
+    }
+    let (writer_end, _reader_end) = std::os::unix::net::UnixStream::pair().expect("a pair");
+    let line: Vec<u8> = vec![b's'; 1024];
+    let mut sockets_taken: usize = 0;
+    while send_without_waiting(writer_end.as_raw_fd(), line.as_slice()).is_ok() {
+        sockets_taken += 1;
+        assert!(sockets_taken < 1_000_000, "the socket never filled");
+    }
+    assert_eq!(send_without_waiting(writer_end.as_raw_fd(), line.as_slice()), Err(libc::EAGAIN));
 }
