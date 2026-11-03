@@ -9937,3 +9937,22 @@ by the coordinator at merge.
   lock; P2 dry run misreads the exchange-before-journal crash point. Reviewer: "Do not automatically delete the
   displaced tree unless writers are genuinely excluded through the final verification and deletion interval." The real
   conversion stays held; design question put to the owner (whether conversion deletes the old tree at all).
+- Owner decision 2026-11-03, verbatim (question-tool note, on whether conversion should delete the old tree given
+  races with concurrent writers): "That is not an our problem. By using this command or this program, make the user
+  understand and accept the risk." Reading adopted (veto open): races caused by other processes changing files or
+  names while the wrapper works (rename or replace mid-operation, writes through open descriptors or shared
+  mappings, edits in the window between check and act) are outside what the wrapper defends against; the wrapper
+  states that risk plainly (command help and docs, a short notice when a destructive command runs, and a general
+  statement for the whole program in the README and SPEC) and keeps fixing its own deterministic bugs. This settles
+  the earlier "no written threat model for same-user processes" gap. Relayed to every running agent.
+- Content-check re-review returned (`~/temp/agent/review-content-2/sol-review.txt`): first-round 1, 2, 6 complete.
+  In scope (deterministic): P0 quoted lines (an `[attr]` substring marks an ordinary line as a macro; a token glued
+  to the closing quote is lost), P0 `GIT_ATTR_SOURCE` / `attr.tree` not modelled, the stat-only
+  `file_differs_from_entry` still follows parent symlinks, P2 FIFO at an attributes path hangs, P2 cubic macro
+  closure, P2 matcher work unbounded. Out of scope by the decision: parent renamed mid-check, shared-mapping writes.
+- Conversion re-review, in scope (deterministic): P1 nested-registration examination fails open, P1 `Removal::Kept`
+  recorded as removed, P1 old-root identity lacks birth time, `Journal.path` never checked (a moved worktree), P2 FIFO
+  journal hang, P2 dry run misreads the exchange-before-journal crash point. Out of scope: the concurrent-writer and
+  rename-race findings; the rescue pass that copies newer old-tree files over the installed tree exists only for
+  concurrent writers and can itself overwrite an edit, so remove its overwriting. QUEUED for the conversion author when
+  an agent slot frees (all five busy). The real conversion waits for these fixes.
