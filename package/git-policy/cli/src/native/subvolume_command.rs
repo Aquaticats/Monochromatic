@@ -169,3 +169,8 @@ pub fn migrate_action(arguments: &MigrateArguments, cwd: &Path) -> Action {
 #[cfg(test)]
 #[path = "subvolume_command_tests.rs"]
 mod tests;
+
+/// The controls for who owns a migration stay out of the release executable.
+#[cfg(test)]
+#[path = "subvolume_command_ownership_tests.rs"]
+mod ownership_tests;

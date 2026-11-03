@@ -738,6 +738,11 @@ mod tests;
 #[path = "worktree_convert_content_tests.rs"]
 mod content_tests;
 
+/// The controls for who owns a conversion and how long the index lock is held stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_convert_ownership_tests.rs"]
+mod ownership_tests;
+
 /// The controls for what keeps a foreign or late change from being lost: identities, the lock, the journal's files, the pinned
 ///  removal and the refusals by kind.
 #[cfg(test)]
