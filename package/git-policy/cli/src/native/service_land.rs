@@ -453,3 +453,8 @@ mod tests;
 #[cfg(test)]
 #[path = "service_land_witness_tests.rs"]
 mod witness_tests;
+
+/// Controls for the worktree's head around a landing stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_head_tests.rs"]
+mod head_tests;

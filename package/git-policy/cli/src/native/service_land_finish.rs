@@ -127,7 +127,8 @@ fn gate_of(journal: &Path, intent: &Intent) -> Gate {
 }
 
 /// What a restart made of one open batch.
-enum Settled {
+#[derive(Debug, Eq, PartialEq)]
+pub(super) enum Settled {
     /// Every obligation of the batch is settled.
     Done,
     /// Something is left, and the batch stays open.
@@ -135,7 +136,7 @@ enum Settled {
 }
 
 /// Settles one batch whose branch has moved, found open.
-fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settled {
+pub(super) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settled {
     let repository: &Path = intent.repository.as_path();
     let own_index: bool = intent.index == intent.git_dir.join("index");
     let head = || { return still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()); };
@@ -165,6 +166,7 @@ fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settled {
     let Some(held) = try_acquire(intent.index.as_path(), intent.seq) else {
         return Settled::Open;
     };
+    crate::service_fault::reach("restart-locked");
     // Everything the replay depends on is judged again under the lock this restart holds: the head, then the index file.
     if own_index {
         match head() {
