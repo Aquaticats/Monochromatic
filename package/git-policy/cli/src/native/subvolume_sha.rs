@@ -65,7 +65,7 @@ pub fn sha1(bytes: &[u8]) -> [u8; 20] {
     // The whole blocks are folded in place; only the last partial block is copied and padded, so a multi-megabyte index is
     //  not copied to be hashed.
     let whole: usize = bytes.len() / BLOCK * BLOCK;
-    for block in bytes[..whole].chunks_exact(BLOCK) {
+    for block in bytes[..whole].as_chunks::<BLOCK>().0 {
         sha1_block(&mut state, block);
     }
     let mut tail: Vec<u8> = bytes[whole..].to_vec();
@@ -74,7 +74,7 @@ pub fn sha1(bytes: &[u8]) -> [u8; 20] {
         tail.push(0);
     }
     tail.extend_from_slice(&(bytes.len() as u64).wrapping_mul(8).to_be_bytes());
-    for block in tail.chunks_exact(BLOCK) {
+    for block in tail.as_chunks::<BLOCK>().0 {
         sha1_block(&mut state, block);
     }
     let mut digest: [u8; 20] = [0; 20];
@@ -92,10 +92,10 @@ fn sha1_round(vars: &mut [u32; 5], mixed: u32, constant: u32, word: u32) {
 }
 
 /// Fold one 64-byte block into the SHA-1 state, with the four groups of twenty rounds written out so no round chooses its function.
-fn sha1_block(state: &mut [u32; 5], block: &[u8]) {
+fn sha1_block(state: &mut [u32; 5], block: &[u8; BLOCK]) {
     let mut words: [u32; 80] = [0; 80];
-    for (slot, quad) in words.iter_mut().zip(block.chunks_exact(4)) {
-        *slot = u32::from_be_bytes([quad[0], quad[1], quad[2], quad[3]]);
+    for (slot, quad) in words.iter_mut().zip(block.as_chunks::<4>().0) {
+        *slot = u32::from_be_bytes(*quad);
     }
     for index in 16..80 {
         words[index] = (words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16]).rotate_left(1);
