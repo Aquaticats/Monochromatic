@@ -81,3 +81,9 @@ ExecMainStatus=3
 - Reading `Result`,
   `ExecMainStatus` or `ActiveState` of a collected unit after it ended.
 - Treating a `success` line from a waiter built on those properties as a pass.
+
+## Upstream filing decision
+
+Not filed.
+The behavior is documented by systemd itself (`CollectMode=` and `--collect`),
+so this is a usage hazard and not a defect.

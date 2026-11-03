@@ -1,4 +1,4 @@
-# macOS delivers `si_code` 0 for `kill`, so the `SI_USER` and `SI_QUEUE` header constants never match (Darwin arm64, macOS 27.0)
+# macOS delivers `si_code` 0 for `kill`, not the header's `SI_USER` (Darwin arm64, macOS 27.0)
 
 ## Symptom
 
@@ -100,3 +100,10 @@ kill from forked child: si_code=0 si_pid_set=1
 
 - Comparing `si_code` with the header's `SI_USER` or `SI_QUEUE` on macOS.
 - Constants for a platform that cannot be run are not facts until a probe on that platform has read them.
+
+## Upstream filing decision
+
+Not filed.
+The gap is between Apple's header and its kernel,
+which this repository cannot change,
+and the wrapper already works around it.

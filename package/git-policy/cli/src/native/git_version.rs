@@ -10,8 +10,9 @@
 //!  owner settled on 2.55.0 as the oldest release that runs the swap,
 //!  so 2.55.0 or newer counts as supported and that read-only commands are never checked
 //!      (`doc/handover/cli-git-rust-implementation.md`,
-//!  "Adopted without a question"; that section was removed from the handover on 2026-11-03,
-//!  and the behavior it decided is specified in `package/git-policy/cli/SPEC.md`).
+//!  "Adopted without a question";
+//!  that section moved on 2026-11-03 to
+//!  `doc/planning/cli-git-rust-open-decisions.md`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

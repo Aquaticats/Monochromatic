@@ -1230,6 +1230,15 @@ Further owner answers of 2026-11-03 (question tool),
 quoted by their chosen labels:
 - a commit that meets a live foreign ref lock:
   "Save on a side ref (Recommended)";
+- a live foreign `index.lock`:
+  "Same as the ref lock (Recommended)":
+  a commit lands on the branch and exits 0,
+  the index catches up when the lock is free,
+  and the command says so;
+  a merge saves its result on a side ref,
+  exits 0,
+  and finishes the checkout when the lock frees,
+  carrying edits made meanwhile forward;
 - the person's hooks and required filters count as allowed refusals:
   "Allowed refusals (Recommended)";
 - a merge over unsaved edits:

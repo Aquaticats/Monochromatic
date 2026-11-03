@@ -38,7 +38,8 @@ every other path is repository-relative.
 The behavior to reproduce is in `doc/planning/cli-git-rust-behavior-ledger.md`
 (sections `Commit transactions`, `Locks`, `Durable formats`, `Linked-worktree ignored-state copy`, `Auto-push`)
 and in `SPEC.md` section `Transaction protocol`.
-The settled decisions are in `doc/handover/cli-git-rust-implementation.md`,
+The settled decisions are in `doc/handover/cli-git-rust-implementation.md` [moved on 2026-11-03 to
+`doc/planning/cli-git-rust-open-decisions.md`],
 section `User decisions 2026-10-05`.
 
 Work is recorded slice by slice as it lands,
