@@ -417,25 +417,26 @@ pub fn resolve_forwarded_command(context: &GitContext, arguments: &[OsString]) -
 }
 
 /// What:
-///  Whether a resolved command creates or moves linked worktrees.
+///  Whether a resolved command creates a linked worktree.
 /// Why:
-///   `createsOrMovesWorktrees`:
-///  `git worktree add` and `git worktree move`,
-///  decided by the
-///       first positional token after `worktree`.
+///   `createsWorktrees`:
+///  `git worktree add`,
+///  decided by the first positional token after `worktree`.
+///  A `git worktree move` registers nothing new, so the ignored-state copy has nothing to do for it and it is forwarded
+///  like any other command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function createsOrMovesWorktrees(command: ResolvedGitCommand): boolean;
+/// function createsWorktrees(command: ResolvedGitCommand): boolean;
 /// ```
-pub fn creates_or_moves_worktrees(command: &ResolvedCommand) -> bool {
+pub fn creates_worktrees(command: &ResolvedCommand) -> bool {
     if !command.is_builtin() || command.word() != b"worktree" {
         return false;
     }
     for token in command.region() {
         let bytes: &[u8] = token.as_encoded_bytes();
         if !bytes.starts_with(b"-") {
-            return bytes == b"add" || bytes == b"move";
+            return bytes == b"add";
         }
     }
     return false;

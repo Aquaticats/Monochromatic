@@ -57,7 +57,7 @@ fn an_older_commit_differs_and_the_step_names_both_commits() {
     let target: Target = prepare(&source, &plan_to(destination.clone())).expect("a target");
     assert!(target.differs);
     let seen: std::cell::RefCell<Vec<(Vec<String>, Vec<(String, String)>)>> = std::cell::RefCell::new(Vec::new());
-    let mut runner = |_token: Option<&str>, step: &GitStep<'_>| -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> {
+    let mut runner = |step: &GitStep<'_>| -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> {
         let GitStep::Other { arguments, environment } = step else { panic!("an own step is expected") };
         seen.borrow_mut().push((
             arguments.iter().map(|word: &OsString| { return word.to_string_lossy().into_owned(); }).collect(),
@@ -65,12 +65,12 @@ fn an_older_commit_differs_and_the_step_names_both_commits() {
         ));
         return Ok(GitStatus { code: Some(0) });
     };
-    apply_difference(&source, &target, destination.as_path(), None, &mut runner).expect("applied");
+    apply_difference(&source, &target, destination.as_path(), &mut runner).expect("applied");
     let (arguments, environment) = seen.borrow()[0].clone();
     assert_eq!(&arguments[2..], ["read-tree", "-m", "-u", source.clean.head_commit.as_str(), target.commit.as_str()]);
     assert_eq!(environment, vec![(String::from("GIT_DIR"), target.admin.display().to_string()), (String::from("GIT_WORK_TREE"), destination.display().to_string())]);
-    let mut failing = |_token: Option<&str>, _step: &GitStep<'_>| -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> { return Ok(GitStatus { code: Some(1) }); };
-    assert!(apply_difference(&source, &target, destination.as_path(), None, &mut failing).expect_err("a failing step").contains("read-tree"));
+    let mut failing = |_step: &GitStep<'_>| -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> { return Ok(GitStatus { code: Some(1) }); };
+    assert!(apply_difference(&source, &target, destination.as_path(), &mut failing).expect_err("a failing step").contains("read-tree"));
     remove(root.as_path());
 }
 
@@ -80,8 +80,8 @@ fn equal_trees_need_no_step() {
     let root: PathBuf = fixture("target-no-step");
     let (_repo, destination, source) = fixture_with_worktree(root.as_path(), false);
     let target: Target = prepare(&source, &plan_to(destination.clone())).expect("a target");
-    let mut never = |_token: Option<&str>, _step: &GitStep<'_>| -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> { panic!("no step is expected"); };
-    apply_difference(&source, &target, destination.as_path(), None, &mut never).expect("nothing to apply");
+    let mut never = |_step: &GitStep<'_>| -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> { panic!("no step is expected"); };
+    apply_difference(&source, &target, destination.as_path(), &mut never).expect("nothing to apply");
     remove(root.as_path());
 }
 

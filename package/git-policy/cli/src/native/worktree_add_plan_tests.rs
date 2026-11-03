@@ -151,3 +151,92 @@ fn a_destination_that_is_a_link_is_declined() {
     assert!(plan_of(&["worktree", "add", "real"], 0, root.as_path()).is_some(), "a real directory is Git's to accept");
     remove(root.as_path());
 }
+
+/// The destination of a copy is read from every documented form of `git worktree add`, with its options anywhere before or
+/// after the operands, bundled, attached or in the next token.
+#[test]
+fn the_copy_destination_is_read_from_every_documented_form() {
+    let root: PathBuf = fixture("copy-destination-forms");
+    let canonical: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical");
+    for (values, index) in [
+        (vec!["worktree", "add", "topic"], 0),
+        (vec!["worktree", "add", "-f", "topic"], 0),
+        (vec!["worktree", "add", "--force", "--no-checkout", "topic", "main"], 0),
+        (vec!["worktree", "add", "-B", "feature", "topic"], 0),
+        (vec!["worktree", "add", "-bfeature", "topic"], 0),
+        (vec!["worktree", "add", "-fb", "feature", "topic"], 0),
+        (vec!["worktree", "add", "-dq", "topic"], 0),
+        (vec!["worktree", "add", "--orphan", "-b", "feature", "topic"], 0),
+        (vec!["worktree", "add", "--track", "--guess-remote", "--relative-paths", "topic"], 0),
+        (vec!["worktree", "add", "--track=direct", "--no-track", "--no-guess-remote", "topic"], 0),
+        (vec!["worktree", "add", "--lock", "--reason=why", "topic"], 0),
+        (vec!["worktree", "add", "--no-lock", "--no-reason", "--quiet", "--no-quiet", "topic"], 0),
+        (vec!["worktree", "add", "topic", "--detach", "main"], 0),
+        (vec!["worktree", "add", "--", "-odd"], 0),
+        (vec!["-c", "core.x=y", "worktree", "add", "topic"], 2),
+        (vec!["--no-optional-locks", "--config-env", "a.b=C", "worktree", "add", "topic"], 3),
+    ] {
+        let found: PathBuf = parse_copy_destination(os_arguments(values.as_slice()).as_slice(), index, canonical.as_path())
+            .unwrap_or_else(|| { panic!("{values:?} names a destination"); });
+        let operand: &str = if values.contains(&"-odd") { "-odd" } else { "topic" };
+        assert_eq!(found, canonical.join(operand), "{values:?}");
+    }
+    remove(root.as_path());
+}
+
+/// A form the reading does not know leaves the destination unknown: an abbreviated long option, a missing value, a wrong
+/// operand count, another word, and an option between `worktree` and `add`.
+#[test]
+fn a_copy_destination_that_is_not_read_stays_unknown() {
+    let root: PathBuf = fixture("copy-destination-unknown");
+    for (values, index) in [
+        (vec!["worktree", "add", "--detac", "topic"], 0),
+        (vec!["worktree", "add", "-b"], 0),
+        (vec!["worktree", "add", "topic", "-b"], 0),
+        (vec!["worktree", "add", "-bx"], 0),
+        (vec!["worktree", "add", "-x", "topic"], 0),
+        (vec!["worktree", "add"], 0),
+        (vec!["worktree", "add", "a", "b", "c"], 0),
+        (vec!["worktree", "move", "a", "b"], 0),
+        (vec!["worktree", "--verbose", "add", "topic"], 0),
+        (vec!["status", "add", "topic"], 0),
+    ] {
+        assert_eq!(parse_copy_destination(os_arguments(values.as_slice()).as_slice(), index, root.as_path()), None, "{values:?}");
+    }
+    remove(root.as_path());
+}
+
+/// The directory a destination is read against moves with `-C` and with nothing else; a global option that changes how Git
+/// finds the repository leaves it unknown.
+#[test]
+fn only_dash_c_capital_moves_the_start_of_a_copy_destination() {
+    let start: &Path = Path::new("/work");
+    assert_eq!(copy_start_directory(os_arguments(&["-C", "sub", "-C", "deeper"]).as_slice(), start), Some(PathBuf::from("/work/sub/deeper")));
+    assert_eq!(copy_start_directory(os_arguments(&["-c", "a.b=c", "--no-pager", "-P"]).as_slice(), start), Some(PathBuf::from("/work")));
+    assert_eq!(copy_start_directory(os_arguments(&["--config-env=a.b=C"]).as_slice(), start), Some(PathBuf::from("/work")));
+    assert_eq!(copy_start_directory(os_arguments(&["-C", ""]).as_slice(), start), Some(PathBuf::from("/work")));
+    for refused in [vec!["--git-dir", "x"], vec!["--work-tree=x"], vec!["--namespace=x"], vec!["-C"], vec!["-c"]] {
+        assert_eq!(copy_start_directory(os_arguments(refused.as_slice()).as_slice(), start), None, "{refused:?}");
+    }
+}
+
+/// Real Git 2.56.0 registers the destination the copy reading names for each form, so the reading and Git agree.
+#[test]
+fn real_git_registers_the_destination_the_copy_reading_names() {
+    let root: PathBuf = fixture("copy-destination-real");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let canonical: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical");
+    for (index, values) in [
+        vec!["worktree", "add", "-fb", "one", "../one"],
+        vec!["worktree", "add", "-bfeature", "../two"],
+        vec!["worktree", "add", "--orphan", "-b", "three", "../three"],
+        vec!["worktree", "add", "--detach", "--no-checkout", "../four", "main"],
+    ].into_iter().enumerate() {
+        let start: PathBuf = std::fs::canonicalize(repo.as_path()).expect("canonical repo");
+        let named: PathBuf = parse_copy_destination(os_arguments(values.as_slice()).as_slice(), 0, start.as_path()).unwrap_or_else(|| { panic!("{values:?}"); });
+        git(repo.as_path(), values.as_slice());
+        assert!(named.join(".git").exists(), "{index}: Git made {}", named.display());
+        assert_eq!(named.parent(), Some(canonical.as_path()));
+    }
+    remove(root.as_path());
+}

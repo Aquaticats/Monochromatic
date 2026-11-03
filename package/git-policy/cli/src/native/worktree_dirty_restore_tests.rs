@@ -55,7 +55,7 @@ fn the_restore_runs_exactly_the_two_steps_in_the_stage() {
     let stage: PathBuf = repo.clone();
     let mut seen: Vec<Vec<String>> = Vec::new();
     let mut environments: Vec<Vec<(String, String)>> = Vec::new();
-    let mut runner = |_token: Option<&str>, step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> {
+    let mut runner = |step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> {
         let GitStep::Other { arguments, environment } = step else { panic!("only the ladder's own steps are expected") };
         seen.push(arguments.iter().map(|word| { return word.to_string_lossy().into_owned(); }).collect());
         environments.push(environment.iter().map(|(name, value)| { return (name.to_string_lossy().into_owned(), value.to_string_lossy().into_owned()); }).collect());
@@ -72,7 +72,7 @@ fn the_restore_runs_exactly_the_two_steps_in_the_stage() {
         trash_ignored: false,
         dirty: None,
     };
-    restore_dirty(&source, &target, stage.as_path(), None, &mut runner, &git_context()).expect("the proof holds for a worktree that equals its commit");
+    restore_dirty(&source, &target, stage.as_path(), &mut runner, &git_context()).expect("the proof holds for a worktree that equals its commit");
     let words = |step: &Vec<String>| -> Vec<String> { return step[LEADING_WORDS..].to_vec(); };
     let expected: Vec<Vec<String>> = vec![
         ["read-tree", "--reset", "-u", target.commit.as_str()].map(String::from).to_vec(),
@@ -93,7 +93,7 @@ fn a_restore_never_runs_in_the_source() {
     let root: PathBuf = crate::test_support::fixture("restore-guard");
     let repo: PathBuf = committed(root.as_path());
     let target: Target = target_of(repo.as_path());
-    let mut runner = |_token: Option<&str>, _step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { panic!("no Git run is expected") };
+    let mut runner = |_step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { panic!("no Git run is expected") };
     let source = |source_root: PathBuf, git_dir: PathBuf| -> SnapshotSource {
         return SnapshotSource {
             root: source_root,
@@ -106,10 +106,10 @@ fn a_restore_never_runs_in_the_source() {
             dirty: None,
         };
     };
-    let in_source = restore_dirty(&source(repo.clone(), repo.join(".git")), &target, repo.as_path(), None, &mut runner, &git_context()).expect_err("the stage is the source");
+    let in_source = restore_dirty(&source(repo.clone(), repo.join(".git")), &target, repo.as_path(), &mut runner, &git_context()).expect_err("the stage is the source");
     assert!(in_source.contains("source's own directory"), "{in_source}");
     let elsewhere: PathBuf = root.join("elsewhere");
-    let in_git_dir = restore_dirty(&source(elsewhere.clone(), repo.join(".git")), &target, elsewhere.as_path(), None, &mut runner, &git_context()).expect_err("the Git directory is the source's");
+    let in_git_dir = restore_dirty(&source(elsewhere.clone(), repo.join(".git")), &target, elsewhere.as_path(), &mut runner, &git_context()).expect_err("the Git directory is the source's");
     assert!(in_git_dir.contains("source's own directory"), "{in_git_dir}");
     remove(root.as_path());
 }
@@ -131,11 +131,11 @@ fn a_failed_step_or_a_failed_proof_is_an_error() {
         trash_ignored: false,
         dirty: None,
     };
-    let mut failing = |_token: Option<&str>, _step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { return Ok(GitStatus { code: Some(128) }); };
-    assert!(restore_dirty(&source, &target, repo.as_path(), None, &mut failing, &git_context()).expect_err("the reset failed").contains("read-tree"));
-    let mut succeeding = |_token: Option<&str>, _step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { return Ok(GitStatus { code: Some(0) }); };
+    let mut failing = |_step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { return Ok(GitStatus { code: Some(128) }); };
+    assert!(restore_dirty(&source, &target, repo.as_path(), &mut failing, &git_context()).expect_err("the reset failed").contains("read-tree"));
+    let mut succeeding = |_step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { return Ok(GitStatus { code: Some(0) }); };
     std::fs::write(repo.join("left.txt"), b"left").expect("a file the clean left behind");
-    assert!(restore_dirty(&source, &target, repo.as_path(), None, &mut succeeding, &git_context()).expect_err("the proof fails").contains("left.txt"));
+    assert!(restore_dirty(&source, &target, repo.as_path(), &mut succeeding, &git_context()).expect_err("the proof fails").contains("left.txt"));
     remove(root.as_path());
 }
 

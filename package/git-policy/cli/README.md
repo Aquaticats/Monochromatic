@@ -178,7 +178,11 @@ Read-only commands,
 - Linked worktrees.
   When a Git command creates a linked worktree,
    the wrapper copies the ignored state of the source worktree into it
-  under one settlement lock per repository (this lock remains until the copy moves into the commit service).
+  without any lock: the destination comes from the command line, the copy is a transaction of its own whose journal and
+  stage claim name the process that owns them, and a copy a dead process left is recovered by the next command.
+  Concurrent adds in one repository never wait for one another, and each worktree receives exactly its own copy.
+  A form of `git worktree add` whose destination the wrapper does not read (an abbreviated long option, `--git-dir`,
+   `--work-tree`) is made by Git alone; one line on standard error says the worktree received no copy.
   `git worktree add` in the plain forms (`-b <branch>`, `--detach`, `--quiet`, `--lock`, `--reason`, one path and at most
    one commit-ish) is served by the first rung of a ladder that applies and otherwise falls to the next; when the add
    succeeds without being a snapshot, one line on standard error (unless `--quiet`) and one journal entry say why, in plain
@@ -1060,8 +1064,7 @@ fractional or non-numeric value is ignored.
    default `1800`.
   How long a command waits for a lock that a live process holds:
    the commit service waits for a foreign `index.lock` before it lands a commit,
-   a forwarded index writer waits for the service's own hold on the index,
-   and the worktree-copy settlement.
+   and a forwarded index writer waits for the service's own hold on the index.
   At the limit it stops with a message that names the holder and every way forward:
    let the holder finish and run the command again,
    check with `ps` whether it is stuck,
@@ -1115,7 +1118,6 @@ because healthy commits queue behind each other briefly all the time.
 After that the first line comes,
 and it repeats every `CLI_GIT_WAIT_NOTICE_SECONDS` seconds until the wait ends.
 A wait whose holder is already known when it begins (a live `index.lock`,
- the worktree-copy settlement,
  another process's push) prints its first line at once.
 Each line names what the command waits for,
  the process that holds it when the wrapper can tell,
@@ -1127,7 +1129,7 @@ Each line names what the command waits for,
    The first line of a wait adds a hint,
    and the repeats stay short.
 - The commit service's own hold on the index, which a forwarded `git add` waits for.
-- The worktree-copy settlement lock and another process's push of the same branch.
+- Another process's push of the same branch.
 - A long run of `monochromatic-lint` for a Markdown file,
    which names the file and stops waiting for the linter after 60 seconds,
    leaving its thread to end with the command.

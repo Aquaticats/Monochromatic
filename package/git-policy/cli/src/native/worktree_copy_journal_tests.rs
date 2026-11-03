@@ -536,3 +536,62 @@ fn a_stage_with_many_subtrees_is_removed_whole() {
     remove_tree_if_present(stage.as_path()).expect("absent");
     remove(root.as_path());
 }
+
+/// A journal named by a listing that is gone by the time it is read is skipped, while a journal that is there and corrupt is
+/// still an error: the skip is for a vanished file only.
+#[test]
+fn a_vanished_journal_is_skipped_and_a_corrupt_one_is_not() {
+    let root: PathBuf = fixture("journal-vanished");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(common.as_path()).expect("common");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    assert_eq!(read_listed_journal(journals.as_path(), "gone.json").expect("skipped"), None);
+    crate::private_storage::write_private_file(journals.join("corrupt.json").as_path(), b"not json").expect("corrupt journal");
+    read_listed_journal(journals.as_path(), "corrupt.json").expect_err("a present corrupt journal is reported");
+    remove(root.as_path());
+}
+
+/// A journal's name carries its owner, the owner reads back from the name, and a name without one has no owner.
+#[test]
+fn a_journal_names_its_owner() {
+    let owner = crate::worktree_copy_owner::current_copy_owner().expect("owner");
+    let path: PathBuf = PathBuf::from(format!("/journals/abc.{}.json", owner.token()));
+    assert_eq!(owner_token_of(path.as_path()), Some(owner.token()));
+    assert_eq!(owner_token_of(Path::new("/journals/abc.json")), None, "a name an earlier release wrote names no owner");
+    assert_eq!(owner_token_of(Path::new("/journals/abc.def.stage")), None, "a file that is no journal");
+}
+
+/// A temporary file names the process that writes it, the name reads back to the writer, and a name of another shape has none.
+#[test]
+fn a_temporary_names_its_writer() {
+    let owner = crate::worktree_copy_owner::current_copy_owner().expect("owner");
+    let temporary: PathBuf = temporary_path(Path::new("/journals/abc.stage"), &owner, "0f1e");
+    let name: String = temporary.file_name().expect("name").to_string_lossy().into_owned();
+    assert_eq!(temporary_writer_token(name.as_str()), Some(owner.token().as_str()));
+    assert_eq!(temporary_writer_token("abc.stage.0f1e.tmp"), Some("stage"), "an older release's name reads as a token that names nobody");
+    assert_eq!(temporary_writer_token("abc.tmp"), None);
+    assert_eq!(temporary_writer_token("abc.json"), None, "only temporaries have writers");
+    assert!(crate::worktree_copy_owner::CopyOwner::from_token("stage").is_none());
+}
+
+/// A write onto a name that cannot be replaced fails and removes its own temporary.
+#[test]
+fn a_failed_write_removes_its_temporary() {
+    let root: PathBuf = fixture("journal-failed-write");
+    let target: PathBuf = root.join("item.stage");
+    std::fs::create_dir(target.as_path()).expect("a directory where the file belongs");
+    write_atomic(target.as_path(), b"x", "item").expect_err("the rename onto a directory fails");
+    let leftovers: Vec<String> = std::fs::read_dir(root.as_path()).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).filter(|name| { return name.ends_with(".tmp"); }).collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
+    remove(root.as_path());
+}
+
+/// A journal name with its owner and a temporary of that journal fit a file name, whatever the platform's identity is.
+#[test]
+fn the_longest_names_fit_a_file_name() {
+    let owner = crate::worktree_copy_owner::CopyOwner { pid: 4_194_304, birth_identity: String::from("linux:123456789012"), pid_namespace: Some(String::from("pid:[4026531836]")) };
+    let identifier: String = "0".repeat(36);
+    let journal: String = format!("{identifier}.{}{JOURNAL_SUFFIX}", owner.token());
+    let temporary: String = format!("{journal}.{}.{identifier}{TEMPORARY_SUFFIX}", owner.token());
+    assert!(temporary.len() <= 255, "{} bytes", temporary.len());
+}

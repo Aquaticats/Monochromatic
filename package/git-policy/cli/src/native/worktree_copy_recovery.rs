@@ -13,12 +13,13 @@
 
 use super::json_record::quote;
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
-use super::worktree_copy_lock::try_acquire_worktree_copy_lock;
+use super::worktree_copy_owner::current_copy_owner;
 use super::worktree_copy_stage::StagedSnapshot;
 use super::worktree_copy_stage_claim::{reap_abandoned_stages, stage_claims_exist};
 use super::worktree_copy_transaction::{Outcome, complete_journal, snapshot_from_journal};
 use crate::worktree_copy_journal::{
-    PendingJournal, Phase, Role, assert_private_path, read_pending_journals, remove_pending_journal,
+    PendingJournal, Phase, Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals,
+    remove_pending_journal,
 };
 use std::collections::BTreeSet;
 use std::io::Write;
@@ -227,22 +228,31 @@ fn recover_transaction(
 }
 
 /// What:
-///  Recovers every pending journal of one repository, in journal order.
+///  Recovers every pending journal whose owner is dead, each by taking it over first, and reaps the stages dead owners left.
 /// Why:
-///   A journal that cannot be read or proven stops the pass, so its evidence is never acted on blindly.
+///   A journal whose owner still runs is a copy in progress and is left whole; a dead owner's journal is taken over by one
+///  atomic rename, so of several commands that find it exactly one recovers it and the others move on without waiting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await recoverWorktreeCopyTransactions(commonDir);
+/// const report = await recoverWorktreeCopyTransactions(commonDir);
 /// ```
 pub fn recover_worktree_copy_transactions(
     common_dir: &Path,
 ) -> Result<RecoveryReport, WorktreeCopyError> {
     let pending: Vec<PendingJournal> = read_pending_journals(common_dir)?;
+    let owner = current_copy_owner()?;
     let mut recovered: usize = 0;
     let mut notices: Vec<String> = Vec::new();
     for journal in pending {
-        let (completed, notice) = recover_transaction(common_dir, journal)?;
+        if !journal_owner_is_dead(&journal) {
+            continue;
+        }
+        // `match` on the take-over: another command already took this journal, and it recovers it.
+        let Some(mine) = adopt_journal(&journal, &owner)? else {
+            continue;
+        };
+        let (completed, notice) = recover_transaction(common_dir, mine)?;
         if completed {
             recovered += 1;
         }
@@ -287,13 +297,14 @@ pub fn report_recovered(
 }
 
 /// What:
-///  The pending check forwarded commands run first: takes the settlement lock only when a journal exists and no live owner holds it.
+///  The pending check every forwarded command in a linked worktree or a bare repository runs first: recovers what dead
+///  owners left, and does nothing when nothing is pending.
 /// Why:
-///   A command that creates no worktrees must not wait behind a copy, but still must not pass a half-recovered repository.
+///   It never waits and takes no lock: items of live owners are skipped, and one atomic rename picks the single recoverer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await recoverPendingWorktreeCopies(commonDir);
+/// await recoverPendingWorktreeCopies(commonDir, stderr);
 /// ```
 pub fn recover_pending_worktree_copies(
     common_dir: &Path,
@@ -302,11 +313,7 @@ pub fn recover_pending_worktree_copies(
     if read_pending_journals(common_dir)?.is_empty() && !stage_claims_exist(common_dir)? {
         return Ok(());
     }
-    let Some(lease) = try_acquire_worktree_copy_lock(common_dir)? else {
-        return Ok(());
-    };
-    report_recovered(&recover_worktree_copy_transactions(common_dir)?, stderr)?;
-    return lease.release();
+    return report_recovered(&recover_worktree_copy_transactions(common_dir)?, stderr);
 }
 
 /// Recovery controls stay out of the release executable.

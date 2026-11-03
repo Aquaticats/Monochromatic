@@ -89,7 +89,7 @@ fn a_plain_run_reports_git_status_or_the_start_failure() {
     remove(root.as_path());
 }
 
-/// A settled creation from the main checkout runs Git with the lease, copies its ignored state, and keeps Git's status.
+/// A settled creation from the main checkout runs Git, copies its ignored state, and keeps Git's status.
 #[cfg(unix)]
 #[test]
 fn a_settled_creation_from_the_main_checkout_copies_its_ignored_state() {
@@ -98,9 +98,8 @@ fn a_settled_creation_from_the_main_checkout_copies_its_ignored_state() {
     let topic: PathBuf = root.join("topic");
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), common.as_path()),
-        creates_or_moves: true,
-        global_prefix: arguments(&["-C", main.to_str().expect("utf8")]),
-        environment: Vec::new(),
+        creates: true,
+        destination: Some(topic.clone()),
         add_plan: None,
         remove_plan: None,
     };
@@ -153,9 +152,8 @@ fn a_settled_run_that_cannot_ask_git_fails_with_the_reason() {
     git(main.as_path(), &["config", "user.name", "t"]);
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), common.as_path()),
-        creates_or_moves: true,
-        global_prefix: Vec::new(),
-        environment: Vec::new(),
+        creates: true,
+        destination: None,
         add_plan: None,
         remove_plan: None,
     };

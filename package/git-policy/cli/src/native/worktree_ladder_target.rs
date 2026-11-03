@@ -214,10 +214,10 @@ fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runStep(runGit, token, args, env);
+/// await runStep(runGit, args, env);
 /// ```
-pub(super) fn run_step(run_git: &mut GitRunner, token: Option<&str>, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Result<GitStatus, String> {
-    return run_git(token, &GitStep::Other { arguments, environment }).map_err(|error| { return error.0; });
+pub(super) fn run_step(run_git: &mut GitRunner, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Result<GitStatus, String> {
+    return run_git(&GitStep::Other { arguments, environment }).map_err(|error| { return error.0; });
 }
 
 /// What:
@@ -298,9 +298,9 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await applyDifference(source, target, workTree, token, runGit); // throws a reason
+/// await applyDifference(source, target, workTree, runGit); // throws a reason
 /// ```
-pub fn apply_difference(source: &SnapshotSource, target: &Target, work_tree: &Path, token: Option<&str>, run_git: &mut GitRunner) -> Result<(), String> {
+pub fn apply_difference(source: &SnapshotSource, target: &Target, work_tree: &Path, run_git: &mut GitRunner) -> Result<(), String> {
     if !target.differs {
         return Ok(());
     }
@@ -313,7 +313,7 @@ pub fn apply_difference(source: &SnapshotSource, target: &Target, work_tree: &Pa
         OsString::from(source.clean.head_commit.as_str()),
         OsString::from(target.commit.as_str()),
     ];
-    let status: GitStatus = run_step(run_git, token, arguments.as_slice(), checkout_environment(target.admin.as_path(), work_tree).as_slice())?;
+    let status: GitStatus = run_step(run_git, arguments.as_slice(), checkout_environment(target.admin.as_path(), work_tree).as_slice())?;
     return if status.succeeded() { Ok(()) } else { Err(format!("`git read-tree -m -u` ended with {:?}", status.code)) };
 }
 

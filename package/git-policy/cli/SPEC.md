@@ -403,35 +403,63 @@ Policy adapters add their own allowlisting after this shared classification.
 An applicable source is a forwarded invocation whose shared identity selects a linked worktree or bare repository
 and whose subcommand,
 after ordinary Git alias resolution,
-creates or moves worktrees.
-Only applicable sources hold the common-directory settlement lock across real Git and its hooks.
-Every other forwarded command,
+creates a worktree (`git worktree add`).
+A `git worktree move` registers nothing new and is forwarded like any other command.
+No lock stands around the command (no per-repository lock, and no lock of any kind on this path):
+the owner's rule is lock-free first, and concurrent adds in one repository never wait for one another.
+Each job the settlement lock used to do is done without one:
+
+- The new worktree is attributed to the invocation by the destination its command line names (see "Destination of an add"),
+  and its registration is found by following the pointer in its `.git` file to the administrative directory that names
+  the destination back, so a worktree another add registers at the same time is never taken for this one's.
+  The administrative directory of no other worktree is read for this.
+- Every item of a copy transaction (journal, stage claim, temporary file) names its owner, a process identified by its
+  id, birth identity and PID namespace.
+  An item is touched by another command only after its owner is proven dead.
+  The copy of a live add is never recovered or reaped; the copy of a dead one is.
+- Taking over a dead owner's journal is one atomic rename of the journal to a name that carries the new owner.
+  Of several commands that find it, exactly one succeeds; the others see the old name gone and move on without waiting.
+  No lock file exists, so none can go stale.
+- A command that creates a worktree and every other forwarded command in a linked worktree or bare repository recover
+  dead owners' items first and never wait for a live owner's.
+- Every other forwarded command,
 including every commit preparation,
-runs without that lock,
+runs without any of this,
 so concurrent commits in linked worktrees never contend on it.
 A worktree created by Git invoked through an absolute path from a hook bypasses the wrapper
 and therefore gets no ignored-state copy,
 matching the documented bypass of everything else.
-A hook that runs `git worktree add` through the wrapper is itself an applicable source.
+A hook that runs `git worktree add` through the wrapper is itself an applicable source: it copies its own source's ignored state
+into its own worktree, and the add that started the hook copies into its own worktree only.
+
+Destination of an add:
+the wrapper reads the destination from the resolved command line (aliases expanded), for every option `git worktree add -h`
+lists (`-f`, `--force`, `-b` and `-B` with a value attached or in the next token, `--orphan`, `-d`, `--detach`, `--checkout`,
+`--lock`, `--reason`, `-q`, `--quiet`, `--track`, `--guess-remote`, `--relative-paths` and their `--no-` forms, short options
+bundled), after the global options `-C`, `-c`, `--config-env` and Git's neutral flags.
+A form it does not read (an abbreviated long option, `--git-dir`, `--work-tree`, an option between `worktree` and `add`)
+leaves the destination unknown: real Git runs as it would without the wrapper, no copy is made,
+and when Git succeeded one line on standard error says that the worktree received no ignored-state copy and how to name it so
+that it does.
+This is the answer for the forms the wrapper cannot know a destination for;
+a comparison of the repository's registrations before and after Git would need a lock to be safe against a concurrent add,
+and copying into a worktree that is not the command's own is worse than copying nothing.
 
 Before forwarding an applicable source,
 cli-git captures the common Git directory and linked-worktree administrative identity set.
-An invocation targeting the main worktree bypasses administrative observation,
-journal recovery,
-settlement locking,
+An invocation targeting the main worktree bypasses journal recovery
 and synchronization,
 even when real Git creates a linked worktree,
 with one exception:
-a command that creates or moves a worktree copies the main checkout's ignored state, under the leave-out rule below,
-into the new worktree, under the settlement lock and the journal.
+a command that creates a worktree copies the main checkout's ignored state, under the leave-out rule below,
+into the new worktree, under the journal.
 The main checkout is an applicable source for that command only; its other commands cost no filesystem reads.
+Before real Git runs, the wrapper records whether the destination is already a registered worktree.
 After real Git and its hooks return for an applicable source,
-cli-git compares the administrative set again.
-Every new identity is a synchronization destination,
-regardless of whether argv named `worktree add`,
-an ordinary Git alias expanded to it,
-or real Git returned nonzero after retaining registration.
-A missing or stale pre-existing worktree root does not hide a newly created identity.
+the destination is a synchronization destination when it is registered now and was not before,
+whether argv named `worktree add` or an ordinary Git alias expanded to it,
+and also when real Git returned nonzero after retaining registration.
+A destination that was registered before Git ran (Git refused it) receives no copy.
 
 For an applicable non-bare invocation,
 the source is the invoking linked worktree root, or the main checkout root for the exception above,
@@ -464,7 +492,8 @@ The ladder applies to a `git worktree add` that names one path and at most one c
 a bare repository or a main checkout, without `--no-worktree-copy`, without a global option other than `-C`, `--no-pager`,
 `-P`, `-p`, `--paginate`, `--no-advice` and `--no-lazy-fetch`, and with an existing parent directory of the destination.
 Any other form is Git's own, unchanged.
-The ladder runs inside the settlement lock, and every rung that cannot run falls to the next without a message to the
+The ladder takes no lock: every name it uses (the stage, the claim, the converting name, the destination) belongs to
+this add alone, and every rung that cannot run falls to the next without a message to the
 person and with one diagnostic line (`MONOCHROMATIC_VERBOSE=true`) that names the rung and the reason.
 
 A source is the worktree the command runs in, the main checkout included.
@@ -521,7 +550,7 @@ linked worktree, no nested linked worktree that is an ordinary directory; a snap
 worktree aside instead (see "Leaving out of a snapshot of the main checkout").
 Real Git runs with `--no-checkout` added after `add`.
 The wrapper then reads the new `HEAD`, refuses a subject Git would have to print or `.gitattributes` files that differ
-between the source's tree and the new tree, claims a stage name beside the destination in the settlement journal root,
+between the source's tree and the new tree, claims a stage name beside the destination in the journal root,
 snapshots the source there (`BTRFS_IOC_SNAP_CREATE_V2`), makes the stage private, removes the stub of every nested
 linked worktree and of the destination, replaces `.git` with the bytes Git wrote, compares every tracked file of the
 snapshot with the copied index, installs the index with `rewrite_index_stat_with` (extensions `UNTR` and `FSMN`
@@ -853,31 +882,24 @@ so the stage's name is recorded first:
 a claim file `<id>.stage` beside the journals names the stage container before the container is created,
 with the same temporary file, synchronization and rename as a journal write.
 The claim is removed once a journal names the stage, or once a failed copy has removed the stage.
-A process-birth-identity lock serializes installation and recovery.
-An applicable source waits for an owner proven alive for at most `CLI_GIT_LOCK_WAIT_SECONDS` (default 1800),
-after writing a stderr line naming the owner's PID, the lock and the limit, and repeating it with the time waited
-(see "Wait notices"),
-and then fails naming the owner, leaving the lock in place;
-while that owner lives the waiter only reads the owner record,
-and it attempts publication again once the owner releases,
-replaces,
-or no longer runs.
-A dead owner's lock,
-including PID reuse or an exited but unreaped process,
-is retired after re-reading that it still names that owner.
-An owner record that is unreadable or invalid proves nothing,
-so the waiter uses Git's jittered quadratic backoff for up to 1000 ms without a proven owner,
-then fails with a diagnostic listing that evidence and leaves the lock in place.
-The lock is released and retired by renaming it to a unique name before deleting it,
-so a concurrent publication is never emptied in place.
+Every item names its owner, and nothing serializes the commands that read them.
+A journal is `<id>.<owner>.json`, where `<owner>` is the owner's process id, birth identity and PID namespace as hexadecimal
+text; a stage claim holds the container path on its first line and `owner=<owner>` on its second; every temporary file is
+`<item>.<owner>.<unique>.tmp`.
+An owner is alive when a process with its id and its birth identity exists; one in a PID namespace the reader cannot see is
+alive until its item is older than an hour; one the platform cannot report on is not proven dead, so its item is kept.
+An item that names no owner (a name an earlier release wrote, or a stranger's file) has none to wait for and counts as dead.
+A command that finds a pending journal or stage claim whose owner is alive leaves it whole and goes on: it never waits for
+the owner, because the owner is an add or a copy in progress.
+A command that finds a journal whose owner is dead takes it over by renaming it to `<id>.<its own owner>.json`;
+the rename is the whole claim.
+The command that loses the race finds the old name gone and leaves the journal to the winner.
+If the winner dies, the journal's name shows a dead owner again and the next command takes it over.
+The temporaries of dead writers are swept; a temporary of a live writer is never removed, because its writer renames it.
 
 Every later linked-worktree or bare-repository invocation checks for pending journals and stage claims before forwarding
-without taking the settlement lock,
-and takes it only to recover when one exists.
-An invocation that neither creates nor moves worktrees does not wait for the lock:
-while another live process owns it,
-that owner is still writing its own journal or already recovering,
-so the invocation forwards without recovery.
+and recovers those of dead owners.
+It never waits.
 Recovery validates that journal paths remain canonical,
 the stage is a private owned directory beside the destination,
 and every intended entry exists in the private manifest.
@@ -902,8 +924,8 @@ Every pending transaction then reaches an end:
   and the recovering invocation writes the failure as a notice and continues.
 - Completed cleanup is resumed without reinstalling entries.
 
-After the journals, recovery removes every stage container that a claim names and no pending journal names:
-the lock proves that no live copy is between claiming and journaling,
+After the journals, recovery removes every stage container that a dead owner's claim names and no pending journal names:
+a claim whose owner lives is a copy between claiming and journaling and is left whole,
 so a copy that died while staging (a signal, the out-of-memory killer, a power loss) left it.
 Recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
 stage prefix, and the container to be a private directory owned by the user,
@@ -917,7 +939,7 @@ install-log,
 stage claim,
 or stage state fails closed without deleting the journal or a path outside the validated private stage.
 
-After all newly registered destinations settle successfully,
+After the destination settles successfully,
 write exactly one human summary line to stderr.
 Copy-only failure exits `2`.
 If real Git returned nonzero and synchronization also fails,

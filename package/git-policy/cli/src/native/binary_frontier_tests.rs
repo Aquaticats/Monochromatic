@@ -307,18 +307,6 @@ fn leftover_transaction_state_refuses_guarded_commands() {
     );
     assert!(legacy.exists());
     std::fs::remove_dir(&legacy).expect("remove legacy directory");
-    // A worktree-copy journal or lease in the environment no longer stops a guarded command;
-    // the forwarding recovers or honors it.
-    assert_eq!(
-        observe(
-            wrapped(&fixture)
-                .current_dir(&repo)
-                .env("CLI_GIT_WORKTREE_COPY_LEASE", "inherited")
-                .args(guarded),
-            b""
-        ),
-        silent_success()
-    );
     // The landing lease does not stop a guarded command that writes no index: coordination honours it.
     assert_eq!(
         observe(

@@ -2,9 +2,10 @@
 
 use super::*;
 use crate::private_storage::create_private_directory;
-use crate::test_support::{fixture, git_context, remove, repository};
+use crate::test_support::{dead_copy_owner, fixture, git_context, remove, repository};
 use crate::worktree_add_binding::{Recorded, bind_registration, decode_record};
 use crate::worktree_copy_journal::{JOURNAL_PARENT_NAME, create_journal, ensure_journal_root, journal_root};
+use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::stage_ignored_snapshot;
 use std::os::unix::fs::PermissionsExt;
@@ -39,7 +40,9 @@ fn a_claim_names_the_container_and_creates_no_container() {
     assert!(claim.container().file_name().expect("name").to_string_lossy().starts_with(STAGE_PREFIX));
     assert!(!claim.container().exists(), "the claim precedes the container");
     let recorded: String = std::fs::read_to_string(claim.path.as_path()).expect("claim file");
-    assert_eq!(recorded, claim.container().to_string_lossy());
+    let mut lines = recorded.lines();
+    assert_eq!(lines.next(), Some(claim.container().to_string_lossy().as_ref()));
+    assert_eq!(lines.next(), Some(format!("owner={}", current_copy_owner().expect("owner").token()).as_str()), "the claim names its owner");
     assert_eq!(claim.path.parent(), Some(journal_root(common.as_path()).as_path()));
     assert!(claim.path.to_string_lossy().ends_with(".stage"));
     assert_eq!(
@@ -53,8 +56,8 @@ fn a_claim_names_the_container_and_creates_no_container() {
 #[test]
 fn releasing_a_claim_removes_only_its_file() {
     let (root, common, destination) = scene("claim-release");
-    let first: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("first");
-    let second: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("second");
+    let first: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("first");
+    let second: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("second");
     assert_ne!(first.container(), second.container());
     let first_path: PathBuf = first.path.clone();
     let second_path: PathBuf = second.path.clone();
@@ -82,7 +85,7 @@ fn claims_exist_until_released() {
     assert!(!stage_claims_exist(common.as_path()).expect("no root"));
     ensure_journal_root(common.as_path()).expect("root");
     assert!(!stage_claims_exist(common.as_path()).expect("empty root"));
-    let claim: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     assert!(stage_claims_exist(common.as_path()).expect("claimed"));
     claim.release().expect("release");
     assert!(!stage_claims_exist(common.as_path()).expect("released"));
@@ -104,7 +107,7 @@ fn other_files_are_not_claims() {
 #[test]
 fn an_abandoned_stage_is_removed_with_a_notice() {
     let (root, common, destination) = scene("claim-reap");
-    let claim: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     abandoned_stage(claim.container());
     let container: PathBuf = claim.container().to_path_buf();
     let claim_path: PathBuf = claim.path.clone();
@@ -125,7 +128,7 @@ fn an_abandoned_stage_is_removed_with_a_notice() {
 #[test]
 fn a_claim_without_a_container_is_removed_without_a_notice() {
     let (root, common, destination) = scene("claim-no-container");
-    let claim: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     let claim_path: PathBuf = claim.path.clone();
     assert!(reap_abandoned_stages(common.as_path()).expect("reaped").is_empty());
     assert!(!claim_path.exists());
@@ -140,7 +143,7 @@ fn a_journaled_stage_is_kept() {
     std::fs::write(source.join(".gitignore"), b"cache/\n").expect("gitignore");
     std::fs::create_dir_all(source.join("cache")).expect("cache");
     std::fs::write(source.join("cache/data"), b"payload").expect("data");
-    let claim: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     let snapshot = stage_ignored_snapshot(
         &git_context(),
         source.as_path(),
@@ -162,8 +165,8 @@ fn a_journaled_stage_is_kept() {
 #[test]
 fn every_abandoned_stage_is_removed() {
     let (root, common, destination) = scene("claim-reap-many");
-    let first: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("first");
-    let second: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("second");
+    let first: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("first");
+    let second: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("second");
     abandoned_stage(first.container());
     abandoned_stage(second.container());
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reaped");
@@ -180,7 +183,7 @@ fn a_claim_naming_another_directory_is_refused() {
     let (root, common, destination) = scene("claim-foreign-name");
     let victim: PathBuf = destination.parent().expect("parent").join("precious");
     std::fs::create_dir_all(victim.as_path()).expect("victim");
-    let claim: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::write(claim.path.as_path(), victim.to_string_lossy().as_bytes()).expect("rewrite claim");
     let failure: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("refused");
     assert!(failure.0.contains("does not name a stage container"), "{}", failure.0);
@@ -193,7 +196,7 @@ fn a_claim_naming_another_directory_is_refused() {
 #[test]
 fn a_claim_naming_a_relative_path_is_refused() {
     let (root, common, destination) = scene("claim-relative");
-    let claim: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::write(claim.path.as_path(), b".cli-git-worktree-copy-relative").expect("rewrite claim");
     let failure: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("refused");
     assert!(failure.0.contains("does not name a stage container"), "{}", failure.0);
@@ -204,7 +207,7 @@ fn a_claim_naming_a_relative_path_is_refused() {
 #[test]
 fn a_shared_stage_is_refused_and_kept() {
     let (root, common, destination) = scene("claim-shared");
-    let claim: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::create_dir(claim.container()).expect("container");
     std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o755)).expect("shared");
     let failure: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("refused");
@@ -220,7 +223,7 @@ fn a_linked_container_is_refused_and_its_target_kept() {
     let target: PathBuf = root.join("target");
     std::fs::create_dir(target.as_path()).expect("target");
     std::fs::write(target.join("keep"), b"keep").expect("keep");
-    let claim: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::os::unix::fs::symlink(target.as_path(), claim.container()).expect("link");
     assert!(reap_abandoned_stages(common.as_path()).is_err());
     assert!(target.join("keep").exists());
@@ -231,25 +234,50 @@ fn a_linked_container_is_refused_and_its_target_kept() {
 #[test]
 fn a_shared_claim_file_is_refused() {
     let (root, common, destination) = scene("claim-file-shared");
-    let claim: StageClaim = claim_stage(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::set_permissions(claim.path.as_path(), std::fs::Permissions::from_mode(0o644)).expect("shared");
     let failure: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("refused");
     assert!(failure.0.contains("journal file is unsafe"), "{}", failure.0);
     remove(root.as_path());
 }
 
-/// A claim write cut off before its rename leaves a temporary that the next pass removes without a notice.
+/// A write cut off before its rename leaves a temporary that names its dead writer; the next pass removes it without a notice,
+///  and leaves the temporary of a writer that still runs, which is about to rename it.
 #[test]
-fn an_unfinished_claim_write_is_removed() {
+fn an_unfinished_write_of_a_dead_writer_is_removed_and_a_live_writers_is_kept() {
     let (root, common, _destination) = scene("claim-temporary");
     let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
-    let leftover: PathBuf = journals.join("abc.stage.def.tmp");
-    let journal_temporary: PathBuf = journals.join("abc.json.def.tmp");
-    std::fs::write(leftover.as_path(), b"cut off").expect("leftover");
-    std::fs::write(journal_temporary.as_path(), b"a journal write").expect("journal temporary");
+    let dead: String = dead_copy_owner().token();
+    let live: String = current_copy_owner().expect("owner").token();
+    let leftover: PathBuf = journals.join(format!("abc.stage.{dead}.def.tmp"));
+    let journal_leftover: PathBuf = journals.join(format!("abc.{dead}.json.{dead}.def.tmp"));
+    let unnamed: PathBuf = journals.join("abc.stage.def.tmp");
+    let running: PathBuf = journals.join(format!("abc.stage.{live}.def.tmp"));
+    for file in [&leftover, &journal_leftover, &unnamed, &running] {
+        std::fs::write(file.as_path(), b"cut off").expect("temporary");
+    }
     assert!(reap_abandoned_stages(common.as_path()).expect("reaped").is_empty());
     assert!(!leftover.exists());
-    assert!(journal_temporary.exists(), "journal temporaries belong to journal recovery");
+    assert!(!journal_leftover.exists());
+    assert!(!unnamed.exists(), "a temporary no writer is named in belongs to nobody");
+    assert!(running.exists(), "a live writer is about to rename its temporary");
+    remove(root.as_path());
+}
+
+/// A claim whose owner still runs is an add or a copy in progress: its stage, its records and its claim are left whole.
+#[test]
+fn a_live_owners_claim_is_left_whole() {
+    let (root, common, destination) = scene("claim-live-owner");
+    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    create_private_directory(claim.container()).expect("container");
+    claim.mark_complete().expect("marker");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(notices.is_empty(), "{notices:?}");
+    assert!(claim.container().exists());
+    assert!(claim.path.exists());
+    assert!(claim.path.with_extension("add").exists());
+    assert!(claim.path.with_extension("done").exists());
+    claim.release().expect("release");
     remove(root.as_path());
 }
 
@@ -270,7 +298,7 @@ fn an_unlistable_journal_root_is_a_failure_and_not_an_empty_one() {
     std::fs::write(common.join(JOURNAL_PARENT_NAME), b"a file where the directory belongs").expect("file");
     let unlistable: PathBuf = journal_root(common.as_path());
     claim_names(unlistable.as_path()).expect_err("the root cannot be listed");
-    remove_unfinished_claims(unlistable.as_path()).expect_err("the root cannot be listed");
+    remove_dead_temporaries(unlistable.as_path()).expect_err("the root cannot be listed");
     remove(root.as_path());
 }
 
@@ -304,7 +332,7 @@ fn a_container_that_cannot_be_examined_keeps_its_claim() {
 #[test]
 fn releasing_an_add_claim_removes_the_destination_record() {
     let (root, common, destination) = scene("claim-add-release");
-    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     let record: PathBuf = claim.path.with_extension("add");
     assert_eq!(decode_record(std::fs::read_to_string(record.as_path()).expect("record").as_str()), Some(Recorded::Planned(destination.clone())));
     claim.release().expect("release");
@@ -320,7 +348,7 @@ fn an_unbound_add_deletes_nothing_and_is_reported() {
     let (root, common, destination) = scene("claim-add-interrupted");
     std::fs::create_dir_all(destination.as_path()).expect("destination");
     std::fs::write(destination.join(".git"), b"gitdir: elsewhere\n").expect("pointer");
-    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     abandoned_stage(claim.container());
     let container: PathBuf = claim.container().to_path_buf();
     // The process dies here: the claim is neither released nor dropped cleanly.
@@ -346,7 +374,7 @@ fn killed_add(name: &str, bound: bool, marked: bool) -> (PathBuf, PathBuf, PathB
     crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
     let claim_dir: PathBuf = repo.join(".git");
     let destination_wanted: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("topic");
-    let claim: StageClaim = claim_stage_for_add(claim_dir.as_path(), destination_wanted.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for_add_as(claim_dir.as_path(), destination_wanted.as_path(), &dead_copy_owner()).expect("claim");
     crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
     let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
     if bound {
@@ -438,7 +466,7 @@ fn a_lookup_that_fails_keeps_the_record_and_says_the_state_is_unknown() {
 #[test]
 fn a_stage_named_by_an_add_is_reported_and_never_removed() {
     let (root, common, destination) = scene("claim-add-stage");
-    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     abandoned_stage(claim.container());
     std::fs::write(claim.container().join("payload/foreign"), b"somebody else's directory").expect("foreign content");
     let container: PathBuf = claim.container().to_path_buf();
@@ -456,7 +484,7 @@ fn a_stage_named_by_an_add_is_reported_and_never_removed() {
 #[test]
 fn releasing_an_add_removes_the_record_before_the_marker() {
     let (root, common, destination) = scene("claim-add-release-order");
-    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     let record: PathBuf = claim.path.with_extension("add");
     let marker: PathBuf = claim.path.with_extension("done");
     std::fs::create_dir(marker.as_path()).expect("a marker that cannot be removed as a file");

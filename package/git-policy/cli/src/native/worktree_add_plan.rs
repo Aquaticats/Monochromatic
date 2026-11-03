@@ -166,6 +166,120 @@ pub fn parse_add_plan(arguments: &[OsString], subcommand_index: usize, start: &P
     return Some(AddPlan { destination, insert_at: word_index + 1, quiet });
 }
 
+
+/// The options of `git worktree add` that take no value, as a flag in either polarity.
+const COPY_FLAG_OPTIONS: &[&[u8]] = &[
+    b"-f", b"--force", b"--no-force", b"--orphan", b"--no-orphan", b"-d", b"--detach", b"--no-detach", b"--checkout",
+    b"--no-checkout", b"--lock", b"--no-lock", b"-q", b"--quiet", b"--no-quiet", b"--track", b"--no-track",
+    b"--guess-remote", b"--no-guess-remote", b"--relative-paths", b"--no-relative-paths", b"--no-reason",
+];
+
+/// The options of `git worktree add` that take a value in the next token (or attached to a short option).
+const COPY_VALUE_OPTIONS: &[&[u8]] = &[b"-b", b"-B", b"--reason"];
+
+/// The global options that change nothing about where a relative destination lies.
+const COPY_NEUTRAL_GLOBALS: &[&[u8]] = &[
+    b"--no-pager", b"-P", b"--paginate", b"-p", b"--no-replace-objects", b"--no-lazy-fetch", b"--no-optional-locks",
+    b"--no-advice", b"--literal-pathspecs", b"--glob-pathspecs", b"--noglob-pathspecs", b"--icase-pathspecs",
+];
+
+/// What:
+///  The directory a command's relative destination is resolved against, after the global options.
+/// Why:
+///   Only `-C` moves it; `-c` and the neutral flags leave it. Any other global option (`--git-dir`, `--work-tree`, a
+///  namespace) changes how Git finds the repository, so the destination is then not read and the copy says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function copyStartDirectory(globalPrefix: string[], current: string): string | undefined;
+/// ```
+pub fn copy_start_directory(global_prefix: &[OsString], current: &Path) -> Option<PathBuf> {
+    let mut start: PathBuf = current.to_path_buf();
+    let mut tokens = global_prefix.iter();
+    while let Some(token) = tokens.next() {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if bytes == b"-C" {
+            let target: &OsString = tokens.next()?;
+            if !target.is_empty() {
+                start = start.join(target);
+            }
+        } else if bytes == b"-c" || bytes == b"--config-env" {
+            tokens.next()?;
+        } else if !bytes.starts_with(b"--config-env=") && !COPY_NEUTRAL_GLOBALS.contains(&bytes) {
+            return None;
+        }
+    }
+    return Some(start);
+}
+
+/// What:
+///  The operands of a `git worktree add`: the path and the optional commit-ish, with every option Git documents skipped.
+/// Why:
+///   The destination of a copy must be known from the command line, so the reading is complete for the documented options
+///  (short options may be bundled, `-b` and `-B` take their value attached or in the next token) and refuses what it does not
+///  know, such as an abbreviated long option, rather than guess an operand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function copyAddOperands(region: string[]): string[] | undefined;
+/// ```
+fn copy_add_operands(region: &[OsString]) -> Option<Vec<&OsString>> {
+    let mut operands: Vec<&OsString> = Vec::new();
+    let mut tokens = region.iter();
+    let mut options_ended: bool = false;
+    while let Some(token) = tokens.next() {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if options_ended || !bytes.starts_with(b"-") || bytes == b"-" {
+            operands.push(token);
+        } else if bytes == b"--" {
+            options_ended = true;
+        } else if COPY_VALUE_OPTIONS.contains(&bytes) {
+            tokens.next()?;
+        } else if bytes.starts_with(b"--reason=") || bytes.starts_with(b"--track=") || COPY_FLAG_OPTIONS.contains(&bytes) {
+            continue;
+        } else if bytes.starts_with(b"-") && !bytes.starts_with(b"--") {
+            // Bundled short options: flags stand alone, and `b` or `B` takes the rest of the token or the next token.
+            for (position, letter) in bytes[1..].iter().enumerate() {
+                match letter {
+                    b'f' | b'd' | b'q' => {}
+                    b'b' | b'B' => {
+                        if position + 2 == bytes.len() {
+                            tokens.next()?;
+                        }
+                        break;
+                    }
+                    _ => return None,
+                }
+            }
+        } else {
+            return None;
+        }
+    }
+    return if (1..=2).contains(&operands.len()) { Some(operands) } else { None };
+}
+
+/// What:
+///  The destination a `git worktree add` names, in the form Git records it, for every form of the documented options.
+/// Why:
+///   The ignored-state copy goes to the worktree this command created, found from the command line instead of by comparing
+///  the repository's registrations before and after, which another add running at the same time would disturb.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseCopyDestination(args: string[], subcommandIndex: number, start: string): string | undefined;
+/// ```
+pub fn parse_copy_destination(arguments: &[OsString], subcommand_index: usize, start: &Path) -> Option<PathBuf> {
+    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" {
+        return None;
+    }
+    let word_index: usize = subcommand_index + 1;
+    if arguments.get(word_index)?.as_encoded_bytes() != b"add" {
+        return None;
+    }
+    let operands: Vec<&OsString> = copy_add_operands(&arguments[word_index + 1..])?;
+    return recorded_destination(start, operands[0]);
+}
+
 /// Plan controls, with a real Git control, stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_add_plan_tests.rs"]
