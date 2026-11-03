@@ -9304,3 +9304,15 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Campaigns finished: index lock round 4 (two passes; 215 mutants, 26 then 9 survivors) to the index-lock agent; the
   resumed subvolume-2 (25 lines) and timing-service (73 mutants, 2 missed) to the survivors agent, who first separates
   new survivors from ones dispositioned before the reboot.
+- Snapshot route measured (research agent, `main-ignored-copy` `e9394b1b12`, doc section "Snapshot route measured"):
+  snapshot 0.15 s median on a 700k-entry fixture; removing the skip set 13 to 14 s (27 µs per entry, no gain from
+  parallel workers); each nested ordinary worktree 0.5 s; rename-aside-and-return 1.6 s; nested `.git` pointers must go
+  before the add returns (about 50 ms for 48). One-time conversion of an ordinary nested worktree to a subvolume about
+  1.5 s each. pnpm: `storeDir: ${HOME}/.local/share/pnpm/store` in `pnpm-workspace.yaml` makes subvolume worktrees install
+  offline in 1.0 to 1.2 s.
+- DECIDED BY THE OWNER (2026-11-02, question tool): "Convert once + snapshot (Recommended)" (approves converting the 48
+  ordinary nested worktrees under main into subvolumes once; then each main-sourced add snapshots, unlinks copied `.git`
+  pointers, moves the skip set to a trash directory, returns in about 1.8 s, and the commit service empties the trash) and
+  "Set the shared store (Recommended)" (pnpm `storeDir` as above). Research agent builds, in order: pnpm consequences and
+  exact edit (I apply to main), a nested-worktree conversion tool with dry run (I run it on real worktrees only after it is
+  gated and released, skipping worktrees in use), then the snapshot route on a branch from the ladder.
