@@ -159,7 +159,7 @@ impl Pack {
         if table[..8] != *b"\xfftOc\0\0\0\x02" {
             return None;
         }
-        let fanout: Vec<u32> = table[8..].chunks_exact(4).map(|word| { return u32::from_be_bytes([word[0], word[1], word[2], word[3]]); }).collect();
+        let fanout: Vec<u32> = table[8..].as_chunks::<4>().0.iter().map(|word| { return u32::from_be_bytes(*word); }).collect();
         if fanout.windows(2).any(|pair| { return pair[0] > pair[1]; }) {
             return None;
         }
