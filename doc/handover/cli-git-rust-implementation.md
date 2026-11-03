@@ -186,11 +186,24 @@ SPEC `474c987ae2`),
 unit-template and provisioning tests 31 of 31,
 merged into the 0.5.27 integration branch;
 rule `LQM` on main `708fbd7e47`.
+The shipped-limits audit is on branch `docs/git-policy-cli-shipped-limits-audit` `7387f29a52`
+(`doc/planning/cli-git-shipped-limits-audit.md`):
+73 limits,
+4 cited,
+7 partly,
+58 uncited,
+one dead constant (`DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS`);
+conflicts with decisions:
+the 1800 s live-holder wait against `doc/decision/cli-git-concurrent-commits.md` lines 151-158 and "Same as the ref
+lock",
+`COMMIT_WAIT`'s message naming a setting that does not exist,
+main's push window and ceiling against "Wait while connected",
+retry counts on causes the owner put on the designed-out list.
+Fifteen owner questions are in the doc;
+not yet asked.
 Remaining:
-audit every other shipped limit of the wrapper (timeouts such as the 60 s and 300 s child bounds and the 1800 s merge
-wait,
-the 1 GiB snapshot-trash bound,
-notice intervals) against `LQM`,
+merge the audit doc,
+ask its questions,
 and measure the service's commits on main once 0.5.27 is installed.
 Remaining after that:
 measure commits and merges on the real main checkout against native Git,
@@ -311,11 +324,60 @@ signed commit with a moved parent;
 a Git hang on identical input (the owner's "embed instead of spawning" may already decide it);
 an overlapping destructive prune;
 no-reflog ambiguity.
-Fifth review running,
-output `~/temp/agent/reviews/commits-never-fail-sol-5.txt`.
+Fifth review returned 2026-11-03T09:23:28-05:00 (`~/temp/agent/reviews/commits-never-fail-sol-5.txt`):
+not ready;
+open:
+publication inferred from an incomplete reflog or a reused commit id,
+staging intent inferred from stat equality (a tree-created zero-stat entry can be recreated exactly),
+the attachment check not synchronized with the mutation,
+deferred intents against a foreign successor commit,
+descendants of an inline owner holding the lane lock forever,
+age cleanup deleting the only saved copy of a carried edit,
+maintenance admitted at an idle lane but not covering its lifetime,
+a hook's external effect repeated by recovery after an owner death.
+Its judgments:
+no construction recovers a silent wedge without a time bound and also never repeats a hook's effect,
+and manual restart cannot silently satisfy "never stuck";
+the deterministic Git hang is settled by "embed instead of spawning";
+corruption by another tool after release is on the outside list,
+but the wrapper's own maintenance must be coordinated over its lifetime;
+signed replay and no-reflog ambiguity are owner choices.
+Coordinator adoptions,
+veto open:
+re-sign a replayed signed commit in the background with the configured signer,
+as the service already signs its reconcile merges;
+saved copies of carried edits are kept until explicit disposal ("never discard user data").
+Owner answers 2026-11-03 (question tool):
+stuck step "End Git, hold hooks (Recommended)" (a Git child with no progress for a measured interval is ended and its
+step redone;
+the person's hook is never ended,
+its commit is set aside as pending with a notice and the others keep landing on top);
+deferred staging "Update the index (Recommended)" (a deliberate restage to exactly the old entry inside a foreign
+lock's window is replaced,
+accepted as undetectable);
+unclear publication "Land it (Recommended)" (landed with a message naming it and how to drop it).
+Sixth revision `766f623dd0`,
+`851aa5b446` and `d09c58e7d1` (2026-11-03T09:41:10-05:00 to 09:42:05):
+a closure line for every fifth-review finding;
+publication evidence only after a reflog anchor recorded before the swap
+(no anchor:
+owner answer "Land it");
+staging targets the current tip's entry;
+the attachment check brackets reads of `HEAD` and `logs/HEAD` around the index read under `index.lock`;
+inline owners move into a transient scope;
+`hook-dispatch` journaled before `update-ref`;
+wrapper maintenance runs recorded in `lane/maintenance`.
+Still open in it:
+the embedded path for a deterministic Git hang,
+the exit inventory,
+and four owner questions,
+picked under the delegation in `75cf58f345`
+("Picks made under the owner's delegation").
+Sixth cross-vendor review started 2026-11-03T09:50-05:00
+(`~/temp/agent/reviews/commits-never-fail-sol-6.txt`,
+prompt `commits-never-fail-prompt-6.txt` beside it).
 Remaining:
-read it,
-ask the owner the questions it leaves,
+the sixth review and its revision,
 then build in the reviewer's order (models and crash fixtures first),
 with the exit inventory as a gate.
 Interim code in 0.5.26 (index-lock wait and a bounded moved-head loop) stays until the by-construction design replaces
@@ -338,6 +400,16 @@ Unexplained and still open:
 why `diff-tree` and `reset -q --pathspec-from-file` took about 60 s each in the 120 s commit
 (read Git's source and cite file and line,
 per the owner's "git itself being OSS" rule under "Owner decisions in force").
+Candidate cause,
+not confirmed:
+with `core.fsmonitor = true`,
+a Git command that finds no daemon starts one and waits up to `fsmonitor.startTimeout`,
+60 s by default (`builtin/fsmonitor--daemon.c` lines 39-40 in 2.56.0),
+the same length as each step.
+Confirming it needs a trace of such a step waiting on the daemon,
+in a disposable repository with fsmonitor set in its own config;
+fsmonitor is now off globally,
+so main no longer shows it.
 
 ### Plain commit with unmerged files finishes the merge
 
@@ -478,8 +550,25 @@ it stops only when nothing older fits.
 Scoped to local runs;
 CI keeps the frozen behavior;
 operational failures keep warn-and-run with `--locked`.
-An agent is fixing every finding and building these answers on the branch,
+Done on the branch,
+tip `569596c984` (243 of 243 tests,
+clippy clean):
+every review finding and both answers,
 red tests first.
+Its nine questions for the owner,
+not yet asked:
+under `trustLockfile = true` with base `HEAD` a committed merge's lockfile is already base,
+so cases 1 and 2 do not fire locally (compare with upstream,
+check every entry locally,
+or keep);
+release age versus trust under `trustLockfile`;
+CI still warns and runs `--locked` on a refusal;
+the window between cargo writing the live lockfile and the checks;
+the restore read-then-rename gap;
+strict cutoff with exemptions;
+`--breaking` sync failure;
+a killed `--breaking` run's manifests;
+whether the trust line must name the publisher account.
 Remaining,
 in the order the agent's report adopted:
 1. the review fixes and the two answers (agent running), then a second cross-vendor review;
@@ -784,6 +873,141 @@ Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,
 merges and pushes that never fail").
 
+## Picks made under the owner's delegation
+
+Owner, 2026-11-03 (about 09:45-05:00):
+"I have to be away for around 8 hours. Pick options as if I had picked them and invite veto when I say I'm back."
+Clarified by the owner:
+"\"As if I had chosen\" means what I would have picked most likely if I'm always here."
+So each pick is the option the owner would most likely have chosen:
+the ranked-first option where its ranking follows the owner's standing rules,
+which matches every answer the owner gave on 2026-11-03.
+Every pick below is the coordinator's,
+made under that delegation;
+each stays open to the owner's veto and is listed for the owner on return.
+
+### Shipped-limits audit (`doc/planning/cli-git-shipped-limits-audit.md`, fifteen questions)
+
+1. Which limits need a citation:
+   B,
+   limits that can change a command's result or duration;
+   polls,
+   display caps,
+   chunk sizes and reader fallbacks are classed once as exempt with the reason (they still follow MGN).
+2. Index lock holder:
+   A now (a proven-alive holder is waited for with no bound and a line naming it;
+   an unproven owner gets 1000 ms of backoff and then a diagnostic;
+   the dead constant goes),
+   then B with the commits-never-fail design (the owner's "Same as the ref lock").
+3. Retry counts:
+   C with the commits-never-fail design (stack on the new head for every moved branch);
+   the interim loops stay until then ("Ship interim now").
+4. Git child steps:
+   B,
+   end only on no progress with the push's signs and no wall clock,
+   matching the owner's "End Git, hold hooks".
+5. Pushes:
+   A,
+   "Wait while connected" whole:
+   no stall window for a connected push,
+   no ceiling,
+   no low-speed abort.
+6. Waits on the service:
+   A,
+   heartbeats and no client wall-clock bound;
+   the `COMMIT_WAIT` message naming a nonexistent setting goes.
+7. Foreign-owner patience:
+   C,
+   measured from the logs.
+8. Parallelism caps and memory estimates:
+   A,
+   measured.
+9. Deadlines of tools that are not Git:
+   A,
+   end only on no progress.
+10. Saved conflict copies:
+    C,
+    defaults set from the measured growth.
+11. Audit and timing logs:
+    C,
+    audit generations kept up to a measured size and never dropped while they name a saved copy that exists;
+    timing logs keep one generation.
+12. LFS server errors:
+    HTTP 5xx classed as outside our control (a server fault,
+    like "Network down"),
+    retried by the service's push retry plan alone (option B's single mechanism).
+13. Service housekeeping:
+    A,
+    measured from its journal and timing logs.
+14. Lock-removal margins:
+    A,
+    measured on this host.
+15. Free-space preflight:
+    A,
+    computed from the entry count with a measured cost per entry.
+Implementation queue (agents start as the five slots free;
+measurements under the load there is,
+never synthetic):
+pushes and LFS (5,
+12);
+Git child and tool no-progress ends (4,
+9);
+index lock interim and service waits (2,
+6);
+audit generations and saved copies (10,
+11);
+the measured citations (1,
+7,
+8,
+13,
+14,
+15).
+
+### Commits never fail, revision 6 (four questions)
+
+The questions,
+the reasons and the coordinator's candidate are in `doc/planning/cli-git-commits-never-fail.md`,
+"Questions for the owner",
+on `fix/git-policy-cli-commits-never-fail`.
+
+1. Staging a path back to its consumed entry while commits are pending:
+   A (the commit lands without that path;
+   a notice says so).
+   The coordinator's candidate goes to the sixth review:
+   record paths the person explicitly restages through the wrapper while requests are pending,
+   so a plain commit gives native Git's result.
+2. A quiet service owner of our own making:
+   A (the waiting command restarts the unit after the measured interval),
+   shipped only once the interval is measured.
+3. A hook with an external effect on "prepared",
+   after an owner death:
+   A (run `update-ref` again;
+   the hook may post twice).
+4. The instant inside Git's `checkout` between the index write and the `HEAD` change:
+   A (accept a rare staged change on the new branch).
+
+### cargo-shadow (agent's nine questions)
+
+1. Committed lockfile under `trustLockfile = true`:
+   local runs compare with the upstream branch (`@{upstream}`,
+   else `origin/<default>`) instead of `HEAD`,
+   so cases 1 and 2 fire for versions not yet on the upstream;
+   CI keeps its base.
+2. Release age and trust both apply to versions new since the base,
+   on both the local and the frozen path.
+3. CI stops on a policy refusal (pnpm's frozen install fails on a lockfile entry the policy rejects).
+4. The window in which a cargo that is not the shadow builds on an unapproved lockfile is accepted and documented
+   ("Use as few locks as possible").
+5. Restore uses `renameat2` with `RENAME_EXCHANGE` and an undo,
+   through a safe wrapper (no lock,
+   no lost writer).
+6. Strict cutoff with exemptions:
+   keep resolving without the cutoff and enforcing it on non-exempt crates.
+7. A `--breaking` sync failure after the catalog write restores the catalog (transactional).
+8. A killed `--breaking` run's manifests go in the journal.
+9. The trust-downgrade line names the earlier and the new publisher account when known,
+   as the owner's chosen option said ("naming the publisher change").
+
 ## Owner decisions in force
 
 Timestamps are the commit times at which the decision was first written into the former handover
@@ -861,10 +1085,30 @@ Recorded here only (no other home found):
 
 ### Git's own fsmonitor
 
-`package/git-policy/cli/README.md`,
-"Git's own fsmonitor" (the owner's four statements,
-2026-11-01 to 2026-11-03).
-Every git-policy brief quotes that section.
+Superseded 2026-11-03 by the owner:
+"If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully worked around,
+disable git's fsmonitor globally entirely and make doctor say so."
+The coordinator found that it is
+(Git 2.56.0's Linux daemon answers only after registering a watch for every directory,
+`compat/fsmonitor/fsm-listen-linux.c` lines 402-439 and 702;
+a client waits up to 60 s for it,
+`builtin/fsmonitor--daemon.c` line 40;
+main's daemon watched 2,269,377 directories because the linked worktrees live inside main,
+and cost 117.7 s of CPU and 734 MB to start;
+a running daemon saved about 7 ms per `git status` on main),
+and at 2026-11-03T09:38-05:00 set `core.fsmonitor = false` in `~/.gitconfig`
+(backup `~/temp/agent/gitconfig-backup/gitconfig.before-fsmonitor-off-2026-11-03T0938`;
+it was the only scope that set it)
+and stopped all 261 running daemons (253 with `git fsmonitor--daemon stop`,
+8 with SIGTERM,
+none left;
+`~/temp/agent/tools/fsmonitor-stop-all.ts`).
+Agents running:
+the doctor check and the README and SPEC update (branch `feat/git-policy-cli-doctor-says-fsmonitor-is-off`),
+and `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+The earlier statements stay in `package/git-policy/cli/README.md`,
+"Git's own fsmonitor",
+as history.
 
 ### Worktree add and package managers
 

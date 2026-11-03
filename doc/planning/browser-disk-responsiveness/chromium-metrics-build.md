@@ -359,7 +359,21 @@ Current upstream sources,
 local task/tool-owner guidance,
 Podman help,
 and selected artifact metadata were inspected.
-Source citations and rendered Markdown checks remain to be completed for this document.
+All `31` source selections passed browser verification by `2026-11-03T14:29:11.955Z`.
+The initial updater-page check emitted `agent-browser`'s
+`Wait timed out after 25000ms`;
+a fresh navigation exposed the expected source line,
+and the targeted recheck passed.
+No cause for the initial missing anchor was established.
+
+Scoped `mise run lint:monochromatic-lint` passed after correcting prose line breaks.
+GitHub's HTML renderer for commit `2282b557a0`
+preserved the complete heading sequence and inline code spans,
+with no stray backticks,
+unexpected emphasis,
+or tables.
+Both owned citation browser runs closed successfully;
+process and systemd-unit checks found no remaining owned citation jobs.
 
 [linux-build]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/docs/linux/build_instructions.md?plain=1#L194-L218
 [symbols]: https://github.com/chromium/chromium/blob/360d943d418b3d6645fea86766f5dcc4a7cc3b2e/docs/linux/build_instructions.md?plain=1#L399-L413
