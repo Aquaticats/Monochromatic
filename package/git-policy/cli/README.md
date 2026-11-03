@@ -937,6 +937,23 @@ Each with its cause:
 - A repository or index the wrapper cannot read (the failure names the file).
 - `git pull` that needs a merge: it runs its merge inside Git, out of the wrapper's reach (see below).
 
+### What can still end a commit with a nonzero status
+
+The owner's rule (2026-11-03): "Commits should never fail." A named-path commit beside another session's unfinished merge or
+stopped cherry-pick lands as an ordinary commit and the state is carried on (see `SPEC.md`, "Merges and commits never fail").
+Each of these still ends a commit with a nonzero status, with its cause; none is waited out or retried on the moved head yet:
+
+- A Git step the client starts crosses its class bound (`child_class.rs`: 60 seconds for a quick query step, 300 seconds for a
+   bulk step). `diff-tree` is in the quick class although it reads the index, so a slow index read fails it.
+- The commit service does not start within `START_WAIT` (10 seconds, `service_client.rs`): "commit service did not start".
+- The service does not answer within `COMMIT_WAIT` (10 minutes, `service_client.rs`).
+- The branch keeps changing: `LANDING_ATTEMPTS` (3, `service_land.rs`) landings lost to other commits end with
+   `BranchKeepsChanging`, and `REBUILD_ATTEMPTS` (`service_commit.rs`) builds by Git on a moved branch end the commit.
+- A commit that concludes a merge, an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
+- `index.lock` is still refused after the service's own wait for it (`CLI_GIT_LOCK_WAIT_SECONDS`, 1800 seconds by default).
+- The content a commit captured was pruned from the object store before it landed (`ClientFailure::ContentPruned`).
+- A policy finding at error severity, a named path in conflict, an empty message or a failing signer.
+
 ### Output and exit status
 
 Policy events of a wrapped command are JSON lines on standard error,
