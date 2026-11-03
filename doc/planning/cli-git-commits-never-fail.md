@@ -294,7 +294,13 @@ or, where that fails, beside the path under a unique name that carries the incar
 never removes or substitutes a lock that a foreign program may create (`index.lock`, a ref lock); a file of the person is displaced only by the
 carry-forward protocol's `RENAME_EXCHANGE`, which removes nothing: the displaced inode is retained under a name the lane owns, so the instant it
 leaves a different file at the pathname loses no content.
-Where recovery would need such a removal, it leaves the file, reports it, and keeps the request deferred (M1 and MG2 are `pending`). A journaled
+Where recovery would need such a removal, it leaves the file, reports it, and keeps the request deferred (M1 and MG2 are `pending`).
+Normal abort is different from abandoned-lock recovery (revision 11; R10-2): a live creator releases the lock it created in this same incarnation, on a path
+that ends without installing (a declined attachment guard, a plan that finds staged paths, a failed write), by `unlink` of `index.lock` after comparing the
+identity of its own open descriptor with the pathname (`fstat` against `stat`), which is what Git's own lock rollback does. The premise, stated: no
+program removes a lock it did not create while its creator is alive, which is the premise of every Git lock; the comparison narrows the window in
+which a replacement could be removed and cannot close it, and a mismatch means the premise was broken, so nothing is unlinked and the event is
+reported. This authority exists only for a lock held by the live creator; a lock found without a live creator is never removed. A journaled
 inode identity is a claim only while a name the lane owns pins the inode (a hard link under `lane/`), and is then used for reports, never as
 deletion authority at a shared name.
 
@@ -546,24 +552,26 @@ Build and publication (lane)
 
 Materialization and retirement
 - M1 materialize (one path for every follow-up, whether the lock is free now or later). Pre: `published`, the attachment guard,
-  and a single try of `index.lock` after the publication (never before it, never across P2). Do: (1) create `index.lock` with `O_CREAT|O_EXCL`
-  and journal the intent first with the incarnation id (fsync), so a later report can say which incarnation made it; `EEXIST` is the single try
-  failing: a foreign program (or a stranded lock, see Crash) holds it, the request keeps its entries and a later single try is made by Q1;
-  (2) with the lock held read `HEAD` before and after reading the current index and decline unless the attachment guard of the Publication target rule holds in both reads (declined: M2); (3) S1 replacement setting the marker `materializing`; (4) apply the per-path entry rule to the index read
-  under the lock, write the new index into the lock file, fsync it; (5) rename `index.lock` over the index; (6) apply M3 (c), record the
-  per-path outcomes in the closing replacement and replace the document with the marker `none`. Per-path outcomes, one each and recorded
-  with the request: `installed` (the entry was `E` and the worktree held the target; staged), `already` (the entry already equals the
-  target; nothing written), `preserved` (the entry is neither `E` nor the target: the person's own staging; left alone; the entry is
-  dropped because there is nothing to suppress), `declined` (the entry was `E` but the worktree is not the target, or the branch moved
-  on: left alone and the entry becomes `suppress`, as in M2). The request is `materialized` when no path is `declined`, else it is
-  `materialized` with the declined paths named as voided. Crash (R9-3): the lane's death inside this window leaves `index.lock` in place, because
-  no exit handler runs after SIGKILL, an outside kill or power loss, and the lane never removes it (rule N). L4 finds a lock whose journaled intent
-  names the dead incarnation, and reports it: the lock was made by this tool's dead incarnation, no process of that incarnation holds it, and the
-  person may remove it; the request stays `published` with M1 deferred. The index is untouched until the rename, so nothing is lost; if the
-  rename happened (the index file is the one the lock file was, which L4 sees as the absence of `index.lock` and the journaled intent
-  without a closing record), L4 completes (6). M1 is idempotent because the entry rule is conditional on the entry read under the lock, so
-  a repeat can neither install a stale entry nor remove a person's staging. This narrows the guarantee in the same way as owner question A:
-  a stalled owner killed inside the window can leave a lock that only a person clears, as Git itself leaves one after its own kill.
+  and a single try of `index.lock` after the publication (never before it, never across P2). Do: (1) journal the intent to try (informational only: it
+  proves that an incarnation meant to create a lock, nothing about whether one was created), then create `index.lock` with `O_CREAT|O_EXCL`; `EEXIST` is
+  the single try failing: a foreign program (or a stranded lock, see Crash) holds it, the request keeps its entries and a later single try is made by Q1;
+  (2) with the lock held read `HEAD` before and after reading the current index and decline unless the attachment guard of the Publication target rule holds
+  in both reads (declined: release the lock by the normal abort of rule N, then M2); (3) S1 replacement setting the marker `materializing` and recording the
+  plan: for each path, `E`, the target entry, and the outcome the entry rule computes; (4) apply the per-path entry rule to the index read under the lock, write the
+  new index into the lock file, fsync it; (5) rename `index.lock` over the index; (6) apply M3 (c), record the per-path outcomes in the closing replacement
+  and replace the document with the marker `none`. Per-path outcomes, one each and recorded with the request: `installed` (the entry was `E` and the worktree
+  held the target; staged), `already` (the entry already equals the target; nothing written), `preserved` (the entry is neither `E` nor the target: the person's
+  own staging; left alone; the entry is dropped because there is nothing to suppress), `declined` (the entry was `E` but the worktree is not the target, or the
+  branch moved on: left alone and the entry becomes `suppress`, as in M2). The request is `materialized` when no path is `declined`, else it is `materialized`
+  with the declined paths named as voided.
+  Crash (revision 11; R10-1): recovery infers nothing from the lock. Neither the absence nor the presence of `index.lock`, nor a journaled intent, says whether the rename
+  happened or who made a present lock. L4 re-reads the real index once (no lock) and re-evaluates every path of an open M1 against the recorded plan: an entry equal to
+  the target is `already` (installed by the dead incarnation or never needed: the same result), an entry equal to `E` was not installed, so the entry
+  stays (`install`) and M1 is deferred to a later single try (Q1, `resume = M1`), any other entry is `preserved`. An intent whose lock was never created leaves
+  the install entry in force and so keeps suppressing the person's old entry. A lock that is present is reported without a claim: "an `index.lock` exists; this tool's
+  dead incarnation may have made it; no process of that incarnation holds it; remove it if no Git process is running", and is never removed (rule N). M1 is idempotent because
+  the entry rule is conditional on the entry read under the lock. This narrows the guarantee as owner question A does: a lane killed inside the window can leave
+  a lock that only a person clears, as Git itself leaves one after its own kill.
 - M2 void. Pre: the guard declined, the branch was rewritten (the commit is not reachable from the tip), or a later foreign successor made
   the entry rule decline. Do: in one S1 replacement record `voided` for the request and the paths, end the installation authority (kind
   `install` becomes kind `suppress`, keeping `E`), and tell the person which paths were left alone. Nothing is released by voiding: an
