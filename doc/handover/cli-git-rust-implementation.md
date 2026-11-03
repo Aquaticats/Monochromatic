@@ -150,9 +150,33 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   EWAH bitmaps checked and bounded,
   every protected-name spelling declined;
   the intent-to-add finding does not reproduce on Git 2.56.0 (a byte-for-byte differential pins it).
-Queued:
-gate the 0.5.28 base once the self-spawn fix and the remaining shipped-limits branches are merged into it,
-then release 0.5.28.
+Queued,
+in this order:
+- Second round on the in-process index writer,
+  from its re-review (2026-11-03T10:51:00-05:00,
+  `~/temp/agent/reviews/follow-up-index-sol-2.txt`:
+  "safe after fixing the remaining NTFS alias,
+  correcting permission ordering,
+  resolving the test-build/isolation issues,
+  and verifying the cited outer locking and installation code";
+  the temporary-file race and EWAH are fixed,
+  and the intent-to-add finding is withdrawn):
+  decline the hashed NTFS short name of `.gitmodules` (`GI7EBA~1`) with a real-reset differential;
+  set the file mode before writing any byte,
+  tested with a mode narrower than the umask gives;
+  pass a borrow of the held `IndexLock` guard to the helper instead of a marker check;
+  run umask-changing tests in a child process;
+  assert the intent-to-add entry's flags,
+  not the index version bytes;
+  tests for injected write and sync failures,
+  concurrent publication with distinct payloads,
+  and an unselected change staged before the lock that must survive.
+  The non-Linux test imports stay paused ("Ignore Win and mac until I say so.").
+  Then a third re-review with `service_land.rs`,
+  `service_index_hold.rs` and the lock-marker code attached whole.
+- Gate the 0.5.28 base once that,
+  the self-spawn fix and the remaining shipped-limits branches are merged into it,
+  then release 0.5.28.
 
 0.5.27 ships without the in-process index work
 (coordinator's pick under the delegation,
