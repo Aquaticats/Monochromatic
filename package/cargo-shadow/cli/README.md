@@ -151,14 +151,51 @@ Limits:
 a change to `.cargo/config.toml` `[patch]` tables or to a manifest outside the recorded list is not noticed until a recorded file changes,
 and the remembered pass is keyed by the commit the base resolves to,
 so a base that moves is a different base.
-Resolving it starts git once per call under `trustLockfile = true` (a median of 7 ms for `git rev-parse` on this machine through the
-`git` on PATH,
-20 runs,
-no control arm,
-so the spread is unknown),
-which the figures below,
-measured before this change,
-do not include.
+The base is read from the repository's files without starting git
+(owner rules of 2026-11-01:
+"Invoke real git as rarely as possible."
+and "embed instead of spawning"):
+`HEAD`,
+including a linked worktree's own directory and its `commondir`,
+`branch.<name>.remote` and `branch.<name>.merge` from the system,
+user and repository configuration,
+the fetch refspecs of the remote,
+and the remote-tracking reference from loose files or `packed-refs`.
+Git is started once,
+as before,
+only for what the files cannot answer exactly:
+an explicit `CARGO_SHADOW_TRUST_BASE` (git verifies that it names a commit),
+a configuration `include` or `includeIf` in any of the configuration files,
+the reftable reference format,
+`extensions.worktreeConfig`,
+a `GIT_DIR`,
+`GIT_COMMON_DIR`,
+`GIT_WORK_TREE`,
+`GIT_NAMESPACE`,
+`GIT_CONFIG*`,
+`GIT_CEILING_DIRECTORIES`,
+`GIT_DISCOVERY_ACROSS_FILESYSTEM`,
+`GIT_OBJECT_DIRECTORY` or `GIT_REPLACE_REF_BASE` variable,
+a negative fetch refspec,
+a symbolic reference where a commit is expected,
+and a short name that a tag or branch shadows (`origin/main`).
+Each of these has a test that checks the answer against git.
+Measured on 2026-11-03 (a throwaway repository with an upstream,
+`cargo metadata --offline` through the release binaries,
+4 arms alternated per round,
+40 rounds each,
+medians in ms with the standard deviation):
+with `git` on PATH being the system git,
+cargo alone 40.9 (2.6),
+the build that started git 44.7 (2.1),
+this build 43.2 (2.2) and the same build again as the control 43.1 (2.3);
+with `git` being the repository's wrapper in front of the system git,
+cargo alone 40.0 (1.4),
+the build that started git 45.8 (1.6),
+this build 42.0 (2.1) and its control 41.3 (1.8).
+The saving is 1.5 to 4 ms per call;
+the control arms agree within a quarter of a millisecond.
+The figures in the list below were measured before this change.
 
 Measured on 2026-11-03 in a throwaway worktree (release build,
 up-to-date workspaces,

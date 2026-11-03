@@ -87,8 +87,12 @@ commit `c7b46ae`).
   "I also said to remove the Mise tasks that would then be handled via the wrapper."
   Workflows never use mise ("Workflows should never use mise at all."),
   so `advisory-core.yml` calls `cargo-shadow` directly.
-- An operational failure of the install step (no network, a registry lookup that fails, a cargo error) warns and runs the
-  command anyway, with `--locked` added once, before any `--`.
+- An operational failure of the install step (no network,
+  a registry lookup that fails,
+  a cargo error) warns and runs the
+  command anyway,
+  with `--locked` added once,
+  before any `--`.
   pnpm:
   "If that install fails,
   for example because the store is read-only or there is no network,
@@ -97,40 +101,76 @@ commit `c7b46ae`).
   pnpm can do that because `pnpm run` never rewrites the lockfile;
   cargo does,
   hence `--locked`.
-  A frozen check (CI, or the user's own `--locked`) that finds a stale lockfile keeps this behavior too: "CI keeps the frozen
-  behavior already recorded (the 2026-10-29 trustLockfile amendment)". A frozen policy refusal stops the command by a delegated
+  A frozen check (CI,
+  or the user's own `--locked`) that finds a stale lockfile keeps this behavior too:
+  "CI keeps the frozen
+  behavior already recorded (the 2026-10-29 trustLockfile amendment)".
+  A frozen policy refusal stops the command by a delegated
   pick of 2026-11-03 (below).
   Replaces the fail-closed behavior built first,
-  and, for a policy refusal of a local install, is replaced in turn by the next two decisions.
+  and,
+  for a policy refusal of a local install,
+  is replaced in turn by the next two decisions.
 - A local (not frozen) install sets a release under `minimumReleaseAge` aside instead of refusing it.
-  The owner, 2026-11-03 (question tool, verbatim):
-  "Try asking better. pnpm nowadays just warn and runs when a dep could be updated to something published within a day."
+  The owner,
+  2026-11-03 (question tool,
+  verbatim):
+  "Try asking better.
+  pnpm nowadays just warn and runs when a dep could be updated to something published within a day."
   pnpm 12.16.1 resolves to the newest release older than the cutoff
-  (`resolving/npm-resolver/src/pickMatchingVersion.ts`, `pickRespectingMinReleaseAge`)
+  (`resolving/npm-resolver/src/pickMatchingVersion.ts`,
+  `pickRespectingMinReleaseAge`)
   and the coordinator found no message printed for it in the source.
-  The install step that runs before a resolving cargo command therefore moves a version it newly needs, and that is under the
-  age limit, to the newest older release in range that passes the policy (the set-aside `cargo update` already does),
-  prints one line naming the held-back release and the one it used, and runs cargo.
-  Only when no release in range passes does the refusal stand (`minimumReleaseAgeStrict = true`, as pnpm's strict mode).
+  The install step that runs before a resolving cargo command therefore moves a version it newly needs,
+  and that is under the
+  age limit,
+  to the newest older release in range that passes the policy (the set-aside `cargo update` already does),
+  prints one line naming the held-back release and the one it used,
+  and runs cargo.
+  Only when no release in range passes does the refusal stand (`minimumReleaseAgeStrict = true`,
+  as pnpm's strict mode).
   The owner can still veto this.
-- A committed lockfile that holds a refused release is changed to an older one on a local run, and the command stops only when none fits.
-  Both answers are "Set it back, build (Recommended)" (question tool, 2026-11-03).
-  Case 1, release age only:
-  a merge brings a Cargo.lock holding serde 1.0.230, published 3 hours ago; the limit is one day;
-  1.0.229 is nine days old and fits the range; the person runs `cargo build` locally.
-  Answer: the shadow changes serde in Cargo.lock from 1.0.230 to 1.0.229, prints one line naming both, and builds.
-  If no older release fits the range, it stops.
-  Case 2, trust downgrade:
-  Cargo.lock holds foo 2.3.1, from an account with no earlier releases, while 2.3.0 came from the crate's trusted CI publisher.
-  Answer: the shadow changes foo to 2.3.0 in Cargo.lock, prints one line naming the publisher change, and builds.
-  If no earlier release with the earlier trust level fits the range, it stops.
+- A committed lockfile that holds a refused release is changed to an older one on a local run,
+  and the command stops only when none fits.
+  Both answers are "Set it back,
+  build (Recommended)" (question tool,
+  2026-11-03).
+  Case 1,
+  release age only:
+  a merge brings a Cargo.lock holding serde 1.0.230,
+  published 3 hours ago;
+  the limit is one day;
+  1.0.229 is nine days old and fits the range;
+  the person runs `cargo build` locally.
+  Answer:
+  the shadow changes serde in Cargo.lock from 1.0.230 to 1.0.229,
+  prints one line naming both,
+  and builds.
+  If no older release fits the range,
+  it stops.
+  Case 2,
+  trust downgrade:
+  Cargo.lock holds foo 2.3.1,
+  from an account with no earlier releases,
+  while 2.3.0 came from the crate's trusted CI publisher.
+  Answer:
+  the shadow changes foo to 2.3.0 in Cargo.lock,
+  prints one line naming the publisher change,
+  and builds.
+  If no earlier release with the earlier trust level fits the range,
+  it stops.
   Both rest on pnpm's effect:
-  the lockfile check runs before any download, the refused release never runs, and the script runs on the older copy.
-  The questions shown to the owner were scoped to local runs, so CI keeps the frozen behavior already recorded.
+  the lockfile check runs before any download,
+  the refused release never runs,
+  and the script runs on the older copy.
+  The questions shown to the owner were scoped to local runs,
+  so CI keeps the frozen behavior already recorded.
   An operational failure keeps warn-and-run-with-`--locked`.
   Which entries are checked follows `trustLockfile`:
-  all of them when false (pnpm's default), the ones new since the base revision when true (the repository's setting).
-  The set-aside goes through the same transaction and ownership rules as the review findings below, so it never overwrites
+  all of them when false (pnpm's default),
+  the ones new since the base revision when true (the repository's setting).
+  The set-aside goes through the same transaction and ownership rules as the review findings below,
+  so it never overwrites
   another writer's lockfile.
 - The crates.io database dump path is ported (`dump.rs`,
   `csv.rs`),
@@ -199,13 +239,16 @@ commit `c7b46ae`).
 
 ## Review findings fixed (cross-vendor review of 2026-11-03T13:26:08Z)
 
-The review ("Do not rely on this implementation as a policy-enforcement boundary yet.") was a static reading of the diff;
+The review ("Do not rely on this implementation as a policy-enforcement boundary yet.")
+was a static reading of the diff;
 each finding was reproduced with a failing test before it was fixed (the commits are on `feat/cargo-shadow-cli`).
-What changed, and what each rests on:
+What changed,
+and what each rests on:
 
 - Linux only:
   the owner's "Ignore Win and mac until I say so."
-  The journal's `/proc` liveness probe is valid only there, so the crate refuses to compile elsewhere (`lib.rs`).
+  The journal's `/proc` liveness probe is valid only there,
+  so the crate refuses to compile elsewhere (`lib.rs`).
 - Refused lockfile copies get collision-free names,
   recovery errors keep the journal,
   and unknown ownership never authorizes a restore:
@@ -214,48 +257,106 @@ What changed, and what each rests on:
   and a restore replaces only that.
 - Unknown or malformed timestamps never grant an age exemption (`trustPolicyIgnoreAfter`),
   and the owner list is asked whenever it can change a trust verdict.
-- Unsupported registries are refused by name, because registry identity is not carried end to end.
+- Unsupported registries are refused by name,
+  because registry identity is not carried end to end.
 - The freshness stamp certifies manifest consistency only;
-  the policy check has its own remembered pass keyed by lockfile text, settings, mode and base spelling.
+  the policy check has its own remembered pass keyed by lockfile text,
+  settings,
+  mode and base spelling.
   Measured cost of the fast path was not repeated after this change.
 - A local install checks existing entries (pnpm's `startLockfileVerification` is not gated on frozen).
-- `--breaking` edits the manifests, so they are part of the transaction.
+- `--breaking` edits the manifests,
+  so they are part of the transaction.
   The catalog write and the `file-enforcer` sync are inside the transaction by a delegated pick of 2026-11-03 (below).
-- Update arguments are read in every supported spelling, before and after the command word, and an unmapped option is refused.
-- The CSV reader refuses malformed tables and bounds fields, rows and histories.
+- Update arguments are read in every supported spelling,
+  before and after the command word,
+  and an unmapped option is refused.
+- The CSV reader refuses malformed tables and bounds fields,
+  rows and histories.
 - A full update whose strict cutoff cannot resolve a crate that `minimumReleaseAgeExclude` exempts resolves without the cutoff and
   then holds the other crates to it.
-  This is the one shape cargo's `--publish-time` (no per-crate form) allows, and it is open to the owner's veto.
-- Set-aside candidates are bounded by what cargo accepts for the manifests, not by the caret class,
-  honor the exemptions and the strictness, and are judged with the owner list.
+  This is the one shape cargo's `--publish-time` (no per-crate form) allows,
+  and it is open to the owner's veto.
+- Set-aside candidates are bounded by what cargo accepts for the manifests,
+  not by the caret class,
+  honor the exemptions and the strictness,
+  and are judged with the owner list.
 
 ## Delegated picks of 2026-11-03
 
 The owner is away for about 8 hours and delegated the open questions of the review work:
 "Pick options as if I had picked them and invite veto when I say I'm back."
-These are the coordinator's picks under that delegation, not owner answers, and the owner's veto is open when they are back.
+These are the coordinator's picks under that delegation,
+not owner answers,
+and the owner's veto is open when they are back.
 
-- A local run compares lockfiles with the upstream branch (`@{upstream}`, falling back to `origin/main`, `origin/master`, `HEAD`)
-  under `trustLockfile = true`, so a committed but unpushed merge is new since the base and cases 1 and 2 fire locally.
-  CI keeps its base (`HEAD`, or `CARGO_SHADOW_TRUST_BASE`, which wins everywhere).
-  A remembered pass is keyed by the resolved commit, not by how the base is spelled.
-  Cost: one git start per call under `trustLockfile = true`, a median of 7 ms measured for `git rev-parse` through the `git` on PATH.
-- The release age and the trust policy both apply to versions new since the base, on the local and the frozen path.
+- A local run compares lockfiles with the upstream branch (`@{upstream}`,
+  falling back to `origin/main`,
+  `origin/master`,
+  `HEAD`)
+  under `trustLockfile = true`,
+  so a committed but unpushed merge is new since the base and cases 1 and 2 fire locally.
+  CI keeps its base (`HEAD`,
+  or `CARGO_SHADOW_TRUST_BASE`,
+  which wins everywhere).
+  A remembered pass is keyed by the resolved commit,
+  not by how the base is spelled.
+  The base is read from the repository's files (`git_refs.rs`,
+  `git_config.rs`,
+  `git_native.rs`) without starting git,
+  by the owner's rules
+  "Invoke real git as rarely as possible."
+  (2026-11-01T01:28:19-05:00,
+  quoted in `package/git-policy/cli/SPEC.md`) and "embed instead of spawning";
+  git is started once for an explicit base,
+  a configuration include,
+  reftable,
+  a worktree configuration,
+  a `GIT_*` variable that moves the
+  repository,
+  a negative refspec,
+  a symbolic reference or a shadowed short name (each tested).
+  The first version of this pick spent a median of
+  7 ms on a git start per call;
+  the measured saving of the file reader is in the README.
+  The in-repo code that reads these natively (`package/git-policy/cli`) is a binary-oriented crate with its own dependency tree;
+  depending on it from this crate would be a new dependency,
+  so it was not added and its approach was reimplemented for the few keys needed.
+- The release age and the trust policy both apply to versions new since the base,
+  on the local and the frozen path.
 - A policy refusal stops the command on the frozen path too (pnpm's frozen install fails on a rejected lockfile entry;
-  `verifyLockfileResolutions.ts` throws before any fetch). A stale lockfile and operational failures keep warn-and-`--locked`.
+  `verifyLockfileResolutions.ts` throws before any fetch).
+  A stale lockfile and operational failures keep warn-and-`--locked`.
 - The window in which a cargo that is not the shadow builds on an unapproved live lockfile is accepted and documented
   (owner rule "Use as few locks as possible").
-- A restore compares and replaces with `renameat2` and `RENAME_EXCHANGE` through `rustix`'s safe wrapper, and undoes the exchange
-  when the file it displaced is not the expected one. `rustix` was added to `rust-catalog.toml` (`>=1.1.6`, the version tempfile already
-  locks) and to the crate's `Cargo.toml`. The installed `file-enforcer` 0.1.1 binary rejects `trustLockfile` in this catalog, but the
-  repository's source (`package/file-enforcer/cli`, which depends on `monochromatic-dependency-catalog` 0.2.0) accepts it:
-  built through `mise run //package/file-enforcer/cli:build:debug`, `file-enforcer write` regenerated the
-  `[workspace.dependencies]` line byte for byte as the first hand-written version had it (no diff), and `check` is clean.
-  The installed binary is stale, not the source.
-- A strict cutoff with exemptions keeps the approach recorded above: resolve without the cutoff, enforce it on the other crates.
+- A restore compares and replaces with `renameat2` and `RENAME_EXCHANGE` through `rustix`'s safe wrapper,
+  and undoes the exchange
+  when the file it displaced is not the expected one.
+  `rustix` was added to `rust-catalog.toml` (`>=1.1.6`,
+  the version tempfile already
+  locks) and to the crate's `Cargo.toml`.
+  The installed `file-enforcer` 0.1.1 binary rejects `trustLockfile` in this catalog,
+  but the
+  repository's source (`package/file-enforcer/cli`,
+  which depends on `monochromatic-dependency-catalog` 0.2.0) accepts it:
+  built through `mise run //package/file-enforcer/cli:build:debug`,
+  `file-enforcer write` regenerated the
+  `[workspace.dependencies]` line byte for byte as the first hand-written version had it (no diff),
+  and `check` is clean.
+  The installed binary is stale,
+  not the source.
+- A strict cutoff with exemptions keeps the approach recorded above:
+  resolve without the cutoff,
+  enforce it on the other crates.
 - A `file-enforcer` sync failure after the catalog write of `--breaking` restores the catalog (and the update is not kept).
-- A killed `--breaking` run is recovered for the manifests, which are journaled with the lockfiles.
-- The trust-downgrade finding names the new publisher and the earlier release with its publisher (the account id, or the
-  trusted-publishing repository) next to the trust levels; the registry reports ids, not account names.
+- A killed `--breaking` run is recovered for the manifests,
+  which are journaled with the lockfiles.
+- The trust-downgrade finding names the new publisher and the earlier release with its publisher (the account id,
+  or the
+  trusted-publishing repository) next to the trust levels;
+  the registry reports ids,
+  not account names.
 
-Still open: nothing from the earlier list; the cost of the git start on every call is the one thing to look at again.
+Still open:
+nothing from the earlier list;
+the cost of the git start on every call is the one thing to look at again.
