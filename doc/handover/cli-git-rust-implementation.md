@@ -145,6 +145,31 @@ which never hit its cap (50,897 major faults),
 so they need another explanation.
 Git's `builtin/reset.c` lines 500-504 refresh the whole index unless `--no-refresh`,
 and its "It took N seconds to refresh the index" advice (line 507) is suppressed by `-q`.
+The main service's `memory.peak` read 1,073,766,400 bytes,
+at the cap.
+Owner, 2026-11-03:
+"Why did you cap the commit service to the magic number of 1GB of memory w/o evidence?"
+Answer:
+an agent wrote `MemoryMax=1G`,
+`CPUQuota=200%`,
+`TasksMax=512` and `IOWeight=50` in `e95a43090c` (2026-11-01T08:26:09-05:00) with no measurement,
+apparently carrying the agent-command cgroup rule over to the shipped unit;
+its test checked only that the lines existed;
+the coordinator merged it without catching that.
+The owner chose "Remove all three (Recommended)" for the other limits and "Add it (Recommended)" for a rule.
+Done:
+branch `fix/git-policy-cli-service-no-memory-cap` (red `45a7590037` and `b539a588bf`,
+fix `741d42932e`,
+SPEC `474c987ae2`),
+unit-template and provisioning tests 31 of 31,
+merged into the 0.5.27 integration branch;
+rule `LQM` on main `708fbd7e47`.
+Remaining:
+audit every other shipped limit of the wrapper (timeouts such as the 60 s and 300 s child bounds and the 1800 s merge
+wait,
+the 1 GiB snapshot-trash bound,
+notice intervals) against `LQM`,
+and measure the service's commits on main once 0.5.27 is installed.
 Remaining after that:
 measure commits and merges on the real main checkout against native Git,
 under the load there is,
@@ -748,6 +773,12 @@ with a line saying so);
 "Amend the pending commit (Recommended)" for an amend while commits are pending.
 
 ### Design stance
+
+The commit service unit sets no resource limits of its own
+(owner, 2026-11-03,
+"Remove all three (Recommended)" after the 1 GiB memory cap was found unmeasured;
+recorded in `package/git-policy/cli/SPEC.md`).
+Every shipped limit cites a measurement or an owner decision (`AGENTS.md` rule `LQM`).
 
 `package/git-policy/cli/DESIGN.md`:
 "we control all the code" and "Good is not perfect" (2026-11-01),
