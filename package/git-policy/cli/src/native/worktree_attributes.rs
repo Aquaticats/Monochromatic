@@ -24,6 +24,9 @@ const BLANK: &[u8] = b" \t\r\n";
 /// The marker of a macro definition.
 const MACRO_PREFIX: &[u8] = b"[attr]";
 
+/// The most cells of the matcher's table that one comparison may fill; a larger comparison answers that the pattern may apply.
+pub const MATCH_WORK_LIMIT: usize = 1 << 22;
+
 /// The UTF-8 byte order mark `read_attr_from_file` removes from the first line of a worktree file.
 const BYTE_ORDER_MARK: &[u8] = &[0xEF, 0xBB, 0xBF];
 
@@ -34,7 +37,8 @@ pub struct AttributeLine {
     pub subject: Vec<u8>,
     /// Whether the line defines a macro (`[attr]name ...`).
     pub is_macro: bool,
-    /// Whether the line starts with a quote, whose pattern is not modelled (every token of the line is kept).
+    /// Whether the line starts with a quote; its pattern, its token boundary and its macro marker are not modelled, so a
+    ///  caller treats the line as applying to every path below its directory.
     pub quoted: bool,
     /// The attribute tokens as written (`filter=lfs`, `-text`, `ident`).
     pub tokens: Vec<Vec<u8>>,
@@ -49,8 +53,8 @@ fn blank_separated(line: &[u8]) -> Vec<Vec<u8>> {
 ///  The lines of an attributes file's bytes that set something: patterns with tokens, and macro definitions.
 /// Why:
 ///   A comment or blank line applies nothing. A line ends at its first NUL, as a C string does, and the lines after it are
-///  still read, which can only make more lines count. A quoted pattern is kept with all its tokens and flagged, because its
-///  true pattern and token boundary depend on C-style unquoting.
+///  still read, which can only make more lines count. A quoted line is only flagged, because its true pattern, its token
+///  boundary and its macro marker depend on C-style unquoting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,10 +71,8 @@ pub fn parse_attribute_lines(bytes: &[u8]) -> Vec<AttributeLine> {
             continue;
         }
         if line[0] == b'"' {
-            let mut tokens: Vec<Vec<u8>> = blank_separated(line);
-            let subject: Vec<u8> = if tokens.is_empty() { Vec::new() } else { tokens.remove(0) };
-            let is_macro: bool = line.windows(MACRO_PREFIX.len()).any(|window: &[u8]| { return window == MACRO_PREFIX; });
-            lines.push(AttributeLine { subject, is_macro, quoted: true, tokens });
+            // A quoted line is never read for its tokens or its macro marker: the caller refuses on the quote itself.
+            lines.push(AttributeLine { subject: line.to_vec(), is_macro: false, quoted: true, tokens: Vec::new() });
             continue;
         }
         let mut pieces: Vec<Vec<u8>> = blank_separated(line);
@@ -102,11 +104,12 @@ pub fn attribute_name(token: &[u8]) -> &[u8] {
 /// function wildcard(pattern: Buffer, text: Buffer): boolean;
 /// ```
 pub fn wildcard(pattern: &[u8], text: &[u8]) -> bool {
-    // `reach[j]` says the pattern consumed so far can match the first `j` bytes of the text.
+    // `reach[j]` says the pattern consumed so far can match the first `j` bytes of the text; two rows are reused.
     let mut reach: Vec<bool> = vec![false; text.len() + 1];
+    let mut next: Vec<bool> = vec![false; text.len() + 1];
     reach[0] = true;
     for &symbol in pattern {
-        let mut next: Vec<bool> = vec![false; text.len() + 1];
+        next.fill(false);
         if symbol == b'*' {
             next[0] = reach[0];
             for at in 1..=text.len() {
@@ -118,14 +121,18 @@ pub fn wildcard(pattern: &[u8], text: &[u8]) -> bool {
                 next[at] = reach[at - 1] && same;
             }
         }
-        reach = next;
+        std::mem::swap(&mut reach, &mut next);
+        if !reach.iter().any(|alive: &bool| { return *alive; }) {
+            return false;
+        }
     }
     return reach[text.len()];
 }
 
 /// What:
 ///  Whether the pattern of an attributes line in the directory `base` may apply to the file `path`; a spelling the matcher
-///  does not model (a quote, an escape, a bracket class, `**`, a trailing slash) answers yes.
+///  does not model (a quote, an escape, a bracket class, `**`, a trailing slash), or whose comparison would exceed the work
+///  budget, answers yes.
 /// Why:
 ///   Answering yes refuses a file that Git might not have matched; answering no for a file it matches would accept one.
 ///
@@ -148,12 +155,15 @@ pub fn may_apply(pattern: &[u8], base: &[u8], path: &[u8]) -> bool {
             None => return false,
         }
     };
-    if pattern.contains(&b'/') {
-        let anchored: &[u8] = pattern.strip_prefix(b"/").unwrap_or(pattern);
-        return wildcard(anchored, relative);
+    let compared: &[u8] = if pattern.contains(&b'/') { relative } else { relative.rsplit(|byte: &u8| { return *byte == b'/'; }).next().unwrap_or(&[]) };
+    // The table has one cell per pattern byte and text byte; past the budget the comparison is not made and the answer is yes.
+    if pattern.len().saturating_mul(compared.len() + 1) > MATCH_WORK_LIMIT {
+        return true;
     }
-    let name: &[u8] = relative.rsplit(|byte: &u8| { return *byte == b'/'; }).next().unwrap_or(&[]);
-    return wildcard(pattern, name);
+    if pattern.contains(&b'/') {
+        return wildcard(pattern.strip_prefix(b"/").unwrap_or(pattern), compared);
+    }
+    return wildcard(pattern, compared);
 }
 
 #[cfg(test)]

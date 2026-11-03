@@ -1430,7 +1430,17 @@ pub mod doctor_filesystem;
 /// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path, resumably.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert;
+
+/// The read-only comparison of the old tree of a conversion with the installed one.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_compare;
+
+/// The journal of a conversion and the lock that serializes conversions of one worktree.
+#[cfg(target_os = "linux")]
 pub mod worktree_convert_journal;
+
+/// The removal of the old tree of a conversion beneath a pinned descriptor.
+#[cfg(target_os = "linux")]
 pub mod worktree_convert_remove;
 
 /// The grammar of `git cli-git convert-worktree-to-subvolume`.

@@ -24,12 +24,14 @@ use super::subvolume_lock::{acquire, is_ours};
 use super::subvolume_platform::Platform;
 use super::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use super::worktree_clean::check_clean_tracked_by_content;
-use super::worktree_convert_journal::{ConversionLock, Journal};
+use super::worktree_convert_journal::{ConversionLock, Journal, is_recorded_object, read_plain_file, read_plain_text};
 pub use super::worktree_convert_journal::{JOURNAL_NAME, Phase};
-use super::worktree_convert_remove::{OldRoot, Removal, remove_recorded_old_tree};
+use super::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+
+/// The most bytes of a `.git` pointer or a registration file that are read.
+const GIT_FILE_LIMIT: u64 = 1 << 16;
 
 /// The suffix of the sibling subvolume the copy is built in.
 pub const CONVERTING_SUFFIX: &str = ".cli-git-converting";
@@ -66,7 +68,7 @@ pub enum Verdict {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ConvertOptions = { dryRun: boolean; abandon: boolean };
+/// type ConvertOptions = { dryRun: boolean; abandon: boolean; commandLineAttributes: boolean };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ConvertOptions {
@@ -74,6 +76,9 @@ pub struct ConvertOptions {
     pub dry_run: bool,
     /// Undo an unfinished conversion that has not reached its swap.
     pub abandon: bool,
+    /// The invocation chose an attribute source on the command line (`--attr-source`, `-c attr.tree`), which the worktree
+    ///  files read here do not model.
+    pub command_line_attributes: bool,
 }
 
 /// What:
@@ -121,17 +126,17 @@ pub fn inspect(path: &Path) -> Result<Candidate, String> {
     if metadata.is_dir() {
         return Err(format!("{} holds a .git directory: it is a main checkout or a repository, not a linked worktree", real.display()));
     }
-    let git_file: Vec<u8> = std::fs::read(&git_path).map_err(|error: std::io::Error| { return format!("{} is unreadable ({error})", git_path.display()); })?;
+    let git_file: Vec<u8> = read_plain_file(&git_path, GIT_FILE_LIMIT).map_err(|error: std::io::Error| { return format!("{} is unreadable ({error})", git_path.display()); })?;
     let text: &str = std::str::from_utf8(git_file.as_slice()).map_err(|_| { return format!("{} is not text", git_path.display()); })?;
     let Some(named) = text.trim().strip_prefix("gitdir:") else {
         return Err(format!("{} has no gitdir line", git_path.display()));
     };
     let admin: PathBuf = std::fs::canonicalize(real.join(named.trim())).map_err(|error: std::io::Error| { return format!("the administrative directory {} cannot be resolved ({error})", named.trim()); })?;
-    let recorded: Vec<u8> = std::fs::read(admin.join("gitdir")).map_err(|error: std::io::Error| { return format!("{} has no gitdir file ({error})", admin.display()); })?;
+    let recorded: Vec<u8> = read_plain_file(&admin.join("gitdir"), GIT_FILE_LIMIT).map_err(|error: std::io::Error| { return format!("{} has no gitdir file ({error})", admin.display()); })?;
     if Path::new(std::ffi::OsStr::from_bytes(recorded.trim_ascii())) != git_path.as_path() {
         return Err(format!("{} does not name {} back, so the registration is stale or points elsewhere", admin.display(), git_path.display()));
     }
-    let common_text: String = std::fs::read_to_string(admin.join("commondir")).map_err(|error: std::io::Error| { return format!("{} has no commondir ({error})", admin.display()); })?;
+    let common_text: String = read_plain_text(&admin.join("commondir")).map_err(|error: std::io::Error| { return format!("{} has no commondir ({error})", admin.display()); })?;
     let common: PathBuf = std::fs::canonicalize(admin.join(common_text.trim())).map_err(|error: std::io::Error| { return format!("the common directory cannot be resolved ({error})"); })?;
     return Ok(Candidate { path: real, admin, common, git_file });
 }
@@ -173,12 +178,31 @@ pub struct Refusal {
     pub text: String,
 }
 
-/// The directories of worktrees registered in the common directory `common` that lie inside `inside`, not `inside` itself.
-fn registered_inside(common: &Path, inside: &Path) -> Vec<PathBuf> {
-    let Ok(names) = std::fs::read_dir(common.join("worktrees")) else { return Vec::new() };
+/// What:
+///  The directories of worktrees registered in the common directory `common` that lie inside `inside`, not `inside` itself.
+/// Why:
+///   A listing or a registration that cannot be read is an error and not the absence of a nested worktree; only a registration
+///  with no `gitdir` file, or one whose directory is gone, is skipped, because Git would prune it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function registeredInside(common: string, inside: string): string[]; // throws the reason a registration cannot be read
+/// ```
+fn registered_inside(common: &Path, inside: &Path) -> Result<Vec<PathBuf>, String> {
+    let directory: PathBuf = common.join("worktrees");
+    let names = match std::fs::read_dir(&directory) {
+        Ok(listing) => listing,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("the registered worktrees of {} cannot be listed ({error}), so a worktree inside this one cannot be ruled out", common.display())),
+    };
     let mut found: Vec<PathBuf> = Vec::new();
-    for name in names.flatten() {
-        let Ok(recorded) = std::fs::read(name.path().join("gitdir")) else { continue };
+    for item in names {
+        let name: std::fs::DirEntry = item.map_err(|error: std::io::Error| { return format!("the registered worktrees of {} cannot be listed ({error}), so a worktree inside this one cannot be ruled out", common.display()); })?;
+        let recorded: Vec<u8> = match read_plain_file(&name.path().join("gitdir"), GIT_FILE_LIMIT) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(format!("the registration {} cannot be read ({error}), so a worktree inside this one cannot be ruled out", name.path().display())),
+        };
         // The recorded path is raw bytes: a directory named with bytes that are not UTF-8 is a valid path on Linux.
         let Some(worktree) = Path::new(std::ffi::OsStr::from_bytes(recorded.trim_ascii())).parent() else { continue };
         if worktree.starts_with(inside) && worktree != inside && worktree.is_dir() {
@@ -186,7 +210,7 @@ fn registered_inside(common: &Path, inside: &Path) -> Vec<PathBuf> {
         }
     }
     found.sort();
-    return found;
+    return Ok(found);
 }
 
 /// What:
@@ -199,7 +223,7 @@ fn registered_inside(common: &Path, inside: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// function refusals(platform, candidate): Refusal[];
 /// ```
-pub fn refusals(platform: &dyn Platform, candidate: &Candidate, owned: Owned) -> Vec<Refusal> {
+pub fn refusals(platform: &dyn Platform, candidate: &Candidate, owned: Owned, command_line_attributes: bool) -> Vec<Refusal> {
     let mut reasons: Vec<Refusal> = Vec::new();
     let mut refuse = |kind: RefusalKind, text: String| { reasons.push(Refusal { kind, text }); };
     if candidate.admin.join("locked").exists() {
@@ -217,10 +241,19 @@ pub fn refusals(platform: &dyn Platform, candidate: &Candidate, owned: Owned) ->
         Ok(_) => refuse(RefusalKind::Filesystem, format!("{} is not on btrfs", candidate.path.display())),
         Err(error) => refuse(RefusalKind::Filesystem, format!("the filesystem of {} cannot be examined ({error})", candidate.path.display())),
     }
-    for nested in registered_inside(candidate.common.as_path(), candidate.path.as_path()) {
-        refuse(RefusalKind::Nested, format!("the worktree {} is registered inside it; convert or move that one first", nested.display()));
+    match registered_inside(candidate.common.as_path(), candidate.path.as_path()) {
+        Ok(nested_worktrees) => {
+            for nested in nested_worktrees {
+                refuse(RefusalKind::Nested, format!("the worktree {} is registered inside it; convert or move that one first", nested.display()));
+            }
+        }
+        Err(reason) => refuse(RefusalKind::Nested, reason),
     }
-    if let Err(reason) = check_clean_tracked_by_content(candidate.path.as_path(), candidate.admin.as_path(), candidate.common.as_path(), &platform.conversion_environment(), owned.index_lock) {
+    let mut environment = platform.conversion_environment();
+    if command_line_attributes && environment.alternate_attribute_source.is_none() {
+        environment.alternate_attribute_source = Some(String::from("--attr-source or -c attr.tree was given on the command line"));
+    }
+    if let Err(reason) = check_clean_tracked_by_content(candidate.path.as_path(), candidate.admin.as_path(), candidate.common.as_path(), &environment, owned.index_lock) {
         refuse(RefusalKind::NotQuiet, format!("it is not quiet and unmodified: {reason}"));
     }
     let scan = processes_using(&UseTarget::Inside(candidate.path.as_path()));
@@ -278,6 +311,18 @@ impl Job<'_> {
     fn stage_identity(&self) -> Result<Option<ObjectId>, MigrateError> {
         return stage_identity_of(self.candidate.path.as_path());
     }
+}
+
+/// The identity of the object at `path`, a link not followed, or nothing when it cannot be examined.
+fn identity_of_path(path: &Path) -> Option<ObjectId> {
+    let parent: std::fs::File = held_parent(path).ok()?;
+    return identity_at(&parent, path.file_name()?).ok();
+}
+
+/// The identity, with the birth time, of the directory at `path`.
+fn stage_free_identity(path: &Path) -> Result<ObjectId, MigrateError> {
+    let parent: std::fs::File = held_parent(path)?;
+    return identity_at(&parent, path.file_name().unwrap_or_default()).map_err(|error: std::io::Error| { return MigrateError::io("examine", path, &error); });
 }
 
 /// The directory that holds `path`, held open so that names below it mean the same objects for as long as it is held.
@@ -401,7 +446,7 @@ fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interrupt,
 /// ```
 fn old_tree_is_at(journal: &Journal, path: &Path, converting: &Path) -> Where {
     let is_old = |candidate: &Path| -> bool {
-        return std::fs::symlink_metadata(candidate).is_ok_and(|metadata: std::fs::Metadata| { return metadata.dev() == journal.old_device && metadata.ino() == journal.old_inode; });
+        return identity_of_path(candidate).is_some_and(|found: ObjectId| { return is_recorded_object(&journal.old_identity, &found); });
     };
     if is_old(path) {
         return Where::AtPath;
@@ -472,7 +517,7 @@ fn verify_swap(platform: &dyn Platform, job: &Job<'_>) -> Result<(), MigrateErro
     if job.journal.new_identity != Some(installed) {
         return Err(MigrateError::Journal(format!("{} is not the subvolume this conversion created; the old tree is kept at {}", path.display(), job.converting.display())));
     }
-    let now: Vec<u8> = std::fs::read(path.join(".git")).map_err(|error: std::io::Error| { return MigrateError::io("read", path.join(".git").as_path(), &error); })?;
+    let now: Vec<u8> = read_plain_file(&path.join(".git"), GIT_FILE_LIMIT).map_err(|error: std::io::Error| { return MigrateError::io("read", path.join(".git").as_path(), &error); })?;
     if now != job.journal.git_file {
         return Err(MigrateError::Journal(format!("the .git file of {} differs after the swap; the old tree is kept at {}", path.display(), job.converting.display())));
     }
@@ -503,45 +548,40 @@ fn index_phase(job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn FnMut(&st
 }
 
 /// What:
-///  The removal phase: carry over what was written to the old tree after the copy was proved, then delete the old tree, but
-///  only when it is the very directory the journal recorded.
+///  The removal phase: keep the old tree when a process still holds it or when the installed tree does not hold all of it, and
+///  otherwise delete it, but only when it is the very directory the journal recorded.
 /// Why:
-///   The old tree sits at the converting name from the exchange on, so nothing opens it by a name that anything uses; what
-///  can still change it is a process that already held it open (the table is read again) and a write that landed after the
-///  proving pass and before the exchange, which an update-only pass from the old tree into the installed one finds. Such a
-///  write is carried over and the old tree is kept for this run, so the person sees the difference instead of losing it.
+///   The old tree sits at the converting name from the exchange on, so nothing opens it by a name that anything uses; a process
+///  that already held it open is found in the process table. The comparison with the installed tree is read-only and copies
+///  nothing, so an edit made to the installed worktree is never overwritten; a difference keeps the old tree and is reported,
+///  and a person decides which version is wanted. Anything that leaves the old tree in place is an incomplete conversion: the
+///  journal stays and the run says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await removalPhase(platform, job, interrupt, say);
 /// ```
-fn removal_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> Result<(), MigrateError> {
+fn removal_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interrupt) -> Result<(), MigrateError> {
     let parent: std::fs::File = job.parent()?;
-    // Only the recorded old tree is read from: a directory someone put at the name is not this command's to copy.
-    let is_old: bool = job.stage_identity()?.is_some_and(|found: ObjectId| { return found.device == job.journal.old_device && found.inode == job.journal.old_inode; });
-    if is_old {
-        let rescue: SyncStats = sync_tree(platform, job.converting.as_path(), job.candidate.path.as_path(), SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None }, interrupt)?;
-        require_complete(&rescue, job.converting.as_path())?;
-        let scan = processes_using(&UseTarget::Inside(job.converting.as_path()));
-        let mut holders: Vec<String> = scan.users.iter().map(|user| { return format!("process {} ({})", user.pid, user.command.as_deref().unwrap_or("unknown")); }).collect();
-        if let Some(why) = scan.unavailable.as_ref() {
-            holders.push(format!("the process table cannot be read ({why})"));
+    let scan = processes_using(&UseTarget::Inside(job.converting.as_path()));
+    let mut holders: Vec<String> = scan.users.iter().map(|user| { return format!("process {} ({})", user.pid, user.command.as_deref().unwrap_or("unknown")); }).collect();
+    if let Some(why) = scan.unavailable.as_ref() {
+        holders.push(format!("the process table cannot be read ({why})"));
+    }
+    if !holders.is_empty() {
+        return Err(MigrateError::Journal(format!("the old tree at {} is kept because {}; stop that and run the command again", job.converting.display(), holders.join("; "))));
+    }
+    match remove_recorded_old_tree(platform, &parent, job.converting_name(), job.journal.old_identity, job.candidate.path.as_path())? {
+        Removal::Removed | Removal::Absent => {}
+        Removal::Kept(why) => {
+            return Err(MigrateError::Journal(format!("the old tree was not removed: {why}; the journal is kept, so put things right and run the command again")));
         }
-        if !holders.is_empty() {
-            return Err(MigrateError::Journal(format!("the old tree at {} is kept because {}; stop that and run the command again", job.converting.display(), holders.join("; "))));
-        }
-        if pass_changed(&rescue) {
+        Removal::Differs(why) => {
             return Err(MigrateError::Journal(format!(
-                "{} file(s) of the old tree at {} were written after the copy was proved; they were copied into the worktree and the old tree is kept; run the command again",
-                rescue.files_copied + rescue.symlinks + rescue.fifos,
+                "the old tree at {} is kept, and nothing was copied from it: {why}; settle which version is wanted by hand, then run the command again to remove it",
                 job.converting.display()
             )));
         }
-    }
-    let old: OldRoot = OldRoot { device: job.journal.old_device, inode: job.journal.old_inode };
-    match remove_recorded_old_tree(platform, &parent, job.converting_name(), old)? {
-        Removal::Removed | Removal::Absent => {}
-        Removal::Kept(why) => say(format!("  {why}, so it was left alone").as_str()),
     }
     interrupt.check("removed")?;
     job.reach(Phase::Removed)?;
@@ -608,12 +648,23 @@ pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOp
         }
     };
     let mut journal: Option<Journal> = Journal::load(candidate.admin.as_path())?;
-    // A kill between the exchange and its journal line leaves the journal one phase behind; bring it up to date first.
+    // A journal belongs to the path the conversion began at; a worktree moved since then is refused before anything changes.
+    if let Some(found) = journal.as_ref().filter(|found: &&Journal| { return found.path.as_slice() != candidate.path.as_os_str().as_bytes(); }) {
+        return Err(MigrateError::Journal(format!(
+            "an unfinished conversion began at {}, but the worktree is at {} now; it was moved while the conversion was unfinished, so nothing was changed; move it back and run the command again",
+            String::from_utf8_lossy(found.path.as_slice()),
+            candidate.path.display()
+        )));
+    }
+    // A kill between the exchange and its journal line leaves the journal one phase behind; bring it up to date in memory in
+    // every mode, and on disk when the run changes anything.
     if let Some(found) = journal.as_mut().filter(|found: &&mut Journal| { return found.phase == Phase::Synced; }) {
         let converting: PathBuf = converting_path(candidate.path.as_path());
-        if old_tree_is_at(found, candidate.path.as_path(), converting.as_path()) == Where::AtConverting && !options.dry_run {
+        if old_tree_is_at(found, candidate.path.as_path(), converting.as_path()) == Where::AtConverting {
             found.phase = Phase::Exchanged;
-            found.save(candidate.admin.as_path())?;
+            if !options.dry_run {
+                found.save(candidate.admin.as_path())?;
+            }
         }
     }
     if options.abandon {
@@ -637,7 +688,7 @@ pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOp
             },
             None => Owned::default(),
         };
-        let reasons: Vec<Refusal> = refusals(platform, &candidate, owned);
+        let reasons: Vec<Refusal> = refusals(platform, &candidate, owned, options.command_line_attributes);
         if !reasons.is_empty() {
             return Ok(Verdict::Skipped(reasons.into_iter().map(|reason: Refusal| { return reason.text; }).collect()));
         }
@@ -645,14 +696,13 @@ pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOp
     if options.dry_run {
         return Ok(if resuming { Verdict::Resumed } else { Verdict::WouldConvert });
     }
-    let old: std::fs::Metadata = std::fs::symlink_metadata(&candidate.path).map_err(|error: std::io::Error| { return MigrateError::io("examine", candidate.path.as_path(), &error); })?;
+    let old: ObjectId = stage_free_identity(candidate.path.as_path())?;
     let token: String = journal.as_ref().map_or_else(new_token, |found: &Journal| { return found.token.clone(); });
     let started: Journal = journal.unwrap_or(Journal {
         phase: Phase::Started,
         token,
         path: candidate.path.as_os_str().as_bytes().to_vec(),
-        old_device: old.dev(),
-        old_inode: old.ino(),
+        old_identity: old,
         git_file: candidate.git_file.clone(),
         new_identity: None,
     });
@@ -672,7 +722,7 @@ pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOp
         index_phase(&mut job, interrupt, say)?;
     }
     if job.journal.phase < Phase::Removed {
-        removal_phase(platform, &mut job, interrupt, say)?;
+        removal_phase(platform, &mut job, interrupt)?;
     }
     finish(&job)?;
     return Ok(if resuming { Verdict::Resumed } else { Verdict::Converted });

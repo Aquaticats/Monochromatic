@@ -29,6 +29,9 @@ pub const JOURNAL_NAME: &str = "cli-git-convert";
 ///  lock file another command may have open would let two commands hold "the" lock.
 pub const LOCK_NAME: &str = "cli-git-convert.lock";
 
+/// The most bytes of a journal or a small registration file that are read.
+const SMALL_FILE_LIMIT: u64 = 1 << 20;
+
 /// The first line of every journal.
 const JOURNAL_HEADER: &str = "cli-git-convert v1";
 
@@ -85,7 +88,7 @@ impl Phase {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ConvertJournal = { phase: Phase; token: string; path: string; oldDevice: bigint; oldInode: bigint; gitFile: Uint8Array; newIdentity?: ObjectId };
+/// type ConvertJournal = { phase: Phase; token: string; path: string; oldIdentity: ObjectId; gitFile: Uint8Array; newIdentity?: ObjectId };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Journal {
@@ -95,10 +98,9 @@ pub struct Journal {
     pub token: String,
     /// The worktree path as raw bytes.
     pub path: Vec<u8>,
-    /// Device of the old root.
-    pub old_device: u64,
-    /// Inode of the old root.
-    pub old_inode: u64,
+    /// The identity of the old root: device, inode and, where the filesystem gives one, the birth time, which tells the recorded
+    ///  directory from another that later got the same inode number.
+    pub old_identity: ObjectId,
     /// The exact bytes of the `.git` file.
     pub git_file: Vec<u8>,
     /// The identity of the subvolume this command created, recorded right after the creation; absent until then, so a
@@ -129,12 +131,11 @@ impl Journal {
     /// The journal text.
     fn encode(&self) -> String {
         return format!(
-            "{JOURNAL_HEADER}\nphase={}\ntoken={}\npath={}\nold_device={}\nold_inode={}\ngit_file={}\nnew_identity={}\n",
+            "{JOURNAL_HEADER}\nphase={}\ntoken={}\npath={}\nold_identity={}\ngit_file={}\nnew_identity={}\n",
             self.phase.name(),
             self.token,
             hex(self.path.as_slice()),
-            self.old_device,
-            self.old_inode,
+            self.old_identity.encode(),
             hex(self.git_file.as_slice()),
             self.new_identity.map_or_else(|| { return String::from("-"); }, |identity: ObjectId| { return identity.encode(); })
         );
@@ -152,12 +153,20 @@ impl Journal {
             None | Some("-") => None,
             Some(encoded) => Some(ObjectId::decode(encoded).ok_or_else(bad)?),
         };
+        // A journal written before the birth time was recorded names the old root by device and inode alone.
+        let old_identity: ObjectId = match field("old_identity") {
+            Some(encoded) => ObjectId::decode(encoded.as_str()).ok_or_else(bad)?,
+            None => ObjectId {
+                device: field("old_device").and_then(|digits: String| { return digits.parse().ok(); }).ok_or_else(bad)?,
+                inode: field("old_inode").and_then(|digits: String| { return digits.parse().ok(); }).ok_or_else(bad)?,
+                birth: None,
+            },
+        };
         return Ok(Journal {
             phase: Phase::parse(field("phase").ok_or_else(bad)?.as_str()).ok_or_else(bad)?,
             token: field("token").ok_or_else(bad)?,
             path: unhex(field("path").ok_or_else(bad)?.as_str()).ok_or_else(bad)?,
-            old_device: field("old_device").and_then(|digits: String| { return digits.parse().ok(); }).ok_or_else(bad)?,
-            old_inode: field("old_inode").and_then(|digits: String| { return digits.parse().ok(); }).ok_or_else(bad)?,
+            old_identity,
             git_file: unhex(field("git_file").ok_or_else(bad)?.as_str()).ok_or_else(bad)?,
             new_identity,
         });
@@ -206,18 +215,47 @@ impl Journal {
     /// The journal of an administrative directory, if one exists.
     pub fn load(admin: &Path) -> Result<Option<Journal>, MigrateError> {
         let path: PathBuf = admin.join(JOURNAL_NAME);
-        let opened = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).open(&path);
-        let text: std::io::Result<String> = opened.and_then(|mut file: std::fs::File| {
-            let mut found: String = String::new();
-            std::io::Read::read_to_string(&mut file, &mut found)?;
-            return Ok(found);
-        });
-        match text {
-            Ok(found) => return Journal::decode(found.as_str()).map(Some),
+        match read_plain_file(path.as_path(), SMALL_FILE_LIMIT) {
+            Ok(bytes) => return Journal::decode(String::from_utf8_lossy(bytes.as_slice()).as_ref()).map(Some),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(MigrateError::io("read the conversion journal", path.as_path(), &error)),
         }
     }
+}
+
+/// What:
+///  The bytes of the plain file at `path`, opened without blocking and without following a link, refused when it is anything
+///  else or larger than `limit`.
+/// Why:
+///   Opening a named pipe for reading waits for a writer, and a command that waits while it holds the conversion lock blocks every
+///  other conversion; the type is read from the open handle, and the read is bounded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readPlainFile(path: string, limit: number): Buffer; // throws
+/// ```
+pub fn read_plain_file(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
+    let file: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC).open(path)?;
+    if !file.metadata()?.file_type().is_file() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "it is not a plain file (a named pipe, a device or a directory)"));
+    }
+    let mut bytes: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is larger than this command reads"));
+    }
+    return Ok(bytes);
+}
+
+/// The text of the plain file at `path`, read like `read_plain_file`.
+pub fn read_plain_text(path: &Path) -> std::io::Result<String> {
+    return String::from_utf8(read_plain_file(path, SMALL_FILE_LIMIT)?).map_err(|_error| { return std::io::Error::new(std::io::ErrorKind::InvalidData, "it is not text"); });
+}
+
+/// Whether `found` is the object the journal recorded as `recorded`: the same device and inode and, when a birth time was
+///  recorded, the same birth time.
+pub fn is_recorded_object(recorded: &ObjectId, found: &ObjectId) -> bool {
+    return recorded.device == found.device && recorded.inode == found.inode && (recorded.birth.is_none() || recorded.birth == found.birth);
 }
 
 /// What:
@@ -246,9 +284,13 @@ impl ConversionLock {
             .create(true)
             .truncate(false)
             .mode(0o600)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC)
             .open(&path)
             .map_err(|error: std::io::Error| { return MigrateError::io("open the conversion lock", path.as_path(), &error); })?;
+        let plain: bool = file.metadata().map_err(|error: std::io::Error| { return MigrateError::io("examine the conversion lock", path.as_path(), &error); })?.file_type().is_file();
+        if !plain {
+            return Err(MigrateError::Journal(format!("{} is not a plain file, so it cannot serve as the conversion lock; nothing was changed", path.display())));
+        }
         // SAFETY: `flock` takes an open descriptor, which `file` keeps open for the call.
         let result: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
         if result == 0 {

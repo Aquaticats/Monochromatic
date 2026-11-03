@@ -10,16 +10,18 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const outcome = await removeRecordedOldTree({ platform, parent, name, device, inode }); // 'removed' | 'absent' | { kept: reason }
+//! const outcome = await removeRecordedOldTree({ platform, parent, name, oldRoot, installed }); // 'removed' | 'absent' | { kept: reason } | { differs: reason }
 //! ```
 
-use super::fs_beneath::{handle_path, identity_at, identity_of, open_directory_at, remove_at};
+use super::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, remove_at};
 use super::subvolume_error::MigrateError;
 use super::subvolume_platform::Platform;
 use super::subvolume_remove::remove_tree;
+use super::worktree_convert_compare::first_difference;
+use super::worktree_convert_journal::is_recorded_object;
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// What a request to remove the old tree did.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -30,15 +32,9 @@ pub enum Removal {
     Absent,
     /// The name holds something else, or the directory moved; nothing was deleted, for this reason.
     Kept(String),
-}
-
-/// The recorded identity of the old root.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct OldRoot {
-    /// Device of the old root.
-    pub device: u64,
-    /// Inode of the old root.
-    pub inode: u64,
+    /// The old tree holds something the installed tree does not hold in the same form, or something this command does not
+    ///  delete; nothing was deleted or copied, for this reason.
+    Differs(String),
 }
 
 /// What:
@@ -48,15 +44,15 @@ pub struct OldRoot {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// removeRecordedOldTree(platform, parent, name, oldRoot);
+/// removeRecordedOldTree(platform, parent, name, oldRoot, installed);
 /// ```
-pub fn remove_recorded_old_tree(platform: &dyn Platform, parent: &std::fs::File, name: &OsStr, old: OldRoot) -> Result<Removal, MigrateError> {
-    return remove_recorded_old_tree_seamed(platform, parent, name, old, &mut || {});
+pub fn remove_recorded_old_tree(platform: &dyn Platform, parent: &std::fs::File, name: &OsStr, old: ObjectId, installed: &Path) -> Result<Removal, MigrateError> {
+    return remove_recorded_old_tree_seamed(platform, parent, name, old, installed, &mut || {});
 }
 
 /// `remove_recorded_old_tree` with a call right after the directory was pinned and judged to be the old tree, where a control
 ///  moves it away and puts another directory at the name.
-pub fn remove_recorded_old_tree_seamed(platform: &dyn Platform, parent: &std::fs::File, name: &OsStr, old: OldRoot, after_pinned: &mut dyn FnMut()) -> Result<Removal, MigrateError> {
+pub fn remove_recorded_old_tree_seamed(platform: &dyn Platform, parent: &std::fs::File, name: &OsStr, old: ObjectId, installed: &Path, after_pinned: &mut dyn FnMut()) -> Result<Removal, MigrateError> {
     let shown: PathBuf = PathBuf::from(name);
     let pinned: std::fs::File = match open_directory_at(parent, name) {
         Ok(opened) => opened,
@@ -64,12 +60,18 @@ pub fn remove_recorded_old_tree_seamed(platform: &dyn Platform, parent: &std::fs
         Err(error) => return Ok(Removal::Kept(format!("{} cannot be opened as a directory below its parent ({error}), so it is not the old tree this conversion recorded", shown.display()))),
     };
     let found = identity_of(&pinned).map_err(|error: std::io::Error| { return MigrateError::io("examine", shown.as_path(), &error); })?;
-    if found.device != old.device || found.inode != old.inode {
+    if !is_recorded_object(&old, &found) {
         return Ok(Removal::Kept(format!("{} is not the old tree this conversion recorded", shown.display())));
     }
     let through: PathBuf = handle_path(&pinned);
     if platform.is_subvolume_root(through.as_path())? {
         return Ok(Removal::Kept(format!("{} is a subvolume, so it is not the old tree this conversion recorded", shown.display())));
+    }
+    // Nothing is deleted unless the installed tree holds all of the old one; a difference is reported and settled by a person.
+    match first_difference(through.as_path(), installed) {
+        Ok(None) => {}
+        Ok(Some(reason)) => return Ok(Removal::Differs(reason)),
+        Err(error) => return Ok(Removal::Differs(format!("the old tree cannot be compared with the installed worktree ({error})"))),
     }
     let metadata: std::fs::Metadata = pinned.metadata().map_err(|error: std::io::Error| { return MigrateError::io("examine", shown.as_path(), &error); })?;
     if std::os::unix::fs::MetadataExt::mode(&metadata) & 0o700 != 0o700 {
@@ -82,7 +84,7 @@ pub fn remove_recorded_old_tree_seamed(platform: &dyn Platform, parent: &std::fs
         remove_tree(entry.path().as_path()).map_err(|error: std::io::Error| { return MigrateError::io("remove the old tree", entry.path().as_path(), &error); })?;
     }
     match identity_at(parent, name) {
-        Ok(still) if still.device == old.device && still.inode == old.inode => {}
+        Ok(still) if is_recorded_object(&old, &still) => {}
         Ok(_) => return Ok(Removal::Kept(format!("{} no longer names the old tree, which is empty and was left where it is", shown.display()))),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Removal::Removed),
         Err(error) => return Err(MigrateError::io("examine", shown.as_path(), &error)),
