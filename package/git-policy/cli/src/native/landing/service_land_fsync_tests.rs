@@ -66,14 +66,14 @@ fn a_repository_that_flushes_loose_objects_keeps_the_flushes_of_the_import() {
 /// object, and when the repository flushes loose objects it is.
 #[test]
 fn a_kept_pack_is_flushed_only_where_loose_objects_are() {
-    let (plain, world) = landing_flushes("service-land-fsync-kept-default", &[("fastimport.unpackLimit", "0")]);
+    let (plain, plain_world) = landing_flushes("service-land-fsync-kept-default", &[("fastimport.unpackLimit", "0")]);
     assert_eq!(plain, 0, "a kept pack follows the repository, which asks for no flush of objects");
-    let packs: usize = std::fs::read_dir(world.repo.join(".git/objects/pack")).expect("pack directory").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".pack"); }).count();
+    let packs: usize = std::fs::read_dir(plain_world.repo.join(".git/objects/pack")).expect("pack directory").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".pack"); }).count();
     assert_eq!(packs, 1, "the import kept its pack");
-    assert_landed_whole(&world);
-    remove(world.root.as_path());
-    let (flushed, world) = landing_flushes("service-land-fsync-kept-loose", &[("fastimport.unpackLimit", "0"), ("core.fsync", "loose-object")]);
+    assert_landed_whole(&plain_world);
+    remove(plain_world.root.as_path());
+    let (flushed, flushed_world) = landing_flushes("service-land-fsync-kept-loose", &[("fastimport.unpackLimit", "0"), ("core.fsync", "loose-object")]);
     assert!(flushed > 0, "a repository that flushes loose objects flushes the kept pack");
-    assert_landed_whole(&world);
-    remove(world.root.as_path());
+    assert_landed_whole(&flushed_world);
+    remove(flushed_world.root.as_path());
 }
