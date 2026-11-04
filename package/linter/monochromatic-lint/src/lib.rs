@@ -107,6 +107,35 @@ pub mod file_discovery;
 /// Bounded cycle-aware fixpoint execution over exact source snapshots.
 #[doc(hidden)]
 pub mod fix_loop;
+/// Where a Cargo package's code starts:
+///  its library root and executable roots.
+mod layout_crate_roots;
+/// The file rule:
+///  no loops between the files of a folder, and a top doc that lists them in dependency order.
+mod layout_file_order;
+/// The shape of a finding of a layout rule.
+mod layout_finding;
+/// The folder rule:
+///  `uses` links that match the folders the code uses, and no loop between folders.
+mod layout_folder_links;
+/// The `uses` folder of one source folder, entry by entry.
+mod layout_link_entries;
+/// Loops in a directed graph.
+mod layout_loops;
+/// The module tree of a package, built by following `mod` lines.
+mod layout_module_tree;
+/// Uses of one module by another, with a proving reference.
+mod layout_module_uses;
+/// Module paths resolved through the module tree.
+mod layout_path_resolution;
+/// The module paths a file's code names.
+mod layout_reference_paths;
+/// The `mod` lines and references of one module body.
+mod layout_source_facts;
+/// The two layout rules as a step of a lint run.
+mod layout_step;
+/// The file list in a folder's top doc.
+mod layout_top_doc;
 /// Prose fix boundary that must not create new Markdown block syntax.
 mod markdown_block_start;
 /// Byte-addressed prose break points and abbreviation exclusions.

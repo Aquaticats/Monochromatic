@@ -60,6 +60,11 @@ pub struct RustRuleSettings {
     pub tests_in_sidecars: Option<Severity>,
     /// Type-aware closure check that runs the Dylint library once per owning Cargo package.
     pub avoidable_closure: Option<ClosureLint>,
+    /// Require every source folder to link, in its `uses/` folder, to exactly the folders its code uses.
+    pub folder_uses_links: Option<Severity>,
+    /// Require the files of one folder to use each other in no loop and to be listed in the folder's top doc
+    ///  in an order where each file uses only files listed before it.
+    pub file_order_in_folder: Option<Severity>,
 }
 
 /// The options of one rule after merging:
@@ -127,6 +132,8 @@ pub fn rust_rule_settings(rules: &JsoncValue) -> Result<RustRuleSettings, Config
             "rust/require-rustdoc" => result.rustdoc = severity,
             "rust/require-explicit-types" => result.explicit_types = severity,
             "rust/tests-in-sidecars" => result.tests_in_sidecars = severity,
+            "rust/folder-uses-links" => result.folder_uses_links = severity,
+            "rust/file-order-in-folder" => result.file_order_in_folder = severity,
             "rust/avoidable-closure" => {
                 if let Some(value) = severity {
                     let Some(path) = library else {

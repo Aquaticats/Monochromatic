@@ -212,3 +212,34 @@ fn other_rules_refuse_the_library_option() {
             .expect("JSONC fixture");
     assert!(rust_rule_settings(&value).is_err());
 }
+
+/// The two crate-wide layout checks carry only a severity,
+/// and are disabled by absence and by off.
+#[test]
+fn the_layout_checks_carry_a_severity_and_are_off_by_absence() {
+    let selected: RustRuleSettings = settings(
+        r#"{"rust/folder-uses-links":{"severity":"warn"},"rust/file-order-in-folder":{"severity":"error"}}"#,
+    );
+    assert_eq!(selected.folder_uses_links, Some(Severity::Warn));
+    assert_eq!(selected.file_order_in_folder, Some(Severity::Error));
+    let none: RustRuleSettings = settings(
+        r#"{"rust/folder-uses-links":{"severity":"off"},"rust/file-order-in-folder":{"severity":"off"}}"#,
+    );
+    assert_eq!(none.folder_uses_links, None);
+    assert_eq!(none.file_order_in_folder, None);
+    let absent: RustRuleSettings = settings("{}");
+    assert_eq!(absent.folder_uses_links, None);
+    assert_eq!(absent.file_order_in_folder, None);
+}
+
+/// The layout checks take no option besides severity.
+#[test]
+fn the_layout_checks_refuse_every_other_option() {
+    for source in [
+        r#"{"rust/folder-uses-links":{"severity":"warn","max":3}}"#,
+        r#"{"rust/file-order-in-folder":{"severity":"warn","library":"lib"}}"#,
+    ] {
+        let value: JsoncValue = parse_jsonc(source).expect("JSONC fixture");
+        assert!(rust_rule_settings(&value).is_err(), "{source} was accepted");
+    }
+}

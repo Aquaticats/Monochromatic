@@ -42,12 +42,16 @@ const UNFIXABLE_MARKDOWN: [&str; 4] = [
 
 /// Rust rules no inline directive can suppress:
 ///  the budget and documentation ratchets,
-///  and the compiler-backed closure check,
-///  which rustc's own `expect` attribute controls.
-const UNSUPPRESSIBLE_RUST: [&str; 3] = [
+///  the compiler-backed closure check,
+///  which rustc's own `expect` attribute controls,
+///  and the two crate-wide layout checks,
+///  whose findings belong to a folder or a loop of files rather than to one source line.
+const UNSUPPRESSIBLE_RUST: [&str; 5] = [
     "rust/max-lines",
     "rust/require-rustdoc",
     "rust/avoidable-closure",
+    "rust/folder-uses-links",
+    "rust/file-order-in-folder",
 ];
 
 /// The listing has one JSON object per registered rule,
@@ -91,7 +95,7 @@ fn the_listing_describes_every_registered_rule_in_order() {
 ///  and the shell rules are held by configuration ratchets only.
 #[test]
 fn only_the_budget_rustdoc_closure_and_shell_rules_declare_themselves_unsuppressible() {
-    // Suppressibility is exactly the rules outside the shell namespace and the three Rust ratchets.
+    // Suppressibility is exactly the rules outside the shell namespace and the five crate-wide Rust ratchets.
     for id in RULE_IDS {
         let rule = rule_info(*id).expect("registered rule is described");
         let suppressible: bool =
@@ -125,6 +129,8 @@ fn the_starter_configuration_is_valid_and_selects_the_documented_rules() {
     for id in RULE_IDS {
         if *id != "rust/require-explicit-types"
             && *id != "rust/avoidable-closure"
+            && *id != "rust/folder-uses-links"
+            && *id != "rust/file-order-in-folder"
             && !id.starts_with("shell/")
         {
             expected.push(String::from(*id));
