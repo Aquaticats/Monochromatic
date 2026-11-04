@@ -342,9 +342,18 @@ each in its own worktree:
 
 Queue,
 in order:
-- cargo-shadow round 7 once all four sixth-review parts are in (6b:
-  "Not correct",
-  the directory sync stops at a presumed durable anchor).
+- Design revision 17 when a delegate slot frees (the cap of five is in use),
+  from review 16a (`commits-never-fail-sol-16a.txt`:
+  R15 closure "not closed";
+  P1s R16a-1 level 2 still lacks the promised durable representation (the ref store need not share the object store's file system),
+  R16a-2 the no-manager materialization path brings back the forbidden wait,
+  R16a-3 an indefinite foreground upgrade or restart,
+  R16a-4 `not-submitted` must be final for the whole attempt,
+  R16a-5 same-path re-keying underspecified;
+  question 8 "accurate after named edits",
+  R16a-10)
+  and review 16b when it is in.
+  Question 8 is asked only after revision 17 settles what it depends on.
 - Models round 12 with review 16.
 - Lint task 88 once the open branches of this package merge.
 - Native-layer removal (#6261 option A,
