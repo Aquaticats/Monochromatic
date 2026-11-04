@@ -152,21 +152,116 @@ The index update that is not part of a landing (`update_index`, used when correc
 
 What the cross-vendor review of the branch at `48d6abb28c` changed:
 
-- The update runs only under the landing's lock. `service_land.rs` takes the live `index.lock` (`acquire_noting_wait`) before the
-  branch moves and passes it to `follow_up`; `build_index` copies the live index while it is held; `IndexLock::release_with`
-  (`service_index_hold.rs`) renames the copy over the live index and removes the lock. The recovery path takes the lock the same way
-  (`try_acquire` in `recover_selected`). A foreign `git add` finds the lock taken from the copy to the installation, so nothing it staged
-  before is lost and nothing after starts. The helper now refuses unless the lock's marker names this process and this batch and the
-  private index is another file beside the live one (`holds_the_lock`), writes through a temporary file it creates exclusively
-  (no run shares a name, and a run removes only its own), and gives the file Git's index mode, `core.sharedRepository` included.
-- A bitmap in the fsmonitor or untracked-cache extension is read only if its runs, literals and last run-length word are
-  consistent with its bit size and the bit size is at most the entries or the directories; a 20-byte bitmap that described
-  terabytes is refused before anything is listed.
-- Names are declined for every spelling the NTFS and HFS protections of Git refuse (colon and backslash included), whatever
-  `core.protectNTFS` says; this is a superset of Git's refusals, so Git answers all of them. Real Git 2.56.0 refuses each one the
-  control lists.
-- The review expected an intent-to-add entry equal to the tree's to be replaced. Git 2.56.0 leaves it with its flag (the
-  differential control `an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it`), and so does the update.
+- The update runs only under the landing's lock. `service_land.rs` takes the live `index.lock` (`acquire_noting_wait`)
+  before the branch moves and passes it to `follow_up`; `build_index` copies the live index while it is held;
+  `IndexLock::release_with` (`service_index_hold.rs`) renames the copy over the live index and removes the lock. The
+  recovery path takes the lock the same way (`try_acquire` in `recover_selected`). A foreign `git add` finds the lock
+  taken from the copy to the installation, so nothing it staged before is lost and nothing after starts. The helper
+  now takes a borrow of the held `IndexLock`, so only the holder can call it, and works on
+  `private_index_path(lock.index(), seq)` alone; its only caller is `follow_up`, which owns the lock on both paths. It
+  writes through a temporary file it creates exclusively (no run shares a name, and a run removes only its own), sets
+  Git's index mode on that file before the first byte (created as Git creates its lock file, then the mode `calc_shared_perm` makes of
+  the mode the new file really has, default ACL included), flushes it, and renames it.
+- A bitmap in the fsmonitor or untracked-cache extension is read only if its runs, literals and last run-length word
+  are consistent with its bit size and the bit size is at most the entries or the directories; a 20-byte bitmap that
+  described terabytes is refused before anything is listed.
+- Names are declined for every spelling the NTFS and HFS protections of Git refuse (colon and backslash included, and
+  the hashed short name of `.gitmodules`, ported from `is_ntfs_dotgitmodules` in `path.c`), whatever
+  `core.protectNTFS` says; this is a superset of Git's refusals, so Git answers all of them. Real Git 2.56.0 refuses
+  each one the control lists.
+- The review expected an intent-to-add entry equal to the tree's to be replaced. Git 2.56.0 leaves it with its flag
+  (the differential control `an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it`), and so does the
+  update.
+
+What the third cross-vendor review changed (the first three items are defects of the landing's outer protocol that
+shipped in 0.5.27, and are fixed here for the same reason):
+
+- A batch whose index was installed and whose lock was given up could be replayed by a restart that found its intent still open,
+  overwriting a change another session staged in between. The installed index is now recorded in the journal while the lock is
+  held (`<batch>.indexed`), a failed record keeps the lock, and a restart that finds the record retries only the conclusion
+  state, which is recorded apart.
+- The worktree's checked-out branch was read before the index lock was awaited. It is read again with the lock held and before
+  the ref moves, and a restart that finds another branch checked out finishes the batch without touching the index.
+- The private copy could be the live index (a client's `GIT_INDEX_FILE` named like one) or another client's index. It is now a
+  `PrivateCopy`, created exclusively with a name built from the whole live name, and the in-process update takes that value.
+- The mode of the published file starts from the mode the file system gave the new file, so a default ACL of the Git directory
+  is honoured as it is for Git's own lock file.
+- An interrupted write is tried again; the status and diff controls a truncated rewrite had deleted are back; the racy-entry
+  fallback has an end-to-end control through `build_index`.
+- Not changed: `remove_stale` reads a lock's marker and then removes the lock, which is not atomic. Two services reclaiming the
+  same physical index at once could remove a lock a third program took in between; the service lifecycle (one per worktree
+  instance) excludes it, a shared alternate index is not covered, and no control exercises competing reclaimers.
+
+What the fourth cross-vendor review changed:
+
+- A replay of an index update that never installed could overwrite what another session staged since. The landing now records
+  the entries of its paths under the lock before the branch moves (`<batch>.start`), a replay resets only the paths still at
+  them, and the others keep their staging with a notice. This is the coordinator's pick, open to the owner's veto; the owner's
+  rule "never discard user data" decides it. Not closed: the unlocked gap between `remove_stale` and `try_acquire` in a restart
+  (the replay is now non-destructive, so a program that stages in the gap loses nothing), a batch with no record replays every
+  path (a commit Git built lists its paths only when it is finished, so it has none), and a path staged to exactly the entry
+  the landing started from is reset (the staging equals what the landing found, so nothing differs to keep). A panic that
+  unwinds through the record leaves the lock.
+- `is_indexed` read every error as no record. The record is now three-valued (absent, installed, unreadable) and a restart that
+  cannot read it leaves the batch and the index alone.
+- The installed index's directory is synced before the completion record, and the journal directory before the record is removed.
+- The worktree's head is read from the Git directory the request recorded. The ref transaction cannot carry
+  `symref-verify HEAD`: Git 2.56.0 refuses it beside an update of the branch `HEAD` names ("multiple updates for 'HEAD'",
+  checked by hand on a throwaway repository), so the head is read again after the move, under the lock, and a worktree that left
+  the branch keeps its index. This differs from the review's proposal.
+- The private copy is a random-named owner-only directory with a marker (`service_land_copy.rs`), which replaces the loose
+  file: no default permissions before the first byte, no shared name, no exhaustible names, no length that grows with the
+  index's name (the lock's own staging name overflows a file name long before that matters, `service_index_staging.rs`).
+- A restart after a branch switch still finishes an index kept in another file, and the batch stays open until the conclusion
+  state is removed.
+- The default ACL control sets the ACL through its extended attribute, so the gate image needs no `setfacl`; a file system
+  that refuses it skips with the reason.
+
+What the fifth cross-vendor review changed (the owner's rule "never discard user data" decides each of the first items):
+
+- A replay is made only over the index file the landing saw. The entries of the batch's paths cannot tell a path nobody staged
+  from a path staged back to the starting entry (stage another version, then the old one), cover only the exact names of a
+  reset (which also rewrites the entries under and above its path), and were absent for a commit Git built and for a landing
+  that could not write the record. The landing now records a witness of the live index file under its lock for every batch
+  (`<batch>.start`: inode, size, modification and change times, and the checksum tail, `service_land_start.rs`), a restart takes
+  the lock and replays the whole batch, carried conflict stages included, only when the file is still that file, and any other
+  case (a file written since, no record, a record in damaged text) leaves every path of the batch as its writers left it, says
+  so in the log, and finishes the conclusion state. A record that cannot be read now keeps the batch open. Every program that
+  changes an index renames a new file over it, so an unchanged file has been written by nobody; the record is not synced, since
+  a record lost to a power failure only withholds a replay. The per-path comparison, `read_entries` and `split_by_start` are gone.
+- A restart reads the worktree's head again under the lock it takes, and a head Git cannot read stops it with the batch open:
+  `git symbolic-ref --quiet HEAD` ends with status 1 for a detached head and with other statuses for a question it could not
+  answer, and only the first is a detached head (checked by hand on Git 2.56.0: status 128 outside a repository).
+- A detached head that was attached to a branch at the same commit after the last look was replaced by a detached head: the
+  update with `option no-deref` accepts the symbolic head when the old value matches (measured by hand on a throwaway repository:
+  `ref: refs/heads/B` became the new commit's name). The update now follows the head as native Git's commit does, and the head is read again
+  after the move (`follows_move`): the index is updated for a head that shows the commit, detached at it or on the branch that
+  took it. Still open and the same as native Git: a switch after the last look. `git checkout` installs its index and releases
+  the index lock before it updates `HEAD`, and `git symbolic-ref` takes no index lock, so no hold of the index lock orders the
+  landing with a head update; a landing that wins that race leaves the state of `git commit` followed by `git symbolic-ref`.
+  Holding `HEAD.lock` would fail the other program's head update after its index was installed, so it is not done.
+- The live exit after a switch settles the same obligations as the restart (`finish_after_move`): the worktree's own default
+  index is left to its new branch, an index kept in another file is finished, and the batch is done only when the conclusion
+  state is removed.
+- The release flushes a changed index just before the rename (`IndexLock::release_flushed_with_record`) unless the in-process
+  update already flushed that file, and installs nothing when the copy holds the live index's bytes: the live file keeps its
+  access list, which a copy made in another directory does not inherit. The flush of the copy of the live index in
+  `PrivateCopy::make` is dropped, since every writer replaces that copy. Measured on a copy of this repository's index (20 741
+  entries, 15 landings per arm, `strace -f -e trace=fsync,fdatasync`): 9 fsync calls per landing against 12 at the branch
+  point (the index copy, and the start record's file and directory), and the wall time of a landing is the same within a spread
+  larger than the difference (medians of the same binary between 489 and 810 ms in a debug build on a loaded host).
+- The sweep of a dead service's private copy no longer reads a process number. The owner holds an exclusive `flock` on its
+  directory for as long as the value lives; the kernel drops it on death. A recycled number, another PID namespace, and a service
+  killed before it wrote a marker no longer decide anything. `flock` is a hold of this kernel: a directory shared by hosts over a
+  file system without one is never swept.
+- A stale index lock is taken aside by one rename and looked at again before it is removed, and put back by a hard link that
+  fails rather than replace a lock placed meanwhile. A second instance serving one physical index no longer removes a lock a
+  third program placed after the marker was read. Left: a lock taken aside that proves live is put back by a hard link, and a
+  second lock placed at the name in the microseconds between the rename and the hard link keeps the name; the taken-aside lock
+  then stays at its aside name and the log says where. The owner's option of one reclaimer per physical index would close it.
+
+Not changed: the long alternate-index name still overflows the lock's own staging name (`service_index_staging.rs`) before the
+name Git supports, so the control for it searches for a name the service accepts.
 
 Measured on 2026-11-03 on throwaway copies of main's shape (20 672 tracked files, 53 000 ignored, a signed explicit-path commit,
 `core.untrackedCache = true`, no fsmonitor, release builds, 20 rounds after 2 warm-up rounds, native Git and both wrappers in

@@ -5,7 +5,7 @@
  names only the id would read as held by whatever unrelated process carries that id later. A process is therefore named by
  its id plus when it started (`/proc/<pid>/stat` field 22, in clock ticks since the boot) plus which boot that tick count
  belongs to (`/proc/sys/kernel/random/boot_id`); the namespace is carried beside it. The birth text is
- `linux:<ticks>@<boot id>`: the first part is the spelling `package/git-policy/cli/src/native/process_identity.rs` uses
+ `linux:<ticks>@<boot id>`: the first part is the spelling `package/git-policy/cli/src/native/process/process_identity.rs` uses
  (`linux_identity_from_stat`), and the boot suffix keeps a tick count of an earlier boot from matching.
 
  Three copies of this read exist in the repository (`package/translation-repair/run/src/corpus-run/process-identity.ts`,

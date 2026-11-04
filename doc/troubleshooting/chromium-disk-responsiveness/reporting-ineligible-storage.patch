@@ -1,5 +1,5 @@
 diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegate.cc
-index 4d1c21302c..bd6a5d2e63 100644
+index 4d1c21302c8ac8e05ce5dadc8f4089b974a45712..f01b35133cf1e8bec6f686e50796e794cd316dca 100644
 --- a/chrome/app/chrome_main_delegate.cc
 +++ b/chrome/app/chrome_main_delegate.cc
 @@ -193,6 +193,7 @@
@@ -21,26 +21,28 @@ index 4d1c21302c..bd6a5d2e63 100644
  #if !defined(BUILDING_CHROME_RENDERER)
    if (process_type.empty() && !headless::IsHeadlessMode()) {
      base::FilePath metrics_dir;
-@@ -1817,10 +1818,16 @@ void ChromeMainDelegate::SandboxInitialized(const std::string& process_type) {
+@@ -1817,10 +1818,15 @@ void ChromeMainDelegate::SandboxInitialized(const std::string& process_type) {
            EnrollClient();
  #endif
  
+-      InstantiatePersistentHistograms(
+-          metrics_dir,
+-          /*persistent_histograms_enabled=*/true,
+-          /*storage=*/kPersistentHistogramStorageMappedFile);
 +      // Reporting-ineligible processes discard persisted metrics. Keep their
 +      // live recording in local memory to avoid regular-file write faults.
 +      const char* storage =
 +          ChromeMetricsServiceAccessor::IsMetricsReportingSupported()
 +              ? kPersistentHistogramStorageMappedFile
 +              : kPersistentHistogramStorageLocalMemory;
-       InstantiatePersistentHistograms(
-           metrics_dir,
-           /*persistent_histograms_enabled=*/true,
--          /*storage=*/kPersistentHistogramStorageMappedFile);
-+          storage);
++      InstantiatePersistentHistograms(metrics_dir,
++                                      /*persistent_histograms_enabled=*/true,
++                                      storage);
      } else {
        DUMP_WILL_BE_NOTREACHED();
      }
 diff --git a/chrome/browser/metrics/chrome_metrics_service_accessor.cc b/chrome/browser/metrics/chrome_metrics_service_accessor.cc
-index c0baf5982f..5e4350db54 100644
+index c0baf5982fcb671d78cc4a64b02e96c81b38625a..5e4350db541464fd3f7470d49f819c73b1bd5fa7 100644
 --- a/chrome/browser/metrics/chrome_metrics_service_accessor.cc
 +++ b/chrome/browser/metrics/chrome_metrics_service_accessor.cc
 @@ -27,6 +27,14 @@ void ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(
@@ -59,7 +61,7 @@ index c0baf5982f..5e4350db54 100644
  bool ChromeMetricsServiceAccessor::IsMetricsAndCrashReportingEnabled() {
    return IsMetricsAndCrashReportingEnabled(g_browser_process->local_state());
 diff --git a/chrome/browser/metrics/chrome_metrics_service_accessor.h b/chrome/browser/metrics/chrome_metrics_service_accessor.h
-index 8efd14233b..ba38eabda6 100644
+index 8efd14233b7c60a69d6f1b995d31cbc5be32f3d7..dd1ac5a6e570ead62f890a6a8768bf47d5a38abd 100644
 --- a/chrome/browser/metrics/chrome_metrics_service_accessor.h
 +++ b/chrome/browser/metrics/chrome_metrics_service_accessor.h
 @@ -143,6 +143,7 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
@@ -75,15 +77,15 @@ index 8efd14233b..ba38eabda6 100644
    FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
                             MetricsReportingEnabled);
 +  FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
-+                          MetricsReportingSupported);
++                           MetricsReportingSupported);
 +  FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
-+                          ForcedReportingSupported);
++                           ForcedReportingSupported);
 +  FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
-+                          RecordingOnlyDoesNotEnableReportingSupport);
++                           RecordingOnlyDoesNotEnableReportingSupport);
 +  FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
-+                          PrefLookupOverrideReportingSupport);
++                           PrefLookupOverrideReportingSupport);
 +  FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
-+                          ConsentOverrideReportingSupport);
++                           ConsentOverrideReportingSupport);
    FRIEND_TEST_ALL_PREFIXES(
        ChromeMetricsServiceAccessorTest,
        MetricsReportingEnabled_RestructureMetricsConsentSettings_FeatureOff);
@@ -99,7 +101,7 @@ index 8efd14233b..ba38eabda6 100644
    // that it is active as configuration may prevent it on some devices (i.e.
    // the "MetricsReporting" field trial that controls sampling). To include
 diff --git a/chrome/browser/metrics/chrome_metrics_service_accessor_unittest.cc b/chrome/browser/metrics/chrome_metrics_service_accessor_unittest.cc
-index 4f4d3a583b..6867bb69f1 100644
+index 4f4d3a583b35bb9eafd7093b31eea44b5c8361a1..5db1ed6566588950bc76f8ea556218e4ed6e82e9 100644
 --- a/chrome/browser/metrics/chrome_metrics_service_accessor_unittest.cc
 +++ b/chrome/browser/metrics/chrome_metrics_service_accessor_unittest.cc
 @@ -4,6 +4,7 @@
@@ -118,7 +120,7 @@ index 4f4d3a583b..6867bb69f1 100644
  #include "components/prefs/pref_service.h"
  #include "content/public/test/browser_task_environment.h"
  #include "testing/gtest/include/gtest/gtest.h"
-@@ -57,3 +59,82 @@ TEST_F(ChromeMetricsServiceAccessorTest, MetricsReportingEnabled) {
+@@ -57,3 +59,87 @@ TEST_F(ChromeMetricsServiceAccessorTest, MetricsReportingEnabled) {
        ChromeMetricsServiceAccessor::IsMetricsAndCrashReportingEnabled());
  #endif
  }
@@ -128,9 +130,10 @@ index 4f4d3a583b..6867bb69f1 100644
 +  base::test::ScopedCommandLine command_line;
 +  command_line.GetProcessCommandLine()->RemoveSwitch(
 +      metrics::switches::kForceEnableMetricsReporting);
-+  const bool original_override =
-+      metrics::MetricsServiceAccessor::IsForceMetricsReportingEnabledPrefLookup();
-+  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(false);
++  const bool original_override = metrics::MetricsServiceAccessor::
++      IsForceMetricsReportingEnabledPrefLookup();
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      false);
 +  EXPECT_EQ(BUILDFLAG(GOOGLE_CHROME_BRANDING),
 +            ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
 +  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
@@ -153,9 +156,10 @@ index 4f4d3a583b..6867bb69f1 100644
 +      metrics::switches::kForceEnableMetricsReporting);
 +  command_line.GetProcessCommandLine()->AppendSwitch(
 +      metrics::switches::kMetricsRecordingOnly);
-+  const bool original_override =
-+      metrics::MetricsServiceAccessor::IsForceMetricsReportingEnabledPrefLookup();
-+  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(false);
++  const bool original_override = metrics::MetricsServiceAccessor::
++      IsForceMetricsReportingEnabledPrefLookup();
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      false);
 +  EXPECT_EQ(BUILDFLAG(GOOGLE_CHROME_BRANDING),
 +            ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
 +  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
@@ -167,11 +171,13 @@ index 4f4d3a583b..6867bb69f1 100644
 +  base::test::ScopedCommandLine command_line;
 +  command_line.GetProcessCommandLine()->RemoveSwitch(
 +      metrics::switches::kForceEnableMetricsReporting);
-+  const bool original_override =
-+      metrics::MetricsServiceAccessor::IsForceMetricsReportingEnabledPrefLookup();
-+  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(true);
++  const bool original_override = metrics::MetricsServiceAccessor::
++      IsForceMetricsReportingEnabledPrefLookup();
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      true);
 +  EXPECT_TRUE(ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
-+  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(false);
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      false);
 +  EXPECT_EQ(BUILDFLAG(GOOGLE_CHROME_BRANDING),
 +            ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
 +  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
@@ -183,9 +189,10 @@ index 4f4d3a583b..6867bb69f1 100644
 +  base::test::ScopedCommandLine command_line;
 +  command_line.GetProcessCommandLine()->RemoveSwitch(
 +      metrics::switches::kForceEnableMetricsReporting);
-+  const bool original_override =
-+      metrics::MetricsServiceAccessor::IsForceMetricsReportingEnabledPrefLookup();
-+  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(false);
++  const bool original_override = metrics::MetricsServiceAccessor::
++      IsForceMetricsReportingEnabledPrefLookup();
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      false);
 +  bool consent = false;
 +  ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(&consent);
 +  EXPECT_TRUE(ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
@@ -202,7 +209,7 @@ index 4f4d3a583b..6867bb69f1 100644
 +      original_override);
 +}
 diff --git a/chrome/browser/metrics/metrics_service_browsertest.cc b/chrome/browser/metrics/metrics_service_browsertest.cc
-index 8b19f394e4..bdf14037fe 100644
+index 8b19f394e4202fc3f66ba2b7d2a39078374ed2a9..f62f69ea092cc365c3bdb4a490938acdf946ca0c 100644
 --- a/chrome/browser/metrics/metrics_service_browsertest.cc
 +++ b/chrome/browser/metrics/metrics_service_browsertest.cc
 @@ -14,6 +14,8 @@
@@ -222,7 +229,7 @@ index 8b19f394e4..bdf14037fe 100644
  #include "build/build_config.h"
  #include "chrome/browser/browser_process.h"
  #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
-@@ -503,3 +506,37 @@ IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserSampledOutTest, FilesRemoved) {
+@@ -503,3 +506,38 @@ IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserSampledOutTest, FilesRemoved) {
    EXPECT_TRUE(
        base::test::RunUntil([&]() { return FindNonPMAFiles().empty(); }));
  }
@@ -230,14 +237,14 @@ index 8b19f394e4..bdf14037fe 100644
 +#if !BUILDFLAG(GOOGLE_CHROME_BRANDING)
 +// Use the ordinary browser startup path without the consent overrides installed
 +// by MetricsServiceBrowserTest and its derived fixtures.
-+class NonReportingPersistentHistogramsBrowserTest : public InProcessBrowserTest {
-+};
++class NonReportingPersistentHistogramsBrowserTest
++    : public InProcessBrowserTest {};
 +
 +IN_PROC_BROWSER_TEST_F(NonReportingPersistentHistogramsBrowserTest,
-+                      RecordsWithoutPersistentLocation) {
++                       RecordsWithoutPersistentLocation) {
 +  ASSERT_FALSE(metrics::IsMetricsReportingForceEnabled());
-+  ASSERT_FALSE(
-+      metrics::MetricsServiceAccessor::IsForceMetricsReportingEnabledPrefLookup());
++  ASSERT_FALSE(metrics::MetricsServiceAccessor::
++                   IsForceMetricsReportingEnabledPrefLookup());
 +
 +  // Exercise the global allocator installed by ChromeMainDelegate, rather than
 +  // constructing an unrelated local allocator in the test.
@@ -247,7 +254,8 @@ index 8b19f394e4..bdf14037fe 100644
 +  EXPECT_FALSE(allocator->HasPersistentLocation());
 +
 +  base::HistogramTester histogram_tester;
-+  constexpr char kBooleanHistogram[] = "MetricsServiceTest.LocalStorage.Boolean";
++  constexpr char kBooleanHistogram[] =
++      "MetricsServiceTest.LocalStorage.Boolean";
 +  constexpr char kSparseHistogram[] = "MetricsServiceTest.LocalStorage.Sparse";
 +  constexpr int kSparseSample = 42;
 +
@@ -261,7 +269,7 @@ index 8b19f394e4..bdf14037fe 100644
 +}
 +#endif  // !BUILDFLAG(GOOGLE_CHROME_BRANDING)
 diff --git a/components/metrics/metrics_service_accessor.cc b/components/metrics/metrics_service_accessor.cc
-index 83e963b074..90b1634670 100644
+index 83e963b074036a761297b3778f3cc6a9bc5c1f46..90b1634670bb8a7a065a14e21dc7f67907ee1227 100644
 --- a/components/metrics/metrics_service_accessor.cc
 +++ b/components/metrics/metrics_service_accessor.cc
 @@ -38,13 +38,8 @@ bool MetricsServiceAccessor::IsMetricsReportingEnabled(
@@ -295,7 +303,7 @@ index 83e963b074..90b1634670 100644
 +
  }  // namespace metrics
 diff --git a/components/metrics/metrics_service_accessor.h b/components/metrics/metrics_service_accessor.h
-index e427f5e46a..fc0488d586 100644
+index e427f5e46a95776cc8d7b933b1cfa27157d81683..fc0488d5868dc3e8e524b972a43fc2f5c036d5df 100644
 --- a/components/metrics/metrics_service_accessor.h
 +++ b/components/metrics/metrics_service_accessor.h
 @@ -34,6 +34,10 @@ class MetricsServiceAccessor {

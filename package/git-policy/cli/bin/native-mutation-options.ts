@@ -73,7 +73,7 @@ export function parseTimeout(options: readonly string[]): TimeoutAndExamine {
 
  @example
  ```ts
- const scopes = parseScopes(['--file', 'src/native/startup_gate.rs']);
+ const scopes = parseScopes(['--file', 'src/native/invocation/startup_gate.rs']);
  ```
  */
 export function parseScopes(options: readonly string[]): string[] {

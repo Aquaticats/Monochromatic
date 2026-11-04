@@ -1,0 +1,107 @@
+//! What:
+//!  Pushes:
+//!  the automatic push after a commit,
+//!  manual push handling,
+//!  bounded Git queries,
+//!  retries and progress watching.
+//! Why:
+//!  Push has a long lifecycle with many waits.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // push/index.ts: one `export * from './file'` per module below.
+//! ```
+
+/// Controls for stopping a push on no progress, with real Git and a local remote.
+#[cfg(test)]
+mod push_patience_tests;
+
+/// Controls for a push that waits for a slow server while connected, on probes that hold sockets and on Git over HTTP.
+#[cfg(test)]
+mod push_wait_tests;
+
+/// Controls for a push whose server runs a silent check after the pack is sent, over HTTP and over a local path.
+#[cfg(test)]
+mod push_slow_server_tests;
+
+/// The push of a merge that integrated a lost race, planned and run inside the running wrapper.
+pub mod stacked_merge_push;
+
+/// The service's own retry of a push it stopped or that failed: the pauses, the waiting branches, the final failure.
+pub mod push_retry;
+
+/// The retry plan on disk, in the service instance's journal, so that a restarted service keeps trying the pushes it was trying.
+pub mod push_retry_store;
+
+/// The per-branch file name of the push failure notice: a reversible, flat, case-safe key.
+pub mod auto_push_branch_key;
+
+/// The shared clock of every wait notice: the grace, the repeat interval and a queued commit's place in line.
+pub mod wait_progress;
+
+/// A watcher for waits that block on a child process: notices at the cadence and the child stopped at the bound.
+pub mod child_watch;
+
+/// The classes of Git step a commit starts for itself, with the bound and the notice grace of each.
+pub mod child_class;
+
+/// Read-only Git queries of the auto-push, each with a deadline and separate output streams.
+pub mod bounded_query;
+
+/// The auto-push's real `git push` with a deadline and its low-speed abort.
+pub mod bounded_push;
+
+/// The bytes a push and its processes move, sampled, and the clock that stops it on a stall.
+pub mod push_progress;
+
+/// The connected TCP sockets of the machine with their byte counts, and the sockets a process holds.
+pub mod tcp_sockets;
+
+/// The real Git of a push, its query runner and the failure types of a push.
+pub mod auto_push_single_flight;
+
+/// Where a plain `git push` of one named branch goes, from the configuration and the local refs.
+pub mod auto_push_destination;
+
+/// The push a merge, pull, cherry-pick, revert or am hands to the service when it leaves the branch ahead of its upstream.
+#[cfg(unix)]
+pub mod auto_push_trigger;
+
+/// The record of each decision of the push trigger: handed over, or declined with its reason.
+pub mod push_trigger_log;
+
+/// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
+pub mod auto_push_reconcile;
+
+/// The paths of a dirty worktree and of a fast-forward, and their overlap.
+pub mod auto_push_dirty_paths;
+
+/// Post-commit auto-push of a landed commit: the push argv, the surfaced output and the failure reporting.
+pub mod auto_push;
+
+/// Authoritative manual-push updates discovered by a private dry-run push and confirmed with ls-remote.
+pub mod manual_push_porcelain;
+
+/// Why a manual push's scope could not be established, as the cause its hint is chosen by.
+pub mod manual_push_cause;
+
+/// The updates a manual `git push` would send, learned from Git's own dry-run report and confirmed against the remote.
+pub mod manual_push_probe;
+
+/// Published-set and range computation for manual-push scans: which pushed commits a remote does not have.
+pub mod manual_push_range;
+
+/// An explicit push that lost a race: run as a child, merge in what landed on the remote and publish the merge.
+pub mod push_stacking;
+
+/// Starting a child again when the operating system refuses it for lack of processes, within a bounded wait.
+pub mod start_retry;
+
+/// The manual-push candidate scope of one push: the commits and trees the destination lacks.
+pub mod manual_push_lifecycle;
+
+/// The record of a failed backup push and the rule for when a wrapper command shows it.
+pub mod push_failure_notice;
+
+/// The words that say how to change the push deadline, for the terminal and for the resident commit service.
+pub mod push_deadline_advice;

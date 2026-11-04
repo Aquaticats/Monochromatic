@@ -30,7 +30,7 @@ await describe({
         /**
          Every Rust source of the native wrapper, joined, to look test functions up in.
          */
-        const sources = (await Promise.all((await readdir(join(packageDirectory, 'src', 'native')))
+        const sources = (await Promise.all((await readdir(join(packageDirectory, 'src', 'native'), { recursive: true }))
           .filter(function isRust(name) {
             return name.endsWith('.rs');
           })

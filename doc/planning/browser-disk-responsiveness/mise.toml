@@ -31,5 +31,9 @@ run = [
 description = "Render the Chromium storage candidate and current handover"
 run = [
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-candidate.html" ../../troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-patch-comment.html" chromium-metrics-patch-comment.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-native-validation.html" ../../troubleshooting/chromium-disk-responsiveness/native-validation.md',
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-handover.html" ../../handover/chromium-live-histogram-contribution.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-task-discovery.html" ../../troubleshooting/mise-excluded-research-task-discovery.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-browser-recovery.html" ../../troubleshooting/agent-browser-eagain.md',
 ]

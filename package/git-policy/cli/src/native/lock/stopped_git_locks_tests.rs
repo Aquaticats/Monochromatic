@@ -1,0 +1,356 @@
+//! Controls for the sweep after a stopped Git child: it removes a lock only on a proof about the holder, and keeps every other file.
+//! Why:
+//!  The sweep deletes files in a repository, and a stopped child's lifetime, a lock born in it and an empty file all fit a live
+//!  writer of another Git as well (finding S-1 of the cross-vendor review of 2026-11-03T11:33:50-05:00). Each schedule that
+//!  deleted such a lock is pinned, on disposable repositories and real short-lived processes.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! expect(ledger.sweep(tree)).toEqual([lockWhoseHolderIsProvenGone]); expect(existsSync(lockOfAnotherGit)).toBe(true);
+//! ```
+#![cfg(unix)]
+
+use super::*;
+use crate::test_support::{fixture, remove};
+use crate::process_tree::TreeMember;
+use std::process::Child;
+use std::time::Duration;
+
+/// A repository directory with the ref directory the incident's locks sat in.
+struct Repo {
+    /// The fixture directory, removed at the end.
+    root: PathBuf,
+    /// Its `.git` directory.
+    git_dir: PathBuf,
+}
+
+/// Build the repository.
+fn repo(name: &str) -> Repo {
+    let root: PathBuf = fixture(name);
+    let git_dir: PathBuf = root.join(".git");
+    std::fs::create_dir_all(git_dir.join("refs").join("remotes").join("origin")).expect("ref directory");
+    return Repo { root, git_dir };
+}
+
+/// The lock path of a tracking ref.
+fn lock_of(repo: &Repo, reference: &str) -> PathBuf {
+    return repo.git_dir.join("refs").join("remotes").join("origin").join(format!("{reference}.lock"));
+}
+
+/// The pid file beside a lock of a tracking ref.
+fn pid_file_of(repo: &Repo, reference: &str) -> PathBuf {
+    return repo.git_dir.join("refs").join("remotes").join("origin").join(format!("{reference}{PID_LOCK_SUFFIX}"));
+}
+
+/// A ledger for a command that runs in the repository, judging as the real judge does but taking every lock as old enough.
+fn ledger_of(repo: &Repo) -> LockLedger {
+    let mut command: Command = Command::new("git");
+    command.current_dir(repo.root.as_path());
+    return LockLedger::before_start(&command).with_judge(crate::stale_ref_lock_killed_git::judge());
+}
+
+/// A tree member that has ended: a short-lived process, recorded while it ran and reaped.
+fn ended_member() -> TreeMember {
+    let mut child: Child = Command::new("sleep").arg("0.3").spawn().expect("start sleep");
+    let member: TreeMember = crate::process_tree::member_of(i32::try_from(child.id()).expect("pid")).expect("a running process");
+    child.wait().expect("reap sleep");
+    return member;
+}
+
+/// A tree member that still runs, and its child to end afterwards.
+fn running_member() -> (TreeMember, Child) {
+    let child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("start sleep");
+    let member: TreeMember = crate::process_tree::member_of(i32::try_from(child.id()).expect("pid")).expect("a running process");
+    return (member, child);
+}
+
+/// Write a pid file the way Git does.
+fn write_pid_file(path: &Path, pid: i32) {
+    std::fs::write(path, format!("pid {pid}\n")).expect("pid file");
+}
+
+/// A lock whose pid file names an ended member of the stopped tree is removed with its pid file.
+#[test]
+fn a_lock_named_by_an_ended_member_goes_with_its_pid_file() {
+    let repo: Repo = repo("stopped-locks-named");
+    let ledger: LockLedger = ledger_of(&repo);
+    let member: TreeMember = ended_member();
+    std::fs::write(lock_of(&repo, "main"), "0123\n").expect("lock with content");
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), vec![lock_of(&repo, "main")]);
+    assert!(!lock_of(&repo, "main").exists());
+    assert!(!pid_file_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// A lock whose pid file names a process that runs is that process's and stays, whether or not it belongs to the tree.
+#[test]
+fn a_lock_named_by_a_running_process_stays() {
+    let repo: Repo = repo("stopped-locks-running");
+    let ledger: LockLedger = ledger_of(&repo);
+    let (member, mut child): (TreeMember, Child) = running_member();
+    std::fs::write(lock_of(&repo, "main"), "0123\n").expect("lock with content");
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists());
+    child.kill().expect("end sleep");
+    child.wait().expect("reap sleep");
+    remove(repo.root.as_path());
+}
+
+/// A lock with content and no pid file may be another Git's work in progress and stays.
+#[test]
+fn a_lock_with_content_and_no_pid_file_stays() {
+    let repo: Repo = repo("stopped-locks-content");
+    let ledger: LockLedger = ledger_of(&repo);
+    std::fs::write(lock_of(&repo, "main"), "0123456789012345678901234567890123456789\n").expect("lock with content");
+    assert_eq!(ledger.sweep(&[]), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// An empty lock whose pid file names a running process is that process's.
+#[test]
+fn an_empty_lock_with_a_pid_file_is_decided_by_the_pid_file() {
+    let repo: Repo = repo("stopped-locks-empty-pid");
+    let ledger: LockLedger = ledger_of(&repo);
+    std::fs::write(lock_of(&repo, "main"), "").expect("empty lock");
+    write_pid_file(pid_file_of(&repo, "main").as_path(), i32::try_from(std::process::id()).expect("pid"));
+    assert_eq!(ledger.sweep(&[]), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// Files that are not locks, and a lock-named directory, are left alone.
+#[test]
+fn only_regular_lock_files_are_candidates() {
+    let repo: Repo = repo("stopped-locks-other-files");
+    let ledger: LockLedger = ledger_of(&repo);
+    let plain: PathBuf = repo.git_dir.join("refs").join("remotes").join("origin").join("main");
+    std::fs::write(plain.as_path(), "").expect("empty ref");
+    std::fs::create_dir(lock_of(&repo, "directory")).expect("directory named like a lock");
+    assert_eq!(ledger.sweep(&[]), Vec::<PathBuf>::new());
+    assert!(plain.exists());
+    assert!(lock_of(&repo, "directory").is_dir());
+    remove(repo.root.as_path());
+}
+
+/// A ledger that finds nothing removes nothing.
+#[test]
+fn the_empty_ledger_removes_nothing() {
+    let repo: Repo = repo("stopped-locks-none");
+    let ledger: LockLedger = LockLedger::none();
+    let member: TreeMember = ended_member();
+    std::fs::write(lock_of(&repo, "main"), "0123\n").expect("lock with content");
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// The repository of a command comes from a `gitdir:` file, from `GIT_DIR`, and from the directory above the working one.
+#[test]
+fn the_repository_is_found_from_the_working_directory_or_the_environment() {
+    let repo: Repo = repo("stopped-locks-roots");
+    let nested: PathBuf = repo.root.join("a").join("b");
+    std::fs::create_dir_all(nested.as_path()).expect("nested");
+    let mut command: Command = Command::new("git");
+    command.current_dir(nested.as_path());
+    assert_eq!(LockLedger::before_start(&command).roots, vec![repo.git_dir.clone()]);
+    let linked: PathBuf = repo.root.join("linked");
+    std::fs::create_dir_all(linked.as_path()).expect("linked");
+    let admin: PathBuf = repo.git_dir.join("worktrees").join("linked");
+    std::fs::create_dir_all(admin.as_path()).expect("admin");
+    std::fs::write(admin.join("commondir"), "../..\n").expect("commondir");
+    std::fs::write(linked.join(".git"), format!("gitdir: {}\n", admin.display())).expect("gitdir file");
+    let mut in_linked: Command = Command::new("git");
+    in_linked.current_dir(linked.as_path());
+    let roots: Vec<PathBuf> = LockLedger::before_start(&in_linked).roots;
+    assert_eq!(roots.first(), Some(&admin));
+    assert_eq!(roots.len(), 2, "{roots:?}");
+    let mut named: Command = Command::new("git");
+    named.current_dir(linked.as_path()).env("GIT_DIR", repo.git_dir.as_os_str());
+    assert_eq!(LockLedger::before_start(&named).roots, vec![repo.git_dir.clone()]);
+    remove(repo.root.as_path());
+}
+
+//region Locks of a live foreign writer, which the sweep must never remove
+// Cross-vendor review of 2026-11-03T11:33:50-05:00, finding S-1: every schedule below ended with a live writer's lock deleted.
+
+/// The reviewer's schedule: a foreign writer without `core.lockfilePid` creates the lock while the child lives, its lock
+///  descriptor is closed, and it keeps the lock empty for as long as it likes while the child's tree has ended.
+#[test]
+fn a_live_foreign_writers_empty_lock_stays() {
+    let repo: Repo = repo("stopped-locks-foreign-writer");
+    let ledger: LockLedger = ledger_of(&repo);
+    let member: TreeMember = ended_member();
+    // The foreign writer takes the lock after the child started, and never writes a pid file.
+    std::fs::write(lock_of(&repo, "main"), "").expect("the foreign writer's empty lock");
+    let removed: Vec<PathBuf> = ledger.sweep(std::slice::from_ref(&member));
+    assert_eq!(removed, Vec::<PathBuf>::new(), "a lock nothing ties to the stopped child was removed");
+    assert!(lock_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// A pid file that is older than the lock names an earlier holder; the lock beside it is another writer's, whose own pid
+///  file Git could not create because this one was in the way.
+#[test]
+fn a_lock_made_after_a_pid_file_that_names_an_ended_member_stays() {
+    let repo: Repo = repo("stopped-locks-older-pid-file");
+    let ledger: LockLedger = ledger_of(&repo);
+    let member: TreeMember = ended_member();
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    std::thread::sleep(Duration::from_millis(50));
+    std::fs::write(lock_of(&repo, "main"), "").expect("the foreign writer's lock, made after the pid file");
+    let removed: Vec<PathBuf> = ledger.sweep(std::slice::from_ref(&member));
+    assert_eq!(removed, Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists() && pid_file_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// Locks of other protocols are never the sweep's to remove, whatever the child did.
+#[test]
+fn locks_that_are_not_reference_locks_stay() {
+    let repo: Repo = repo("stopped-locks-not-references");
+    let ledger: LockLedger = ledger_of(&repo);
+    let others: Vec<PathBuf> = vec![
+        repo.git_dir.join("index.lock"),
+        repo.git_dir.join("shallow.lock"),
+        repo.git_dir.join("objects").join("pack").join("pack.lock"),
+    ];
+    for path in &others {
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
+        std::fs::write(path, "").expect("empty lock");
+    }
+    assert_eq!(ledger.sweep(&[]), Vec::<PathBuf>::new());
+    for path in &others {
+        assert!(path.exists(), "{path:?}");
+    }
+    remove(repo.root.as_path());
+}
+
+//endregion
+
+//region The wrapper's own reaped child, in a process table that is not the machine's
+// The container gate showed `git_stop_lock_tests::a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own` failing
+// there: a container has a PID namespace of its own, so the judge cannot tell a gone number from one of another namespace.
+
+/// A judge with the view a container has: the process numbers it reads are not known to be the machine's.
+fn container_judge() -> crate::stale_ref_lock_judge::Judge {
+    return crate::stale_ref_lock_judge::Judge { pid_view_complete: false, ..crate::stale_ref_lock_killed_git::judge() };
+}
+
+/// The wrapper started the child, stopped it and saw it end, so the number in the pid file the child wrote is a number of
+///  the wrapper's own namespace and names a process that is gone, whatever view the judge has of the machine.
+#[test]
+fn a_lock_named_by_an_ended_child_of_the_wrapper_goes_in_a_container_view() {
+    let repo: Repo = repo("stopped-locks-container-view");
+    let mut command: Command = Command::new("git");
+    command.current_dir(repo.root.as_path());
+    let ledger: LockLedger = LockLedger::before_start(&command).with_judge(container_judge());
+    let member: TreeMember = ended_member();
+    std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the lock the child held");
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), vec![lock_of(&repo, "main")]);
+    assert!(!lock_of(&repo, "main").exists() && !pid_file_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// A ledger for a command in the repository whose judge has the view of a container.
+fn container_ledger_of(repo: &Repo) -> LockLedger {
+    let mut command: Command = Command::new("git");
+    command.current_dir(repo.root.as_path());
+    return LockLedger::before_start(&command).with_judge(container_judge());
+}
+
+/// An old pid file in front of a newer lock names an earlier holder: the newer lock is another writer's, in any view.
+#[test]
+fn in_a_container_view_a_pid_file_older_than_the_lock_vouches_for_nothing() {
+    let repo: Repo = repo("stopped-locks-container-older-pid");
+    let ledger: LockLedger = container_ledger_of(&repo);
+    let member: TreeMember = ended_member();
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    std::thread::sleep(Duration::from_millis(50));
+    std::fs::write(lock_of(&repo, "main"), "").expect("the foreign writer's lock, made after the pid file");
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// A lock that was there before the child started is not the child's, whatever its pid file says.
+#[test]
+fn in_a_container_view_a_lock_older_than_the_child_stays() {
+    let repo: Repo = repo("stopped-locks-container-older-lock");
+    let member: TreeMember = ended_member();
+    std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the lock");
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    // Longer than the slack the birth time of a file is compared with, so the lock is older than the ledger for certain.
+    std::thread::sleep(crate::stale_ref_lock_judge::COARSE_CLOCK_SLACK * 4);
+    let ledger: LockLedger = container_ledger_of(&repo);
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// A number that is not a process of the stopped tree is not the wrapper's to vouch for, though nothing runs under it.
+#[test]
+fn in_a_container_view_a_number_outside_the_tree_proves_nothing() {
+    let repo: Repo = repo("stopped-locks-container-outside");
+    let ledger: LockLedger = container_ledger_of(&repo);
+    let member: TreeMember = ended_member();
+    let outsider: TreeMember = ended_member();
+    std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the lock");
+    write_pid_file(pid_file_of(&repo, "main").as_path(), outsider.pid);
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// A member of the tree that still runs holds its lock.
+#[test]
+fn in_a_container_view_a_running_member_keeps_its_lock() {
+    let repo: Repo = repo("stopped-locks-container-running");
+    let ledger: LockLedger = container_ledger_of(&repo);
+    let (member, mut child): (TreeMember, Child) = running_member();
+    std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the lock");
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists());
+    child.kill().expect("end sleep");
+    child.wait().expect("reap sleep");
+    remove(repo.root.as_path());
+}
+
+/// A lock with no pid file is another writer's in any view.
+#[test]
+fn in_a_container_view_a_lock_without_a_pid_file_stays() {
+    let repo: Repo = repo("stopped-locks-container-no-pid");
+    let ledger: LockLedger = container_ledger_of(&repo);
+    let member: TreeMember = ended_member();
+    std::fs::write(lock_of(&repo, "main"), "").expect("the lock");
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), Vec::<PathBuf>::new());
+    assert!(lock_of(&repo, "main").exists());
+    remove(repo.root.as_path());
+}
+
+/// A lock the stopped child just made goes without waiting out the margin, because the wrapper knows its holder ended; a lock
+///  that young with any other pid file is left to the margin.
+#[test]
+fn a_young_lock_of_an_ended_child_does_not_wait_out_the_margin() {
+    let repo: Repo = repo("stopped-locks-young");
+    let mut command: Command = Command::new("git");
+    command.current_dir(repo.root.as_path());
+    let patient = crate::stale_ref_lock_judge::Judge { margin: Duration::from_secs(3600), ..container_judge() };
+    let ledger: LockLedger = LockLedger::before_start(&command).with_judge(patient);
+    let member: TreeMember = ended_member();
+    let outsider: TreeMember = ended_member();
+    std::fs::write(lock_of(&repo, "main"), "0123\n").expect("the child's lock");
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    std::fs::write(lock_of(&repo, "other"), "0123\n").expect("another writer's lock");
+    write_pid_file(pid_file_of(&repo, "other").as_path(), outsider.pid);
+    assert_eq!(ledger.sweep(std::slice::from_ref(&member)), vec![lock_of(&repo, "main")]);
+    assert!(lock_of(&repo, "other").exists());
+    remove(repo.root.as_path());
+}
+
+//endregion

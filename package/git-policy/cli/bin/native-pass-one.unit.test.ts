@@ -48,6 +48,45 @@ const measuredKillers: Readonly<Record<string, readonly string[]>> = {
   ],
 };
 
+/**
+ The source folder of each module above. The library's top-level modules are the folders, so pass 1 selects the tests
+ of the mutated file's folder and of every folder that imports it, which contains the tests that killed the measured
+ mutants.
+ */
+const folderOfModule: Readonly<Record<string, string>> = {
+  repo_read_query: 'repo_read',
+  repo_read_hook: 'repo_read',
+  candidate_known_content: 'candidate',
+  commit_convergence: 'commit',
+  config_snapshot: 'config',
+  repo_read_config_typed: 'repo_read',
+  object_abbreviation: 'repo_read',
+  landed_summary: 'landing',
+  repo_read_layout: 'repo_read',
+  git_system_config: 'repo_read',
+  capture_invocation: 'commit',
+  lfs_object_plan: 'lfs',
+};
+
+/**
+ The folder of a module in the table above.
+
+ @param module - module name
+
+ @returns the folder that holds the module's file
+
+ @example
+ ```ts
+ folderOf('repo_read_query');
+ ```
+ */
+function folderOf(module: string): string {
+  const folder = folderOfModule[module];
+  if (folder === undefined)
+    throw new Error(`No folder is listed for module ${module}.`);
+  return folder;
+}
+
 await describe({
   name: passOneFor.name,
   children: [
@@ -61,12 +100,12 @@ await describe({
              */
             const passOne = await passOneFor({
               crateDirectory,
-              scopes: [`src/native/${module}.rs`],
+              scopes: [`src/native/${folderOf(module)}/${module}.rs`],
               command,
             });
-            expect(passOne.scope.mutatedModules).toEqual([module]);
+            expect(passOne.scope.mutatedModules).toEqual([folderOf(module)]);
             for (const killer of killers)
-              expect(passOne.scope.libraryModules).toContain(killer);
+              expect(passOne.scope.libraryModules).toContain(folderOf(killer));
             expect(passOne.filterset).toContain('kind(lib) & test(/^(?:');
           },
           timeout: 60_000,
@@ -80,7 +119,7 @@ await describe({
          */
         const passOne = await passOneFor({
           crateDirectory,
-          scopes: ['src/native/repo_read_layout.rs'],
+          scopes: ['src/native/repo_read/repo_read_layout.rs'],
           command,
         });
         for (const target of slowTestTargets) {
@@ -98,7 +137,7 @@ await describe({
          */
         const passOne = await passOneFor({
           crateDirectory,
-          scopes: ['src/native/object_abbreviation.rs'],
+          scopes: ['src/native/repo_read/object_abbreviation.rs'],
           command,
         });
         expect(passOne.command.slice(0, 2)).toEqual(['cargo', 'mutants']);

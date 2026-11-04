@@ -136,7 +136,7 @@ Its modules in the same directory, all named `dependent-version-<role>.mjs`:
 
 Each lints with 0 findings under the package's Oxlint configuration.
 The committed shared fixture is
-`package/git-policy/cli/src/native/dependent_version_fixtures/unit_cases.json`.
+`package/git-policy/cli/src/native/dependent_version/dependent_version_fixtures/unit_cases.json`.
 
 ### Fuzz target
 
@@ -268,7 +268,7 @@ Each keeps its unit test's own assertion,
 which the driver applies to the incumbent's result before recording it,
 so a transcription mistake fails before any comparison.
 The `record` subcommand writes the results to the committed fixture
-`src/native/dependent_version_fixtures/unit_cases.json`;
+`src/native/dependent_version/dependent_version_fixtures/unit_cases.json`;
 `check` requires the incumbent to reproduce that file;
 the native gate test `dependent_version_differential_tests::unit_fixtures_match_the_incumbent` reads the same file.
 Two incumbent tests are not planner scenarios and are not transcribed:
@@ -654,7 +654,7 @@ while the sampled load average was between 27 and 55 on 16 CPUs from work outsid
 
 #### Rerun of the file with the timeout
 
-The same task with `--file src/native/dependent_version_imports.rs`,
+The same task with `--file src/native/dependent_version/dependent_version_imports.rs`,
 against the same image,
 evidence `native-mutation-fmJr79`
 (`exit.json` with status 0):
@@ -906,7 +906,7 @@ Earlier gates: `d0a65058b6` (evidence `native-vBmFHL`, 44 binary) and `ff6162190
 ### Mutation of the wired code
 
 The scoped campaign was
-`mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/policy_checks.rs' --file 'src/native/policy_dependent_version.rs' --file 'src/native/dependent_version_*.rs'`
+`mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/policy/policy_checks.rs' --file 'src/native/dependent_version/policy_dependent_version.rs' --file 'src/native/dependent_version_*.rs'`
 on the gate image of `8c82803a1`, evidence `package/git-policy/cli/target/verification/native-mutation-edbNIJ`:
 260 mutants, 208 caught, 49 unviable, 2 timeouts, 1 missed.
 
@@ -941,7 +941,7 @@ The three timeouts were rerun alone, as the rule for timeouts requires:
   the runner was edited in the working tree for this one run to pass `--timeout 300` and `--re projected_scope`
   (the committed runner still passes `--timeout 90` and no `--re`), and it was restored with `git checkout` afterwards.
   The run ran through `node ~/temp/agent/gate-slot.ts` with the runner command
-  `mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/candidate_prediction.rs'`.
+  `mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/candidate/candidate_prediction.rs'`.
   Result: 2 mutants, 1 caught (`replace projected_scope -> ... with Ok(vec![])`, listed in `mutants.out/caught.txt`),
   1 unviable,
   0 timeouts, 0 missed; the baseline took 47 seconds to test.
@@ -1172,7 +1172,7 @@ Conflicts and their resolution:
 - `package/git-policy/cli.fuzz/Cargo.toml`, `bin/container.mjs`, `bin/planted-controls.mjs`, `src/lib.rs`:
   both sides kept, the dependent-version target and the Markdown targets (`linter_output`, `event_path`,
   `linter_config`).
-- `package/git-policy/cli/src/native/policy_checks.rs`:
+- `package/git-policy/cli/src/native/policy/policy_checks.rs`:
   `MarkdownAutofix` runs `check_markdown` (main's policy), `DependentVersionBump` runs `check_dependent_version` (this
   branch).
   The `unported_content` helper and `MARKDOWN_AUTOFIX_NEEDS` / `DEPENDENT_VERSION_BUMP_NEEDS` were removed,
@@ -1216,7 +1216,7 @@ In flight when drained:
 Not done yet:
 
 - Scoped mutation over the changed planner and candidate files, with its timeout rerun:
-  `GIT_POLICY_NATIVE_IMAGE_TAG=dependent-version node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/policy_checks.rs' --file 'src/native/policy_dependent_version.rs'`.
+  `GIT_POLICY_NATIVE_IMAGE_TAG=dependent-version node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/policy/policy_checks.rs' --file 'src/native/dependent_version/policy_dependent_version.rs'`.
   Any timed-out mutant is rerun alone with `--timeout 300` (temporary runner edit, restored afterwards, as before).
 - Lint: `format:monochromatic-lint` reports `rust/no-anonymous-functions` warnings in `policy_dependent_version.rs`
   (lines 226, 311, 312) and `policy_dependent_version_tests.rs` (lines 50, 289). Not addressed.
@@ -1232,7 +1232,7 @@ Gate on `3186bb316c`, evidence `package/git-policy/cli/target/verification/nativ
 (`passed.json`: tests and Clippy true; run through `~/temp/agent/gate-slot.ts`, log `~/temp/agent/dv-gate/gate6.log`):
 736 unit passed, 1 ignored; 49 binary passed; 1 consumer passed.
 
-Scoped mutation over `src/native/policy_checks.rs` and `src/native/policy_dependent_version.rs` on the same gate image
+Scoped mutation over `src/native/policy/policy_checks.rs` and `src/native/dependent_version/policy_dependent_version.rs` on the same gate image
 (evidence `native-mutation-oI9441`, log `~/temp/agent/dv-gate/mutation-8.log`):
 `cargo mutants` ran 34 mutants: 10 caught, 21 unviable, 3 missed, 0 timeouts.
 No timeout occurred, so no solo rerun was needed.
@@ -1250,4 +1250,4 @@ Rerun commands, for a later rerun after a land or a merge:
 - Gate:
 `GIT_POLICY_NATIVE_IMAGE_TAG=dependent-version node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:native:test:container`
 - Mutation:
-`GIT_POLICY_NATIVE_IMAGE_TAG=dependent-version node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/policy_checks.rs' --file 'src/native/policy_dependent_version.rs'`
+`GIT_POLICY_NATIVE_IMAGE_TAG=dependent-version node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/policy/policy_checks.rs' --file 'src/native/dependent_version/policy_dependent_version.rs'`

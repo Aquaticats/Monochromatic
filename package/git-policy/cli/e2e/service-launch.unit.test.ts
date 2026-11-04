@@ -10,7 +10,7 @@ import { instanceOf, } from './service-launch-fixture.ts';
 
 /**
  A directory that does not exist, so the name is of the path as given.
- The same vector is pinned in `src/native/service_instance_tests.rs`, so the suite and the wrapper cannot name a worktree's
+ The same vector is pinned in `src/native/service/service_instance_tests.rs`, so the suite and the wrapper cannot name a worktree's
  service differently.
  */
 const VECTOR_PATH = '/nonexistent/instance-vector';

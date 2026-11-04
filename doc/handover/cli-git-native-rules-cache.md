@@ -63,7 +63,7 @@ Wiring (executable):
 
 ## Tests
 
-- Binary tests, `src/native/binary_worktree_copy_tests.rs`, built `cli-git-native` through `git worktree add` in
+- Binary tests, `src/native/binary/binary_worktree_copy_tests.rs`, built `cli-git-native` through `git worktree add` in
   throwaway repositories, each followed by `git cli-git check --policy security/forbidden-strings --all`:
   from the main checkout (rules file copied, siblings and other ignored trees not, scanner finds its rules;
   with `--no-worktree-copy` the scanner fails closed); from a linked worktree (everything ignored is copied);
@@ -173,7 +173,7 @@ node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:native:clippy
 # doc/handover/cli-git-native-rules-cache.md: binary tests on the host
 mise run //package/git-policy/cli:native:test:binary:host -- worktree_copy
 # doc/handover/cli-git-native-rules-cache.md: scoped mutation without the planted-control phase
-NATIVE_MUTATION_SKIP_PLANTED=1 GIT_POLICY_NATIVE_IMAGE_TAG=rules-cache node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/worktree_copy_forward.rs --timeout 600
+NATIVE_MUTATION_SKIP_PLANTED=1 GIT_POLICY_NATIVE_IMAGE_TAG=rules-cache node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/worktree_copying/worktree_copy_forward.rs --timeout 600
 # doc/handover/cli-git-native-rules-cache.md: end-to-end suite, as in doc/handover/cli-git-native-integration.md
 GIT_POLICY_NATIVE_IMAGE_TAG=rules-cache node ~/temp/agent/gate-slot.ts mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --git 2.55.0
 ```

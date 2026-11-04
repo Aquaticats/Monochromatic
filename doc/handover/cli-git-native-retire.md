@@ -51,7 +51,7 @@ The pinned incumbent revision,
   `native:config:differential`,
    `native:differential:commit` and `native:differential:dependent-version`,
    the ignored
-  corpus test `corpus_from_environment` of `src/native/dependent_version_differential_tests.rs`,
+  corpus test `corpus_from_environment` of `src/native/dependent_version/dependent_version_differential_tests.rs`,
    the four packages
   with their ignored `node_modules`,
    the three mirror blocks of `file-enforcer.config.ts` and
@@ -148,7 +148,7 @@ The pinned incumbent revision,
    verified in the
   header of `src/native/commit_revalidation.rs` and by the ledger entry whose native state is "absent").
   The trust commands in `Management grammar` now describe the retired forms that print an explanation and exit `0`
-  (verified in `src/native/management_tests.rs`).
+  (verified in `src/native/invocation/management_tests.rs`).
 
 ## Gates
 

@@ -187,7 +187,7 @@ They are races between recoverers of one dead transaction.
   Commit `fa671c2bd3`.
 - Releasing an index lock failed when another recoverer released it between the existence probe and the identity lookup:
   exit 2 with `the landing reservation failed: ... unable to resolve the filesystem identity for .../index.lock`.
-  `release_owned_lock` in `src/native/recovery_files.rs` now reports a lock that is gone as absent,
+  `release_owned_lock` in `src/native/transaction/recovery_files.rs` now reports a lock that is gone as absent,
   also when the removal itself finds it gone; a lock that still exists but cannot be identified stays an error.
   Controls: `a_lock_released_by_a_peer_mid_release_is_absent` (two races, through a replaceable identity mechanism)
   and `an_unidentifiable_lock_is_still_an_error`.
@@ -261,7 +261,7 @@ concurrent recovery of one dead transaction made an incumbent survivor exit 1 wi
 an incumbent hook dispatcher exited 1 with `ESRCH: no such process, read` inside its process birth identity reader
 (mixed `hooked`, seed 3), which left that worker's commit unlanded.
 The native wrapper reads `/proc` records through a path that maps `ESRCH` to an exited process
-(`src/native/process_identity.rs`).
+(`src/native/process/process_identity.rs`).
 
 ## Old-format fixtures
 

@@ -172,6 +172,21 @@ broad when absent.
 - Windows holder detection uses the PID file and Restart Manager,
   never a `DELETE`-access probe.
 
+Implemented 2026-11-03 (delegated pick 2 of `doc/planning/cli-git-shipped-limits-audit.md`;
+the coordinator picked while the
+owner was away, open to the owner's veto):
+a proven-alive owner is waited for with no bound, which the code had not done (it stopped at 1800 seconds);
+a dead owner ends the wait at once instead of after the backoff (a deviation from the line above);
+an evidence-free owner first got a fixed 1000 ms instead of the quadratic backoff with jitter, and the diagnostic;
+the coordinator's
+follow-up pick under the same delegation (2026-11-03, open to the owner's veto)
+replaced that with the same unbounded wait a
+proven-alive owner gets, with a line that says what is known and how to remove the lock if no program uses the
+repository,
+because the person's own `git commit` with its editor open holds `index.lock` with no proof and would otherwise make
+ours fail;
+`indexLock.unprovenOwnerTimeoutMs` stays retired because nothing reads configuration at that point.
+
 ## Auto-push
 
 Pushes are single-flight per branch.

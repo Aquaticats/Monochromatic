@@ -108,13 +108,13 @@ The instruments that replace them add nothing to the release executables:
   The `push-<oid>` record is the durable trace of the after-commit work that the `post-commit` hook once observed:
   one settled record per landed commit stands for "post-commit ran once".
 - External `SIGKILL` of the client's process group, or of the service, at a seeded offset or at an observable instant.
-- The fault points of the release service (`CLI_GIT_TEST_ONLY_SERVICE_FAULT`, `src/native/service_fault.rs`):
+- The fault points of the release service (`CLI_GIT_TEST_ONLY_SERVICE_FAULT`, `src/native/service/service_fault.rs`):
   `after-objects`, `after-intent`, `after-ref`, `after-index` and `before-ack`.
   The variable is armed only by the harness, and only on the process a scenario starts for it.
 
 A declared `postCommit` action in `cli-git.config.jsonc` is not an instrument:
 that facility was built and deleted on the owner's instruction, and the key is a configuration error
-(`src/native/config_parse.rs`, `SPEC.md` "External hooks").
+(`src/native/config/config_parse.rs`, `SPEC.md` "External hooks").
 
 ### Scenarios whose instrument no longer runs
 
@@ -324,7 +324,7 @@ Design scenarios exercise the accepted concurrent-commit design:
   overlapping hunks may fail only with exit `1` and the `concurrent-commit/replay-conflict` `core-finding` event
   that names the path.
   The first lands, and the second, which prepared against the branch before that,
-  has the bytes it captured merged onto the branch (`src/native/service_replay.rs`);
+  has the bytes it captured merged onto the branch (`src/native/landing/service_replay.rs`);
   a write the harness makes after the second command started never appears in its commit.
 - `shared-file-adjacent-edits`:
   the first agent edits one line and is queued at a frozen service,
@@ -466,7 +466,7 @@ it silences only traditional hooks and leaves config hooks running
 ### Phase markers
 
 No scenario arms a phase marker.
-The wrapper's `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` (`src/native/transaction_phase.rs`) names only the phases of an isolated
+The wrapper's `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` (`src/native/transaction/transaction_phase.rs`) names only the phases of an isolated
 merge and of a commit headed for the service,
 which the binary tests of the crate use;
 the phases of the retired landing are gone.

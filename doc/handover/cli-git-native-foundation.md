@@ -210,7 +210,7 @@ all leaving no temporary directory or container behind:
   naming `podman image` and Podman's `image not known`.
 - `createContainer` removed its container when its scope ended by a thrown error and by a normal return.
 
-`native:mutation:scoped -- --file src/native/rule_commit_only_message.rs` on the rewrite's gate image
+`native:mutation:scoped -- --file src/native/commit/rule_commit_only_message.rs` on the rewrite's gate image
 noticed all five planted controls,
 one container at a time,
 then caught both mutants of that file and exited 0.
@@ -734,7 +734,7 @@ and both forms stop the program on a missing one,
 so no control could tell them apart.
 Commit `cba0702fe` uses a `for` loop,
 which has no bound to mutate.
-`mise run //package/git-policy/cli:native:mutation -- --file src/native/policy_registry.rs`,
+`mise run //package/git-policy/cli:native:mutation -- --file src/native/policy/policy_registry.rs`,
 the chained gate and runner,
 then tested 19 mutants on the sources of commit `de15ea3ea`:
 15 caught,

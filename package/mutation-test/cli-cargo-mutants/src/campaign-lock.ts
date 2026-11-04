@@ -1,7 +1,7 @@
 /**
  The right to run one campaign: a numbered claim file in the campaign's evidence directory that names the campaign process.
 
- The claim is the one `src/owner-claim.ts` implements after `package/git-policy/cli/src/native/single_owner_claim.rs`:
+ The claim is the one `src/owner-claim.ts` implements after `package/git-policy/cli/src/native/lock/single_owner_claim.rs`:
  `campaign.owner.<generation>` is published with one exclusive `link`, the newest generation is the claim, and it names its
  owner by process id, birth (start time and boot) and PID namespace. A second campaign on the same directory is refused with
  the owner named, never made to wait. A run killed by `systemctl stop`, a reboot or `SIGKILL` leaves its claim behind and the

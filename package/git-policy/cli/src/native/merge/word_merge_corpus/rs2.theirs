@@ -1,0 +1,5 @@
+pub struct Config {
+    pub name: String,
+    pub size: usize,
+    pub verbose: bool,
+}

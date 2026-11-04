@@ -10,7 +10,7 @@ import type { Plant } from './planted-table.ts';
 export const dependentVersionPlants: readonly Plant[] = [
   {
     name: 'a nested version key is rewritten',
-    file: 'package/git-policy/cli/src/native/dependent_version_text.rs',
+    file: 'package/git-policy/cli/src/native/dependent_version/dependent_version_text.rs',
     edits: [{
       from: 'if depth == 1',
       to: 'if depth >= 1'
@@ -18,7 +18,7 @@ export const dependentVersionPlants: readonly Plant[] = [
   },
   {
     name: 'a subpath import is missed',
-    file: 'package/git-policy/cli/src/native/dependent_version_imports.rs',
+    file: 'package/git-policy/cli/src/native/dependent_version/dependent_version_imports.rs',
     edits: [{
       from: "(following == Some(&quote) || following == Some(&b'/'))",
       to: '(following == Some(&quote))'
@@ -26,7 +26,7 @@ export const dependentVersionPlants: readonly Plant[] = [
   },
   {
     name: 'an escaped quote ends a string literal',
-    file: 'package/git-policy/cli/src/native/dependent_version_text.rs',
+    file: 'package/git-policy/cli/src/native/dependent_version/dependent_version_text.rs',
     edits: [{
       from: 'escaped = true;',
       to: 'escaped = false;'
