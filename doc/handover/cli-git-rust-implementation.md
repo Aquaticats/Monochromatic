@@ -4666,7 +4666,19 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   a dry-run publish and a real-credential commit have passed."
   It was given for that session;
   releases since have gone through `crate-release` under it.
-  Any other first crates.io publication needs the owner's explicit approval (the cargo-shadow 0.1.0 publish is one).
+  This session (2026-11-04) the owner said:
+  "I'm authorizing you to bump and publish any updates this session."
+  It covers every crate,
+  a crate's first publication included;
+  the owner,
+  2026-11-04,
+  on an earlier coordinator line that required approval for a first publication:
+  "Didn't I always give you approval to publish?"
+  and "By "first" I meant "first in this session of any crate"",
+  and "didn't I also say reviews and mutation testings don't block publishing?".
+  Earlier (session transcript): "Mutation runs don't block publish and release."
+  So reviews and mutation campaigns never block a merge or a publish;
+  their findings become follow-up fixes and later releases.
 - Release order for the wrapper:
   gate passes (`gate-exit-status=0` and the nextest summary),
   merge to main,
