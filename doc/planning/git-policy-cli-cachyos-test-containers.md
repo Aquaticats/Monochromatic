@@ -1,8 +1,10 @@
 # Git policy wrapper test containers on CachyOS latest
 
 Status:
- implemented on branch `build/git-policy-cli-cachyos-test-containers`,
- every pick below is the agent's pick with the veto open.
+ implemented on branch `build/git-policy-cli-cachyos-test-containers`; the tool picks were then replaced by the owner's
+ decisions of 2026-11-04 (section "Owner decisions of 2026-11-04", on branch
+ `feat/git-policy-cli-test-images-from-pacman`).
+Where a bullet of "Picks" below names a source build, a checksum or a version pin, the owner decisions supersede it.
 
 ## Why
 
@@ -80,6 +82,57 @@ B beats C because C is excluded by the owner's directive while B only costs spee
 - `strace` stays at the pinned source release but builds with its bundled kernel headers and without `-Werror`,
   because the newest `linux-api-headers` and compiler stop the unmodified build.
   This is the cost of `latest` the decision names: the build broke on an upstream update and was fixed here.
+
+## Owner decisions of 2026-11-04
+
+Asked to veto the picks above (Git 2.56.0 built from source in the gate image, Rust from pacman, Node 24.11.0 from the
+upstream tarball, `strace` 6.13 downloaded and checked by checksum), the owner answered "Make as many pkgs as possible
+come from podman." and, asked which was meant, "Sorry, typo. Yes I meant from pacman." Then, in order:
+
+- "We don't need to pin git because my current system is already using git latest."
+- "We don't need to pin Node too."
+- Asked where the test images should get the tools `toolchain.lock.json` locks (Node, cargo-nextest, Rust, pnpm),
+  against `AGENTS.md` rule CM7, the owner chose "Pacman for everything it has": Node, cargo-nextest and Rust from pacman's
+  current packages, and pnpm from the lock only if pacman lacks it.
+  This is an exception to CM7 for these test images.
+- Asked about Git 2.55.0 in the end-to-end image (the oldest Git the wrapper accepted; it refused older Git):
+  "Raise minimum, drop the test, merely print a warning on older git and not refuse."
+
+What changed, each with its evidence (probed 2026-11-04 in `docker.io/cachyos/cachyos-v4:latest` after `pacman -Sy`):
+
+- Git: the gate and end-to-end images install pacman's current `git`; no source build, no checksum.
+  `pacman -Si git` listed `git 2.56.0-1.1` (repository `cachyos-extra-v4`) and `git 2.56.0-1` (`extra`); the image
+  installed `git 2.56.0-1.1`.
+  The host's `/usr/bin/git --version` printed `git version 2.56.0` on the same day.
+  No exact-version route (an Arch Linux Archive package, a dated snapshot) is used.
+- The Git source tree at `/work/git-source` is gone.
+  The package ships the rendered page `/usr/share/man/man5/githooks.5.gz` and no `githooks.adoc`, so the hook-event guard
+  test (`invocation::hooks_off::tests::every_documented_hook_event_is_listed`) reads the page through `man`, which the
+  image gets from the `man-db` package.
+- Node: `nodejs` from pacman (26.12.1-2 from `cachyos-v4` when probed; `extra` had 26.13.0-1, and the host runs
+  v26.13.0), instead of the 24.11.0 tarball.
+  The suite is TypeScript run by Node type stripping, and nothing in the package reads the Node version.
+  `nodejs-lts-krypton` (24.22.2-1 in `extra`) exists if the owner wants the 24 line.
+- pnpm: pacman carries it (`pnpm 12.17.0-1.1`, `cachyos-extra-v4`; the lock row records 12.16.1), so the gate image no
+  longer extracts the lock row's archive and `bin/native-pnpm-snapshot.ts` is deleted.
+- cargo-nextest: pacman carries it (`cargo-nextest 0.9.150-1.1`, `cachyos-extra-v4`; the former pin was 0.9.148 by
+  checksum).
+  `bin/native-nextest-snapshot.ts` stays only because `package/git-policy/cli.fuzz` and `package/linter/monochromatic-lint`
+  (and its fuzz sidecar) still import it for their own images.
+- strace: pacman's `strace` (7.3-1 in `extra`) replaces the statically linked 6.13 build; the gate image no longer needs
+  a build stage, a source archive or `--enable-bundled`/`--disable-gcc-Werror`, and `bin/native-strace-snapshot.ts` is
+  deleted.
+  The Arch Linux Archive lists `strace-6.13-1-x86_64.pkg.tar.zst` should the owner ever want 6.13 back through pacman.
+- Rust: unchanged, pacman's `rust` (1:1.99.1-1 in `extra` when probed).
+- End-to-end Git: the 2.55.0 source build and its scenario list are gone; the suite runs the image's `/usr/bin/git` and
+  reads its release at run time.
+  The wrapper no longer refuses an older Git; see `package/git-policy/cli/SPEC.md`, "Compatibility and degradation".
+  Its `MINIMUM_GIT_VERSION` is 2.56.0, the release the gate runs with, and is raised by hand with the image's Git.
+- Signatures: the CachyOS image's `/etc/pacman.conf` sets `SigLevel = Required DatabaseOptional`, and the Containerfiles
+  never lower it; `pacman --sync` downloaded `git-2.56.0-1.1-x86_64_v4.pkg.tar.zst` with its `.sig` beside it.
+  Reproducibility is the cost: the tools move with each CachyOS republish or pacman sync, which the owner accepted by
+  rejecting pins ("if an upstream OS update breaks us, we are doing something wrong and we'd have to fix it immediately").
+  `mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got.
 
 ## Left open
 
