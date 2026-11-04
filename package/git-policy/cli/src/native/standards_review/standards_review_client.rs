@@ -79,6 +79,13 @@ pub struct Reply {
 /// ```ts
 /// const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key }, body, signal });
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "measured_quiet (process/thread_quiet.rs) takes the job as `impl FnOnce`, so only a closure that borrows gateway and body can reach it; see doc/planning/cli-git-closure-lint-suppressions.md"
+    )
+)]
 pub fn post_decision(gateway: &Gateway, body: &str) -> Result<Reply, String> {
     // The quiet gap of the call is measured beside it; the call itself ends on the transport's idle timeouts below.
     return measured_quiet("standards review gateway call", || { return post_decision_unmeasured(gateway, body); });

@@ -1,6 +1,8 @@
 //! The Cargo repair: metadata parsing, one repair per workspace, the plan for each layout, and the clean arguments.
 
 use super::*;
+use crate::package_repair_cargo_concurrent::map_concurrent;
+use crate::package_repair_cargo_workspaces::{distinct_workspaces, parse_metadata, read_workspace};
 use std::path::PathBuf;
 
 /// The `cargo metadata --no-deps` text of a workspace, built from the fields the repair reads (the paths are plain text).

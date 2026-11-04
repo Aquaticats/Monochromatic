@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::test_support::executable;
-use crate::package_repair::RepairEnvironment;
+use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_report::{Outcome, Tool};
 use crate::test_support::{fixture, remove};
 use std::time::Duration;
