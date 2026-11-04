@@ -119,11 +119,20 @@ pub struct GitProgram {
     pub environment: Vec<(String, String)>,
 }
 
-/// The bound of one Git call, in seconds.
-/// Measured 2026-11-04 on this repository (load average 6.2 to 6.9 on 32 CPUs, capped scopes, 3 runs each, `~/temp/agent/bench_bounds.py` and `bench_online.py`): `git cat-file --batch-check` with the four inputs took 0.007 s to 0.018 s, `git rev-parse --verify HEAD^{commit}` 0.007 s to 0.008 s,
-/// `git show HEAD:<dir>/Cargo.lock` 0.008 s to 0.009 s and `git var GIT_CONFIG_SYSTEM` 0.006 s to 0.007 s, all in a warm repository.
-/// A minute is about 3,000 times the slowest of these and leaves room for a cold disk or a promisor fetch, neither of which was measured.
-/// The owner's rule of 2026-11-03 justifies that a bound exists, not this number.
+/// The bound of one Git call,
+/// in seconds.
+/// Measured 2026-11-04 on this repository (load average 6.2 to 6.9 on 32 CPUs,
+/// capped scopes,
+/// 3 runs each,
+/// `~/temp/agent/bench_bounds.py` and `bench_online.py`):
+/// `git cat-file --batch-check` with the four inputs took 0.007 s to 0.018 s,
+/// `git rev-parse --verify HEAD^{commit}` 0.007 s to 0.008 s,
+/// `git show HEAD:<dir>/Cargo.lock` 0.008 s to 0.009 s and `git var GIT_CONFIG_SYSTEM` 0.006 s to 0.007 s,
+/// all in a warm repository.
+/// A minute is about 3,000 times the slowest of these and leaves room for a cold disk or a promisor fetch,
+/// neither of which was measured.
+/// The owner's rule of 2026-11-03 justifies that a bound exists,
+/// not this number.
 pub const GIT_CALL_SECONDS: u64 = 60;
 
 /// The methods of the type above.
@@ -279,7 +288,8 @@ pub struct NativeBase {
     /// The commit,
     /// or the message to show when the base names no commit.
     pub commit: Result<String, String>,
-    /// How many Git starts the reader itself needed (the one question about the system configuration, once per Git program).
+    /// How many Git starts the reader itself needed (the one question about the system configuration,
+    /// once per Git program).
     pub git_starts: u32,
 }
 
@@ -541,6 +551,8 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
         return Err(format!("{name} is set, so only Git can say where the repository is"));
     }
     let dot_git: PathBuf = root.join(".git");
+    // `.clone()`: an independent owned copy.
+    // Typed binding: `dot_git_path: PathBuf`.
     let dot_git_path: PathBuf = dot_git.clone();
     // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
     // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
@@ -556,6 +568,8 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     // Review finding (4a 5): Git inspects the `.git` entry itself (an `lstat`), so a link is not followed and is Git's to judge.
     let metadata = fs::symlink_metadata(&dot_git).map_err(|error| { return cannot_read(&dot_git, &error); })?;
     if metadata.file_type().is_symlink() {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("{} is a symbolic link, which only Git judges", dot_git.display()));
     }
     let git_dir: PathBuf = if metadata.is_dir() {
@@ -608,8 +622,11 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
         // Closure `|character|`: an anonymous function, like a TS arrow function.
         // Macro `matches!`: builds or prints text (or a list) from a template.
         Some(text) => {
+            // Typed binding: `path: &str`.
             let path: &str = text.trim_end_matches(is_line_end);
             if path.is_empty() {
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 return Err(format!("{} is empty, which Git refuses", git_dir.join("commondir").display()));
             }
             git_dir.join(path)

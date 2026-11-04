@@ -292,7 +292,10 @@ pub(crate) fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &
 enum Candidate {
     /// Git answered that the revision names no commit (an ordinary negative answer).
     NotACommit,
-    /// Git could not be asked or did not finish (a timeout, a start failure, a transport failure): nothing is known.
+    /// Git could not be asked or did not finish (a timeout,
+    /// a start failure,
+    /// a transport failure):
+    /// nothing is known.
     Operational(
         /// What happened.
         String,
@@ -303,7 +306,9 @@ enum Candidate {
 /// `fn resolve_candidate(environment, root, base, starts) -> Result<String, Candidate>` asks Git which commit a revision names
 /// and keeps an ordinary "no" apart from a failure to ask.
 /// Why:
-/// Review finding (4a 6): a query that did not finish has not shown that the revision names no commit, so the fallback must not
+/// Review finding (4a 6):
+/// a query that did not finish has not shown that the revision names no commit,
+/// so the fallback must not
 /// go on to a lower candidate.
 ///
 /// In TS you'd write (pseudocode):
@@ -312,15 +317,22 @@ enum Candidate {
 /// ```
 fn resolve_candidate(environment: &NativeEnvironment, root: &Path, base: &str, starts: &Cell<u32>) -> Result<String, Candidate> {
     starts.set(starts.get() + 1);
+    // `None`: the present or the absent value of an `Option`.
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let resolved = run_git(environment, root, &["rev-parse", "--verify", "--quiet", "--end-of-options", &format!("{base}^{{commit}}")], None).map_err(Candidate::Operational)?;
     if !resolved.status.success() {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         return Err(Candidate::NotACommit);
     }
     return Ok(String::from_utf8_lossy(&resolved.stdout).trim().to_string());
 }
 
 /// What:
-/// `fn resolve_commit(environment, root, base, starts) -> Result<String, String>` asks Git which commit a revision names, with
+/// `fn resolve_commit(environment, root, base, starts) -> Result<String, String>` asks Git which commit a revision names,
+/// with
 /// the message to show when it names none.
 /// Why:
 /// It is the one start for an explicit base and for the base of CI.
@@ -330,9 +342,13 @@ fn resolve_candidate(environment: &NativeEnvironment, root: &Path, base: &str, s
 /// function resolveCommit(environment: NativeEnvironment, root: string, base: string, starts: { count: number }): string  // throws a message
 /// ```
 fn resolve_commit(environment: &NativeEnvironment, root: &Path, base: &str, starts: &Cell<u32>) -> Result<String, String> {
+    // `match`: picks the arm whose pattern fits the value.
     return match resolve_candidate(environment, root, base, starts) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(commit) => Ok(commit),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(Candidate::NotACommit) => Err(not_a_commit_message(base)),
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(Candidate::Operational(message)) => Err(message),
     };
 }
@@ -420,7 +436,10 @@ fn resolve_sequentially(environment: &NativeEnvironment, root: &Path, starts: &C
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         match resolve_candidate(environment, root, candidate, starts) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             Ok(commit) => return TrustBase { spelling: candidate.to_string(), commit: Ok(commit), git_starts: starts.get() },
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(Candidate::NotACommit) => {}
             // Review finding (4a 6): a query that did not finish says nothing about this candidate, so no lower one is chosen.
             Err(Candidate::Operational(message)) => return TrustBase { spelling: candidate.to_string(), commit: Err(message), git_starts: starts.get() },
@@ -642,13 +661,15 @@ pub fn explicit_base_from_environment() -> Option<String> {
     };
 }
 
-/// The file in which the system configuration path a Git program reported is remembered, under the repository root.
+/// The file in which the system configuration path a Git program reported is remembered,
+/// under the repository root.
 const SYSTEM_CONFIG_CACHE: &str = ".cache/cargo-shadow/git-system-config";
 
 /// What:
 /// `fn find_program(program: &Path, search: &str) -> Option<PathBuf>` finds the executable a program name stands for.
 /// Why:
-/// The cache is keyed by the identity of the Git that will answer, so the name must be resolved the way a shell would.
+/// The cache is keyed by the identity of the Git that will answer,
+/// so the name must be resolved the way a shell would.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -656,18 +677,28 @@ const SYSTEM_CONFIG_CACHE: &str = ".cache/cargo-shadow/git-system-config";
 /// ```
 fn find_program(program: &Path, search: &str) -> Option<PathBuf> {
     if program.components().count() > 1 {
+        // `Some`: the present or the absent value of an `Option`.
         return Some(program.to_path_buf());
     }
+    // Closure `|directory|`: an anonymous function, like a TS arrow function.
+    // Adapter `.map(`: transforms or selects items with a closure.
     return search.split(':').map(|directory| { return Path::new(directory).join(program); }).find(|candidate| { return candidate.is_file(); });
 }
 
 /// What:
 /// `pub(crate) fn system_config_of_git(environment, root, starts) -> Result<PathBuf, String>` returns the system configuration file
-/// the Git that will answer reads, as that Git reports it (`git var GIT_CONFIG_SYSTEM`).
+/// the Git that will answer reads,
+/// as that Git reports it (`git var GIT_CONFIG_SYSTEM`).
 /// Why:
-/// Review finding (4a 4): an assumed `/etc/gitconfig` is wrong whenever the selected Git is built for another prefix, in both
-/// directions; the Git that answers knows.
-/// The answer is cached under the repository root, keyed by the Git program's canonical path, size and modification time, so the
+/// Review finding (4a 4):
+/// an assumed `/etc/gitconfig` is wrong whenever the selected Git is built for another prefix,
+/// in both
+/// directions;
+/// the Git that answers knows.
+/// The answer is cached under the repository root,
+/// keyed by the Git program's canonical path,
+/// size and modification time,
+/// so the
 /// question costs one Git start per Git program and not one per call.
 /// A Git that cannot say makes the reader decline.
 ///
@@ -676,38 +707,126 @@ fn find_program(program: &Path, search: &str) -> Option<PathBuf> {
 /// export function systemConfigOfGit(environment: NativeEnvironment, root: string, starts: { count: number }): string  // throws: ask Git
 /// ```
 pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path, starts: &Cell<u32>) -> Result<PathBuf, String> {
+    // Typed binding: `search: String`.
     let search: String = environment
         .git
         .environment
+        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         .iter()
+        // Closure `|(name, _)|`: an anonymous function, like a TS arrow function.
         .find(|(name, _)| { return name == "PATH"; })
+        // Closure `|(_, value)|`: an anonymous function, like a TS arrow function.
+        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
+        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // structuredClone(value)  // or [...list] / {...object}
+        // ```
+        // Adapter `.map(`: transforms or selects items with a closure.
         .map(|(_, value)| { return value.clone(); })
+        // `None`: the present or the absent value of an `Option`.
+        // What:     `.ok()` turns a `Result` into an `Option` (dropping the error); `.ok_or(e)` turns an `Option` into a `Result` with the given error.
+        // Why:      The next step wants a value-or-nothing, or a value-or-error, not the other form.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // try { return compute(); } catch { return undefined; }
+        // ```
         .or_else(|| { return if environment.git.clean_environment { None } else { std::env::var("PATH").ok() }; })
+        // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+        // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+        // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // value ?? fallback
+        // ```
         .unwrap_or_default();
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Borrow `&environment.git.program`: lends the value without copying or giving it away.
+    // `.ok()`/`.ok_or()`: converts between `Result` and `Option`.
+    // Typed binding: `program: PathBuf`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
+    // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+    // Why:      Joined or stored paths are owned; paths passed in are borrowed.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let program: PathBuf = find_program(&environment.git.program, &search).ok_or_else(|| { return format!("{} was not found on the search path, so its system configuration is unknown", environment.git.program.display()); })?;
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Closure `|error|`: an anonymous function, like a TS arrow function.
+    // Borrow `&program`: lends the value without copying or giving it away.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
+    // Typed binding: `canonical: PathBuf`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let canonical: PathBuf = std::fs::canonicalize(&program).map_err(|error| { return format!("{} cannot be resolved: {error}", program.display()); })?;
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Closure `|error|`: an anonymous function, like a TS arrow function.
+    // Borrow `&canonical`: lends the value without copying or giving it away.
+    // `.map_err(...)`: converts the callee's error into this function's error type.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let metadata = std::fs::metadata(&canonical).map_err(|error| { return format!("{} cannot be inspected: {error}", canonical.display()); })?;
+    // Closure `|time|`: an anonymous function, like a TS arrow function.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // `.ok()`/`.ok_or()`: converts between `Result` and `Option`.
+    // Adapter `.and_then(`: transforms or selects items with a closure.
+    // Typed binding: `modified_nanos: u128`.
     let modified_nanos: u128 = metadata.modified().ok().and_then(|time| { return time.duration_since(std::time::UNIX_EPOCH).ok(); }).map(|elapsed| { return elapsed.as_nanos(); }).unwrap_or(0);
+    // Typed binding: `key: String`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let key: String = format!("{}\t{}\t{modified_nanos}", canonical.display(), metadata.len());
+    // Typed binding: `cache: PathBuf`.
     let cache: PathBuf = root.join(SYSTEM_CONFIG_CACHE);
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // Borrow `&cache`: lends the value without copying or giving it away.
     if let Ok(text) = std::fs::read_to_string(&cache) {
+        // `let mut`: a binding that may change.
         let mut lines = text.lines();
+        // `Some`: the present or the absent value of an `Option`.
         if lines.next() == Some(key.as_str())
+            // `Some`: the present or the absent value of an `Option`.
             && let Some(path) = lines.next()
             && !path.is_empty()
         {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
             return Ok(PathBuf::from(path));
         }
     }
     starts.set(starts.get() + 1);
+    // `None`: the present or the absent value of an `Option`.
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Borrow `&[`: lends the value without copying or giving it away.
     let asked = run_git(environment, root, &["var", "GIT_CONFIG_SYSTEM"], None)?;
+    // Borrow `&asked.stdout`: lends the value without copying or giving it away.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `reported: String`.
     let reported: String = String::from_utf8_lossy(&asked.stdout).trim().to_string();
     if !asked.status.success() || reported.is_empty() {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err("the Git that answers does not report its system configuration, so it is not assumed".to_string());
     }
+    // `Some`: the present or the absent value of an `Option`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     if let Some(parent) = cache.parent() {
+        // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
+        // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // void expr;   // or try { expr } catch {}
+        // ```
         let _ = crate::journal::create_directories_synced(parent);
     }
+    // Borrow `&cache`: lends the value without copying or giving it away.
+    // Macro `format!`: builds or prints text (or a list) from a template.
+    // `let _ =`: discards the result on purpose.
     let _ = crate::journal::atomic_write(&cache, &format!("{key}\n{reported}\n"));
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(PathBuf::from(reported));
 }

@@ -52,6 +52,14 @@ use crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, KeepAs, 
 use crate::journal_transaction::{mark_done_and_remove, take_workspace};
 /// Imports the process-group probe and the error code that says a group is empty.
 use rustix::io::Errno;
+// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
+// Why:      The code below names these items directly instead of spelling their full paths each time.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { Name } from './module.ts';
+// ```
+/// Imports `rustix::process::{Pid, test_kill_process_group}` for this file.
 use rustix::process::{Pid, test_kill_process_group};
 /// Imports the manifest side of a recovery.
 use crate::journal_manifests::{JournaledManifest, RootDecision, read_manifest_index, recover_manifests};
@@ -168,6 +176,7 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
     let mut ended: Option<usize> = None;
     for line in lines {
         if ended.is_some() {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             return Err(corrupt("text after the end line"));
         }
         if let Some(count) = line.strip_prefix("end ") {
@@ -180,20 +189,35 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
         if found != expected {
             return Err(corrupt(&format!("{name} has {found} bytes, the record says {expected}")));
         }
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         listed.push(name.to_string());
     }
+    // `Some`: the present or the absent value of an `Option`.
     if ended != Some(listed.len()) {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         return Err(corrupt("no end line, or its count does not match the lines"));
     }
     // The listed set must be exactly the payload a recovery needs: the index, one snapshot per root, and the manifest index when promised.
     let roots: usize = fs::read_to_string(directory.join(INDEX_FILE))?.lines().filter(|line| { return !line.starts_with("end ") && *line != "v2"; }).count();
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `let mut`: a binding that may change.
+    // Typed binding: `required: Vec<String>`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let mut required: Vec<String> = vec![INDEX_FILE.to_string()];
+    // Closure `|position|`: an anonymous function, like a TS arrow function.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     required.extend((0..roots).map(|position| { return format!("{position}.lock"); }));
     if manifests {
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         required.push(MANIFEST_INDEX_FILE.to_string());
     }
+    // Borrow `&required`: lends the value without copying or giving it away.
     for name in &required {
         if !listed.contains(name) {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // Borrow `&format`: lends the value without copying or giving it away.
+            // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(corrupt(&format!("{name} is required and not listed")));
         }
     }
@@ -217,38 +241,75 @@ pub fn recover(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> 
 /// What:
 /// `pub fn recover_with(root, judge, between) -> Vec<String>` is `recover` with a hook that runs before each replacement.
 /// Why:
-/// It takes the workspace lock for the whole recovery without waiting: a held lock means a live run (or its surviving children)
-/// owns the workspace and every journal is left for a later run, and a taken lock keeps any transaction from starting meanwhile.
+/// It takes the workspace lock for the whole recovery without waiting:
+/// a held lock means a live run (or its surviving children)
+/// owns the workspace and every journal is left for a later run,
+/// and a taken lock keeps any transaction from starting meanwhile.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function recoverWith(root: string, judge: Judge, between: (path: string) => void): string[]
 /// ```
 pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> Vec<String> {
+    // `let mut`: a binding that may change.
+    // Typed binding: `messages: Vec<String>`.
+    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
     let mut messages: Vec<String> = Vec::new();
+    // Typed binding: `journals: PathBuf`.
+    // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
+    // Why:      Joined or stored paths are owned; paths passed in are borrowed.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let journals: PathBuf = root.join(JOURNAL_DIR);
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // Borrow `&journals`: lends the value without copying or giving it away.
     let Ok(listing) = fs::read_dir(&journals) else {
         return messages;
     };
+    // Closure `|entry|`: an anonymous function, like a TS arrow function.
+    // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
+    // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // Array.from(iterable)  // or [...iterable]
+    // ```
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // `let mut`: a binding that may change.
+    // Typed binding: `entries: Vec<PathBuf>`.
     let mut entries: Vec<PathBuf> = listing.flatten().map(|entry| { return entry.path(); }).collect();
     if entries.is_empty() {
         return messages;
     }
     entries.sort();
+    // `match`: picks the arm whose pattern fits the value.
     let _workspace = match take_workspace(root) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(Ok(held)) => held,
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(Err(holder)) => {
+            // Macro `format!`: builds or prints text (or a list) from a template.
             messages.push(format!("{holder}; the journals of earlier runs were left for a later run"));
             return messages;
         }
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => {
+            // Macro `format!`: builds or prints text (or a list) from a template.
             messages.push(format!("the workspace lock could not be tried ({error}); the journals of earlier runs were left for a later run"));
             return messages;
         }
     };
     for directory in entries {
         if directory.to_string_lossy().ends_with(DONE_SUFFIX) {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+            // Borrow `&directory`: lends the value without copying or giving it away.
             if let Err(error) = mark_done_and_remove(&directory) {
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 messages.push(format!("{}: a finished journal could not be removed ({error}); it will be tried again", directory.display()));
             }
             continue;
@@ -256,6 +317,7 @@ pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]
         if !directory.is_dir() {
             continue;
         }
+        // Borrow `&directory`: lends the value without copying or giving it away.
         recover_one(root, &directory, judge, between, &mut messages);
     }
     return messages;
@@ -264,33 +326,56 @@ pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]
 /// What:
 /// `fn survivor_group(directory: &Path) -> Option<i32>` returns a process group recorded for the journal that still has a member.
 /// Why:
-/// A killed wrapper's lock is gone, but its cargo may still be writing; the groups it started are in the journal.
+/// A killed wrapper's lock is gone,
+/// but its cargo may still be writing;
+/// the groups it started are in the journal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function survivorGroup(directory: string): number | undefined
 /// ```
 fn survivor_group(directory: &Path) -> Option<i32> {
+    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
+    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // value ?? fallback
+    // ```
+    // Typed binding: `text: String`.
     let text: String = fs::read_to_string(directory.join(GROUPS_FILE)).unwrap_or_default();
     for line in text.lines() {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         if let Ok(number) = line.trim().parse::<i32>()
+            // `Some`: the present or the absent value of an `Option`.
             && let Some(group) = Pid::from_raw(number)
+            // `match`: picks the arm whose pattern fits the value.
             && match test_kill_process_group(group) {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 Ok(()) => true,
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 Err(code) => code != Errno::SRCH,
             }
         {
+            // `Some`: the present or the absent value of an `Option`.
             return Some(number);
         }
     }
+    // `None`: the present or the absent value of an `Option`.
     return None;
 }
 
 /// What:
 /// `fn recover_unready(root, directory, messages)` settles a journal that has no ready record.
 /// Why:
-/// Review finding (4b2 6): no ready record is normally a run killed while it prepared, before cargo ran, and then the copies lose
-/// nothing; but a ready record that was lost to damage looks the same.
+/// Review finding (4b2 6):
+/// no ready record is normally a run killed while it prepared,
+/// before cargo ran,
+/// and then the copies lose
+/// nothing;
+/// but a ready record that was lost to damage looks the same.
 /// So the copies are removed only when no lockfile differs from its snapshot (the copies are then redundant);
 /// otherwise the journal is kept and named.
 ///
@@ -299,22 +384,47 @@ fn survivor_group(directory: &Path) -> Option<i32> {
 /// function recoverUnready(root: string, directory: string, messages: string[]): void
 /// ```
 fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<String>) {
+    // `match`: picks the arm whose pattern fits the value.
+    // Typed binding: `redundant: bool`.
     let redundant: bool = match read_journal(directory) {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) if error.kind() == io::ErrorKind::NotFound => true,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(_) => false,
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(before) => {
+            // `.collect()`: runs the iterator and gathers the items into the bound collection type.
+            // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
+            // Why:      The collection stays usable after the walk and no item is copied until it must be.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // for (const item of list) { ... }  // or list.map(...)
+            // ```
+            // Adapter `.map(`: transforms or selects items with a closure.
+            // Typed binding: `dirs: Vec<String>`.
             let dirs: Vec<String> = before.iter().map(LockSnapshot::crate_dir_text).collect();
+            // `match`: picks the arm whose pattern fits the value.
+            // Borrow `&dirs`: lends the value without copying or giving it away.
             match read_locks(root, &dirs) {
+                // `Ok(...)`: builds the success or the failure variant of a `Result`.
+                // Closure `|(old, now)|`: an anonymous function, like a TS arrow function.
+                // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
                 Ok(live) => before.iter().zip(live.iter()).all(|(old, now)| { return old.source == now.source; }),
+                // `Err(...)`: builds the success or the failure variant of a `Result`.
                 Err(_) => false,
             }
         }
     };
     if !redundant {
+        // Macro `format!`: builds or prints text (or a list) from a template.
         messages.push(format!("{}: a journal without a ready record holds the only copy of a lockfile that differs from the live one; it was kept", directory.display()));
         return;
     }
+    // `Err(...)`: builds the success or the failure variant of a `Result`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     if let Err(error) = mark_done_and_remove(directory) {
+        // Macro `format!`: builds or prints text (or a list) from a template.
         messages.push(format!("{}: a journal that never became ready could not be removed ({error}); it will be tried again", directory.display()));
     }
 }
@@ -323,8 +433,10 @@ fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<String>) {
 /// `fn report_leftover_temporaries(root, crate_dirs, messages)` names the replacement temporaries a killed run left in the crate
 /// roots.
 /// Why:
-/// Review finding (4b 3): a run killed between the exchange and the kept link leaves the displaced file only under a hidden
-/// `.shadow-*.tmp` name; recovery reports it and never deletes it.
+/// Review finding (4b 3):
+/// a run killed between the exchange and the kept link leaves the displaced file only under a hidden
+/// `.shadow-*.tmp` name;
+/// recovery reports it and never deletes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -332,12 +444,17 @@ fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<String>) {
 /// ```
 fn report_leftover_temporaries(root: &Path, crate_dirs: &[String], messages: &mut Vec<String>) {
     for crate_dir in crate_dirs {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         let Ok(listing) = fs::read_dir(root.join(crate_dir)) else {
             continue;
         };
         for entry in listing.flatten() {
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // Typed binding: `name: String`.
             let name: String = entry.file_name().to_string_lossy().to_string();
             if name.starts_with('.') && name.contains(".shadow-") && name.ends_with(".tmp") {
+                // Macro `format!`: builds or prints text (or a list) from a template.
                 messages.push(format!("{} may hold a file that a killed run displaced and did not get to keep under another name; it was left as it is", entry.path().display()));
             }
         }
@@ -347,7 +464,9 @@ fn report_leftover_temporaries(root: &Path, crate_dirs: &[String], messages: &mu
 /// What:
 /// `fn recover_one(root, directory, judge, between, messages)` recovers one journal while this process holds the workspace.
 /// Why:
-/// An unready journal is settled by `recover_unready`; a damaged or unsettled one is kept; a settled one is made durable,
+/// An unready journal is settled by `recover_unready`;
+/// a damaged or unsettled one is kept;
+/// a settled one is made durable,
 /// completed and removed.
 ///
 /// In TS you'd write (pseudocode):
@@ -355,7 +474,10 @@ fn report_leftover_temporaries(root: &Path, crate_dirs: &[String], messages: &mu
 /// function recoverOne(root: string, directory: string, judge: Judge, messages: string[]): void
 /// ```
 fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path), messages: &mut Vec<String>) {
+    // `Some`: the present or the absent value of an `Option`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     if let Some(group) = survivor_group(directory) {
+        // Macro `format!`: builds or prints text (or a list) from a template.
         messages.push(format!("{}: a process group of the killed run (pid {group}) is still running; the journal was kept for a later run", directory.display()));
         return;
     }
@@ -396,10 +518,12 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[
             return;
         }
     };
+    // Borrow `&dirs`: lends the value without copying or giving it away.
     report_leftover_temporaries(root, &dirs, messages);
     let mut settled: bool = true;
     let mut decisions: Vec<(String, RootDecision)> = Vec::new();
     for (old, now) in before.iter().zip(live.iter()) {
+        // Typed binding: `decision: RootDecision`.
         let decision: RootDecision = recover_root(root, old, now, judge, between, messages);
         if decision == RootDecision::Failed {
             settled = false;
@@ -410,6 +534,7 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[
         settled = false;
     }
     if settled {
+        // Borrow `&decisions`: lends the value without copying or giving it away.
         for (crate_dir, _decision) in &decisions {
             if let Err(error) = make_durable(&root.join(crate_dir).join(LOCKFILE_NAME)) {
                 messages.push(format!("{crate_dir}/{LOCKFILE_NAME} could not be synced ({error}); the journal was kept"));
@@ -431,8 +556,10 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[
 /// What:
 /// `fn recover_root(root, old, now, judge, between, messages) -> RootDecision` settles one root's lockfile.
 /// Why:
-/// The decision is recorded for every root, so its manifests follow it and an error never reads as a restoration.
-/// The workspace lock is held, so no transaction covers the root meanwhile.
+/// The decision is recorded for every root,
+/// so its manifests follow it and an error never reads as a restoration.
+/// The workspace lock is held,
+/// so no transaction covers the root meanwhile.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

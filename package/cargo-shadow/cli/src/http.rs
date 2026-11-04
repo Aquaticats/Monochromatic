@@ -56,19 +56,29 @@ pub const USER_AGENT: &str = "monochromatic-cargo-shadow (https://github.com/Aqu
 /// The longest response body read,
 /// in bytes.
 /// A crate's whole version list is the largest response (a few megabytes).
-/// Unmeasured: the largest response of the crates.io API in this repository's use must be measured.
+/// Unmeasured:
+/// the largest response of the crates.io API in this repository's use must be measured.
 const MAX_BODY_BYTES: u64 = 128 * 1024 * 1024;
 
 /// How long one request may take before it counts as failed.
-/// Unmeasured: set before the owner's rule of 2026-11-03 and not revisited; the slowest single request (the largest crate version list) must be measured.
-/// A per-request limit is not an end-to-end limit: five requests with four pauses can take about 18 minutes.
+/// Unmeasured:
+/// set before the owner's rule of 2026-11-03 and not revisited;
+/// the slowest single request (the largest crate version list) must be measured.
+/// A per-request limit is not an end-to-end limit:
+/// five requests with four pauses can take about 18 minutes.
 const REQUEST_TIMEOUT_SECONDS: u64 = 120;
 
-/// The longest the download of the crates.io database dump may take, in seconds.
-/// Measured 2026-11-04: `HEAD https://static.crates.io/db-dump.tar.gz` answers `content-length: 2141003849` (2.0 GiB).
-/// An hour allows a floor throughput of about 595 KB/s (4.8 Mbit/s); that floor is an assumption, not a measurement, and the download time on this machine was not measured.
+/// The longest the download of the crates.io database dump may take,
+/// in seconds.
+/// Measured 2026-11-04:
+/// `HEAD https://static.crates.io/db-dump.tar.gz` answers `content-length: 2141003849` (2.0 GiB).
+/// An hour allows a floor throughput of about 595 KB/s (4.8 Mbit/s);
+/// that floor is an assumption,
+/// not a measurement,
+/// and the download time on this machine was not measured.
 /// At the bound the download ends with an error and the next run starts it again.
-/// The owner's rule of 2026-11-03 justifies that a bound exists, not this number.
+/// The owner's rule of 2026-11-03 justifies that a bound exists,
+/// not this number.
 const DUMP_TIMEOUT_SECONDS: u64 = 3_600;
 
 /// A registry lookup that failed.

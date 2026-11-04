@@ -373,6 +373,7 @@ fn restore_manifests_into(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs, war
             )),
         }
     }
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(());
 }
 
@@ -380,14 +381,20 @@ fn restore_manifests_into(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs, war
 /// `pub fn restore_manifests(edits, keep) -> (Vec<String>, Option<io::Error>)` puts the manifests back and returns every warning
 /// it produced together with the first failure.
 /// Why:
-/// Review finding (4b 3): the report of a manifest that was restored and kept must survive a later manifest's failure.
+/// Review finding (4b 3):
+/// the report of a manifest that was restored and kept must survive a later manifest's failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function restoreManifests(edits: ManifestEdit[], keep: KeepAs): { warnings: string[]; failure?: Error }
 /// ```
 pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> (Vec<String>, Option<io::Error>) {
+    // `let mut`: a binding that may change.
+    // Typed binding: `warnings: Vec<String>`.
+    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
     let mut warnings: Vec<String> = Vec::new();
+    // Borrow `&mut warnings`: lends the value without copying or giving it away.
+    // Typed binding: `failure: Option<io::Error>`.
     let failure: Option<io::Error> = restore_manifests_into(edits, keep, &mut warnings).err();
     return (warnings, failure);
 }

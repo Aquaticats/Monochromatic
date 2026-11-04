@@ -779,22 +779,44 @@ fn a_policy_refusal_whose_rollback_cannot_complete_stops_the_command() {
     assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the refused lockfile: {outcome:?}");
 }
 
-/// A cargo that writes a lockfile with a refused release and succeeds, then answers every other call without changing anything.
+/// A cargo that writes a lockfile with a refused release and succeeds,
+/// then answers every other call without changing anything.
 fn cargo_that_writes_a_refused_release() -> impl Fn(&Path, &[String]) -> Result<CargoOutcome, String> {
+    // Typed binding: `young: String`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let young: String = format!("# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
     return move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        // Closure `|argument|`: an anonymous function, like a TS arrow function.
+        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+            // `Ok(...)`: builds the success or the failure variant of a `Result`.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // Constructor `String::new()`: an empty owned collection or a boxed value.
             return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
         }
+        // Closure `|argument|`: an anonymous function, like a TS arrow function.
+        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         if arguments[0] == "update" && !arguments.iter().any(|argument| { return argument == "--precise"; }) {
+            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+            // Closure `|error|`: an anonymous function, like a TS arrow function.
+            // Borrow `&young`: lends the value without copying or giving it away.
+            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+            // `.map_err(...)`: converts the callee's error into this function's error type.
             fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
         }
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // Constructor `String::new()`: an empty owned collection or a boxed value.
         return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
     };
 }
 
-/// Review finding (4c F1): the policy refused the output, the rollback worked, and finishing the journal failed; the refusal still
-/// stops the command (an operational error would let the locked fallback build the consistent, refused lockfile).
+/// Review finding (4c F1):
+/// the policy refused the output,
+/// the rollback worked,
+/// and finishing the journal failed;
+/// the refusal still
+/// stops the command (an operational error would let the locked fallback build the consistent,
+/// refused lockfile).
 #[test]
 fn a_refusal_survives_a_journal_that_cannot_be_finished() {
     let root = repository(STALE);
@@ -802,12 +824,18 @@ fn a_refusal_survives_a_journal_that_cannot_be_finished() {
     let runner = cargo_that_writes_a_refused_release();
     crate::failpoints::arm(crate::failpoints::Point::Finish);
 
+    // `None`: the present or the absent value of an `Option`.
+    // Borrow `&StepRequest`: lends the value without copying or giving it away.
     let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(outcome, StepOutcome::Refused(_)), "the refusal was replaced: {outcome:?}");
 }
 
-/// Review finding (4c, regression coverage): the rollback failure of the policy-refusal case, provoked without permissions so that
+/// Review finding (4c,
+/// regression coverage):
+/// the rollback failure of the policy-refusal case,
+/// provoked without permissions so that
 /// it also runs for a root user.
 #[test]
 fn a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permissions() {
@@ -816,7 +844,10 @@ fn a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permiss
     let runner = cargo_that_writes_a_refused_release();
     crate::failpoints::arm(crate::failpoints::Point::Restore);
 
+    // `None`: the present or the absent value of an `Option`.
+    // Borrow `&StepRequest`: lends the value without copying or giving it away.
     let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the refused lockfile: {outcome:?}");
 }

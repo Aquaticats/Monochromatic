@@ -824,7 +824,18 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     // Review finding (4c F1): a finish error never replaces an established refusal (or any other result): it is reported beside it,
     // and the journal stays for the next recovery to settle.
     let finish_warning: Option<String> = transaction.finish().err().map(|error| { return format!("the transaction journal could not be completed ({error}); the next run settles it"); });
+    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
+    // Why:      Absence is a value the caller must check; there is no `null`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // Some(value) is  value
+    // // None        is  undefined
+    // ```
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // Borrow `&finish_warning`: lends the value without copying or giving it away.
     if let Some(warning) = &finish_warning {
+        // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: warning: {warning}");
     }
     // Closure `|mut report|`: an anonymous function, like a TS arrow function.

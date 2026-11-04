@@ -192,13 +192,22 @@ a reference outside `refs/heads`,
 `refs/remotes` and `refs/tags` (worktree-private references),
 an invalid,
 negative or unusual fetch or push refspec of any remote,
-a `remote.*` or `branch.*` key that is written without a value, is not a boolean where it must be, or has no class here,
+a `remote.*` or `branch.*` key that is written without a value,
+is not a boolean where it must be,
+or has no class here,
 a missing upstream of the remote `.` (Git expands such names),
-a repository, `.git` entry or Git directory that another user owns, or a `.git` link (Git's own safe-directory decision, inspected with `lstat`),
+a repository,
+`.git` entry or Git directory that another user owns,
+or a `.git` link (Git's own safe-directory decision,
+inspected with `lstat`),
 an empty `commondir`,
 a Git that cannot report its system configuration,
 a symbolic reference where a commit is expected,
-an object that is not seen to be a commit stored whole and accepted by Git's commit parser (a tag, a malformed `parent` line, a zlib stream without its end, a pack that disagrees with its index, a non-regular file,
+an object that is not seen to be a commit stored whole and accepted by Git's commit parser (a tag,
+a malformed `parent` line,
+a zlib stream without its end,
+a pack that disagrees with its index,
+a non-regular file,
 a missing object,
 a deltified commit),
 `objects/info/alternates`,
@@ -207,8 +216,10 @@ a legacy `remotes/` or `branches/` remote file,
 and a short name that a tag or branch shadows (`origin/main`),
 or that also resolves through `refs/remotes/<name>/HEAD`.
 The system configuration is the file the Git that will answer reports (`git var GIT_CONFIG_SYSTEM`):
-that one question is a Git start, asked once per Git program and remembered in `.cache/cargo-shadow/git-system-config`
-(keyed by the program's canonical path, size and modification time);
+that one question is a Git start,
+asked once per Git program and remembered in `.cache/cargo-shadow/git-system-config`
+(keyed by the program's canonical path,
+size and modification time);
 a Git that cannot report it makes the reader decline.
 The reader is tested against git itself
 (`src/git_differential_tests.rs`:
@@ -618,13 +629,19 @@ and an HTTP 429 is retried after its `Retry-After`.
   Each lockfile is recorded as this run's output the moment its cargo call returned (even a failing one);
   a rollback that cannot complete stops the command whether cargo failed or its output was refused,
   so the `--locked` fallback never builds it.
-  Every run that changes lockfiles takes one exclusive `flock` on `.cache/cargo-shadow/lock`, for the whole workspace,
-  without waiting, and holds it until it finishes:
+  Every run that changes lockfiles takes one exclusive `flock` on `.cache/cargo-shadow/lock`,
+  for the whole workspace,
+  without waiting,
+  and holds it until it finishes:
   a second run fails at once with the holder's process id and the command to run again,
-  and a recovery takes the same lock for its whole duration, so no transaction starts while files are being put back.
-  This is the one lock, a pick open to the owner's veto;
+  and a recovery takes the same lock for its whole duration,
+  so no transaction starts while files are being put back.
+  This is the one lock,
+  a pick open to the owner's veto;
   its visible cost is that two lockfile-changing runs in one workspace do not run side by side.
-  The lock is close-on-exec, so a program that cargo starts (a compiler cache daemon, say) cannot keep it held forever.
+  The lock is close-on-exec,
+  so a program that cargo starts (a compiler cache daemon,
+  say) cannot keep it held forever.
   A killed wrapper's cargo is found another way:
   the process group of every child the run starts is recorded in the run's journal,
   and a recovery leaves a journal whose recorded group still has a member (it names the group) for a later run.
@@ -641,20 +658,28 @@ and an HTTP 429 is retried after its `Retry-After`.
   A `--breaking` run's manifests are in the journal (lossless path bytes,
   a versioned record,
   required by the ready record):
-  a ready journal with a missing, short or unlisted file is kept.
+  a ready journal with a missing,
+  short or unlisted file is kept.
   A journal with no ready record is removed only when every lockfile equals its snapshot (the copies are then redundant);
-  otherwise it is kept and named, because a lost ready record looks the same.
+  otherwise it is kept and named,
+  because a lost ready record looks the same.
   A replacement temporary left by a killed run is reported and never deleted.
   Finishing a run forces its outputs to disk before the completion marker (the owner's "Force at leaving"):
-  each lockfile and journaled manifest and its directory are synced, then the journal is renamed to `.done`,
-  the parent is synced, and the journal is removed.
-  A removal that stopped partway is finished by the next recovery, which syncs the parent before it deletes anything.
+  each lockfile and journaled manifest and its directory are synced,
+  then the journal is renamed to `.done`,
+  the parent is synced,
+  and the journal is removed.
+  A removal that stopped partway is finished by the next recovery,
+  which syncs the parent before it deletes anything.
   Data is synced before it is relied on:
-  the displaced file (a failed data barrier is an error, never a settled outcome),
+  the displaced file (a failed data barrier is an error,
+  never a settled outcome),
   the kept directory and its two parents every time a file is linked into it.
   Power-loss behavior depends on the filesystem honoring `fsync` and is not tested by fault injection.
-  The kept directory is capped (1,000 files; an owner decision is still needed for the number):
-  past it a new run is refused with a listing, because kept files are other writers' data and are never deleted by this tool.
+  The kept directory is capped (1,000 files;
+  an owner decision is still needed for the number):
+  past it a new run is refused with a listing,
+  because kept files are other writers' data and are never deleted by this tool.
 - Nothing waits forever
   (owner rule of 2026-11-03:
   "nothing should ever wait forever or indefinitely").
@@ -665,19 +690,30 @@ and an HTTP 429 is retried after its `Retry-After`.
   and the error names the call and the command the user ran;
   after a normal exit any member left in the group is killed too,
   and output is returned only when it is complete (a process outside the group that holds the pipe makes it an error).
-  The bounds, with what was measured in this repository on 2026-11-04 (load average 6.2 to 6.9 on 32 CPUs, 3 runs each):
-  a cargo call 30 minutes (offline `cargo update`/`cargo metadata` took 0.05 s to 0.91 s; the cold-index case is unmeasured),
-  a Git call 60 seconds (0.006 s to 0.018 s warm; cold disk and promisor fetch unmeasured),
+  The bounds,
+  with what was measured in this repository on 2026-11-04 (load average 6.2 to 6.9 on 32 CPUs,
+  3 runs each):
+  a cargo call 30 minutes (offline `cargo update`/`cargo metadata` took 0.05 s to 0.91 s;
+  the cold-index case is unmeasured),
+  a Git call 60 seconds (0.006 s to 0.018 s warm;
+  cold disk and promisor fetch unmeasured),
   `file-enforcer write` 5 minutes (about 0.6 s),
-  the dump download 1 hour (the dump is 2.0 GiB, so an assumed floor of about 595 KB/s),
+  the dump download 1 hour (the dump is 2.0 GiB,
+  so an assumed floor of about 595 KB/s),
   a registry request 120 seconds (unmeasured),
-  a pause for an HTTP 429 at most 2 minutes (unmeasured: no `Retry-After` was observed),
-  name searches 10,000 (kept names) and 100 (journals, taken names; collisions not counted).
+  a pause for an HTTP 429 at most 2 minutes (unmeasured:
+  no `Retry-After` was observed),
+  name searches 10,000 (kept names) and 100 (journals,
+  taken names;
+  collisions not counted).
   A per-call bound is not an end-to-end bound:
   five registry requests with four pauses can take about 18 minutes.
-  The owner's rule justifies that a bound exists, not its number.
-  The one exemption is the user's own command that the shim starts after the checks (`cargo build`, `cargo run` and the like):
-  it runs as long as the user lets it, and cargo-shadow does nothing while it runs.
+  The owner's rule justifies that a bound exists,
+  not its number.
+  The one exemption is the user's own command that the shim starts after the checks (`cargo build`,
+  `cargo run` and the like):
+  it runs as long as the user lets it,
+  and cargo-shadow does nothing while it runs.
 - `cargo add` and `cargo remove` run cargo first and then only warn about dependencies that skip the catalog.
   They run no code of the dependency,
   and the policy is enforced by the install step of the next command that resolves or builds,

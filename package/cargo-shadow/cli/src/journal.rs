@@ -165,16 +165,24 @@ pub(crate) const INDEX_FILE: &str = "index.txt";
 /// the process id and the process start time.
 pub(crate) const OWNER_FILE: &str = "owner";
 
-/// The file in which the process groups of the children a transaction started are recorded, one group id per line.
+/// The file in which the process groups of the children a transaction started are recorded,
+/// one group id per line.
 pub(crate) const GROUPS_FILE: &str = "groups";
 
 /// The most files the kept directory may hold before a new transaction is refused.
-/// Unmeasured, and an owner decision: the owner's rule "never discard user data" forbids deleting kept files, so this cap only
-/// stops growth; what must be decided is how many kept files are tolerable and who clears them.
+/// Unmeasured,
+/// and an owner decision:
+/// the owner's rule "never discard user data" forbids deleting kept files,
+/// so this cap only
+/// stops growth;
+/// what must be decided is how many kept files are tolerable and who clears them.
 pub const MAX_KEPT_FILES: usize = 1_000;
 
-/// The file whose exclusive lock a transaction, or a recovery, holds on the whole workspace while it lives.
-/// One lock for all roots is the fewest locks that exclude every conflict (owner rule: "Use as few locks as possible.").
+/// The file whose exclusive lock a transaction,
+/// or a recovery,
+/// holds on the whole workspace while it lives.
+/// One lock for all roots is the fewest locks that exclude every conflict (owner rule:
+/// "Use as few locks as possible.").
 pub const WORKSPACE_LOCK: &str = ".cache/cargo-shadow/lock";
 
 /// The record written last that lists every file a recovery needs,
@@ -336,6 +344,7 @@ pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &
 pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> io::Result<Vec<String>> {
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::Restore) {
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         return Err(io::Error::other("injected restore failure"));
     }
     let mut warnings: Vec<String> = Vec::new();
@@ -532,9 +541,12 @@ pub(crate) fn decode_path(text: &str) -> Option<PathBuf> {
 }
 
 /// What:
-/// `pub fn make_durable(path: &Path) -> io::Result<()>` syncs a file and the directory that lists it; an absent file is skipped.
+/// `pub fn make_durable(path: &Path) -> io::Result<()>` syncs a file and the directory that lists it;
+/// an absent file is skipped.
 /// Why:
-/// Review finding (4b2 3), and the owner's rule "Force at leaving": what a command promises when it leaves is on disk before the
+/// Review finding (4b2 3),
+/// and the owner's rule "Force at leaving":
+/// what a command promises when it leaves is on disk before the
 /// snapshots that could undo it are removed.
 ///
 /// In TS you'd write (pseudocode):
@@ -542,13 +554,21 @@ pub(crate) fn decode_path(text: &str) -> Option<PathBuf> {
 /// export function makeDurable(path: string): void  // fsync the file, then its directory
 /// ```
 pub fn make_durable(path: &Path) -> io::Result<()> {
+    // `match`: picks the arm whose pattern fits the value.
     match fs::File::open(path) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         Ok(file) => file.sync_all()?,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => return Err(error),
     }
+    // `match`: picks the arm whose pattern fits the value.
     return match path.parent() {
+        // `Some`: the present or the absent value of an `Option`.
         Some(parent) if !parent.as_os_str().is_empty() => sync_directory(parent),
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         _ => Ok(()),
     };
 }

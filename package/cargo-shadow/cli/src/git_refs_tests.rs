@@ -453,5 +453,6 @@ fn a_repository_that_asks_for_reftable_or_a_worktree_configuration_is_refused() 
 
 /// The repository root of a layout whose git directory is `<root>/.git`.
 fn root_of(layout: &GitLayout) -> &Path {
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     return layout.git_dir.parent().unwrap_or_else(|| { return Path::new("."); });
 }

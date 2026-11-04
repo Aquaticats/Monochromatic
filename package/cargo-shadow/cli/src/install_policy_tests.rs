@@ -658,7 +658,19 @@ fn a_second_install_does_not_take_the_first_ones_unapproved_lockfile_for_approve
     // Review finding (4b2 1): the workspace lock keeps a second transaction out while the first holds the unapproved output, so the
     // second install stops with an error naming the holder instead of taking that lockfile for approved.
     let second = registry.second.borrow_mut().take().expect("the second install ran");
+    // Closure `|error|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
+    // Why:      They express one step of a pipeline without an index loop.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // list.map(f).filter(g)
+    // ```
+    // Typed binding: `message: String`.
     let message: String = second.err().map(|error| { return error.to_string(); }).unwrap_or_default();
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains("another cargo-shadow run"), "{message}");
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(first.problems.is_empty(), "{:?}", first.problems);

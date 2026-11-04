@@ -653,27 +653,50 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
     // One rule for both branches (review finding 4c F3): the taken inode gets a surviving name in the kept directory before its
     // taken name is removed; linking it back to the live path is not a preservation name, because the path is writable by others.
     let keep: crate::journal::KeepAs = crate::journal::KeepAs::in_directory(keep_dir, if is_placeholder { ".placeholder" } else { ".lockfile" });
+    // `match`: picks the arm whose pattern fits the value.
+    // Borrow `&taken`: lends the value without copying or giving it away.
     let kept = match crate::journal_replace::keep_name(&taken, lock_path, &keep) {
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(found) => found,
+        // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => {
+            // Macro `eprintln!`: builds or prints text (or a list) from a template.
             eprintln!("cargo-shadow: warning: the lockfile taken from {} is kept as {} because it could not be given a kept name ({error})", lock_path.display(), taken.display());
             if !is_placeholder {
+                // Borrow `&taken`: lends the value without copying or giving it away.
+                // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
+                // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // void expr;   // or try { expr } catch {}
+                // ```
                 let _ = std::fs::hard_link(&taken, lock_path);
             }
             return;
         }
     };
+    // `Err(...)`: builds the success or the failure variant of a `Result`.
+    // Borrow `&taken`: lends the value without copying or giving it away.
     if !is_placeholder && let Err(error) = std::fs::hard_link(&taken, lock_path) {
+        // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: warning: a lockfile written during the run is kept as {} ({error})", kept.display());
     }
+    // `Err(...)`: builds the success or the failure variant of a `Result`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // Borrow `&taken`: lends the value without copying or giving it away.
     if let Err(error) = std::fs::remove_file(&taken) {
+        // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: warning: {} could not be removed after it was kept as {}: {error}", taken.display(), kept.display());
     }
 }
 
 /// The most names tried to take the stand-in under.
-/// Unmeasured, like the other name searches: one try is the normal case and the collision count was not counted.
-/// The owner's rule of 2026-11-03 justifies that a bound exists, not this number.
+/// Unmeasured,
+/// like the other name searches:
+/// one try is the normal case and the collision count was not counted.
+/// The owner's rule of 2026-11-03 justifies that a bound exists,
+/// not this number.
 const MAX_TAKEN_NAMES: u32 = 100;
 
 /// What:

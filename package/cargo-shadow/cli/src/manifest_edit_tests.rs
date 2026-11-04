@@ -275,7 +275,9 @@ fn an_unchanged_manifest_needs_nothing_and_a_missing_or_unreadable_one_stops_the
 
 /// Restores the manifests and requires that nothing failed.
 fn restored(edits: &RefCell<Vec<ManifestEdit>>) -> Vec<String> {
+    // Borrow `&keep`: lends the value without copying or giving it away.
     let (warnings, failure) = restore_manifests(edits, &keep());
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(failure.is_none(), "{failure:?}");
     return warnings;
 }

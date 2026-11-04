@@ -225,8 +225,16 @@ fn a_displaced_file_that_could_not_be_linked_is_reported_with_the_snapshot_live(
     let no_link = |_existing: &Path, _new: &Path| -> std::io::Result<()> { return Err(std::io::Error::other("injected link failure")); };
     // Closure `|_path: &Path|`: an anonymous function, like a TS arrow function.
     let none = |_path: &Path| {};
-    let sync_file = |path: &Path| -> std::io::Result<()> { return File::open(path)?.sync_all(); };
-    let sync_dir = |path: &Path| -> std::io::Result<()> { return crate::journal::sync_directory(path); };
+    // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
+    // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+    // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const value = await expr;   // throws to the caller on failure
+    // ```
+    let sync_file = |target: &Path| -> std::io::Result<()> { return File::open(target)?.sync_all(); };
+    let sync_dir = |target: &Path| -> std::io::Result<()> { return crate::journal::sync_directory(target); };
     let swap = |first: &Path, second: &Path| -> std::io::Result<()> { return crate::journal_replace::exchange_paths(first, second); };
     let seams = Seams { between: &none, after_exchange: &none, swap: &swap, link: &no_link, sync_file: &sync_file, sync_dir: &sync_dir };
 
@@ -434,8 +442,10 @@ fn a_missing_manifest_index_keeps_the_journal_and_its_snapshots() {
     assert!(journal.join("m0.toml").exists(), "the only copy of the manifest was deleted with the journal");
 }
 
-/// A journal whose preparation never finished (its owner was killed before cargo ran) changed nothing; with every lockfile equal to
-/// its snapshot the copies are redundant, so recovery removes it and does not touch the lockfile.
+/// A journal whose preparation never finished (its owner was killed before cargo ran) changed nothing;
+/// with every lockfile equal to
+/// its snapshot the copies are redundant,
+/// so recovery removes it and does not touch the lockfile.
 #[test]
 fn a_journal_that_never_became_ready_is_removed_without_touching_the_lockfile() {
     let root = repository("original");
@@ -444,7 +454,10 @@ fn a_journal_that_never_became_ready_is_removed_without_touching_the_lockfile() 
 
     recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
 
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "original");
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "an unready journal with redundant copies is removed");
 }
 /// A journal whose removal was interrupted after the completion marker is finished by the next recovery.
@@ -512,136 +525,266 @@ fn a_killed_run_that_changed_nothing_leaves_the_lockfile_alone() {
     assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
 }
 
-/// Review finding (4b2 1): one workspace lock covers every transaction, so a second one cannot start while the first lives;
-/// it fails at once, names the holder and leaves the first journal as it was.
+/// Review finding (4b2 1):
+/// one workspace lock covers every transaction,
+/// so a second one cannot start while the first lives;
+/// it fails at once,
+/// names the holder and leaves the first journal as it was.
 #[test]
 fn a_second_begin_while_the_first_transaction_lives_fails_and_names_the_holder() {
     let root = repository("lock");
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let _first = begin(root.path(), &[snapshot("first original")], false).expect("first begin");
 
+    // Borrow `&[`: lends the value without copying or giving it away.
     let second = begin(root.path(), &[snapshot("second original")], false);
 
+    // Closure `|error|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `message: String`.
     let message: String = second.err().map(|error| { return error.to_string(); }).unwrap_or_default();
+    // Borrow `&std`: lends the value without copying or giving it away.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains(&std::process::id().to_string()) && message.contains("another cargo-shadow run"), "{message}");
     let journals = crate::journal_support::journal_dirs(root.path());
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(journals.len(), 1, "{journals:?}");
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(journals[0].join("0.lock")).expect("snapshot"), "first original");
 }
 
-/// Review finding (4b2 1): recovery of a dead run's journal defers while a live transaction holds the workspace.
+/// Review finding (4b2 1):
+/// recovery of a dead run's journal defers while a live transaction holds the workspace.
 #[test]
 fn recovery_defers_while_a_live_transaction_holds_the_workspace() {
     let root = repository("unchecked output of the killed run");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original of the killed run")], &[]);
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let _owner = begin(root.path(), &[snapshot("original of the live run")], false).expect("the live transaction");
 
+    // Closure `|_before, _live|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
 
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 2, "the killed run's journal is kept for a later run");
+    // Closure `|message|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(messages.iter().any(|message| { return message.contains("another cargo-shadow run"); }), "{messages:?}");
 }
 
-/// Review finding (4b2 1): while a recovery replaces files it holds the workspace, so a transaction cannot start in the gap.
+/// Review finding (4b2 1):
+/// while a recovery replaces files it holds the workspace,
+/// so a transaction cannot start in the gap.
 #[test]
 fn a_transaction_cannot_begin_while_a_recovery_replaces_files() {
     let root = repository("unchecked output of the killed run");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
+    // `None`: the present or the absent value of an `Option`.
+    // Typed binding: `refused: std::cell::RefCell<Option<bool>>`.
+    // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
     let refused: std::cell::RefCell<Option<bool>> = std::cell::RefCell::new(None);
+    // `Some`: the present or the absent value of an `Option`.
+    // Closure `|_path: &Path|`: an anonymous function, like a TS arrow function.
+    // Borrow `&[`: lends the value without copying or giving it away.
     let try_begin = |_path: &Path| { *refused.borrow_mut() = Some(begin(root.path(), &[snapshot("x")], false).is_err()); };
 
+    // Closure `|_before, _live|`: an anonymous function, like a TS arrow function.
+    // Borrow `&try_begin`: lends the value without copying or giving it away.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     crate::journal::recover_with(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; }, &try_begin);
 
+    // `Some`: the present or the absent value of an `Option`.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(*refused.borrow(), Some(true), "a transaction started in the middle of a recovery");
 }
 
-/// Review finding (4b2 2): a child of a killed run that is still alive keeps its journal from being recovered, even though the
+/// Review finding (4b2 2):
+/// a child of a killed run that is still alive keeps its journal from being recovered,
+/// even though the
 /// wrapper's lock is gone.
 #[test]
 fn a_journal_whose_recorded_process_group_is_still_alive_is_left_alone() {
     use std::os::unix::process::CommandExt;
     let root = repository("unchecked output of the killed run");
+    // Borrow `&[`: lends the value without copying or giving it away.
     let journal = plant(root.path(), &[snapshot("original")], &[]);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // `let mut`: a binding that may change.
     let mut orphan = std::process::Command::new("sleep").arg("30").process_group(0).spawn().expect("a surviving child");
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     fs::write(journal.join("groups"), format!("{}\n", orphan.id())).expect("record the group");
 
+    // Closure `|_before, _live|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
+    // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // void expr;   // or try { expr } catch {}
+    // ```
     let _ = orphan.kill();
+    // `let _ =`: discards the result on purpose.
     let _ = orphan.wait();
 
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+    // Closure `|message|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(messages.iter().any(|message| { return message.contains("still running"); }), "{messages:?}");
 }
 
-/// Review finding (4b2 3): the outputs are made durable before the completion marker exists.
+/// Review finding (4b2 3):
+/// the outputs are made durable before the completion marker exists.
 #[test]
 fn finish_makes_the_outputs_durable_before_the_done_marker() {
     let root = repository("final output");
     let manifest = root.path().join(CRATE_DIR).join("Cargo.toml");
+    // Borrow `&manifest`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(&manifest, "final manifest").expect("manifest");
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin");
+    // `None`: the present or the absent value of an `Option`.
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.clone()`: an independent owned copy.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     transaction.add_manifests(&[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "before".to_string(), produced: None }]).expect("manifests");
+    // Typed binding: `seen: std::cell::RefCell<Vec<(PathBuf, bool...`.
+    // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
     let seen: std::cell::RefCell<Vec<(PathBuf, bool)>> = std::cell::RefCell::new(Vec::new());
     let journals = root.path().join(JOURNAL_DIR);
+    // Closure `|path: &Path|`: an anonymous function, like a TS arrow function.
     let record = |path: &Path| {
+        // Closure `|listing|`: an anonymous function, like a TS arrow function.
+        // Borrow `&journals`: lends the value without copying or giving it away.
+        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+        // Adapter `.map(`: transforms or selects items with a closure.
+        // Typed binding: `done_exists: bool`.
         let done_exists: bool = fs::read_dir(&journals).map(|listing| { return listing.flatten().any(|entry| { return entry.file_name().to_string_lossy().ends_with(".done"); }); }).unwrap_or(false);
         seen.borrow_mut().push((path.to_path_buf(), done_exists));
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(());
     };
 
+    // Borrow `&record`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     transaction.finish_with(&record).expect("finish");
 
     let calls = seen.borrow();
+    // Closure `|(path, _)|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(calls.iter().any(|(path, _)| { return path.ends_with("Cargo.lock"); }), "{calls:?}");
+    // Closure `|(path, _)|`: an anonymous function, like a TS arrow function.
+    // Borrow `&manifest`: lends the value without copying or giving it away.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(calls.iter().any(|(path, _)| { return path == &manifest; }), "{calls:?}");
+    // Closure `|(_, done)|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(calls.iter().all(|(_, done)| { return !done; }), "an output was synced after the marker: {calls:?}");
 }
 
-/// Review finding (4b2 6): a journal that has an index but no ready record is kept when a lockfile differs from its snapshot,
+/// Review finding (4b2 6):
+/// a journal that has an index but no ready record is kept when a lockfile differs from its snapshot,
 /// because that could be a damaged ready journal.
 #[test]
 fn an_indexed_journal_without_a_ready_record_is_kept_when_a_lockfile_differs() {
     let root = repository("changed by something");
+    // Borrow `&[`: lends the value without copying or giving it away.
     let journal = plant(root.path(), &[snapshot("original")], &[]);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::remove_file(journal.join("ready")).expect("lose the ready record");
 
+    // Closure `|_before, _live|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(journal.join("0.lock").exists(), "the only copy of the lockfile was deleted");
 }
 
-/// The same journal is removed when every lockfile equals its snapshot, because the copies then lose nothing.
+/// The same journal is removed when every lockfile equals its snapshot,
+/// because the copies then lose nothing.
 #[test]
 fn an_indexed_journal_without_a_ready_record_is_removed_when_every_lockfile_equals_its_snapshot() {
     let root = repository("original");
+    // Borrow `&[`: lends the value without copying or giving it away.
     let journal = plant(root.path(), &[snapshot("original")], &[]);
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::remove_file(journal.join("ready")).expect("lose the ready record");
 
+    // Closure `|_before, _live|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Macro `vec!`: builds or prints text (or a list) from a template.
     recover(root.path(), &|_before, _live| { return vec!["never asked".to_string()]; });
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
 }
 
-/// Review finding (4b2 6): a ready transaction's payload is frozen; adding manifests twice is refused and changes nothing.
+/// Review finding (4b2 6):
+/// a ready transaction's payload is frozen;
+/// adding manifests twice is refused and changes nothing.
 #[test]
 fn adding_manifests_twice_is_refused() {
     let root = repository("lock");
     let manifest = root.path().join(CRATE_DIR).join("Cargo.toml");
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin");
+    // `None`: the present or the absent value of an `Option`.
+    // `.clone()`: an independent owned copy.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     let edit = || { return ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "first".to_string(), produced: None }; };
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     transaction.add_manifests(&[edit()]).expect("first call");
 
+    // Borrow `&[`: lends the value without copying or giving it away.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     let again = transaction.add_manifests(&[ManifestEdit { before: "second".to_string(), ..edit() }]);
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(again.is_err());
     let journal = crate::journal_support::journal_dir(root.path());
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(journal.join("m0.toml")).expect("snapshot"), "first");
 }
 
-/// Standard seams except for the ones given, for the durability tests.
+/// Standard seams except for the ones given,
+/// for the durability tests.
 fn replace_with(path: &Path, keep: &KeepAs, link: &dyn Fn(&Path, &Path) -> std::io::Result<()>, sync_file: &dyn Fn(&Path) -> std::io::Result<()>, sync_dir: &dyn Fn(&Path) -> std::io::Result<()>) -> std::io::Result<ReplaceOutcome> {
+    // Closure `|_path: &Path|`: an anonymous function, like a TS arrow function.
     let none = |_path: &Path| {};
     let swap = |first: &Path, second: &Path| -> std::io::Result<()> { return crate::journal_replace::exchange_paths(first, second); };
+    // Borrow `&Seams`: lends the value without copying or giving it away.
     return replace_with_seams(path, "expected", "new text", keep, &Seams { between: &none, after_exchange: &none, swap: &swap, link, sync_file, sync_dir });
 }
 
@@ -652,6 +795,7 @@ fn real_link(existing: &Path, new: &Path) -> std::io::Result<()> {
 
 /// The real data barrier.
 fn real_sync_file(path: &Path) -> std::io::Result<()> {
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     return File::open(path)?.sync_all();
 }
 
@@ -660,38 +804,59 @@ fn real_sync_dir(path: &Path) -> std::io::Result<()> {
     return crate::journal::sync_directory(path);
 }
 
-/// Review finding (4b 2): a failed data barrier on the displaced file is not turned into a settled outcome; it is an error that
+/// Review finding (4b 2):
+/// a failed data barrier on the displaced file is not turned into a settled outcome;
+/// it is an error that
 /// says where the file stays.
 #[test]
 fn a_failed_data_sync_of_the_displaced_file_is_an_error_naming_where_it_stays() {
     let root = repository("expected");
     let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    // `Err(...)`: builds the success or the failure variant of a `Result`.
     let failing = |_path: &Path| -> std::io::Result<()> { return Err(std::io::Error::other("injected EIO")); };
 
+    // Borrow `&path`: lends the value without copying or giving it away.
     let result = replace_with(&path, &KeepAs::next_to_target(".displaced"), &real_link, &failing, &real_sync_dir);
 
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `message: String`.
     let message: String = result.expect_err("an unsettled replacement").to_string();
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains("injected EIO") && message.contains(".shadow-"), "{message}");
 }
 
-/// Review finding (4b 1): the kept directory and its parent are synced every time a file is linked into it, also when it existed.
+/// Review finding (4b 1):
+/// the kept directory and its parent are synced every time a file is linked into it,
+/// also when it existed.
 #[test]
 fn the_kept_directory_and_its_parent_are_synced_even_when_the_directory_exists() {
     let root = repository("expected");
     let path = root.path().join(CRATE_DIR).join("Cargo.lock");
     let kept_dir = root.path().join("kept");
+    // Borrow `&kept_dir`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(&kept_dir).expect("an existing kept directory");
+    // Typed binding: `synced: RefCell<Vec<PathBuf>>`.
+    // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
     let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     let record = |directory: &Path| -> std::io::Result<()> { synced.borrow_mut().push(directory.to_path_buf()); return Ok(()); };
 
+    // Borrow `&path`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &record).expect("replaces");
 
     let calls = synced.borrow();
+    // Borrow `&kept_dir`: lends the value without copying or giving it away.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(calls.contains(&kept_dir), "{calls:?}");
+    // Borrow `&root.path`: lends the value without copying or giving it away.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(calls.contains(&root.path().to_path_buf()), "the parent of the kept directory was not synced: {calls:?}");
 }
 
-/// Review finding (4b 3): a failure after the file was kept still names where it is kept.
+/// Review finding (4b 3):
+/// a failure after the file was kept still names where it is kept.
 #[test]
 fn a_failure_after_the_file_was_kept_names_the_kept_path() {
     let root = repository("expected");
@@ -699,66 +864,117 @@ fn a_failure_after_the_file_was_kept_names_the_kept_path() {
     let path = directory.join("Cargo.lock");
     let failing_for_target = |dir: &Path| -> std::io::Result<()> {
         if dir == directory {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             return Err(std::io::Error::other("injected directory sync failure"));
         }
+        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(());
     };
 
+    // Borrow `&path`: lends the value without copying or giving it away.
     let result = replace_with(&path, &KeepAs::next_to_target(".displaced"), &real_link, &real_sync_file, &failing_for_target);
 
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `message: String`.
     let message: String = result.expect_err("an error").to_string();
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains("Cargo.lock.displaced"), "the kept path is missing: {message}");
 }
 
-/// Review finding (4b 3): restoring several manifests returns what it already did when a later one fails.
+/// Review finding (4b 3):
+/// restoring several manifests returns what it already did when a later one fails.
 #[test]
 fn restoring_manifests_returns_the_warnings_of_those_restored_before_a_failure() {
     use crate::manifest_edit::restore_manifests;
     let root = repository("lock");
     let first = root.path().join("a.toml");
     let second = root.path().join("b.toml");
+    // Borrow `&first`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(&first, "first rewritten").expect("a");
+    // Borrow `&second`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(&second, [0xff_u8, 0xfe_u8]).expect("b, not text");
+    // Macro `vec!`: builds or prints text (or a list) from a template.
+    // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
     let edits = RefCell::new(vec![
+        // `Some`: the present or the absent value of an `Option`.
+        // `.clone()`: an independent owned copy.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: first.clone(), before: "first before".to_string(), produced: Some("first rewritten".to_string()) },
+        // `None`: the present or the absent value of an `Option`.
+        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: second, before: "second before".to_string(), produced: None },
     ]);
 
+    // Borrow `&edits`: lends the value without copying or giving it away.
     let (warnings, failure) = restore_manifests(&edits, &KeepAs::next_to_target(".displaced"));
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(failure.is_some());
+    // Closure `|warning|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(warnings.iter().any(|warning| { return warning.contains("is kept as"); }), "{warnings:?}");
 }
 
-/// Review finding (4b 4): when the kept directory holds more files than the cap, a new transaction is refused and the files are
-/// listed; nothing is deleted.
+/// Review finding (4b 4):
+/// when the kept directory holds more files than the cap,
+/// a new transaction is refused and the files are
+/// listed;
+/// nothing is deleted.
 #[test]
 fn a_kept_directory_over_its_cap_refuses_a_new_transaction_and_lists_the_files() {
     let root = repository("lock");
     let kept = root.path().join(crate::journal::QUARANTINE_DIR);
+    // Borrow `&kept`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(&kept).expect("kept directory");
     for number in 0..=crate::journal::MAX_KEPT_FILES {
+        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+        // Macro `format!`: builds or prints text (or a list) from a template.
         fs::write(kept.join(format!("Cargo.lock.displaced.{number}")), "kept").expect("a kept file");
     }
 
+    // Borrow `&[`: lends the value without copying or giving it away.
     let result = begin(root.path(), &[snapshot("original")], false);
 
+    // Closure `|error|`: an anonymous function, like a TS arrow function.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Typed binding: `message: String`.
     let message: String = result.err().map(|error| { return error.to_string(); }).unwrap_or_default();
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains("Cargo.lock.displaced.0") && message.contains("kept files"), "{message}");
+    // Borrow `&kept`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_dir(&kept).expect("list").count(), crate::journal::MAX_KEPT_FILES + 1, "a kept file was deleted");
 }
 
-/// Review finding (4b 3): a temporary left by a run that was killed between the exchange and the kept link may be the only name of
-/// a displaced file, so recovery reports it and leaves it.
+/// Review finding (4b 3):
+/// a temporary left by a run that was killed between the exchange and the kept link may be the only name of
+/// a displaced file,
+/// so recovery reports it and leaves it.
 #[test]
 fn a_leftover_temporary_of_a_killed_replacement_is_reported_and_kept() {
     let root = repository("original");
+    // Borrow `&[`: lends the value without copying or giving it away.
     plant(root.path(), &[snapshot("original")], &[]);
     let leftover = root.path().join(CRATE_DIR).join(".Cargo.lock.shadow-1-2-3.tmp");
+    // Borrow `&leftover`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(&leftover, "somebody's displaced work").expect("a leftover");
 
+    // Closure `|_before, _live|`: an anonymous function, like a TS arrow function.
+    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
     let messages = recover(root.path(), &|_before, _live| { return Vec::new(); });
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(leftover.exists(), "the leftover was deleted");
+    // Closure `|message|`: an anonymous function, like a TS arrow function.
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(messages.iter().any(|message| { return message.contains(".Cargo.lock.shadow-1-2-3.tmp") && message.contains("may hold"); }), "{messages:?}");
 }

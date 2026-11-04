@@ -149,10 +149,18 @@ pub trait Syncer {
     fn sync(&self, root: &Path) -> Result<String, String>;
 }
 
-/// The longest one `file-enforcer write` may take, in seconds.
-/// Measured 2026-11-04 on this repository (load average 6.2 to 6.9 on 32 CPUs, capped scopes, 3 runs each, `~/temp/agent/bench_bounds.py` and `bench_online.py`): `file-enforcer write` took 0.58 s to 0.63 s (it reported drift and exited 1, changing no file).
-/// Five minutes is about 500 times that; a run on a much larger manifest inventory is what must be measured to set it.
-/// The owner's rule of 2026-11-03 justifies that a bound exists, not this number.
+/// The longest one `file-enforcer write` may take,
+/// in seconds.
+/// Measured 2026-11-04 on this repository (load average 6.2 to 6.9 on 32 CPUs,
+/// capped scopes,
+/// 3 runs each,
+/// `~/temp/agent/bench_bounds.py` and `bench_online.py`):
+/// `file-enforcer write` took 0.58 s to 0.63 s (it reported drift and exited 1,
+/// changing no file).
+/// Five minutes is about 500 times that;
+/// a run on a much larger manifest inventory is what must be measured to set it.
+/// The owner's rule of 2026-11-03 justifies that a bound exists,
+/// not this number.
 const FILE_ENFORCER_SECONDS: u64 = 300;
 
 /// The real sync:

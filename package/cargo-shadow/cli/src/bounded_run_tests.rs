@@ -215,10 +215,16 @@ fn a_program_that_does_not_exist_is_an_io_error() {
 
 /// Whether a process with this id still exists.
 fn alive(pid: i32) -> bool {
+    // Closure `|text|`: an anonymous function, like a TS arrow function.
+    // Borrow `&format`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    // Adapter `.map(`: transforms or selects items with a closure.
+    // Macro `format!`: builds or prints text (or a list) from a template.
     return std::path::Path::new(&format!("/proc/{pid}")).exists() && !std::fs::read_to_string(format!("/proc/{pid}/stat")).map(|text| { return text.contains(") Z "); }).unwrap_or(true);
 }
 
-/// Waits (a few milliseconds at a time, at most a second) for a process to be gone.
+/// Waits (a few milliseconds at a time,
+/// at most a second) for a process to be gone.
 fn gone_soon(pid: i32) -> bool {
     for _attempt in 0..100 {
         if !alive(pid) {
@@ -231,63 +237,119 @@ fn gone_soon(pid: i32) -> bool {
 
 /// Reads the process id a script wrote to a file.
 fn pid_in(path: &std::path::Path) -> i32 {
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     return std::fs::read_to_string(path).expect("pid file").trim().parse().expect("a pid");
 }
 
-/// Review finding (4c F2): at the bound the whole process group is stopped, not only the immediate child; a descendant that could
+/// Review finding (4c F2):
+/// at the bound the whole process group is stopped,
+/// not only the immediate child;
+/// a descendant that could
 /// still write would otherwise race the rollback.
 #[test]
 fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let script = format!("sleep 30 & echo $! > {}; sleep 30", pid_file.display());
 
+    // `None`: the present or the absent value of an `Option`.
+    // Borrow `&script`: lends the value without copying or giving it away.
     let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_millis(400)));
 
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(result.is_err());
+    // Borrow `&pid_file`: lends the value without copying or giving it away.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
 }
 
-/// Review finding (4c F2): a descendant that outlives the parent's normal exit is stopped before the call returns, and the output
+/// Review finding (4c F2):
+/// a descendant that outlives the parent's normal exit is stopped before the call returns,
+/// and the output
 /// is complete.
 #[test]
 fn a_descendant_left_after_a_normal_exit_is_stopped() {
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let script = format!("sleep 30 & echo $! > {}; echo done", pid_file.display());
 
+    // `None`: the present or the absent value of an `Option`.
+    // Borrow `&script`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(10))).expect("runs");
 
+    // Borrow `&output.stdout`: lends the value without copying or giving it away.
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
+    // Borrow `&pid_file`: lends the value without copying or giving it away.
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
 }
 
-/// Review finding (4c F4): when a process outside the group keeps the output pipe open, the output cannot be complete, and the call
+/// Review finding (4c F4):
+/// when a process outside the group keeps the output pipe open,
+/// the output cannot be complete,
+/// and the call
 /// says so instead of returning a prefix.
 #[test]
 fn output_that_cannot_be_completed_is_an_error_not_a_prefix() {
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
+    // Macro `format!`: builds or prints text (or a list) from a template.
     let script = format!("setsid sh -c 'echo $$ > {}; exec sleep 30' & echo started; sleep 0.3", pid_file.display());
 
+    // `None`: the present or the absent value of an `Option`.
+    // Borrow `&script`: lends the value without copying or giving it away.
     let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(10)));
 
+    // `Ok(...)`: builds the success or the failure variant of a `Result`.
+    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
+    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (value !== undefined) { const inner = value; ... }
+    // ```
+    // Borrow `&pid_file`: lends the value without copying or giving it away.
     if let Ok(pid) = std::fs::read_to_string(&pid_file) {
+        // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
+        // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // void expr;   // or try { expr } catch {}
+        // ```
         let _ = Command::new("kill").arg(pid.trim()).status();
     }
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `message: String`.
     let message: String = result.expect_err("an incomplete capture").to_string();
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains("output"), "{message}");
 }
 
-/// Review finding (4c P3): the error names the command the user ran, not a placeholder.
+/// Review finding (4c P3):
+/// the error names the command the user ran,
+/// not a placeholder.
 #[test]
 fn a_timeout_names_the_command_the_user_ran() {
+    // `Some`: the present or the absent value of an `Option`.
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     crate::bounded_run::set_rerun(Some("cargo build --release".to_string()));
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     let named = Bound { limit: Duration::from_millis(200), what: "`cargo update`".to_string(), rerun: crate::bounded_run::rerun_text() };
 
+    // `None`: the present or the absent value of an `Option`.
+    // Borrow `&named`: lends the value without copying or giving it away.
     let result = output_within(Command::new("sleep").arg("5"), None, &named);
 
+    // `None`: the present or the absent value of an `Option`.
     crate::bounded_run::set_rerun(None);
+    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
+    // Typed binding: `message: String`.
     let message: String = result.expect_err("a timeout").to_string();
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains("`cargo build --release`"), "{message}");
 }

@@ -186,7 +186,7 @@ use crate::journal::{KeepAs, QUARANTINE_DIR, ReplaceOutcome, replace_keeping};
 /// ```
 use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};
 /// Imports the verification an install runs on the lockfiles it leaves.
-use crate::verify::{verify_added_since_base_outcome, verify_locked_entries_outcome};
+use crate::update_verify::verify_update;
 // What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
 // Why:      The code below names these items directly instead of spelling their full paths each time.
 //
@@ -783,46 +783,6 @@ fn workspace_manifests(request: &UpdateRequest, crate_dir: &str) -> Result<Vec<P
 }
 
 /// What:
-/// `fn verify_update(request, snapshots) -> Result<CheckOutcome, UpdateError>` judges the lockfiles an update leaves.
-/// Why:
-/// Review finding (3c P1-2):
-/// under `trustLockfile` every version the base revision did not hold is judged,
-/// and otherwise every
-/// locked version is,
-/// exactly as an install judges them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function verifyUpdate(request: UpdateRequest, snapshots: LockSnapshot[]): CheckOutcome
-/// ```
-fn verify_update(request: &UpdateRequest, snapshots: &[LockSnapshot]) -> Result<CheckOutcome, UpdateError> {
-    if request.settings.trust_lockfile {
-        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-        // Why:      Absence is a value the caller must check; there is no `null`.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // Some(value) is  value
-        // // None        is  undefined
-        // ```
-        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-        let Some(factory) = request.lock_base else {
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            return Err(other("trustLockfile is true in rust-catalog.toml, but no base-revision lockfile reader was given, so nothing can be trusted".to_string()));
-        };
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        let reader = factory().map_err(other)?;
-        // Borrow `&*reader`: lends the value without copying or giving it away.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        return verify_added_since_base_outcome(snapshots, &*reader, request.settings, request.registry, request.now).map_err(other);
-    }
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    return verify_locked_entries_outcome(request.root, snapshots, request.settings, request.registry, request.now).map_err(other);
-}
-
-/// What:
 /// `fn run_update(request, kind, before, produced) -> Result<UpdateReport, UpdateError>` is the transaction body:
 /// resolve or run the user's update,
 /// set refused versions aside,
@@ -1174,7 +1134,10 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
         // `.map_err(...)`: converts the callee's error into this function's error type.
         let (manifest_warnings, manifest_failure) = restore_manifests(&edits, &KeepAs::in_directory(&request.root.join(QUARANTINE_DIR), ".manifest.displaced"));
         restore_warnings.extend(manifest_warnings);
+        // `Some`: the present or the absent value of an `Option`.
+        // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
         if let Some(error) = manifest_failure {
+            // `Err(...)`: builds the success or the failure variant of a `Result`.
             return Err(other_text(error));
         }
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
@@ -1187,7 +1150,11 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Review finding (4c F1): a finish error never replaces the update's result; it is reported beside it.
     let finish_warning: Option<String> = transaction.finish().err().map(|error| { return format!("the transaction journal could not be completed ({error}); the next run settles it"); });
+    // `Some`: the present or the absent value of an `Option`.
+    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
+    // Borrow `&finish_warning`: lends the value without copying or giving it away.
     if let Some(warning) = &finish_warning {
+        // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: warning: {warning}");
     }
     // Closure `|mut report|`: an anonymous function, like a TS arrow function.

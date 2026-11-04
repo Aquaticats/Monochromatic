@@ -199,6 +199,10 @@ pub mod update;
 /// split out of `update.rs`.
 pub mod update_resolve;
 
+/// The verification of the lockfiles an update leaves,
+/// split out of `update.rs`.
+pub mod update_verify;
+
 /// The check of every locked entry against the policy,
 /// the default of a frozen install.
 pub mod verify;

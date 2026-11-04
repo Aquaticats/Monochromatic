@@ -197,6 +197,9 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
     let layout: GitLayout = find_layout(root, environment)?;
     // The configuration is read even for CI's `HEAD`, because a reftable store or an include changes what `HEAD` means.
     let starts: std::cell::Cell<u32> = std::cell::Cell::new(0);
+    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+    // Borrow `&layout`: lends the value without copying or giving it away.
+    // Typed binding: `config: ParsedConfig`.
     let config: ParsedConfig = read_config(&layout, environment, root, &starts)?;
     if in_ci {
         // Borrow `&layout`: lends the value without copying or giving it away.

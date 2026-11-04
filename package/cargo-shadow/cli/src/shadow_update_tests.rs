@@ -291,7 +291,9 @@ fn a_writer_that_holds_the_stand_in_open_keeps_what_it_writes_afterwards() {
     assert!(found, "the late write has no name left");
 }
 
-/// Review finding (4c F3): a real lockfile that cleanup puts back is also given a name in the kept directory, so a writer that holds
+/// Review finding (4c F3):
+/// a real lockfile that cleanup puts back is also given a name in the kept directory,
+/// so a writer that holds
 /// its inode and writes after another writer replaced the live path still has a named file.
 #[test]
 fn a_real_lockfile_that_cleanup_puts_back_is_also_kept_by_name() {
@@ -299,29 +301,62 @@ fn a_real_lockfile_that_cleanup_puts_back_is_also_kept_by_name() {
     use std::io::Write;
     let root = scratch();
     let lock = root.path().join("Cargo.lock");
+    // `None`: the present or the absent value of an `Option`.
+    // Typed binding: `held: std::cell::RefCell<Option<fs::File>>`.
+    // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
     let held: std::cell::RefCell<Option<fs::File>> = std::cell::RefCell::new(None);
+    // Closure `|path: &std::path::Path|`: an anonymous function, like a TS arrow function.
     let publish_and_hold = |path: &std::path::Path| {
+        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+        // `let mut`: a binding that may change.
         let mut file = fs::OpenOptions::new().write(true).open(path).expect("open the stand-in");
+        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         file.set_len(0).expect("truncate");
+        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         file.write_all(REAL_LOCK.as_bytes()).expect("a real lockfile written through the held descriptor");
+        // `Some`: the present or the absent value of an `Option`.
         *held.borrow_mut() = Some(file);
     };
 
+    // Borrow `&lock`: lends the value without copying or giving it away.
+    // Typed binding: `code: i32`.
     let code: i32 = run_with_placeholder_lock_hooked(&lock, &root.path().join("kept"), false, &mut || { return 1; }, &publish_and_hold);
+    // Borrow `&lock`: lends the value without copying or giving it away.
+    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::remove_file(&lock).expect("another writer replaces the live path");
     {
+        // `let mut`: a binding that may change.
         let mut slot = held.borrow_mut();
+        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         let file = slot.as_mut().expect("held");
+        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         file.write_all(b"\nlate").expect("the late write");
     }
 
+    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(code, 1);
+    // Typed binding: `late: String`.
+    // Macro `format!`: builds or prints text (or a list) from a template.
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
     let late: String = format!("{REAL_LOCK}\nlate");
+    // `let mut`: a binding that may change.
+    // Typed binding: `found: bool`.
     let mut found: bool = false;
+    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     for entry in fs::read_dir(root.path().join("kept")).into_iter().flatten().flatten() {
+        // Closure `|text|`: an anonymous function, like a TS arrow function.
+        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+        // Adapter `.map(`: transforms or selects items with a closure.
         if fs::read_to_string(entry.path()).map(|text| { return text == late; }).unwrap_or(false) {
             found = true;
         }
     }
+    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(found, "the late write has no name left in the kept directory");
 }
