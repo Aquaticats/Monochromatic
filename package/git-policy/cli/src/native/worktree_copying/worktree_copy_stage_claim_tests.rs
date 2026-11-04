@@ -298,7 +298,7 @@ fn an_unlistable_journal_root_is_a_failure_and_not_an_empty_one() {
     std::fs::write(common.join(JOURNAL_PARENT_NAME), b"a file where the directory belongs").expect("file");
     let unlistable: PathBuf = journal_root(common.as_path());
     claim_names(unlistable.as_path()).expect_err("the root cannot be listed");
-    remove_dead_temporaries(unlistable.as_path()).expect_err("the root cannot be listed");
+    judge_stage_owners(common.as_path()).expect_err("the root cannot be listed");
     remove(root.as_path());
 }
 
@@ -559,5 +559,67 @@ fn an_unsynced_release_removes_the_records_and_flushes_nothing() {
     claim.release_unsynced().expect("release");
     assert!(!claim_file.exists() && !record.exists() && !marker.exists());
     assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
+    remove(root.as_path());
+}
+
+/// An owner of another PID namespace, and the age that makes its item expired.
+fn foreign_owner() -> crate::worktree_copy_owner::CopyOwner {
+    return crate::worktree_copy_owner::CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
+}
+
+/// Makes a file older than the patience of a foreign owner.
+fn age_past_the_patience(path: &Path) {
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .expect("open")
+        .set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300))
+        .expect("age");
+}
+
+/// A stage claim file with a chosen name, so the order of the sweep is the order of the names.
+fn claim_file(common: &Path, name: &str, container: &Path, owner: &crate::worktree_copy_owner::CopyOwner) -> PathBuf {
+    let root: PathBuf = ensure_journal_root(common).expect("root");
+    let path: PathBuf = root.join(format!("{name}{CLAIM_SUFFIX}"));
+    std::fs::write(path.as_path(), format!("{}\n{OWNER_LINE_PREFIX}{}\n", container.to_string_lossy(), owner.token())).expect("claim");
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o600)).expect("private");
+    return path;
+}
+
+/// A dead owner's claim comes first and an expired foreign claim after it: the sweep refuses before it removes anything (sol-1 round 3,
+/// P1 C: the refusal said "nothing was changed" after the first claim's stage was gone).
+#[test]
+fn an_expired_foreign_claim_stops_the_sweep_before_any_stage_is_removed() {
+    let (root, common, destination) = scene("claim-foreign-after-dead");
+    let first: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}first"));
+    abandoned_stage(first.as_path());
+    let dead_claim: PathBuf = claim_file(common.as_path(), "0-dead", first.as_path(), &dead_copy_owner());
+    let second: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}second"));
+    abandoned_stage(second.as_path());
+    let foreign_claim: PathBuf = claim_file(common.as_path(), "1-foreign", second.as_path(), &foreign_owner());
+    age_past_the_patience(foreign_claim.as_path());
+    let refused: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("an expired foreign claim stops the sweep");
+    assert!(refused.0.contains("31337") && refused.0.contains("rm -- "), "{}", refused.0);
+    assert!(first.exists() && dead_claim.exists(), "the dead owner's stage and claim are untouched");
+    assert!(second.exists() && foreign_claim.exists());
+    for stage in [&first, &second] {
+        std::fs::set_permissions(stage.join("payload/locked"), std::fs::Permissions::from_mode(0o700)).expect("make the fixture removable");
+    }
+    remove(root.as_path());
+}
+
+/// The same for the temporaries: a dead writer's file first, an expired foreign writer's after it.
+#[test]
+fn an_expired_foreign_temporary_stops_the_sweep_before_any_temporary_is_removed() {
+    let (root, common, _destination) = scene("temporary-foreign-after-dead");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let dead_name: String = format!("0-item.{}.1.tmp", dead_copy_owner().token());
+    let foreign_name: String = format!("1-item.{}.1.tmp", foreign_owner().token());
+    std::fs::write(journals.join(dead_name.as_str()), b"x").expect("dead writer's temporary");
+    std::fs::write(journals.join(foreign_name.as_str()), b"x").expect("foreign writer's temporary");
+    age_past_the_patience(journals.join(foreign_name.as_str()).as_path());
+    let refused: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("an expired foreign temporary stops the sweep");
+    assert!(refused.0.contains("31337"), "{}", refused.0);
+    assert!(journals.join(dead_name.as_str()).exists(), "nothing was removed before the refusal");
     remove(root.as_path());
 }

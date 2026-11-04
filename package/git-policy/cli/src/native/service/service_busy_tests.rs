@@ -295,7 +295,7 @@ fn a_decision_whose_write_fails_leaves_no_temporary_file() {
         assert!(record.decide("same", LANDING).is_err(), "round {round}");
     }
     AFTER_THE_TEMPORARY_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
-    let leftovers = |record: &LandingBoard| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".tmp"); }).count(); };
+    let leftovers = |board: &LandingBoard| -> usize { return std::fs::read_dir(board.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".tmp"); }).count(); };
     assert_eq!(leftovers(&record), 0, "a failed write leaves no temporary file");
     assert!(!record.decision_path("same").exists(), "and decided nothing");
     for round in 0..20 {

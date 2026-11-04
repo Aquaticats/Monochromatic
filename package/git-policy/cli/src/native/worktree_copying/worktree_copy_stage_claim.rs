@@ -435,11 +435,49 @@ fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Worktre
 /// ```ts
 /// for (const name of await readdir(root)) if (name.endsWith('.tmp') && ownerIsDead(writerOf(name))) await rm(join(root, name), { force: true });
 /// ```
-fn remove_dead_temporaries(root: &Path) -> Result<(), WorktreeCopyError> {
+fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<(), WorktreeCopyError> {
+    for name in &verdicts.dead_temporaries {
+        remove_file_if_present(root.join(name).as_path())?;
+    }
+    return Ok(());
+}
+
+/// Which owners were found dead, decided before anything is removed.
+#[derive(Debug, Default)]
+pub struct StageVerdicts {
+    /// The names of the claims whose owner is dead.
+    dead_claims: BTreeSet<String>,
+    /// The names of the temporaries whose writer is dead.
+    dead_temporaries: BTreeSet<String>,
+}
+
+/// What:
+///  Judges the owner of every stage claim and every temporary in the journal root, and changes nothing.
+/// Why:
+///   A command that refuses an item of another namespace older than the patience must refuse before it changes anything, so every
+///  owner is judged first, once (sol-1 round 3, P1 C), and the sweep acts on the verdicts without judging again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const verdicts = await judgeStageOwners(commonDir); // throws on an expired foreign item, before any removal
+/// ```
+pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCopyError> {
+    let root: PathBuf = journal_root(common_dir);
+    let mut verdicts: StageVerdicts = StageVerdicts::default();
+    for name in claim_names(root.as_path())? {
+        let claim: PathBuf = root.join(name.as_str());
+        let Some((_container, owner)) = read_claim(claim.as_path())? else {
+            continue;
+        };
+        // A live owner's claim is its running add or copy; a claim whose owner cannot be judged is kept, too.
+        if token_owner_is_dead(owner.as_deref(), claim.as_path())? {
+            verdicts.dead_claims.insert(name);
+        }
+    }
     // `match` treats an absent root as having nothing to remove.
-    let listing = match std::fs::read_dir(root) {
+    let listing = match std::fs::read_dir(root.as_path()) {
         Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(verdicts),
         Err(error) => return Err(raw_failure(&error)),
     };
     for listed in listing {
@@ -450,10 +488,10 @@ fn remove_dead_temporaries(root: &Path) -> Result<(), WorktreeCopyError> {
         }
         // The name is `<item>.<writer>.<unique>.tmp`; a name of another shape has no writer and counts as a dead one's.
         if token_owner_is_dead(temporary_writer_token(name.as_str()), entry.path().as_path())? {
-            remove_file_if_present(entry.path().as_path())?;
+            verdicts.dead_temporaries.insert(name);
         }
     }
-    return Ok(());
+    return Ok(verdicts);
 }
 
 /// What:
@@ -487,6 +525,12 @@ fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyError>
 /// const notices = await reapAbandonedStages(commonDir);
 /// ```
 pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeCopyError> {
+    return reap_judged_stages(common_dir, &judge_stage_owners(common_dir)?);
+}
+
+/// `reap_abandoned_stages` on verdicts that were made before the command changed anything; a claim or a temporary that the verdicts
+///  do not name as dead is left whole.
+pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result<Vec<String>, WorktreeCopyError> {
     let root: PathBuf = journal_root(common_dir);
     let names: Vec<String> = claim_names(root.as_path())?;
     let mut notices: Vec<String> = Vec::new();
@@ -496,12 +540,12 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
             .map(|pending| return PathBuf::from(pending.journal.stage_container))
             .collect();
         for name in names {
-            let claim: PathBuf = root.join(name);
-            let Some((container, owner)) = read_claim(claim.as_path())? else {
+            let claim: PathBuf = root.join(name.as_str());
+            let Some((container, _owner)) = read_claim(claim.as_path())? else {
                 continue;
             };
             // A live owner's claim is its running add or copy; a claim whose owner cannot be judged is kept, too.
-            if !token_owner_is_dead(owner.as_deref(), claim.as_path())? {
+            if !verdicts.dead_claims.contains(name.as_str()) {
                 continue;
             }
             let present: bool = match std::fs::symlink_metadata(container.as_path()) {
@@ -539,7 +583,7 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
             remove_file_if_present(claim.as_path())?;
         }
     }
-    remove_dead_temporaries(root.as_path())?;
+    remove_dead_temporaries(root.as_path(), verdicts)?;
     absent_is_fine(sync_directory(root.as_path()))?;
     return Ok(notices);
 }

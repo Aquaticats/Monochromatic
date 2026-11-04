@@ -15,7 +15,7 @@ use crate::json_record::quote;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_stage::StagedSnapshot;
-use crate::worktree_copy_stage_claim::{reap_abandoned_stages, stage_claims_exist};
+use crate::worktree_copy_stage_claim::{judge_stage_owners, reap_judged_stages, stage_claims_exist};
 use crate::worktree_copy_transaction::{Outcome, complete_journal, snapshot_from_journal};
 use crate::worktree_copy_journal::{
     PendingJournal, Phase, Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals,
@@ -244,10 +244,16 @@ pub fn recover_worktree_copy_transactions(
     let owner = current_copy_owner()?;
     let mut recovered: usize = 0;
     let mut notices: Vec<String> = Vec::new();
+    // Every owner is judged before anything is taken over, finished or removed: an item of another namespace older than the patience
+    //  stops the command here (owner, 2026-11-04, "Refuse and name it (Recommended)"), with nothing changed (sol-1 round 3, P1 C).
+    let mut dead: Vec<PendingJournal> = Vec::new();
     for journal in pending {
-        if !journal_owner_is_dead(&journal)? {
-            continue;
+        if journal_owner_is_dead(&journal)? {
+            dead.push(journal);
         }
+    }
+    let stages = judge_stage_owners(common_dir)?;
+    for journal in dead {
         // `match` on the take-over: another command already took this journal, and it recovers it.
         let Some(mine) = adopt_journal(&journal, &owner)? else {
             continue;
@@ -260,7 +266,7 @@ pub fn recover_worktree_copy_transactions(
             notices.push(line);
         }
     }
-    notices.extend(reap_abandoned_stages(common_dir)?);
+    notices.extend(reap_judged_stages(common_dir, &stages)?);
     return Ok(RecoveryReport { recovered, notices });
 }
 

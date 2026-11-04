@@ -138,6 +138,9 @@ pub fn recover_interrupted_merges(
     git_dir: &Path,
 ) -> Result<Vec<MergeRecoveryOutcome>, RecoveryError> {
     let mut outcomes: Vec<MergeRecoveryOutcome> = Vec::new();
+    // Every record is read and its owner judged before any is settled, so a record of another namespace older than the patience
+    //  stops the command with nothing changed (owner, 2026-11-04, "Refuse and name it (Recommended)"; sol-1 round 3, P1 C).
+    let mut planned: Vec<(PathBuf, MergeIntent, OwnerLiveness)> = Vec::new();
     for record in list_merge_intents(git_dir)? {
         let bytes: Vec<u8> = match std::fs::read(record.as_path()) {
             Ok(found) => found,
@@ -151,7 +154,16 @@ pub fn recover_interrupted_merges(
                 record.display()
             )));
         };
-        let action: MergeRecoveryAction = recover_one(place, record.as_path(), &intent)?;
+        let liveness: OwnerLiveness = owner_liveness(&intent, record.as_path())?;
+        planned.push((record, intent, liveness));
+    }
+    for (record, intent, liveness) in planned {
+        let action: MergeRecoveryAction = if liveness == OwnerLiveness::Alive {
+            debug("recoverInterruptedMerges", format!("the owner of {} still runs", record.display()).as_str());
+            MergeRecoveryAction::OwnerActive
+        } else {
+            settle_failed_merge(place, record.as_path(), &intent)?
+        };
         outcomes.push(MergeRecoveryOutcome { record, action });
     }
     return Ok(outcomes);
@@ -307,23 +319,6 @@ pub(crate) fn standing(change: &Change, state: &WorktreeState) -> Standing {
         return Standing::New;
     }
     return Standing::Foreign;
-}
-
-/// What:
-///  Recover one record whose owner is dead.
-/// Why:
-///   The branch value says whether the merge landed; otherwise the paths say whether it started.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function recoverOne({ place, record, intent }): Promise<MergeRecoveryAction>;
-/// ```
-fn recover_one(place: &RecoveryPlace, record: &Path, intent: &MergeIntent) -> Result<MergeRecoveryAction, RecoveryError> {
-    if owner_liveness(intent, record)? == OwnerLiveness::Alive {
-        debug("recoverInterruptedMerges", format!("the owner of {} still runs", record.display()).as_str());
-        return Ok(MergeRecoveryAction::OwnerActive);
-    }
-    return settle_failed_merge(place, record, intent);
 }
 
 /// What:

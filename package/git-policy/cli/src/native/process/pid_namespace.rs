@@ -166,6 +166,8 @@ impl ExpiredForeignRecord {
 /// isOtherNamespace(recorded, current) ? (ageOutlivesPatience(age(recordPath)) ? refused : alive) : undefined
 /// ```
 pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Option<Result<(), ExpiredForeignRecord>> {
+    #[cfg(test)]
+    STANDING_LOOKUPS.with(|count| { count.set(count.get() + 1); });
     if !is_other_namespace(recorded, current_pid_namespace().as_deref()) {
         return None;
     }
@@ -174,6 +176,12 @@ pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Opt
         Some(age) if age_outlives_patience(age) => Err(ExpiredForeignRecord { record: record_path.to_path_buf(), namespace, age }),
         Some(_) | None => Ok(()),
     });
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many times this thread asked for a standing, so a control can see that a decision asked once.
+    pub(crate) static STANDING_LOOKUPS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
 /// Namespace controls stay out of the release executable.
