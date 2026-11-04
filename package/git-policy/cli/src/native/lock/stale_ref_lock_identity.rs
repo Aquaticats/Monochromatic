@@ -31,11 +31,13 @@ pub struct Identity {
 /// The identity of the file at `path`, without following a link.
 pub fn identity_of(path: &Path) -> Option<Identity> {
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
-    let born_ns: Option<u128> = metadata
-        .created()
-        .ok()
-        .and_then(|born| { return born.duration_since(SystemTime::UNIX_EPOCH).ok(); })
-        .map(|elapsed| { return elapsed.as_nanos(); });
+    let born_ns: Option<u128> = match metadata.created() {
+        Ok(born) => match born.duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(elapsed) => Some(elapsed.as_nanos()),
+            Err(_) => None,
+        },
+        Err(_) => None,
+    };
     let modified_ns: i128 = i128::from(metadata.mtime()) * 1_000_000_000 + i128::from(metadata.mtime_nsec());
     return Some(Identity { device: metadata.dev(), inode: metadata.ino(), size: metadata.len(), born_ns, modified_ns });
 }

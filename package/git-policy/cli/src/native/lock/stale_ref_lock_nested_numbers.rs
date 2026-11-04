@@ -25,7 +25,14 @@ const NAMESPACE_PID_LINE: &str = "NSpid:";
 /// function numbersOf(status: string): number[] | undefined;
 /// ```
 fn numbers_of(status: &str) -> Option<Vec<i64>> {
-    let line: &str = status.lines().find_map(|line| { return line.strip_prefix(NAMESPACE_PID_LINE); })?;
+    let mut found: Option<&str> = None;
+    for candidate in status.lines() {
+        if let Some(rest) = candidate.strip_prefix(NAMESPACE_PID_LINE) {
+            found = Some(rest);
+            break;
+        }
+    }
+    let line: &str = found?;
     let mut numbers: Vec<i64> = Vec::new();
     for field in line.split_whitespace() {
         numbers.push(field.parse::<i64>().ok()?);
@@ -44,10 +51,16 @@ fn numbers_of(status: &str) -> Option<Vec<i64>> {
 /// function nestedHoldersOf(procRoot: string, number: number): number[]; // throws when the table is unreadable
 /// ```
 pub fn nested_holders_of(proc_root: &Path, number: i64) -> Result<Vec<i64>, String> {
-    let listing: std::fs::ReadDir = std::fs::read_dir(proc_root).map_err(|error| { return format!("{}: {error}", proc_root.display()); })?;
+    let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
+        Ok(entries) => entries,
+        Err(error) => return Err(format!("{}: {error}", proc_root.display())),
+    };
     let mut holders: Vec<i64> = Vec::new();
     for item in listing.flatten() {
-        let Some(outer) = item.file_name().to_str().and_then(|name| { return name.parse::<i64>().ok(); }) else {
+        let Some(name) = item.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let Ok(outer) = name.parse::<i64>() else {
             continue;
         };
         let status: String = match std::fs::read_to_string(item.path().join("status")) {
@@ -60,8 +73,11 @@ pub fn nested_holders_of(proc_root: &Path, number: i64) -> Result<Vec<i64>, Stri
             return Err(format!("the status of process {outer} lists no `{NAMESPACE_PID_LINE}` line"));
         };
         // The first number is the reader's own; any later one is the process's number inside a nested namespace.
-        if numbers.iter().skip(1).any(|nested| { return *nested == number; }) {
-            holders.push(outer);
+        for nested in numbers.iter().skip(1) {
+            if *nested == number {
+                holders.push(outer);
+                break;
+            }
         }
     }
     holders.sort_unstable();

@@ -113,14 +113,23 @@ impl LockLedger {
     pub fn sweep(&self, tree: &[TreeMember]) -> Vec<PathBuf> {
         let mut judge: Judge = self.judge.clone().unwrap_or_else(Judge::here);
         // The one proof that is the wrapper's own: the numbers of the stopped tree's processes that have ended.
-        let pids: Vec<i64> = tree.iter().filter(|member| { return !still_running(member); }).map(|member| { return i64::from(member.pid); }).collect();
+        let mut pids: Vec<i64> = Vec::new();
+        for member in tree {
+            if !still_running(member) {
+                pids.push(i64::from(member.pid));
+            }
+        }
         judge.own_ended = Some(OwnEnded { pids, since: self.since });
         let outcome = clear_stale_ref_locks(self.roots.as_slice(), &judge);
         let notice: String = outcome.notice();
         if !notice.is_empty() {
             warn(TAG, notice.trim_end());
         }
-        return outcome.cleared.iter().map(|found| { return found.lock.clone(); }).collect();
+        let mut removed: Vec<PathBuf> = Vec::new();
+        for found in &outcome.cleared {
+            removed.push(found.lock.clone());
+        }
+        return removed;
     }
 }
 
