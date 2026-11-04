@@ -809,21 +809,178 @@ Where the sections above say otherwise, the contract and this section are curren
   different boot id clears liveness only.
 - First publication of the crate to crates.io needs the owner's explicit approval; nothing was published.
 
-## Resume point (round 9, rewritten 2026-11-04T07:45:00-05:00 after the gate)
+## Round 10 (2026-11-04): the answers to the round 9 reviews
 
-Done in round 9 (commits on `feat/cargo-shadow-cli`; the section "Round 9" above lists the changes):
+Reviews answered: `cargo-shadow-sol-9a.txt` (production code and documents; "does not meet the list for this part") and
+`cargo-shadow-sol-9b.txt` (tests; "meets it after named fixes"), both in `/var/home/user/temp/agent/reviews/`.
+The contract (`doc/planning/cargo-shadow-guarantees.md`) keeps its sixteen acceptance rows; both reviews said that no row is added,
+and none is.
+Owner decisions that bind this round (kept, quoted): the delegated transient scope as the default containment with the weaker path
+waiting for `cargo-shadow acknowledge`; a verified-absent scope as proof of no members; a reboot of the same machine discharging
+liveness only; assumptions a to e; forcing only at exit; "nothing should ever wait forever or indefinitely"; "never discard user
+data".
+Where the sections above say otherwise, the contract and this section are current.
 
-- Debug suite, `lint:clippy` and the release gate ran at tip `7699f5df6f`: 561 tests, 561 passed, 0 failed, 3 skipped (the
-  `#[ignore]` helper entries), clippy clean after one fix (a shadowed binding in `contain_counterexample_tests.rs`).
-  Counts are in the coverage map of `doc/planning/cargo-shadow-guarantees.md`.
-- Stale test names in the contract: two (`a_weaker_path_journal_is_refused_by_recovery_and_admission_until_it_is_acknowledged` and
-  `acknowledging_one_of_two_journals_settles_it_and_leaves_the_other_blocking`) now match the tests that exist; every other
-  backticked identifier of twelve characters or more is a `fn` in the crate.
-- README and the Round 9 section written.
-- Diffs `cargo-shadow-9a.diff` (production), `-9b.diff` (`round_nine_tests.rs`), `-9c.diff` (the other tests) and `-9d.diff`
-  (contract, this file, README) were cut from `089585a116` into `/var/home/user/temp/agent/reviews/`, each under 250 KB.
+### 9a D1: an unsettled scope is not completed by a later look
+
+Defect: `assess` read an unsettled scope as a completed lifecycle when `open.exists()` was true at the end, so a scope whose control
+group the manager had made and not yet attached the launcher to (`populated 0`), or a scope that appeared between the query and the
+existence check, let a recovery restore files while the payload could still start.
+Fix (`src/journal_unready.rs`): every scope without a `settled` line is uncertain whether it is absent, empty or appears during
+the check; only a populated scope is `Live`, and no look at the scope upgrades an unsettled run.
+Red then green: `an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended` (the scope is made by hand inside a delegated
+holder scope, `populated 0` asserted) and `a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run_that_ended`
+(a test hook inside `assess` between the queries and the judgement); red at `6a6513b482`, green at `a1c6ea1ae8`.
+
+The way out of the refusal, checked against "nothing should ever wait forever or indefinitely":
+the refusal names the journal and the command `cargo-shadow acknowledge <journal directory>`; the person's assertion overrides it (a
+scope with a member still blocks), the command tries the workspace lock and returns at once, and no part of the program waits for
+it.
+The cost is real: a wrapper that is killed before it records the end of a run now leaves a journal that waits for that one command,
+also when the run's program ended long ago.
+
+Options for removing that cost, ranked (the owner is asked if the choice is not clear; none of them is built):
+
+- B, the launcher's liveness as a crash-safe proof.
+  After the launcher is spawned (it becomes the program, same process) the wrapper appends `launcher <pid> <start time> <pid
+  namespace> <scope path>` without a sync (a lost line only means uncertainty, and a power loss is a reboot, which the boot rule
+  covers).
+  A recovery first checks that the process is gone (no such process, or another start time, in the same pid namespace), and only
+  then reads the scope: a launcher that is gone cannot attach itself later, so an absent or empty scope is final; a launcher that is
+  alive blocks without an acknowledgement.
+  Pros: killed runs recover by themselves in all but the window between the spawn and the line; keeps A's safety.
+  Cons: a new record kind, a start-time parser of `/proc/<pid>/stat`, a pid-namespace comparison, zombies and thread groups with a
+  dead leader to treat as not gone, and a manager that attaches a dead pid after the check needs a measurement.
+- A, refuse and acknowledge (built).
+  Pros: small, safe against both schedules, the way out is the existing command.
+  Cons: every killed strong-path wrapper needs a person.
+- C, a parent-death signal on the launcher so a killed wrapper kills it.
+  Pros: ends the launcher with the wrapper.
+  Cons: the signal does not reach the program's descendants, it is asynchronous so a recovery cannot read it as a proof, and a killed
+  wrapper would then kill cargo, which changes the product.
+Ranking: B > A > C, because B keeps A's refusal and removes the person from all but a narrow window, at the price of a protocol the
+reviewer must check; A is complete and the smallest, but sends every killed run to a person; C proves nothing a recovery can read.
+Built: A, because the review asked for the refusal and the narrower reading is the one to do first; B is proposed.
+
+### 9a D2: strict boot identity
+
+Defect: `read_identity_text` and `current_identity` checked only that the ids were not empty, so a recorded `boot not-a-boot-id` beside
+the right machine id differed from the real boot id and read as a reboot, clearing a live process group.
+Fix (`src/control_group.rs`, `src/journal_unready.rs`): the boot id must be a lowercase `8-4-4-4-12` UUID and the machine id 32
+lowercase hexadecimal digits (the formats systemd reads, `ID128_FORMAT_UUID` in `src/libsystemd/sd-id128/sd-id128.c`), neither all
+zero; the view record is `view` then exactly one `boot` and one `machine` line, and a repeated field or an unknown line leaves the
+record without an identity; the comparison also requires the current identity to be well formed.
+Red then green: `a_malformed_recorded_identity_is_not_a_reboot` (eight malformed records beside a live group, and a well-formed record
+of another boot as the control that clears), `a_malformed_current_identity_is_not_a_reboot`,
+`the_current_identity_is_read_strictly_from_its_files`; red at `1318ffd101`, green at `5d3466e2b1`.
+The round 9 tests that built a different boot or machine id by appending text now change one digit (`after_a_reboot`).
+
+### 9a D3: the discovery's one deadline
+
+Defect: after the deadline the discovery killed its program and then reaped it under a fresh two-second budget.
+Fix: `reap_within(child, deadline)` spends what is left of the discovery's own deadline (one non-blocking attempt even when it has
+passed), returns whether the child was reaped, and the failure text says "the killed program could not be reaped before the deadline"
+when it was not; `DISCOVERY_REAP` is removed.
+Red then green: `a_discovery_that_cannot_reap_its_child_returns_at_the_deadline_and_says_so` (the `ReapStuck` failpoint makes the
+killed child look unreapable; red took 2.4 s against a 0.4 s bound); red at `147f558d13`, green at `7645642350`.
+
+### 9a section 4: what a boot id is
+
+The reviewer: "Either enforce that authority or state the additional premise explicitly."
+What Linux offers, tried on 2026-11-04 in a disposable user and mount namespace (`unshare --user --map-root-user --mount`; the host's
+`/proc` was not touched; scripts and logs `/var/home/user/temp/agent/cargo-shadow-r10/exp-boot.sh`, `exp-boot2.sh`,
+`logs/exp-boot.log`, `logs/exp-boot2.log`):
+
+- An unprivileged user can put a file over `/proc/sys/kernel/random/boot_id` with a bind mount, and the next read shows the new text.
+  `statfs` on the path then reports the file system of the replacement (btrfs for a file of this host), not procfs.
+- A bind mount of another procfs file (`/proc/sys/kernel/random/uuid`) keeps the procfs magic and a valid UUID, but it changes on
+  every read; `findmnt` shows a mount at the path, and `statx` reports `STATX_ATTR_MOUNT_ROOT` for it.
+- `stat --format=%m` does not help (it derives the mount point from the path and reported `/proc` every time).
+- `systemd-nspawn` replaces the boot id on purpose, with a random id per container start, bound read-only over the file
+  (`src/nspawn/nspawn.c`, `setup_boot_id_file` and `setup_boot_id`, read on the default branch on 2026-11-04).
+  So a container-local boot identity exists in practice.
+- A read-only bind of the directory that holds the file (container runtimes mask paths this way; tried with
+  `/proc/sys/kernel/random`) leaves the file served by procfs and not a mount root.
+  A bind of `/proc/sys` itself was refused by `mount` with exit status 32 in this namespace, so that form was not tried.
+
+Options, ranked:
+
+- 1, enforce the file's authority and state what remains (built).
+  `boot_id_authority`: the file is served by procfs (`statfs`) and is not the root of a mount (`statx`, `STATX_ATTR_MOUNT_ROOT`; a
+  kernel that does not report the attribute is an error); an identity that fails is no identity.
+  Pros: closes the reviewer's schedule (a replaced file on the same running machine), costs two syscalls per identity read, fails
+  toward the acknowledgement, and also covers the `systemd-nspawn` case.
+  Cons: a container whose runtime replaces the boot id gets the acknowledgement after a restart where a reboot clearance would have
+  been right; a user-space `/proc` emulation (gVisor, an interposer) that reports procfs is not detected, and that residual premise is
+  written into assumption c.
+- 2, state the premise only.
+  Pros: no code.
+  Cons: the reviewer's schedule (a replaced file) stays open, and the cure is two syscalls.
+- 3, corroborate with uptime and the wall clock (boot instant equals now minus uptime, compared with the recorded one).
+  Pros: would also catch an emulated `/proc` that lies about the boot id but not about time.
+  Cons: a clock step moves the instant in both directions, the check needs a tolerance with no measurement behind it, and an
+  emulation can fake uptime too; it is evidence about time, not about the boot id file.
+- 4, require the initial mount and pid namespaces.
+  Pros: nothing can be put over the file in the initial mount namespace by a user.
+  Cons: it removes the clearance for every process in a container, a toolbox or a user namespace, and the shortcut was the owner's
+  pick for those cases too.
+Ranking: 1 > 2 > 3 > 4, because 1 answers the schedule at the cost of two syscalls where 2 only writes it down; 2 is honest but
+leaves the schedule open; 3 adds a weaker kind of evidence with a tolerance nobody measured; 4 is sound and removes the feature from
+the places it is used.
+Built: 1; assumption c now carries the residual premise (the kernel that serves the process is the one that ran the writers, and its
+procfs is not an emulation), and assumption e refers to it.
+Red then green: `a_boot_id_put_over_the_kernels_file_is_not_an_identity` (in a new user and mount namespace: a bind of a regular
+file, of another procfs file and a tmpfs over the directory each give "no identity" and keep a live group blocking; a read-only bind
+of the directory is read as the real boot id, and the baseline likewise); red with the check disabled (log `logs/d4-red.log`),
+green at `5d3466e2b1`.
+
+### Part 9b
+
+Fixed in the tests (commits `045187ed59`, `5912ec62b3`, `390bb75103`, `74d035ca0e`, and the last test commit before the docs):
+
+- 3.1: the replacement inode is captured at the exchange (`replace_capturing`) and must keep its name at the live path after each
+  fault.
+- 3.2: a reported preservation needs the `.displaced` copy beside the target and a successful barrier of that directory, and the
+  branch must run for at least one failed barrier.
+- 3.3: the new refused copy is read and must hold `output of {first}`.
+- 3.4: the settled-run test waits until the recorded scope is absent before the recovery reads it.
+- 3.5: the thread and orphan tests require the program's group to equal the scope the journal recorded and to differ from the
+  wrapper's own; the two escaped-writer tests assert the scope record of their run.
+- 3.6: the record-fault tests assert that the fault was consumed and that the refusal is the injected one; the acknowledgement
+  reader's file sync and directory sync are failed on their own (two new failpoints), each reached; an interrupted publication is
+  built by hand from a real acknowledgement.
+- 3.7: `is_running` treats only `ESRCH` as death, the thread fixture publishes a complete thread id by rename, and the discovery
+  fixture records the descendant and the direct program and checks both at the return.
+- 2.4: `a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace` (the helper first gives the
+  journal the views of its namespace and the verdict clears; then it binds the parent directory of the slice over the slice, and the
+  verdict refuses for the parent view).
+  The guard removed: the test failed (`logs/n24-red.log`).
+- One test needed a longer bound: with a journal around it, the escaped-writer test at the bound spent its one second in the
+  record's sync and the manager's start when the whole suite ran at once (release gate, first run), so its bound is eight seconds.
+
+Not done from 9b section 2, kept in the coverage map as "partly": the shim and a user-command sentinel behind the A2/R4 call-site
+test; cuts of a wrapper at the real boundaries of `begin` (V3/V4).
+
+### Result
+
+The coverage map of the contract carries the counts: 575 tests, 570 passed, 0 failed, 5 skipped (the `#[ignore]` helper entries), for
+the debug run and the release gate; `lint:clippy` with warnings denied is clean.
+Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r10-debug2.log`, `r10-gate2.log`, `r10-clippy3.log`; the first gate
+run (`r10-gate1.log`) failed once on the bound named above and is kept as evidence.
+Nothing was published and nothing was merged into main; the first publication needs the owner's explicit approval.
+
+## Resume point (round 10, rewritten 2026-11-04T10:30:00-05:00 after the gate)
+
+Done in round 10: the section "Round 10" above lists each finding, its red and green tests and the options.
+The review inputs were cut from `16249ffe94` into `/var/home/user/temp/agent/reviews/cargo-shadow-10*.diff`.
+
+Open for the owner:
+
+1. Whether to build option B of "9a D1" (the launcher's liveness record), so that a killed wrapper's journal recovers without
+   `cargo-shadow acknowledge` when the launcher is gone.
+2. The boot-authority pick (option 1) and the residual premise in assumption c, veto open with the other picks of rounds 8 and 9.
 
 Next:
 
-1. The coordinator launches the cross-vendor review of the four diffs against the contract.
-2. The owner's vetoes stay open (listed in "Round 9"); nothing is merged into main and nothing is published.
+1. The coordinator launches the cross-vendor review of the round 10 diffs against the contract.
+2. Nothing is merged into main and nothing is published.

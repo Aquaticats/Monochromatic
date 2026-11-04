@@ -657,21 +657,30 @@ and an HTTP 429 is retried after its `Retry-After`.
   record it cannot read or understand, or a journal that lost its record while other files remain, or a journal or a scope seen
   with another mount id or inode or in another cgroup namespace than the record was made in (assumption c);
   it names the journal.
-  A recorded scope that is absent counts as gone only when the run also recorded its end and the directory that held it is seen as
-  it was recorded, because the manager removes a scope only when it is empty (probed).
+  A recorded scope counts as gone only when the run also recorded its end and the directory that held it is seen as it was
+  recorded, because the manager removes a scope only when it is empty (probed).
   The end is a `settled <scope path>` line that the run appends to the journal after it reaped the launcher and showed the scope
-  empty; until then an absent scope may be one the launcher has not made yet, so a recovery that finds it absent and unsettled
-  refuses, naming the journal, and waits for `cargo-shadow acknowledge`.
+  empty.
+  Until then neither an absent scope nor an empty one counts: the manager creates a scope's control group and attaches the launcher in
+  two steps, and a look that finds the scope absent or empty says nothing about a launcher that has not finished entering it.
+  So a recovery of a journal with an unsettled scope refuses, naming the journal, whether the scope is absent, empty or appears while
+  the check runs; the way out is `cargo-shadow acknowledge <journal directory>` (a person's assertion that every process of that
+  run has stopped), and a scope that has a member blocks even then.
+  A killed wrapper whose scope was never settled therefore waits for that one command, and nothing waits in-process.
   A record that cannot be written leaves the journal unsettled, which is the safe side.
   The journal's view record also holds the machine id (`/etc/machine-id`) and the boot id
   (`/proc/sys/kernel/random/boot_id`) of the system that made it, written before any record of a scope or a process group.
+  Both ids must have their format (the boot id a lowercase UUID, the machine id 32 lowercase hexadecimal digits), a record with a
+  repeated field or an unknown line has no identity, and the boot id file must be the kernel's own: served by procfs and not the root
+  of a mount of its own, because a bind mount can put another file over it without a reboot (`systemd-nspawn` does it on purpose).
+  An identity that fails any of this is no identity and keeps the refusal.
   A recovery on the same machine id with a different boot id treats the run's process liveness as discharged, because a reboot
   ended every process of the run (assumption e: one machine at a time, no checkpoint and restore); it then does not compare the
   mount and cgroup views, which belong to the boot that ended, and it asks for no acknowledgement for the containment.
   Journal enumeration, snapshot validation, preservation and the mandatory finish still run, and a recorded scope that has a member
   after the reboot still blocks.
-  A different machine id, an unreadable identity on either side, a journal without one, or the same boot id (suspend and resume keep
-  it) keep the refusal.
+  A different machine id, an unreadable or malformed identity on either side, a journal without one, or the same boot id (suspend
+  and resume keep it) keep the refusal.
   A journal directory that holds nothing at all is what a cut-off `begin` leaves and is removed.
   The scope is stopped by killing the direct child, reaping it, and writing `cgroup.kill`, and then each listed process gets
   `SIGKILL` through a pidfd, because `cgroup.kill` alone left a thread group alive whose leader had already exited (measured on
@@ -696,7 +705,7 @@ and an HTTP 429 is retried after its `Retry-After`.
   does not count.
   The command tries the workspace lock and never waits for it, and an unfinished publication leaves the journal unacknowledged.
   The discovery of the manager's slice is bounded (the answer of `systemctl` is read under a deadline, a descendant that holds
-  its pipes does not extend it, and the killed program is reaped under a second deadline), the route cache and the registry of
+  its pipes does not extend it, and the killed program is reaped within what is left of that same deadline), the route cache and the registry of
   unsynchronized directories are consulted without blocking, and the answer when either is busy is the conservative one.
   When a crate root or the central folder of kept files cannot be listed, the run prints that the number of kept files is unknown
   and where to look; it never refuses and never takes an unreadable place as small.

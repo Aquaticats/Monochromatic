@@ -459,7 +459,7 @@ fn wrapper_held_inside_its_start_fixture() {
 /// Acceptance row "V3, V4":
 /// a wrapper killed at the boundary inside its start, after the record and before the program,
 /// is recovered conservatively:
-/// a scope that was never made is verifiably absent and the recovery goes on,
+/// a scope that was never made is absent but unsettled, so the recovery refuses and names the missing end record,
 /// while a weaker-path start that only announced a child blocks until acknowledged.
 #[test]
 fn a_wrapper_killed_inside_its_start_is_recovered_conservatively() {
