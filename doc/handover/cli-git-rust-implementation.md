@@ -227,8 +227,12 @@ two delegate agents and four cross-vendor reviews running:
   question 8 rewritten (recommends A,
   accept the residual window;
   option B dropped) in `commits-never-fail-questions-34a3c22f2f.md`.
-  Review 16b had not landed (still running since 2026-11-04T03:31:40-05:00);
-  revision 17 does not include it.
+  Review 16b failed at 2026-11-04T04:28:19-05:00 after 57 minutes ("OpenAI Responses stream ended before a terminal response event",
+  input 258 KB);
+  not rerun,
+  since 17b reads the whole revision 17 design that replaces revision 16.
+  If 17b (250 KB) fails the same way,
+  split the design into two halves for review.
   Review 17 running in two parts (`commits-never-fail-sol-17a.txt`:
   R16a closure,
   the detached flusher against "We should never invoke ourselves recursively.",
