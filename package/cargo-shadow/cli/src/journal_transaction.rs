@@ -430,7 +430,7 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         Err(message) => return Err(io::Error::other(message)),
     };
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    refuse_over_cap(root)?;
+    let kept_notice: Option<String> = kept_folder_notice(root);
     let journals: PathBuf = root.join(JOURNAL_DIR);
     create_directories_synced(&journals)?;
     let mut created: Option<PathBuf> = None;
@@ -507,7 +507,7 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         manifests: std::cell::RefCell::new(Vec::new()),
         // Constructor `Cell::new(`: an empty owned collection or a boxed value.
         manifests_added: std::cell::Cell::new(false),
-        kept_notice: None,
+        kept_notice,
     });
 }
 
@@ -666,78 +666,49 @@ pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
 }
 
 /// What:
-/// `fn refuse_over_cap(root: &Path) -> io::Result<()>` refuses a new transaction when the kept directory holds more than
-/// `KEPT_FILES_WARNING_COUNT` files,
-/// and lists them (path,
-/// size,
-/// age).
+/// `fn kept_folder_notice(root: &Path) -> Option<String>` is the warning for a kept folder that holds more than
+/// `KEPT_FILES_WARNING_COUNT` files:
+/// how many, how many bytes, and where to look.
 /// Why:
-/// Review finding (4b 4):
-/// kept files are other writers' data and are never deleted by this tool,
-/// so growth is stopped here by
-/// refusing to mutate further until a person has looked at them.
+/// Owner answer, round 6, "Warn past a count, never refuse":
+/// kept files may be someone's work, so the tool neither deletes them nor stops working;
+/// it tells the person on every run past the count.
+/// A folder that cannot be read is also reported, never taken as small.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function refuseOverCap(root: string): void  // throws with the listing when over the cap
+/// function keptFolderNotice(root: string): string | undefined
 /// ```
-fn refuse_over_cap(root: &Path) -> io::Result<()> {
-    // Typed binding: `directory: PathBuf`.
+fn kept_folder_notice(root: &Path) -> Option<String> {
     let directory: PathBuf = root.join(QUARANTINE_DIR);
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    // Borrow `&directory`: lends the value without copying or giving it away.
-    let Ok(listing) = fs::read_dir(&directory) else {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        return Ok(());
+    let listing = match fs::read_dir(&directory) {
+        Ok(listing) => listing,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            return Some(format!(
+                "cargo-shadow: {} could not be read ({error}), so the number of files kept there is unknown; look at it",
+                directory.display()
+            ));
+        }
     };
-    // `let mut`: a binding that may change.
-    // Typed binding: `entries: Vec<(PathBuf, u64, u64)>`.
-    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: T[] / Set / Map / number
-    // ```
-    let mut entries: Vec<(PathBuf, u64, u64)> = Vec::new();
-    for entry in listing.flatten() {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        let metadata = entry.metadata()?;
-        // Closure `|modified|`: an anonymous function, like a TS arrow function.
-        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-        // What:     `.ok()` turns a `Result` into an `Option` (dropping the error); `.ok_or(e)` turns an `Option` into a `Result` with the given error.
-        // Why:      The next step wants a value-or-nothing, or a value-or-error, not the other form.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // try { return compute(); } catch { return undefined; }
-        // ```
-        // Adapter `.and_then(`: transforms or selects items with a closure.
-        // Typed binding: `age: u64`.
-        let age: u64 = metadata.modified().ok().and_then(|modified| { return modified.elapsed().ok(); }).map(|elapsed| { return elapsed.as_secs() / 86_400; }).unwrap_or(0);
-        entries.push((entry.path(), metadata.len(), age));
+    let mut count: usize = 0;
+    let mut bytes: u64 = 0;
+    let mut unreadable: usize = 0;
+    for entry in listing {
+        match entry.and_then(|found| { return found.metadata(); }) {
+            Ok(metadata) => {
+                count += 1;
+                bytes += metadata.len();
+            }
+            Err(_) => unreadable += 1,
+        }
     }
-    if entries.len() <= KEPT_FILES_WARNING_COUNT {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        return Ok(());
+    if count + unreadable <= KEPT_FILES_WARNING_COUNT {
+        return None;
     }
-    entries.sort();
-    // Closure `|(path, size, age)|`: an anonymous function, like a TS arrow function.
-    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
-    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    // Typed binding: `shown: Vec<String>`.
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    let shown: Vec<String> = entries.iter().take(20).map(|(path, size, age)| { return format!("  {} ({size} bytes, {age} days old)", path.display()); }).collect();
-    // `Err(...)`: builds the success or the failure variant of a `Result`.
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    return Err(io::Error::other(format!(
-        "{} holds {} kept files (more than {KEPT_FILES_WARNING_COUNT}): files this tool moved aside instead of deleting them because they may be someone's work. Look at them, move or archive what you no longer need, then run the command again. The first {}:\n{}",
-        directory.display(),
-        entries.len(),
-        shown.len(),
-        shown.join("\n")
-    )));
+    let unread: String = if unreadable == 0 { String::new() } else { format!(" ({unreadable} more could not be read)") };
+    return Some(format!(
+        "cargo-shadow: {} holds {count} files, {bytes} bytes in all{unread}. They were moved aside instead of deleted because they may be someone's work. Nothing was deleted and cargo keeps working; review the folder when you can. Before you remove any of them, check that no program still has it open.",
+        directory.display()
+    ));
 }

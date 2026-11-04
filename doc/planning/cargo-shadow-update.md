@@ -372,7 +372,8 @@ Where an earlier section of this record says a finding was "fixed" and this sect
   the group, and output is returned only when complete.
 - Finishing a run forces its outputs to disk before the completion marker (the owner's durability answer "Force at leaving, else
   background"); the background half (syncing what a command did not promise) is not built.
-- Kept files are capped (1,000; the number needs an owner decision) and never deleted by the tool.
+- Kept files are never deleted or refused over by the tool (owner answer of round 6, "Warn past a count, never refuse (Recommended)"):
+  past 1,000 files every run prints the count, the total size and the folder; the 1,000 is a warning point open to veto.
 - The system configuration of the Git reader is what the answering Git reports, cached per Git program.
 - Limits are measured or labeled unmeasured beside their values (repository rule LQM); the numbers measured on 2026-11-04 are in
   the README.

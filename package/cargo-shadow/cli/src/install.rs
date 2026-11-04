@@ -753,6 +753,9 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     // Review finding (failed begin): without a complete recovery record nothing may be mutated, so a journal that cannot be
     // started stops the install here, before the first cargo call.
     let transaction = begin(request.root, &before, false).map_err(io_error)?;
+    if let Some(notice) = transaction.kept_notice() {
+        eprintln!("{notice}");
+    }
     // What:     `RefCell<Vec<LockSnapshot>>` is a list that can be added to through a shared reference (sibling: `&mut Vec`, which needs exclusive access); `RefCell::new(Vec::new())` makes an empty one.
     // Why:      `produced` starts empty because cargo has not written yet; each cargo write is recorded the moment it succeeded, so a failure never has to guess what the run wrote.
     //

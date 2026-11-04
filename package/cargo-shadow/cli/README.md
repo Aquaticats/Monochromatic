@@ -676,10 +676,14 @@ and an HTTP 429 is retried after its `Retry-After`.
   never a settled outcome),
   the kept directory and its two parents every time a file is linked into it.
   Power-loss behavior depends on the filesystem honoring `fsync` and is not tested by fault injection.
-  The kept directory is capped (1,000 files;
-  an owner decision is still needed for the number):
-  past it a new run is refused with a listing,
-  because kept files are other writers' data and are never deleted by this tool.
+  The kept directory is never capped and never emptied by the tool.
+  Owner answer of round 6, "Warn past a count, never refuse":
+  past 1,000 files every run prints how many files are kept there, their total size and the folder to review,
+  and cargo keeps working.
+  The 1,000 is the warning point, kept from round 5 and open to veto;
+  the rate at which files are kept has not been measured.
+  Before removing a kept file, make sure no program still has it open,
+  because a program that holds it keeps writing to the inode, and a copy made earlier misses those writes.
 - Nothing waits forever
   (owner rule of 2026-11-03:
   "nothing should ever wait forever or indefinitely").

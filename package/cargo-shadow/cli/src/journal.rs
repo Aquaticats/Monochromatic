@@ -169,13 +169,11 @@ pub(crate) const OWNER_FILE: &str = "owner";
 /// one group id per line.
 pub(crate) const GROUPS_FILE: &str = "groups";
 
-/// The most files the kept directory may hold before a new transaction is refused.
-/// Unmeasured,
-/// and an owner decision:
-/// the owner's rule "never discard user data" forbids deleting kept files,
-/// so this cap only
-/// stops growth;
-/// what must be decided is how many kept files are tolerable and who clears them.
+/// The number of kept files past which every run warns (count, total size, folder).
+/// Owner answer of round 6, "Warn past a count, never refuse (Recommended)":
+/// nothing is refused or deleted past it.
+/// The value is the warning point carried over from round 5, open to veto;
+/// the rate at which files are kept has not been measured.
 pub const KEPT_FILES_WARNING_COUNT: usize = 1_000;
 
 /// The file whose exclusive lock a transaction,
