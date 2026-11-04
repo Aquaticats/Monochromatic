@@ -1908,9 +1908,85 @@ record at the open and at the clearing; the lock wait against `RECORD_LOCK_WAIT`
 crashes, a sentinel and incomplete replacements; the disk parsers refusing a duplicate path and a refused append leaving the root;
 departure hooks asserted fired; reaping with a zombie check; the real-binary tests wait for the service's own lines (a pass is reported
 whether or not it found an error); restart between a ring and its pass; two services on one lane; concurrent legacy and new recording and
-concurrent old and new flushers over arriving receipts. One mutation survives and is stated: the service lock is redundant with the stale
-socket check against a second service (the doorbell refuses a live one) and guards the race of two starts.
+concurrent old and new flushers over arriving receipts. One mutation survived and was stated as redundant (the service lock against a second
+service); that note is WITHDRAWN in round 29: the lock is what keeps two services that meet at a stale doorbell from both starting.
 Models: the disposal model resets the volatile capture, writer ownership and read on a power loss; `RecheckOnly` and `SealRescansRetired` are
 labelled alternative weakenings; the lock-lifetime abstraction is stated.
 
 Gates: `native:test:model` 625 passed, 0 failed, none leaky; both clippy tasks clean; `source_guard` (below).
+
+## Round 29: the two reviews of the step 3 fix round (2026-11-04)
+
+The reviews: the diffs of code, tests, models and handover (`commit-models-step3b-sol-a.txt`, "correct after named fixes") and the whole current
+files (`commit-models-step3b-sol-b.txt`, "correct after named fixes"), both in `/var/home/user/temp/agent/reviews/`. Both say the disposal
+revalidation and the blocking datagram operations are fixed. Ordered as asked: data safety, then receipts, then waits without a bound, then the rest.
+Every defect below has a red test committed before its fix, or a stronger control with its guard removed
+(`/var/home/user/temp/agent/r26/mutations-round5.log`, `mutations-round5-b.log`).
+
+Data safety:
+- The establishment record (review B, P1): `establish` opened a fixed `state.established.tmp` with create and truncate, following links and
+  accepting hard links, so a link or a hard link at that name truncated a file outside the state log, and a FIFO there blocked the checkpoint. It now creates a
+  fresh exclusive name (a random nonce, `create_new`, `O_NOFOLLOW`, 0600) and renames that inode over the record; a failed write removes the temporary.
+  Red first (`a_checkpoint_never_opens_an_existing_name_for_its_establishment_record`: the valuable file was truncated).
+- `saved` as a link (review B, P1): a disposal read the item through a link and `remove_file` removed the outside name. Red first (the outside
+  file was removed). `saved`, `inbox` and `decision` must be real directories of the lane (`open_lane_subdirectory`, `O_NOFOLLOW|O_DIRECTORY`): the capture, the
+  retirement (before any line is written), the recovery listing and the unlink refuse a link, and the unlink removes the name relative to the
+  descriptor it opened (`unlinkat`). `open_lane` refuses a lane whose `state`, `saved`, `inbox` or `decision` is a link or a file.
+- An opaque selected root (review B, P2): the seal published a newer checked root with an empty state. The seal now refuses a root it cannot read, and
+  the opaque root stays the root. The older test that expected the seal to succeed over an opaque record is replaced
+  (`a_departures_acknowledgment_of_an_opaque_record_is_kept_because_the_seal_refuses_it`). Owner-visible: a seal over an opaque root is now an error.
+- A defect the new control found (not named by either review): recovery of a disposal whose item a newer record retains in its closure only
+  (review A's closure-only recovery control) failed on every start, because the replacement root did not name that item among those it retires.
+  The retired list now includes the items the previous root held by its retained set. Red first
+  (`recovery_finishes_a_disposal_that_a_newer_record_retains_only_in_its_closure`).
+
+Receipts:
+- The doorbell (review A, section 1; review B, P1): `ring_running_service` followed a link and trusted any socket, so a link to another lane's live
+  doorbell, or a socket others can open, made the client return `Rung` and launch nothing. The entry is now checked through the same
+  directory descriptor that is used for the send (a socket, owned by the account, mode private), and `bind_ring` applies the same check; an untrusted doorbell is an
+  error, which `client_after_accept` reads as "nobody answered" and launches the flusher. Red first.
+
+Waits without a bound:
+- Opens (review B, P1/P2): `has_disposed_line`, `check_saved_content_sealed`, `create_receipt`, the retained-item force and the segment opens now open without
+  following a link or blocking and judge the type from the descriptor (`open_regular`). Red first: a FIFO named `ledger`, a read-only FIFO named like saved content and
+  a FIFO named like the receipt each blocked until the harness limit.
+- Reads: `read_regular` reads to the length the file had when it was opened (a file that grows during the read is read as it was). `O_NONBLOCK` is all
+  the open gives: it is no deadline on a read of a regular file. No size cap is added (a cap would be a shipped limit with no workload measurement;
+  open for the owner).
+- A service pass (review A and B): the pass drained the lane until a sweep found nothing, so receipts that kept arriving held the disposals after
+  it and every later pass back. The service's pass is now one round (the receipts present when it began), says `more` when receipts arrived meanwhile, and the next pass is
+  due at once (`next_due`); the one-shot flusher still drains until empty, because a launcher that finds the lock held relies on the holder to carry what arrives. Red first
+  (the pass did not end). Not a bound on the time from a receipt to its forcing.
+- The reaper (review A and B): the moved reaper fixed that launch, not later ones: a pending child that never ends kept a waiter thread alive and the next fallback was
+  refused as threaded. There is no thread now: `reap_pending` polls the list with `try_wait`, and `launch_routed` polls before and after the manager start. Red first.
+
+The rest:
+- The lock and the lane boundary (review A, section 1 and 4; review B, P1): the lane is opened and checked once (`open_lane`: absolute, a directory that is not a link, owned
+  by the account, not group or other writable, a real `receipt/`) and every later step of the service goes through that descriptor (`/proc/self/fd`), so a rename of the lane or of a
+  directory above it after the check changes nothing the service touches (`the_real_service_works_on_the_directory_it_checked_even_when_the_name_leads_elsewhere_afterwards`).
+  `start_lane_service` does the check itself; the public function is tested on a writable lane, a linked `saved` and a non-lane. `service.lock` is created 0600 and an existing one must be
+  a regular file owned by the account, private, with one name. The directories above the lane are not checked: a directory above it that other accounts can rename into can
+  still change what the name leads to before the check; `/var/mnt/encrypted` on this machine is mode 0777 without the sticky bit, so a walk would refuse the owner's own
+  build directories (open for the owner: accept the precondition, or name a trusted root).
+- `service.lock` is not redundant (review A, section 4): two services that meet at a stale doorbell can both start without it (the first removes the second's live socket). The earlier
+  note that it was redundant is withdrawn; `two_services_that_meet_at_a_stale_doorbell_are_not_both_started` pauses the first between its probe and its removal (fault point
+  `service:before-stale-removal`) and is red without the lock. The lock is held for the life of the service, which is a stronger lifetime than the race needs; it was kept because the lane
+  has one service and a lifetime lock needs no second mechanism.
+- Control repairs (review A, section 2): the bind probe is shown non-blocking on a full queue; the hard link is tried at the clearing; the selection control asserts a successful selection; the old and new flusher control asserts the new flusher is never `Held`
+  and forced receipts; the closure-only recovery control; the volatile `checked` flag of the disposal model is shown set before the loss; the reaper wiring is shown through `launch_routed`.
+  Not repaired, stated: legacy and new recording at the same moment is a stress and not a proof (the overlap of the two writers is not forced; the map says so).
+  The fd-relative unlink is shown by a swap of the saved directory for a link in the window between the open and the removal.
+- Documentation: the `FlusherLock` doc described a client probe that no longer exists; the lane service module doc no longer says a receipt waits no longer than a pass interval.
+
+Guard removals (thirty-six planted, in two shards on two worktrees: `mutations-round5.log` and `mutations-round5-b.log`, and `mutations-round5-unlink.log`): thirty-four were red
+at once. Two survived the first control and are stated. (1) The unlink by path survived: the `open_lane_subdirectory` check ahead of it already refuses a link, so only a swap inside
+the window shows the descriptor-relative removal; the control was strengthened and the mutation is then red. (2) The blocking open in `force_item` survives and is not reachable by a
+FIFO: `select` validates every retained item with `read_regular` before any force, so the item is refused first; the change is a defensive layer for a swap after the selection, with no
+control that reaches it. Layered guards were removed one at a time and each fell to its own control, except the listing of `saved/` in `resume_disposals` (its check overlaps the capture
+and the unlink checks), which was not mutated.
+
+Limits stated: the ledger, order file and spool reads outside the state component (`commit_ledger.rs`, `commit_spool.rs`, `commit_inbox.rs`) still use `fs::read` and plain opens; they
+were not changed in this round and the reviews did not name them. The service pass can still wait on the file system as long as the file system takes. The flusher lock files other
+than the service lock are opened by path under the pinned lane. Live-cutover obligations are unchanged.
+
+Gates: `native:test:model` 644 passed, 0 failed, none leaky; both clippy tasks clean; `source_guard` 39 of 39.

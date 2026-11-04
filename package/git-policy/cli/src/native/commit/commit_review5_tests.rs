@@ -439,7 +439,7 @@ fn two_services_that_meet_at_a_stale_doorbell_are_not_both_started() {
     let markers: PathBuf = scratch("rev5-stale-markers");
     let first_lane: PathBuf = lane.clone();
     let first_markers: PathBuf = markers.clone();
-    let first = std::thread::spawn(move || {
+    let first_service = std::thread::spawn(move || {
         return in_single_threaded_process(move || {
             PAUSE.with(|cell| { *cell.borrow_mut() = Some(first_markers); });
             set_fault_point(Some(pause_at_the_stale_socket));
@@ -458,7 +458,7 @@ fn two_services_that_meet_at_a_stale_doorbell_are_not_both_started() {
         fs::write(second_markers.join("second-done"), b"").expect("a marker");
         return if started { 0 } else { 1 };
     });
-    let first: Option<i32> = first.join().expect("the first service's process");
+    let first: Option<i32> = first_service.join().expect("the first service's process");
     let started: usize = [first, second].iter().filter(|status| { return **status == Some(0); }).count();
     assert_eq!(started, 1, "the first service ended with {:?} and the second with {:?}: exactly one may run", first, second);
 }
