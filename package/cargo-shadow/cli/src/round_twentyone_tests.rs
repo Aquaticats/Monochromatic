@@ -87,8 +87,8 @@ fn a_failed_barrier_of_the_new_journal_refuses_the_transaction_before_anything_c
     // The order of the two barriers on success.
     let _ = crate::bounded_run::take_trace_for_test();
     let transaction = crate::journal::begin(root.path(), &snapshots, false).expect("a transaction begins");
-    let events: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("journal "); }).collect();
-    assert_eq!(events, ["journal directory synced", "journal published"]);
+    let events_on_success: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("journal "); }).collect();
+    assert_eq!(events_on_success, ["journal directory synced", "journal published"]);
     drop(transaction);
 
     for (point, reason, surviving_events) in [(Point::JournalDirectorySync, "journal directory", 0), (Point::JournalParentSync, "journal's name", 1)] {

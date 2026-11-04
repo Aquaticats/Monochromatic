@@ -319,7 +319,7 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     assert!(!result.contains("Gone"), "a live launcher was read as gone through a recycled time namespace number: {result}");
     let recovery: &str = result.lines().find_map(|line| { return line.strip_prefix("recovery "); }).expect("the recovery line");
     assert!(recovery != "no survivor" && recovery.contains("start time"), "the recovery did not refuse for the start times: {recovery}");
-    assert_entry_points_held(&result);
+    assert_entry_points_held(result);
 }
 
 /// What one attempt at the recycled-number schedule saw.
