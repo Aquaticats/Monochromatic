@@ -90,6 +90,8 @@ const { values } = parseArgs({
     'trace-directory': { type: 'string' },
     // Drop each repository's pack, index and packed-refs pages from the page cache before every sample, on both sides.
     cold: { type: 'boolean' },
+    // Milliseconds to wait after each round, so the work a commit leaves running after its answer is over before the next one.
+    pause: { type: 'string' },
   },
 });
 /**
@@ -296,6 +298,7 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
       wrappedRepository,
       ...(traceDirectory === undefined ? {} : { traceDirectory, }),
       ...(values.cold === true ? { cold: true, } : {}),
+      ...(values.pause === undefined ? {} : { pauseMilliseconds: Number(values.pause), }),
     });
   }
   // A commit is held to the bound on its slowest paired delta, not to the forwarded-command bound. Every commit lands through
@@ -353,6 +356,7 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
       runtime: service.runtime,
       ...(traceDirectory === undefined ? {} : { traceDirectory, }),
       ...(values.cold === true ? { cold: true, } : {}),
+      ...(values.pause === undefined ? {} : { pauseMilliseconds: Number(values.pause), }),
     });
   }
 }

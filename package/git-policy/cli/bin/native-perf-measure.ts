@@ -2,6 +2,7 @@
  Paired direct-versus-wrapped sampling for one scenario of the latency benchmark in `native-perf.ts`.
  */
 import { join } from 'node:path';
+import { setTimeout as pause } from 'node:timers/promises';
 
 import { timed } from './native-perf-git.ts';
 import { evictRepositoryCache } from './native-perf-shape.ts';
@@ -88,6 +89,11 @@ export type ScenarioSetting = {
    both sides alike.
    */
   readonly cold?: boolean;
+  /**
+   Milliseconds to wait after both sides of a round, so the work a commit leaves running after its answer (the service's queued
+   syncs) is over before the next round starts; absent starts the next round at once.
+   */
+  readonly pauseMilliseconds?: number;
 };
 
 /**
@@ -127,12 +133,13 @@ async function runSample({
   runtime,
   traceDirectory,
   cold,
+  pauseMilliseconds,
   name,
   wrapped,
   sample,
 }: Pick<
   ScenarioSetting,
-  'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository' | 'runtime' | 'traceDirectory' | 'cold' | 'name'
+  'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository' | 'runtime' | 'traceDirectory' | 'cold' | 'pauseMilliseconds' | 'name'
   > & {
     readonly wrapped: boolean;
     readonly sample: number;
@@ -166,6 +173,10 @@ async function runSample({
         ),
       }),
   });
+  // The work a commit leaves running after its answer is over before the next sample starts, when the run asks for the wait.
+  if (pauseMilliseconds !== undefined) {
+    await pause(pauseMilliseconds);
+  }
   return {
     wrapped,
     sample,
