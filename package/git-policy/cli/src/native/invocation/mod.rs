@@ -56,6 +56,12 @@ pub mod global_arguments;
 ///  and direct `check`/`fix`.
 pub mod management;
 
+/// The direct `cli-git` commands that run in this process, with their refusals.
+pub mod management_direct_commands;
+
+/// Which repository the service commands mean.
+pub mod management_service_repository_selection;
+
 /// The `git cli-git` argument grammar.
 pub mod management_arguments;
 
@@ -97,6 +103,9 @@ pub mod git_builtins;
 /// The lifecycle of one wrapped Git command,
 ///  from refusals to forwarding.
 pub mod wrapped_command;
+
+/// The steps of a wrapped command beside its guarded stages: escape-hatch record, push failure notices, snapshots, manual push.
+pub mod wrapped_command_notices_snapshots_and_manual_push;
 
 /// Every real-Git start of the wrapper carries `core.hooksPath` pointing at a directory that never exists.
 pub mod hooks_off;
