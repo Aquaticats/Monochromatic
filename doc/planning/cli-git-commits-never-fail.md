@@ -232,6 +232,25 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
     published" (the Git data follows `core.fsync`). This is decision 3 ("Land it") applied to a command that had
     already returned success, now owner-approved. Decision 19 was recorded by commit f9b9b80f81, whose time is
     2026-11-04T06:51:38-05:00. 2026-11-03T21:47:28-05:00.
+20. A stranded `index.lock` of the lane's own dead incarnation, "Reclaim it (Recommended)": recorded under "R" in
+    "Questions for the owner (picks in force)".
+21. The real state document, "Checked format (Recommended)" (question tool, 2026-11-04, question 1 of the plan "Ordered
+    plan to the live protocol (round 22)"; meaning as asked: extend the checked representation to the real state so
+    every summary can free the space behind it). The lane's real state document (adoption order, ledger extent,
+    decision marks, the references of each live request, the consumption map and non-terminal request states, the
+    marker, logical head and tail) is expressed in the checked representation of `commit_state_log.rs`, and every
+    checkpoint of it may reclaim the records its closure covers. A state the representation cannot express is not
+    stored as an opaque document: the representation grows to carry it. Option A of that question; options B (opaque,
+    non-reclaiming) and C (hybrid) were not picked.
+22. The launch route, "Systemd unit + fallback (Recommended)" (same date and recording, question 2; meaning as asked:
+    a transient systemd user unit as the primary route, the double fork as the fallback where no manager is present).
+    The manager-started route is now in the supported scope; the earlier exclusion "until it is built" is lifted
+    (see "Supported scope" in the acceptance contract section), and the route is an obligation to build and show
+    before the live protocol ships (step 2 of the plan).
+23. The cutover fence, "New lock name (Recommended)" (same date and recording, question 3; meaning as asked: the new
+    protocol uses a new lock file name; old and new flushers may overlap because both sweep the same receipts and
+    forcing twice is harmless). The old lock name stays with the old implementation; no version stamp and no extra
+    recovery records are added for the overlap (step 3 of the plan).
 
 
 Amendments by 4 to 6 (the newest owner answers govern): decision 1's set-aside-as-pending of a commit behind a person's hook, the earlier answer "Save on a
@@ -2158,6 +2177,10 @@ here."):
   owner's related words: "Must work perfectly even when flock isn't available. Do better." and "I'm not banning
   flock. I'm just saying our wrapper must work perfectly even when flock isn't there." Until the mechanism is
   reviewed, the lane reports the lock as R-never did.
+- Plan questions 1 to 3 of "Ordered plan to the live protocol (round 22)", answered by the owner (question tool,
+  2026-11-04), recorded as decisions 21 to 23: the real state document, "Checked format (Recommended)"; the launch route,
+  "Systemd unit + fallback (Recommended)"; the cutover fence, "New lock name (Recommended)". Plan question 4 (the
+  notice texts) waits for the owner, who has not seen the texts; drafts are in the plan under Step 6.
 - P (a merge touching a path the person has staged): owner decision, "Merge anyway, unstage x" (P-carry); composition
   in MG3 and decision 11.
 - W (the attachment concession for merge file writes): owner decision, "Allow the rare leftover" (W-detect); its
@@ -2217,8 +2240,13 @@ the test image, 2.56.0 when models round 15 ran; an older Git only warns); the f
 file systems. Packed refs, linked worktrees, the side-ref transaction, and the creation, deletion and symbolic-ref
 updates through the transaction are supported, and each is an obligation to demonstrate with a disposable backend
 experiment before the live protocol ships; until its test exists its row stays Narrower. Excluded from the supported
-scope: level 2 (off by the owner's decision), a launch from a process with more than one thread (refused by design), a
-memory or process cap (outside our control), and the manager-started transient unit launch route until it is built.
+scope: level 2 (off by the owner's decision), a launch from a process with more than one thread (refused by design), and
+a memory or process cap (outside our control). Added to the supported scope on 2026-11-04 by the owner's answer
+"Systemd unit + fallback (Recommended)": a flusher started as a transient systemd user unit is the primary launch route,
+and the double fork is the fallback where no manager is present; the earlier exclusion of the manager-started route
+"until it is built" is lifted, and the route is an obligation to build and show (plan, step 2). Where the double fork is
+the route, its limit stands: a helper started from a session scope can end with the session, and the receipt is then
+left to the next owner's startup sweep.
 Coordinator picks recorded with it (veto open): saved content enters the store only through the component, created
 read-only before it is named (`O_TMPFILE` or a private name in a 0700 directory), with read leases an extra check and
 never a refusal; the running owner's syncer retries recorded receipt errors instead of leaving them to the next start.
@@ -2379,7 +2407,10 @@ and nothing in the plan decides it.
   line durable before the content is deleted), "held-version completion cannot affect its successor", and "retained bytes suffice
   for recomputation".
 - Depends on: nothing. Later steps depend on it.
-- Question 1 (owner): the real state document and the checked representation. Option A, extend `LaneDocument` with the real
+- Question 1 (owner), answered 2026-11-04 (question tool): "Checked format (Recommended)", option A, recorded as
+  decision 21; options B and C are not picked. Meaning as asked: extend the checked representation to the real state
+  so every summary can free the space behind it. The question as asked: the real state document and the checked
+  representation. Option A, extend `LaneDocument` with the real
   references so that every state reclaims (the log stays bounded; the representation grows with the protocol). Option B, keep the
   real document opaque and non-reclaiming, with compaction only by an out-of-band tool (no representation to maintain; the log
   grows without bound between compactions). Option C, a hybrid: the checked representation for the parts that reclaim and an
@@ -2397,7 +2428,10 @@ and nothing in the plan decides it.
   "reap mid-sync" (the real reap by the service), "worker error", and "hook outlasting an upgrade caller, the caller returns within
   its bound" (the `WAIT_DRAIN` register entry and its bound check).
 - Depends on: step 1 for the state the call sites write.
-- Question 2 (owner): the launch route. Option A, build the manager-started transient unit route as the primary route and keep
+- Question 2 (owner), answered 2026-11-04 (question tool): "Systemd unit + fallback (Recommended)", option A, recorded
+  as decision 22; option B is not picked. Meaning as asked: a transient systemd user unit as the primary route, the
+  double fork as the fallback where no manager is present; this lifts the earlier "manager-started route, until built"
+  exclusion from the supported scope. The question as asked: the launch route. Option A, build the manager-started transient unit route as the primary route and keep
   the double-forked fallback for hosts with no manager (a helper then survives a logout and a service upgrade by containment; one more
   component to build and test). Option B, keep only the fallback and state its limits (a helper started from a session scope can end
   with the session, and a receipt is then left to the next owner's startup sweep). Ranking: A > B, because the owner's rules ask
@@ -2411,7 +2445,10 @@ and nothing in the plan decides it.
 - Closes: the not-yet row "live cutover excludes old probe-capable holders or provides recovery responsibility", with a test that
   uses the legacy probe seam as the old-behaviour holder against the fenced lane.
 - Depends on: step 2 (the real lock names and call sites).
-- Question 3 (owner): the fence. Option A, a new lock file name for the new protocol (old clients probe a lock nobody else uses;
+- Question 3 (owner), answered 2026-11-04 (question tool): "New lock name (Recommended)", option A, recorded as
+  decision 23; options B and C are not picked. Meaning as asked: the new protocol uses a new lock file name; old and
+  new flushers may overlap because both sweep the same receipts and forcing twice is harmless. The question as asked:
+  the fence. Option A, a new lock file name for the new protocol (old clients probe a lock nobody else uses;
   an old flusher and a new flusher may run at once, which is safe because both sweep the same receipt directory and the forcing is
   idempotent). Option B, a version stamp on the lane that the new protocol writes and an old client does not read (it excludes
   nothing). Option C, recovery responsibility only: every receipt that a new helper hands to a failed acquisition is also recorded,
@@ -2449,7 +2486,89 @@ and nothing in the plan decides it.
 - Question 4 (owner): the notice texts. Option A, one short line per outcome with the command to run (conflict, refusal,
   signing failure each named, the commit identity when one exists). Option B, a short line plus the retained inputs listed
   (more to read, nothing to look up). Ranking: A > B for an ordinary commit, with B printed only on the command that asks for the
-  detail; the owner has not seen the texts.
+  detail; the owner has not seen the texts. Status: waiting for the owner. The drafts follow so the owner sees the exact lines.
+
+#### Question 4 drafts: the notice texts, one per outcome, in options A and B
+
+How to read the drafts. Each block is what a person sees on the terminal at the next wrapper command in the worktree
+(or, for the landed outcome, at the commit itself). The scenario is an ordinary commit: `git commit --message "Add the
+parser" -- src/parser.ts` on branch `main`, whose commit identity would be `3f9c1d2` (the abbreviated identifier of the
+commit actually made). The wrapper's own subcommand names below (`git commit-status`, `git commit-drop`,
+`git commit-retry`) are placeholders for the commands the build will provide; the texts fix the shape of the lines, not
+those names. The lines are exact except for those placeholders, the hook name and the paths. Option A is the first line
+of each pair (one short line with the command to run, and the commit identity when one exists). Option B is that same
+line followed by the retained inputs, listed.
+
+Landed (the commit was made; recovery found the earlier publication or a fresh attempt published it):
+
+- Option A, exact lines:
+  - `commit 3f9c1d2 landed on main: "Add the parser". To undo it: git reset --soft 3f9c1d2~1`
+- Option B, exact lines:
+  - `commit 3f9c1d2 landed on main: "Add the parser". To undo it: git reset --soft 3f9c1d2~1`
+  - `  kept: request 7c41 (src/parser.ts, staged version b1e07aa, file version 90d3c52)`
+  - `  saved copies: none needed`
+
+Conflict (the parent moved and the replay of the commit on the new parent conflicts):
+
+- Option A, exact lines:
+  - `commit "Add the parser" conflicted with main (now at 8a05e44) and is saved, not landed. Resolve it: git commit-status 7c41`
+- Option B, exact lines:
+  - `commit "Add the parser" conflicted with main (now at 8a05e44) and is saved, not landed. Resolve it: git commit-status 7c41`
+  - `  conflicted path: src/parser.ts (yours: 90d3c52, theirs: e2f4410, base: 51ac0b9)`
+  - `  kept: saved commit 3f9c1d2 on refs/cli-git/saved/7c41; your file is unchanged`
+
+Refusal by a policy (a policy rule of the wrapper refuses the commit, for example a path outside the allowed set):
+
+- Option A, exact lines:
+  - `commit "Add the parser" was refused by policy "no-generated-files" and not made. Nothing was changed. See the reason: git commit-status 7c41`
+- Option B, exact lines:
+  - `commit "Add the parser" was refused by policy "no-generated-files" and not made. Nothing was changed. See the reason: git commit-status 7c41`
+  - `  refused path: src/parser.generated.ts (matched pattern *.generated.ts)`
+  - `  kept: request 7c41 with the staged version b1e07aa; your files and index are as they were`
+
+Signing failure (the configured signer failed when the commit was re-signed in the background):
+
+- Option A, exact lines:
+  - `commit 3f9c1d2 "Add the parser" could not be signed (gpg exited 2) and is pending. Retry the signature: git commit-retry 7c41`
+- Option B, exact lines:
+  - `commit 3f9c1d2 "Add the parser" could not be signed (gpg exited 2) and is pending. Retry the signature: git commit-retry 7c41`
+  - `  signer: gpg, key 4AE1 9C20 (user.signingkey), message: "gpg: signing failed: No secret key"`
+  - `  kept: unsigned commit 3f9c1d2 on refs/cli-git/saved/7c41; the branch main is unchanged`
+
+Not known, with a stuck write (the commit may or may not have reached the disk: a forcing call has not returned within
+its bound, and no outcome is recorded):
+
+- Option A, exact lines:
+  - `commit "Add the parser" is not confirmed: the disk write has not finished. It is kept and will be retried. Check: git commit-status 7c41`
+- Option B, exact lines:
+  - `commit "Add the parser" is not confirmed: the disk write has not finished. It is kept and will be retried. Check: git commit-status 7c41`
+  - `  stuck step: forcing the branch update of main, for longer than the bound (the process is the service, pid 4211)`
+  - `  kept: request 7c41 and its staged version b1e07aa; no commit identity yet because none is known to exist`
+
+A fresh attempt after a power loss, with its stored notice (decision 19: no decisive positive evidence survived the
+power loss, so recovery made a fresh attempt and stored the notice; it prints at the next wrapper command and stays
+until delivered). Two notices can exist for the same request, the first while the attempt is scheduled and the second
+once it has an outcome. The second below is the published outcome; the conflicted, refused and signing-failed outcomes use
+the lines above with the prefix `After a power loss, a fresh attempt of this commit:`.
+
+- Option A, exact lines (attempt scheduled or running):
+  - `The machine lost power while commit "Add the parser" was in flight. It is being tried again. Check: git commit-status 7c41`
+- Option A, exact lines (published by the fresh attempt):
+  - `After a power loss, a fresh attempt of commit "Add the parser" made commit 4b7d0e1 on main. If you had removed that commit on purpose, drop it: git commit-drop 4b7d0e1`
+- Option B, exact lines (attempt scheduled or running):
+  - `The machine lost power while commit "Add the parser" was in flight. It is being tried again. Check: git commit-status 7c41`
+  - `  why a fresh attempt: no receipt, no recorded publication and no other evidence survived; main is at 51ac0b9, the old tip`
+  - `  kept: request 7c41 (src/parser.ts, staged version b1e07aa, file version 90d3c52)`
+- Option B, exact lines (published by the fresh attempt):
+  - `After a power loss, a fresh attempt of commit "Add the parser" made commit 4b7d0e1 on main. If you had removed that commit on purpose, drop it: git commit-drop 4b7d0e1`
+  - `  why a fresh attempt: no receipt, no recorded publication and no other evidence survived; main was at 51ac0b9`
+  - `  kept: request 7c41 until you have seen this notice; saved copies: none needed`
+
+What each option costs, for the owner's comparison: option A is one line per outcome, so a person who only wants to
+know what happened reads one line and has one command to type; the inputs are one command away. Option B puts the
+retained inputs on screen (paths, versions, the saved reference, the stuck step), which answers "what did you keep?"
+without a second command but makes an ordinary notice several lines, and the lines name internal versions a person
+rarely needs. The ranking stays A > B for an ordinary commit, with B printed by `git commit-status`.
 
 ### Step 7: scope and enablement
 
