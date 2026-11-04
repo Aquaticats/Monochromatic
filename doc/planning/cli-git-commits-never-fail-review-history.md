@@ -704,3 +704,268 @@ They are kept as history; they are incomplete (they still wait for staged paths)
 - MG4n publish without a checkout. Pre: `resume = MG4n`. Do: P1 to P3 for `M` on the target ref only; the worktree is not touched; the notice says so.
   Residue of W-detect, stated: a switch that finishes after the last check leaves the merge's files in the new branch's worktree until the next check at a lane
   event or MG4, and then MG6 restores them (reason `switched`); until then they are visible there as local modifications. Nothing is lost.
+
+## Revision 12 changelog, moved from the design in revision 13
+
+### Revision 12 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
+
+Naming. Names are stable where the meaning holds. New names: rule V, `SYNC_LAG`, the syncer, the departure barrier,
+the withdrawal mark (the file `lane/decision/<id>`, now with the sole content `withdraw`), the client lock
+`lane/client/<id>`, the attempt directory `lane/p2/`, the decider, the register entries CAPTURE, SERVICE-ACQUIRE,
+COMMITTING (redefined) and PREPARED-HOLD, `HOLD_AFTER`, `ATTACH_RECHECK`, the consumption kind `merge-install`, MG2
+(publish) and MG3 (install) and MG6c (cleanup) with MG-A for the other order. Removed: the `commit` content of the
+decision file and P2b as a link race, MG4, MG4n, MG5 and MG6 in the revision 12 order, the identity binding `ids/`,
+and the per-side spool files. Each schedule goes red under revision 11 and green under revision 12; a model marked
+"new" is added to step 1; the models branch is not edited by this document.
+- P2, W1, W2, E1, rule B's COMMITTING (R11-1; models new "decider writes the line", "owner wedged after prepare",
+  "owner death at each point of P2", "commit failed", the register model's COMMITTING entry and the W1-against-P2
+  model's `commit` decision step become stale and are replaced). Schedules: (1) `prepare: ok`, the owner wedges before
+  it writes anything, the client reaches its bound: red under 11 (the `commit` decision is durable, W1 waits in
+  COMMITTING and exits 0, and the commit lands when the owner resumes); green under 12 (the client is the decider, so
+  it either wrote `commit` itself, and the commit lands before the command returns, or it writes `abort` and nothing
+  can land; the wedged owner has no deciding step). (2) the owner dies after `prepare: ok` with a client attached: red
+  (the decision is `commit`, W1 cannot withdraw, recovery lands the request after the client returned); green (the
+  client is the decider and writes `abort` or never writes `commit`; the child is ended by the parent-death signal, so
+  nothing landed, W1 withdraws). (3) `commit` written, `update-ref` exits non-zero with no `commit: ok`: red (E1(d)
+  says withdraw, but the decision stands); green (`store-failure`, P4, the attempt is closed). (4) `commit` written,
+  `update-ref` still running at the COMMITTING bound: red (exit 0); green (the corner, non-zero, result not known;
+  owner question 1). (5) the client stopped after `prepare: ok`: red (the branch lock is held without end); green
+  (PREPARED-HOLD writes `abort`, a late `commit` is the second line and is not executed, or fails with `EPIPE`). (6)
+  the client is killed from outside after `prepare: ok`: green (the owner becomes the decider, the request lands later
+  as a request with no client).
+- C1, C3 (R11-6; models new "capture between W1 and W2"). Schedule: R1 consumed `x=1`, W1 returns, the person stages
+  `y`, a plain R2 captures: red (R2 omits `x`); green (the mark makes R1's entry void, R2 captures `x` and `y`).
+- Execution ownership, exit rule, REAP (R11-4; models new "planned exit with a protected execution", "REAP expiry of
+  an inline owner", "hook installed after the eligibility check"). Schedules: an inline owner starts a hook, the bound
+  passes: red (the exit ends the hook); green (an inline owner starts no protected program; the service owns it).
+  Inline REAP expiry with a durable request: red (a later trigger publishes it); green (W1 before exit).
+- T1, G (R11-3; models F8 extended, new "admitted after the Pre, terminal before the reread"). Schedule: the eleventh
+  review's: red (T1 releases); green (`L1` has a name that `L0` lacks, T1 withdraws).
+- T0, W2, C3, rule D, T1-nocommit (R11-10; models new "terminal outcome racing W1, lookup and reclamation").
+  Schedules: W2 orders the ledger line first; C3 answers terminal before any inbox or queue name; a lookup whose
+  candidate vanished restarts through the terminal route; W1 after a refusal already final reports the refusal;
+  `already` is a terminal kind; a held request's error names retained inputs, not a commit.
+- Rule B, CAPTURE, SERVICE-ACQUIRE, L6, PUSH, the person's own programs (R11-9; models new "continuous invalidation
+  against one deadline", "repeated recovery re-evaluation against one deadline", "failed shared gate try", "push with
+  a pre-push hook"). Schedules: C1 invalidated for ever and C0 re-evaluating: red (no end); green (CAPTURE ends the
+  command with no request).
+- MG1 to MG3, MG6c, MG-A (R11-2, R11-5, R11-7, R11-8; models new "W1 before publication changes nothing", "P-carry
+  with O, S, W, M distinct", "staged-only version saved before the index entry is replaced", "switch completing after
+  publication and active-state removal", "install deferred behind a foreign index.lock", "capture between publication
+  and install"). Schedules: the staged-only version `O = A`, `S = B`, `W = A`, `M = C`: red (neither the pre-merge pin
+  nor the tip entry keeps `B`); green (`saved/<path-id>.staged` holds `B`). A switch finishing after the merge became
+  `materialized`: red (nothing schedules MG6); green (`attach-watch`). Withdrawal with a foreign `index.lock` held:
+  red under MG-A (restoration cannot happen at the bound); green under publish-first (nothing was written).
+- Rule V, C2 to C5, S1, T0, the cost section (coordinator's input; models new "sync calls on the waiting path", "power
+  loss at each write", "state pair torn write", "request file with a bad checksum"). Schedules: count the sync calls
+  of a plain commit's waiting path: red under 11 (22 and more); green under 12 (0). A power loss that lands the newer
+  state file in part: green (the older generation is valid). A power loss that lands the `inbox/` entry without the
+  file's content: green (the checksum fails, the request is not accepted).
+- Heading and wording (R11-11). The disclaimers, the guarantees, the exits and the owner questions P, W and M are
+  aligned with the machine above.
+
+
+
+## Answers to the eleventh review, moved from the design in revision 13
+
+## Answers to the eleventh review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-11.txt`, with a closure line: closed (a transition
+answers the schedule; a model is owed), or owner question (closing it needs a contract the owner has not approved; the
+mechanism is stated and the question is in "Owner questions for revision 12"). The verdict was: continued model work,
+pure components without reclamation, and disposable backend experiments only. This revision builds nothing.
+
+- R11-1 (P1), a durable `commit` decision is not publication: accepted. The decision file no longer carries `commit`.
+  The client decides the publication by writing `commit` or `abort` to the pipe of the prepared transaction (P2b), and
+  the owner never decides while the client lock is held; a wedged owner and a dead owner both lose their deciding
+  role. Closed for the owner-wedged, owner-death and post-decision failure schedules (E1(d) is split by whether
+  `commit` was written). Owner question 1 for the remaining corner, a branch write already issued when the bound
+  passes.
+- R11-2 (P1), checkout-first withdrawal cannot meet the bound and unchanged staging: accepted. Publish-first (MG1 to
+  MG3) writes nothing before publication, so W1 changes nothing and the interlock between W1 and a multi-file checkout
+  is not needed. Owner question 2, because it changes a delegated pick (M-A) and adds a window the owner has not seen.
+- R11-3 (P1), G-order proof: accepted, the proof was invalid. T1 compares two listings of the registry around the
+  check; any new name withdraws, whatever its state. Closed in the model; the listing boundary is stated.
+- R11-4 (P1), inline owner exit: accepted. Protected programs run only under the service; an inline owner starts none
+  and freezes its children's hook path; every exit of a client with an unpublished request is W1 (REAP and ACQUIRE
+  included). Closed; no owner question.
+- R11-5 (P1), P-carry data model: accepted. MG3 plans from `O`, `S`, `W` and `M`; the worktree takes the three-way
+  merge of `O`, `W`, `M`; a staged-only version is saved before its index entry is replaced; modes, deletions, type
+  changes and unmerged entries keep the person's version with the merged one beside it (the earlier owner decision
+  "Carry edits forward", adopted, veto open). Closed under publish-first; under MG-A restoring `S` is amendment (v).
+- R11-6 (P2), withdrawal not capture-visible until W2: accepted. C1 reads the withdrawal marks. Closed.
+- R11-7 (P2), W-detect loses the cleanup after publication: accepted. The `attach-watch` entry outlives the request's
+  active state; triggers are every lane event, a watch on `HEAD` by the service and one re-check; the liveness is
+  conditional and says so. Closed; the owner's approved residue is unchanged.
+- R11-8 (P2), merge continuations: accepted. Under publish-first there is no checkout state before publication, so the
+  no-checkout and retarget gaps do not arise and the worktree-edit rule is MG3's; under MG-A amendments (iii) and
+  (iv). Closed for the order the machine uses; owner question 2 decides.
+- R11-9 (P2), the register is not exhaustive: accepted. CAPTURE, SERVICE-ACQUIRE, the L6 failed try, the budget rule,
+  PUSH's hook phase, and the person's own programs are classified; owner question 3 asks whether the last have a
+  bound.
+- R11-10 (P2), terminal ordering: accepted. T0 is the only order, outcomes are absorbing, C3 prefers the terminal
+  route, rule D is amended, `already` is a terminal kind, W1 reports a final outcome, a held request's error names
+  retained inputs. Closed.
+- R11-11 (P3), contradicting text: accepted and edited (the opening reading, rule B, the guarantees, the exits, the
+  owner questions P, W and M, and a reading note on the earlier narrative sections).
+- Section 4, backend-dependent obligations: kept as obligations in E1 and P2 (the pipe and the line order, the trace
+  channel, the end-of-input abort, the signal that L5 sets). Section 5, controls: listed in "Models added from the
+  eleventh review".
+- Coordinator input after the review, the fourth component review's sync counts: answered by rule V and "Cost of the
+  durable steps (revision 12)".
+- Not a defect: none of the eleven findings was rejected.
+
+
+
+## Owner questions for revision 12, full text as asked, moved from the design in revision 13
+
+## Owner questions for revision 12
+
+These are the contracts the eleventh review says the owner has not approved, plus one the coordinator added. Each is
+written so it can be answered without the earlier messages. The design states a mechanism first wherever one meets the
+owner's stronger contract; a question remains only where no mechanism can. The recommended option is marked and the
+ranking gives a reason for each adjacent pair. None of the four is decided here.
+
+### Question 1: a branch write that has already started when the time runs out
+
+Plain context. A commit with a person's hook goes through three steps: the wrapper asks Git to get ready to move
+`main` (the hook runs now), then the wrapper's command says "go", then Git writes the new commit into `main`. Your
+rule is that when the time limit passes the command returns an error and nothing lands later by itself. The wrapper
+now makes that true at every point before "go": at the limit the command says "stop" instead, and `main` cannot move.
+The one point it cannot undo is a write that Git has already begun when the limit passes, because a started disk write
+cannot be recalled. Example: `git commit -m "fix parser"`; the limit passes 2 s after "go"; the disk is stalled and
+the write finishes 4 s after "go".
+- Option A, a short extra wait, then an error that says the result is not known (Recommended). The command waits up to
+  a few more seconds (a shipped constant, unmeasured) for the write it started. Visible here: the write finishes in
+  time, the command prints `published` and exits 0. If the disk is still stalled it exits non-zero: "the write to main
+  had started and had not finished; run `git log -1` to see whether the commit landed; if it did not, the commit is
+  kept on refs/cli-git/<instance>/withdrawn/<id>". Pros: an ordinary slow disk gets the right answer. Cons: the
+  command can run a few seconds past the limit, and in the stalled case the commit may land after the error, which is
+  the one exception to "nothing lands later".
+- Option B, stop at the limit and say the result is not known. Visible here: the command exits non-zero at the limit
+  with the same message, and the commit lands 2 s later anyway. Pros: the command never runs past the limit. Cons: it
+  reports "not known" for writes that were about to finish, and the exception to "nothing lands later" is hit by every
+  slow write, not only stalled ones.
+- Option C, wait for the write with no limit. Visible here: `published` after 4 s; with a disk that never answers, the
+  command never returns. Pros: the answer is always exact. Cons: it breaks "nothing should ever wait forever or
+  indefinitely" for a hung disk.
+- Ranking: A > B > C. A beats B because it turns the slow-but-working case into a correct `published` and leaves the
+  same exception only for a stalled write; B beats C because B always returns, and C can wait for ever on a hung disk.
+
+### Question 2: merge order, and what a stopped merge leaves behind
+
+Plain context. A merge writes new file contents into your folder and moves the branch. Today the wrapper writes the
+files first and moves the branch last (the order the coordinator picked, "M-A"). Your bound answers make that order
+costly: if the time limit passes after the files were written, the command must put your files back, and putting them
+back needs Git's `index.lock`, which another program (an IDE, a `git status`) may hold for as long as it likes.
+Example: `git merge topic` into `main` changes `x.txt`; a slow `reference-transaction` hook keeps `main` from moving
+for the whole limit; at the limit your IDE holds `.git/index.lock`.
+- Option A, move the branch first, then write the files (Recommended; the machine's MG1 to MG3). Visible here: for the
+  whole limit your folder is exactly as before; at the limit the command prints "withdrawn", your files and staging
+  are unchanged, and the merge is kept for a retry. If the hook accepts in time, the branch moves to the merge and the
+  files follow: if the IDE holds the lock at that moment, `git status` shows the old files as changes until the lock
+  frees, and the command says so. In that window a plain wrapper `git commit` is safe, but a `/usr/bin/git commit -a`
+  run directly (not through the wrapper) commits the reverse of the merge on top of it (the history keeps both, and
+  `git revert` undoes it). Pros: the promise "staging as it was" holds by construction; no lock is held while the hook
+  runs; a merge needs no restoring. Cons: a lag window in which the branch and the files disagree, with the
+  `commit -a` hazard above (a case of the same kind as the switch window you already accepted).
+- Option B, write the files first and keep `index.lock` until the branch has moved or the limit passes. Visible here:
+  the IDE cannot take the lock while the merge waits (its own command fails with "index.lock exists" for up to the
+  limit); at the limit the wrapper restores your files and releases the lock, and your folder is exactly as before.
+  Pros: restoration is always possible, and files and branch never disagree after the merge. Cons: every other program
+  that needs the lock fails for as long as the hook runs (native Git does the same during an editor), and it adds a
+  lock held across a person's program.
+- Option C, write the files first and restore later (the order the machine had in revision 11). Visible here: at the
+  limit the command prints "withdrawn" and exits, but the merge's files and its index entries are still in your
+  folder, because the IDE holds the lock; they are put back when the lock frees. `git status` right after the error
+  shows the merge's changes, not your earlier staging. Pros: the files and the branch agree when the merge succeeds.
+  Cons: it breaks "your staging stays as it was" at the error, and the restore depends on a lock the wrapper does not
+  control.
+- Ranking: A > B > C. A beats B because it keeps the promise without holding a lock that other programs need, at the
+  price of the lag window; B beats C because B keeps staging unchanged when the error returns and C does not.
+
+### Question 3: do the person's own programs before the commit exists have a time limit?
+
+Plain context. Before a commit exists the command runs your own programs in its foreground: your editor, `pre-commit`,
+`commit-msg`, a signer prompt, and a `git gc` the wrapper forwards for you. The command is those programs, as in
+native Git. Your decision "End Git, hold hooks" says the wrapper never ends your hook; your rule says nothing should
+wait for ever. They collide here. Example: `pre-commit` runs your test suite for 40 minutes.
+- Option A, no limit; Ctrl-C ends the command (Recommended). Visible here: after 40 minutes the hook ends and the
+  commit goes on; if the hook hangs for ever the command stays until you press Ctrl-C. Pros: it matches native Git and
+  your "hold hooks" decision, and leaves no program running unwatched. Cons: a hung hook of yours waits for ever,
+  which "nothing should ever wait forever" does not allow in general.
+- Option B, a limit; at the limit the command exits with an error and leaves the hook running. Visible here: after the
+  limit "stopped waiting for pre-commit, which is still running; nothing was committed"; the test suite finishes later
+  with nobody reading its result. Pros: the command always returns. Cons: a program of yours keeps running after its
+  command is gone, possibly changing files.
+- Option C, a limit, and the hook is ended at it. Visible here: "pre-commit ended after the limit". Pros: nothing is
+  left running. Cons: it ends a hook of yours, which "End Git, hold hooks" forbids.
+- Ranking: A > B > C. A beats B because B leaves your program running with no command watching it, while A keeps the
+  command and the hook together; B beats C because C breaks your explicit decision that a hook is never ended.
+
+### Question 4: how soon must an accepted commit survive a power cut?
+
+Plain context. The wrapper writes a request file, an order line, a state file and a ledger line for each commit, and
+today it forces each to disk (about 22 forced writes before the request is accepted, 29 through the end, for a
+one-path commit). Each forced write can take seconds when the disk is busy, which cannot meet "commits vs native git
+should not take 5s longer." and "Disk pressure being high is not an excuse." Surviving a process kill needs no forced
+write; only a power cut or kernel crash needs them. Example: you run `git commit`; the wrapper accepts it; 1 s later
+the power fails while a slow hook still holds the branch.
+- Option A, force everything to disk before the command is told "handed over" (revision 11). Visible here: after the
+  reboot the wrapper finishes your commit. Pros: nothing accepted is lost on a power cut. Cons: 22 or more forced
+  writes on the waiting path; seconds each under pressure.
+- Option B, force to disk before the command leaves without a published commit, and in the background soon after
+  (Recommended; rule V). Visible here: the commit is lost on the power cut, as it would be with native Git; your
+  staged changes and files are intact, so you run the commit again. If the command had left earlier (the error at the
+  limit, or handed to the service), its files were forced out first and survive. No forced write on the waiting path.
+  Pros: meets the 5 s rule for the wrapper's own writes; every promise made when the command leaves is kept. Cons: a
+  power cut while the command is still waiting loses that attempt, the same loss native Git has.
+- Option C, background only, never force at leaving. Visible here: after "withdrawn, the commit is kept on a side ref"
+  a power cut in the next seconds can lose it. Pros: nothing is ever waited for. Cons: it can lose the commit the
+  command just promised to keep, which "never discard user data" forbids.
+- Ranking: B > A > C. B beats A because it keeps every promise made when a command leaves and removes the forced
+  writes from the waiting path; A beats C because A never loses accepted work and C can lose a commit the command said
+  was saved.
+
+### Adopted without a question (the coordinator may veto; each follows from a rule the owner already gave)
+
+- Protected programs (hooks run by the lane, signers, helpers) run only under the service, never in a foreground
+  client; where no service can start, the command ends at START with an error and the work stays saved ("The person's
+  hook is never ended" and the bound answers).
+- A merge that cannot carry a staged or edited path as text (a mode or type change, a staged deletion, a symlink, an
+  unmerged entry) leaves the person's version in place and writes the merged version beside it ("Carry edits forward",
+  "never discard user data").
+- A staged-only version that a merge replaces in the index is saved to `saved/<path-id>.staged` before the entry is
+  replaced ("never discard user data").
+- A hold ref is created only for a request that waits longer than `HOLD_AFTER` ("Invoke real git as rarely as
+  possible"; the hold ref was never load-bearing).
+
+
+## Models added from the seventh, eighth and ninth reviews, moved from the design in revision 13
+
+Models added from the seventh review (each starts as a failing control with the review's schedule): the fork-to-exec window with the owner dying
+and the next owner waiting; the service cgroup reused by a replacement owner (it must not kill itself); the gate with the restarter dying at every
+point of L7, a hook admitted after the check, and a wedged shared holder; a pid read in another pid namespace; the foreign lock taken while a child
+is stalled before acquiring it, and after it released and stalled before exit (no deletion may occur); the reserved binding (C3 done, C4 not) with a
+same-content resend, a different-content resend, and a partial binding that cannot exist; maintenance with a launcher alive and an empty scope, with
+process-group escape, and release racing the run; the seqlock with a hook that waits for ever during P2; the immediate follow-up after a completed
+switch; a held request completed after its amendment, with the consumption entries across deferred materialization; a failed swap followed by the
+identical commit installed and removed by another writer.
+Models added from the eighth review (each starts as a failing control with the revision 9 changelog's schedule): a restarter racing hook
+dispatch with no gate, and an owner that ignores the terminate signal; two lanes with a ledger tail repair; a same-identity resend that reads a
+non-durable record; a dead odd generation, a moving tip and a mutation of the logical head between the two reads of capture; a classification
+race for `update-ref` against a hook installed after it; the foreign-successor schedule followed by a plain commit of an unrelated path; a
+held version superseded by an amendment; maintenance admission racing the final release of T1; each crash boundary of M1 and each per-path
+outcome; a merge refused by a hook after its checkout with a concurrent editor, a lost swap after a checkout; the post-anchor reflog erased.
+
+Models added from the ninth review (each starts as a failing control with the revision 10 changelog's schedule, and the model represents observations,
+not desired conclusions). Every one of these is a control: (1) C0 relinquishing ownership while its client lives, then an owner's L2 reaping; (2) a
+visible but unflushed binding followed by a durable inbox acknowledgement, with observation allowed at every link-before-directory-fsync boundary
+(`NineFsyncOnExists` is the inbox instance); (3) an unnamed journaled inode that disappears before linking, followed by inode-number reuse; (4) recovery
+identity inspection racing pathname replacement; (5) rename-to-private moving a replacement live lock; (6) unrelated staging across the merge checkout;
+(7) a completed `git switch` before a pending merge resumes, and a switch finishing between the guard and the end of the install; (8) a capture between
+`checked-out` and the swap, followed by a refusal; (9) restoration of a carry conflict with no concurrent editor, and with one; (10) late maintenance
+taking its view during a temporary loss of reachability, with the hold root present and with it absent; (11) reflog suffix deletion restoring exactly the
+recorded anchor; (12) a hook refusal followed by a foreign ref update or lock acquisition before E1 reads anything; (13) held amendments that add and that
+drop paths; (14) every merge resume point and every hook-completion crash boundary; (15) the state document size against ledger length (cost flat); (16)
+the revision counter and the marker with an ordinary replacement between two marked ones.
