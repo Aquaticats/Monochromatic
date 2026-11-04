@@ -758,7 +758,15 @@ fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops) -> Result
                     // ```ts
                     // list.map(f).filter(g)
                     // ```
-                    for synced in directory.ancestors().take(3).filter(|found| { return !found.as_os_str().is_empty(); }) {
+                    // Every directory entry between the kept file and the nearest directory that also holds the replaced file is made durable:
+                    // that directory is the anchor, because the file being replaced could not be there if it were not durable itself
+                    // (round 6, 5b 1). An ancestor count would stop short of the anchor for a deeper kept directory.
+                    let mut reached_anchor: bool = false;
+                    for synced in directory.ancestors().filter(|found| { return !found.as_os_str().is_empty(); }) {
+                        if reached_anchor {
+                            break;
+                        }
+                        reached_anchor = target.starts_with(synced);
                         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                         // Closure `|error|`: an anonymous function, like a TS arrow function.
                         // `.clone()`: an independent owned copy.

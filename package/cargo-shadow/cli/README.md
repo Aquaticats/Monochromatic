@@ -674,7 +674,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   Data is synced before it is relied on:
   the displaced file (a failed data barrier is an error,
   never a settled outcome),
-  the kept directory and its two parents every time a file is linked into it.
+  every directory from the kept directory up to the nearest directory that also holds the replaced file, every time a file is linked into it
+  (that directory is the durable anchor: the replaced file could not be there if it were not durable).
   Power-loss behavior depends on the filesystem honoring `fsync` and is not tested by fault injection.
   The kept directory is never capped and never emptied by the tool.
   Owner answer of round 6, "Warn past a count, never refuse":
