@@ -553,58 +553,54 @@ each in its own worktree:
   push and invocation files,
   then the merge passes.
 
-Claude Code restart at about 2026-11-04T07:30-05:00 (the owner asked;
-the agents checkpointed first,
-and each resume point is committed on its branch):
-- Models round 14:
-  `feat/git-policy-cli-commit-protocol-models` tip `6d3fff7450` ("partial:
-  ...
-  coverage map test not yet green";
-  `ecc36c5216` was green,
-  380 tests);
-  review items 1,
-  2,
-  3 and 6 done;
-  next item 4 (rewrite the coverage map in `model/model_target_tests.rs`,
-  fix renamed test names),
-  then item 5 (real Git experiments,
-  helper launch with `close_range`,
-  `flusher.lock` contention,
-  non-recursive entry);
-  resume point at the end of `doc/handover/cli-git-commit-protocol-models.md` on that branch.
-- cargo-shadow round 9:
-  `feat/cargo-shadow-cli` tip `c57400b9fa` (partial;
-  the last full debug run before the final edits passed 561,
-  skipped 3);
-  production fixes for 8a F1 to F4 and K1 and the same-machine boot-id rule done,
-  8b test fixes and the seven partial rows written;
-  next:
-  run the suite,
-  clippy and the release gate,
-  the contract's name check,
-  README and planning record,
-  cut `cargo-shadow-9*.diff`;
-  resume point at the end of `doc/planning/cargo-shadow-update.md`.
-- Latency round 3 fix round:
-  `perf/git-policy-cli-less-foreground-work` tip `29770c1021` (main `5328f45ccc` merged in,
-  no conflicts);
-  every finding of `less-foreground-sol-1` fixed with a control (quadratic wide-directory proof,
-  cache-tree hiding a missing root tree,
-  kept-pack flush,
-  history-changing settings sent to `rev-list`,
-  maintenance concurrency written in `SPEC.md`);
-  measured 85 ms unsigned and 123 ms signed over native,
-  within the previous tip's spread;
-  no gate has run on this tip;
-  next:
-  the gate,
-  then merge and release 0.5.29;
-  not done:
-  a built root-commit control;
-  resume point at the end of `doc/planning/cli-git-commit-latency-under-disk-pressure.md` on that branch.
-- Planted controls and the `service_durable.rs` survivors:
-  `fix/git-policy-cli-planted-control-and-durable-survivors` tip `c279110576`,
-  gate 4720/4720 (`gpc-gate-planted-control-and-durable-survivors-20261104T070548-0500`);
+State at 2026-11-04T08:25:42-05:00 (after the Claude Code restart the owner asked for at about 07:30-05:00):
+- Models round 14 done:
+  `feat/git-policy-cli-commit-protocol-models` tip `6c4446d2de`;
+  items 1 to 6 of `commit-models-sol-8.txt` section 4 done;
+  full `native:test:model` 411 passed (`~/temp/agent/r14/full-model2.log`),
+  both clippy variants clean;
+  coverage map 70 covered,
+  11 narrower,
+  9 historical,
+  17 not yet (107 rows);
+  the author's findings for the reviewer:
+  only the double-forked helper launch is built (no manager-started unit route,
+  fork refusal not injected),
+  the helper runs Rust after a bare `fork` (safe only single-threaded),
+  Git experiments on one version and two backends,
+  the reference-interpreter row's Covered is the author's call.
+  Cross-vendor reviews running:
+  `commit-models-sol-9a.txt` (components and evidence) and `commit-models-sol-9b.txt` (models and map),
+  prompts `commit-models-prompt-9a.txt` and `-9b.txt` in `~/temp/agent/reviews/`.
+- cargo-shadow round 9 done:
+  `feat/cargo-shadow-cli` tip `16249ffe94`;
+  debug suite and release gate 561 passed,
+  3 skipped (ignored helper entries other tests start),
+  clippy clean after one rename;
+  two stale contract names fixed;
+  README and "Round 9" written;
+  all 16 rows "shown".
+  Cross-vendor review `cargo-shadow-sol-9a.txt` (production and docs) running;
+  queued:
+  `cargo-shadow-sol-9b.txt` (tests;
+  prompt `cargo-shadow-prompt-9b.txt`,
+  inputs `cargo-shadow-sol-8b.txt`,
+  `cargo-shadow-guarantees-16249ffe94.md`,
+  `cargo-shadow-9b.diff`,
+  `cargo-shadow-9c.diff`),
+  to start when one of the three running reviews ends.
+- Latency round 3 merged to main (`b0d9708b17`;
+  gate `gpc-gate-less-foreground-r3-fixes-20261104T073150-0500` passed 4751/4751;
+  `native:clippy` on main clean);
+  release 0.5.29 dispatched (run 41837674379),
+  `native:release:wait` running;
+  then `upgrade-wrapper.ts 0.5.29` and a sample commit.
+  Not done from that round:
+  a built root-commit control.
+- Planted controls and the `service_durable.rs` survivors merged to main (`3248a86254`;
+  branch tip `c279110576`,
+  gate 4720/4720,
+  `gpc-gate-planted-control-and-durable-survivors-20261104T070548-0500`);
   two stale controls fixed (self-exclusion by identity and content;
   the deleted `worktree_copy_lock.rs` control replaced by a live-owner journal control in `worktree_copy_recovery.rs`);
   two tests kill the `index_is_hardened` survivors,
