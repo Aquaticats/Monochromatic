@@ -233,3 +233,24 @@ fn a_root_tree_that_is_gone_is_not_hidden_by_a_matching_cache_tree() {
     }
     remove(root.as_path());
 }
+
+/// A split index and a sparse index are left to Git on both diff paths, in SHA-1 and SHA-256 repositories: the reader declines
+/// the extensions it does not read, and the cache-tree is never consulted for them.
+#[test]
+fn split_and_sparse_indexes_are_left_to_git_in_both_object_formats() {
+    let root = fixture("repo-read-cached-split-sparse");
+    for format in ["sha1", "sha256"] {
+        let split = committed_repository(root.as_path(), format!("split-{format}").as_str(), format, 4);
+        git(split.as_path(), &["update-index", "--split-index"]);
+        let head = text(split.as_path(), &["rev-parse", "HEAD"]);
+        declined(root.as_path(), split.as_path(), &["diff-index", "--cached", "--raw", "-z", "--no-renames", "--no-abbrev", head.as_str()]);
+        declined(root.as_path(), split.as_path(), &["diff-index", "--cached", "--quiet", head.as_str()]);
+        let sparse = committed_repository(root.as_path(), format!("sparse-{format}").as_str(), format, 4);
+        git(sparse.as_path(), &["sparse-checkout", "init", "--cone", "--sparse-index"]);
+        git(sparse.as_path(), &["sparse-checkout", "set", "d1"]);
+        let tip = text(sparse.as_path(), &["rev-parse", "HEAD"]);
+        declined(root.as_path(), sparse.as_path(), &["diff-index", "--cached", "--raw", "-z", "--no-renames", "--no-abbrev", tip.as_str()]);
+        declined(root.as_path(), sparse.as_path(), &["diff-index", "--cached", "--quiet", tip.as_str()]);
+    }
+    remove(root.as_path());
+}

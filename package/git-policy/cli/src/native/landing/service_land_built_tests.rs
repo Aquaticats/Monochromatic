@@ -221,3 +221,89 @@ fn a_shallow_file_and_a_replacement_object_send_the_checks_to_rev_list() {
     crate::service_durable::drain();
     remove(world.root.as_path());
 }
+
+/// A world over a SHA-256 repository, which the object names of 64 hexadecimal digits tell from a SHA-1 one.
+fn sha256_world(name: &str) -> (World, PathBuf) {
+    let root: PathBuf = crate::test_support::fixture(name);
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(&repo).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", "--object-format=sha256"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir(&journal).expect("journal");
+    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    let trace: PathBuf = root.join("trace.json");
+    context.git.overlay.push((std::ffi::OsString::from("GIT_TRACE2_EVENT"), trace.clone().into_os_string()));
+    return (World { root, repo, context }, trace);
+}
+
+/// The checks answer from the object store in a SHA-256 repository too, with the objects loose and with them only in a pack, and
+/// a missing object is refused there as it is in a SHA-1 one.
+#[test]
+fn the_checks_of_a_commit_git_built_hold_in_a_sha256_repository() {
+    for packed in [false, true] {
+        let (world, trace) = sha256_world(format!("service-built-sha256-{packed}").as_str());
+        let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+        assert_eq!(base.len(), 64, "a SHA-256 name");
+        let built: CommitRequest = built_request(&world, "typed", "one/typed.txt", &[base.as_str()]);
+        let commit: String = built.commit.clone().unwrap_or_default();
+        if packed {
+            git(world.repo.as_path(), &["update-ref", "refs/keep/typed", commit.as_str()]);
+            git(world.repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
+            git(world.repo.as_path(), &["prune-packed"]);
+        }
+        let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
+        assert_eq!(outcomes, vec![Outcome::Landed { commit: commit.clone() }], "packed: {packed}");
+        assert_eq!(starts_of(trace.as_path(), "rev-list"), 0, "packed: {packed}: the object store answered");
+        crate::service_durable::drain();
+        remove(world.root.as_path());
+    }
+    let (world, _trace) = sha256_world("service-built-sha256-missing");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "one/typed.txt", &[base.as_str()]);
+    let commit: String = built.commit.clone().unwrap_or_default();
+    let tree: String = git_text(world.repo.as_path(), &["rev-parse", "--verify", format!("{commit}:one").as_str()]);
+    std::fs::remove_file(world.repo.join(".git/objects").join(&tree[..2]).join(&tree[2..])).expect("the tree is loose");
+    assert_eq!(land_batch(&world.context, 1, &[built]), Err(FailureCode::Unavailable));
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch stays");
+    remove(world.root.as_path());
+}
+
+/// The commit Git built is looked up again when the proof runs: one removed between the read of its parents and the check of its
+/// objects is refused as unavailable, the branch stays, and nothing of it is put on the branch.
+#[test]
+fn a_built_commit_removed_between_the_checks_is_refused() {
+    let world: World = world("service-built-commit-between");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    let commit: String = built.commit.clone().unwrap_or_default();
+    let repo: PathBuf = world.repo.clone();
+    crate::service_fault::hooks::set("before-connectivity", std::rc::Rc::new(move || {
+        std::fs::remove_file(repo.join(".git/objects").join(&commit[..2]).join(&commit[2..])).expect("the commit is loose");
+    }));
+    assert_eq!(land_batch(&world.context, 1, &[built]), Err(FailureCode::Unavailable));
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch stays");
+    remove(world.root.as_path());
+}
+
+/// An amend whose commit Git built reads the replaced commit's parents from the store, and its objects are checked by Git (the
+/// tip is not its parent): one `rev-list` start, and it lands with the parents of the commit it replaces.
+#[test]
+fn an_amend_git_built_lands_with_the_parents_of_the_commit_it_replaces() {
+    let (world, trace) = traced("service-built-amend");
+    let parent: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let _second: CommitRequest = request(&world, "second", "second.txt", "second\n");
+    git(world.repo.as_path(), &["add", "second.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=second"]);
+    let replaced: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let mut built: CommitRequest = built_request(&world, "amended", "amended.txt", &[parent.as_str()]);
+    built.amend = true;
+    let commit: String = built.commit.clone().unwrap_or_default();
+    let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
+    assert_eq!(outcomes, vec![Outcome::Landed { commit: commit.clone() }]);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), commit);
+    assert_ne!(commit, replaced);
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 1, "the replaced commit's parents came from the store; the objects went to Git");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+}

@@ -45,6 +45,8 @@ pub(crate) fn name_steps() -> u64 {
 /// The commit's header facts the landing needs.
 #[derive(Debug, Eq, PartialEq)]
 pub struct BuiltCommit {
+    /// The commit's own name, as a binary name, which the proof looks up again when it runs.
+    name: Vec<u8>,
     /// The parents, in order, as hexadecimal names.
     pub parents: Vec<String>,
     /// The root tree, as a binary name.
@@ -123,7 +125,7 @@ pub fn read_commit(common_dir: &Path, built: &str) -> Option<BuiltCommit> {
         return None;
     }
     let fields = parse_commit(object.bytes.as_slice(), format)?;
-    return Some(BuiltCommit { parents: fields.parents.iter().map(|parent| { return to_hex(parent.as_slice()); }).collect(), tree: fields.tree });
+    return Some(BuiltCommit { name: from_hex(built.as_bytes(), format)?, parents: fields.parents.iter().map(|parent| { return to_hex(parent.as_slice()); }).collect(), tree: fields.tree });
 }
 
 /// What the walk found.
@@ -220,6 +222,10 @@ pub fn adds_only_present_objects(common_dir: &Path, built: &BuiltCommit, tip: &s
     let Some(tip_bytes) = from_hex(tip.as_bytes(), format) else { return false };
     let Some(tip_object) = database.read(tip_bytes.as_slice()) else { return false };
     let Some(tip_fields) = (tip_object.kind == ObjectKind::Commit).then(|| { return parse_commit(tip_object.bytes.as_slice(), format); }).flatten() else { return false };
+    // The commit was read before the objects were checked, and an object can go in between: it is looked up again here.
+    if !database.contains(built.name.as_slice()) {
+        return false;
+    }
     let mut proof: Proof<'_> = Proof { database: &database, format, budget: ENTRY_BUDGET };
     return proof.tree(built.tree.as_slice(), Some(tip_fields.tree.as_slice()), 0) == Found::Present;
 }

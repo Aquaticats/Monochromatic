@@ -216,21 +216,21 @@ fn a_packed_object_is_read_without_looking_for_a_loose_file() {
     git(repo.as_path(), &["prune-packed"]);
     let format = format_of(repo.as_path());
     let database = ObjectDatabase::open(repo.join(".git").as_path(), None, format).expect("plain database");
-    let before: u64 = LOOSE_LOOKS.load(std::sync::atomic::Ordering::Relaxed);
+    let before: u64 = loose_looks();
     for (name, bytes) in &packed_names {
         let raw = database.read(&from_hex(name.as_bytes(), format).expect("name")).expect("read");
         assert_eq!(&raw.bytes, bytes, "{name}");
     }
-    let looks: u64 = LOOSE_LOOKS.load(std::sync::atomic::Ordering::Relaxed) - before;
+    let looks: u64 = loose_looks() - before;
     assert_eq!(looks, 0, "every object of {} was in a pack, so no loose path was looked at", packed_names.len());
     // An object written loose after the repack is found once the packs were searched.
     std::fs::write(repo.join("late.txt"), "late\n").expect("late");
     let late = git_output(repo.as_path(), &["hash-object", "-w", "late.txt"]);
     let late_name: String = String::from_utf8(late.stdout).expect("UTF-8").trim().to_string();
     let loose = ObjectDatabase::open(repo.join(".git").as_path(), None, format).expect("database with a loose object");
-    let before_late: u64 = LOOSE_LOOKS.load(std::sync::atomic::Ordering::Relaxed);
+    let before_late: u64 = loose_looks();
     let raw = loose.read(&from_hex(late_name.as_bytes(), format).expect("name")).expect("the loose object is read");
     assert_eq!(raw.bytes, b"late\n");
-    assert!(LOOSE_LOOKS.load(std::sync::atomic::Ordering::Relaxed) > before_late, "the loose file was looked at after the packs");
+    assert!(loose_looks() > before_late, "the loose file was looked at after the packs");
     remove(root.as_path());
 }

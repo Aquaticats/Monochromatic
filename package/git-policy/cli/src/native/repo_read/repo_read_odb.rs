@@ -39,8 +39,16 @@ const ALTERNATES_LIMIT: u64 = 1 << 20;
 ///  open to the owner's veto.
 const PACKED_REFS_LIMIT: u64 = 256 << 20;
 
-/// How many loose paths the reader has looked at, which a control reads to show that a packed object costs none.
-pub(crate) static LOOSE_LOOKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+thread_local! {
+    /// How many loose paths the readers of this thread have looked at. It is per thread, so that a control which shows a packed
+    ///  object costs none cannot be disturbed by another test's reads.
+    static LOOSE_LOOKS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// The loose paths the readers of this thread have looked at so far.
+pub(crate) fn loose_looks() -> u64 {
+    return LOOSE_LOOKS.with(std::cell::Cell::get);
+}
 
 /// The loose directories and packs of a repository and its alternates.
 #[derive(Debug)]
@@ -173,7 +181,7 @@ impl ObjectDatabase {
         let hex: String = to_hex(name);
         for root in &self.roots {
             let path: PathBuf = root.join(&hex[..2]).join(&hex[2..]);
-            LOOSE_LOOKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            LOOSE_LOOKS.with(|looks| { looks.set(looks.get() + 1); });
             let Ok(metadata) = std::fs::symlink_metadata(&path) else {
                 continue;
             };
