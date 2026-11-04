@@ -1,0 +1,288 @@
+//! What:
+//!  The controls of revision 13's W1 against publication: the twelfth review's schedules (red under revision 12, green under 13),
+//!  the surviving transaction process, fallible recovery, E1's three kinds at every death point of the child, PREPARED-HOLD
+//!  against a process that never reads, the second closing line, and positive controls showing that each clause of the contract
+//!  fails on a state that breaks it.
+//! Why:
+//!  A green search proves nothing unless the same search is red when the rule is broken; every clause has a hand-built
+//!  violating state so that a clause which could never fire is found here.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // test('twelve: a normal exit then a retry lands after the command returned', ...);
+//! ```
+
+use crate::model_explore::{Report, replay};
+use crate::model_w1_r13::{
+    Child, Class, Client, FOREGROUND_BOUND, HOLD_BOUND, Kind, Line, Mark, Owner, Pipe, Rules, State, Tip, check, check_hold, check_with,
+    classify, initial, invariant, invariant_twelve_text_lock_released, steps, violations, Seen,
+};
+
+const START: &str = "owner: P1 and P2a start an attempt";
+const HOOK_OK: &str = "environment: the person's hook returns and accepts; prepare: ok";
+const RECORD: &str = "client: records submitted for the attempt";
+const WRITE: &str = "client: writes commit to the pipe";
+const COMMITTING_MARK: &str = "COMMITTING: the bound passed with commit submitted; the exit creates its mark";
+const COMMITTING_EXIT: &str = "COMMITTING: exits non-zero saying the result is not known";
+const KILL_CHILD: &str = "environment: the transaction process is ended (parent-death signal or a kill)";
+const E1: &str = "owner: E1 reads the tip and classifies the attempt";
+const E1_UNREAD: &str = "owner: E1 cannot read the tip (store error) and classifies from what it has";
+const READS_COMMIT: &str = "environment: update-ref reads commit";
+const WRITES_REF: &str = "environment: update-ref writes the ref";
+const DIES_BEFORE_REPORT: &str = "environment: update-ref dies after writing the ref and before commit: ok";
+const RESET_ERASED: &str = "environment: another writer resets the branch away and the reflog entry is lost";
+const RESET_KEPT: &str = "environment: another writer resets the branch away and the reflog keeps the entry";
+const OWNER_DIES: &str = "environment: the owner dies";
+const REAP: &str = "owner: a new incarnation reaps the previous scope (L2) and takes over";
+const HOLD: &str = "owner: PREPARED-HOLD expires and it writes abort";
+
+/// Whether `label` is enabled in `state`.
+fn enabled(state: &State, label: &str) -> bool {
+    return steps(state).iter().any(|step| { return step.0 == label; });
+}
+
+/// The state with the first attempt prepared and the client's `commit` queued (the child has not read it).
+fn commit_queued(rules: Rules) -> State {
+    return replay(initial(rules), steps, &[START, HOOK_OK, RECORD, WRITE]);
+}
+
+/// The twelfth review's first schedule (red under 12): the child stalls, COMMITTING expires, the client exits with no mark, the
+/// child ends without landing, E1 infers a failure, and the next attempt starts and can land after the command returned.
+#[test]
+fn twelve_a_normal_exit_then_a_retry_starts_a_fresh_attempt() {
+    let mut reached: State = commit_queued(Rules::Twelve);
+    reached = replay(reached, steps, &[COMMITTING_MARK, COMMITTING_EXIT, KILL_CHILD, E1, START]);
+    let broken: Vec<String> = violations(&reached);
+    assert!(broken.contains(&"a normal exit left no withdrawal mark".to_string()), "{:?}", broken);
+    assert!(broken.contains(&"an attempt started after the unresolved exit named an earlier one".to_string()), "{:?}", broken);
+    // With no client and no mark the owner decides the second attempt, and it lands after the command returned.
+    let landed: State = replay(
+        reached,
+        steps,
+        &[HOOK_OK, "owner: the client lock is gone with no mark; it decides and writes commit", READS_COMMIT, WRITES_REF],
+    );
+    assert_eq!(landed.landed, 2, "attempt two landed after the exit that named attempt one");
+    assert!(violations(&landed).contains(&"an attempt other than the one the unresolved exit names landed".to_string()));
+}
+
+/// The same schedule under 13 (green): the exit created `withdraw-unresolved 1`, E1 returns U for an ended child with `commit`
+/// submitted, and no step starts a second attempt; the contract holds in every state of the schedule.
+#[test]
+fn thirteen_the_same_schedule_cannot_start_a_second_attempt() {
+    let mut reached: State = commit_queued(Rules::Thirteen);
+    reached = replay(reached, steps, &[COMMITTING_MARK, COMMITTING_EXIT, KILL_CHILD, E1]);
+    assert_eq!(reached.mark, Mark::Unresolved(1));
+    assert_eq!(reached.recorded, Some((1, Class::Unresolved)));
+    assert!(!enabled(&reached, START), "no attempt after the named one may start");
+    assert!(violations(&reached).is_empty());
+}
+
+/// The twelfth review's second schedule: Git writes `new`, another writer resets the branch away, Git dies before `commit: ok`.
+/// Revision 12's E1 says the attempt did not land and closes it as failed (red); revision 13 says U, or `rewritten-away` when the
+/// reflog shows it (green), and a closed-as-failed attempt that wrote the ref is the clause that fires.
+#[test]
+fn a_reset_before_the_child_dies_is_unresolved_or_rewritten_never_failed() {
+    let after_write = |rules: Rules, reset: &str| -> State {
+        return replay(commit_queued(rules), steps, &[READS_COMMIT, WRITES_REF, reset, DIES_BEFORE_REPORT, E1]);
+    };
+    let twelve: State = after_write(Rules::Twelve, RESET_ERASED);
+    assert!(violations(&twelve).contains(&"an attempt that wrote the ref was closed as positively failed".to_string()));
+    let erased: State = after_write(Rules::Thirteen, RESET_ERASED);
+    assert_eq!(erased.recorded, Some((1, Class::Unresolved)));
+    assert!(violations(&erased).is_empty() && !enabled(&erased, START));
+    let kept: State = after_write(Rules::Thirteen, RESET_KEPT);
+    assert_eq!(kept.recorded, Some((1, Class::RewrittenAway)));
+    assert!(violations(&kept).is_empty() && !enabled(&kept, START));
+}
+
+/// The search over every schedule: red under 12 with a shortest schedule, green and exhausted under 13 with the wait's bound met.
+#[test]
+fn twelve_is_red_and_thirteen_is_green_over_every_schedule() {
+    let twelve: Report = check(Rules::Twelve);
+    assert!(twelve.violation.is_some(), "revision 12 must be red");
+    let thirteen: Report = check(Rules::Thirteen);
+    assert!(thirteen.violation.is_none() && thirteen.exhausted, "{:?}", thirteen.violation.map(|found| { return (found.message, found.trace); }));
+    println!("W1 against publication, revision 13: {} states, deepest {}, client bound {}", thirteen.states, thirteen.deepest, FOREGROUND_BOUND);
+}
+
+/// The transaction process makes progress with its owner dead (review 3b: child progress must not depend on a live owner): the
+/// owner dies after `commit` was queued, the child applies it, the client reaches its COMMITTING bound and leaves unresolved, and
+/// the landing is the one attempt the exit names.
+#[test]
+fn the_child_applies_a_queued_commit_after_its_owner_died() {
+    let reached: State = replay(
+        commit_queued(Rules::Thirteen),
+        steps,
+        &[OWNER_DIES, READS_COMMIT, WRITES_REF, COMMITTING_MARK, COMMITTING_EXIT],
+    );
+    assert_eq!(reached.owner, Owner::Dead);
+    assert_eq!(reached.client, Client::UnresolvedExit(1));
+    assert_eq!(reached.landed, 1);
+    assert!(violations(&reached).is_empty(), "the one named attempt may land: {:?}", violations(&reached));
+}
+
+/// Recovery is fallible (review 3b: recovery was infallible): the new incarnation reaps only after the child ended, its read of the
+/// tip can fail, and a failed read classifies as U although the ref was in fact written; a readable tip classifies as published.
+#[test]
+fn recovery_waits_for_the_scope_to_empty_and_its_tip_read_can_fail() {
+    let dead: State = replay(commit_queued(Rules::Thirteen), steps, &[OWNER_DIES, READS_COMMIT, WRITES_REF]);
+    assert!(!enabled(&dead, REAP), "the scope still holds the transaction process");
+    let ended: State = replay(dead, steps, &[DIES_BEFORE_REPORT, REAP]);
+    assert!(ended.recovered && enabled(&ended, E1) && enabled(&ended, E1_UNREAD));
+    let unread: State = replay(ended.clone(), steps, &[E1_UNREAD]);
+    assert_eq!(unread.recorded, Some((1, Class::Unresolved)));
+    let read: State = replay(ended, steps, &[E1]);
+    assert_eq!(read.recorded, Some((1, Class::Published)));
+}
+
+/// E1's kind at each death point of the child (control 3 of the twelfth review): before reading the closing line with `commit`
+/// queued, after reading it, after writing the ref and before reporting; and, for contrast, a child that died with no `commit`.
+#[test]
+fn the_kind_at_each_point_where_the_child_dies() {
+    let before_read: State = replay(commit_queued(Rules::Thirteen), steps, &[KILL_CHILD, E1]);
+    assert_eq!(before_read.recorded, Some((1, Class::Unresolved)), "queued commit, child never read it: not proof of nothing");
+    let after_read: State = replay(commit_queued(Rules::Thirteen), steps, &[READS_COMMIT, KILL_CHILD, E1]);
+    assert_eq!(after_read.recorded, Some((1, Class::Unresolved)));
+    let after_write: State = replay(commit_queued(Rules::Thirteen), steps, &[READS_COMMIT, WRITES_REF, DIES_BEFORE_REPORT, E1]);
+    assert_eq!(after_write.recorded, Some((1, Class::Published)));
+    let never_submitted: State = replay(initial(Rules::Thirteen), steps, &[START, HOOK_OK, KILL_CHILD, E1]);
+    assert_eq!(never_submitted.recorded, Some((1, Class::Failed)));
+    assert!(enabled(&never_submitted, START), "class F closes the attempt and a mark-free request may start the next");
+}
+
+/// A positively failed attempt (a hook refusal) closes, and a later attempt starts and may land while the client still waits.
+#[test]
+fn only_a_positive_failure_allows_the_next_attempt() {
+    let refused: State = replay(
+        initial(Rules::Thirteen),
+        steps,
+        &[START, "environment: the person's hook refuses; update-ref exits non-zero", E1],
+    );
+    assert_eq!(refused.recorded, Some((1, Class::Failed)));
+    assert_eq!(refused.closed, 1);
+    assert!(enabled(&refused, START), "class F allows a later attempt");
+}
+
+/// PREPARED-HOLD (control 5): the owner enqueues `abort` for a prepared transaction nobody closes, within one of its own steps; a
+/// child that never reads again keeps the branch lock, and revision 13 claims only the enqueue.
+#[test]
+fn prepared_hold_enqueues_abort_and_a_child_that_never_reads_keeps_the_lock() {
+    let report: Report = check_hold(Rules::Thirteen);
+    assert!(report.violation.is_none() && report.exhausted, "bound {}: {:?}", HOLD_BOUND, report.violation.map(|found| { return found.message; }));
+    let wedged: State = replay(initial(Rules::Thirteen), steps, &[START, HOOK_OK, "environment: update-ref never reads again", HOLD]);
+    assert_eq!(wedged.pipe, Pipe::Abort);
+    assert_eq!(wedged.child, Child::Wedged, "the residue: the lock is still held");
+    assert_eq!(invariant(&wedged), None, "revision 13 claims the enqueue only");
+}
+
+/// Revision 12's text claimed that `abort` releases the lock whatever else holds the pipe (red): the search finds the wedged child.
+#[test]
+fn the_revision_twelve_text_that_abort_releases_the_lock_is_false() {
+    let report: Report = check_with(Rules::Thirteen, invariant_twelve_text_lock_released);
+    let violation = report.violation.expect("a child that never reads keeps the lock");
+    assert_eq!(violation.message, "abort was enqueued and the branch lock is still held by a process that never reads");
+}
+
+/// The second closing line (control 2): the owner's PREPARED-HOLD `abort` is queued first, the client's `commit` arrives second, and
+/// `update-ref` executes the abort only; nothing lands, and the attempt closes as positively failed.
+#[test]
+fn a_second_closing_line_is_not_executed() {
+    let reached: State = replay(
+        initial(Rules::Thirteen),
+        steps,
+        &[
+            START,
+            HOOK_OK,
+            RECORD,
+            HOLD,
+            WRITE,
+            "environment: update-ref reads abort",
+            "environment: update-ref prints abort: ok and exits",
+            E1,
+        ],
+    );
+    assert_eq!(reached.pipe, Pipe::Abort);
+    assert_eq!(reached.landed, 0);
+    assert_eq!(reached.line, Line::AbortOk);
+    assert_eq!(reached.recorded, Some((1, Class::Failed)));
+    assert!(violations(&reached).is_empty());
+}
+
+/// A client killed after it recorded `submitted` and before it wrote `commit`: the owner, seeing the lock gone with no mark, decides;
+/// the request may land later, which the outside-cause rule allows, and no clause of the contract is broken.
+#[test]
+fn a_client_killed_before_it_wrote_leaves_the_decision_to_the_owner() {
+    let reached: State = replay(
+        initial(Rules::Thirteen),
+        steps,
+        &[START, HOOK_OK, RECORD, "environment: the client is killed from outside", "owner: the client lock is gone with no mark; it decides and writes commit"],
+    );
+    assert_eq!(reached.pipe, Pipe::Commit);
+    assert!(violations(&reached).is_empty());
+}
+
+/// W1 against a send: the client creates the mark first; the owner that finds the mark after the reader exists writes `abort`; the
+/// client that sees a closing line already queued exits without writing one, and no order of the three lets `commit` queue.
+#[test]
+fn w1_and_the_owner_race_on_the_closing_line_and_commit_never_queues() {
+    let marked: State = replay(initial(Rules::Thirteen), steps, &[START, HOOK_OK, "W1: the bound is reached; the client creates the mark withdraw"]);
+    assert!(!enabled(&marked, RECORD) && !enabled(&marked, WRITE));
+    assert!(!enabled(&marked, "owner: the client lock is gone with no mark; it decides and writes commit"));
+    let by_owner: State = replay(marked.clone(), steps, &[ "owner: finds the mark after the reader exists and writes abort", "W1: exits non-zero naming the blocker"]);
+    assert_eq!(by_owner.client, Client::Withdrawn);
+    assert_eq!(by_owner.pipe, Pipe::Abort);
+    let by_client: State = replay(marked, steps, &["W1: writes abort to the open attempt it did not submit", "W1: exits non-zero naming the blocker"]);
+    assert_eq!(by_client.client, Client::Withdrawn);
+    assert!(violations(&by_client).is_empty());
+}
+
+/// E1's classification as a pure function: the revision-12 negative inference and revision 13's U, side by side.
+#[test]
+fn classify_separates_the_negative_inference_from_unresolved() {
+    assert_eq!(classify(Rules::Twelve, true, Line::Nothing, Seen::Absent, true), Class::Failed);
+    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Absent, true), Class::Unresolved);
+    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Unread, true), Class::Unresolved);
+    assert_eq!(classify(Rules::Thirteen, false, Line::Nothing, Seen::Unread, true), Class::Failed);
+    assert_eq!(classify(Rules::Thirteen, true, Line::AbortOk, Seen::Absent, true), Class::Failed);
+    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Present, true), Class::Published);
+    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Rewritten, true), Class::RewrittenAway);
+}
+
+/// Positive controls: each clause of the contract fires on a state built to break it, so the green search above can fail.
+#[test]
+fn every_clause_of_the_contract_fires_on_a_state_that_breaks_it() {
+    let base: State = initial(Rules::Thirteen);
+    let mut no_mark: State = base.clone();
+    no_mark.client = Client::Withdrawn;
+    assert_eq!(invariant(&no_mark), Some("a normal exit left no withdrawal mark".to_string()));
+    let mut marked_lands: State = base.clone();
+    marked_lands.mark = Mark::Withdraw;
+    marked_lands.landed = 1;
+    assert!(invariant(&marked_lands).is_some());
+    let mut withdrawn_lands: State = base.clone();
+    withdrawn_lands.client = Client::Withdrawn;
+    withdrawn_lands.mark = Mark::Withdraw;
+    withdrawn_lands.pipe = Pipe::Commit;
+    withdrawn_lands.child = Child::Prepared;
+    assert!(violations(&withdrawn_lands).contains(&"the command said the request was withdrawn and the request landed or can still land".to_string()));
+    let mut later_attempt: State = base.clone();
+    later_attempt.client = Client::UnresolvedExit(1);
+    later_attempt.mark = Mark::Unresolved(1);
+    later_attempt.attempt = 2;
+    assert!(violations(&later_attempt).contains(&"an attempt started after the unresolved exit named an earlier one".to_string()));
+    let mut other_lands: State = later_attempt.clone();
+    other_lands.attempt = 1;
+    other_lands.landed = 2;
+    assert!(violations(&other_lands).contains(&"an attempt other than the one the unresolved exit names landed".to_string()));
+    let mut false_publish: State = base.clone();
+    false_publish.client = Client::Published;
+    assert_eq!(invariant(&false_publish), Some("the command said published and nothing landed".to_string()));
+    let mut false_failure: State = base.clone();
+    false_failure.closed = 1;
+    false_failure.landed = 1;
+    assert_eq!(invariant(&false_failure), Some("an attempt that wrote the ref was closed as positively failed".to_string()));
+    let mut leaving: State = base;
+    leaving.client = Client::Leaving(Kind::Plain);
+    leaving.tip = Tip::Base;
+    assert_eq!(invariant(&leaving), Some("a normal exit left no withdrawal mark".to_string()));
+}

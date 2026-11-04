@@ -178,3 +178,11 @@ mod commit_inbox_tests;
 #[cfg(feature = "test-seams")]
 #[path = "commit_state_log_tests.rs"]
 mod commit_state_log_tests;
+
+/// Revision 13's W1 against publication: the pipe, the mark, E1's three kinds, PREPARED-HOLD and a transaction process that outlives its owner.
+#[path = "model_w1_r13.rs"]
+mod model_w1_r13;
+
+/// The controls of revision 13's W1 against publication.
+#[path = "model_w1_r13_tests.rs"]
+mod model_w1_r13_tests;
