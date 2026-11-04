@@ -611,12 +611,11 @@ fn r14_a_departure_forces_the_saved_content_of_the_candidate_it_acknowledges() {
     let (request, new_files, old_files) = one_path_request();
     accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
     state_append(&lane.join("state"), 1, b"first").expect("append");
-    std::fs::create_dir(lane.join("saved")).expect("saved");
-    let saved: PathBuf = lane.join("saved").join(sha256_hex(b"objects"));
-    std::fs::write(&saved, b"objects").expect("saved content");
+    let saved_entry: ClosureEntry = commit_state_log::create_saved_content(&lane, b"objects").expect("saved content through the component");
+    let saved: PathBuf = lane.join(saved_entry.path());
     let entries: Vec<ClosureEntry> = vec![
         ClosureEntry::capture(&lane, &lane.join("inbox").join(&request.id), EntryKind::InboxEnvelope).expect("capture r"),
-        ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s"),
+        saved_entry,
     ];
     commit_state_log::StateWriter::acquire(&lane.join("state")).expect("writer").begin_checkpoint(2, b"adopts r and s", &entries).expect("begin");
     start_events();

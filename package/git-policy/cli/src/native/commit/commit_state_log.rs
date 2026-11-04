@@ -197,6 +197,33 @@ impl ClosureEntry {
     }
 }
 
+/// The error number a test makes the read lease call fail with (a file system that refuses leases); 0 is none.
+#[cfg(feature = "test-seams")]
+static LEASE_ERRNO: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+
+/// Makes the read lease check see `errno` (`None` clears it): the control of a file system that grants no lease.
+#[cfg(feature = "test-seams")]
+pub fn inject_lease_errno(errno: Option<i32>) {
+    LEASE_ERRNO.store(errno.unwrap_or(0), std::sync::atomic::Ordering::SeqCst);
+}
+
+/// The injected lease error number, if a test set one; always `None` without the test seams.
+fn injected_lease_errno() -> Option<i32> {
+    #[cfg(feature = "test-seams")]
+    return Some(LEASE_ERRNO.load(std::sync::atomic::Ordering::SeqCst)).filter(|errno| { return *errno != 0; });
+    #[cfg(not(feature = "test-seams"))]
+    return None;
+}
+
+/// Creates saved content from `bytes` in `lane/saved/<sha256>` and returns its captured entry.
+pub fn create_saved_content(lane: &Path, bytes: &[u8]) -> io::Result<ClosureEntry> {
+    let directory: PathBuf = lane.join(SAVED);
+    fs::create_dir_all(&directory)?;
+    let path: PathBuf = directory.join(sha256_hex(bytes));
+    fs::write(&path, bytes)?;
+    return ClosureEntry::capture(lane, &path, EntryKind::Opaque);
+}
+
 /// What:
 ///  Seals the saved content at `path`: removes its write permission, then refuses it while any process holds a writable descriptor to it,
 ///  asking the kernel for a read lease (granted only when no open file description anywhere has the file open for writing). Fails closed
@@ -218,8 +245,9 @@ fn seal_saved_content(path: &Path) -> io::Result<()> {
     let file: File = File::open(path)?;
     // SAFETY: `fcntl` with `F_SETLEASE` takes a descriptor and an integer argument and touches no memory.
     let granted: libc::c_int = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_RDLCK) };
-    if granted != 0 {
-        let error: io::Error = io::Error::last_os_error();
+    let injected: Option<i32> = injected_lease_errno();
+    if granted != 0 || injected.is_some() {
+        let error: io::Error = injected.map_or_else(io::Error::last_os_error, io::Error::from_raw_os_error);
         return Err(if error.raw_os_error() == Some(libc::EAGAIN) {
             io::Error::new(io::ErrorKind::InvalidInput, "saved content is still open for writing by some process; it is not immutable yet")
         } else {

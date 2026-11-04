@@ -14,7 +14,7 @@
 use crate::model_fixture::scratch;
 use git_policy_cli::commit_identity::{start_events, take_events};
 use git_policy_cli::commit_identity::set_fault_point;
-use git_policy_cli::commit_state_log::{Candidate, ClosureEntry, EntryKind, Prefix, StateError, StateWriter, read, rotation_number, sync_prefix};
+use git_policy_cli::commit_state_log::{Candidate, ClosureEntry, EntryKind, Prefix, StateError, StateWriter, create_saved_content, inject_lease_errno, read, rotation_number, sync_prefix};
 use std::path::PathBuf;
 
 /// Appends as the state's writer (the only way to mutate the log).
@@ -396,6 +396,7 @@ fn p1_a_dependency_under_an_unsynced_name_chain_is_forced_through_the_anchor() {
     std::fs::create_dir(&saved).expect("saved directory whose name in the lane was never synced");
     let input: PathBuf = saved.join(git_policy_cli::commit_integrity::sha256_hex(b"a valid dependency"));
     std::fs::write(&input, b"a valid dependency").expect("write");
+    std::fs::set_permissions(&input, std::os::unix::fs::PermissionsExt::from_mode(0o444)).expect("sealed, as the component leaves saved content");
     append(&state, 1, b"first").expect("append");
     let entry: ClosureEntry = ClosureEntry::capture(&lane, &input, EntryKind::Opaque).expect("capture");
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
@@ -582,12 +583,10 @@ fn r14_a_retirement_forces_the_ledger_prefix_that_discharges_it() {
     assert!(events.contains(&format!("file-sync:{}", ledger.display())), "the retirement was not backed by a forced ledger prefix: {:?}", events);
 }
 
-/// Writes saved content under `lane/saved/<sha256>` and returns its path.
+/// Creates saved content through the component (`lane/saved/<sha256>`, read-only) and returns its path.
 fn saved_content(lane: &std::path::Path, bytes: &[u8]) -> PathBuf {
-    std::fs::create_dir_all(lane.join("saved")).expect("saved directory");
-    let path: PathBuf = lane.join("saved").join(git_policy_cli::commit_integrity::sha256_hex(bytes));
-    std::fs::write(&path, bytes).expect("saved content");
-    return path;
+    let entry: ClosureEntry = create_saved_content(lane, bytes).expect("saved content is created through the component");
+    return lane.join(entry.path());
 }
 
 /// Models review 8 (later records and retained-prefix obligations): a later record retains the complete set, not only new request
@@ -785,42 +784,41 @@ fn r15_recovery_does_not_select_a_document_whose_needs_its_set_does_not_cover() 
     assert_eq!(read(&state).expect("readable").expect("state"), (1, b"first".to_vec()));
 }
 
-/// Review 9a section 2B: S was created at its checksum name and the creator kept a writable descriptor; capture and completion then
-/// accepted it, the permission bits came off, the predecessor was reclaimed, and bytes written through the old descriptor made the only
-/// root unrecoverable. Content addressing detects that; it does not prevent it. Capturing saved content seals it (no write permission) and
-/// refuses it while any writable descriptor to it is open, in any process; once sealed, nobody can open it for writing.
+/// Review 9a section 2B, coordinator pick of 2026-11-04: immutability is enforced by the creator. Saved content enters the store only
+/// through the component, from bytes; an existing file, which may have been written by a process that still holds a descriptor, is not
+/// accepted as saved content however it was made, so the reviewer's schedule (a writer keeps a writable descriptor) is impossible through
+/// the API and a raw file is refused at capture.
 #[test]
-fn r15_saved_content_with_a_surviving_writable_descriptor_is_refused_and_sealed_content_cannot_be_reopened() {
-    let (lane, state, _envelope) = lane_with_envelope("r15-writable-descriptor");
+fn r15_a_raw_file_in_the_saved_directory_is_not_saved_content_and_the_component_made_one_cannot_be_reopened_for_writing() {
+    let (lane, state, _envelope) = lane_with_envelope("r15-creator-enforced");
     append(&state, 1, b"first").expect("append");
-    let saved: PathBuf = saved_content(&lane, b"objects of b");
-    let mut survivor = std::fs::OpenOptions::new().write(true).open(&saved).expect("the creator keeps a writable descriptor");
-    assert!(ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).is_err(), "saved content with a writable descriptor open was captured");
-    std::io::Write::write_all(&mut survivor, b"").expect("the descriptor is still the creator's");
-    drop(survivor);
-    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("with no writable descriptor the content is captured");
-    assert!(std::fs::OpenOptions::new().write(true).open(&saved).is_err(), "sealed saved content was opened for writing again");
-    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
-    writer.checkpoint(2, b"retains s", std::slice::from_ref(&content)).expect("checkpoint");
+    std::fs::create_dir_all(lane.join("saved")).expect("saved directory");
+    let raw: PathBuf = lane.join("saved").join(git_policy_cli::commit_integrity::sha256_hex(b"raw bytes"));
+    std::fs::write(&raw, b"raw bytes").expect("a raw creator, no descriptor kept");
+    assert!(ClosureEntry::capture(&lane, &raw, EntryKind::Opaque).is_err(), "an existing writable file was accepted as saved content");
+    let kept = std::fs::OpenOptions::new().write(true).open(&raw).expect("the raw creator's writable descriptor");
+    assert!(ClosureEntry::capture(&lane, &raw, EntryKind::Opaque).is_err(), "and with a writable descriptor open too");
+    drop(kept);
+    let made: PathBuf = saved_content(&lane, b"objects of b");
+    assert!(std::fs::OpenOptions::new().write(true).open(&made).is_err(), "the component's saved content was opened for writing");
+    let content: ClosureEntry = ClosureEntry::capture(&lane, &made, EntryKind::Opaque).expect("capture what the component made");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"retains s", std::slice::from_ref(&content)).expect("checkpoint");
     assert_eq!(read(&state).expect("readable").expect("state").0, 2);
 }
 
-/// Review 9a section 2E: the acknowledged state D retained S. A different document E at a higher generation retained the same S, and
-/// `still_covers` accepted it because the items were included. Keeping the same dependency bytes does not show that E descends from D:
-/// the replacement authority names the hashes of the records it replaces, and coverage across segments needs the promised record among them.
+/// The coordinator pick: the read lease is an extra check where the kernel grants it, never a refusal. A file system that refuses leases
+/// (NFS, CIFS, 9p, FUSE without lock support) still creates, captures, checkpoints and completes.
 #[test]
-fn r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment() {
-    let (lane, state, envelope) = lane_with_envelope("r15-succession");
+fn r15_a_file_system_that_refuses_read_leases_still_creates_and_checkpoints_saved_content() {
+    let (lane, state, _envelope) = lane_with_envelope("r15-no-leases");
     append(&state, 1, b"first").expect("append");
-    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
-    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
-    writer.append_with(2, b"d adopts the request", std::slice::from_ref(&request)).expect("append d");
-    let promised: Prefix = sync_prefix(&state).expect("d is acknowledged");
-    let unrelated: PathBuf = lane.join("state-of-another-history");
-    std::fs::create_dir(&unrelated).expect("another state directory in the same lane");
-    StateWriter::acquire(&unrelated).expect("writer").checkpoint(9, b"e is another document", std::slice::from_ref(&request)).expect("checkpoint e");
-    assert!(!git_policy_cli::commit_state_log::state_covers(&unrelated, &promised).expect("readable"), "an unrelated document with the same items was taken for the acknowledged state");
-    writer.checkpoint(3, b"d, replayed", std::slice::from_ref(&request)).expect("the real successor replaces the segment");
-    assert!(!state.join("state.log.1").exists(), "the acknowledged record's segment was reclaimed");
-    assert!(git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "the checkpoint that replaced the acknowledged record covers it");
+    inject_lease_errno(Some(libc::ENOTSUP));
+    let made = create_saved_content(&lane, b"objects of b");
+    let checkpoint = made.as_ref().map_err(|error| { return std::io::Error::new(error.kind(), error.to_string()); }).and_then(|entry| {
+        return StateWriter::acquire(&state)?.checkpoint(2, b"retains s", std::slice::from_ref(entry)).map(|_| ());
+    });
+    inject_lease_errno(None);
+    made.expect("creation without leases");
+    checkpoint.expect("a checkpoint without leases");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2);
 }
