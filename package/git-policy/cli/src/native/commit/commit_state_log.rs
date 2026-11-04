@@ -1014,6 +1014,38 @@ fn eligible(lane: &Path, bytes: &[u8]) -> Option<(Vec<Rec>, usize, Vec<u8>, Vec<
     return Some((all, count, last_document, last_items));
 }
 
+/// The file in the state directory that records the newest completed checkpoint: `cli-git-established <number> <generation> <hash>`.
+const ESTABLISHED: &str = "state.established";
+
+/// What:
+///  The generation the newest completed checkpoint established: `Ok(None)` when no checkpoint ever completed (or the state predates the
+///  record), `Err` when the record exists and does not parse.
+/// Why:
+///  Recovery never falls back past an established root. Without the record a damaged established root with an older usable segment looks
+///  like a candidate that never completed, and the older state would be selected silently.
+fn established_generation(dir: &Path) -> Result<Option<u64>, StateError> {
+    let text: String = match fs::read_to_string(dir.join(ESTABLISHED)) {
+        Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(StateError::Io(error)),
+    };
+    let fields: Vec<&str> = text.strip_suffix('\n').ok_or(StateError::Damaged)?.split(' ').collect();
+    let [magic, number, generation, hash] = fields[..] else { return Err(StateError::Damaged) };
+    let parsed: Option<u64> = (magic == "cli-git-established" && number.parse::<u64>().is_ok() && hash.len() == 64).then(|| { return generation.parse::<u64>().ok(); }).flatten();
+    return parsed.map(Some).ok_or(StateError::Damaged);
+}
+
+/// Records, durably, that the checkpoint `candidate` is established: written to a temporary name, forced, renamed over the record and the
+/// directory forced. Called by completion after the candidate and its directory entry are durable and before any predecessor is removed.
+fn establish(dir: &Path, candidate: &Candidate) -> io::Result<()> {
+    let temporary: PathBuf = dir.join("state.established.tmp");
+    let mut file: File = OpenOptions::new().create(true).write(true).truncate(true).open(&temporary)?;
+    file.write_all(format!("cli-git-established {} {} {}\n", candidate.number, candidate.generation, candidate.hash).as_bytes())?;
+    sync_file(&file, &temporary)?;
+    fs::rename(&temporary, dir.join(ESTABLISHED))?;
+    return sync_directory(dir);
+}
+
 /// The file recovery selects: the file whose last eligible record has the newest generation (a tie goes to the higher file when the documents
 /// agree). A record is eligible when its whole retained set validates; the first ineligible record ends the file's prefix, so a later document
 /// cannot outrun the dependencies it declares. No log file is `Ok(None)`; files with bytes and no eligible record anywhere are `Damaged`; a
@@ -1048,6 +1080,12 @@ pub fn select(dir: &Path) -> Result<Option<Selected>, StateError> {
         }
     }
     if best.is_none() && saw_bytes {
+        return Err(StateError::Damaged);
+    }
+    // An established root that no longer validates is damaged, not a candidate that never completed: nothing older is selected in its place.
+    if let Some(established) = established_generation(dir)?
+        && best.as_ref().is_none_or(|chosen| { return chosen.generation < established; })
+    {
         return Err(StateError::Damaged);
     }
     return Ok(best);
@@ -1363,6 +1401,7 @@ fn complete_checkpoint(dir: &Path, candidate: &Candidate) -> io::Result<()> {
     let file: File = File::open(&path)?;
     sync_file(&file, &path)?;
     sync_directory(dir)?;
+    establish(dir, candidate)?;
     for number in all.into_iter().filter(|number| { return *number != candidate.number && authority.reclaims.contains(number); }) {
         let old: PathBuf = log_path(dir, number);
         fs::remove_file(&old)?;

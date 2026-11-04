@@ -114,6 +114,9 @@ fn a_rotation_interrupted_at_each_step_keeps_a_valid_log() {
         vec![
             format!("file-sync:{}", new_path.display()),
             format!("dir:{}", dir.display()),
+            // The establishment record: forced, renamed over the record, the directory forced, and only then the predecessor removed.
+            format!("file-sync:{}", dir.join("state.established.tmp").display()),
+            format!("dir:{}", dir.display()),
             format!("remove:{}", dir.join("state.log.1").display()),
         ]
     );
