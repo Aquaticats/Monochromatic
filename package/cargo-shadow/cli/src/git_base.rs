@@ -661,14 +661,33 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
 /// export function isGitIgnored(root: string, relative: string): boolean
 /// ```
 pub fn is_git_ignored(root: &Path, relative: &str) -> bool {
-    let mut command: Command = Command::new("git");
-    command.args(["check-ignore", "--quiet", "--", relative]).current_dir(root);
-    let bound: Bound = Bound {
-        limit: Duration::from_secs(crate::git_refs::GIT_CALL_SECONDS),
-        what: format!("`git check-ignore {relative}` (cargo-shadow asks whether the crate is part of the repository)"),
-        rerun: crate::bounded_run::rerun_text(),
+    // A plain child with a deadline, not a contained run: the question only reads, it writes nothing that needs a scope to stop, and
+    // it must not start a scope (or take a fault meant for the first contained run) on every invocation of the shadow.
+    let mut child = match Command::new("git")
+        .args(["check-ignore", "--quiet", "--", relative])
+        .current_dir(root)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(started) => started,
+        Err(_) => return false,
     };
-    return output_within(&mut command, None, &bound).is_ok_and(|answered| { return answered.status.code() == Some(0); });
+    let deadline: std::time::Instant = std::time::Instant::now() + Duration::from_secs(crate::git_refs::GIT_CALL_SECONDS);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.code() == Some(0),
+            Ok(None) => {}
+            Err(_) => return false,
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
 }
 
 /// What:
