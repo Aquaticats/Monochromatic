@@ -381,3 +381,29 @@ fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
     assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
     assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_RETAINED, "a decision never outlives its confirmation, nor the other way");
 }
+
+/// The memory of confirmed withdrawals is bounded while the landing thread is stuck in a write and prunes nothing (sol-1 round 4,
+/// P2): past `WITHDRAWALS_CEILING` confirmed withdrawals the connection threads leave further withdrawals to the landing thread, as
+/// they do when nothing is stuck, instead of adding a decision and a confirmation for each.
+#[test]
+fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
+    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stuck-bound").join("journal");
+    let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    let mut withdrawn: usize = 0;
+    for round in 0..(WITHDRAWALS_CEILING + 10) {
+        if matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)) {
+            withdrawn += 1;
+        }
+    }
+    let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
+    assert_eq!(withdrawn, WITHDRAWALS_CEILING, "withdrawals past the bound are left to the landing thread");
+    assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_CEILING);
+    assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_CEILING);
+    // The landing thread's retention brings the memory back to the retained number, and withdrawals are answered again.
+    record.end_group(&[]);
+    assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
+    assert!(matches!(record.withdraw_early("after"), EarlyAnswer::Withdrawn(_)));
+}

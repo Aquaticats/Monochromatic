@@ -70,6 +70,12 @@ const LONGEST_ID: usize = 80;
 ///  its request.
 const WITHDRAWALS_RETAINED: usize = DONE_RETAINED;
 
+/// The most confirmed withdrawals the record holds at any moment, twice what it retains: only the landing thread forgets (between two
+///  groups, so there is one pruner), and while it is stuck in a write that is never ended nothing is forgotten, so past this number
+///  the connection threads leave further withdrawals to the landing thread instead of growing the record without a bound. Two connection
+///  threads that count together can pass it by the number of connection threads at that moment.
+const WITHDRAWALS_CEILING: usize = 2 * WITHDRAWALS_RETAINED;
+
 /// How a withdrawal asked of a connection thread is answered.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EarlyAnswer {
@@ -350,6 +356,10 @@ impl LandingBoard {
             Naming::Open | Naming::Unknown => return EarlyAnswer::Queued,
             Naming::No => {}
         }
+        // The landing thread forgets old withdrawals between two groups, and a stuck write is one group: the record is bounded here.
+        if self.confirmed_withdrawals() >= WITHDRAWALS_CEILING {
+            return EarlyAnswer::Queued;
+        }
         let token: String = new_token();
         match self.decide(id, format!("{WITHDRAWN}:{token}").as_str()) {
             Err(_) => return EarlyAnswer::Queued,
@@ -386,6 +396,16 @@ impl LandingBoard {
                 return EarlyAnswer::Queued;
             }
         }
+    }
+
+    /// How many confirmed withdrawals the record holds; the ceiling is reached when the directory cannot be listed, so that a record that
+    ///  cannot be counted is not grown.
+    fn confirmed_withdrawals(&self) -> usize {
+        let Ok(entries) = std::fs::read_dir(self.directory.as_path()) else { return usize::MAX };
+        return entries
+            .flatten()
+            .filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(CANCELLED_EXTENSION); })
+            .count();
     }
 
     /// What:
