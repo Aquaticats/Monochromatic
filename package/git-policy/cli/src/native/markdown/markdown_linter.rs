@@ -27,7 +27,7 @@
 //! ```
 
 /// Import the guarded thread runner.
-use crate::markdown_linter_guard::{GuardFailure, run_guarded};
+use crate::markdown_linter_guard::{GuardFailure, GuardLimits, run_guarded};
 /// Import the one-rule configuration.
 use crate::markdown_linter_config::one_rule_configuration;
 /// Import the reading of one run.
@@ -94,6 +94,8 @@ pub struct EmbeddedLinter {
     fix: FixFunction,
     /// How long one candidate may show no sign of work.
     window: Duration,
+    /// The longest one candidate is waited for, whatever it shows (`wait_ceilings.rs`, `LINT_CEILING`).
+    ceiling: Duration,
     /// When a run that takes long prints its notices.
     cadence: Cadence,
     /// Where those notices go.
@@ -118,6 +120,7 @@ pub fn embedded_linter() -> EmbeddedLinter {
     return EmbeddedLinter {
         fix: fix_source,
         window: LINT_QUIET_WINDOW,
+        ceiling: crate::wait_ceilings::LINT_CEILING,
         cadence: Cadence::from_environment(),
         notices: Box::new(std::io::stderr()),
         abandoned: false,
@@ -137,6 +140,7 @@ pub fn embedded_linter_with(fix: FixFunction, window: Duration) -> EmbeddedLinte
     return EmbeddedLinter {
         fix,
         window,
+        ceiling: crate::wait_ceilings::LINT_CEILING,
         cadence: Cadence::from_environment(),
         notices: Box::new(std::io::stderr()),
         abandoned: false,
@@ -189,6 +193,14 @@ fn guard_failure_reason(failure: &GuardFailure) -> String {
                 window.as_millis()
             );
         }
+        GuardFailure::Ceiling(ceiling) => {
+            return format!(
+                "monochromatic-lint ran for {} seconds, the longest cli-git lets one Markdown check run, and cli-git stopped waiting \
+                 for it (its thread stays in this process until the command ends); run the command again, run \
+                 monochromatic-lint by hand on the file, or set the policy markdown/autofix to off to skip the check",
+                ceiling.as_secs()
+            );
+        }
         GuardFailure::Vanished => {
             return String::from(
                 "the thread that runs monochromatic-lint ended without a result; this is a defect in cli-git.",
@@ -230,6 +242,7 @@ impl MarkdownLinter for EmbeddedLinter {
             ));
         };
         let waiting_for: String = format!("monochromatic-lint to check {}", name.display());
+        let checking: String = name.display().to_string();
         let top_level: PathBuf = request.top_level.to_path_buf();
         let configuration: String = one_rule_configuration(
             request.options.rules.as_slice(),
@@ -246,7 +259,7 @@ impl MarkdownLinter for EmbeddedLinter {
                     source: source.as_slice(),
                 });
             },
-            self.window,
+            GuardLimits { window: self.window, ceiling: self.ceiling },
             self.cadence,
             waiting_for.as_str(),
             &mut self.notices,
@@ -257,7 +270,11 @@ impl MarkdownLinter for EmbeddedLinter {
             }
             Err(failure) => {
                 // A thread that was abandoned may still be running, so no second one starts beside it.
-                self.abandoned = matches!(failure, GuardFailure::Quiet(_));
+                self.abandoned = matches!(failure, GuardFailure::Quiet(_) | GuardFailure::Ceiling(_));
+                // The ceiling's sentence names the file, because a ceiling is reached by a file that works for long.
+                if matches!(failure, GuardFailure::Ceiling(_)) {
+                    return Err(format!("monochromatic-lint, checking {checking}: {}", guard_failure_reason(&failure)));
+                }
                 return Err(guard_failure_reason(&failure));
             }
         }
@@ -265,6 +282,12 @@ impl MarkdownLinter for EmbeddedLinter {
 }
 
 impl EmbeddedLinter {
+    /// The same linter with another ceiling; controls plant a fix that keeps working with a short one.
+    pub fn with_ceiling(mut self, ceiling: Duration) -> Self {
+        self.ceiling = ceiling;
+        return self;
+    }
+
     /// The same linter with another notice cadence and sink;
     ///  tests choose a short cadence and read the notices from a buffer.
     pub fn with_notices(mut self, cadence: Cadence, notices: Box<dyn Write>) -> Self {

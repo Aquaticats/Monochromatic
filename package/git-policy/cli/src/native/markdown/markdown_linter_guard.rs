@@ -58,7 +58,7 @@ use std::time::Duration;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type GuardFailure = { kind: 'start'; reason } | { kind: 'panicked'; reason } | { kind: 'quiet'; windowMs } | { kind: 'vanished' };
+/// type GuardFailure = { kind: 'start'; reason } | { kind: 'panicked'; reason } | { kind: 'quiet'; windowMs } | { kind: 'ceiling'; ceilingMs } | { kind: 'vanished' };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GuardFailure {
@@ -68,9 +68,29 @@ pub enum GuardFailure {
     Panicked(String),
     /// The job showed no sign of work for the window and was abandoned.
     Quiet(Duration),
+    /// The job ran as long as the ceiling allows, whatever it showed, and was abandoned.
+    Ceiling(Duration),
     /// The thread ended without sending a result or a panic,
     ///  which no code path here does.
     Vanished,
+}
+
+/// What:
+///  How long a guarded job may stay silent and how long it may run in all.
+/// Why:
+///   The window abandons a job that shows nothing; the ceiling abandons one that keeps showing something (owner, 2026-11-04,
+///  "Silence plus a ceiling (Recommended)").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type GuardLimits = { window: number; ceiling: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GuardLimits {
+    /// How long the job may show no sign of work.
+    pub window: Duration,
+    /// The longest the wrapper waits for the job, whatever it shows.
+    pub ceiling: Duration,
 }
 
 /// What:
@@ -133,10 +153,11 @@ fn notice_line(waiting_for: &str, waited: Duration, window: Duration, repeat: bo
 fn wait_for<T>(
     receiver: &Receiver<Result<T, String>>,
     thread_numbers: &Receiver<i32>,
-    window: Duration,
+    limits: GuardLimits,
     waiting_for: &str,
     reporter: &mut WaitReporter<'_>,
 ) -> (Result<T, GuardFailure>, Duration) {
+    let window: Duration = limits.window;
     let mut clock: Option<ThreadClock> = None;
     let mut longest: Duration = Duration::ZERO;
     loop {
@@ -183,11 +204,11 @@ const NOTICE_POLL: Duration = Duration::from_millis(50);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function runGuarded<T>(job: () => T, windowMs, cadence, waitingFor, notices): Promise<T>; // throws GuardFailure
+/// async function runGuarded<T>(job: () => T, { windowMs, ceilingMs }, cadence, waitingFor, notices): Promise<T>; // throws GuardFailure
 /// ```
 pub fn run_guarded<T: Send + 'static>(
     job: impl FnOnce() -> T + Send + 'static,
-    window: Duration,
+    limits: GuardLimits,
     cadence: Cadence,
     waiting_for: &str,
     notices: &mut dyn Write,
@@ -210,7 +231,7 @@ pub fn run_guarded<T: Send + 'static>(
         return Err(GuardFailure::Start(error.to_string()));
     }
     let mut reporter: WaitReporter<'_> = WaitReporter::start(cadence, notices);
-    let (result, longest): (Result<T, GuardFailure>, Duration) = wait_for(&receiver, &thread_numbers, window, waiting_for, &mut reporter);
+    let (result, longest): (Result<T, GuardFailure>, Duration) = wait_for(&receiver, &thread_numbers, limits, waiting_for, &mut reporter);
     quiet_ledger::note("monochromatic-lint", longest, matches!(result, Err(GuardFailure::Quiet(_))));
     return result;
 }
