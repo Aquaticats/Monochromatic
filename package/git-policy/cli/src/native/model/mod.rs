@@ -265,6 +265,10 @@ mod model_pipe_r13;
 #[path = "model_pipe_r13_tests.rs"]
 mod model_pipe_r13_tests;
 
+/// Disposable experiments against the installed Git: the FIFO transaction, hook phases, diagnostics, push exclusion and fixed-object pushes.
+#[path = "model_git_experiments_tests.rs"]
+mod model_git_experiments_tests;
+
 /// The evidence labels of the model modules.
 #[path = "model_labels_tests.rs"]
 mod model_labels_tests;

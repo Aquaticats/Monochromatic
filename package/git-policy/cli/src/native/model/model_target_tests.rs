@@ -74,8 +74,8 @@ pub const TARGET: &[Row] = &[
     row(L, "control: hook outlasting an upgrade caller, the drain never ends the hook", Covered, "model_w1_r13_tests.rs", "a_planned_exit_is_a_drain_that_never_ends_a_protected_hook"),
     row(L, "control: hook outlasting an upgrade caller, the caller returns within its bound", NotYet, "", "a register entry for the drain wait (WAIT_DRAIN) and its bound check"),
     row(L, "property: normal lifecycle never cancels a protected execution (premature drain is red)", Covered, "model_w1_r13_tests.rs", "p7_a_premature_drain_completion_is_red_through_the_monitor_and_the_green_is_exhaustive"),
-    row(L, "obligation: helpers retain no lock, gate, client-lock or pipe descriptor", NotYet, "", "the internal flush entry point and a descriptor-inventory test of the launched process"),
-    row(L, "obligation: launch is non-recursive and resource-bounded", NotYet, "", "the internal flush entry point and a test that the launch never uses the ordinary command line"),
+    narrower(L, "obligation: helpers retain no lock, gate, client-lock or pipe descriptor", "commit_helper_launch_tests.rs", "a_lane_lock_the_launcher_releases_is_free_while_the_helper_lives", "the other helpers (the syncer, a level-2 helper) are not components yet, and the manager-started transient unit route is not built; the launch shown is the double-forked fallback, with a descriptor inventory (a_launched_helper_inherits_no_descriptor_of_its_launcher) and the lock test"),
+    narrower(L, "obligation: launch is non-recursive and resource-bounded", "commit_helper_launch_tests.rs", "a_launched_entry_is_a_function_in_a_new_session_and_not_a_second_start_of_the_program", "refusal by a process-count or memory cap is not injected (the launch returns LaunchError::Refused, untested); the transient unit route is not built"),
     row(C0, "control: interrupted exposure", Covered, "commit_inbox_tests.rs", "a_torn_or_damaged_inbox_file_is_treated_as_never_written"),
     row(C0, "control: concurrent resend", Covered, "commit_inbox_tests.rs", "two_clients_sending_the_same_bytes_end_with_one_file_and_a_resend"),
     row(C0, "control: marker and state races", Covered, "model_capture_r13_tests.rs", "a_mark_that_appears_between_the_samples_repeats_the_capture"),
@@ -105,16 +105,19 @@ pub const TARGET: &[Row] = &[
     row(P1, "control: rewritten publication", Covered, "model_w1_r13_tests.rs", "a_reset_before_the_child_dies_is_unresolved_or_rewritten_never_failed"),
     row(P1, "property: only a positive failure authorizes retry", Covered, "model_w1_r13_tests.rs", "only_a_positive_failure_allows_the_next_attempt"),
     row(P1, "property: unresolved departure permits only the submitted attempt", Covered, "model_w1_r13_tests.rs", "a_query_during_the_unresolved_mark_never_says_nothing_can_land"),
-    row(P1, "control: disposable Git experiments (actual FIFO, hook phases, diagnostics, backend)", NotYet, "", "fixtures that run the installed Git for every supported invocation; the process runner exists, the experiments do not"),
+    narrower(P1, "control: disposable Git experiments (actual FIFO, hook phases, diagnostics, backend)", "model_git_experiments_tests.rs", "a_fifo_transaction_prepares_holds_through_a_pause_and_commits_on_commit", "every supported invocation beyond `update-ref --stdin` with an update (creation, deletion, symbolic refs, the side-ref transaction) and Git versions other than the installed 2.56.0; the neighbouring tests cover abort, end of input, buffered commit, ENXIO, hook phases, a hook refusal and two diagnostics on both the files and reftable backends"),
     row(P2C, "control: delayed client after the final sweep", Covered, "model_receipt_r18_tests.rs", "a_delayed_client_after_the_final_sweep_is_red_under_seventeen_and_green_under_eighteen"),
     row(P2C, "control: enqueue rejection by a running service", Covered, "model_receipt_r18_tests.rs", "an_enqueue_rejected_by_a_running_service_falls_back_to_a_flusher"),
     row(P2C, "control: a ring to a service that has gone is lost (the delayed client)", Covered, "model_receipt_r18_tests.rs", "a_delayed_client_after_the_final_sweep_is_red_under_seventeen_and_green_under_eighteen"),
     row(P2C, "control: worker launch refused by a cap", Covered, "model_receipt_r18_tests.rs", "a_launch_refused_by_a_cap_is_the_stated_outside_cause_and_nothing_else_is_excused"),
     row(P2C, "control: worker error (every unforced receipt recorded, joiners included, each retried by the next owner)", Covered, "model_receipt_r18_tests.rs", "a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each"),
+    row(P2C, "control: worker error on the actual lane files (the joiner is recorded, the forced receipt is not)", Covered, "commit_flusher_tests.rs", "a_forcing_error_records_the_failed_receipt_and_the_joiner_but_not_the_forced_one"),
     row(P2C, "control: worker exit (one-shot, lock released and recheck sweep)", Covered, "model_receipt_r18_tests.rs", "a_launch_in_the_release_window_starts_a_second_flusher_that_takes_the_lock"),
+    row(P2C, "control: worker exit on the actual lock (the recheck sweep forces a receipt created in the release window)", Covered, "commit_flusher_tests.rs", "a_receipt_created_in_the_release_window_is_forced_by_the_recheck_sweep"),
     narrower(P2C, "control: reap mid-sync", "model_receipt_r18_tests.rs", "a_flusher_killed_or_reaped_mid_sync_leaves_its_receipts_to_the_startup_sweep", "the real reap of an incarnation scope by the service (the model places the flusher outside or inside the scope as a rule choice)"),
     row(P2C, "control: replacement startup", Covered, "model_receipt_r18_tests.rs", "a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each"),
     row(P2C, "control: many outstanding receipts", Covered, "model_receipt_r18_tests.rs", "many_outstanding_receipts_keep_one_flusher_and_the_lock_free_control_runs_two"),
+    row(P2C, "control: the actual flusher lock admits one holder and a second flusher forces nothing", Covered, "commit_flusher_tests.rs", "a_second_flusher_finds_the_lock_held_and_forces_nothing"),
     row(P2C, "control: launch in the release window of the flusher lock", Covered, "model_receipt_r18_tests.rs", "a_launch_in_the_release_window_starts_a_second_flusher_that_takes_the_lock"),
     row(P2C, "control: receipt forcing paused, unrelated dispatch bounded", Covered, "model_receipt_r18_tests.rs", "unrelated_dispatch_does_not_wait_for_receipt_forcing"),
     row(P2C, "property: seal before final sweep", Covered, "model_receipt_r18_tests.rs", "sealing_after_the_final_sweep_loses_the_delayed_receipt"),
@@ -151,7 +154,7 @@ pub const TARGET: &[Row] = &[
     row(CK, "control: cross-worktree maintenance", Historical, "model_f8_tests.rs", "revision_six_other_worktree_releases_during_a_prune"),
     row(CK, "property: maintenance cannot outlive its recovery protection", Historical, "model_f8_tests.rs", "ten_roots_the_closure_until_the_release_is_done"),
     row(CK, "property: saved content survives until authorized disposal", NotYet, "", "a disposal model: the disposed ledger line durable before the saved content is deleted"),
-    row(CK, "control: push exclusion and frozen updates against actual Git", NotYet, "", "disposable Git experiments"),
+    narrower(CK, "control: push exclusion and frozen updates against actual Git", "model_git_experiments_tests.rs", "a_negative_refspec_keeps_the_internal_namespace_off_the_remote_and_a_named_object_is_pushed_as_given", "the marker the lane acknowledges and the stacked push path; the test pushes to a local bare remote with plain `git push`"),
     row(M1, "control: concurrent staging", Covered, "model_capture_r13_tests.rs", "a_later_staging_is_replaced_under_twelve_and_left_under_thirteen"),
     row(M1, "control: conditional installation keeps displaced versions", Covered, "model_merge_r14_tests.rs", "overlapping_staged_and_worktree_versions_are_all_kept"),
     row(M1, "control: no foreign lock removal", Covered, "model_m1_split_r13_tests.rs", "a_lock_without_a_live_creator_is_never_removed"),
@@ -205,10 +208,10 @@ fn the_counts_of_the_map_are_the_ones_reported() {
 }
 
 /// Items carried by a current test.
-pub const COVERED: usize = 67;
+pub const COVERED: usize = 70;
 /// Items carried by a current test that shows less than the property states.
-pub const NARROWER: usize = 7;
+pub const NARROWER: usize = 11;
 /// Items carried only by a historical control.
 pub const HISTORICAL: usize = 9;
 /// Items with no test yet.
-pub const NOT_YET: usize = 21;
+pub const NOT_YET: usize = 17;
