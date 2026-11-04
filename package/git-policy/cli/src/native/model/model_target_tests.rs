@@ -1,6 +1,7 @@
 //! What:
 //!  The coverage map of the revision 18 "Acceptance target": for each required property and showing control, the test that shows it
-//!  (`Covered`), a historical control that is not approval evidence (`Historical`), or `NotYet` with what it needs. A test checks that every
+//!  (`Covered`), a test that shows a narrower control than the property with what remains unshown (`Narrower`), a historical control that is
+//!  not approval evidence (`Historical`), or `NotYet` with what it needs. A test checks that every
 //!  named test exists in the file named, so a renamed or deleted control is found here.
 //! Why:
 //!  The reviewer's list is finite; a green run of the whole target says nothing about which items it carries. The map keeps the claim and
@@ -19,13 +20,15 @@ use std::path::PathBuf;
 pub enum Status {
     /// A current test shows it.
     Covered,
+    /// A current test shows a narrower control than the property the target states; the row says what remains unshown.
+    Narrower,
     /// Only a historical control (a model module labelled as not approval evidence) shows it.
     Historical,
     /// No test shows it yet; the row says what it needs.
     NotYet,
 }
 
-use Status::{Covered, Historical, NotYet};
+use Status::{Covered, Historical, Narrower, NotYet};
 
 /// One row: the target's group, the property or showing control, its status, and the test (file and name) or what it needs.
 pub struct Row {
@@ -39,10 +42,16 @@ pub struct Row {
     pub file: &'static str,
     /// The test name, or for `NotYet` what the item needs.
     pub test: &'static str,
+    /// For `Narrower`: what the test does not show (empty otherwise).
+    pub remains: &'static str,
 }
 
 const fn row(group: &'static str, item: &'static str, status: Status, file: &'static str, test: &'static str) -> Row {
-    return Row { group, item, status, file, test };
+    return Row { group, item, status, file, test, remains: "" };
+}
+
+const fn narrower(group: &'static str, item: &'static str, file: &'static str, test: &'static str, remains: &'static str) -> Row {
+    return Row { group, item, status: Narrower, file, test, remains };
 }
 
 const L: &str = "L1 to L7, L5, X1, service drain";
@@ -56,11 +65,11 @@ const M1: &str = "M1 to M3, MG1 to MG3, MG6c";
 const RB: &str = "Rule B, client results, notices and costs";
 
 /// The map. Counts are asserted below, so an added row is a deliberate edit.
-pub const TARGET: [Row; 96] = [
+pub const TARGET: &[Row] = &[
     row(L, "control: retained-descriptor deadlock (scope never empties)", Historical, "model_f2_tests.rs", "revision_six_retained_descriptor_blocks_the_next_owner"),
     row(L, "control: restart versus hook admission", Historical, "model_f3_tests.rs", "revision_six_restart_ends_a_hook_dispatched_after_the_observation"),
     row(L, "control: replacement-incarnation targeting", Historical, "model_f3_tests.rs", "candidate_restarts_only_a_quiet_owner_and_only_the_observed_incarnation"),
-    row(L, "control: helper parent exit (the one-shot flusher)", Covered, "model_receipt_r18_tests.rs", "a_flusher_in_the_owners_scope_is_ended_by_the_owner_exit"),
+    row(L, "control: helper parent exit (the one-shot flusher)", Covered, "model_receipt_r18_tests.rs", "a_flusher_killed_or_reaped_mid_sync_leaves_its_receipts_to_the_startup_sweep"),
     row(L, "control: helper parent exit (every other helper: syncer, level-2 helper)", NotYet, "", "a model of each helper with its parent and scope; none of those helpers exists as a component yet"),
     row(L, "control: hook outlasting an upgrade caller, the drain never ends the hook", Covered, "model_w1_r13_tests.rs", "a_planned_exit_is_a_drain_that_never_ends_a_protected_hook"),
     row(L, "control: hook outlasting an upgrade caller, the caller returns within its bound", NotYet, "", "a register entry for the drain wait (WAIT_DRAIN) and its bound check"),
@@ -71,19 +80,20 @@ pub const TARGET: [Row; 96] = [
     row(C0, "control: concurrent resend", Covered, "commit_inbox_tests.rs", "two_clients_sending_the_same_bytes_end_with_one_file_and_a_resend"),
     row(C0, "control: marker and state races", Covered, "model_capture_r13_tests.rs", "a_mark_that_appears_between_the_samples_repeats_the_capture"),
     row(C0, "control: failed initial read", Covered, "commit_inbox_tests.rs", "an_early_read_failure_never_reaches_the_link_and_a_fresh_acceptance_does"),
-    row(C0, "control: competing repairers", Covered, "commit_inbox_tests.rs", "p1_a_quarantine_never_moves_a_file_it_did_not_inspect"),
+    narrower(C0, "control: competing repairers", "commit_inbox_tests.rs", "p1_a_quarantine_never_moves_a_file_it_did_not_inspect", "two legitimate repairers contending for authority beyond the one non-blocking lock refusal the test asserts; the test replaces the file by raw writes while authority is held and so shows stale-object detection"),
     row(C0, "control: preservation-boundary crashes", NotYet, "", "a crash injected at every step of repair and quarantine, and the three-file conflict-order example"),
     row(C0, "property: unknown status never authorizes native fallback", Covered, "commit_inbox_tests.rs", "a_link_that_finds_the_name_and_cannot_read_it_reports_an_unknown_status"),
     row(C0, "property: repair preserves inspected content and unsupported formats", Covered, "commit_inbox_tests.rs", "repair_is_owner_only_keeps_unsupported_versions_and_forces_the_archive"),
     row(C1, "control: the P/Q/A/D counterexample", Covered, "model_support_r18_tests.rs", "pqad_is_red_under_seventeen_and_green_under_eighteen"),
     row(C1, "control: repeated supporting-owner removals", Covered, "model_support_r18_tests.rs", "repeated_removals_of_supporting_owners_follow_the_fold"),
     row(C1, "control: replay changing support", Covered, "model_support_r18_tests.rs", "a_replay_that_changes_support_is_followed_and_a_stale_decision_loses_the_selection"),
-    row(C1, "control: checkpoint and recovery between rebuild steps", Covered, "model_support_r18_tests.rs", "recovery_between_rebuild_steps_rebuilds_the_same_decision"),
+    row(C1, "control: checkpoint and recovery between rebuild steps", Covered, "model_support_r18_tests.rs", "a_crash_between_a_checkpoint_and_a_rebuild_is_rebuilt_from_the_tail"),
     row(C1, "control: held requests", Covered, "model_support_r18_tests.rs", "a_held_head_blocks_publication_and_leaves_the_decision_alone"),
     row(C1, "control: disjoint requests", Covered, "model_support_r18_tests.rs", "a_disjoint_request_neither_supports_nor_overrides"),
     row(C1, "control: overlapping requests", Covered, "model_support_r18_tests.rs", "an_equal_entry_that_a_later_differing_entry_overrides_supports_nothing"),
     row(C1, "control: superseded requests", Covered, "model_support_r18_tests.rs", "a_superseding_version_changes_support_only_through_its_own_entry"),
-    row(C1, "control: comparison with a sequential reference interpreter", Covered, "model_support_r18_tests.rs", "pqad_is_red_under_seventeen_and_green_under_eighteen"),
+    row(C1, "control: comparison with a sequential reference interpreter", Covered, "model_support_r18_tests.rs", "the_reference_world_follows_every_operation_through_its_own_code"),
+    row(C1, "control: the whole request family against the reference (every start, red under revision 17)", Covered, "model_support_r18_tests.rs", "every_start_is_green_under_eighteen_and_the_family_is_red_under_seventeen"),
     row(C1, "property: held-version completion cannot affect its successor", NotYet, "", "a model step where a superseded version's hook completes and a control that lets it publish"),
     row(C1, "property: retained bytes suffice for recomputation (ledger never compacted)", NotYet, "", "a component that recomputes the augmented delta from the request bytes and the ledger's removals"),
     row(P1, "control: death at each pipe write", Covered, "model_pipe_r13_tests.rs", "no_writer_between_instructions_aborts_the_transaction_unless_the_owner_keeps_the_end"),
@@ -97,23 +107,26 @@ pub const TARGET: [Row; 96] = [
     row(P1, "property: unresolved departure permits only the submitted attempt", Covered, "model_w1_r13_tests.rs", "a_query_during_the_unresolved_mark_never_says_nothing_can_land"),
     row(P1, "control: disposable Git experiments (actual FIFO, hook phases, diagnostics, backend)", NotYet, "", "fixtures that run the installed Git for every supported invocation; the process runner exists, the experiments do not"),
     row(P2C, "control: delayed client after the final sweep", Covered, "model_receipt_r18_tests.rs", "a_delayed_client_after_the_final_sweep_is_red_under_seventeen_and_green_under_eighteen"),
-    row(P2C, "control: enqueue rejection, as the observable it has here: a ring to a service that has gone is lost (the model has no refusal step)", Covered, "model_receipt_r18_tests.rs", "a_delayed_client_after_the_final_sweep_is_red_under_seventeen_and_green_under_eighteen"),
+    row(P2C, "control: enqueue rejection by a running service", Covered, "model_receipt_r18_tests.rs", "an_enqueue_rejected_by_a_running_service_falls_back_to_a_flusher"),
+    row(P2C, "control: a ring to a service that has gone is lost (the delayed client)", Covered, "model_receipt_r18_tests.rs", "a_delayed_client_after_the_final_sweep_is_red_under_seventeen_and_green_under_eighteen"),
     row(P2C, "control: worker launch refused by a cap", Covered, "model_receipt_r18_tests.rs", "a_launch_refused_by_a_cap_is_the_stated_outside_cause_and_nothing_else_is_excused"),
-    row(P2C, "control: worker error", Covered, "model_receipt_r18_tests.rs", "the_next_owner_sweeps_at_startup_and_retries_a_recorded_error"),
-    row(P2C, "control: worker exit (one-shot, lock released and recheck sweep)", Covered, "model_receipt_r18_tests.rs", "a_flusher_that_does_not_sweep_once_more_after_releasing_its_lock_loses_a_wakeup"),
-    row(P2C, "control: reap mid-sync", NotYet, "", "an L2 reap step for a flusher in its forcing phase, in a model that has the incarnation scope"),
-    row(P2C, "control: replacement startup", Covered, "model_receipt_r18_tests.rs", "the_next_owner_sweeps_at_startup_and_retries_a_recorded_error"),
-    row(P2C, "control: many outstanding receipts", Covered, "model_receipt_r18_tests.rs", "many_outstanding_receipts_start_one_flusher_and_the_lock_free_control_starts_more"),
+    row(P2C, "control: worker error (every unforced receipt recorded, joiners included, each retried by the next owner)", Covered, "model_receipt_r18_tests.rs", "a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each"),
+    row(P2C, "control: worker exit (one-shot, lock released and recheck sweep)", Covered, "model_receipt_r18_tests.rs", "a_launch_in_the_release_window_starts_a_second_flusher_that_takes_the_lock"),
+    narrower(P2C, "control: reap mid-sync", "model_receipt_r18_tests.rs", "a_flusher_killed_or_reaped_mid_sync_leaves_its_receipts_to_the_startup_sweep", "the real reap of an incarnation scope by the service (the model places the flusher outside or inside the scope as a rule choice)"),
+    row(P2C, "control: replacement startup", Covered, "model_receipt_r18_tests.rs", "a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each"),
+    row(P2C, "control: many outstanding receipts", Covered, "model_receipt_r18_tests.rs", "many_outstanding_receipts_keep_one_flusher_and_the_lock_free_control_runs_two"),
+    row(P2C, "control: launch in the release window of the flusher lock", Covered, "model_receipt_r18_tests.rs", "a_launch_in_the_release_window_starts_a_second_flusher_that_takes_the_lock"),
     row(P2C, "control: receipt forcing paused, unrelated dispatch bounded", Covered, "model_receipt_r18_tests.rs", "unrelated_dispatch_does_not_wait_for_receipt_forcing"),
     row(P2C, "property: seal before final sweep", Covered, "model_receipt_r18_tests.rs", "sealing_after_the_final_sweep_loses_the_delayed_receipt"),
     row(P2C, "property: outside-fault exits are reported honestly", Covered, "model_register_r13_tests.rs", "p1_a_failed_mark_creation_never_returns_normally"),
-    row(V, "control: omitted stop or namespace", Covered, "commit_inbox_tests.rs", "p9_a_withdrawal_with_an_unrelated_stop_file_is_refused"),
-    row(V, "control: insufficient acknowledgment", Covered, "commit_inbox_tests.rs", "p1_a_departure_for_a_withdrawal_forces_the_mark_and_cannot_omit_it"),
-    row(V, "control: terminal departure without its ledger line", Covered, "commit_inbox_tests.rs", "p9_a_terminal_departure_needs_the_terminal_line_of_its_request"),
-    row(V, "control: the acknowledged state's whole closure is forced", Covered, "commit_inbox_tests.rs", "p9_a_departure_forces_the_whole_closure_of_the_state_it_acknowledges"),
-    row(V, "control: stop failure still attempts the remaining saves", Covered, "commit_inbox_tests.rs", "p9_a_stop_failure_still_attempts_the_remaining_saves"),
+    row(V, "control: omitted stop or namespace (one stop cannot stand for two requests; each needs its own)", Covered, "commit_inbox_tests.rs", "r14_each_departing_request_needs_its_own_stop_and_its_own_adoption"),
+    row(V, "control: one stop receipt cannot acknowledge two withdrawals", Covered, "commit_inbox_tests.rs", "r14_one_stop_receipt_cannot_acknowledge_the_withdrawal_of_two_requests"),
+    row(V, "control: insufficient acknowledgment (content-bound, still covering after a later append)", Covered, "commit_inbox_tests.rs", "r14_a_departures_acknowledgment_still_covers_after_a_later_append"),
+    row(V, "control: terminal departure without its ledger line (a valid ledger of another request)", Covered, "commit_inbox_tests.rs", "r14_a_valid_ledger_of_another_request_does_not_satisfy_a_terminal_departure"),
+    row(V, "control: the acknowledged state's whole closure is forced (saved content of the candidate)", Covered, "commit_inbox_tests.rs", "r14_a_departure_forces_the_saved_content_of_the_candidate_it_acknowledges"),
+    row(V, "control: stop failure still attempts the remaining saves (a stop error and a saved-content error)", Covered, "commit_inbox_tests.rs", "r14_every_save_is_attempted_after_a_stop_error_and_a_saved_content_error"),
     row(V, "control: ordinary completion cannot stand in for the final save", Covered, "model_register_r13_tests.rs", "p7_a_terminal_outcome_that_skips_its_final_save_is_red_and_the_barrier_route_is_green"),
-    row(V, "property: captured authority valid through completion or verified substitution", Covered, "commit_state_log_tests.rs", "p9_completion_cannot_delete_a_dependency_it_validated_and_forced"),
+    narrower(V, "property: captured authority valid through completion or verified substitution", "commit_state_log_tests.rs", "r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its_support", "survival under a concurrent reclaimer (the reclamation-during-capture control is not yet); the older test p9_completion_cannot_delete_a_dependency_it_validated_and_forced shows only the state-directory refusal"),
     row(V, "control: reclamation during capture", NotYet, "", "a model of capture against a concurrent reclaimer"),
     row(V, "control: every forcing error", NotYet, "", "fault injection at each forcing call of the departure, with the outside-fault exit checked"),
     row(V, "control: cross-filesystem refs (level 2)", NotYet, "", "level 2 eligibility checks; level 2 may stay disabled"),
@@ -121,16 +134,18 @@ pub const TARGET: [Row; 96] = [
     row(V, "control: verification timeout followed by disposal (level 2)", NotYet, "", "level 2 helper abandonment model"),
     row(V, "property: exact-commit claims need verified durable closure, hook-free execution, fenced late effects", NotYet, "", "level 2 models; the level may remain disabled"),
     row(CK, "control: non-drop counterexample", Covered, "model_discharge_r14_tests.rs", "p1_a_checkpoint_never_erases_a_still_live_request"),
-    row(CK, "control: non-drop for later appends", Covered, "commit_state_log_tests.rs", "p9_a_later_append_cannot_drop_a_live_request_of_the_checkpoint"),
+    row(CK, "control: non-drop for later appends (a record cannot omit what its predecessor retained)", Covered, "commit_state_log_tests.rs", "r14_a_record_cannot_omit_what_the_previous_record_retained"),
+    row(CK, "control: retirement discharge forces the ledger prefix that proves it", Covered, "commit_state_log_tests.rs", "r14_a_retirement_forces_the_ledger_prefix_that_discharges_it"),
+    row(CK, "control: a later record retaining new saved content is not selected without it", Covered, "commit_state_log_tests.rs", "r14_a_later_record_that_retains_new_saved_content_is_not_selected_without_it"),
     row(CK, "control: drop control isolated from the durability guard", Covered, "model_discharge_r14_tests.rs", "p7_the_drop_control_keeps_the_durability_guard_and_is_red_for_the_drop_alone"),
-    row(CK, "control: torn dependencies", Covered, "commit_state_log_tests.rs", "p9_a_torn_envelope_captured_as_opaque_is_not_replacement_authority"),
+    row(CK, "control: torn dependencies (a prefix entry under the inbox cannot validate a torn envelope)", Covered, "commit_state_log_tests.rs", "r14_a_prefix_entry_under_the_inbox_cannot_validate_a_torn_envelope"),
     row(CK, "control: missing dependencies", Covered, "commit_state_log_tests.rs", "a_checkpoint_validates_and_forces_its_closure_first_and_refuses_a_missing_entry"),
     row(CK, "control: reordered persistence", Covered, "model_discharge_r14_tests.rs", "a_checkpoint_before_its_live_dependency_is_not_a_root_and_the_predecessor_remains"),
     row(CK, "control: candidate activation", Covered, "commit_state_log_tests.rs", "p1_a_background_synced_candidate_with_a_lost_dependency_loses_to_its_predecessor"),
     row(CK, "control: predecessor deletion", Covered, "model_discharge_r14_tests.rs", "a_checkpoint_survives_the_deletion_of_its_predecessor"),
-    row(CK, "control: mutable dependency (an appended ledger)", Covered, "commit_state_log_tests.rs", "p9_an_append_to_a_captured_ledger_does_not_invalidate_the_root"),
+    row(CK, "control: mutable dependency (an existing ledger writer after capture)", Covered, "commit_state_log_tests.rs", "r14_an_existing_ledger_writer_cannot_invalidate_a_root_that_captured_the_ledger"),
     row(CK, "property: maximum-generation conflicts are rejected", Covered, "commit_state_log_tests.rs", "two_documents_at_one_generation_are_a_conflict_not_a_root"),
-    row(CK, "property: damaged established roots fail closed", Covered, "commit_state_log_tests.rs", "p9_an_established_root_with_a_lost_dependency_fails_closed"),
+    narrower(CK, "property: damaged established roots fail closed", "commit_state_log_tests.rs", "p9_an_established_root_with_a_lost_dependency_fails_closed", "telling an established damaged root from an incomplete candidate when older segments are usable; selection records no establishment, and the test has no other usable segment"),
     row(CK, "control: registry admission", Historical, "model_f8_tests.rs", "nine_withdraws_a_release_when_a_run_appears_and_loses_nothing_otherwise"),
     row(CK, "control: check and release races", Historical, "model_f8_tests.rs", "eight_releases_after_a_run_was_admitted_between_the_observation_and_the_release"),
     row(CK, "control: cross-worktree maintenance", Historical, "model_f8_tests.rs", "revision_six_other_worktree_releases_during_a_prune"),
@@ -147,40 +162,53 @@ pub const TARGET: [Row; 96] = [
     row(M1, "control: atomic saves", NotYet, "", "a model of rename-over saves against the install"),
     row(M1, "control: oversized and raced reads", NotYet, "", "inline-bound checks on actual reads and whole-index work"),
     row(M1, "control: expiry between clock check and marker (a resumed install does not restart the window)", NotYet, "", "the watch model with the lock before expiry and the marker after it"),
-    row(RB, "control: whole-command timing and sync instrumentation (plain commit makes no sync)", Covered, "commit_inbox_tests.rs", "the_waiting_path_of_a_plain_commit_makes_no_sync"),
+    narrower(RB, "control: whole-command timing and sync instrumentation", "commit_inbox_tests.rs", "the_waiting_path_of_a_plain_commit_makes_no_sync", "whole-process latency and every sync the wrapper makes; the test counts the inbox waiting path only"),
     row(RB, "control: notice dismissal keeps saved copies", Covered, "model_watch_r13_tests.rs", "dismissing_the_reminder_deletes_no_saved_copy_and_the_restore_command_still_works"),
     row(RB, "control: no-manager preparation timeout", NotYet, "", "a register entry and fixture for the no-manager preparation wait"),
-    row(RB, "control: recovery conflict, refusal and signing failure notices", NotYet, "", "notice models per outcome"),
-    row(RB, "control: notice crash and reclamation", NotYet, "", "notice delivery state with crash points"),
-    row(RB, "property: question 8 recovery policy (open owner choice, no green by adopting the recommendation)", NotYet, "", "the owner's answer on corrected options"),
+    narrower(RB, "control: recovery conflict, refusal and signing failure notices", "model_fresh_attempt_r19_tests.rs", "the_notice_follows_the_outcome", "the notice texts of the conflict, refusal and signing-failure outcomes; the model checks that the stored notice follows the outcome of the fresh attempt"),
+    narrower(RB, "control: notice crash and reclamation", "model_fresh_attempt_r19_tests.rs", "recovery_data_is_kept_until_the_outcome_notice_is_delivered", "crash points of every notice kind; the model covers the fresh-attempt notice only (its second-crash and printed-then-crash controls are the neighbouring tests)"),
+    row(RB, "property: decision 19, fresh attempt with a stored notice when no decisive positive authority survives", Covered, "model_fresh_attempt_r19_tests.rs", "decision_nineteen_is_green_over_every_schedule"),
+    row(RB, "control: the notice is forced before the attempt starts", Covered, "model_fresh_attempt_r19_tests.rs", "the_notice_is_forced_before_the_attempt_starts"),
+    row(RB, "control: a durable receipt settles the request and the attempt-again control is red", Covered, "model_fresh_attempt_r19_tests.rs", "a_durable_receipt_settles_the_request_and_the_control_that_ignores_it_runs_a_second_attempt"),
 ];
 
-/// Every named test exists in the file named.
+/// Every named test exists in the file named; every missing one is reported together.
 #[test]
 fn every_covered_or_historical_row_has_its_test() {
     let native: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join("native");
-    for row in &TARGET {
+    let mut missing: Vec<String> = Vec::new();
+    for row in TARGET {
         assert!(!row.group.is_empty(), "{}: every row belongs to a group of the target", row.item);
         if row.status == NotYet {
-            assert!(row.file.is_empty() && !row.test.is_empty(), "{}: a not-yet row names what it needs", row.item);
+            assert!(row.file.is_empty() && !row.test.is_empty() && row.remains.is_empty(), "{}: a not-yet row names what it needs", row.item);
             continue;
         }
+        assert_eq!(row.status == Narrower, !row.remains.is_empty(), "{}: a narrower row says what remains, and no other row does", row.item);
         let place: PathBuf = if row.file.starts_with("commit_") { native.join("commit").join(row.file) } else { native.join("model").join(row.file) };
-        let text: String = fs::read_to_string(&place).unwrap_or_else(|error| { panic!("{}: {}: {}", row.item, place.display(), error) });
-        assert!(text.contains(&format!("fn {}(", row.test)), "{}: no test `{}` in {}", row.item, row.test, row.file);
+        match fs::read_to_string(&place) {
+            Ok(text) => {
+                if !text.contains(&format!("fn {}(", row.test)) {
+                    missing.push(format!("{}: no test `{}` in {}", row.item, row.test, row.file));
+                }
+            }
+            Err(error) => missing.push(format!("{}: {}: {}", row.item, place.display(), error)),
+        }
     }
+    assert!(missing.is_empty(), "{}", missing.join("\n"));
 }
 
 /// The counts the branch notes report; changing a row changes them on purpose.
 #[test]
 fn the_counts_of_the_map_are_the_ones_reported() {
     let count = |status: Status| -> usize { return TARGET.iter().filter(|row| { return row.status == status; }).count(); };
-    assert_eq!((count(Covered), count(Historical), count(NotYet)), (COVERED, HISTORICAL, NOT_YET));
+    assert_eq!((count(Covered), count(Narrower), count(Historical), count(NotYet)), (COVERED, NARROWER, HISTORICAL, NOT_YET));
 }
 
 /// Items carried by a current test.
-pub const COVERED: usize = 62;
+pub const COVERED: usize = 67;
+/// Items carried by a current test that shows less than the property states.
+pub const NARROWER: usize = 7;
 /// Items carried only by a historical control.
 pub const HISTORICAL: usize = 9;
 /// Items with no test yet.
-pub const NOT_YET: usize = 25;
+pub const NOT_YET: usize = 21;
