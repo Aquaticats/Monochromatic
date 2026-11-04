@@ -14,7 +14,7 @@
 use crate::model_fixture::scratch;
 use git_policy_cli::commit_identity::{start_events, take_events};
 use git_policy_cli::commit_identity::set_fault_point;
-use git_policy_cli::commit_state_log::{Candidate, ClosureEntry, EntryKind, Prefix, StateError, StateWriter, create_saved_content, inject_lease_errno, read, rotation_number, sync_prefix};
+use git_policy_cli::commit_state_log::{Candidate, ClosureEntry, EntryKind, Prefix, StateError, StateWriter, create_saved_content, inject_lease_errno, inject_no_tmpfile, read, rotation_number, sync_prefix};
 use std::path::PathBuf;
 
 /// Appends as the state's writer (the only way to mutate the log).
@@ -821,4 +821,38 @@ fn r15_a_file_system_that_refuses_read_leases_still_creates_and_checkpoints_save
     made.expect("creation without leases");
     checkpoint.expect("a checkpoint without leases");
     assert_eq!(read(&state).expect("readable").expect("state").0, 2);
+}
+
+/// Without `O_TMPFILE` (a file system that lacks it) the content is staged in the lane's private directory and ends the same: the same
+/// name, read-only, the right bytes, no staging file left, and the staging directory private to the owner.
+#[test]
+fn r15_saved_content_created_without_tmpfile_ends_sealed_and_leaves_no_staging_file() {
+    let (lane, _state, _envelope) = lane_with_envelope("r15-no-tmpfile");
+    inject_no_tmpfile(true);
+    let made = create_saved_content(&lane, b"objects of b");
+    inject_no_tmpfile(false);
+    let entry: ClosureEntry = made.expect("creation by the staging route");
+    let path: PathBuf = lane.join(entry.path());
+    assert_eq!(std::fs::read(&path).expect("read"), b"objects of b");
+    let mode = std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(&path).expect("metadata").permissions());
+    assert_eq!(mode & 0o222, 0, "read-only");
+    assert!(std::fs::OpenOptions::new().write(true).open(&path).is_err());
+    let staging: PathBuf = lane.join("saved-staging");
+    assert_eq!(std::fs::read_dir(&staging).expect("staging directory").count(), 0, "no staged file is left");
+    let staging_mode = std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(&staging).expect("metadata").permissions());
+    assert_eq!(staging_mode & 0o077, 0, "the staging directory is private to its owner");
+}
+
+/// Creating the same bytes twice returns the same entry and replaces nothing; a writable file that already holds the name is not accepted.
+#[test]
+fn r15_creating_saved_content_twice_replaces_nothing_and_a_writable_occupant_is_refused() {
+    let (lane, _state, _envelope) = lane_with_envelope("r15-saved-twice");
+    let first: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("first");
+    let inode_before = std::os::unix::fs::MetadataExt::ino(&std::fs::metadata(lane.join(first.path())).expect("metadata"));
+    let second: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("second");
+    assert_eq!(first, second);
+    assert_eq!(std::os::unix::fs::MetadataExt::ino(&std::fs::metadata(lane.join(second.path())).expect("metadata")), inode_before, "the file was not replaced");
+    let raw: PathBuf = lane.join("saved").join(git_policy_cli::commit_integrity::sha256_hex(b"other bytes"));
+    std::fs::write(&raw, b"other bytes").expect("a writable occupant written by a raw creator");
+    assert!(create_saved_content(&lane, b"other bytes").is_err(), "a writable occupant of the name was accepted");
 }

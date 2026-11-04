@@ -2,6 +2,9 @@
 //!  The lane's state document as a hash-chained append-only log, `state.log.<k>`, with checkpoint rotation: a record holds the whole
 //!  document and the hash of its predecessor; recovery takes the longest prefix that validates; a rotation starts a new file whose first
 //!  record is a full document, and the old file is removed only after the new file and its directory entry are synced.
+//! Premise of the lane: saved content is immutable because `create_saved_content` is its only way in (written, forced and made
+//!  read-only before it has its final name); the only way to write it afterwards is a deliberate chmod by the account that owns the lane,
+//!  and an owner who chmods and rewrites its own files defeats every scheme, this one included. The checksum name still detects it.
 //! Why:
 //!  Revision 13 (`doc/planning/cli-git-commits-never-fail.md`, rule V and rule S): two unsynced overwrites of an alternating pair can tear
 //!  both generations. A log is never overwritten in place; unsynced write-back can persist a later record while an earlier one is
@@ -188,7 +191,7 @@ impl ClosureEntry {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "the declared kind is not the kind the path has: envelopes live in inbox/, immutable content in saved/<sha256>, anything else is an append-only prefix"));
         }
         if kind == EntryKind::Opaque {
-            seal_saved_content(path)?;
+            check_saved_content_sealed(path)?;
         }
         let bytes: Vec<u8> = fs::read(path)?;
         let entry: ClosureEntry = ClosureEntry { path: relative, kind, length: bytes.len() as u64, sha256: sha256_hex(&bytes) };
@@ -215,47 +218,179 @@ fn injected_lease_errno() -> Option<i32> {
     return None;
 }
 
-/// Creates saved content from `bytes` in `lane/saved/<sha256>` and returns its captured entry.
-pub fn create_saved_content(lane: &Path, bytes: &[u8]) -> io::Result<ClosureEntry> {
-    let directory: PathBuf = lane.join(SAVED);
-    fs::create_dir_all(&directory)?;
-    let path: PathBuf = directory.join(sha256_hex(bytes));
-    fs::write(&path, bytes)?;
-    return ClosureEntry::capture(lane, &path, EntryKind::Opaque);
+/// The lane's private staging directory for saved content on a file system without `O_TMPFILE`: mode 0700, so no other account reaches
+/// the staged file between its creation and its sealing.
+const SAVED_STAGING: &str = "saved-staging";
+
+/// Whether a test made `O_TMPFILE` unavailable (a file system that does not support it).
+#[cfg(feature = "test-seams")]
+static NO_TMPFILE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Makes the creation of saved content behave as on a file system without `O_TMPFILE` (`false` clears it).
+#[cfg(feature = "test-seams")]
+pub fn inject_no_tmpfile(unavailable: bool) {
+    NO_TMPFILE.store(unavailable, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Whether `O_TMPFILE` is to be skipped; always false without the test seams.
+fn tmpfile_unavailable() -> bool {
+    #[cfg(feature = "test-seams")]
+    return NO_TMPFILE.load(std::sync::atomic::Ordering::SeqCst);
+    #[cfg(not(feature = "test-seams"))]
+    return false;
+}
+
+/// Writes `bytes` to a file that has no name yet, with `O_TMPFILE` in `directory`; `None` when the file system or the kernel does not
+/// support it (the caller falls back to the staging directory).
+fn unnamed_file(directory: &Path) -> io::Result<Option<File>> {
+    use std::os::fd::FromRawFd;
+    use std::os::unix::ffi::OsStrExt;
+    if tmpfile_unavailable() {
+        return Ok(None);
+    }
+    let path = std::ffi::CString::new(directory.as_os_str().as_bytes()).map_err(|_| { return io::Error::new(io::ErrorKind::InvalidInput, "a path with a NUL byte"); })?;
+    // SAFETY: `open` takes a NUL-terminated path, flags and a mode; the returned descriptor is owned by the `File` made from it below.
+    let descriptor: libc::c_int = unsafe { libc::open(path.as_ptr(), libc::O_TMPFILE | libc::O_WRONLY | libc::O_CLOEXEC, 0o600 as libc::c_uint) };
+    if descriptor < 0 {
+        let error: io::Error = io::Error::last_os_error();
+        return match error.raw_os_error() {
+            Some(libc::EOPNOTSUPP | libc::EISDIR | libc::EINVAL) => Ok(None),
+            _ => Err(error),
+        };
+    }
+    // SAFETY: `descriptor` was just returned by `open` and nothing else owns it.
+    return Ok(Some(unsafe { File::from_raw_fd(descriptor) }));
+}
+
+/// Gives the unnamed `file` its final `name` without replacing anything: `linkat` through `/proc/self/fd`; `Ok(false)` when that route
+/// is unavailable.
+fn link_unnamed(file: &File, name: &Path) -> io::Result<bool> {
+    use std::os::fd::AsRawFd;
+    use std::os::unix::ffi::OsStrExt;
+    let source = std::ffi::CString::new(format!("/proc/self/fd/{}", file.as_raw_fd())).map_err(|_| { return io::Error::other("a descriptor path"); })?;
+    let target = std::ffi::CString::new(name.as_os_str().as_bytes()).map_err(|_| { return io::Error::new(io::ErrorKind::InvalidInput, "a path with a NUL byte"); })?;
+    // SAFETY: both arguments are NUL-terminated paths; `AT_SYMLINK_FOLLOW` makes `linkat` follow the `/proc` link to the open file.
+    let status: libc::c_int = unsafe { libc::linkat(libc::AT_FDCWD, source.as_ptr(), libc::AT_FDCWD, target.as_ptr(), libc::AT_SYMLINK_FOLLOW) };
+    if status == 0 {
+        return Ok(true);
+    }
+    let error: io::Error = io::Error::last_os_error();
+    return match error.raw_os_error() {
+        Some(libc::EEXIST) => Err(error),
+        Some(libc::ENOENT | libc::EPERM | libc::EOPNOTSUPP) => Ok(false),
+        _ => Err(error),
+    };
+}
+
+/// Writes, forces and seals `file` (mode 0444 before it has its final name).
+fn fill_and_seal(file: &mut File, bytes: &[u8]) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    file.set_permissions(fs::Permissions::from_mode(0o444))?;
+    return Ok(());
 }
 
 /// What:
-///  Seals the saved content at `path`: removes its write permission, then refuses it while any process holds a writable descriptor to it,
-///  asking the kernel for a read lease (granted only when no open file description anywhere has the file open for writing). Fails closed
-///  when the lease cannot be asked for.
+///  Creates saved content from `bytes` as `lane/saved/<sha256 of bytes>` and returns its captured entry. The file is written, forced and
+///  made read-only (0444) before it has its final name, then linked in without replacing anything, the directory chain is forced up to
+///  the lane, and the only descriptor is closed before the function returns. With `O_TMPFILE` the file has no name until it is complete;
+///  without it the file is staged under a random name in the lane's 0700 `saved-staging` directory.
 /// Why:
-///  A checksum name detects a change to saved content; it does not stop a writer that kept a descriptor from creation. The permission bits
-///  come off first, so after the check nobody who is not privileged can open the file for writing: the lease is held only for the check, and
-///  a lease break (a privileged writer) is outside what this component can prevent.
+///  A checksum name detects a change; it does not stop a writer. Saved content enters the store only through here, from bytes and never as
+///  an existing file, so no other descriptor to it can be writable: the only way to write it afterwards is a deliberate same-user `chmod`,
+///  the premise of the lane (as for every file the lane keeps: an owner who chmods and rewrites its own files defeats any scheme).
+///  Content that already exists under its name is accepted only when it is the same bytes and read-only.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function sealSavedContent(path: string): void; // chmod a-w; fail if any writer has it open
+/// function createSavedContent(lane: string, bytes: Uint8Array): ClosureEntry; // tmpfile -> write -> fsync -> chmod 444 -> link -> fsync dir
 /// ```
-fn seal_saved_content(path: &Path) -> io::Result<()> {
+pub fn create_saved_content(lane: &Path, bytes: &[u8]) -> io::Result<ClosureEntry> {
+    let directory: PathBuf = lane.join(SAVED);
+    fs::create_dir_all(&directory)?;
+    let name: PathBuf = directory.join(sha256_hex(bytes));
+    if name.exists() {
+        return ClosureEntry::capture(lane, &name, EntryKind::Opaque).and_then(|entry| {
+            return if entry.sha256 == sha256_hex(bytes) { Ok(entry) } else { Err(io::Error::new(io::ErrorKind::InvalidData, "saved content under this name has other bytes")) };
+        });
+    }
+    let linked: bool = match unnamed_file(&directory)? {
+        Some(mut file) => {
+            fill_and_seal(&mut file, bytes)?;
+            match link_unnamed(&file, &name) {
+                Ok(done) => done,
+                Err(error) if error.raw_os_error() == Some(libc::EEXIST) => true,
+                Err(error) => return Err(error),
+            }
+        }
+        None => false,
+    };
+    if !linked {
+        stage_and_link(lane, &name, bytes)?;
+    }
+    sync_chain(&directory, lane)?;
+    return ClosureEntry::capture(lane, &name, EntryKind::Opaque);
+}
+
+/// The fallback of `create_saved_content`: a random private name in `lane/saved-staging` (0700), sealed, hard-linked to `name` without
+/// replacing, then removed.
+fn stage_and_link(lane: &Path, name: &Path, bytes: &[u8]) -> io::Result<()> {
+    use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
+    let staging: PathBuf = lane.join(SAVED_STAGING);
+    match fs::DirBuilder::new().mode(0o700).create(&staging) {
+        Ok(()) => sync_chain(&staging, lane)?,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            if fs::metadata(&staging)?.permissions().mode() & 0o077 != 0 {
+                return Err(io::Error::new(io::ErrorKind::PermissionDenied, "the saved-content staging directory is not private to its owner"));
+            }
+        }
+        Err(error) => return Err(error),
+    }
+    let temporary: PathBuf = super::commit_identity::temporary_name(&staging)?;
+    let mut file: File = OpenOptions::new().create_new(true).write(true).mode(0o600).open(&temporary)?;
+    let outcome: io::Result<()> = fill_and_seal(&mut file, bytes).and_then(|()| {
+        return match fs::hard_link(&temporary, name) {
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+            other => other,
+        };
+    });
+    drop(file);
+    let removed: io::Result<()> = fs::remove_file(&temporary);
+    outcome?;
+    return removed;
+}
+
+/// What:
+///  Checks that the saved content at `path` is immutable by construction: read-only, which only `create_saved_content` leaves it (a file
+///  that exists already may have a writer that still holds a descriptor, and is refused). Where the kernel grants a read lease it also
+///  refuses content that some process holds open for writing; a file system that refuses leases is not a refusal.
+/// Why:
+///  The lease is an extra check, never a requirement: the owner's rule is that the wrapper works where a facility is missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkSavedContentSealed(path: string): void; // mode has no write bit; where a lease is granted, no writer is open
+/// ```
+fn check_saved_content_sealed(path: &Path) -> io::Result<()> {
     use std::os::fd::AsRawFd;
     use std::os::unix::fs::PermissionsExt;
-    let mode: u32 = fs::metadata(path)?.permissions().mode();
-    fs::set_permissions(path, fs::Permissions::from_mode(mode & !0o222))?;
+    if fs::metadata(path)?.permissions().mode() & 0o222 != 0 {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "saved content enters the store only through create_saved_content; an existing writable file is not saved content"));
+    }
     let file: File = File::open(path)?;
     // SAFETY: `fcntl` with `F_SETLEASE` takes a descriptor and an integer argument and touches no memory.
     let granted: libc::c_int = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_RDLCK) };
-    let injected: Option<i32> = injected_lease_errno();
-    if granted != 0 || injected.is_some() {
-        let error: io::Error = injected.map_or_else(io::Error::last_os_error, io::Error::from_raw_os_error);
-        return Err(if error.raw_os_error() == Some(libc::EAGAIN) {
-            io::Error::new(io::ErrorKind::InvalidInput, "saved content is still open for writing by some process; it is not immutable yet")
-        } else {
-            io::Error::new(error.kind(), format!("whether saved content is open for writing could not be shown (read lease refused): {}", error))
-        });
+    let refused_with: Option<i32> = injected_lease_errno().or_else(|| { return if granted != 0 { io::Error::last_os_error().raw_os_error() } else { None }; });
+    match refused_with {
+        Some(libc::EAGAIN) => return Err(io::Error::new(io::ErrorKind::InvalidInput, "saved content is still open for writing by some process; it is not immutable")),
+        // Any other refusal means this file system or account grants no lease: the creator-enforced mode is the protection.
+        Some(_) => {}
+        None => {
+            // SAFETY: as above; releasing the lease taken for the check.
+            unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_UNLCK) };
+        }
     }
-    // SAFETY: as above; releasing the lease taken for the check.
-    unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_UNLCK) };
     return Ok(());
 }
 
@@ -860,14 +995,14 @@ pub fn force_items(lane: &Path, items: &[ClosureEntry]) -> io::Result<()> {
     return Ok(());
 }
 
-/// Forces one retained item with its name chain through the lane directory, and makes saved content read-only.
+/// Forces one retained item with its name chain through the lane directory, and checks that saved content is still sealed.
 pub fn force_item(lane: &Path, entry: &ClosureEntry) -> io::Result<()> {
     let path: PathBuf = lane.join(&entry.path);
     let file: File = File::open(&path)?;
     sync_file(&file, &path)?;
     sync_chain(path.parent().filter(|parent| { return !parent.as_os_str().is_empty(); }).unwrap_or(Path::new(".")), lane)?;
     if entry.kind == EntryKind::Opaque {
-        seal_saved_content(&path)?;
+        check_saved_content_sealed(&path)?;
     }
     return Ok(());
 }
